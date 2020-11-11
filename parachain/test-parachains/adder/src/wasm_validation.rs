@@ -21,7 +21,6 @@ use core::panic;
 use sp_std::vec::Vec;
 use parachain::primitives::{ValidationResult, HeadData as GenericHeadData};
 use codec::{Encode, Decode};
-use tiny_keccak::{Hasher as _, Keccak};
 
 #[no_mangle]
 pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
