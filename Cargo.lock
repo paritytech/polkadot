@@ -5445,6 +5445,7 @@ name = "polkadot-runtime-parachains"
 version = "0.8.0"
 dependencies = [
  "bitvec",
+ "derive_more",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

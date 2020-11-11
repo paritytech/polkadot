@@ -10,6 +10,7 @@ codec = { package = "parity-scale-codec", version = "1.3.4", default-features = 
 log = "0.4.11"
 rustc-hex = { version = "2.0.1", default-features = false }
 serde = { version = "1.0.102", features = [ "derive" ], optional = true }
+derive_more = { version = "0.99.11" }
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
