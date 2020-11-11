@@ -81,6 +81,7 @@ maintenance = { status = "actively-developed" }
 opt-level = 3
 
 [profile.release]
+debug-assertions = true  # TODO: this is for a burn-in, hopefully it doesn't get merged
 # Polkadot runtime requires unwinding.
 panic = "unwind"
 

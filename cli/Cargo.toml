@@ -23,19 +23,19 @@ wasm-bindgen-futures = { version = "0.4.7", optional = true }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-parachain = { path = "../parachain", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "fix-7074" }
+sc-tracing = { git = "https://github.com/tomaka/polkadot", branch = "fix-7074" }
+frame-benchmarking-cli = { git = "https://github.com/tomaka/polkadot", branch = "fix-7074", optional = true }
+sc-cli = { git = "https://github.com/tomaka/polkadot", branch = "fix-7074", optional = true }
+sc-service = { git = "https://github.com/tomaka/polkadot", branch = "fix-7074", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/tomaka/polkadot", branch = "fix-7074", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-trie = { git = "https://github.com/tomaka/polkadot", branch = "fix-7074", default-features = false }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/tomaka/polkadot", branch = "fix-7074" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]
