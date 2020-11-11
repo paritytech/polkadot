@@ -791,7 +791,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		tracing::tracing::trace!("Sending message:\n{:?}", &msg);
+		tracing::trace!("Sending message:\n{:?}", &msg);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -806,7 +806,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
 
-		tracing::tracing::trace!("Received message:\n{:?}", &msg);
+		tracing::trace!("Received message:\n{:?}", &msg);
 
 		msg
 	}
@@ -815,7 +815,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		timeout: Duration,
 	) -> Option<AllMessages> {
-		tracing::tracing::trace!("Waiting for message...");
+		tracing::trace!("Waiting for message...");
 		overseer
 			.recv()
 			.timeout(timeout)
@@ -833,7 +833,7 @@ mod tests {
 			} = test_harness;
 
 			let pair = CollatorPair::generate().0;
-			tracing::tracing::trace!("activating");
+			tracing::trace!("activating");
 
 			overseer_send(
 				&mut virtual_overseer,
