@@ -33,8 +33,9 @@ mod hrmp;
 mod ump;
 
 use hrmp::{HrmpOpenChannelRequest, HrmpChannel};
-pub use dmp::QueueDownwardMessageError;
-pub use ump::UmpSink;
+pub use dmp::{QueueDownwardMessageError, ProcessedDownwardMessagesAcceptanceErr};
+pub use ump::{UmpSink, AcceptanceCheckErr as UpwardMessagesAcceptanceCheckErr};
+pub use hrmp::{HrmpWatermarkAcceptanceErr, OutboundHrmpAcceptanceErr};
 
 #[cfg(test)]
 pub use ump::mock_sink::MockUmpSink;

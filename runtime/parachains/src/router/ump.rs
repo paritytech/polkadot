@@ -16,9 +16,9 @@
 
 use super::{Trait, Module, Store};
 use crate::configuration::{self, HostConfiguration};
-use sp_std::prelude::*;
+use sp_std::{fmt, prelude::*};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use frame_support::{StorageMap, StorageValue, weights::Weight, traits::Get, debug::native as log};
+use frame_support::{StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
@@ -50,7 +50,63 @@ impl UmpSink for () {
 	}
 }
 
-const LOG_TARGET: &str = "runtime-parachains::upward-messages";
+/// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
+/// criteria rules.
+pub enum AcceptanceCheckErr {
+	MoreMessagesThanPermitted {
+		sent: u32,
+		permitted: u32,
+	},
+	MessageSize {
+		idx: u32,
+		msg_size: u32,
+		max_size: u32,
+	},
+	CapacityExceeded {
+		count: u32,
+		limit: u32,
+	},
+	TotalSizeExceeded {
+		total_size: u32,
+		limit: u32,
+	},
+}
+
+impl fmt::Debug for AcceptanceCheckErr {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			AcceptanceCheckErr::MoreMessagesThanPermitted { sent, permitted } => write!(
+				fmt,
+				"more upward messages than permitted by config ({} > {})",
+				sent,
+				permitted,
+			),
+			AcceptanceCheckErr::MessageSize {
+				idx,
+				msg_size,
+				max_size,
+			} => write!(
+				fmt,
+				"upward message idx {} larger than permitted by config ({} > {})",
+				idx,
+				msg_size,
+				max_size,
+			),
+			AcceptanceCheckErr::CapacityExceeded { count, limit } => write!(
+				fmt,
+				"the ump queue would have more items than permitted by config ({} > {})",
+				count,
+				limit,
+			),
+			AcceptanceCheckErr::TotalSizeExceeded { total_size, limit } => write!(
+				fmt,
+				"the ump queue would have grown past the max size permitted by config ({} > {})",
+				total_size, 
+				limit,
+			),
+		}
+	}
+}
 
 /// Routines related to the upward message passing.
 impl<T: Trait> Module<T> {
@@ -79,15 +135,12 @@ impl<T: Trait> Module<T> {
 		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
 		upward_messages: &[UpwardMessage],
-	) -> bool {
+	) -> Result<(), AcceptanceCheckErr> {
 		if upward_messages.len() as u32 > config.max_upward_message_num_per_candidate {
-			log::warn!(
-				target: LOG_TARGET,
-				"more upward messages than permitted by config ({} > {})",
-				upward_messages.len(),
-				config.max_upward_message_num_per_candidate,
-			);
-			return false;
+			return Err(AcceptanceCheckErr::MoreMessagesThanPermitted {
+				sent: upward_messages.len() as u32,
+				permitted: config.max_upward_message_num_per_candidate,
+			});
 		}
 
 		let (mut para_queue_count, mut para_queue_size) =
@@ -96,14 +149,11 @@ impl<T: Trait> Module<T> {
 		for (idx, msg) in upward_messages.into_iter().enumerate() {
 			let msg_size = msg.len() as u32;
 			if msg_size > config.max_upward_message_size {
-				log::warn!(
-					target: LOG_TARGET,
-					"upward message idx {} larger than permitted by config ({} > {})",
-					idx,
+				return Err(AcceptanceCheckErr::MessageSize {
+					idx: idx as u32,
 					msg_size,
-					config.max_upward_message_size,
-				);
-				return false;
+					max_size: config.max_upward_message_size,
+				});
 			}
 			para_queue_count += 1;
 			para_queue_size += msg_size;
@@ -112,21 +162,19 @@ impl<T: Trait> Module<T> {
 		// make sure that the queue is not overfilled.
 		// we do it here only once since returning false invalidates the whole relay-chain block.
 		if para_queue_count > config.max_upward_queue_count {
-			log::warn!(
-				target: LOG_TARGET,
-				"the ump queue would have more items than permitted by config ({} > {})",
-				para_queue_count, config.max_upward_queue_count,
-			);
+			return Err(AcceptanceCheckErr::CapacityExceeded {
+				count: para_queue_count,
+				limit: config.max_upward_queue_count,
+			});
 		}
 		if para_queue_size > config.max_upward_queue_size {
-			log::warn!(
-				target: LOG_TARGET,
-				"the ump queue would have grown past the max size permitted by config ({} > {})",
-				para_queue_size, config.max_upward_queue_size,
-			);
+			return Err(AcceptanceCheckErr::TotalSizeExceeded {
+				total_size: para_queue_size,
+				limit: config.max_upward_queue_size,
+			});
 		}
-		para_queue_count <= config.max_upward_queue_count
-			&& para_queue_size <= config.max_upward_queue_size
+
+		Ok(())
 	}
 
 	/// Enacts all the upward messages sent by a candidate.
@@ -539,11 +587,7 @@ mod tests {
 
 	fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 		let msgs = vec![msg];
-		assert!(Router::check_upward_messages(
-			&Configuration::config(),
-			para,
-			&msgs,
-		));
+		assert!(Router::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 		let _ = Router::enact_upward_messages(para, msgs);
 	}
 
@@ -737,5 +781,4 @@ mod tests {
 			}
 		});
 	}
-
 }

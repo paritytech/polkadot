@@ -17,7 +17,7 @@
 use super::{Trait, Module, Store};
 use crate::configuration::HostConfiguration;
 use frame_support::{StorageMap, weights::Weight, traits::Get};
-use sp_std::prelude::*;
+use sp_std::{fmt, prelude::*};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
 
@@ -26,6 +26,38 @@ use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash
 pub enum QueueDownwardMessageError {
 	/// The message being sent exceeds the configured max message size.
 	ExceedsMaxMessageSize,
+}
+
+/// An error returned by [`check_processed_downward_messages`] that indicates an acceptance check
+/// didn't pass.
+pub enum ProcessedDownwardMessagesAcceptanceErr {
+	/// If there are pending messages then `processed_downward_messages` should be at least 1,
+	AdvancementRule,
+	/// `processed_downward_messages` should not be greater than the number of pending messages.
+	Underflow {
+		processed_downward_messages: u32,
+		dmq_length: u32,
+	},
+}
+
+impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		use ProcessedDownwardMessagesAcceptanceErr::*;
+		match *self {
+			AdvancementRule => write!(
+				fmt,
+				"DMQ is not empty, but processed_downward_messages is 0",
+			),
+			Underflow {
+				processed_downward_messages,
+				dmq_length,
+			} => write!(
+				fmt,
+				"processed_downward_messages = {}, but dmq_length is only {}",
+				processed_downward_messages, dmq_length,
+			),
+		}
+	}
 }
 
 /// Routines and getters related to downward message passing.
@@ -72,26 +104,24 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	/// Checks if the number of processed downward messages is valid, i.e.:
-	///
-	/// - if there are pending messages then `processed_downward_messages` should be at least 1,
-	/// - `processed_downward_messages` should not be greater than the number of pending messages.
-	///
-	/// Returns true if all checks have been passed.
+	/// Checks if the number of processed downward messages is valid.
 	pub(crate) fn check_processed_downward_messages(
 		para: ParaId,
 		processed_downward_messages: u32,
-	) -> bool {
+	) -> Result<(), ProcessedDownwardMessagesAcceptanceErr> {
 		let dmq_length = Self::dmq_length(para);
 
 		if dmq_length > 0 && processed_downward_messages == 0 {
-			return false;
+			return Err(ProcessedDownwardMessagesAcceptanceErr::AdvancementRule);
 		}
 		if dmq_length < processed_downward_messages {
-			return false;
+			return Err(ProcessedDownwardMessagesAcceptanceErr::Underflow {
+				processed_downward_messages,
+				dmq_length,
+			});
 		}
 
-		true
+		Ok(())
 	}
 
 	/// Prunes the specified number of messages from the downward message queue of the given para.
@@ -211,20 +241,20 @@ mod tests {
 
 		new_test_ext(default_genesis_config()).execute_with(|| {
 			// processed_downward_messages=0 is allowed when the DMQ is empty.
-			assert!(Router::check_processed_downward_messages(a, 0));
+			assert!(Router::check_processed_downward_messages(a, 0).is_ok());
 
 			queue_downward_message(a, vec![1, 2, 3]).unwrap();
 			queue_downward_message(a, vec![4, 5, 6]).unwrap();
 			queue_downward_message(a, vec![7, 8, 9]).unwrap();
 
 			// 0 doesn't pass if the DMQ has msgs.
-			assert!(!Router::check_processed_downward_messages(a, 0));
+			assert!(!Router::check_processed_downward_messages(a, 0).is_ok());
 			// a candidate can consume up to 3 messages
-			assert!(Router::check_processed_downward_messages(a, 1));
-			assert!(Router::check_processed_downward_messages(a, 2));
-			assert!(Router::check_processed_downward_messages(a, 3));
+			assert!(Router::check_processed_downward_messages(a, 1).is_ok());
+			assert!(Router::check_processed_downward_messages(a, 2).is_ok());
+			assert!(Router::check_processed_downward_messages(a, 3).is_ok());
 			// there is no 4 messages in the queue
-			assert!(!Router::check_processed_downward_messages(a, 4));
+			assert!(!Router::check_processed_downward_messages(a, 4).is_ok());
 		});
 	}
 
