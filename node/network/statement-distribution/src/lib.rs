@@ -164,6 +164,7 @@ impl PeerRelayParentKnowledge {
 	///
 	/// This returns `Some(true)` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> Option<bool> {
 		let already_known = self.sent_statements.contains(fingerprint)
 			|| self.received_statements.contains(fingerprint);
@@ -212,6 +213,7 @@ impl PeerRelayParentKnowledge {
 	///
 	/// This returns `Ok(true)` if this is the first time the peer has become aware of a
 	/// candidate with given hash.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn receive(
 		&mut self,
 		fingerprint: &(CompactStatement, ValidatorIndex),
@@ -278,6 +280,7 @@ impl PeerData {
 	///
 	/// This returns `Some(true)` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn send(
 		&mut self,
 		relay_parent: &Hash,
@@ -302,6 +305,7 @@ impl PeerData {
 	///
 	/// This returns `Ok(true)` if this is the first time the peer has become aware of a
 	/// candidate with given hash.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn receive(
 		&mut self,
 		relay_parent: &Hash,
@@ -411,6 +415,7 @@ impl ActiveHeadData {
 	///
 	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted
 	/// and will return `NotedStatement::NotUseful`.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn note_statement(&mut self, statement: SignedFullStatement) -> NotedStatement {
 		let validator_index = statement.validator_index();
 		let comparator = StoredStatementComparator {
@@ -490,6 +495,7 @@ fn check_statement_signature(
 /// Informs all registered listeners about a newly received statement.
 ///
 /// Removes all closed listeners.
+#[tracing::instrument(level = "trace", skip(listeners), fields(subsystem = LOG_TARGET))]
 async fn inform_statement_listeners(
 	statement: &SignedFullStatement,
 	listeners: &mut Vec<mpsc::Sender<SignedFullStatement>>,
@@ -509,6 +515,7 @@ async fn inform_statement_listeners(
 /// circulates the statement to all peers who have not seen it yet, and
 /// sends all statements dependent on that statement to peers who could previously not receive
 /// them but now can.
+#[tracing::instrument(level = "trace", skip(peers, ctx, active_heads, metrics), fields(subsystem = LOG_TARGET))]
 async fn circulate_statement_and_dependents(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
@@ -564,6 +571,7 @@ fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
+#[tracing::instrument(level = "trace", skip(peers, ctx), fields(subsystem = LOG_TARGET))]
 async fn circulate_statement(
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
@@ -597,6 +605,7 @@ async fn circulate_statement(
 }
 
 /// Send all statements about a given candidate hash to a peer.
+#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_head, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_statements_about(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -625,6 +634,7 @@ async fn send_statements_about(
 }
 
 /// Send all statements at a given relay-parent to a peer.
+#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_head, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_statements(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -666,6 +676,7 @@ async fn report_peer(
 //
 // This function checks the signature and ensures the statement is compatible with our
 // view.
+#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_heads, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_message<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -744,6 +755,7 @@ async fn handle_incoming_message<'a>(
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
+#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_heads, metrics), fields(subsystem = LOG_TARGET))]
 async fn update_peer_view_and_send_unlocked(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -780,6 +792,7 @@ async fn update_peer_view_and_send_unlocked(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(peers, active_heads, ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
@@ -867,7 +880,7 @@ async fn handle_network_update(
 }
 
 impl StatementDistribution {
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = std::any::type_name::<Self>()))]
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run(
 		self,
 		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
