@@ -5027,6 +5027,7 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
+ "tracing-futures",
  "wasm-timer",
 ]
 
