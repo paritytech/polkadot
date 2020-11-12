@@ -78,7 +78,7 @@ impl BitfieldGossipMessage {
 
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct ProtocolState {
 	/// track all active peers and their views
 	/// to determine what is relevant to them.
@@ -143,7 +143,7 @@ impl BitfieldDistribution {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = std::any::type_name::<Self>()))]
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
@@ -227,6 +227,7 @@ impl BitfieldDistribution {
 }
 
 /// Modify the reputation of a peer based on its behaviour.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
@@ -245,6 +246,7 @@ where
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// For this variant the source is this node.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_bitfield_distribution<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -298,6 +300,7 @@ where
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// Can be originated by another subsystem or received via network from another peer.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
@@ -360,6 +363,7 @@ where
 }
 
 /// Handle an incoming message from a peer.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -447,6 +451,7 @@ where
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -488,6 +493,7 @@ where
 }
 
 /// Handle the changes necassary when our view changes.
+#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn handle_our_view_change(state: &mut ProtocolState, view: View) -> SubsystemResult<()> {
 	let old_view = std::mem::replace(&mut (state.view), view);
 
@@ -511,6 +517,7 @@ fn handle_our_view_change(state: &mut ProtocolState, view: View) -> SubsystemRes
 
 // Send the difference between two views which were not sent
 // to that particular peer.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -561,6 +568,7 @@ where
 }
 
 /// Send a gossip message and track it in the per relay parent data.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn send_tracked_gossip_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -611,6 +619,7 @@ where
 }
 
 /// Query our validator set and signing context for a particular relay parent.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
