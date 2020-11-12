@@ -311,6 +311,7 @@ pub struct AvailabilityStoreSubsystem {
 
 impl AvailabilityStoreSubsystem {
 	// Perform pruning of PoVs
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn prune_povs(&self) -> Result<(), Error> {
 		let mut tx = DBTransaction::new();
 		let mut pov_pruning = pov_pruning(&self.inner).unwrap_or_default();
@@ -335,6 +336,7 @@ impl AvailabilityStoreSubsystem {
 	}
 
 	// Perform pruning of chunks.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn prune_chunks(&self) -> Result<(), Error> {
 		let mut tx = DBTransaction::new();
 		let mut chunk_pruning = chunk_pruning(&self.inner).unwrap_or_default();
@@ -361,6 +363,7 @@ impl AvailabilityStoreSubsystem {
 	// Return a `Future` that either resolves when another PoV pruning has to happen
 	// or is indefinitely `pending` in case no pruning has to be done.
 	// Just a helper to `select` over multiple things at once.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn maybe_prune_povs(&self) -> Result<impl Future<Output = ()>, Error> {
 		let future = match get_next_pov_pruning_time(&self.inner) {
 			Some(pruning) => {
@@ -375,6 +378,7 @@ impl AvailabilityStoreSubsystem {
 	// Return a `Future` that either resolves when another chunk pruning has to happen
 	// or is indefinitely `pending` in case no pruning has to be done.
 	// Just a helper to `select` over multiple things at once.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn maybe_prune_chunks(&self) -> Result<impl Future<Output = ()>, Error> {
 		let future = match get_next_chunk_pruning_time(&self.inner) {
 			Some(pruning) => {
@@ -473,7 +477,7 @@ fn get_next_chunk_pruning_time(db: &Arc<dyn KeyValueDB>) -> Option<NextChunkPrun
 	query_inner(db, columns::META, &NEXT_CHUNK_PRUNING)
 }
 
-#[tracing::instrument(skip(subsystem, ctx), fields(subsystem = std::any::type_name::<AvailabilityStoreSubsystem>()))]
+#[tracing::instrument(skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
@@ -493,6 +497,7 @@ where
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn run_iteration<Context>(subsystem: &mut AvailabilityStoreSubsystem, ctx: &mut Context)
 	-> Result<bool, Error>
 where
@@ -546,6 +551,7 @@ where
 /// The state of data has to be changed from
 /// `CandidateState::Included` to `CandidateState::Finalized` and their pruning times have
 /// to be updated to `now` + keep_finalized_{block, chunk}_for`.
+#[tracing::instrument(level = "trace", skip(subsystem, ctx, db), fields(subsystem = LOG_TARGET))]
 async fn process_block_finalized<Context>(
 	subsystem: &AvailabilityStoreSubsystem,
 	ctx: &mut Context,
@@ -600,6 +606,7 @@ where
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, db), fields(subsystem = LOG_TARGET))]
 async fn process_block_activated<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
@@ -659,6 +666,7 @@ where
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn request_candidate_events<Context>(
 	ctx: &mut Context,
 	hash: Hash,
@@ -678,6 +686,7 @@ where
 	Ok(rx.await??)
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn process_message<Context>(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	ctx: &mut Context,
@@ -749,6 +758,7 @@ fn chunk_pruning(db: &Arc<dyn KeyValueDB>) -> Option<Vec<ChunkPruningRecord>> {
 	query_inner(db, columns::META, &CHUNK_PRUNING_KEY)
 }
 
+#[tracing::instrument(level = "trace", skip(db, tx), fields(subsystem = LOG_TARGET))]
 fn put_pov_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
@@ -789,6 +799,7 @@ fn put_pov_pruning(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(db, tx), fields(subsystem = LOG_TARGET))]
 fn put_chunk_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
@@ -841,6 +852,7 @@ where
 	Ok(rx.await??.map(|number| number).unwrap_or_default())
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem, available_data), fields(subsystem = LOG_TARGET))]
 fn store_available_data(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
@@ -907,6 +919,7 @@ fn store_available_data(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem), fields(subsystem = LOG_TARGET))]
 fn store_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
@@ -958,6 +971,7 @@ fn store_chunk(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem), fields(subsystem = LOG_TARGET))]
 fn get_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
@@ -1023,6 +1037,7 @@ where
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(metrics), fields(subsystem = LOG_TARGET))]
 fn get_chunks(data: &AvailableData, n_validators: usize, metrics: &Metrics) -> Result<Vec<ErasureChunk>, Error> {
 	let chunks = erasure::obtain_chunks_v1(n_validators, data)?;
 	metrics.on_chunks_received(chunks.len());
