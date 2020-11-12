@@ -187,6 +187,7 @@ struct State {
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
+#[tracing::instrument(level = "trace", skip(ctx, state, tx), fields(subsystem = LOG_TARGET))]
 async fn fetch_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -238,6 +239,7 @@ where
 }
 
 /// Report a collator for some malicious actions.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn report_collator<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -259,6 +261,7 @@ where
 }
 
 /// Some other subsystem has reported a collator as a good one, bump reputation.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn note_good_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -279,6 +282,7 @@ where
 /// A peer's view has changed. A number of things should be done:
 ///  - Ongoing collation requests have to be cancelled.
 ///  - Advertisements by this peer that are no longer relevant have to be removed.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change(
 	state: &mut State,
 	peer_id: PeerId,
@@ -320,6 +324,7 @@ async fn handle_peer_view_change(
 ///  - Cancel all ongoing requests
 ///  - Reply to interested parties if any
 ///  - Store collation.
+#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
 async fn received_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -368,6 +373,7 @@ where
 ///  - Check if the requested collation is in our view.
 ///  - Update PerRequest records with the `result` field if necessary.
 /// And as such invocations of this function may rely on that.
+#[tracing::instrument(level = "trace", skip(ctx, state, result), fields(subsystem = LOG_TARGET))]
 async fn request_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -440,6 +446,7 @@ where
 }
 
 /// Notify `CandidateSelectionSubsystem` that a collation has been advertised.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn notify_candidate_selection<Context>(
 	ctx: &mut Context,
 	collator: CollatorId,
@@ -461,6 +468,7 @@ where
 }
 
 /// Networking message has been received.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -499,6 +507,7 @@ where
 /// A leaf has become inactive so we want to
 ///   - Cancel all ongoing collation requests that are on top of that leaf.
 ///   - Remove all stored collations relevant to that leaf.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn remove_relay_parent(
 	state: &mut State,
 	relay_parent: Hash,
@@ -524,6 +533,7 @@ async fn remove_relay_parent(
 }
 
 /// Our view has changed.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
 	state: &mut State,
 	view: View,
@@ -547,6 +557,7 @@ async fn handle_our_view_change(
 }
 
 /// A request has timed out.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn request_timed_out<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -572,6 +583,7 @@ where
 }
 
 /// Bridge event switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -605,6 +617,7 @@ where
 }
 
 /// The main message receiver switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg<Context>(
 	ctx: &mut Context,
 	msg: CollatorProtocolMessage,
@@ -657,7 +670,7 @@ where
 }
 
 /// The main run loop.
-#[tracing::instrument(skip(ctx, metrics), fields(subsystem = "Collator Protocol: Validator Side"))]
+#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	request_timeout: Duration,

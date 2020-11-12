@@ -137,6 +137,7 @@ struct State {
 /// or the relay-parent isn't in the active-leaves set, we ignore the message
 /// as it must be invalid in that case - although this indicates a logic error
 /// elsewhere in the node.
+#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
 async fn distribute_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -219,6 +220,7 @@ where
 
 /// Get the Id of the Core that is assigned to the para being collated on if any
 /// and the total number of cores.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn determine_core<Context>(
 	ctx: &mut Context,
 	para_id: ParaId,
@@ -243,6 +245,7 @@ where
 /// Figure out a group of validators assigned to the para being collated on.
 ///
 /// This returns validators for the current group and the next group.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
 	core_index: CoreIndex,
@@ -282,6 +285,7 @@ where
 }
 
 /// Issue a `Declare` collation message to a set of peers.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn declare<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -304,6 +308,7 @@ where
 
 /// Issue a connection request to a set of validators and
 /// revoke the previous connection request.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn connect_to_validators<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -329,6 +334,7 @@ where
 }
 
 /// Advertise collation to a set of relay chain validators.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -360,6 +366,7 @@ where
 }
 
 /// The main incoming message dispatching switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -435,6 +442,7 @@ where
 }
 
 /// Issue a response to a previously requested collation.
+#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
 async fn send_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -465,6 +473,7 @@ where
 }
 
 /// A networking messages switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -526,6 +535,7 @@ where
 }
 
 /// Our view has changed.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -553,6 +563,7 @@ where
 /// A validator is connected.
 ///
 /// `Declare` that we are a collator with a given `CollatorId`.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_validator_connected<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -575,6 +586,7 @@ where
 }
 
 /// Bridge messages switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -609,6 +621,7 @@ where
 }
 
 /// Handles our view changes.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
 	state: &mut State,
 	view: View,
@@ -628,7 +641,7 @@ async fn handle_our_view_change(
 }
 
 /// The collator protocol collator side main loop.
-#[tracing::instrument(skip(ctx, metrics), fields(subsystem = "Collator Protocol: Collator Side"))]
+#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	our_id: CollatorId,
