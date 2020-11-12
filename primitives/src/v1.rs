@@ -604,8 +604,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreState<N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]
