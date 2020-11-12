@@ -180,7 +180,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-	let (client, backend, keystore_container, task_manager) =
+	let (client, backend, keystore_container, task_manager, telemetry) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
@@ -281,6 +281,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
+		telemetry,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
 }
@@ -503,6 +504,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
+		telemetry,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	} = new_partial::<RuntimeApi, Executor>(&mut config)?;
 
@@ -550,6 +552,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		telemetry_connection_sinks: telemetry_connection_sinks.clone(),
 		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
+		telemetry,
 	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
@@ -758,7 +761,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
-	let (client, backend, keystore_container, mut task_manager, on_demand) =
+	let (client, backend, keystore_container, mut task_manager, on_demand, telemetry) =
 		service::new_light_parts::<Block, Runtime, Dispatch>(&config)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
@@ -853,6 +856,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		network,
 		network_status_sinks,
 		system_rpc_tx,
+		telemetry,
 	})?;
 
 	network_starter.start_network();
