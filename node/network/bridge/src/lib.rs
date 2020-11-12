@@ -73,7 +73,7 @@ const MALFORMED_VIEW_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed view");
 
 // network bridge log target
-const TARGET: &'static str = "network_bridge";
+const LOG_TARGET: &'static str = "network_bridge";
 
 /// Messages received on the network.
 #[derive(Debug, Encode, Decode, Clone)]
@@ -269,6 +269,7 @@ enum Action {
 	Nop,
 }
 
+#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn action_from_overseer_message(
 	res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
 ) -> Action {
@@ -291,16 +292,17 @@ fn action_from_overseer_message(
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
 		Err(e) => {
-			tracing::warn!(target: TARGET, err = ?e, "Shutting down Network Bridge due to error");
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Shutting down Network Bridge due to error");
 			Action::Abort
 		}
 	}
 }
 
+#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 	match event {
 		None => {
-			tracing::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
+			tracing::info!(target: LOG_TARGET, "Shutting down Network Bridge: underlying event stream concluded");
 			Action::Abort
 		}
 		Some(NetworkEvent::Dht(_)) => Action::Nop,
@@ -355,6 +357,7 @@ fn construct_view(live_heads: &[Hash]) -> View {
 	View(live_heads.iter().rev().take(MAX_VIEW_HEADS).cloned().collect())
 }
 
+#[tracing::instrument(level = "trace", skip(net, ctx, validation_peers, collation_peers), fields(subsystem = LOG_TARGET))]
 async fn update_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
@@ -384,7 +387,7 @@ async fn update_view(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
 	).await {
-		tracing::warn!(target: TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
+		tracing::warn!(target: LOG_TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
 		return Err(e)
 	}
 
@@ -392,7 +395,7 @@ async fn update_view(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
 	).await {
-		tracing::warn!(target: TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
+		tracing::warn!(target: LOG_TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
 		return Err(e)
 	}
 
@@ -401,6 +404,7 @@ async fn update_view(
 
 // Handle messages on a specific peer-set. The peer is expected to be connected on that
 // peer-set.
+#[tracing::instrument(level = "trace", skip(peers, messages, net), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_messages<M>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
@@ -447,6 +451,7 @@ async fn handle_peer_messages<M>(
 	Ok(outgoing_messages)
 }
 
+#[tracing::instrument(level = "trace", skip(net, peers), fields(subsystem = LOG_TARGET))]
 async fn send_validation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -459,6 +464,7 @@ async fn send_validation_message<I>(
 	send_message(net, peers, PeerSet::Validation, message).await
 }
 
+#[tracing::instrument(level = "trace", skip(net, peers), fields(subsystem = LOG_TARGET))]
 async fn send_collation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -521,6 +527,7 @@ async fn dispatch_collation_event_to_all(
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
+#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
@@ -552,6 +559,7 @@ async fn dispatch_validation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
+#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
@@ -569,7 +577,7 @@ async fn dispatch_collation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
-#[tracing::instrument(skip(network_service, authority_discovery_service, ctx), fields(subsystem = "NetworkBridge"))]
+#[tracing::instrument(skip(network_service, authority_discovery_service, ctx), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	mut network_service: N,
 	mut authority_discovery_service: AD,
@@ -720,7 +728,7 @@ where
 
 					if let Err(e) = res {
 						tracing::warn!(
-							target: TARGET,
+							target: LOG_TARGET,
 							err = ?e,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
@@ -742,7 +750,7 @@ where
 						&mut ctx,
 					).await {
 						tracing::warn!(
-							target: TARGET,
+							target: LOG_TARGET,
 							err = ?e,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
@@ -763,7 +771,7 @@ where
 						&mut ctx,
 					).await {
 						tracing::warn!(
-							target: TARGET,
+							target: LOG_TARGET,
 							err = ?e,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
