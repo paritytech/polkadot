@@ -6,8 +6,6 @@ LOCAL_WS=ws://localhost:9944
 # Kill the polkadot client before exiting
 trap 'kill "$(jobs -p)"' EXIT
 
-git fetch origin release
-
 runtimes=(
   "westend"
   "kusama"
@@ -25,6 +23,9 @@ for RUNTIME in "${runtimes[@]}"; do
   current_transaction_version=$(
     grep 'transaction_version' "./runtime/${RUNTIME}/src/lib.rs"
   )
+
+  echo "[+] Release: ${release_transaction_version}"
+  echo "[+] Ours: ${current_transaction_version}"
 
   if [ ! "$release_transaction_version" = "$current_transaction_version" ]; then
     echo "[+] Transaction version for ${RUNTIME} has been bumped since last release."

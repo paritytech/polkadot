@@ -200,9 +200,13 @@ generate-impl-guide:
     - mdbook build roadmap/implementers-guide
 
 check-transaction-versions:
-  stage:                          test
-    # dependencies:
-    # - build-linux-release
+  image:                          node:15
+  stage:                          publish
+  dependencies:
+    - build-linux-release
+  before_script:
+    - npm install -g @polkadot/metadata-cmp
+    - git fetch origin release
   script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
 .publish-build:                    &publish-build
