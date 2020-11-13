@@ -197,6 +197,12 @@ generate-impl-guide:
   script:
     - mdbook build roadmap/implementers-guide
 
+check-transaction-versions:
+  stage:                          build
+  dependencies:
+    - build-linux-release
+  script: "scripts/gitlab/check_extrinsics_ordering.sh"
+
 .publish-build:                    &publish-build
   stage:                           publish
   dependencies:

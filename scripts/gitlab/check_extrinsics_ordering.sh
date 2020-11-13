@@ -1,7 +1,10 @@
 #!/bin/bash
-BIN=polkadot
+BIN=./artifacts/polkadot
 LIVE_WS=wss://rpc.polkadot.io
 LOCAL_WS=ws://localhost:9944
+
+# Kill the polkadot client before exiting
+trap 'kill "$(jobs -p)"' EXIT
 
 runtimes=(
   "westend"
@@ -10,10 +13,31 @@ runtimes=(
 )
 
 for RUNTIME in "${runtimes[@]}"; do
-  # TODO: Write early exit if the transaction_version in runtime/$RUNTIME/src/lib.rs has
-  # changed since the last release (use same technique as check_runtime.sh)
+  echo "[+] Checking runtime: ${RUNTIME}"
+
+  release_transaction_version=$(
+    git show "release:runtime/${RUNTIME}/src/lib.rs" | \
+    grep 'transaction_version'
+  )
+
+  current_transaction_version=$(
+    grep 'transaction_version' "./runtime/${RUNTIME}/src/lib.rs"
+  )
+
+  if [ ! "$release_transaction_version" = "$current_transaction_version" ]; then
+    echo "[+] Transaction version for ${RUNTIME} has been bumped since last release."
+    exit 0
+  fi
+
+  if [ "$RUNTIME" = 'polkadot' ]; then
+    LIVE_WS="wss://rpc.polkadot.io"
+  else
+    LIVE_WS="wss://${RUNTIME}-rpc.polkadot.io"
+  fi
+
   # Start running the local polkadot node in the background
-  $BIN --chain="$RUNTIME-local" > /dev/null 2>&1 &
+  $BIN --chain="$RUNTIME-local"  &
+  jobs
 
   changed_extrinsics=$(
   # TODO: select websocket based on runtime
@@ -22,11 +46,12 @@ for RUNTIME in "${runtimes[@]}"; do
   )
 
   if [ -n "$changed_extrinsics" ]; then
-    echo "[!] Extrinsics indexing/ordering has changed! If this change is 
-  intentional, please bump transaction_version in lib.rs. Changed extrinsics:"
+    echo "[!] Extrinsics indexing/ordering has changed in the ${RUNTIME} runtime! If this change is intentional, please bump transaction_version in lib.rs. Changed extrinsics:"
     echo "$changed_extrinsics"
     exit 1
   fi
+
+  echo "[+] No change in extrinsics ordering for the ${RUNTIME} runtime"
+  kill "$(jobs -p)"; sleep 5
 done
 
-kill %1
