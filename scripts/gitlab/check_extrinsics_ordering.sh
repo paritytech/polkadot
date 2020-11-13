@@ -33,7 +33,8 @@ for RUNTIME in "${runtimes[@]}"; do
   fi
 
   if [ "$RUNTIME" = 'polkadot' ]; then
-    LIVE_WS="wss://rpc.polkadot.io"
+    # FIXME: change this back to rpc.polkadot.io before opening PR
+    LIVE_WS="wss://kusama-rpc.polkadot.io"
   else
     LIVE_WS="wss://${RUNTIME}-rpc.polkadot.io"
   fi
