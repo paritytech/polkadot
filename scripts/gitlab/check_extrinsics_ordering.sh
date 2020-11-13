@@ -6,6 +6,8 @@ LOCAL_WS=ws://localhost:9944
 # Kill the polkadot client before exiting
 trap 'kill "$(jobs -p)"' EXIT
 
+git fetch origin release
+
 runtimes=(
   "westend"
   "kusama"
@@ -16,7 +18,7 @@ for RUNTIME in "${runtimes[@]}"; do
   echo "[+] Checking runtime: ${RUNTIME}"
 
   release_transaction_version=$(
-    git show "release:runtime/${RUNTIME}/src/lib.rs" | \
+    git show "origin/release:runtime/${RUNTIME}/src/lib.rs" | \
     grep 'transaction_version'
   )
 
