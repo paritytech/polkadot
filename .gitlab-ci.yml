@@ -66,6 +66,8 @@ variables:
 
 .test-refs:                        &test-refs
   rules:
+    # FIXME: Remove before opening PR
+    - if: $CI_COMMIT_REF_NAME == "mp-check-extrinsics-job"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
@@ -116,6 +118,9 @@ test-linux-stable:                 &test
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
     TARGET: native
+  artifacts:
+    paths:
+      - ./target/release/polkadot
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     - sccache -s
@@ -140,6 +145,16 @@ check-runtime-benchmarks:          &test
     # Check that the node will compile with `runtime-benchmarks` feature flag.
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
+
+check-transaction-versions:
+  image:                          node:15
+  stage:                          build
+  dependencies:
+    - test-linux-stable
+  before_script:
+    - npm install -g @polkadot/metadata-cmp
+    - git fetch origin release
+  script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
 build-wasm-release:
   stage:                          build
@@ -196,16 +211,6 @@ generate-impl-guide:
     entrypoint: [""]
   script:
     - mdbook build roadmap/implementers-guide
-
-check-transaction-versions:
-  image:                          node:15
-  stage:                          publish
-  dependencies:
-    - build-linux-release
-  before_script:
-    - npm install -g @polkadot/metadata-cmp
-    - git fetch origin release
-  script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
 .publish-build:                    &publish-build
   stage:                           publish
