@@ -58,6 +58,14 @@ enum StatementDistributionV1Message {
 }
 ```
 
+### Approval Distribution V1
+
+```rust
+enum ApprovalDistributionV1Message {
+	// TODO [now]
+}
+```
+
 ### Collator Protocol V1
 
 ```rust
@@ -82,6 +90,7 @@ These are the messages for the protocol on the validation peer-set.
 
 ```rust
 enum ValidationProtocolV1 {
+	ApprovalDistribution(ApprovalDistributionV1Message),
 	AvailabilityDistribution(AvailabilityDistributionV1Message),
 	BitfieldDistribution(BitfieldDistributionV1Message),
 	PoVDistribution(PoVDistributionV1Message),

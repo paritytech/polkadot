@@ -10,8 +10,8 @@ Input:
   - `ApprovalVotingMessage::ApprovedAncestor`
 
 Output:
-  - `ApprovalNetworkingMessage::DistributeAssignment`
-  - `ApprovalNetworkingMessage::DistributeApproval`
+  - `ApprovalDistributionMessage::DistributeAssignment`
+  - `ApprovalDistributionMessage::DistributeApproval`
   - `RuntimeApiMessage::Request`
   - `ChainApiMessage`
   - `AvailabilityRecoveryMessage::Recover`
@@ -221,7 +221,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Set `n_tranches = tranches_to_approve(approval_entry)`
   * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
     * Import to `ApprovalEntry`
-    * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
+    * Broadcast on network with an `ApprovalDistributionMessage::DistributeAssignment`.
     * Kick off approval work with `launch_approval`
   * Schedule another wakeup based on `next_wakeup`
 
@@ -244,4 +244,4 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Construct a `SignedApprovalVote` with the validator index for the session.
   * Transform into an `IndirectSignedApprovalVote` using the `block_hash` and `candidate_index` from the request.
   * `import_checked_approval(block_entry, candidate_entry, validator_index)`
-  * Dispatch an `ApprovalNetworkingMessage::DistributeApproval` message.
+  * Dispatch an `ApprovalDistributionMessage::DistributeApproval` message.

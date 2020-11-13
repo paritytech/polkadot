@@ -46,7 +46,7 @@
     - [Bitfield Signing](node/availability/bitfield-signing.md)
   - [Approval Subsystems](node/approval/README.md)
     - [Approval Voting](node/approval/approval-voting.md)
-    - [Approval Networking](node/approval/approval-networking.md)
+    - [Approval Distribution](node/approval/approval-distribution.md)
     - [Dispute Participation](node/approval/dispute-participation.md)
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)

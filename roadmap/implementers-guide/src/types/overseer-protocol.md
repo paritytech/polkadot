@@ -40,9 +40,9 @@ struct ActiveLeavesUpdate {
 Messages received by the approval voting subsystem.
 
 ```rust
-enum VoteCheckResult {
+enum VoteCheckResult<T> {
 	// The vote was accepted and should be propagated onwards.
-	Accepted,
+	Accepted(T),
 	// The vote was bad and should be ignored, reporting the peer who propagated it.
 	Bad,
 	// We do not have enough information to evaluate the vote. Ignore but don't report.
@@ -53,11 +53,14 @@ enum VoteCheckResult {
 enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
 	/// Should not be sent unless the block hash is known.
+	///
+	/// If accepted, the payload of the `VoteCheckResult` is the block hash
+	/// and candidate index of the assignment.
 	CheckAndImportAssignment(
 		Hash, 
 		AssignmentCert, 
 		ValidatorIndex,
-		ResponseChannel<VoteCheckResult>,
+		ResponseChannel<VoteCheckResult<(Hash, u32)>>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
@@ -65,7 +68,7 @@ enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash within the indirect vote is known.
 	CheckAndImportApproval(
 		IndirectSignedApprovalVote,
-		ResponseChannel<VoteCheckResult>,
+		ResponseChannel<VoteCheckResult<()>>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for. 
@@ -78,12 +81,12 @@ enum ApprovalVotingMessage {
 }
 ```
 
-## Approval Networking
+## Approval Distribution
 
-Messages received by the approval networking subsystem.
+Messages received by the approval Distribution subsystem.
 
 ```rust
-enum ApprovalNetworkingMessage {
+enum ApprovalDistributionMessage {
 	/// Distribute an assignment cert from the local validator. The cert is assumed
 	/// to be valid for the given relay-parent and validator index.
 	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),

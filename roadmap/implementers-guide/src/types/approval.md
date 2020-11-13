@@ -17,11 +17,9 @@ These certificates can be checked in the context of a specific block, candidate,
 ```rust
 enum AssignmentCertKind {
     RelayVRFModulo {
-        relay_vrf: (VRFInOut, VRFProof),
         sample: u32,
     },
     RelayVRFDelay {
-        relay_vrf: (VRFInOut, VRFProof),
         core_index: CoreIndex,
     }
 }
@@ -30,7 +28,7 @@ struct AssignmentCert {
     // The criterion which is claimed to be met by this cert.
     kind: AssignmentCertKind,
     // The VRF showing the criterion is met.
-    vrf: VRFInOut,
+    vrf: (VRFPreOut, VRFProof),
 }
 ```
 
@@ -58,7 +56,7 @@ struct SignedApprovalVote {
 
 A signed approval vote which references the candidate indirectly via the block. If there exists a look-up to the candidate hash from the block hash and candidate index, then this can be transformed into a `SignedApprovalVote`.
 
-Although this vote references the candidate by a specific block hash and candidate index, the vote actually applies to
+Although this vote references the candidate by a specific block hash and candidate index, the signature is computed on the actual `SignedApprovalVote` payload.
 
 ```rust
 struct IndirectSignedApprovalVote {

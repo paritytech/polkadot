@@ -1,4 +1,6 @@
-# Approval Networking
+# Approval Distribution
+
+A subsystem for the distribution of assignments and approvals for approval checks on candidates over the network.
 
 The [Approval Voting](approval-voting.md) subsystem is responsible for active participation in a protocol designed to select a sufficient number of validators to check each and every candidate which appears in the relay chain. Statements of participation in this checking process are divided into two kinds:
   - **Assignments** indicate that validators have been selected to do checking
