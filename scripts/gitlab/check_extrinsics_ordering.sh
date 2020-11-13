@@ -40,7 +40,6 @@ for RUNTIME in "${runtimes[@]}"; do
   jobs
 
   changed_extrinsics=$(
-  # TODO: select websocket based on runtime
     polkadot-js-metadata-cmp "$LIVE_WS" "$LOCAL_WS" \
     | sed 's/^ \+//g' | grep -e 'idx: [0-9]\+ -> [0-9]\+'
   )
