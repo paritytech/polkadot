@@ -163,6 +163,8 @@ build-linux-release:               &build
   <<:                              *compiler_info
   rules:
     # .build-refs with manual on PRs
+    # TODO: REMOVE this branch before opening PR
+    - if: $CI_COMMIT_REF_NAME == "mp-check-extrinsics-job"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
