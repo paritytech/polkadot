@@ -68,7 +68,9 @@ impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::Acco
 	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-		let _session_index = <pallet_session::Module<T>>::current_index();
+		// TODO:
+		// fetch dispute_period from config
+		let new_session_index = <pallet_session::Module<T>>::current_index();
 		todo!()
 	}
 
