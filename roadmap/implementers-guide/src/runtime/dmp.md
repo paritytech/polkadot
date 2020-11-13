@@ -35,13 +35,13 @@ No initialization routine runs for this module.
 
 Candidate Acceptance Function:
 
-* `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
+* `check_processed_downward_messages(P: ParaId, processed_downward_messages: u32)`:
     1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
     1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
 
 Candidate Enactment:
 
-* `prune_dmq(P: ParaId, processed_downward_messages)`:
+* `prune_dmq(P: ParaId, processed_downward_messages: u32)`:
     1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
 
 Utility routines.
