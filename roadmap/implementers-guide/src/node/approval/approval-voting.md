@@ -188,11 +188,72 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * If the block entry's `approval_bitfield` has any 0 bits, set `all_approved_max = None`.
   * After iterating all ancestry, return `all_approved_max`.
 
+### Assignees status computation
+
+We periodically recompute our views of a candidate's progression through the approvals process.  For this, we tabulate all assignees' statuses by `fold`ing an `AssigneesStatus` over the database.  
+
+In brief, our goal is to require enough checkers, and have good odds that honest checkers replace no-shows.  For each no-show, we require both another checker and another tranche, which ever means more tranches.  Take assignments from at least `no_shows` subsequent tranches and then if we have not yet covered all noshows then continue taking tranches until we do cover all no-shows.  e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments, but then must take one more. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each. 
+
+
+```
+pub struct AssigneesStatus {
+	/// Highest tranche considered plus one
+	tranche: DelayTranche,
+    /// Required minimum tranche
+    min_tranche: DelayTranche,
+	/// Assignement target, including increases due to no shows.
+	target: u32,
+	/// Assigned validators.
+	assigned: u32,
+	/// Awating approvals, including no shows.
+	waiting: u32,
+	/// Total no shows, including our debt.
+	noshows: u32,
+	/// Any no shows not yet addressed by additional tranches,
+	/// often zero since adding extra tranches pays the debt fast.
+	debt: u32,
+	/// Approval votes thus far.
+	approved: u32,
+	/// How long we wait for no shows
+	/// Increases if we're replacing no shows from multiple tranches because
+    /// those replacements necessarily arrived late.
+	noshow_timeout: u32,
+}
+```
+All values begin zero except for an initial positive default for `target` and `noshow_timeout`, and `min_tranche=1`.
+
+#### `AssigneesStatus::is_approved`
+  * Requires `self.target == self.approved == self.assigned too, maybe `self.waiting == 0` too.
+  * Also requires `self.tranche >= self.min_tranche`
+  * `AssigneeStatus` has excess counters for a final result, but aside from diagnostics it may serve to reveal other details.
+
+#### `assignees_counts(db, tranche, noshow_tranche: DelayTranche) -> { approved, waiting, noshows, }`
+  * Reads `tranche`'s assignments, their votes, and their vote received times.
+  * Anyone voting approved counts as approved of course.  Anyone else becomes a `noshow` if the received time is less than `noshow_tranche`, or `waiting` otherwise. 
+  * Returns `{ approved, waiting, noshows, }`.  The tranche's total `assigned` is the sum of these.
+  * This routine is the interface between the assignment database and the tabulation procedure because we've one tabulation procedure but separate on-chain and off-chain databases.
+
+#### `AssigneesStatus::tabulate_tranche`
+  * We `fold` this over the database normally.  It halts the `fold` whenever it cannot or should not continue, so then results are obtained from `is_approved` or similar.
+  1. First, halt folding when either 
+    * We've enough checkers were assigned, and we've replaced any no shows, and we've added a tranche per no show.  This may be success.
+    * We do not expect new tranches due to `noshow_timeout`, so maybe `tranche + noshow_timeout > now + noshow_timeout`.  This results in a `PENDING` status that waits for more tranches.
+  2. Increase all the stats by `assignees_counts` for the current `tranche`
+  3. After increasing these counters, return the `NEXT` status to continue taking tranches if either `assigned < target` or `tranche < min_tranche`.  If neither, also return success if the `debt == 0`.
+  4. At this point, we've reached our assignments `target` and tranches, but incurred a no show debt, so we increase our `target` and `min_tranche`, so
+     `target = assigned;`
+     `min_tranche = tranche + debt;`
+     `debt = 0;`
+     We also increase our `noshow_timeout` by its default value to avoid viewing no show replacements as no shows themselves.
+
+We describe the fold of `tabulate_tranche` over tranches, but actually the later part of `tabulate_tranche` amounts to distinguishing tranches were we're simply adding assignees from those tranches where we've noshows that require handling, and correspond to actual delays.
+
+
 ### Utility
 
 #### `import_checked_assignment`
   * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
-  * Ensure the validator index is not part of the backing group for the candidate.  We count late backing votes via the backing system.
+  * Ensure the validator index is not part of the backing group for the candidate.  
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
@@ -202,16 +263,6 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
     * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
     * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
-
-#### ` assignees_status(approval_entry) -> AssigneeStatus`
-  * Summarise our view of this approval entry's run by iterating over assignment and approval vote records 
-    1. First, set `needed := session_info.needed_approvals`.  Set the base tranche `l=0`.
-    2. Take assignments from tranches `l..` until we have at least `needed` assignments or hit our timeouts.  Let `tranches` denote the highest tranche taken (plus one).  
-    3. Count the number `assigned` of assignments taken in tranches `0..tranches`.  If `assigned < needed` then return a special value `PENDING` which indicates we wait for more assignments. 
-    4. Count the number `approvals` in tranches `0..tranches`.  Also, count the number of `noshows` of no-shows in tranches `l..tranches`.  If `noshows` is zero then return `DONE(approvals,assigned,needed,tranches)`.  Of course, this indicates potential approval only if `approvals == assigned` and we hide the assignment timeout for `tranches`.  In fact, this is an over simplification since we care about arrival times, so counting tranches does not suffice here.  If `approvals < assigned` then more no-shows could occur on future invokations, returning us to `PEMNDING`.
-    5. For each no-show in `noshows`, we require both another checker and another tranche, which ever means more tranches.  Take assignments from at least `no_shows` subsequent tranches and then if we have not yet covered all noshows then continue taking tranches until we do cover all no-shows.  e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each. 
-    6. At this point, set `l := tranches` and again set `tranches` to be the number of tranches taken so far.  Also set `needed := assigned - noshows` so that all uncovered assignments must eventually be covered.  Repeat from step 2.  
-    7. We return `DONE(..)` if we run out of tranches.    
 
 #### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
   * Invoke `assignees_status` and then check if `approvals == assigned == needed` or if `needed >= num_validators` then we ask that `3 approvals > 2 num_validators`.  
