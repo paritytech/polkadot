@@ -69,6 +69,8 @@ impl ApprovalTargets {
 pub struct AssigneeStatus {
 	/// Highest tranche considered plus one
 	tranche: DelayTranche,
+	/// Required minimum tranche
+	pub min_tranche: DelayTranche,
 	/// Assignement target, including increases due to no shows.
 	pub target: u32,
 	/// Assigned validators.
@@ -96,7 +98,10 @@ impl AssigneeStatus {
 
 	pub fn is_approved(&self) -> bool {
 		debug_assert!(self.assigned == self.assigned + self.waiting);
-		self.target == self.approved && self.approved == self.assigned && self.waiting == 0
+		self.target == self.approved
+		&& self.approved == self.assigned
+		&& self.waiting == 0
+		&& self.tranche >= self.min_tranche
 	}
 }
 

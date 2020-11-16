@@ -266,6 +266,7 @@ impl CandidateTracker {
 		// We account for no shows in multiple tranches by increasing the no show timeout
 		AssigneeStatus {
 			tranche:  0,
+			min_tranche: 1,
 			target:   self.targets.target::<S>(),
 			approved: 0, 
 			waiting:  0, 
@@ -282,8 +283,8 @@ impl CandidateTracker {
 	 -> Option<AssigneeStatus> 
 	{
 		// We stop if enough checkers were assigned and we've replaced
-		// any no shows.
-		if c.assigned > c.target && c.debt == 0 { return None; }
+		// any no shows and we've added a tranche per no show.
+		if c.assigned > c.target && c.debt == 0 && c.tranche >= c.min_tranche { return None; }
 
 		// We do not count tranches for which we should not yet have
 		// recieved any assignments, even though we do store early
@@ -302,20 +303,22 @@ impl CandidateTracker {
 		c.tranche += 1;
 
 		// Consider later tranches if not enough assignees yet
-		if c.assigned <= c.target {
+		if c.assigned <= c.target || c.tranche < c.min_tranche {
 			return Some(c); 
 			// === continue;
 		}
-		// Ignore later tranches if we've enough assignees and no no shows
+		// Ignore later tranches if we've enough assignees and no no shows.
+		// 
 		if c.debt == 0 {
 			return Some(c);
-			// === break;
+			// === break if self.tranche >= self.min_tranche or continue otherwise
 		}
 		// We replace no shows by increasing our target when
 		// reaching our initial or any subseuent target.
-		// We ask for two new checkers per no show here,
+		// We ask for at least one checkers per no show here,
 		// acording to the analysis (TODO: Alistair)
-		c.target = c.assigned; // + c.debt;
+		c.target = c.assigned; // + c.debt; // two?
+		c.min_tranche += c.tranche + c.debt;
 		c.debt = 0;
 		// We view tranches as later for being counted no show
 		// since they announced much latter.
