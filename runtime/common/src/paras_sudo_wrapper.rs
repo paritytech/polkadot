@@ -34,7 +34,7 @@ pub trait Trait: configuration::Trait + paras::Trait + dmp::Trait + ump::Trait +
 decl_error! {
 	pub enum Error for Module<T: Trait> {
 		/// The specified parachain or parathread is not registered.
-		ParaDoesnExist,
+		ParaDoesntExist,
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
 		/// message.
 		ExceedsMaxMessageSize,
@@ -73,7 +73,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn sudo_queue_downward_message(origin, id: ParaId, payload: Vec<u8>) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesnExist);
+			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Module<T>>::config();
 			<dmp::Module<T>>::queue_downward_message(&config, id, payload)
 				.map_err(|e| {match e {
