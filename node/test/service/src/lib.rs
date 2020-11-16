@@ -82,11 +82,6 @@ pub fn new_full(
 		config,
 		is_collator,
 		None,
-		Some(sc_authority_discovery::WorkerConfig {
-			query_interval: Duration::from_secs(1),
-			query_start_delay: Duration::from_secs(0),
-			..Default::default()
-		}),
 		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
 	).map_err(Into::into)
 }

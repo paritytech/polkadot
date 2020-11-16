@@ -48,11 +48,6 @@ fn main() -> Result<()> {
 					config,
 					polkadot_service::IsCollator::Yes(collator.collator_id()),
 					None,
-					Some(sc_authority_discovery::WorkerConfig {
-						query_interval: Duration::from_secs(1),
-						query_start_delay: Duration::from_secs(0),
-						..Default::default()
-					}),
 				)?;
 				let mut overseer_handler = full_node.overseer_handler
 					.expect("Overseer handler should be initialized for collators");
