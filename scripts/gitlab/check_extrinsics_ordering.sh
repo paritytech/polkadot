@@ -17,7 +17,7 @@ for RUNTIME in "${runtimes[@]}"; do
 
   release_transaction_version=$(
     git show "origin/release:runtime/${RUNTIME}/src/lib.rs" | \
-    grep 'transaction_version'
+      grep 'transaction_version'
   )
 
   current_transaction_version=$(
@@ -44,7 +44,7 @@ for RUNTIME in "${runtimes[@]}"; do
 
   changed_extrinsics=$(
     polkadot-js-metadata-cmp "$LIVE_WS" "$LOCAL_WS" \
-    | sed 's/^ \+//g' | grep -e 'idx: [0-9]\+ -> [0-9]\+'
+      | sed 's/^ \+//g' | grep -e 'idx: [0-9]\+ -> [0-9]\+'
   )
 
   if [ -n "$changed_extrinsics" ]; then

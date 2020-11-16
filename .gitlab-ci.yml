@@ -147,8 +147,8 @@ check-runtime-benchmarks:          &test
 check-transaction-versions:
   image:                          node:15
   stage:                          build
-  dependencies:
-    - test-linux-stable
+  needs:
+    - job:                        test-linux-stable
   before_script:
     - npm install -g @polkadot/metadata-cmp
     - git fetch origin release
