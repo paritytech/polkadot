@@ -29,9 +29,10 @@ use runtime_parachains::{
 use primitives::v1::Id as ParaId;
 
 /// The module's configuration trait.
-pub trait Trait: 
-	configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait 
-{}
+pub trait Trait:
+	configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait
+{
+}
 
 decl_error! {
 	pub enum Error for Module<T: Trait> {
