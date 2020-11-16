@@ -19,7 +19,7 @@
 use sp_std::result;
 use sp_runtime::traits::BadOrigin;
 use primitives::v1::Id as ParaId;
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 /// Origin for the parachains.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, sp_core::RuntimeDebug)]

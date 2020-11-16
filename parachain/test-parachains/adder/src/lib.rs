@@ -20,7 +20,7 @@
 
 #![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use tiny_keccak::{Hasher as _, Keccak};
 
 #[cfg(not(feature = "std"))]

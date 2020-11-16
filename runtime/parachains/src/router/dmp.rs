@@ -171,7 +171,7 @@ mod tests {
 		tests::{default_genesis_config, run_to_block},
 	};
 	use frame_support::StorageValue;
-	use codec::Encode;
+	use parity_scale_codec::Encode;
 
 	fn queue_downward_message(
 		para_id: ParaId,

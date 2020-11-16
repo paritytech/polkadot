@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
