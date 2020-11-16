@@ -1,6 +1,6 @@
 # DMP Module
 
-A module responsible for DMP. See [Messaging Overview](../messaging.md) for more details.
+A module responsible for Downward Message Processing (DMP). See [Messaging Overview](../messaging.md) for more details.
 
 ## Storage
 

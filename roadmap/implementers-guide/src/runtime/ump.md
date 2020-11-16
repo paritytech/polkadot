@@ -1,6 +1,6 @@
 # UMP Module
 
-A module responsible for UMP. See [Messaging Overview](../messaging.md) for more details.
+A module responsible for Upward Message Passing (UMP). See [Messaging Overview](../messaging.md) for more details.
 
 ## Storage
 
