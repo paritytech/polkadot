@@ -29,7 +29,9 @@ use runtime_parachains::{
 use primitives::v1::Id as ParaId;
 
 /// The module's configuration trait.
-pub trait Trait: configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait {}
+pub trait Trait: 
+	configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait 
+{}
 
 decl_error! {
 	pub enum Error for Module<T: Trait> {
@@ -76,10 +78,10 @@ decl_module! {
 			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Module<T>>::config();
 			<dmp::Module<T>>::queue_downward_message(&config, id, payload)
-				.map_err(|e| {match e {
+				.map_err(|e| match e {
 					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
 						Error::<T>::ExceedsMaxMessageSize.into(),
-				}})
+				})
 		}
 	}
 }
