@@ -10,7 +10,7 @@ log = "0.4.11"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
 wasm-timer = "0.2.4"
 thiserror = "1.0.21"
 derive_more = "0.99.11"
