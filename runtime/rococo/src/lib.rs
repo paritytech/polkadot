@@ -73,7 +73,9 @@ use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
 use runtime_parachains::paras as parachains_paras;
-use runtime_parachains::router as parachains_router;
+use runtime_parachains::dmp as parachains_dmp;
+use runtime_parachains::ump as parachains_ump;
+use runtime_parachains::hrmp as parachains_hrmp;
 use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
@@ -184,7 +186,9 @@ construct_runtime! {
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		Paras: parachains_paras::{Module, Call, Storage},
 		Initializer: parachains_initializer::{Module, Call, Storage},
-		Router: parachains_router::{Module, Call, Storage},
+		Dmp: parachains_dmp::{Module, Call, Storage},
+		Ump: parachains_ump::{Module, Call, Storage},
+		Hrmp: parachains_hrmp::{Module, Call, Storage},
 
 		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
@@ -532,9 +536,14 @@ impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_router::Trait for Runtime {
-	type Origin = Origin;
+impl parachains_ump::Trait for Runtime {
 	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
+}
+
+impl parachains_dmp::Trait for Runtime {}
+
+impl parachains_hrmp::Trait for Runtime {
+	type Origin = Origin;
 }
 
 impl parachains_inclusion_inherent::Trait for Runtime {}

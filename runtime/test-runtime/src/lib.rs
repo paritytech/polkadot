@@ -30,7 +30,9 @@ use polkadot_runtime_parachains::inclusion as parachains_inclusion;
 use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use polkadot_runtime_parachains::initializer as parachains_initializer;
 use polkadot_runtime_parachains::paras as parachains_paras;
-use polkadot_runtime_parachains::router as parachains_router;
+use polkadot_runtime_parachains::dmp as parachains_dmp;
+use polkadot_runtime_parachains::ump as parachains_ump;
+use polkadot_runtime_parachains::hrmp as parachains_hrmp;
 use polkadot_runtime_parachains::scheduler as parachains_scheduler;
 use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 
@@ -459,9 +461,14 @@ impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_router::Trait for Runtime {
-	type Origin = Origin;
+impl parachains_dmp::Trait for Runtime {}
+
+impl parachains_ump::Trait for Runtime {
 	type UmpSink = ();
+}
+
+impl parachains_hrmp::Trait for Runtime {
+	type Origin = Origin;
 }
 
 impl parachains_scheduler::Trait for Runtime {}

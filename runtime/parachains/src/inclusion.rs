@@ -36,7 +36,7 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, router, scheduler::CoreAssignment};
+use crate::{configuration, paras, dmp, ump, hrmp, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -86,7 +86,12 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	frame_system::Trait + paras::Trait + router::Trait + configuration::Trait
+	frame_system::Trait
+	+ paras::Trait
+	+ dmp::Trait
+	+ ump::Trait
+	+ hrmp::Trait
+	+ configuration::Trait
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
@@ -600,19 +605,19 @@ impl<T: Trait> Module<T> {
 		}
 
 		// enact the messaging facet of the candidate.
-		weight += <router::Module<T>>::prune_dmq(
+		weight += <dmp::Module<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
 		);
-		weight += <router::Module<T>>::enact_upward_messages(
+		weight += <ump::Module<T>>::enact_upward_messages(
 			receipt.descriptor.para_id,
 			commitments.upward_messages,
 		);
-		weight += <router::Module<T>>::prune_hrmp(
+		weight += <hrmp::Module<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
 			T::BlockNumber::from(commitments.hrmp_watermark),
 		);
-		weight += <router::Module<T>>::queue_outbound_hrmp(
+		weight += <hrmp::Module<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
 			commitments.horizontal_messages,
 		);
@@ -719,10 +724,10 @@ enum AcceptanceCheckErr<BlockNumber> {
 	HeadDataTooLarge,
 	PrematureCodeUpgrade,
 	NewCodeTooLarge,
-	ProcessedDownwardMessages(router::ProcessedDownwardMessagesAcceptanceErr),
-	UpwardMessages(router::UpwardMessagesAcceptanceCheckErr),
-	HrmpWatermark(router::HrmpWatermarkAcceptanceErr<BlockNumber>),
-	OutboundHrmp(router::OutboundHrmpAcceptanceErr),
+	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
+	UpwardMessages(ump::AcceptanceCheckErr),
+	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
+	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
 }
 
 impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
@@ -795,17 +800,17 @@ impl<T: Trait> CandidateCheckContext<T> {
 		}
 
 		// check if the candidate passes the messaging acceptance criteria
-		<router::Module<T>>::check_processed_downward_messages(
+		<dmp::Module<T>>::check_processed_downward_messages(
 			para_id,
 			processed_downward_messages,
 		)?;
-		<router::Module<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
-		<router::Module<T>>::check_hrmp_watermark(
+		<ump::Module<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
+		<hrmp::Module<T>>::check_hrmp_watermark(
 			para_id,
 			self.relay_parent_number,
 			hrmp_watermark,
 		)?;
-		<router::Module<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
+		<hrmp::Module<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
 
 		Ok(())
 	}
