@@ -396,7 +396,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -418,7 +418,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
+	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
 		let upcoming_weight = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(i) => {

@@ -23,13 +23,12 @@ use frame_support::{
 };
 use frame_system::ensure_root;
 use runtime_parachains::{
-	router,
-	paras::{self, ParaGenesisArgs},
+	dmp, ump, hrmp, paras::{self, ParaGenesisArgs},
 };
 use primitives::v1::Id as ParaId;
 
 /// The module's configuration trait.
-pub trait Trait: paras::Trait + router::Trait { }
+pub trait Trait: paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait { }
 
 decl_error! {
 	pub enum Error for Module<T: Trait> { }
@@ -48,7 +47,7 @@ decl_module! {
 			genesis: ParaGenesisArgs,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			paras::Module::<T>::schedule_para_initialize(id, genesis);
+			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 			Ok(())
 		}
 
@@ -56,8 +55,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn sudo_schedule_para_cleanup(origin, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
-			paras::Module::<T>::schedule_para_cleanup(id);
-			router::Module::<T>::schedule_para_cleanup(id);
+			runtime_parachains::schedule_para_cleanup::<T>(id);
 			Ok(())
 		}
 	}
