@@ -29,7 +29,7 @@ use sp_runtime::traits::One;
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	paras, scheduler, inclusion, dmp, ump, hrmp,
+	paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
 /// Information about a session change that has just occurred.
@@ -63,6 +63,7 @@ pub trait Trait:
 	+ paras::Trait
 	+ scheduler::Trait
 	+ inclusion::Trait
+	+ session_info::Trait
 	+ dmp::Trait
 	+ ump::Trait
 	+ hrmp::Trait
@@ -123,6 +124,7 @@ decl_module! {
 			// - Paras
 			// - Scheduler
 			// - Inclusion
+			// - SessionInfo
 			// - Validity
 			// - DMP
 			// - UMP
@@ -131,6 +133,7 @@ decl_module! {
 				paras::Module::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
+				session_info::Module::<T>::initializer_initialize(now) +
 				dmp::Module::<T>::initializer_initialize(now) +
 				ump::Module::<T>::initializer_initialize(now) +
 				hrmp::Module::<T>::initializer_initialize(now);
@@ -146,6 +149,7 @@ decl_module! {
 			hrmp::Module::<T>::initializer_finalize();
 			ump::Module::<T>::initializer_finalize();
 			dmp::Module::<T>::initializer_finalize();
+			session_info::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
@@ -189,6 +193,7 @@ impl<T: Trait> Module<T> {
 		paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
+		session_info::Module::<T>::initializer_on_new_session(&notification);
 		dmp::Module::<T>::initializer_on_new_session(&notification);
 		ump::Module::<T>::initializer_on_new_session(&notification);
 		hrmp::Module::<T>::initializer_on_new_session(&notification);

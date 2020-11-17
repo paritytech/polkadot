@@ -22,6 +22,7 @@
 use primitives::v1::{SessionIndex, SessionInfo, ValidatorId};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
+	weights::Weight,
 };
 use crate::{configuration, paras, scheduler};
 
@@ -59,25 +60,17 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
-	type Key = ValidatorId;
-
-	fn on_genesis_session<'a, I: 'a>(_validators: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
-	{
-
-	}
-
-	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, _queued: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
-	{
+impl<T: Trait> Module<T> {
+	/// Handle an incoming session change.
+	pub(crate) fn initializer_on_new_session(
+		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>
+	) {
 		let config = <configuration::Module<T>>::config();
 
 		let dispute_period = config.dispute_period;
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 
-		// TODO: is is the same as <inclusion::Module<T>>::validators()?
-		let validators: Vec<_> = validators.map(|(_, key)| key).collect();
+		let validators: Vec<_> = notification.validators.clone();
 		let discovery_keys = <pallet_authority_discovery::Module<T>>::authorities();
 		// FIXME:???
 		let approval_keys = Vec::new();
@@ -90,7 +83,7 @@ impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::Acco
 		let no_show_slots = config.no_show_slots;
 		let needed_approvals = config.needed_approvals;
 
-		let new_session_index = <pallet_session::Module<T>>::current_index();
+		let new_session_index = notification.session_index;
 		let old_earliest_stored_session = EarliestStoredSession::get();
 		let new_earliest_stored_session = new_session_index.checked_sub(dispute_period).unwrap_or(0);
 		// update `EarliestStoredSession` based on `config.dispute_period`
@@ -115,7 +108,13 @@ impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::Acco
 		Sessions::insert(&new_session_index, &new_session_info);
 	}
 
-	fn on_disabled(_i: usize) { }
+	/// Called by the initializer to initialize the session info module.
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		0
+	}
+
+	/// Called by the initializer to finalize the session info module.
+	pub(crate) fn initializer_finalize() {}
 }
 
 
@@ -124,6 +123,7 @@ mod tests {
 	// use super::*;
 	#[test]
 	fn it_works() {
-		todo!()
+		// TODO:
+		assert_eq!(2 + 2, 4);
 	}
 }
