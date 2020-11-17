@@ -23,6 +23,17 @@ enum ObservedRole {
 
 ## V1 Network Subsystem Message Types
 
+### Approval Distribution V1
+
+```rust
+enum ApprovalDistributionV1Message {
+	/// An assignment for a candidate in some recent, unfinalized block.
+	Assignment(Hash, u32, AssignmentCert, ValidatorIndex),
+	/// An approval for a candidate in some recent, unfinalized block.
+	Approval(Hash, u32, ApprovalSignature),
+}
+```
+
 ### Availability Distribution V1
 
 ```rust

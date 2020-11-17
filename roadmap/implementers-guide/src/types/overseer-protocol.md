@@ -99,7 +99,7 @@ enum ApprovalDistributionMessage {
 	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
 	/// to be valid for the given relay-parent and validator index.
-	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),
+	DistributeAssignment(Hash, u32, AssignmentCert, ValidatorIndex),
 	/// Distribute an approval vote for the local validator.
 	DistributeApproval(IndirectApprovalVote),
 }
