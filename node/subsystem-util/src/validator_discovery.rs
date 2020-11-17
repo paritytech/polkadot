@@ -152,21 +152,20 @@ impl stream::Stream for ConnectionRequests {
 			}
 
 			match Pin::new(&mut self.requests).poll_next(cx) {
-				Poll::Ready(Some((yeild, token))) => {
-					match yeild {
+				Poll::Ready(Some((yielded, token))) => {
+					match yielded {
 						StreamYield::Item(item) => {
-							let relay_parent = self.id_map.iter()
+							if let Some(relay_parent) = self.id_map.iter()
 								.find_map(|(relay_parent, &val)|
 									if val == token {
 										Some(relay_parent)
 									} else {
 										None
 									}
-								)
-								.expect("All requests' streams should be accounted for; qed");
-
-							return Poll::Ready(Some((*relay_parent, item.0, item.1)));
-						},
+								) {
+								return Poll::Ready(Some((*relay_parent, item.0, item.1)));
+							}
+						}
 						StreamYield::Finished(finished_stream) => {
 							finished_stream.remove(Pin::new(&mut self.requests));
 
@@ -231,5 +230,125 @@ impl ConnectionRequest {
 				"Failed to revoke a validator connection request",
 			);
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use polkadot_primitives::v1::ValidatorPair;
+	use sp_core::{Pair, Public};
+
+	use futures::{executor, poll, channel::{mpsc, oneshot}, StreamExt, SinkExt};
+
+	#[test]
+	fn adding_a_connection_request_works() {
+		let mut connection_requests = ConnectionRequests::default();
+
+		executor::block_on(async move {
+			assert_eq!(poll!(Pin::new(&mut connection_requests).next()), Poll::Pending);
+
+			let validator_1 = ValidatorPair::generate().0.public();
+			let validator_2 = ValidatorPair::generate().0.public();
+
+			let auth_1 = AuthorityDiscoveryId::from_slice(&[1; 32]);
+			let auth_2 = AuthorityDiscoveryId::from_slice(&[2; 32]);
+
+			let mut validator_map = HashMap::new();
+			validator_map.insert(auth_1.clone(), validator_1.clone());
+			validator_map.insert(auth_2.clone(), validator_2.clone());
+
+			let (mut rq1_tx, rq1_rx) = mpsc::channel(8);
+			let (revoke_1_tx, _revoke_1_rx) = oneshot::channel();
+
+			let peer_id_1 = PeerId::random();
+			let peer_id_2 = PeerId::random();
+
+			let connection_request_1 = ConnectionRequest {
+				validator_map,
+				connections: rq1_rx,
+				revoke: revoke_1_tx,
+			};
+
+			let relay_parent_1 = Hash::repeat_byte(1);
+
+			connection_requests.put(relay_parent_1.clone(), connection_request_1);
+
+			rq1_tx.send((auth_1, peer_id_1.clone())).await.unwrap();
+			rq1_tx.send((auth_2, peer_id_2.clone())).await.unwrap();
+
+			let res = Pin::new(&mut connection_requests).next().await.unwrap();
+			assert_eq!(res, (relay_parent_1, validator_1, peer_id_1));
+
+			let res = Pin::new(&mut connection_requests).next().await.unwrap();
+			assert_eq!(res, (relay_parent_1, validator_2, peer_id_2));
+
+			assert_eq!(
+				poll!(Pin::new(&mut connection_requests).next()),
+				Poll::Pending,
+			);
+		});
+	}
+
+	#[test]
+	fn adding_two_connection_requests_works() {
+		let mut connection_requests = ConnectionRequests::default();
+
+		executor::block_on(async move {
+			assert_eq!(poll!(Pin::new(&mut connection_requests).next()), Poll::Pending);
+
+			let validator_1 = ValidatorPair::generate().0.public();
+			let validator_2 = ValidatorPair::generate().0.public();
+
+			let auth_1 = AuthorityDiscoveryId::from_slice(&[1; 32]);
+			let auth_2 = AuthorityDiscoveryId::from_slice(&[2; 32]);
+
+			let mut validator_map_1 = HashMap::new();
+			let mut validator_map_2 = HashMap::new();
+
+			validator_map_1.insert(auth_1.clone(), validator_1.clone());
+			validator_map_2.insert(auth_2.clone(), validator_2.clone());
+
+			let (mut rq1_tx, rq1_rx) = mpsc::channel(8);
+			let (revoke_1_tx, _revoke_1_rx) = oneshot::channel();
+
+			let (mut rq2_tx, rq2_rx) = mpsc::channel(8);
+			let (revoke_2_tx, _revoke_2_rx) = oneshot::channel();
+
+			let peer_id_1 = PeerId::random();
+			let peer_id_2 = PeerId::random();
+
+			let connection_request_1 = ConnectionRequest {
+				validator_map: validator_map_1,
+				connections: rq1_rx,
+				revoke: revoke_1_tx,
+			};
+
+			let connection_request_2 = ConnectionRequest {
+				validator_map: validator_map_2,
+				connections: rq2_rx,
+				revoke: revoke_2_tx,
+			};
+
+			let relay_parent_1 = Hash::repeat_byte(1);
+			let relay_parent_2 = Hash::repeat_byte(2);
+
+			connection_requests.put(relay_parent_1.clone(), connection_request_1);
+			connection_requests.put(relay_parent_2.clone(), connection_request_2);
+
+			rq1_tx.send((auth_1, peer_id_1.clone())).await.unwrap();
+			rq2_tx.send((auth_2, peer_id_2.clone())).await.unwrap();
+
+			let res = Pin::new(&mut connection_requests).next().await.unwrap();
+			assert_eq!(res, (relay_parent_1, validator_1, peer_id_1));
+
+			let res = Pin::new(&mut connection_requests).next().await.unwrap();
+			assert_eq!(res, (relay_parent_2, validator_2, peer_id_2));
+
+			assert_eq!(
+				poll!(Pin::new(&mut connection_requests).next()),
+				Poll::Pending,
+			);
+		});
 	}
 }
