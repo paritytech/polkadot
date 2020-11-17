@@ -590,6 +590,11 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
+				dispute_period: 239,
+				no_show_slots: 240,
+				zeroth_delay_tranche_width: 241,
+				needed_approvals: 242,
+				relay_vrf_modulo_samples: 243,
 				max_upward_queue_count: 1337,
 				max_upward_queue_size: 228,
 				max_downward_message_size: 2048,
@@ -643,6 +648,21 @@ mod tests {
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
+			).unwrap();
+			Configuration::set_dispute_period(
+				Origin::root(), new_config.dispute_period,
+			).unwrap();
+			Configuration::set_no_show_slots(
+				Origin::root(), new_config.no_show_slots,
+			).unwrap();
+			Configuration::set_zeroth_delay_tranche_width(
+				Origin::root(), new_config.zeroth_delay_tranche_width,
+			).unwrap();
+			Configuration::set_needed_approvals(
+				Origin::root(), new_config.needed_approvals,
+			).unwrap();
+			Configuration::set_relay_vrf_modulo_samples(
+				Origin::root(), new_config.relay_vrf_modulo_samples,
 			).unwrap();
 			Configuration::set_max_upward_queue_count(
 				Origin::root(), new_config.max_upward_queue_count,
