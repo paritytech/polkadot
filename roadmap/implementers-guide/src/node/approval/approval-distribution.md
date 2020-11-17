@@ -74,7 +74,7 @@ Add a blank view to the `peer_views` state.
 
 Remove the view under the associated `PeerId` from `State::peer_views`.
 
-TODO: pruning? hard to see how to do it without just iterating over each `BlockEntry` but that might be rel. fast.
+Iterate over every `BlockEntry` and remove `PeerId` from it.
 
 #### `NetworkBridgeEvent::PeerViewChange`
 
