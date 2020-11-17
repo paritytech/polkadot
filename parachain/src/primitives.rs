@@ -135,6 +135,45 @@ impl sp_std::ops::Add<u32> for Id {
 	}
 }
 
+#[derive(Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+pub struct Sibling(pub Id);
+
+impl From<Id> for Sibling {
+	fn from(i: Id) -> Self {
+		Self(i)
+	}
+}
+
+impl From<Sibling> for Id {
+	fn from(i: Sibling) -> Self {
+		i.0
+	}
+}
+
+impl AsRef<Id> for Sibling {
+	fn as_ref(&self) -> &Id {
+		&self.0
+	}
+}
+
+impl TypeId for Sibling {
+	const TYPE_ID: [u8; 4] = *b"sibl";
+}
+
+impl From<Sibling> for u32 {
+	fn from(x: Sibling) -> Self { x.0.into() }
+}
+
+impl From<u32> for Sibling {
+	fn from(x: u32) -> Self { Sibling(x.into()) }
+}
+
+impl IsSystem for Sibling {
+	fn is_system(&self) -> bool {
+		IsSystem::is_system(&self.0)
+	}
+}
+
 /// This type can be converted into and possibly from an AccountId (which itself is generic).
 pub trait AccountIdConversion<AccountId>: Sized {
 	/// Convert into an account ID. This is infallible.

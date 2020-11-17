@@ -36,7 +36,7 @@ impl<
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
-		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
+		let amount: u128 = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
 		let who = AccountIdConverter::from_location(who).ok_or(())?;
 		let balance_amount = amount.try_into().map_err(|_| ())?;
 		let _imbalance = Currency::deposit_creating(&who, balance_amount);
@@ -45,7 +45,7 @@ impl<
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<MultiAsset, Error> {
 		// Check we handle this asset.
-		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
+		let amount: u128 = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
 		let who = AccountIdConverter::from_location(who).ok_or(())?;
 		let balance_amount = amount.try_into().map_err(|_| ())?;
 		Currency::withdraw(&who, balance_amount, WithdrawReasons::TRANSFER, AllowDeath).map_err(|_| ())?;
