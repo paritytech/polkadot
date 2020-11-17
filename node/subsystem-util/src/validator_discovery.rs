@@ -120,7 +120,11 @@ pub struct ConnectionRequests {
 
 impl ConnectionRequests {
 	/// Insert a new connection request.
+	///
+	/// If a `ConnectionRequest` under a given `relay_parent` already exists it will
+	/// be revoked and substituted with a new one.
 	pub fn put(&mut self, relay_parent: Hash, request: ConnectionRequest) {
+		self.remove(&relay_parent);
 		let token = self.requests.push(request);
 
 		self.id_map.insert(relay_parent, token);
