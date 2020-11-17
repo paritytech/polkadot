@@ -34,49 +34,67 @@ use frame_system::ensure_root;
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	/// The minimum frequency at which parachains can update their validation code.
+	#[codec(index = "0")]
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
+	#[codec(index = "1")]
 	pub validation_upgrade_delay: BlockNumber,
 	/// The acceptance period, in blocks. This is the amount of blocks after availability that validators
 	/// and fishermen have to perform secondary checks or issue reports.
+	#[codec(index = "2")]
 	pub acceptance_period: BlockNumber,
 	/// The maximum validation code size, in bytes.
+	#[codec(index = "3")]
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
+	#[codec(index = "4")]
 	pub max_head_data_size: u32,
 	/// The amount of execution cores to dedicate to parathread execution.
+	#[codec(index = "5")]
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
+	#[codec(index = "6")]
 	pub parathread_retries: u32,
 	/// How often parachain groups should be rotated across parachains. Must be non-zero.
+	#[codec(index = "7")]
 	pub group_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for parachains. This is the amount of blocks
 	/// after inclusion that validators have to make the block available and signal its availability to
 	/// the chain. Must be at least 1.
+	#[codec(index = "8")]
 	pub chain_availability_period: BlockNumber,
 	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
 	/// but a differing timeout due to differing requirements. Must be at least 1.
+	#[codec(index = "9")]
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
+	#[codec(index = "10")]
 	pub scheduling_lookahead: u32,
 	/// The amount of sessions to keep for disputes.
+	#[codec(index = "11")]
 	pub dispute_period: SessionIndex,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
 	/// Must be at least 1.
+	#[codec(index = "12")]
 	pub no_show_slots: u32,
 	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
 	/// beyond 0 are all consolidated to form a wide 0 tranche.
+	#[codec(index = "13")]
 	pub zeroth_delay_tranche_width: u32,
 	/// The number of validators needed to approve a block.
+	#[codec(index = "14")]
 	pub needed_approvals: u32,
 	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
+	#[codec(index = "15")]
 	pub relay_vrf_modulo_samples: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+	#[codec(index = "16")]
 	pub max_upward_queue_count: u32,
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
+	#[codec(index = "17")]
 	pub max_upward_queue_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
 	///
@@ -84,45 +102,60 @@ pub struct HostConfiguration<BlockNumber> {
 	/// the PoV size. Of course, there is a lot of other different things that a parachain may
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
+	#[codec(index = "18")]
 	pub max_downward_message_size: u32,
 	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
 	/// stage.
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
+	#[codec(index = "19")]
 	pub preferred_dispatchable_upward_messages_step_weight: Weight,
 	/// The maximum size of an upward message that can be sent by a candidate.
 	///
 	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	#[codec(index = "20")]
 	pub max_upward_message_size: u32,
 	/// The maximum number of messages that a candidate can contain.
 	///
 	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	#[codec(index = "21")]
 	pub max_upward_message_num_per_candidate: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
+	#[codec(index = "22")]
 	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
+	#[codec(index = "23")]
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
+	#[codec(index = "24")]
 	pub hrmp_recipient_deposit: Balance,
 	/// The maximum number of messages allowed in an HRMP channel at once.
+	#[codec(index = "25")]
 	pub hrmp_channel_max_capacity: u32,
 	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
+	#[codec(index = "26")]
 	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
+	#[codec(index = "27")]
 	pub hrmp_max_parachain_inbound_channels: u32,
 	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
+	#[codec(index = "28")]
 	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	#[codec(index = "29")]
 	pub hrmp_channel_max_message_size: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
+	#[codec(index = "30")]
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
+	#[codec(index = "31")]
 	pub hrmp_max_parathread_outbound_channels: u32,
 	/// The maximum number of outbound HRMP messages can be sent by a candidate.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	#[codec(index = "32")]
 	pub hrmp_max_message_num_per_candidate: u32,
 }
 
