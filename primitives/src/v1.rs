@@ -686,7 +686,7 @@ pub struct SessionInfo {
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
 	#[codec(index = "3")]
-	pub validator_groups: Vec<Vec<ValidatorId>>,
+	pub validator_groups: Vec<Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	#[codec(index = "4")]
 	pub n_cores: u32,
