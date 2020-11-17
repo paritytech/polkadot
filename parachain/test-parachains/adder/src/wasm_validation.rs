@@ -17,12 +17,13 @@
 //! WASM validation for adder parachain.
 
 use crate::{HeadData, BlockData};
-use core::{intrinsics, panic};
+use core::panic;
+use sp_std::vec::Vec;
 use parachain::primitives::{ValidationResult, HeadData as GenericHeadData};
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 #[no_mangle]
-pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
+pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 	let params = unsafe { parachain::load_params(params, len) };
 	let parent_head = HeadData::decode(&mut &params.parent_head.0[..])
 		.expect("invalid parent head format.");
@@ -30,17 +31,17 @@ pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 	let block_data = BlockData::decode(&mut &params.block_data.0[..])
 		.expect("invalid block data format.");
 
-	let parent_hash = tiny_keccak::keccak256(&params.parent_head.0[..]);
+	let parent_hash = crate::keccak256(&params.parent_head.0[..]);
 
-	match crate::execute(parent_hash, parent_head, &block_data) {
-		Ok(new_head) => parachain::write_result(
-			&ValidationResult {
-				head_data: GenericHeadData(new_head.encode()),
-				new_validation_code: None,
-				upward_messages: sp_std::vec::Vec::new(),
-				processed_downward_messages: 0,
-			}
-		),
-		Err(_) => panic!("execution failure"),
-	}
+	let new_head = crate::execute(parent_hash, parent_head, &block_data).expect("Executes block");
+	parachain::write_result(
+		&ValidationResult {
+			head_data: GenericHeadData(new_head.encode()),
+			new_validation_code: None,
+			upward_messages: sp_std::vec::Vec::new(),
+			horizontal_messages: sp_std::vec::Vec::new(),
+			processed_downward_messages: 0,
+			hrmp_watermark: params.relay_chain_height,
+		}
+	)
 }

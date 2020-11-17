@@ -16,7 +16,7 @@
 
 //! Module to process purchase of DOTs.
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use sp_runtime::{Permill, RuntimeDebug, DispatchResult, DispatchError, AnySignature};
 use sp_runtime::traits::{Zero, CheckedAdd, Verify, Saturating};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};

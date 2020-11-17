@@ -19,8 +19,6 @@
 //! Node-side logic for Polkadot is mostly comprised of Subsystems, which are discrete components
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
-//!
-//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
 
 #![warn(missing_docs)]
 
@@ -33,6 +31,7 @@ use futures::future::BoxFuture;
 use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 use smallvec::SmallVec;
+use thiserror::Error;
 
 use crate::messages::AllMessages;
 
@@ -107,6 +106,7 @@ pub enum FromOverseer<M> {
 	},
 }
 
+
 /// An error type that describes faults that may happen
 ///
 /// These are:
@@ -114,30 +114,46 @@ pub enum FromOverseer<M> {
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-#[derive(Debug, PartialEq, Eq)]
-pub struct SubsystemError;
+#[derive(Error, Debug)]
+pub enum SubsystemError {
+	/// A notification connection is no longer valid.
+	#[error(transparent)]
+	NotifyCancellation(#[from] oneshot::Canceled),
 
-impl From<mpsc::SendError> for SubsystemError {
-	fn from(_: mpsc::SendError) -> Self {
-		Self
-	}
+	/// Queue does not accept another item.
+	#[error(transparent)]
+	QueueError(#[from] mpsc::SendError),
+
+	/// An attempt to spawn a futures task did not succeed.
+	#[error(transparent)]
+	TaskSpawn(#[from] futures::task::SpawnError),
+
+	/// An infallable error.
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
+
+	/// Prometheus had a problem
+	#[error(transparent)]
+	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
+
+	/// An other error lacking particular type information.
+	#[error("Failed to {0}")]
+	Context(String),
+
+	/// Per origin (or subsystem) annotations to wrap an error.
+	#[error("Error originated in {origin}")]
+	FromOrigin {
+		/// An additional anotation tag for the origin of `source`.
+		origin: &'static str,
+		/// The wrapped error. Marked as source for tracking the error chain.
+		#[source] source: Box<dyn std::error::Error + Send>
+	},
 }
 
-impl From<oneshot::Canceled> for SubsystemError {
-	fn from(_: oneshot::Canceled) -> Self {
-		Self
-	}
-}
-
-impl From<futures::task::SpawnError> for SubsystemError {
-	fn from(_: futures::task::SpawnError) -> Self {
-		Self
-	}
-}
-
-impl From<std::convert::Infallible> for SubsystemError {
-	fn from(e: std::convert::Infallible) -> Self {
-		match e {}
+impl SubsystemError {
+	/// Adds a `str` as `origin` to the given error `err`.
+	pub fn with_origin<E: 'static + Send + std::error::Error>(origin: &'static str, err: E) -> Self {
+		Self::FromOrigin { origin, source: Box::new(err) }
 	}
 }
 
@@ -148,7 +164,7 @@ pub struct SpawnedSubsystem {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
 	/// The task of the subsystem being spawned.
-	pub future: BoxFuture<'static, ()>,
+	pub future: BoxFuture<'static, SubsystemResult<()>>,
 }
 
 /// A `Result` type that wraps [`SubsystemError`].
@@ -204,9 +220,6 @@ pub trait SubsystemContext: Send + 'static {
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
 pub trait Subsystem<C: SubsystemContext> {
-	/// Subsystem-specific Prometheus metrics.
-	type Metrics: metrics::Metrics;
-
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: C) -> SpawnedSubsystem;
 }
@@ -215,60 +228,31 @@ pub trait Subsystem<C: SubsystemContext> {
 /// types of messages. Used for tests or as a placeholder.
 pub struct DummySubsystem;
 
-impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
-	type Metrics = ();
-
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem
+where
+	C::Message: std::fmt::Debug
+{
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
-					Err(_) => return,
-					_ => continue,
+					Err(_) => return Ok(()),
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(overseer_msg) => {
+						log::debug!(
+							target: "dummy-subsystem",
+							"Discarding a message sent from overseer {:?}",
+							overseer_msg
+						);
+						continue;
+					}
 				}
 			}
 		});
 
 		SpawnedSubsystem {
-			name: "DummySubsystem",
+			name: "dummy-subsystem",
 			future,
-		}
-	}
-}
-
-/// This module reexports Prometheus types and defines the [`Metrics`] trait.
-pub mod metrics {
-	/// Reexport Prometheus types.
-	pub use substrate_prometheus_endpoint as prometheus;
-
-	/// Subsystem- or job-specific Prometheus metrics.
-	///
-	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
-	/// to ensure `Default` bounds or as a dummy type ().
-	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
-	pub trait Metrics: Default + Clone {
-		/// Try to register metrics in the Prometheus registry.
-		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
-
-		/// Convience method to register metrics in the optional Prometheus registry.
-		/// If the registration fails, prints a warning and returns `Default::default()`.
-		fn register(registry: Option<&prometheus::Registry>) -> Self {
-			registry.map(|r| {
-				match Self::try_register(r) {
-					Err(e) => {
-						log::warn!("Failed to register metrics: {:?}", e);
-						Default::default()
-					},
-					Ok(metrics) => metrics,
-				}
-			}).unwrap_or_default()
-		}
-	}
-
-	// dummy impl
-	impl Metrics for () {
-		fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-			Ok(())
 		}
 	}
 }

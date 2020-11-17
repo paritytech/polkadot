@@ -22,19 +22,17 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::result;
-use sp_runtime::traits::BadOrigin;
-use primitives::v1::Id as ParaId;
-use codec::{Decode, Encode};
-
 pub mod configuration;
 pub mod inclusion;
 pub mod inclusion_inherent;
 pub mod initializer;
 pub mod paras;
-pub mod router;
 pub mod scheduler;
 pub mod validity;
+pub mod origin;
+pub mod dmp;
+pub mod ump;
+pub mod hrmp;
 
 pub mod runtime_api_impl;
 
@@ -43,21 +41,26 @@ mod util;
 #[cfg(test)]
 mod mock;
 
-/// Origin for the parachains.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub enum Origin {
-	/// It comes from a parachain.
-	Parachain(ParaId),
+pub use origin::{Origin, ensure_parachain};
+
+/// Schedule a para to be initialized at the start of the next session with the given genesis data.
+pub fn schedule_para_initialize<T: paras::Trait>(
+	id: primitives::v1::Id,
+	genesis: paras::ParaGenesisArgs,
+) {
+	<paras::Module<T>>::schedule_para_initialize(id, genesis);
 }
 
-/// Ensure that the origin `o` represents a parachain.
-/// Returns `Ok` with the parachain ID that effected the extrinsic or an `Err` otherwise.
-pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, BadOrigin>
-	where OuterOrigin: Into<result::Result<Origin, OuterOrigin>>
+/// Schedule a para to be cleaned up at the start of the next session.
+pub fn schedule_para_cleanup<T>(id: primitives::v1::Id)
+where
+	T: paras::Trait
+	+ dmp::Trait
+	+ ump::Trait
+	+ hrmp::Trait,
 {
-	match o.into() {
-		Ok(Origin::Parachain(id)) => Ok(id),
-		_ => Err(BadOrigin),
-	}
+	<paras::Module<T>>::schedule_para_cleanup(id);
+	<dmp::Module<T>>::schedule_para_cleanup(id);
+	<ump::Module<T>>::schedule_para_cleanup(id);
+	<hrmp::Module<T>>::schedule_para_cleanup(id);
 }

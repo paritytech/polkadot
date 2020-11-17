@@ -20,6 +20,7 @@ use std::task::Poll;
 
 use futures::{
 	StreamExt,
+	FutureExt,
 	channel::oneshot,
 	future::BoxFuture,
 	stream::FuturesUnordered,
@@ -39,14 +40,57 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, RequestId,
 	NetworkBridgeEvent,
 };
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{
+	TimeoutExt as _,
+	metrics::{self, prometheus},
+};
 
-use super::{modify_reputation, TARGET, Result};
+use super::{modify_reputation, LOG_TARGET, Result};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::new(-10, "An unexpected message");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::new(-20, "A collation request has timed out");
 const COST_REPORT_BAD: Rep = Rep::new(-50, "A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::new(50, "A collator was noted good by another subsystem");
+
+#[derive(Clone, Default)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_request(&self, succeeded: std::result::Result<(), ()>) {
+		if let Some(metrics) = &self.0 {
+			match succeeded {
+				Ok(()) => metrics.collation_requests.with_label_values(&["succeeded"]).inc(),
+				Err(()) => metrics.collation_requests.with_label_values(&["failed"]).inc(),
+			}
+		}
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	collation_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry)
+		-> std::result::Result<Self, prometheus::PrometheusError>
+	{
+		let metrics = MetricsInner {
+			collation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_collation_requests_total",
+						"Number of collations requested from Collators.",
+					),
+					&["success"],
+				)?,
+				registry,
+			)?
+		};
+
+		Ok(Metrics(Some(metrics)))
+	}
+}
 
 #[derive(Debug)]
 enum CollationRequestResult {
@@ -58,7 +102,7 @@ enum CollationRequestResult {
 /// It may timeout or end in a graceful fashion if a requested
 /// collation has been received sucessfully or chain has moved on.
 struct CollationRequest {
-	// The response for this request has been received successfully or 
+	// The response for this request has been received successfully or
 	// chain has moved forward and this request is no longer relevant.
 	received: oneshot::Receiver<()>,
 
@@ -78,7 +122,6 @@ impl CollationRequest {
 			timeout,
 			request_id,
 		} = self;
-
 
 		match received.timeout(timeout).await {
 			None => Timeout(request_id),
@@ -107,9 +150,9 @@ struct State {
 	/// Peers that have declared themselves as collators.
 	known_collators: HashMap<PeerId, CollatorId>,
 
-	/// Advertisments received from collators. We accept one advertisment
+	/// Advertisements received from collators. We accept one advertisement
 	/// per collator per source per relay-parent.
-	advertisments: HashMap<PeerId, HashSet<(ParaId, Hash)>>,
+	advertisements: HashMap<PeerId, HashSet<(ParaId, Hash)>>,
 
 	/// Derive RequestIds from this.
 	next_request_id: RequestId,
@@ -130,10 +173,18 @@ struct State {
 	requests_in_progress: FuturesUnordered<BoxFuture<'static, CollationRequestResult>>,
 
 	/// Delay after which a collation request would time out.
-	request_timeout: Duration, 
+	request_timeout: Duration,
 
 	/// Possessed collations.
 	collations: HashMap<(Hash, ParaId), Vec<(CollatorId, CandidateReceipt, PoV)>>,
+
+	/// Leaves have recently moved out of scope.
+	/// These are looked into when we receive previously requested collations that we
+	/// are no longer interested in.
+	recently_removed_heads: HashSet<Hash>,
+
+	/// Metrics.
+	metrics: Metrics,
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
@@ -156,7 +207,7 @@ where
 					// We do not want this to be fatal because the receving subsystem
 					// may have closed the results channel for some reason.
 					trace!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"Failed to send collation: {:?}", e,
 					);
 				}
@@ -169,7 +220,7 @@ where
 	let mut relevant_advertiser = None;
 
 	// Has the collator in question advertised a relevant collation?
-	for (k, v) in state.advertisments.iter() {
+	for (k, v) in state.advertisements.iter() {
 		if v.contains(&(para_id, relay_parent)) {
 			if state.known_collators.get(k) == Some(&collator_id) {
 				relevant_advertiser = Some(k.clone());
@@ -227,7 +278,7 @@ where
 
 /// A peer's view has changed. A number of things should be done:
 ///  - Ongoing collation requests have to be cancelled.
-///  - Advertisments by this peer that are no longer relevant have to be removed.
+///  - Advertisements by this peer that are no longer relevant have to be removed.
 async fn handle_peer_view_change(
 	state: &mut State,
 	peer_id: PeerId,
@@ -239,8 +290,8 @@ async fn handle_peer_view_change(
 
 	*current = view;
 
-	if let Some(advertisments) = state.advertisments.get_mut(&peer_id) {
-		advertisments.retain(|(_, relay_parent)| !removed.contains(relay_parent));
+	if let Some(advertisements) = state.advertisements.get_mut(&peer_id) {
+		advertisements.retain(|(_, relay_parent)| !removed.contains(relay_parent));
 	}
 
 	let mut requests_to_cancel = Vec::new();
@@ -291,6 +342,7 @@ where
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
 					let _ = per_request.result.send((receipt.clone(), pov.clone()));
+					state.metrics.on_request(Ok(()));
 
 					state.collations
 						.entry((relay_parent, para_id))
@@ -300,11 +352,11 @@ where
 			}
 		}
 	} else {
-		// TODO: https://github.com/paritytech/polkadot/issues/1694
-		// This is tricky. If our chain has moved on, we have already canceled
-		// the relevant request and removed it from the map; so and we are not expecting
-		// this reply although technically it is not a malicious behaviur.
-		modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await?;
+		// If this collation is not just a delayed one that we were expecting,
+		// but our view has moved on, in that case modify peer's reputation.
+		if !state.recently_removed_heads.contains(&relay_parent) {
+			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await?;
+		}
 	}
 
 	Ok(())
@@ -329,7 +381,7 @@ where
 {
 	if !state.view.contains(&relay_parent) {
 		trace!(
-			target: TARGET,
+			target: LOG_TARGET,
 			"Collation by {} on {} on relay parent {} is no longer in view",
 			peer_id, para_id, relay_parent,
 		);
@@ -338,7 +390,7 @@ where
 
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
 		trace!(
-			target: TARGET,
+			target: LOG_TARGET,
 			"Collation by {} on {} on relay parent {} has already been requested",
 			peer_id, para_id, relay_parent,
 		);
@@ -365,9 +417,7 @@ where
 
 	state.requests_info.insert(request_id, per_request);
 
-	state.requests_in_progress.push(Box::pin(async move {
-		request.wait().await
-	}));
+	state.requests_in_progress.push(request.wait().boxed());
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::RequestCollation(
 		request_id,
@@ -419,22 +469,22 @@ where
 	use protocol_v1::CollatorProtocolMessage::*;
 
 	match msg {
-	    Declare(id) => {
+		Declare(id) => {
 			state.known_collators.insert(origin.clone(), id);
 			state.peer_views.entry(origin).or_default();
 		}
-	    AdvertiseCollation(relay_parent, para_id) => {
-			state.advertisments.entry(origin.clone()).or_default().insert((para_id, relay_parent));
+		AdvertiseCollation(relay_parent, para_id) => {
+			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await?;
 			}
 		}
-	    RequestCollation(_, _, _) => {
+		RequestCollation(_, _, _) => {
 			// This is a validator side of the protocol, collation requests are not expected here.
 			return modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
-	    Collation(request_id, receipt, pov) => {
+		Collation(request_id, receipt, pov) => {
 			received_collation(ctx, state, origin, request_id, receipt, pov).await?;
 		}
 	}
@@ -481,7 +531,11 @@ async fn handle_our_view_change(
 		.cloned()
 		.collect::<Vec<_>>();
 
+	// Update the set of recently removed chain heads.
+	state.recently_removed_heads.clear();
+
 	for removed in removed.into_iter() {
+		state.recently_removed_heads.insert(removed.clone());
 		remove_relay_parent(state, removed).await?;
 	}
 
@@ -497,6 +551,8 @@ async fn request_timed_out<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
+	state.metrics.on_request(Err(()));
+
 	// We have to go backwards in the map, again.
 	if let Some(key) = find_val_in_map(&state.requested_collations, &id) {
 		if let Some(_) = state.requested_collations.remove(&key) {
@@ -558,13 +614,13 @@ where
 	match msg {
 		CollateOn(id) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"CollateOn({}) message is not expected on the validator side of the protocol", id,
 			);
 		}
 		DistributeCollation(_, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"DistributeCollation message is not expected on the validator side of the protocol",
 			);
 		}
@@ -584,7 +640,7 @@ where
 				event,
 			).await {
 				warn!(
-					target: TARGET,
+					target: LOG_TARGET,
 					"Failed to handle incoming network message: {:?}", e,
 				);
 			}
@@ -595,7 +651,11 @@ where
 }
 
 /// The main run loop.
-pub(crate) async fn run<Context>(mut ctx: Context, request_timeout: Duration) -> Result<()>
+pub(crate) async fn run<Context>(
+	mut ctx: Context,
+	request_timeout: Duration,
+	metrics: Metrics,
+	) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -604,13 +664,14 @@ where
 
 	let mut state = State {
 		request_timeout,
+		metrics,
 		..Default::default()
 	};
 
 	loop {
 		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			let msg = msg?;
-			trace!(target: TARGET, "Received a message {:?}", msg);
+			trace!(target: LOG_TARGET, "Received a message {:?}", msg);
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
@@ -626,7 +687,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					trace!(target: TARGET, "Request timed out {}", id);
+					trace!(target: LOG_TARGET, "Request timed out {}", id);
 					request_timed_out(&mut ctx, &mut state, id).await?;
 				}
 				CollationRequestResult::Received(id) => {
@@ -698,7 +759,7 @@ mod tests {
 				log::LevelFilter::Trace,
 			)
 			.filter(
-				Some(TARGET),
+				Some(LOG_TARGET),
 				log::LevelFilter::Trace,
 			)
 			.try_init();
@@ -707,7 +768,7 @@ mod tests {
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = run(context, Duration::from_millis(50));
+		let subsystem = run(context, Duration::from_millis(50), Metrics::default());
 
 		let test_fut = test(TestHarness { virtual_overseer });
 
@@ -754,9 +815,9 @@ mod tests {
 			.await
 	}
 
-	// As we receive a relevan advertisment act on it and issue a collation request.
+	// As we receive a relevant advertisement act on it and issue a collation request.
 	#[test]
-	fn act_on_advertisment() {
+	fn act_on_advertisement() {
 		let test_state = TestState::default();
 
 		test_harness(|test_harness| async move {
@@ -1013,7 +1074,7 @@ mod tests {
 	// A test scenario that takes the following steps
 	//  - Two collators connect, declare themselves and advertise a collation relevant to
 	//    our view.
-	//  - This results subsystem acting upon these advertisments and issuing two messages to
+	//  - This results subsystem acting upon these advertisements and issuing two messages to
 	//    the CandidateBacking subsystem.
 	//  - CandidateBacking requests both of the collations.
 	//  - Collation protocol requests these collations.

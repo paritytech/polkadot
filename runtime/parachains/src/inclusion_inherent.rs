@@ -35,6 +35,7 @@ use frame_system::ensure_none;
 use crate::{
 	inclusion,
 	scheduler::{self, FreedReason},
+	ump,
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
@@ -103,7 +104,7 @@ decl_module! {
 			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
 
-			<scheduler::Module<T>>::schedule(freed.collect());
+			<scheduler::Module<T>>::schedule(freed);
 
 			// Process backed candidates according to scheduled cores.
 			let occupied = <inclusion::Module<T>>::process_candidates(
@@ -114,6 +115,9 @@ decl_module! {
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Module<T>>::occupied(&occupied);
+
+			// Give some time slice to dispatch pending upward messages.
+			<ump::Module<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
 			Included::set(Some(()));

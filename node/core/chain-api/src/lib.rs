@@ -22,30 +22,37 @@
 //!
 //! Supported requests:
 //! * Block hash to number
+//! * Block hash to header
 //! * Finalized block number to hash
 //! * Last finalized block number
 //! * Ancestors
 
+#![deny(unused_crate_dependencies, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
-	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
+	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
 	messages::ChainApiMessage,
+};
+use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{Block, BlockId};
 use sp_blockchain::HeaderBackend;
+use std::sync::Arc;
 
 use futures::prelude::*;
 
 /// The Chain API Subsystem implementation.
 pub struct ChainApiSubsystem<Client> {
-	client: Client,
+	client: Arc<Client>,
 	metrics: Metrics,
 }
 
 impl<Client> ChainApiSubsystem<Client> {
 	/// Create a new Chain API subsystem with the given client.
-	pub fn new(client: Client, metrics: Metrics) -> Self {
+	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
 		ChainApiSubsystem {
 			client,
 			metrics,
@@ -57,11 +64,12 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Client: HeaderBackend<Block> + 'static,
 	Context: SubsystemContext<Message = ChainApiMessage>
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = run(ctx, self)
+			.map_err(|e| SubsystemError::with_origin("chain-api", e))
+			.boxed();
 		SpawnedSubsystem {
-			future: run(ctx, self).map(|_| ()).boxed(),
+			future,
 			name: "chain-api-subsystem",
 		}
 	}
@@ -85,6 +93,13 @@ where
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
+				ChainApiMessage::BlockHeader(hash, response_channel) => {
+					let result = subsystem.client
+						.header(BlockId::Hash(hash))
+						.map_err(|e| e.to_string().into());
+					subsystem.metrics.on_request(result.is_ok());
+					let _ = response_channel.send(result);
+				},
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					// Note: we don't verify it's finalized
 					let result = subsystem.client.hash(number).map_err(|e| e.to_string().into());
@@ -104,12 +119,20 @@ where
 						let maybe_header = subsystem.client.header(BlockId::Hash(hash));
 						match maybe_header {
 							// propagate the error
-							Err(e) => Some(Err(e.to_string().into())),
+							Err(e) => {
+								let e = e.to_string().into();
+								Some(Err(e))
+							},
 							// fewer than `k` ancestors are available
 							Ok(None) => None,
 							Ok(Some(header)) => {
-								hash = header.parent_hash;
-								Some(Ok(hash))
+								// stop at the genesis header.
+								if header.number == 1 {
+									None
+								} else {
+									hash = header.parent_hash;
+									Some(Ok(hash))
+								}
 							}
 						}
 					});
@@ -153,7 +176,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_chain_api_requests_total",
 						"Number of Chain API requests served.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -282,11 +305,11 @@ mod tests {
 	}
 
 	fn test_harness(
-		test: impl FnOnce(TestClient, TestSubsystemContextHandle<ChainApiMessage>)
+		test: impl FnOnce(Arc<TestClient>, TestSubsystemContextHandle<ChainApiMessage>)
 			-> BoxFuture<'static, ()>,
 	) {
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
-		let client = TestClient::default();
+		let client = Arc::new(TestClient::default());
 
 		let subsystem = ChainApiSubsystem::new(client.clone(), Metrics(None));
 		let chain_api_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -309,6 +332,30 @@ mod tests {
 
 					sender.send(FromOverseer::Communication {
 						msg: ChainApiMessage::BlockNumber(*hash, tx),
+					}).await;
+
+					assert_eq!(rx.await.unwrap().unwrap(), *expected);
+				}
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
+	}
+
+	#[test]
+	fn request_block_header() {
+		test_harness(|client, mut sender| {
+			async move {
+				const NOT_HERE: Hash = Hash::repeat_byte(0x5);
+				let test_cases = [
+					(TWO, client.header(BlockId::Hash(TWO)).unwrap()),
+					(NOT_HERE, client.header(BlockId::Hash(NOT_HERE)).unwrap()),
+				];
+				for (hash, expected) in &test_cases {
+					let (tx, rx) = oneshot::channel();
+
+					sender.send(FromOverseer::Communication {
+						msg: ChainApiMessage::BlockHeader(*hash, tx),
 					}).await;
 
 					assert_eq!(rx.await.unwrap().unwrap(), *expected);

@@ -18,15 +18,17 @@
 //! functions.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent, PersistedValidationData,
+	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras};
+use crate::{initializer, inclusion, scheduler, configuration, paras, dmp, hrmp};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
@@ -216,6 +218,14 @@ pub fn persisted_validation_data<T: initializer::Trait>(
 	)
 }
 
+/// Implementation for the `check_validation_outputs` function of the runtime API.
+pub fn check_validation_outputs<T: initializer::Trait>(
+	para_id: ParaId,
+	outputs: primitives::v1::ValidationOutputs,
+) -> bool {
+	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs)
+}
+
 /// Implementation for the `session_index_for_child` function of the runtime API.
 pub fn session_index_for_child<T: initializer::Trait>() -> SessionIndex {
 	// Just returns the session index from `inclusion`. Runtime APIs follow
@@ -238,6 +248,14 @@ pub fn validation_code<T: initializer::Trait>(
 		assumption,
 		|| <paras::Module<T>>::current_code(&para_id),
 	)
+}
+
+/// Implementation for the `historical_validation_code` function of the runtime API.
+pub fn historical_validation_code<T: initializer::Trait>(
+	para_id: ParaId,
+	context_height: T::BlockNumber,
+) -> Option<ValidationCode> {
+	<paras::Module<T>>::validation_code_at(para_id, context_height, None)
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
@@ -265,4 +283,42 @@ where
 			RawEvent::<T>::CandidateTimedOut(c, h) => CandidateEvent::CandidateTimedOut(c, h),
 		})
 		.collect()
+}
+
+/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
+/// Currently this request is limited to validators in the current session.
+///
+/// We assume that every validator runs authority discovery,
+/// which would allow us to establish point-to-point connection to given validators.
+// FIXME: handle previous sessions:
+// https://github.com/paritytech/polkadot/issues/1461
+pub fn validator_discovery<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
+where
+	T: initializer::Trait + pallet_authority_discovery::Trait,
+{
+	// FIXME: the mapping might be invalid if a session change happens in between the calls
+	// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
+	let current_validators = <inclusion::Module<T>>::validators();
+	let authorities = <pallet_authority_discovery::Module<T>>::authorities();
+	// We assume the same ordering in authorities as in validators so we can do an index search
+	validators.iter().map(|id| {
+		// FIXME: linear search is slow O(n^2)
+		// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
+		let validator_index = current_validators.iter().position(|v| v == id);
+		validator_index.and_then(|i| authorities.get(i).cloned())
+	}).collect()
+}
+
+/// Implementation for the `dmq_contents` function of the runtime API.
+pub fn dmq_contents<T: dmp::Trait>(
+	recipient: ParaId,
+) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+	<dmp::Module<T>>::dmq_contents(recipient)
+}
+
+/// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
+pub fn inbound_hrmp_channels_contents<T: hrmp::Trait>(
+	recipient: ParaId,
+) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
+	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
 }

@@ -22,57 +22,99 @@
 //! peers. Verified in this context means, the erasure chunks contained merkle proof
 //! is checked.
 
-use codec::{Decode, Encode};
-use futures::{channel::oneshot, FutureExt};
+#![deny(unused_crate_dependencies, unused_qualifications)]
 
-use keystore::KeyStorePtr;
-use sp_core::{
-	crypto::Public,
-	traits::BareCryptoStore,
-};
-use sc_keystore as keystore;
+use parity_scale_codec::{Decode, Encode};
+use futures::{channel::oneshot, FutureExt, TryFutureExt};
+
+use sp_core::crypto::Public;
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View,
+};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{
-	PARACHAIN_KEY_TYPE_ID,
-	BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
-	Hash as Hash, HashT, Id as ParaId,
-	ValidatorId, ValidatorIndex, SessionIndex,
+	BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk, Hash, HashT, Id as ParaId,
+	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID, CandidateHash,
 };
 use polkadot_subsystem::messages::{
-	AllMessages, AvailabilityDistributionMessage, NetworkBridgeMessage, RuntimeApiMessage,
-	RuntimeApiRequest, AvailabilityStoreMessage, ChainApiMessage,
+	AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
+	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError,
 };
-use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, ReputationChange as Rep, PeerId,
-	NetworkBridgeEvent,
-};
 use std::collections::{HashMap, HashSet};
-use std::io;
 use std::iter;
+use thiserror::Error;
 
 const TARGET: &'static str = "avad";
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Erasure(polkadot_erasure_coding::Error),
-	#[from]
-	Io(io::Error),
-	#[from]
-	Oneshot(oneshot::Canceled),
-	#[from]
-	Subsystem(SubsystemError),
-	#[from]
-	RuntimeApi(RuntimeApiError),
-	#[from]
-	ChainApi(ChainApiError),
+	#[error("Sending PendingAvailability query failed")]
+	QueryPendingAvailabilitySendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain PendingAvailability failed")]
+	QueryPendingAvailabilityResponseChannel(#[source] oneshot::Canceled),
+	#[error("RuntimeAPI to obtain PendingAvailability failed")]
+	QueryPendingAvailability(#[source] RuntimeApiError),
+
+	#[error("Sending StoreChunk query failed")]
+	StoreChunkSendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain StoreChunk failed")]
+	StoreChunkResponseChannel(#[source] oneshot::Canceled),
+
+	#[error("Sending QueryChunk query failed")]
+	QueryChunkSendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain QueryChunk failed")]
+	QueryChunkResponseChannel(#[source] oneshot::Canceled),
+
+	#[error("Sending QueryAncestors query failed")]
+	QueryAncestorsSendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain QueryAncestors failed")]
+	QueryAncestorsResponseChannel(#[source] oneshot::Canceled),
+	#[error("RuntimeAPI to obtain QueryAncestors failed")]
+	QueryAncestors(#[source] ChainApiError),
+
+	#[error("Sending QuerySession query failed")]
+	QuerySessionSendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain QuerySession failed")]
+	QuerySessionResponseChannel(#[source] oneshot::Canceled),
+	#[error("RuntimeAPI to obtain QuerySession failed")]
+	QuerySession(#[source] RuntimeApiError),
+
+	#[error("Sending QueryValidators query failed")]
+	QueryValidatorsSendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain QueryValidators failed")]
+	QueryValidatorsResponseChannel(#[source] oneshot::Canceled),
+	#[error("RuntimeAPI to obtain QueryValidators failed")]
+	QueryValidators(#[source] RuntimeApiError),
+
+	#[error("Sending AvailabilityCores query failed")]
+	AvailabilityCoresSendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain AvailabilityCores failed")]
+	AvailabilityCoresResponseChannel(#[source] oneshot::Canceled),
+	#[error("RuntimeAPI to obtain AvailabilityCores failed")]
+	AvailabilityCores(#[source] RuntimeApiError),
+
+	#[error("Sending AvailabilityCores query failed")]
+	QueryAvailabilitySendQuery(#[source] SubsystemError),
+	#[error("Response channel to obtain AvailabilityCores failed")]
+	QueryAvailabilityResponseChannel(#[source] oneshot::Canceled),
+
+	#[error("Sending out a peer report message")]
+	ReportPeerMessageSend(#[source] SubsystemError),
+
+	#[error("Sending a gossip message")]
+	TrackedGossipMessage(#[source] SubsystemError),
+
+	#[error("Receive channel closed")]
+	IncomingMessageChannel(#[source] SubsystemError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -88,7 +130,7 @@ const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AvailabilityGossipMessage {
 	/// Anchor hash of the candidate the `ErasureChunk` is associated to.
-	pub candidate_hash: Hash,
+	pub candidate_hash: CandidateHash,
 	/// The erasure chunk, a encoded information part of `AvailabilityData`.
 	pub erasure_chunk: ErasureChunk,
 }
@@ -107,13 +149,13 @@ struct ProtocolState {
 	/// Caches a mapping of relay parents or ancestor to live candidate receipts.
 	/// Allows fast intersection of live candidates with views and consecutive unioning.
 	/// Maps relay parent / ancestor -> live candidate receipts + its hash.
-	receipts: HashMap<Hash, HashSet<(Hash, CommittedCandidateReceipt)>>,
+	receipts: HashMap<Hash, HashSet<(CandidateHash, CommittedCandidateReceipt)>>,
 
 	/// Allow reverse caching of view checks.
 	/// Maps candidate hash -> relay parent for extracting meta information from `PerRelayParent`.
 	/// Note that the presence of this is not sufficient to determine if deletion is OK, i.e.
 	/// two histories could cover this.
-	reverse: HashMap<Hash, Hash>,
+	reverse: HashMap<CandidateHash, Hash>,
 
 	/// Keeps track of which candidate receipts are required due to ancestors of which relay parents
 	/// of our view.
@@ -124,7 +166,7 @@ struct ProtocolState {
 	per_relay_parent: HashMap<Hash, PerRelayParent>,
 
 	/// Track data that is specific to a candidate.
-	per_candidate: HashMap<Hash, PerCandidate>,
+	per_candidate: HashMap<CandidateHash, PerCandidate>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -134,11 +176,11 @@ struct PerCandidate {
 	/// candidate hash + erasure chunk index -> gossip message
 	message_vault: HashMap<u32, AvailabilityGossipMessage>,
 
-	/// Track received candidate hashes and chunk indices from peers.
-	received_messages: HashMap<PeerId, HashSet<(Hash, ValidatorIndex)>>,
+	/// Track received candidate hashes and validator indices from peers.
+	received_messages: HashMap<PeerId, HashSet<(CandidateHash, ValidatorIndex)>>,
 
 	/// Track already sent candidate hashes and the erasure chunk index to the peers.
-	sent_messages: HashMap<PeerId, HashSet<(Hash, ValidatorIndex)>>,
+	sent_messages: HashMap<PeerId, HashSet<(CandidateHash, ValidatorIndex)>>,
 
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
@@ -179,7 +221,7 @@ impl ProtocolState {
 	fn cached_live_candidates_unioned<'a>(
 		&'a self,
 		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
-	) -> HashMap<Hash, CommittedCandidateReceipt> {
+	) -> HashMap<CandidateHash, CommittedCandidateReceipt> {
 		let relay_parents_and_ancestors = self.extend_with_ancestors(relay_parents);
 		relay_parents_and_ancestors
 			.into_iter()
@@ -187,7 +229,7 @@ impl ProtocolState {
 			.map(|receipt_set| receipt_set.into_iter())
 			.flatten()
 			.map(|(receipt_hash, receipt)| (receipt_hash.clone(), receipt.clone()))
-			.collect::<HashMap<Hash, CommittedCandidateReceipt>>()
+			.collect()
 	}
 
 	async fn add_relay_parent<Context>(
@@ -200,22 +242,18 @@ impl ProtocolState {
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
-		let candidates =
-			query_live_candidates(ctx, self, std::iter::once(relay_parent)).await?;
+		let candidates = query_live_candidates(ctx, self, std::iter::once(relay_parent)).await?;
 
 		// register the relation of relay_parent to candidate..
 		// ..and the reverse association.
 		for (relay_parent_or_ancestor, (receipt_hash, receipt)) in candidates.clone() {
-			self
-				.reverse
+			self.reverse
 				.insert(receipt_hash.clone(), relay_parent_or_ancestor.clone());
-			let per_candidate = self.per_candidate.entry(receipt_hash.clone())
-				.or_default();
+			let per_candidate = self.per_candidate.entry(receipt_hash.clone()).or_default();
 			per_candidate.validator_index = validator_index.clone();
 			per_candidate.validators = validators.clone();
 
-			self
-				.receipts
+			self.receipts
 				.entry(relay_parent_or_ancestor)
 				.or_default()
 				.insert((receipt_hash, receipt));
@@ -241,8 +279,7 @@ impl ProtocolState {
 				.insert(relay_parent);
 		}
 
-		self
-			.per_relay_parent
+		self.per_relay_parent
 			.entry(relay_parent)
 			.or_default()
 			.ancestors = ancestors;
@@ -259,8 +296,9 @@ impl ProtocolState {
 				// remove from the ancestry index
 				self.ancestry.remove(relay_parent);
 				// and also remove the actual receipt
-				self.receipts.remove(relay_parent);
-				self.per_candidate.remove(relay_parent);
+				if let Some(candidates) = self.receipts.remove(relay_parent) {
+					candidates.into_iter().for_each(|c| { self.per_candidate.remove(&c.0); });
+				}
 			}
 		}
 		if let Some(per_relay_parent) = self.per_relay_parent.remove(relay_parent) {
@@ -276,8 +314,9 @@ impl ProtocolState {
 						// remove from the ancestry index
 						self.ancestry.remove(&ancestor);
 						// and also remove the actual receipt
-						self.receipts.remove(&ancestor);
-						self.per_candidate.remove(&ancestor);
+						if let Some(candidates) = self.receipts.remove(&ancestor) {
+							candidates.into_iter().for_each(|c| { self.per_candidate.remove(&c.0); });
+						}
 					}
 				}
 			}
@@ -290,8 +329,9 @@ impl ProtocolState {
 /// which depends on the message type received.
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
-	keystore: KeyStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
+	metrics: &Metrics,
 	bridge_message: NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>,
 ) -> Result<()>
 where
@@ -307,30 +347,35 @@ where
 			state.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			handle_peer_view_change(ctx, state, peerid, view).await?;
+			handle_peer_view_change(ctx, state, peerid, view, metrics).await?;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
-			handle_our_view_change(ctx, keystore, state, view).await?;
+			handle_our_view_change(ctx, keystore, state, view, metrics).await?;
 		}
 		NetworkBridgeEvent::PeerMessage(remote, msg) => {
 			let gossiped_availability = match msg {
-				protocol_v1::AvailabilityDistributionMessage::Chunk(candidate_hash, chunk) =>
-					AvailabilityGossipMessage { candidate_hash, erasure_chunk: chunk }
+				protocol_v1::AvailabilityDistributionMessage::Chunk(candidate_hash, chunk) => {
+					AvailabilityGossipMessage {
+						candidate_hash,
+						erasure_chunk: chunk,
+					}
+				}
 			};
 
-			process_incoming_peer_message(ctx, state, remote, gossiped_availability).await?;
+			process_incoming_peer_message(ctx, state, remote, gossiped_availability, metrics)
+				.await?;
 		}
 	}
 	Ok(())
 }
 
-
 /// Handle the changes necessary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
-	keystore: KeyStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
 	view: View,
+	metrics: &Metrics,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -345,19 +390,15 @@ where
 	for added in added.iter() {
 		let added = **added;
 		let validators = query_validators(ctx, added).await?;
-		let validator_index = obtain_our_validator_index(
-			&validators,
-			keystore.clone(),
-		);
-		state.add_relay_parent(ctx, added, validators, validator_index).await?;
+		let validator_index = obtain_our_validator_index(&validators, keystore.clone()).await;
+		state
+			.add_relay_parent(ctx, added, validators, validator_index)
+			.await?;
 	}
 
 	// handle all candidates
 	for (candidate_hash, _receipt) in state.cached_live_candidates_unioned(added) {
-		let per_candidate = state
-			.per_candidate
-			.entry(candidate_hash)
-			.or_default();
+		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		// assure the node has the validator role
 		if per_candidate.validator_index.is_none() {
@@ -387,19 +428,18 @@ where
 
 		// distribute all erasure messages to interested peers
 		for chunk_index in 0u32..(validator_count as u32) {
-
 			// only the peers which did not receive this particular erasure chunk
-			let per_candidate = state
-				.per_candidate
-				.entry(candidate_hash)
-				.or_default();
+			let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 			// obtain the chunks from the cache, if not fallback
 			// and query the availability store
 			let message_id = (candidate_hash, chunk_index);
-			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
+			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index)
+			{
 				message.erasure_chunk.clone()
-			} else if let Some(erasure_chunk) = query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await? {
+			} else if let Some(erasure_chunk) =
+				query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await?
+			{
 				erasure_chunk
 			} else {
 				continue;
@@ -414,9 +454,7 @@ where
 					!per_candidate
 						.sent_messages
 						.get(*peer)
-						.filter(|set| {
-							set.contains(&message_id)
-						})
+						.filter(|set| set.contains(&message_id))
 						.is_some()
 				})
 				.map(|peer| peer.clone())
@@ -426,7 +464,8 @@ where
 				erasure_chunk,
 			};
 
-			send_tracked_gossip_message_to_peers(ctx, per_candidate, peers, message).await?;
+			send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message)
+				.await?;
 		}
 	}
 
@@ -442,31 +481,36 @@ where
 async fn send_tracked_gossip_message_to_peers<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
+	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message: AvailabilityGossipMessage,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, peers, iter::once(message)).await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message))
+		.await
 }
 
 #[inline(always)]
 async fn send_tracked_gossip_messages_to_peer<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
+	metrics: &Metrics,
 	peer: PeerId,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, vec![peer], message_iter).await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![peer], message_iter)
+		.await
 }
 
 async fn send_tracked_gossip_messages_to_peers<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
+	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
 ) -> Result<()>
@@ -474,7 +518,7 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	if peers.is_empty() {
-		return Ok(())
+		return Ok(());
 	}
 	for message in message_iter {
 		for peer in peers.iter() {
@@ -502,7 +546,9 @@ where
 			),
 		))
 		.await
-		.map_err::<Error, _>(Into::into)?;
+		.map_err(|e| Error::TrackedGossipMessage(e))?;
+
+		metrics.on_chunk_distributed();
 	}
 
 	Ok(())
@@ -515,6 +561,7 @@ async fn handle_peer_view_change<Context>(
 	state: &mut ProtocolState,
 	origin: PeerId,
 	view: View,
+	metrics: &Metrics,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -536,8 +583,7 @@ where
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		// obtain the relevant chunk indices not sent yet
-		let messages = ((0 as ValidatorIndex)
-			..(per_candidate.validators.len() as ValidatorIndex))
+		let messages = ((0 as ValidatorIndex)..(per_candidate.validators.len() as ValidatorIndex))
 			.into_iter()
 			.filter_map(|erasure_chunk_index: ValidatorIndex| {
 				let message_id = (candidate_hash, erasure_chunk_index);
@@ -560,7 +606,8 @@ where
 			.cloned()
 			.collect::<HashSet<_>>();
 
-		send_tracked_gossip_messages_to_peer(ctx, per_candidate, origin.clone(), messages).await?;
+		send_tracked_gossip_messages_to_peer(ctx, per_candidate, metrics, origin.clone(), messages)
+			.await?;
 	}
 	Ok(())
 }
@@ -568,18 +615,21 @@ where
 /// Obtain the first key which has a signing key.
 /// Returns the index within the validator set as `ValidatorIndex`, if there exists one,
 /// otherwise, `None` is returned.
-fn obtain_our_validator_index(
+async fn obtain_our_validator_index(
 	validators: &[ValidatorId],
-	keystore: KeyStorePtr,
+	keystore: SyncCryptoStorePtr,
 ) -> Option<ValidatorIndex> {
-	let keystore = keystore.read();
-	validators.iter().enumerate().find_map(|(idx, validator)| {
-		if keystore.has_keys(&[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]) {
-			Some(idx as ValidatorIndex)
-		} else {
-			None
+	for (idx, validator) in validators.iter().enumerate() {
+		if CryptoStore::has_keys(
+			&*keystore,
+			&[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)],
+		)
+		.await
+		{
+			return Some(idx as ValidatorIndex);
 		}
-	})
+	}
+	None
 }
 
 /// Handle an incoming message from a peer.
@@ -588,6 +638,7 @@ async fn process_incoming_peer_message<Context>(
 	state: &mut ProtocolState,
 	origin: PeerId,
 	message: AvailabilityGossipMessage,
+	metrics: &Metrics,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -596,8 +647,7 @@ where
 	let live_candidates = state.cached_live_candidates_unioned(state.view.0.iter());
 
 	// check if the candidate is of interest
-	let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash)
-	{
+	let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash) {
 		live_candidate
 	} else {
 		return modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
@@ -655,10 +705,16 @@ where
 					if let Err(_e) = store_chunk(
 						ctx,
 						message.candidate_hash.clone(),
+						live_candidate.descriptor.relay_parent.clone(),
 						message.erasure_chunk.index,
 						message.erasure_chunk.clone(),
-					).await? {
-						warn!(target: TARGET, "Failed to store erasure chunk to availability store");
+					)
+					.await?
+					{
+						warn!(
+							target: TARGET,
+							"Failed to store erasure chunk to availability store"
+						);
 					}
 				}
 			}
@@ -694,13 +750,15 @@ where
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
-	send_tracked_gossip_message_to_peers(ctx, per_candidate, peers, message).await
+	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await
 }
 
 /// The bitfield distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
-	keystore: KeyStorePtr,
+	keystore: SyncCryptoStorePtr,
+	/// Prometheus metrics.
+	metrics: Metrics,
 }
 
 impl AvailabilityDistributionSubsystem {
@@ -708,8 +766,8 @@ impl AvailabilityDistributionSubsystem {
 	const K: usize = 3;
 
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: KeyStorePtr) -> Self {
-		Self { keystore }
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+		Self { keystore, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -720,20 +778,26 @@ impl AvailabilityDistributionSubsystem {
 		// work: process incoming messages from the overseer.
 		let mut state = ProtocolState::default();
 		loop {
-			let message = ctx.recv().await.map_err::<Error, _>(Into::into)?;
+			let message = ctx
+				.recv()
+				.await
+				.map_err(|e| Error::IncomingMessageChannel(e))?;
 			match message {
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
 					if let Err(e) = handle_network_msg(
 						&mut ctx,
-						self.keystore.clone(),
+						&self.keystore.clone(),
 						&mut state,
-						event
-					).await {
+						&self.metrics,
+						event,
+					)
+					.await
+					{
 						warn!(
 							target: TARGET,
-							"Failed to handle incomming network messages: {:?}", e
+							"Failed to handle incoming network messages: {:?}", e
 						);
 					}
 				}
@@ -756,12 +820,15 @@ impl<Context> Subsystem<Context> for AvailabilityDistributionSubsystem
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 {
-	type Metrics = ();
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = self
+			.run(ctx)
+			.map_err(|e| SubsystemError::with_origin("availability-distribution", e))
+			.boxed();
+
 		SpawnedSubsystem {
 			name: "availability-distribution-subsystem",
-			future: Box::pin(async move { self.run(ctx) }.map(|_| ())),
+			future,
 		}
 	}
 }
@@ -796,7 +863,7 @@ async fn query_live_candidates<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	relay_parents: impl IntoIterator<Item = Hash>,
-) -> Result<HashMap<Hash, (Hash, CommittedCandidateReceipt)>>
+) -> Result<HashMap<Hash, (CandidateHash, CommittedCandidateReceipt)>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -805,10 +872,9 @@ where
 
 	let capacity = hint.1.unwrap_or(hint.0) * (1 + AvailabilityDistributionSubsystem::K);
 	let mut live_candidates =
-		HashMap::<Hash, (Hash, CommittedCandidateReceipt)>::with_capacity(capacity);
+		HashMap::<Hash, (CandidateHash, CommittedCandidateReceipt)>::with_capacity(capacity);
 
 	for relay_parent in iter {
-
 		// register one of relay parents (not the ancestors)
 		let mut ancestors = query_up_to_k_ancestors_in_same_session(
 			ctx,
@@ -818,7 +884,6 @@ where
 		.await?;
 
 		ancestors.push(relay_parent);
-
 
 		// ancestors might overlap, so check the cache too
 		let unknown = ancestors
@@ -833,10 +898,7 @@ where
 						// directly extend the live_candidates with the cached value
 						live_candidates.extend(receipts.into_iter().map(
 							|(receipt_hash, receipt)| {
-								(
-									relay_parent,
-									(receipt_hash.clone(), receipt.clone()),
-								)
+								(relay_parent, (receipt_hash.clone(), receipt.clone()))
 							},
 						));
 						Some(())
@@ -869,10 +931,12 @@ where
 		RuntimeApiRequest::AvailabilityCores(tx),
 	)))
 	.await
-	.map_err::<Error, _>(Into::into)?;
+	.map_err(|e| Error::AvailabilityCoresSendQuery(e))?;
 
 	let all_para_ids: Vec<_> = rx
-		.await??;
+		.await
+		.map_err(|e| Error::AvailabilityCoresResponseChannel(e))?
+		.map_err(|e| Error::AvailabilityCores(e))?;
 
 	let occupied_para_ids = all_para_ids
 		.into_iter()
@@ -902,14 +966,11 @@ where
 		NetworkBridgeMessage::ReportPeer(peer, rep),
 	))
 	.await
-	.map_err::<Error, _>(Into::into)
+	.map_err(|e| Error::ReportPeerMessageSend(e))
 }
 
 /// Query the proof of validity for a particular candidate hash.
-async fn query_data_availability<Context>(
-	ctx: &mut Context,
-	candidate_hash: Hash,
-) -> Result<bool>
+async fn query_data_availability<Context>(ctx: &mut Context, candidate_hash: CandidateHash) -> Result<bool>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -917,14 +978,15 @@ where
 	ctx.send_message(AllMessages::AvailabilityStore(
 		AvailabilityStoreMessage::QueryDataAvailability(candidate_hash, tx),
 	))
-	.await?;
-	rx.await.map_err::<Error, _>(Into::into)
+	.await
+	.map_err(|e| Error::QueryAvailabilitySendQuery(e))?;
+	rx.await
+		.map_err(|e| Error::QueryAvailabilityResponseChannel(e))
 }
-
 
 async fn query_chunk<Context>(
 	ctx: &mut Context,
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	validator_index: ValidatorIndex,
 ) -> Result<Option<ErasureChunk>>
 where
@@ -932,16 +994,17 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-			AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
-		))
-		.await?;
-	rx.await.map_err::<Error, _>(Into::into)
+		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
+	))
+	.await
+	.map_err(|e| Error::QueryChunkSendQuery(e))?;
+	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
 }
-
 
 async fn store_chunk<Context>(
 	ctx: &mut Context,
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
+	relay_parent: Hash,
 	validator_index: ValidatorIndex,
 	erasure_chunk: ErasureChunk,
 ) -> Result<std::result::Result<(), ()>>
@@ -949,10 +1012,19 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::AvailabilityStore(
-		AvailabilityStoreMessage::StoreChunk(candidate_hash, validator_index, erasure_chunk, tx),
-	)).await?;
-	rx.await.map_err::<Error, _>(Into::into)
+	ctx.send_message(
+		AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::StoreChunk {
+				candidate_hash,
+				relay_parent,
+				validator_index,
+				chunk: erasure_chunk,
+				tx,
+			}
+		)).await
+		.map_err(|e| Error::StoreChunkSendQuery(e))?;
+
+	rx.await.map_err(|e| Error::StoreChunkResponseChannel(e))
 }
 
 /// Request the head data for a particular para.
@@ -966,12 +1038,15 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-		)))
-		.await?;
-	rx.await?
-		.map_err::<Error, _>(Into::into)
+		relay_parent,
+		RuntimeApiRequest::CandidatePendingAvailability(para, tx),
+	)))
+	.await
+	.map_err(|e| Error::QueryPendingAvailabilitySendQuery(e))?;
+
+	rx.await
+		.map_err(|e| Error::QueryPendingAvailabilityResponseChannel(e))?
+		.map_err(|e| Error::QueryPendingAvailability(e))
 }
 
 /// Query the validator set.
@@ -989,9 +1064,11 @@ where
 	));
 
 	ctx.send_message(query_validators)
-		.await?;
-	rx.await?
-		.map_err::<Error, _>(Into::into)
+		.await
+		.map_err(|e| Error::QueryValidatorsSendQuery(e))?;
+	rx.await
+		.map_err(|e| Error::QueryValidatorsResponseChannel(e))?
+		.map_err(|e| Error::QueryValidators(e))
 }
 
 /// Query the hash of the `K` ancestors
@@ -1011,9 +1088,11 @@ where
 	});
 
 	ctx.send_message(query_ancestors)
-		.await?;
-	rx.await?
-		.map_err::<Error, _>(Into::into)
+		.await
+		.map_err(|e| Error::QueryAncestorsSendQuery(e))?;
+	rx.await
+		.map_err(|e| Error::QueryAncestorsResponseChannel(e))?
+		.map_err(|e| Error::QueryAncestors(e))
 }
 
 /// Query the session index of a relay parent
@@ -1031,9 +1110,11 @@ where
 	));
 
 	ctx.send_message(query_session_idx_for_child)
-		.await?;
-	rx.await?
-		.map_err::<Error, _>(Into::into)
+		.await
+		.map_err(|e| Error::QuerySessionSendQuery(e))?;
+	rx.await
+		.map_err(|e| Error::QuerySessionResponseChannel(e))?
+		.map_err(|e| Error::QuerySession(e))
 }
 
 /// Queries up to k ancestors with the constraints of equiv session
@@ -1074,6 +1155,39 @@ where
 	Ok(acc)
 }
 
+#[derive(Clone)]
+struct MetricsInner {
+	gossipped_availability_chunks: prometheus::Counter<prometheus::U64>,
+}
+
+/// Availability Distribution metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_chunk_distributed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.gossipped_availability_chunks.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(
+		registry: &prometheus::Registry,
+	) -> std::result::Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			gossipped_availability_chunks: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_gossipped_availability_chunks_total",
+					"Number of availability chunks gossipped to other peers.",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
 
 #[cfg(test)]
 mod tests;

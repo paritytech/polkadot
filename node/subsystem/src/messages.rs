@@ -23,22 +23,24 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::{mpsc, oneshot};
-
+use thiserror::Error;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId, PeerSet,
+	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-	CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, ErasureChunk, GroupRotationInfo, Hash, Id as ParaId,
-	OccupiedCoreAssumption, PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	TransientValidationData, ValidationCode, ValidatorId, ValidationData, ValidatorIndex,
-	ValidatorSignature,
+	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber,
+	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
+	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
+	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	ValidationCode, ValidatorId, ValidationData, CandidateHash,
+	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
 use std::sync::Arc;
+use std::collections::btree_map::BTreeMap;
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -96,7 +98,8 @@ impl CandidateBackingMessage {
 }
 
 /// Blanket error for validation failing for internal reasons.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Validation failed with {0:?}")]
 pub struct ValidationFailed(pub String);
 
 /// Messages received by the Validation subsystem.
@@ -114,6 +117,8 @@ pub enum CandidateValidationMessage {
 	/// from the runtime API of the chain, based on the `relay_parent`
 	/// of the `CandidateDescriptor`.
 	///
+	/// This will also perform checking of validation outputs against the acceptance criteria.
+	///
 	/// If there is no state available which can provide this data or the core for
 	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(
@@ -124,11 +129,14 @@ pub enum CandidateValidationMessage {
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
 	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
-	/// validation without needing to access the state of the relay-chain. Optionally provide the
-	/// `TransientValidationData` for further checks on the outputs.
+	/// validation without needing to access the state of the relay-chain.
+	///
+	/// This request doesn't involve acceptance criteria checking, therefore only useful for the
+	/// cases where the validity of the candidate is established. This is the case for the typical
+	/// use-case: secondary checkers would use this request relying on the full prior checks
+	/// performed by the relay-chain.
 	ValidateFromExhaustive(
 		PersistedValidationData,
-		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -141,7 +149,7 @@ impl CandidateValidationMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
 		}
 	}
 }
@@ -196,11 +204,25 @@ pub enum NetworkBridgeMessage {
 	/// Send a message to one or more peers on the collation peer-set.
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
-	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	/// Connect to peers who represent the given `validator_ids`.
 	///
-	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
-	/// validators.
-	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
+	/// Also ask the network to stay connected to these peers at least
+	/// until the request is revoked.
+	ConnectToValidators {
+		/// Ids of the validators to connect to.
+		validator_ids: Vec<AuthorityDiscoveryId>,
+		/// Response sender by which the issuer can learn the `PeerId`s of
+		/// the validators as they are connected.
+		/// The response is sent immediately for already connected peers.
+		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		/// By revoking the request the caller allows the network to
+		/// free some peer slots thus freeing the resources.
+		/// It doesn't necessarily lead to peers disconnection though.
+		/// The revokation is enacted on in the next connection request.
+		///
+		/// This can be done by sending to the channel or dropping the sender.
+		revoke: oneshot::Receiver<()>,
+	},
 }
 
 impl NetworkBridgeMessage {
@@ -210,7 +232,7 @@ impl NetworkBridgeMessage {
 			Self::ReportPeer(_, _) => None,
 			Self::SendValidationMessage(_, _) => None,
 			Self::SendCollationMessage(_, _) => None,
-			Self::ConnectToValidators(_, _, _) => None,
+			Self::ConnectToValidators { .. } => None,
 		}
 	}
 }
@@ -268,47 +290,53 @@ impl BitfieldSigningMessage {
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
 	/// Query a `AvailableData` from the AV store.
-	QueryAvailableData(Hash, oneshot::Sender<Option<AvailableData>>),
+	QueryAvailableData(CandidateHash, oneshot::Sender<Option<AvailableData>>),
 
 	/// Query whether a `AvailableData` exists within the AV Store.
 	///
 	/// This is useful in cases when existence
 	/// matters, but we don't want to necessarily pass around multiple
 	/// megabytes of data to get a single bit of information.
-	QueryDataAvailability(Hash, oneshot::Sender<bool>),
+	QueryDataAvailability(CandidateHash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
-	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
+	QueryChunk(CandidateHash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Query whether an `ErasureChunk` exists within the AV Store.
 	///
 	/// This is useful in cases like bitfield signing, when existence
 	/// matters, but we don't want to necessarily pass around large
 	/// quantities of data to get a single bit of information.
-	QueryChunkAvailability(Hash, ValidatorIndex, oneshot::Sender<bool>),
+	QueryChunkAvailability(CandidateHash, ValidatorIndex, oneshot::Sender<bool>),
 
 	/// Store an `ErasureChunk` in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
+	StoreChunk {
+		/// A hash of the candidate this chunk belongs to.
+		candidate_hash: CandidateHash,
+		/// A relevant relay parent.
+		relay_parent: Hash,
+		/// The index of the validator this chunk belongs to.
+		validator_index: ValidatorIndex,
+		/// The chunk itself.
+		chunk: ErasureChunk,
+		/// Sending side of the channel to send result to.
+		tx: oneshot::Sender<Result<(), ()>>,
+	},
 
 	/// Store a `AvailableData` in the AV store.
 	/// If `ValidatorIndex` is present store corresponding chunk also.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
+	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
 }
 
 impl AvailabilityStoreMessage {
-	/// If the current variant contains the relay parent hash, return it.
+	/// In fact, none of the AvailabilityStore messages assume a particular relay parent.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::QueryAvailableData(hash, _) => Some(*hash),
-			Self::QueryDataAvailability(hash, _) => Some(*hash),
-			Self::QueryChunk(hash, _, _) => Some(*hash),
-			Self::QueryChunkAvailability(hash, _, _) => Some(*hash),
-			Self::StoreChunk(hash, _, _, _) => Some(*hash),
-			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
+			_ => None,
 		}
 	}
 }
@@ -322,6 +350,9 @@ pub enum ChainApiMessage {
 	/// Request the block number by hash.
 	/// Returns `None` if a block with the given hash is not present in the db.
 	BlockNumber(Hash, ChainApiResponseChannel<Option<BlockNumber>>),
+	/// Request the block header by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockHeader(Hash, ChainApiResponseChannel<Option<BlockHeader>>),
 	/// Request the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
 	/// Note: the caller must ensure the block is finalized.
@@ -378,17 +409,56 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationData>>,
 	),
+	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
+	CheckValidationOutputs(
+		ParaId,
+		polkadot_primitives::v1::ValidationOutputs,
+		RuntimeApiSender<bool>,
+	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
 	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
 	/// will inform on how the validation data should be computed if the para currently
 	/// occupies a core.
-	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
+	ValidationCode(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
+	/// Fetch the historical validation code used by a para for candidates executed in the
+	/// context of a given block height in the current chain.
+	///
+	/// `context_height` may be no greater than the height of the block in whose
+	/// state the runtime API is executed. Otherwise `None` is returned.
+	HistoricalValidationCode(
+		ParaId,
+		BlockNumber,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
+	/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
+	/// Currently this request is limited to validators in the current session.
+	///
+	/// Returns `None` for validators not found in the current session.
+	ValidatorDiscovery(
+		Vec<ValidatorId>,
+		RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>,
+	),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(
+		ParaId,
+		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
+	),
+	/// Get the contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	InboundHrmpChannelsContents(
+		ParaId,
+		RuntimeApiSender<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.
@@ -415,6 +485,8 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
+	/// Register a listener for shared statements.
+	RegisterStatementListener(mpsc::Sender<SignedFullStatement>),
 }
 
 impl StatementDistributionMessage {
@@ -423,6 +495,7 @@ impl StatementDistributionMessage {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::RegisterStatementListener(_) => None,
 		}
 	}
 }
@@ -461,7 +534,7 @@ pub enum ProvisionerMessage {
 	/// where it can be assembled into the InclusionInherent.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
-	ProvisionableData(ProvisionableData),
+	ProvisionableData(Hash, ProvisionableData),
 }
 
 impl ProvisionerMessage {
@@ -470,7 +543,7 @@ impl ProvisionerMessage {
 		match self {
 			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
 			Self::RequestInherentData(hash, _) => Some(*hash),
-			Self::ProvisionableData(_) => None,
+			Self::ProvisionableData(hash, _) => Some(*hash),
 		}
 	}
 }
@@ -516,7 +589,7 @@ impl CollationGenerationMessage {
 }
 
 /// A message type tying together all message types that are used across Subsystems.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum AllMessages {
 	/// Message for the validation subsystem.
 	CandidateValidation(CandidateValidationMessage),

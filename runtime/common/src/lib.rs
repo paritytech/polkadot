@@ -25,6 +25,7 @@ pub mod crowdfund;
 pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
+pub mod paras_registrar;
 
 use primitives::v1::{BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
@@ -45,13 +46,13 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
-pub use impls::{CurrencyToVoteHandler, ToAuthor};
+pub use impls::ToAuthor;
 
 pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 
-/// We assume that an on-initialize consumes 10% of the weight on average, hence a single extrinsic
-/// will not be allowed to consume more than `AvailableBlockRatio - 10%`.
-const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+/// We assume that an on-initialize consumes 2.5% of the weight on average, hence a single extrinsic
+/// will not be allowed to consume more than `AvailableBlockRatio - 2.5%`.
+pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_perthousand(25);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
@@ -105,6 +106,12 @@ pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 	AdjustmentVariable,
 	MinimumMultiplier
 >;
+
+/// The type used for currency conversion.
+///
+/// This must only be used as long as the balance type is u128.
+pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
 
 /// A placeholder since there is currently no provided session key handler for parachain validator
 /// keys.

@@ -18,18 +18,22 @@
 //! perspective.
 
 use sp_std::prelude::*;
+#[cfg(feature = "std")]
+use sp_std::convert::TryInto;
 use sp_std::cmp::Ordering;
+
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::crypto::Pair;
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
+#[cfg(feature = "std")]
+use application_crypto::AppKey;
 use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
@@ -37,7 +41,7 @@ pub use polkadot_core_primitives::*;
 pub use parity_scale_codec::Compact;
 
 pub use polkadot_parachain::primitives::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
+	Id, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
 	ValidationCode,
 };
 
@@ -629,18 +633,18 @@ pub struct ErasureChunk {
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
-	Candidate(Hash),
+	Candidate(CandidateHash),
 	/// State that a parachain candidate is valid.
 	#[codec(index = "2")]
-	Valid(Hash),
+	Valid(CandidateHash),
 	/// State that a parachain candidate is invalid.
 	#[codec(index = "3")]
-	Invalid(Hash),
+	Invalid(CandidateHash),
 }
 
 impl CompactStatement {
 	/// Get the underlying candidate hash this references.
-	pub fn candidate_hash(&self) -> &Hash {
+	pub fn candidate_hash(&self) -> &CandidateHash {
 		match *self {
 			CompactStatement::Candidate(ref h)
 				| CompactStatement::Valid(ref h)
@@ -680,7 +684,7 @@ impl ValidityAttestation {
 	/// which should be known in context.
 	pub fn signed_payload<H: Encode>(
 		&self,
-		candidate_hash: Hash,
+		candidate_hash: CandidateHash,
 		signing_context: &SigningContext<H>,
 	) -> Vec<u8> {
 		match *self {
@@ -863,20 +867,26 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
-	pub fn sign<H: Encode>(
+	pub async fn sign<H: Encode>(
+		keystore: &SyncCryptoStorePtr,
 		payload: Payload,
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
-		key: &ValidatorPair,
-	) -> Self {
+		key: &ValidatorId,
+	) -> Result<Self, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
-		let signature = key.sign(&data);
-		Self {
+		let signature: ValidatorSignature = CryptoStore::sign_with(
+			&**keystore,
+			ValidatorId::ID,
+			&key.into(),
+			&data,
+		).await?.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?;
+		Ok(Self {
 			payload,
 			validator_index,
 			signature,
 			real_payload: std::marker::PhantomData,
-		}
+		})
 	}
 
 	/// Validate the payload given the context and public key.

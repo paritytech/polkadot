@@ -1,17 +1,21 @@
 # frozen_string_literal: true
 
+require 'base64'
 require 'changelogerator'
-require 'git'
 require 'erb'
-require 'toml'
+require 'git'
 require 'json'
+require 'octokit'
+require 'toml'
 require_relative './lib.rb'
 
-version = ENV['GITHUB_REF']
+current_ref = ENV['GITHUB_REF']
 token = ENV['GITHUB_TOKEN']
+github_client = Octokit::Client.new(
+  access_token: token
+)
 
 polkadot_path = ENV['GITHUB_WORKSPACE'] + '/polkadot/'
-pg = Git.open(polkadot_path)
 
 # Generate an ERB renderer based on the template .erb file
 renderer = ERB.new(
@@ -19,29 +23,29 @@ renderer = ERB.new(
   trim_mode: '<>'
 )
 
-# get last polkadot version. Use handy Gem::Version for sorting by version
-last_version = pg
-              .tags
-              .map(&:name)
-              .grep(/^v\d+\.\d+\.\d+.*$/)
-              .sort_by { |v| Gem::Version.new(v.slice(1...)) }[-2]
+# get ref of last polkadot release
+last_ref = "refs/tags/" + github_client.latest_release(ENV['GITHUB_REPOSITORY']).tag_name
 
 polkadot_cl = Changelog.new(
-  'paritytech/polkadot', last_version, version, token: token
+  'paritytech/polkadot', last_ref, current_ref, token: token
 )
 
-# Get prev and cur substrate SHAs - parse the old and current Cargo.lock for
-# polkadot and extract the sha that way.
-prev_cargo = TOML::Parser.new(pg.show("#{last_version}:Cargo.lock")).parsed
-current_cargo = TOML::Parser.new(pg.show("#{version}:Cargo.lock")).parsed
+# Gets the substrate commit hash used for a given polkadot ref
+def get_substrate_commit(client, ref)
+  cargo = TOML::Parser.new(
+    Base64.decode64(
+      client.contents(
+        ENV['GITHUB_REPOSITORY'],
+        path: 'Cargo.lock',
+        query: { ref: "#{ref}"}
+      ).content
+    )
+  ).parsed
+  cargo['package'].find { |p| p['name'] == 'sc-cli' }['source'].split('#').last
+end
 
-substrate_prev_sha = prev_cargo['package']
-                    .find { |p| p['name'] == 'sc-cli' }['source']
-                    .split('#').last
-
-substrate_cur_sha = current_cargo['package']
-                    .find { |p| p['name'] == 'sc-cli' }['source']
-                    .split('#').last
+substrate_prev_sha = get_substrate_commit(github_client, last_ref)
+substrate_cur_sha = get_substrate_commit(github_client, current_ref)
 
 substrate_cl = Changelog.new(
   'paritytech/substrate', substrate_prev_sha, substrate_cur_sha,
@@ -49,7 +53,10 @@ substrate_cl = Changelog.new(
   prefix: true
 )
 
-all_changes = polkadot_cl.changes + substrate_cl.changes
+# Combine all changes into a single array and filter out companions
+all_changes = (polkadot_cl.changes + substrate_cl.changes).reject do |c|
+  c[:title] =~ /[Cc]ompanion/
+end
 
 # Set all the variables needed for a release
 
@@ -57,12 +64,28 @@ misc_changes = Changelog.changes_with_label(all_changes, 'B1-releasenotes')
 client_changes = Changelog.changes_with_label(all_changes, 'B5-clientnoteworthy')
 runtime_changes = Changelog.changes_with_label(all_changes, 'B7-runtimenoteworthy')
 
+# Add the audit status for runtime changes
+runtime_changes.each do |c|
+  if c.labels.any? { |l| l[:name] == 'D1-audited👍' }
+    c[:pretty_title] = "✅ `audited` #{c[:pretty_title]}"
+    next
+  end
+  if c.labels.any? { |l| l[:name] == 'D9-needsaudit👮' }
+    c[:pretty_title] = "❌ `AWAITING AUDIT` #{c[:pretty_title]}"
+    next
+  end
+  if c.labels.any? { |l| l[:name] == 'D5-nicetohaveaudit⚠️' }
+    c[:pretty_title] = "⏳ `pending non-critical audit` #{c[:pretty_title]}"
+    next
+  end
+  c[:pretty_title] = "✅ `trivial` #{c[:pretty_title]}"
+end
+
 release_priority = Changelog.highest_priority_for_changes(all_changes)
 
 # Pulled from the previous Github step
 rustc_stable = ENV['RUSTC_STABLE']
 rustc_nightly = ENV['RUSTC_NIGHTLY']
-
 polkadot_runtime = get_runtime('polkadot', polkadot_path)
 kusama_runtime = get_runtime('kusama', polkadot_path)
 westend_runtime = get_runtime('westend', polkadot_path)

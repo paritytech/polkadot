@@ -24,6 +24,7 @@
 //! only occur at session boundaries.
 
 use sp_std::prelude::*;
+use sp_std::result;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
 use primitives::v1::{
@@ -35,14 +36,21 @@ use frame_support::{
 	traits::Get,
 	weights::Weight,
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use crate::{configuration, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-pub trait Trait: frame_system::Trait + configuration::Trait { }
+pub use crate::Origin;
+
+pub trait Trait: frame_system::Trait + configuration::Trait {
+	/// The outer origin type.
+	type Origin: From<Origin>
+		+ From<<Self as frame_system::Trait>::Origin>
+		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
+}
 
 // the two key times necessary to track for every code replacement.
 #[derive(Default, Encode, Decode)]
@@ -168,7 +176,6 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
-
 decl_storage! {
 	trait Store for Module<T: Trait> as Paras {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
@@ -206,7 +213,7 @@ decl_storage! {
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.
-		OutgoingParas: Vec<ParaId>;
+		OutgoingParas get(fn outgoing_paras): Vec<ParaId>;
 
 	}
 	add_extra_genesis {
@@ -389,7 +396,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -411,7 +418,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
+	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
 		let upcoming_weight = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(i) => {
@@ -532,6 +539,12 @@ impl<T: Trait> Module<T> {
 				Some(UseCodeAt::ReplacedAt(replaced)) => <Self as Store>::PastCode::get(&(id, replaced))
 			}
 		}
+	}
+
+	/// Returns whether the given ID refers to a valid para.
+	pub fn is_valid_para(id: ParaId) -> bool {
+		Self::parachains().binary_search(&id).is_ok()
+			|| Self::is_parathread(id)
 	}
 
 	/// Whether a para ID corresponds to any live parathread.

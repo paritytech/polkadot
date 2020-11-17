@@ -19,11 +19,11 @@
 use sp_std::{prelude::*, fmt::Debug};
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{
-	decl_event, decl_storage, decl_module, decl_error, ensure, dispatch::IsSubType,
-	traits::{Currency, Get, VestingSchedule, EnsureOrigin}, weights::{Pays, DispatchClass}
+	decl_event, decl_storage, decl_module, decl_error, ensure,
+	traits::{Currency, Get, VestingSchedule, EnsureOrigin, IsSubType}, weights::{Pays, DispatchClass}
 };
 use frame_system::{ensure_signed, ensure_root, ensure_none};
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
@@ -633,7 +633,7 @@ mod tests {
 	use secp_utils::*;
 
 	use sp_core::H256;
-	use codec::Encode;
+	use parity_scale_codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
@@ -1177,7 +1177,7 @@ mod benchmarking {
 	fn create_claim<T: Trait>(input: u32) -> DispatchResult {
 		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
-		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 		Ok(())
 	}
@@ -1185,7 +1185,7 @@ mod benchmarking {
 	fn create_claim_attest<T: Trait>(input: u32) -> DispatchResult {
 		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
-		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Module::<T>::mint_claim(
 			RawOrigin::Root.into(),
 			eth_address,
@@ -1211,7 +1211,7 @@ mod benchmarking {
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", u, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
@@ -1224,7 +1224,7 @@ mod benchmarking {
 		mint_claim {
 			let c in ...;
 			let eth_address = account("eth_address", c, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 		}: _(RawOrigin::Root, eth_address, VALUE.into(), vesting, Some(statement))
 		verify {
@@ -1238,7 +1238,7 @@ mod benchmarking {
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", u, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
@@ -1255,7 +1255,7 @@ mod benchmarking {
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", u, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
