@@ -8,6 +8,8 @@ The [Approval Voting](approval-voting.md) subsystem is responsible for active pa
 
 The [Approval Voting](approval-voting.md) subsystem handles all the issuing and tallying of this protocol, but this subsystem is responsible for the disbursal of statements among the validator-set.
 
+The inclusion pipeline of candidates concludes after availability, and only after inclusion do candidates actually get pushed into the approval checking pipeline. As such, this protocol deals with the candidates _made available by_ particular blocks, as opposed to the candidates which actually appear within those blocks, which are the candidates _backed by_ those blocks. Unless stated otherwise, whenever we reference a candidate partially by block hash, we are referring to the set of candidates _made available by_ those blocks.
+
 We implement this protocol as a gossip protocol, and like other parachain-related gossip protocols our primary concerns are about ensuring fast message propagation while maintaining an upper bound on the number of messages any given node must store at any time.
 
 Approval messages should always follow assignments, so we need to be able to discern two pieces of information based on our [View](../../types/network.md#universal-types):
@@ -25,31 +27,75 @@ However, awareness on its own of a (block, candidate) pair would imply that even
 
 ## Functionality
 
+```rust
+type BlockScopedCandidate = (Hash, CandidateHash);
+
+/// The `State` struct is responsible for tracking the overall state of the subsystem.
+///
+/// It tracks metadata about our view of the chain, which assignments and approvals we have seen, and our peers' views.
+struct State {
+  block_view: HashMap<BlockNumber, Vec<Hash>>,
+  blocks: HashMap<Hash, BlockEntry>,
+  peer_views: HashMap<PeerId, View>,
+  finalized_number: BlockNumber,
+}
+
+/// Information about blocks in our current view as well as whether peers know of them.
+struct BlockEntry {
+  // Peers who we know are aware of this block and thus, the candidates within it.
+  known_by: HashSet<PeerId>,
+  // The parent hash of the block.
+  parent_hash: Hash,
+  // A votes entry for each candidate.
+  candidates: IndexMap<CandidateHash, CandidateEntry>,
+}
+
+enum ApprovalState {
+  Assigned(AssignmentCert),
+  Approved(AssignmentCert, ApprovalSignature),
+}
+
+/// Information about candidates in the context of a particular block they are included in. In other words,
+/// multiple `CandidateEntry`s may exist for the same candidate, if it is included by multiple blocks - this is likely the case /// when there are forks.
+struct CandidateEntry {
+  approvals: HashMap<ValidatorIndex, ApprovalState>,
+}
+```
+
 ### Network updates
 
 #### `NetworkBridgeEvent::PeerConnected`
 
-TODO: add a peer entry to state
+Add a blank view to the `peer_views` state.
 
 #### `NetworkBridgeEvent::PeerDisconnected`
 
-TODO: remove peer entry from state
+Remove the view under the associated `PeerId` from `State::peer_views`.
+
+TODO: pruning? hard to see how to do it without just iterating over each `BlockEntry` but that might be rel. fast.
 
 #### `NetworkBridgeEvent::PeerViewChange`
 
-TODO: find all blocks in common with the peer.
+For each block in the view:
+  1. Initialize `fresh_blocks = {}`
+  2. Load the `BlockEntry` for the block. If unknown, go to step 6.
+  3. Inspect the `known_by` set. If the peer is already present, go to step 6.
+  4. Add the peer to `known_by` and add the hash of the block to `fresh_blocks`.
+  5. Repeat steps 2-4 with the ancestor of the block.
+  6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.
 
 #### `NetworkBridgeEvent::OurViewChange`
 
-TODO: find all blocks in common with all peers.
+Do nothing.
+
+TODO: Technically the information we get from `OurViewChange` can conflict with `OurViewChange`. We could add a flag to `BlockEntry` to indicate whether we've broadcast them in our view and not accept stuff that we haven't broadcast maybe. But that seems a little egregious. We could base `BlockEntry` pruning on the finality information in `OurViewChange` though.
 
 #### `NetworkBridgeEvent::PeerMessage`
 
 TODO: provide step-by-step for each of these checks.
 
 If the message is an assignment,
-  * Check if the peer is already aware of the assignment. If so, ignore & report.
-  * Check if we are already aware of this assignment. If so, ignore, but note that the peer is aware of the assignment also. Give a small reputation bump. Note that if we don't accept the assignment, we will not be aware of it in our state and will proceed to the next step.
+  * Check if we are already aware of this assignment. If so, ignore, but note that the peer is aware of the assignment also. If the peer was already aware of the assignment, give a minor reputation punishment. Otherwise, give a small reputation bump. Note that if we don't accept the assignment, we will not be aware of it in our state and will proceed to the next step.
   * Check if we accept this assignment. If not, ignore & report.
   * Issue an `ApprovalVotingMessage::CheckAndImportAssignment`. If the result is `VoteCheckResult::Bad`, ignore & report. If the result is `VoteCheckResult::Ignore`, just ignore. If the result is `VoteCheckResult::Accepted`, store the assignment and note that the peer is aware of the assignment.
   * Distribute the assignment to all peers who will accept it.
@@ -61,3 +107,11 @@ If the message is an approval,
   * Check if we accept this approval. If not, ignore & report.
   * Issue an `ApprovalVotingMessage::CheckAndImportApproval`. If the result is `VoteCheckResult::Bad`, ignore & report. If the result is `VoteCheckResult::Ignore`, just ignore. If the result is `VoteCheckResult::Accepted`, store the approval and note that the peer is aware of the approval.
   * Distribute the approval to all peers who will accept it.
+
+
+### Subsystem Updates
+
+#### `AvailabilityDistributionMessage::NewBlocks`
+
+TODO: create `BlockEntry` and `CandidateEntries` for all blocks.
+TODO: check for new commonality with peers. Broadcast new information to peers we now understand better.
