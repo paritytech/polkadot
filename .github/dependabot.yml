@@ -7,6 +7,9 @@ updates:
     ignore:
       - dependency-name: "substrate-*"
       - dependency-name: "sc-*"
+      - dependency-name: "sp-*"
+      - dependency-name: "frame-*"
+      - dependency-name: "fork-tree"
       - dependency-name: "pallet-*"
     schedule:
       interval: "daily"
