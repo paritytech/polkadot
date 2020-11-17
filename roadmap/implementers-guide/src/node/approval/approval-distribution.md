@@ -16,11 +16,11 @@ Approval messages should always follow assignments, so we need to be able to dis
   1. Is a particular assignment relevant under a given `View`?
   2. Is a particular approval relevant to any assignment in a set?
 
-These two queries need not be perfect, but they must never yield false positives. For our own local view, they should not yield false negatives. When applied to our peers' views, it is acceptable for them to yield false negatives. The reason for that is that our peers' views may be beyond ours, and we are not capable of fully evaluating them. Once we have caught up, we can check again for false negatives to continue distributing.
+These two queries need not be perfect, but they must never yield false positives. For our own local view, they must not yield false negatives. When applied to our peers' views, it is acceptable for them to yield false negatives. The reason for that is that our peers' views may be beyond ours, and we are not capable of fully evaluating them. Once we have caught up, we can check again for false negatives to continue distributing.
 
 For assignments, what we need to be checking is whether we are aware of the (block, candidate) pair that the assignment references. For approvals, we need to be aware of an assignment by the same validator which references the candidate being approved.
 
-However, awareness on its own of a (block, candidate) pair would imply that even ancient candidates all the way back to the genesis are relevant. We are actually not interested in anything before finality. did
+However, awareness on its own of a (block, candidate) pair would imply that even ancient candidates all the way back to the genesis are relevant. We are actually not interested in anything before finality. 
 
 
 ## Protocol
@@ -107,7 +107,6 @@ If the message is an approval,
   * Check if we accept this approval. If not, ignore & report.
   * Issue an `ApprovalVotingMessage::CheckAndImportApproval`. If the result is `VoteCheckResult::Bad`, ignore & report. If the result is `VoteCheckResult::Ignore`, just ignore. If the result is `VoteCheckResult::Accepted`, store the approval and note that the peer is aware of the approval.
   * Distribute the approval to all peers who will accept it.
-
 
 ### Subsystem Updates
 
