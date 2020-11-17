@@ -5370,6 +5370,7 @@ name = "polkadot-pov-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "env_logger 0.8.1",
  "futures 0.3.8",
  "log",
  "polkadot-node-network-protocol",
@@ -5377,7 +5378,10 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "smallvec 1.4.2",
  "sp-core",
+ "sp-keyring",
+ "thiserror",
 ]
 
 [[package]]

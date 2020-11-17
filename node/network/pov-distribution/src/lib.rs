@@ -22,22 +22,36 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{Hash, PoV, CandidateDescriptor};
+use polkadot_primitives::v1::{
+	Hash, PoV, CandidateDescriptor, ValidatorId, Id as ParaId, CoreIndex, CoreState,
+};
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, SubsystemError,
+	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, SubsystemError, Subsystem,
 	FromOverseer, SpawnedSubsystem,
 	messages::{
-		PoVDistributionMessage, RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
+		PoVDistributionMessage, AllMessages, NetworkBridgeMessage,
 	},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_node_network_protocol::{v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View};
+use polkadot_node_subsystem_util::{
+	validator_discovery,
+	request_validators_ctx,
+	request_validator_groups_ctx,
+	request_availability_cores_ctx,
+	metrics::{self, prometheus},
+};
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View,
+};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
+use log::warn;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::sync::Arc;
+use std::task::Poll;
+
+mod error;
 
 #[cfg(test)]
 mod tests;
@@ -75,21 +89,43 @@ impl<C> Subsystem<C> for PoVDistribution
 	}
 }
 
+#[derive(Default)]
 struct State {
+	/// A state of things going on on a per-relay-parent basis.
 	relay_parent_state: HashMap<Hash, BlockBasedState>,
+
+	/// Info on peers.
 	peer_state: HashMap<PeerId, PeerState>,
+
+	/// Our own view.
 	our_view: View,
+
+	/// Connect to relevant groups of validators at different relay parents.
+	connection_requests: validator_discovery::ConnectionRequests,
+
+	/// Metrics.
 	metrics: Metrics,
 }
 
 struct BlockBasedState {
 	known: HashMap<Hash, Arc<PoV>>,
+
 	/// All the PoVs we are or were fetching, coupled with channels expecting the data.
 	///
 	/// This may be an empty list, which indicates that we were once awaiting this PoV but have
 	/// received it already.
-	fetching: HashMap<Hash, Vec<oneshot::Sender<Arc<PoV>>>>,
+	fetching: HashMap<Hash, PerFetchedPoV>,
+
 	n_validators: usize,
+}
+
+/// Information kept about each PoV we attempt to fetch.
+struct PerFetchedPoV {
+	/// Channels expecting the data.
+	///
+	/// This may be an empty list, which indicates that we were once awaiting this PoV
+	/// but have received it already.
+	send_to: Vec<oneshot::Sender<Arc<PoV>>>,
 }
 
 #[derive(Default)]
@@ -120,43 +156,23 @@ async fn handle_signal(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	signal: OverseerSignal,
-) -> SubsystemResult<bool> {
+) -> crate::error::Result<bool> {
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 			for relay_parent in activated {
-				let (vals_tx, vals_rx) = oneshot::channel();
-				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::Validators(vals_tx),
-				))).await?;
 
-				let n_validators = match vals_rx.await? {
-					Ok(v) => v.len(),
-					Err(e) => {
-						log::warn!(
-							target: LOG_TARGET,
-							"Error fetching validators from runtime API for active leaf: {:?}",
-							e
-						);
-
-						// Not adding bookkeeping here might make us behave funny, but we
-						// shouldn't take down the node on spurious runtime API errors.
-						//
-						// and this is "behave funny" as in be bad at our job, but not in any
-						// slashable or security-related way.
-						continue;
-					}
-				};
+				let n_validators = request_validators_ctx(relay_parent.clone(), ctx).await?.await??.len();
 
 				state.relay_parent_state.insert(relay_parent, BlockBasedState {
 					known: HashMap::new(),
 					fetching: HashMap::new(),
-					n_validators: n_validators,
+					n_validators,
 				});
 			}
 
 			for relay_parent in deactivated {
+				state.connection_requests.remove(&relay_parent);
 				state.relay_parent_state.remove(&relay_parent);
 			}
 
@@ -166,45 +182,17 @@ async fn handle_signal(
 	}
 }
 
-/// Notify peers that we are awaiting a given PoV hash.
-///
-/// This only notifies peers who have the relay parent in their view.
-async fn notify_all_we_are_awaiting(
-	peers: &mut HashMap<PeerId, PeerState>,
-	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
-	relay_parent: Hash,
-	pov_hash: Hash,
-) -> SubsystemResult<()> {
-	// We use `awaited` as a proxy for which heads are in the peer's view.
-	let peers_to_send: Vec<_> = peers.iter()
-		.filter_map(|(peer, state)| if state.awaited.contains_key(&relay_parent) {
-			Some(peer.clone())
-		} else {
-			None
-		})
-		.collect();
-
-	if peers_to_send.is_empty() { return Ok(()) }
-
-	let payload = awaiting_message(relay_parent, vec![pov_hash]);
-
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
-		peers_to_send,
-		payload,
-	))).await
-}
-
 /// Notify one peer about everything we're awaiting at a given relay-parent.
 async fn notify_one_we_are_awaiting_many(
 	peer: &PeerId,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent_state: &HashMap<Hash, BlockBasedState>,
 	relay_parent: Hash,
-) -> SubsystemResult<()> {
+) -> crate::error::Result<()> {
 	let awaiting_hashes = relay_parent_state.get(&relay_parent).into_iter().flat_map(|s| {
 		// Send the peer everything we are fetching at this relay-parent
 		s.fetching.iter()
-			.filter(|(_, senders)| !senders.is_empty()) // that has not been completed already.
+			.filter(|(_, per_fetched)| !per_fetched.send_to.is_empty()) // that has not been completed already.
 			.map(|(pov_hash, _)| *pov_hash)
 	}).collect::<Vec<_>>();
 
@@ -215,7 +203,9 @@ async fn notify_one_we_are_awaiting_many(
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		vec![peer.clone()],
 		payload,
-	))).await
+	))).await?;
+
+	Ok(())
 }
 
 /// Distribute a PoV to peers who are awaiting it.
@@ -226,7 +216,7 @@ async fn distribute_to_awaiting(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: &PoV,
-) -> SubsystemResult<()> {
+) -> crate::error::Result<()> {
 	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
 	//
 	// Also removes it from their awaiting set.
@@ -254,6 +244,73 @@ async fn distribute_to_awaiting(
 	Ok(())
 }
 
+/// Get the Id of the Core that is assigned to the para being collated on if any
+/// and the total number of cores.
+async fn determine_core(
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	para_id: ParaId,
+	relay_parent: Hash,
+) -> crate::error::Result<Option<(CoreIndex, usize)>> {
+	let cores = request_availability_cores_ctx(relay_parent, ctx).await?.await??;
+
+	for (idx, core) in cores.iter().enumerate() {
+		if let CoreState::Scheduled(occupied) = core {
+			if occupied.para_id == para_id {
+				return Ok(Some(((idx as u32).into(), cores.len())));
+			}
+		}
+	}
+
+	Ok(None)
+}
+
+/// Figure our a group of validators assigned to a given `ParaId`.
+async fn determine_validators_for_core(
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	core_index: CoreIndex,
+	num_cores: usize,
+	relay_parent: Hash,
+) -> crate::error::Result<Option<Vec<ValidatorId>>> {
+	let groups = request_validator_groups_ctx(relay_parent, ctx).await?.await??;
+
+	let group_index = groups.1.group_for_core(core_index, num_cores);
+
+	let connect_to_validators = match groups.0.get(group_index.0 as usize) {
+		Some(group) => group.clone(),
+		None => return Ok(None),
+	};
+
+	let validators = request_validators_ctx(relay_parent, ctx).await?.await??;
+
+	let validators = connect_to_validators
+		.into_iter()
+		.map(|idx| validators[idx as usize].clone())
+		.collect();
+
+	Ok(Some(validators))
+}
+
+async fn determine_relevant_validators(
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	relay_parent: Hash,
+	para_id: ParaId,
+) -> crate::error::Result<Option<Vec<ValidatorId>>> {
+	// Determine which core the para_id is assigned to.
+	let (core, num_cores) = match determine_core(ctx, para_id, relay_parent).await? {
+		Some(core) => core,
+		None => {
+			warn!(
+				target: LOG_TARGET,
+				"Looks like no core is assigned to {:?} at {:?}", para_id, relay_parent,
+			);
+
+			return Ok(None);
+		}
+	};
+
+	Ok(determine_validators_for_core(ctx, core, num_cores, relay_parent).await?)
+}
+
 /// Handles a `FetchPoV` message.
 async fn handle_fetch(
 	state: &mut State,
@@ -261,14 +318,14 @@ async fn handle_fetch(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	response_sender: oneshot::Sender<Arc<PoV>>,
-) -> SubsystemResult<()> {
+) -> crate::error::Result<()> {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		Some(s) => s,
 		None => return Ok(()),
 	};
 
 	if let Some(pov) = relay_parent_state.known.get(&descriptor.pov_hash) {
-		let _  = response_sender.send(pov.clone());
+		let _ = response_sender.send(pov.clone());
 		return Ok(());
 	}
 
@@ -276,28 +333,32 @@ async fn handle_fetch(
 		match relay_parent_state.fetching.entry(descriptor.pov_hash) {
 			Entry::Occupied(mut e) => {
 				// we are already awaiting this PoV if there is an entry.
-				e.get_mut().push(response_sender);
+				e.get_mut().send_to.push(response_sender);
 				return Ok(());
 			}
 			Entry::Vacant(e) => {
-				e.insert(vec![response_sender]);
+				if let Some(relevant_validators) = determine_relevant_validators(
+					ctx,
+					relay_parent,
+					descriptor.para_id,
+				).await? {
+					let new_connection_request = validator_discovery::connect_to_validators(
+						ctx,
+						relay_parent,
+						relevant_validators.clone(),
+					).await?;
+
+					state.connection_requests.put(relay_parent, new_connection_request);
+
+					e.insert(PerFetchedPoV {
+						send_to: vec![response_sender],
+					});
+				}
 			}
 		}
 	}
 
-	if relay_parent_state.fetching.len() > 2 * relay_parent_state.n_validators {
-		log::warn!("Other subsystems have requested PoV distribution to \
-			fetch more PoVs than reasonably expected: {}", relay_parent_state.fetching.len());
-		return Ok(());
-	}
-
-	// Issue an `Awaiting` message to all peers with this in their view.
-	notify_all_we_are_awaiting(
-		&mut state.peer_state,
-		ctx,
-		relay_parent,
-		descriptor.pov_hash
-	).await
+	Ok(())
 }
 
 /// Handles a `DistributePoV` message.
@@ -307,7 +368,7 @@ async fn handle_distribute(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
-) -> SubsystemResult<()> {
+) -> crate::error::Result<()> {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => return Ok(()),
 		Some(s) => s,
@@ -318,7 +379,7 @@ async fn handle_distribute(
 		//
 		// It signals that we were at one point awaiting this, so we will be able to tell
 		// why peers are sending it to us.
-		for response_sender in our_awaited.drain(..) {
+		for response_sender in our_awaited.send_to.drain(..) {
 			let _ = response_sender.send(pov.clone());
 		}
 	}
@@ -340,8 +401,10 @@ async fn report_peer(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
 	rep: Rep,
-) -> SubsystemResult<()> {
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
+) -> crate::error::Result<()> {
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await?;
+
+	Ok(())
 }
 
 /// Handle a notification from a peer that they are awaiting some PoVs.
@@ -351,7 +414,7 @@ async fn handle_awaiting(
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
-) -> SubsystemResult<()> {
+) -> crate::error::Result<()> {
 	if !state.our_view.0.contains(&relay_parent) {
 		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
 		return Ok(());
@@ -406,7 +469,7 @@ async fn handle_incoming_pov(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: PoV,
-) -> SubsystemResult<()> {
+) -> crate::error::Result<()> {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None =>	{
 			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
@@ -433,7 +496,7 @@ async fn handle_incoming_pov(
 
 		let pov = Arc::new(pov);
 
-		if fetching.is_empty() {
+		if fetching.send_to.is_empty() {
 			// fetching is empty whenever we were awaiting something and
 			// it was completed afterwards.
 			report_peer(ctx, peer.clone(), BENEFIT_LATE_POV).await?;
@@ -442,7 +505,7 @@ async fn handle_incoming_pov(
 			report_peer(ctx, peer.clone(), BENEFIT_FRESH_POV).await?;
 		}
 
-		for response_sender in fetching.drain(..) {
+		for response_sender in fetching.send_to.drain(..) {
 			let _ = response_sender.send(pov.clone());
 		}
 
@@ -465,12 +528,24 @@ async fn handle_incoming_pov(
 	).await
 }
 
+/// Handles a newly connected validator in the context of some relay leaf.
+async fn handle_validator_connected(
+	state: &mut State,
+	peer_id: PeerId,
+) -> crate::error::Result<()> {
+	if !state.peer_state.contains_key(&peer_id) {
+		state.peer_state.insert(peer_id.clone(), PeerState::default());
+	}
+
+	Ok(())
+}
+
 /// Handles a network bridge update.
 async fn handle_network_update(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	update: NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>,
-) -> SubsystemResult<()> {
+) -> crate::error::Result<()> {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
 			state.peer_state.insert(peer, PeerState { awaited: HashMap::new() });
@@ -540,49 +615,60 @@ impl PoVDistribution {
 	async fn run(
 		self,
 		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
-	) -> SubsystemResult<()> {
-		let mut state = State {
-			relay_parent_state: HashMap::new(),
-			peer_state: HashMap::new(),
-			our_view: View(Vec::new()),
-			metrics: self.metrics,
-		};
+	) -> crate::error::Result<()> {
+		let mut state = State::default();
+		state.metrics = self.metrics;
 
 		loop {
-			match ctx.recv().await? {
-				FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
-					return Ok(());
-				},
-				FromOverseer::Communication { msg } => match msg {
-					PoVDistributionMessage::FetchPoV(relay_parent, descriptor, response_sender) =>
-						handle_fetch(
-							&mut state,
-							&mut ctx,
-							relay_parent,
-							descriptor,
-							response_sender,
-						).await?,
-					PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
-						handle_distribute(
-							&mut state,
-							&mut ctx,
-							relay_parent,
-							descriptor,
-							pov,
-						).await?,
-					PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
-						handle_network_update(
-							&mut state,
-							&mut ctx,
-							event,
-						).await?,
-				},
+			while let Poll::Ready(Some((_relay_parent, _validator_id, peer_id))) =
+				futures::poll!(state.connection_requests.next()) {
+					if let Err(err) = handle_validator_connected(
+						&mut state,
+						peer_id,
+					).await {
+						warn!(
+							target: LOG_TARGET,
+							"Failed to handle validator connected: {:?}", err,
+						);
+					}
 			}
+
+			while let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
+				match msg? {
+					FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
+						return Ok(());
+					},
+					FromOverseer::Communication { msg } => match msg {
+						PoVDistributionMessage::FetchPoV(relay_parent, descriptor, response_sender) =>
+							handle_fetch(
+								&mut state,
+								&mut ctx,
+								relay_parent,
+								descriptor,
+								response_sender,
+							).await?,
+						PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
+							handle_distribute(
+								&mut state,
+								&mut ctx,
+								relay_parent,
+								descriptor,
+								pov,
+							).await?,
+						PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
+							handle_network_update(
+								&mut state,
+								&mut ctx,
+								event,
+							).await?,
+					},
+				}
+			}
+
+			futures::pending!()
 		}
 	}
 }
-
-
 
 #[derive(Clone)]
 struct MetricsInner {
