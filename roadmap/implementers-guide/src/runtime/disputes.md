@@ -27,7 +27,7 @@ This is necessary to slash the losing party appropriately which is based on the 
 
 ## Local Disputes
 
-Who does local disputes, validators self-select based on a [VRF](##-Secondary-Approval-Checking).
+Secondary checkers are selected by VRF. If a invalid candidate is detected, the dispute starts from there.
 
 We could approve, and even finalize,
 a relay chain block which then later disputes
@@ -332,13 +332,6 @@ consumption.
 This has to be done for the validator sets, plus the data of interest (TODO what's that exactly?) that is going to be part of the block and record the meshbehaviour of the minority of the quorums as defined earlier.
 
 In the reverse, from off-chain to on-chain, crafting a direct transaction achieves the information crossing by passing a scale encoded structure containing sufficient data to identify the offenders.
-
-## Secondary Approval Checking
-
-Given that a remote dispute is likely to be replayed across multiple forks, it is important to choose a VRF in a way that all forks processing the remote dispute will have the same output of the VRF process.
-Choosing the VRF is important as it should not allow an adversary to have control over who will be selected as a secondary approval checker.
-
-The VRF is defined by / part of the consensus algorithm.
 
 ## Slashing and Incentivization
 
