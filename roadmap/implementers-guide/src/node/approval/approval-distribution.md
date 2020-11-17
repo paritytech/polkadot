@@ -34,7 +34,7 @@ type BlockScopedCandidate = (Hash, CandidateHash);
 ///
 /// It tracks metadata about our view of the chain, which assignments and approvals we have seen, and our peers' views.
 struct State {
-  block_view: HashMap<BlockNumber, Vec<Hash>>,
+  blocks_by_number: BTreeMap<BlockNumber, Vec<Hash>>,
   blocks: HashMap<Hash, BlockEntry>,
   peer_views: HashMap<PeerId, View>,
   finalized_number: BlockNumber,
@@ -44,6 +44,8 @@ struct State {
 struct BlockEntry {
   // Peers who we know are aware of this block and thus, the candidates within it.
   known_by: HashSet<PeerId>,
+  // The number of the block.
+  number: BlockNumber,
   // The parent hash of the block.
   parent_hash: Hash,
   // A votes entry for each candidate.
@@ -78,17 +80,23 @@ TODO: pruning? hard to see how to do it without just iterating over each `BlockE
 
 For each block in the view:
   1. Initialize `fresh_blocks = {}`
-  2. Load the `BlockEntry` for the block. If unknown, go to step 6.
+  2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than the view's finalized number, go to step 6.
   3. Inspect the `known_by` set. If the peer is already present, go to step 6.
   4. Add the peer to `known_by` and add the hash of the block to `fresh_blocks`.
-  5. Repeat steps 2-4 with the ancestor of the block.
+  5. Return to step 2 with the ancestor of the block.
   6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.
+
+We also need to use the `view.finalized_number` to remove the `PeerId` from any blocks that it won't be wanting information about anymore. Note that we have to be on guard for peers doing crazy stuff like jumping their 'finalized_number` forward 10 trillion blocks to try and get us stuck in a loop for ages.
+
+One of the safeguards we can implement is to reject view updates from peers where the new `finalized_number` is less than the previous. 
+
+We augment that by defining `constrain(x)` to output the x bounded by the first and last numbers in `state.blocks_by_number`.
+
+From there, we can loop backwards from `constrain(view.finalized_number)` until `constrain(last_view.finalized_number)` is reached, removing the `PeerId` from all `BlockEntry`s referenced at that height. We can break the loop early if we ever exit the bound supplied by the first block in `state.blocks_by_number`. 
 
 #### `NetworkBridgeEvent::OurViewChange`
 
-Do nothing.
-
-TODO: Technically the information we get from `OurViewChange` can conflict with `OurViewChange`. We could add a flag to `BlockEntry` to indicate whether we've broadcast them in our view and not accept stuff that we haven't broadcast maybe. But that seems a little egregious. We could base `BlockEntry` pruning on the finality information in `OurViewChange` though.
+Prune all lists from `blocks_by_number` with number less than or equal to `view.finalized_number`. Prune all the `BlockEntry`s referenced by those lists.
 
 #### `NetworkBridgeEvent::PeerMessage`
 
