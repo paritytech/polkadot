@@ -48,6 +48,48 @@ pub enum Error {
 	RuntimeApi(#[from] RuntimeApiError),
 }
 
+/// Utility function to connect to different sets of validators at different relay parents.
+pub async fn connect_to_validators_at_different_heights<Context: SubsystemContext>(
+	ctx: &mut Context,
+	// (relay_parent, validators)
+	validators: Vec<(Hash, Vec<ValidatorId>)>,
+) -> Result<ConnectionRequest, Error> {
+	let mut validator_map = HashMap::new();
+	let mut authorities = Vec::new();
+
+	for (relay_parent, validators) in validators {
+		// ValidatorId -> AuthorityDiscoveryId
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
+			)
+		)).await?;
+
+		let maybe_authorities = rx.await??;
+
+		authorities.extend(maybe_authorities.iter()
+			.cloned()
+			.filter_map(|id| id)
+		);
+
+		validator_map.extend(validators.into_iter()
+			.zip(maybe_authorities.into_iter())
+			.filter_map(|(k, v)| v.map(|v| (v, k)))
+		);
+	}
+
+	let (connections, revoke) = connect_to_authorities(ctx, authorities).await?;
+
+	Ok(ConnectionRequest {
+		validator_map,
+		connections,
+		revoke,
+	})
+}
+
 /// Utility function to make it easier to connect to validators.
 pub async fn connect_to_validators<Context: SubsystemContext>(
 	ctx: &mut Context,
