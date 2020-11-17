@@ -24,6 +24,7 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Parathread: A parachain which is scheduled on a pay-as-you-go basis.
 - Proof-of-Validity (PoV): A stateless-client proof that a parachain candidate is valid, with respect to some validation function.
 - Relay Parent: A block in the relay chain, referred to in a context where work is being done in the context of the state at this block.
+- Router: The router module is a meta module that consists of three runtime modules responsible for routing messages between paras and the relay chain. The three separate runtime modules are: Dmp, Ump, Hrmp, each responsible for the respective part of message routing.
 - Runtime: The relay-chain state machine.
 - Runtime Module: See Module.
 - Runtime API: A means for the node-side behavior to access structured information based on the state of a fork of the blockchain.

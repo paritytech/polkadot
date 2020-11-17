@@ -108,9 +108,14 @@ impl crate::paras::Trait for Test {
 	type Origin = Origin;
 }
 
-impl crate::router::Trait for Test {
+impl crate::dmp::Trait for Test { }
+
+impl crate::ump::Trait for Test {
+	type UmpSink = crate::ump::mock_sink::MockUmpSink;
+}
+
+impl crate::hrmp::Trait for Test {
 	type Origin = Origin;
-	type UmpSink = crate::router::MockUmpSink;
 }
 
 impl crate::scheduler::Trait for Test { }
@@ -130,8 +135,14 @@ pub type Configuration = crate::configuration::Module<Test>;
 /// Mocked paras.
 pub type Paras = crate::paras::Module<Test>;
 
-/// Mocked router.
-pub type Router = crate::router::Module<Test>;
+/// Mocked DMP
+pub type Dmp = crate::dmp::Module<Test>;
+
+/// Mocked UMP
+pub type Ump = crate::ump::Module<Test>;
+
+/// Mocked HRMP
+pub type Hrmp = crate::hrmp::Module<Test>;
 
 /// Mocked scheduler.
 pub type Scheduler = crate::scheduler::Module<Test>;

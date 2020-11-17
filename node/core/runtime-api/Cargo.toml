@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.5"
+futures = "0.3.8"
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
@@ -14,5 +14,5 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.5", features = ["thread-pool"] }
+futures = { version = "0.3.8", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

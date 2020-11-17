@@ -6,9 +6,9 @@ edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-futures = "0.3.5"
+futures = "0.3.8"
 log = "0.4.11"
-thiserror = "1.0.21"
+thiserror = "1.0.22"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }

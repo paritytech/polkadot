@@ -35,7 +35,7 @@ use frame_system::ensure_none;
 use crate::{
 	inclusion,
 	scheduler::{self, FreedReason},
-	router,
+	ump,
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
@@ -117,7 +117,7 @@ decl_module! {
 			<scheduler::Module<T>>::occupied(&occupied);
 
 			// Give some time slice to dispatch pending upward messages.
-			<router::Module<T>>::process_pending_upward_messages();
+			<ump::Module<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
 			Included::set(Some(()));
