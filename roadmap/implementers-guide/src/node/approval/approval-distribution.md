@@ -118,7 +118,15 @@ If the message is an approval,
 
 ### Subsystem Updates
 
-#### `AvailabilityDistributionMessage::NewBlocks`
+#### `ApprovalDistributionMessage::NewBlocks`
 
 TODO: create `BlockEntry` and `CandidateEntries` for all blocks.
 TODO: check for new commonality with peers. Broadcast new information to peers we now understand better.
+
+#### `ApprovalDistributionMessage::DistributeAsignment`
+
+Load the corresponding `BlockEntry`. Distribute to all peers in `known_by`. Add to the corresponding `CandidateEntry`.
+
+#### `ApprovalDistributionMessage::DistributeApproval`
+
+Load the corresponding `BlockEntry`. Distribute to all peers in `known_by`. Add to the corresponding `CandidateEntry`.
