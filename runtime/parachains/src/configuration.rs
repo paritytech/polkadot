@@ -19,9 +19,10 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::v1::{Balance, ValidatorId};
+use primitives::v1::{Balance, ValidatorId, SessionIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
+	ensure,
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 };
@@ -252,6 +253,58 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.scheduling_lookahead, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the dispute period, in number of sessions to keep for disputes.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_dispute_period(origin, new: SessionIndex) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.dispute_period, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the no show slots, in number of number of consensus slots.
+		/// Must be at least 1.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_no_show_slots(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(new >= 1, "no_show_slots must be at least 1");
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.no_show_slots, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the zeroth delay tranche width.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_zeroth_delay_tranche_width(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.zeroth_delay_tranche_width, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of validators needed to approve a block.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_needed_approvals(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.needed_approvals, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of samples to do of the RelayVRFModulo approval assignment criterion.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_relay_vrf_modulo_samples(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.relay_vrf_modulo_samples, new) != new
 			});
 			Ok(())
 		}
