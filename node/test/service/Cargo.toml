@@ -5,10 +5,10 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.4"
+futures = "0.3.8"
 futures01 = { package = "futures", version = "0.1.29" }
-hex = "0.4"
-log = "0.4.8"
+hex = "0.4.2"
+log = "0.4.11"
 rand = "0.7.3"
 tempfile = "3.1.0"
 
@@ -56,6 +56,6 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-serde_json = "1.0"
+serde_json = "1.0.59"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tokio = { version = "0.2", features = ["macros"] }

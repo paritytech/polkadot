@@ -87,7 +87,7 @@ pub fn new_full(
 			query_start_delay: Duration::from_secs(0),
 			..Default::default()
 		}),
-		polkadot_parachain::wasm_executor::ExecutionMode::InProcess,
+		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
 	).map_err(Into::into)
 }
 

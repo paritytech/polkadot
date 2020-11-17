@@ -19,7 +19,7 @@
 
 use sp_std::vec::Vec;
 
-use codec::{Encode, Decode, CompactAs};
+use parity_scale_codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
 
 #[cfg(feature = "std")]
@@ -147,12 +147,12 @@ pub trait AccountIdConversion<AccountId>: Sized {
 // TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
 // #360
 struct TrailingZeroInput<'a>(&'a [u8]);
-impl<'a> codec::Input for TrailingZeroInput<'a> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
 		Ok(None)
 	}
 
-	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
+	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
 		let len = into.len().min(self.0.len());
 		into[..len].copy_from_slice(&self.0[..len]);
 		for i in &mut into[len..] {

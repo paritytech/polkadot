@@ -18,7 +18,7 @@
 
 use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
 use frame_support::{ensure, dispatch::Dispatchable};
-use codec::Decode;
+use parity_scale_codec::Decode;
 use xcm::v0::{
 	Xcm, Order, ExecuteXcm, SendXcm, Error as XcmError, Result as XcmResult,
 	MultiLocation, MultiAsset, Junction,
