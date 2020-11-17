@@ -25,13 +25,13 @@ use parachain::{
 		HeadData as GenericHeadData,
 		ValidationParams,
 	},
-	wasm_executor::{ValidationPool, ExecutionMode}
+	wasm_executor::{ValidationPool, IsolationStrategy}
 };
 use codec::{Decode, Encode};
 use adder::{HeadData, BlockData, hash_state};
 
-fn execution_mode() -> ExecutionMode {
-	ExecutionMode::ExternalProcessCustomHost {
+fn isolation_strategy() -> IsolationStrategy {
+	IsolationStrategy::ExternalProcessCustomHost {
 		pool: ValidationPool::new(),
 		binary: std::env::current_exe().unwrap(),
 		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
@@ -40,17 +40,17 @@ fn execution_mode() -> ExecutionMode {
 
 #[test]
 fn execute_good_on_parent_with_inprocess_validation() {
-	let execution_mode = ExecutionMode::InProcess;
-	execute_good_on_parent(execution_mode);
+	let isolation_strategy = IsolationStrategy::InProcess;
+	execute_good_on_parent(isolation_strategy);
 }
 
 #[test]
 pub fn execute_good_on_parent_with_external_process_validation() {
-	let execution_mode = execution_mode();
-	execute_good_on_parent(execution_mode);
+	let isolation_strategy = isolation_strategy();
+	execute_good_on_parent(isolation_strategy);
 }
 
-fn execute_good_on_parent(execution_mode: ExecutionMode) {
+fn execute_good_on_parent(isolation_strategy: IsolationStrategy) {
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -71,7 +71,7 @@ fn execute_good_on_parent(execution_mode: ExecutionMode) {
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 		},
-		&execution_mode,
+		&isolation_strategy,
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
@@ -87,7 +87,7 @@ fn execute_good_chain_on_parent() {
 	let mut number = 0;
 	let mut parent_hash = [0; 32];
 	let mut last_state = 0;
-	let execution_mode = execution_mode();
+	let isolation_strategy = isolation_strategy();
 
 	for add in 0..10 {
 		let parent_head = HeadData {
@@ -110,7 +110,7 @@ fn execute_good_chain_on_parent() {
 				hrmp_mqc_heads: Vec::new(),
 				dmq_mqc_head: Default::default(),
 			},
-			&execution_mode,
+			&isolation_strategy,
 			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
@@ -128,7 +128,7 @@ fn execute_good_chain_on_parent() {
 
 #[test]
 fn execute_bad_on_parent() {
-	let execution_mode = execution_mode();
+	let isolation_strategy = isolation_strategy();
 
 	let parent_head = HeadData {
 		number: 0,
@@ -150,7 +150,7 @@ fn execute_bad_on_parent() {
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 		},
-		&execution_mode,
+		&isolation_strategy,
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap_err();
 }
