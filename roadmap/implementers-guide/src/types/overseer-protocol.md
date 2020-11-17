@@ -86,7 +86,17 @@ enum ApprovalVotingMessage {
 Messages received by the approval Distribution subsystem.
 
 ```rust
+struct BlockApprovalMeta {
+	hash: Hash,
+	number: BlockNumber,
+	candidates: Vec<CandidateHash>,
+	slot_number: SlotNumber,
+}
+
 enum ApprovalDistributionMessage {
+	/// Notify the `ApprovalDistribution` subsystem about new blocks and the candidates contained within
+	/// them.
+	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
 	/// to be valid for the given relay-parent and validator index.
 	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),
