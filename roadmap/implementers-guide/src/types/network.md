@@ -8,7 +8,12 @@ These types are those that are actually sent over the network to subsystems.
 type RequestId = u64;
 type ProtocolVersion = u32;
 struct PeerId(...); // opaque, unique identifier of a peer.
-struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
+struct View {
+	// Up to `N` (5?) chain heads.
+	heads: Vec<Hash>,
+	// The number of the finalized block.
+	finalized_number: BlockNumber,
+}
 
 enum ObservedRole {
 	Full,

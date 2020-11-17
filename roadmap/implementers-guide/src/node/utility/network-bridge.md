@@ -61,6 +61,12 @@ The `activated` and `deactivated` lists determine the evolution of our local vie
 
 If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.
 
+### Overseer Signal: BlockFinalized
+
+We obtain the number of the block hash in the event by issuing a `ChainApiMessage::BlockNumber` request and then issue a `ProtocolMessage::ViewUpdate` to each connected peer on each peer-set. We also issue a `NetworkBridgeEvent::OurViewChange` to each  event handler for each protocol.
+
+If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.
+
 ### Network Event: Peer Connected
 
 Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer.
