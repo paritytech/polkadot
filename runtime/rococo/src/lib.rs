@@ -587,7 +587,7 @@ impl xcm_executor::Config for XcmConfig {
 }
 
 impl parachains_ump::Trait for Runtime {
-	type UmpSink = crate::parachains_router::XcmSink<XcmConfig>;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
 }
 
 impl parachains_dmp::Trait for Runtime {}

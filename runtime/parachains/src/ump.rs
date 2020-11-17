@@ -52,6 +52,32 @@ impl UmpSink for () {
 	}
 }
 
+// A specific implementation of a UmpSink where messages are in the XCM format
+// and will be forwarded to the XCM Executor.
+pub struct XcmSink<Config>(sp_std::marker::PhantomData<Config>);
+impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
+	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
+		use parity_scale_codec::Decode;
+		use xcm::v0::{Xcm, Junction, MultiLocation, ExecuteXcm};
+		use xcm_executor::XcmExecutor;
+
+		let mut weight: Weight = 0;
+
+		// TODO: Use versioned XCM Format?
+		if let Some(xcm_message) = Xcm::decode(&mut &msg[..]).ok() {
+			let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
+			let xcm_location: MultiLocation = xcm_junction.into();
+
+			// TODO: Do something with result.
+			let _result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message);
+
+			weight = weight.saturating_add(0)
+		}
+
+		weight
+	}
+}
+
 /// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
 pub enum AcceptanceCheckErr {
