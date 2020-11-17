@@ -14,9 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Trait, Module, Store};
-use crate::configuration::HostConfiguration;
-use frame_support::{StorageMap, weights::Weight, traits::Get};
+use crate::{
+	configuration::{self, HostConfiguration},
+	initializer,
+};
+use frame_support::{decl_module, decl_storage, StorageMap, weights::Weight, traits::Get};
 use sp_std::{fmt, prelude::*};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
@@ -60,11 +62,70 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	}
 }
 
+pub trait Trait: frame_system::Trait + configuration::Trait {}
+
+decl_storage! {
+	trait Store for Module<T: Trait> as Dmp {
+		/// Paras that are to be cleaned up at the end of the session.
+		/// The entries are sorted ascending by the para id.
+		OutgoingParas: Vec<ParaId>;
+
+		/// The downward messages addressed for a certain para.
+		DownwardMessageQueues: map hasher(twox_64_concat) ParaId => Vec<InboundDownwardMessage<T::BlockNumber>>;
+		/// A mapping that stores the downward message queue MQC head for each para.
+		///
+		/// Each link in this chain has a form:
+		/// `(prev_head, B, H(M))`, where
+		/// - `prev_head`: is the previous head hash or zero if none.
+		/// - `B`: is the relay-chain block number in which a message was appended.
+		/// - `H(M)`: is the hash of the message being appended.
+		DownwardMessageQueueHeads: map hasher(twox_64_concat) ParaId => Hash;
+	}
+}
+
+decl_module! {
+	/// The DMP module.
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin { }
+}
+
 /// Routines and getters related to downward message passing.
 impl<T: Trait> Module<T> {
-	pub(crate) fn clean_dmp_after_outgoing(outgoing_para: ParaId) {
+	/// Block initialization logic, called by initializer.
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		0
+	}
+
+	/// Block finalization logic, called by initializer.
+	pub(crate) fn initializer_finalize() {}
+
+	/// Called by the initializer to note that a new session has started.
+	pub(crate) fn initializer_on_new_session(
+		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+	) {
+		Self::perform_outgoing_para_cleanup();
+	}
+
+	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup() {
+		let outgoing = OutgoingParas::take();
+		for outgoing_para in outgoing {
+			Self::clean_dmp_after_outgoing(outgoing_para);
+		}
+	}
+
+	fn clean_dmp_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::DownwardMessageQueues::remove(&outgoing_para);
 		<Self as Store>::DownwardMessageQueueHeads::remove(&outgoing_para);
+	}
+
+	/// Schedule a para to be cleaned up at the start of the next session.
+	pub(crate) fn schedule_para_cleanup(id: ParaId) {
+		OutgoingParas::mutate(|v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
+			}
+		});
 	}
 
 	/// Enqueue a downward message to a specific recipient para.
@@ -165,19 +226,45 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{Configuration, Router, new_test_ext};
-	use crate::router::{
-		OutgoingParas,
-		tests::{default_genesis_config, run_to_block},
-	};
+	use primitives::v1::BlockNumber;
 	use frame_support::StorageValue;
+	use frame_support::traits::{OnFinalize, OnInitialize};
 	use codec::Encode;
+	use crate::mock::{Configuration, new_test_ext, System, Dmp, GenesisConfig as MockGenesisConfig};
+
+	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+		while System::block_number() < to {
+			let b = System::block_number();
+			Dmp::initializer_finalize();
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
+
+			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				Dmp::initializer_on_new_session(&Default::default());
+			}
+			Dmp::initializer_initialize(b + 1);
+		}
+	}
+
+	fn default_genesis_config() -> MockGenesisConfig {
+		MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: crate::configuration::HostConfiguration {
+					max_downward_message_size: 1024,
+					..Default::default()
+				},
+			},
+			..Default::default()
+		}
+	}
 
 	fn queue_downward_message(
 		para_id: ParaId,
 		msg: DownwardMessage,
 	) -> Result<(), QueueDownwardMessageError> {
-		Router::queue_downward_message(&Configuration::config(), para_id, msg)
+		Dmp::queue_downward_message(&Configuration::config(), para_id, msg)
 	}
 
 	#[test]
@@ -194,23 +281,23 @@ mod tests {
 			queue_downward_message(b, vec![4, 5, 6]).unwrap();
 			queue_downward_message(c, vec![7, 8, 9]).unwrap();
 
-			Router::schedule_para_cleanup(a);
+			Dmp::schedule_para_cleanup(a);
 
 			// run to block without session change.
 			run_to_block(2, None);
 
-			assert!(!<Router as Store>::DownwardMessageQueues::get(&a).is_empty());
-			assert!(!<Router as Store>::DownwardMessageQueues::get(&b).is_empty());
-			assert!(!<Router as Store>::DownwardMessageQueues::get(&c).is_empty());
+			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
+			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
+			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
 
-			Router::schedule_para_cleanup(b);
+			Dmp::schedule_para_cleanup(b);
 
 			// run to block changing the session.
 			run_to_block(3, Some(vec![3]));
 
-			assert!(<Router as Store>::DownwardMessageQueues::get(&a).is_empty());
-			assert!(<Router as Store>::DownwardMessageQueues::get(&b).is_empty());
-			assert!(!<Router as Store>::DownwardMessageQueues::get(&c).is_empty());
+			assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
+			assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
+			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
 
 			// verify that the outgoing paras are emptied.
 			assert!(OutgoingParas::get().is_empty())
@@ -223,15 +310,15 @@ mod tests {
 		let b = ParaId::from(228);
 
 		new_test_ext(default_genesis_config()).execute_with(|| {
-			assert_eq!(Router::dmq_length(a), 0);
-			assert_eq!(Router::dmq_length(b), 0);
+			assert_eq!(Dmp::dmq_length(a), 0);
+			assert_eq!(Dmp::dmq_length(b), 0);
 
 			queue_downward_message(a, vec![1, 2, 3]).unwrap();
 
-			assert_eq!(Router::dmq_length(a), 1);
-			assert_eq!(Router::dmq_length(b), 0);
-			assert!(!Router::dmq_mqc_head(a).is_zero());
-			assert!(Router::dmq_mqc_head(b).is_zero());
+			assert_eq!(Dmp::dmq_length(a), 1);
+			assert_eq!(Dmp::dmq_length(b), 0);
+			assert!(!Dmp::dmq_mqc_head(a).is_zero());
+			assert!(Dmp::dmq_mqc_head(b).is_zero());
 		});
 	}
 
@@ -241,20 +328,20 @@ mod tests {
 
 		new_test_ext(default_genesis_config()).execute_with(|| {
 			// processed_downward_messages=0 is allowed when the DMQ is empty.
-			assert!(Router::check_processed_downward_messages(a, 0).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, 0).is_ok());
 
 			queue_downward_message(a, vec![1, 2, 3]).unwrap();
 			queue_downward_message(a, vec![4, 5, 6]).unwrap();
 			queue_downward_message(a, vec![7, 8, 9]).unwrap();
 
 			// 0 doesn't pass if the DMQ has msgs.
-			assert!(!Router::check_processed_downward_messages(a, 0).is_ok());
+			assert!(!Dmp::check_processed_downward_messages(a, 0).is_ok());
 			// a candidate can consume up to 3 messages
-			assert!(Router::check_processed_downward_messages(a, 1).is_ok());
-			assert!(Router::check_processed_downward_messages(a, 2).is_ok());
-			assert!(Router::check_processed_downward_messages(a, 3).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, 1).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, 2).is_ok());
+			assert!(Dmp::check_processed_downward_messages(a, 3).is_ok());
 			// there is no 4 messages in the queue
-			assert!(!Router::check_processed_downward_messages(a, 4).is_ok());
+			assert!(!Dmp::check_processed_downward_messages(a, 4).is_ok());
 		});
 	}
 
@@ -263,19 +350,19 @@ mod tests {
 		let a = ParaId::from(1312);
 
 		new_test_ext(default_genesis_config()).execute_with(|| {
-			assert_eq!(Router::dmq_length(a), 0);
+			assert_eq!(Dmp::dmq_length(a), 0);
 
 			queue_downward_message(a, vec![1, 2, 3]).unwrap();
 			queue_downward_message(a, vec![4, 5, 6]).unwrap();
 			queue_downward_message(a, vec![7, 8, 9]).unwrap();
-			assert_eq!(Router::dmq_length(a), 3);
+			assert_eq!(Dmp::dmq_length(a), 3);
 
 			// pruning 0 elements shouldn't change anything.
-			Router::prune_dmq(a, 0);
-			assert_eq!(Router::dmq_length(a), 3);
+			Dmp::prune_dmq(a, 0);
+			assert_eq!(Dmp::dmq_length(a), 3);
 
-			Router::prune_dmq(a, 2);
-			assert_eq!(Router::dmq_length(a), 1);
+			Dmp::prune_dmq(a, 2);
+			assert_eq!(Dmp::dmq_length(a), 1);
 		});
 	}
 

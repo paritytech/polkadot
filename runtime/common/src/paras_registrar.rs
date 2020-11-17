@@ -33,7 +33,7 @@ use runtime_parachains::{
 		self,
 		ParaGenesisArgs,
 	},
-	router,
+	dmp, ump, hrmp,
 	ensure_parachain,
 	Origin,
 };
@@ -41,7 +41,7 @@ use runtime_parachains::{
 type BalanceOf<T> =
 	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
-pub trait Trait: paras::Trait + router::Trait {
+pub trait Trait: paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait {
 	/// The aggregated origin type must support the `parachains` origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
@@ -125,7 +125,7 @@ decl_module! {
 				parachain: false,
 			};
 
-			<paras::Module<T>>::schedule_para_initialize(id, genesis);
+			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 
 			Ok(())
 		}
@@ -150,8 +150,7 @@ decl_module! {
 			let debtor = <Debtors<T>>::take(id);
 			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
-			<paras::Module<T>>::schedule_para_cleanup(id);
-			<router::Module::<T>>::schedule_para_cleanup(id);
+			runtime_parachains::schedule_para_cleanup::<T>(id);
 
 			Ok(())
 		}
@@ -231,7 +230,7 @@ impl<T: Trait> Module<T> {
 			parachain: true,
 		};
 
-		<paras::Module<T>>::schedule_para_initialize(id, genesis);
+		runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 
 		Ok(())
 	}
@@ -242,8 +241,7 @@ impl<T: Trait> Module<T> {
 
 		ensure!(is_parachain, Error::<T>::InvalidChainId);
 
-		<paras::Module<T>>::schedule_para_cleanup(id);
-		<router::Module::<T>>::schedule_para_cleanup(id);
+		runtime_parachains::schedule_para_cleanup::<T>(id);
 
 		Ok(())
 	}
@@ -267,7 +265,7 @@ mod tests {
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
-	use runtime_parachains::{initializer, configuration, inclusion, router, scheduler};
+	use runtime_parachains::{initializer, configuration, inclusion, scheduler, dmp, ump, hrmp};
 	use pallet_session::OneSessionHandler;
 
 	impl_outer_origin! {
@@ -425,8 +423,13 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl router::Trait for Test {
+	impl dmp::Trait for Test {}
+
+	impl ump::Trait for Test {
 		type UmpSink = ();
+	}
+
+	impl hrmp::Trait for Test {
 		type Origin = Origin;
 	}
 

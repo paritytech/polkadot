@@ -14,19 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{dmp, Error as DispatchError, Module, Store, Trait};
 use crate::{
+	ensure_parachain,
 	configuration::{self, HostConfiguration},
-	paras,
+	initializer, paras, dmp,
 };
 use codec::{Decode, Encode};
-use frame_support::{ensure, traits::Get, weights::Weight, StorageMap, StorageValue};
+use frame_support::{
+	decl_storage, decl_module, decl_error, ensure, traits::Get, weights::Weight, StorageMap,
+	StorageValue, dispatch::DispatchResult,
+};
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
 };
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
-use sp_std::{mem, fmt, collections::{btree_map::BTreeMap, btree_set::BTreeSet}, prelude::*};
+use sp_std::{
+	mem, fmt,
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	prelude::*,
+};
 
 /// A description of a request to open an HRMP channel.
 #[derive(Encode, Decode)]
@@ -135,8 +142,7 @@ where
 			} => write!(
 				fmt,
 				"the HRMP watermark is not advanced relative to the last watermark ({:?} > {:?})",
-				new_watermark,
-				last_watermark,
+				new_watermark, last_watermark,
 			),
 			AheadRelayParent {
 				new_watermark,
@@ -144,13 +150,12 @@ where
 			} => write!(
 				fmt,
 				"the HRMP watermark is ahead the relay-parent ({:?} > {:?})",
-				new_watermark,
-				relay_chain_parent_number,
+				new_watermark, relay_chain_parent_number
 			),
 			LandsOnBlockWithNoMessages { new_watermark } => write!(
 				fmt,
 				"the HRMP watermark ({:?}) doesn't land on a block with messages received",
-				new_watermark,
+				new_watermark
 			),
 		}
 	}
@@ -163,8 +168,7 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			MoreMessagesThanPermitted { sent, permitted } => write!(
 				fmt,
 				"more HRMP messages than permitted by config ({} > {})",
-				sent,
-				permitted,
+				sent, permitted,
 			),
 			NotSorted { idx } => write!(
 				fmt,
@@ -174,9 +178,7 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			NoSuchChannel { idx, channel_id } => write!(
 				fmt,
 				"the HRMP message at index {} is sent to a non existent channel {:?}->{:?}",
-				idx,
-				channel_id.sender,
-				channel_id.recipient,
+				idx, channel_id.sender, channel_id.recipient,
 			),
 			MaxMessageSizeExceeded {
 				idx,
@@ -185,9 +187,7 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			} => write!(
 				fmt,
 				"the HRMP message at index {} exceeds the negotiated channel maximum message size ({} > {})",
-				idx,
-				msg_size,
-				max_size,
+				idx, msg_size, max_size,
 			),
 			TotalSizeExceeded {
 				idx,
@@ -196,23 +196,205 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			} => write!(
 				fmt,
 				"sending the HRMP message at index {} would exceed the neogitiated channel total size  ({} > {})",
-				idx,
-				total_size,
-				limit,
+				idx, total_size, limit,
 			),
 			CapacityExceeded { idx, count, limit } => write!(
 				fmt,
 				"sending the HRMP message at index {} would exceed the neogitiated channel capacity  ({} > {})",
-				idx,
-				count,
-				limit,
+				idx, count, limit,
 			),
+		}
+	}
+}
+
+pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait + dmp::Trait {
+	type Origin: From<crate::Origin>
+		+ From<<Self as frame_system::Trait>::Origin>
+		+ Into<Result<crate::Origin, <Self as Trait>::Origin>>;
+}
+
+decl_storage! {
+	trait Store for Module<T: Trait> as Hrmp {
+		/// Paras that are to be cleaned up at the end of the session.
+		/// The entries are sorted ascending by the para id.
+		OutgoingParas: Vec<ParaId>;
+
+
+		/// The set of pending HRMP open channel requests.
+		///
+		/// The set is accompanied by a list for iteration.
+		///
+		/// Invariant:
+		/// - There are no channels that exists in list but not in the set and vice versa.
+		HrmpOpenChannelRequests: map hasher(twox_64_concat) HrmpChannelId => Option<HrmpOpenChannelRequest>;
+		HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
+
+		/// This mapping tracks how many open channel requests are inititated by a given sender para.
+		/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
+		/// as the number of `HrmpOpenChannelRequestCount` for `X`.
+		HrmpOpenChannelRequestCount: map hasher(twox_64_concat) ParaId => u32;
+		/// This mapping tracks how many open channel requests were accepted by a given recipient para.
+		/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items `(_, X)` with
+		/// `confirmed` set to true, as the number of `HrmpAcceptedChannelRequestCount` for `X`.
+		HrmpAcceptedChannelRequestCount: map hasher(twox_64_concat) ParaId => u32;
+
+		/// A set of pending HRMP close channel requests that are going to be closed during the session change.
+		/// Used for checking if a given channel is registered for closure.
+		///
+		/// The set is accompanied by a list for iteration.
+		///
+		/// Invariant:
+		/// - There are no channels that exists in list but not in the set and vice versa.
+		HrmpCloseChannelRequests: map hasher(twox_64_concat) HrmpChannelId => Option<()>;
+		HrmpCloseChannelRequestsList: Vec<HrmpChannelId>;
+
+		/// The HRMP watermark associated with each para.
+		/// Invariant:
+		/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
+		HrmpWatermarks: map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
+		/// HRMP channel data associated with each para.
+		/// Invariant:
+		/// - each participant in the channel should satisfy `Paras::is_valid_para(P)` within a session.
+		HrmpChannels: map hasher(twox_64_concat) HrmpChannelId => Option<HrmpChannel>;
+		/// Ingress/egress indexes allow to find all the senders and receivers given the opposite
+		/// side. I.e.
+		///
+		/// (a) ingress index allows to find all the senders for a given recipient.
+		/// (b) egress index allows to find all the recipients for a given sender.
+		///
+		/// Invariants:
+		/// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels`
+		///   as `(I, P)`.
+		/// - for each egress index entry for `P` each item `E` in the index should present in `HrmpChannels`
+		///   as `(P, E)`.
+		/// - there should be no other dangling channels in `HrmpChannels`.
+		/// - the vectors are sorted.
+		HrmpIngressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+		HrmpEgressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+		/// Storage for the messages for each channel.
+		/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
+		HrmpChannelContents: map hasher(twox_64_concat) HrmpChannelId => Vec<InboundHrmpMessage<T::BlockNumber>>;
+		/// Maintains a mapping that can be used to answer the question:
+		/// What paras sent a message at the given block number for a given reciever.
+		/// Invariants:
+		/// - The inner `Vec<ParaId>` is never empty.
+		/// - The inner `Vec<ParaId>` cannot store two same `ParaId`.
+		/// - The outer vector is sorted ascending by block number and cannot store two items with the same
+		///   block number.
+		HrmpChannelDigests: map hasher(twox_64_concat) ParaId => Vec<(T::BlockNumber, Vec<ParaId>)>;
+	}
+}
+
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// The sender tried to open a channel to themselves.
+		OpenHrmpChannelToSelf,
+		/// The recipient is not a valid para.
+		OpenHrmpChannelInvalidRecipient,
+		/// The requested capacity is zero.
+		OpenHrmpChannelZeroCapacity,
+		/// The requested capacity exceeds the global limit.
+		OpenHrmpChannelCapacityExceedsLimit,
+		/// The requested maximum message size is 0.
+		OpenHrmpChannelZeroMessageSize,
+		/// The open request requested the message size that exceeds the global limit.
+		OpenHrmpChannelMessageSizeExceedsLimit,
+		/// The channel already exists
+		OpenHrmpChannelAlreadyExists,
+		/// There is already a request to open the same channel.
+		OpenHrmpChannelAlreadyRequested,
+		/// The sender already has the maximum number of allowed outbound channels.
+		OpenHrmpChannelLimitExceeded,
+		/// The channel from the sender to the origin doesn't exist.
+		AcceptHrmpChannelDoesntExist,
+		/// The channel is already confirmed.
+		AcceptHrmpChannelAlreadyConfirmed,
+		/// The recipient already has the maximum number of allowed inbound channels.
+		AcceptHrmpChannelLimitExceeded,
+		/// The origin tries to close a channel where it is neither the sender nor the recipient.
+		CloseHrmpChannelUnauthorized,
+		/// The channel to be closed doesn't exist.
+		CloseHrmpChannelDoesntExist,
+		/// The channel close request is already requested.
+		CloseHrmpChannelAlreadyUnderway,
+	 }
+}
+
+decl_module! {
+	/// The HRMP module.
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+		type Error = Error<T>;
+
+		#[weight = 0]
+		fn hrmp_init_open_channel(
+			origin,
+			recipient: ParaId,
+			proposed_max_capacity: u32,
+			proposed_max_message_size: u32,
+		) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::init_open_channel(
+				origin,
+				recipient,
+				proposed_max_capacity,
+				proposed_max_message_size
+			)?;
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::accept_open_channel(origin, sender)?;
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::close_channel(origin, channel_id)?;
+			Ok(())
 		}
 	}
 }
 
 /// Routines and getters related to HRMP.
 impl<T: Trait> Module<T> {
+	/// Block initialization logic, called by initializer.
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		0
+	}
+
+	/// Block finalization logic, called by initializer.
+	pub(crate) fn initializer_finalize() {}
+
+	/// Called by the initializer to note that a new session has started.
+	pub(crate) fn initializer_on_new_session(
+		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+	) {
+		Self::perform_outgoing_para_cleanup();
+		Self::process_hrmp_open_channel_requests(&notification.prev_config);
+		Self::process_hrmp_close_channel_requests();
+	}
+
+	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup() {
+		let outgoing = OutgoingParas::take();
+		for outgoing_para in outgoing {
+			Self::clean_hrmp_after_outgoing(outgoing_para);
+		}
+	}
+
+	/// Schedule a para to be cleaned up at the start of the next session.
+	pub(crate) fn schedule_para_cleanup(id: ParaId) {
+		OutgoingParas::mutate(|v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
+			}
+		});
+	}
+
 	/// Remove all storage entries associated with the given para.
 	pub(super) fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
@@ -631,32 +813,29 @@ impl<T: Trait> Module<T> {
 		recipient: ParaId,
 		proposed_max_capacity: u32,
 		proposed_max_message_size: u32,
-	) -> Result<(), DispatchError<T>> {
-		ensure!(
-			origin != recipient,
-			DispatchError::<T>::OpenHrmpChannelToSelf
-		);
+	) -> Result<(), Error<T>> {
+		ensure!(origin != recipient, Error::<T>::OpenHrmpChannelToSelf);
 		ensure!(
 			<paras::Module<T>>::is_valid_para(recipient),
-			DispatchError::<T>::OpenHrmpChannelInvalidRecipient,
+			Error::<T>::OpenHrmpChannelInvalidRecipient,
 		);
 
 		let config = <configuration::Module<T>>::config();
 		ensure!(
 			proposed_max_capacity > 0,
-			DispatchError::<T>::OpenHrmpChannelZeroCapacity,
+			Error::<T>::OpenHrmpChannelZeroCapacity,
 		);
 		ensure!(
 			proposed_max_capacity <= config.hrmp_channel_max_capacity,
-			DispatchError::<T>::OpenHrmpChannelCapacityExceedsLimit,
+			Error::<T>::OpenHrmpChannelCapacityExceedsLimit,
 		);
 		ensure!(
 			proposed_max_message_size > 0,
-			DispatchError::<T>::OpenHrmpChannelZeroMessageSize,
+			Error::<T>::OpenHrmpChannelZeroMessageSize,
 		);
 		ensure!(
 			proposed_max_message_size <= config.hrmp_channel_max_message_size,
-			DispatchError::<T>::OpenHrmpChannelMessageSizeExceedsLimit,
+			Error::<T>::OpenHrmpChannelMessageSizeExceedsLimit,
 		);
 
 		let channel_id = HrmpChannelId {
@@ -665,11 +844,11 @@ impl<T: Trait> Module<T> {
 		};
 		ensure!(
 			<Self as Store>::HrmpOpenChannelRequests::get(&channel_id).is_none(),
-			DispatchError::<T>::OpenHrmpChannelAlreadyExists,
+			Error::<T>::OpenHrmpChannelAlreadyExists,
 		);
 		ensure!(
 			<Self as Store>::HrmpChannels::get(&channel_id).is_none(),
-			DispatchError::<T>::OpenHrmpChannelAlreadyRequested,
+			Error::<T>::OpenHrmpChannelAlreadyRequested,
 		);
 
 		let egress_cnt =
@@ -682,7 +861,7 @@ impl<T: Trait> Module<T> {
 		};
 		ensure!(
 			egress_cnt + open_req_cnt < channel_num_limit,
-			DispatchError::<T>::OpenHrmpChannelLimitExceeded,
+			Error::<T>::OpenHrmpChannelLimitExceeded,
 		);
 
 		// TODO: Deposit https://github.com/paritytech/polkadot/issues/1907
@@ -713,7 +892,7 @@ impl<T: Trait> Module<T> {
 			.encode()
 		};
 		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
-			Self::queue_downward_message(&config, recipient, notification_bytes)
+			<dmp::Module<T>>::queue_downward_message(&config, recipient, notification_bytes)
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
@@ -723,19 +902,16 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	pub(super) fn accept_open_channel(
-		origin: ParaId,
-		sender: ParaId,
-	) -> Result<(), DispatchError<T>> {
+	pub(super) fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
 		let channel_id = HrmpChannelId {
 			sender,
 			recipient: origin,
 		};
 		let mut channel_req = <Self as Store>::HrmpOpenChannelRequests::get(&channel_id)
-			.ok_or(DispatchError::<T>::AcceptHrmpChannelDoesntExist)?;
+			.ok_or(Error::<T>::AcceptHrmpChannelDoesntExist)?;
 		ensure!(
 			!channel_req.confirmed,
-			DispatchError::<T>::AcceptHrmpChannelAlreadyConfirmed,
+			Error::<T>::AcceptHrmpChannelAlreadyConfirmed,
 		);
 
 		// check if by accepting this open channel request, this parachain would exceed the
@@ -751,7 +927,7 @@ impl<T: Trait> Module<T> {
 		let accepted_cnt = <Self as Store>::HrmpAcceptedChannelRequestCount::get(&origin);
 		ensure!(
 			ingress_cnt + accepted_cnt < channel_num_limit,
-			DispatchError::<T>::AcceptHrmpChannelLimitExceeded,
+			Error::<T>::AcceptHrmpChannelLimitExceeded,
 		);
 
 		// TODO: Deposit https://github.com/paritytech/polkadot/issues/1907
@@ -772,7 +948,7 @@ impl<T: Trait> Module<T> {
 			.encode()
 		};
 		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
-			Self::queue_downward_message(&config, sender, notification_bytes)
+			<dmp::Module<T>>::queue_downward_message(&config, sender, notification_bytes)
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
@@ -782,26 +958,23 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	pub(super) fn close_channel(
-		origin: ParaId,
-		channel_id: HrmpChannelId,
-	) -> Result<(), DispatchError<T>> {
+	pub(super) fn close_channel(origin: ParaId, channel_id: HrmpChannelId) -> Result<(), Error<T>> {
 		// check if the origin is allowed to close the channel.
 		ensure!(
 			origin == channel_id.sender || origin == channel_id.recipient,
-			DispatchError::<T>::CloseHrmpChannelUnauthorized,
+			Error::<T>::CloseHrmpChannelUnauthorized,
 		);
 
 		// check if the channel requested to close does exist.
 		ensure!(
 			<Self as Store>::HrmpChannels::get(&channel_id).is_some(),
-			DispatchError::<T>::CloseHrmpChannelDoesntExist,
+			Error::<T>::CloseHrmpChannelDoesntExist,
 		);
 
 		// check that there is no outstanding close request for this channel
 		ensure!(
 			<Self as Store>::HrmpCloseChannelRequests::get(&channel_id).is_none(),
-			DispatchError::<T>::CloseHrmpChannelAlreadyUnderway,
+			Error::<T>::CloseHrmpChannelAlreadyUnderway,
 		);
 
 		<Self as Store>::HrmpCloseChannelRequests::insert(&channel_id, ());
@@ -825,7 +998,7 @@ impl<T: Trait> Module<T> {
 			channel_id.sender
 		};
 		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
-			Self::queue_downward_message(&config, opposite_party, notification_bytes)
+			<dmp::Module<T>>::queue_downward_message(&config, opposite_party, notification_bytes)
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
@@ -876,19 +1049,20 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Configuration, Paras, Router, System};
-	use crate::router::tests::default_genesis_config;
+	use crate::mock::{
+		new_test_ext, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
+	};
 	use primitives::v1::BlockNumber;
 	use std::collections::{BTreeMap, HashSet};
 
-	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		use frame_support::traits::{OnFinalize as _, OnInitialize as _};
 
 		while System::block_number() < to {
 			let b = System::block_number();
 
 			// NOTE: this is in reverse initialization order.
-			Router::initializer_finalize();
+			Hrmp::initializer_finalize();
 			Paras::initializer_finalize();
 
 			System::on_finalize(b);
@@ -899,12 +1073,12 @@ mod tests {
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				// NOTE: this is in initialization order.
 				Paras::initializer_on_new_session(&Default::default());
-				Router::initializer_on_new_session(&Default::default());
+				Hrmp::initializer_on_new_session(&Default::default());
 			}
 
 			// NOTE: this is in initialization order.
 			Paras::initializer_initialize(b + 1);
-			Router::initializer_initialize(b + 1);
+			Hrmp::initializer_initialize(b + 1);
 		}
 	}
 
@@ -951,6 +1125,18 @@ mod tests {
 		}
 	}
 
+	fn default_genesis_config() -> MockGenesisConfig {
+		MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: crate::configuration::HostConfiguration {
+					max_downward_message_size: 1024,
+					..Default::default()
+				},
+			},
+			..Default::default()
+		}
+	}
+
 	fn register_parachain(id: ParaId) {
 		Paras::schedule_para_initialize(
 			id,
@@ -967,17 +1153,17 @@ mod tests {
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
-		<Router as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
+		<Hrmp as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
 	}
 
 	fn assert_storage_consistency_exhaustive() {
 		use frame_support::IterableStorageMap;
 
 		assert_eq!(
-			<Router as Store>::HrmpOpenChannelRequests::iter()
+			<Hrmp as Store>::HrmpOpenChannelRequests::iter()
 				.map(|(k, _)| k)
 				.collect::<HashSet<_>>(),
-			<Router as Store>::HrmpOpenChannelRequestsList::get()
+			<Hrmp as Store>::HrmpOpenChannelRequestsList::get()
 				.into_iter()
 				.collect::<HashSet<_>>(),
 		);
@@ -987,17 +1173,17 @@ mod tests {
 		//
 		// having ensured that, we can go ahead and go over all counts and verify that they match.
 		assert_eq!(
-			<Router as Store>::HrmpOpenChannelRequestCount::iter()
+			<Hrmp as Store>::HrmpOpenChannelRequestCount::iter()
 				.map(|(k, _)| k)
 				.collect::<HashSet<_>>(),
-			<Router as Store>::HrmpOpenChannelRequests::iter()
+			<Hrmp as Store>::HrmpOpenChannelRequests::iter()
 				.map(|(k, _)| k.sender)
 				.collect::<HashSet<_>>(),
 		);
 		for (open_channel_initiator, expected_num) in
-			<Router as Store>::HrmpOpenChannelRequestCount::iter()
+			<Hrmp as Store>::HrmpOpenChannelRequestCount::iter()
 		{
-			let actual_num = <Router as Store>::HrmpOpenChannelRequests::iter()
+			let actual_num = <Hrmp as Store>::HrmpOpenChannelRequests::iter()
 				.filter(|(ch, _)| ch.sender == open_channel_initiator)
 				.count() as u32;
 			assert_eq!(expected_num, actual_num);
@@ -1006,28 +1192,28 @@ mod tests {
 		// The same as above, but for accepted channel request count. Note that we are interested
 		// only in confirmed open requests.
 		assert_eq!(
-			<Router as Store>::HrmpAcceptedChannelRequestCount::iter()
+			<Hrmp as Store>::HrmpAcceptedChannelRequestCount::iter()
 				.map(|(k, _)| k)
 				.collect::<HashSet<_>>(),
-			<Router as Store>::HrmpOpenChannelRequests::iter()
+			<Hrmp as Store>::HrmpOpenChannelRequests::iter()
 				.filter(|(_, v)| v.confirmed)
 				.map(|(k, _)| k.recipient)
 				.collect::<HashSet<_>>(),
 		);
 		for (channel_recipient, expected_num) in
-			<Router as Store>::HrmpAcceptedChannelRequestCount::iter()
+			<Hrmp as Store>::HrmpAcceptedChannelRequestCount::iter()
 		{
-			let actual_num = <Router as Store>::HrmpOpenChannelRequests::iter()
+			let actual_num = <Hrmp as Store>::HrmpOpenChannelRequests::iter()
 				.filter(|(ch, v)| ch.recipient == channel_recipient && v.confirmed)
 				.count() as u32;
 			assert_eq!(expected_num, actual_num);
 		}
 
 		assert_eq!(
-			<Router as Store>::HrmpCloseChannelRequests::iter()
+			<Hrmp as Store>::HrmpCloseChannelRequests::iter()
 				.map(|(k, _)| k)
 				.collect::<HashSet<_>>(),
-			<Router as Store>::HrmpCloseChannelRequestsList::get()
+			<Hrmp as Store>::HrmpCloseChannelRequestsList::get()
 				.into_iter()
 				.collect::<HashSet<_>>(),
 		);
@@ -1035,14 +1221,14 @@ mod tests {
 		// A HRMP watermark can be None for an onboarded parachain. However, an offboarded parachain
 		// cannot have an HRMP watermark: it should've been cleanup.
 		assert_contains_only_onboarded(
-			<Router as Store>::HrmpWatermarks::iter().map(|(k, _)| k),
+			<Hrmp as Store>::HrmpWatermarks::iter().map(|(k, _)| k),
 			"HRMP watermarks should contain only onboarded paras",
 		);
 
 		// An entry in `HrmpChannels` indicates that the channel is open. Only open channels can
 		// have contents.
-		for (non_empty_channel, contents) in <Router as Store>::HrmpChannelContents::iter() {
-			assert!(<Router as Store>::HrmpChannels::contains_key(
+		for (non_empty_channel, contents) in <Hrmp as Store>::HrmpChannelContents::iter() {
+			assert!(<Hrmp as Store>::HrmpChannels::contains_key(
 				&non_empty_channel
 			));
 
@@ -1054,7 +1240,7 @@ mod tests {
 		// Senders and recipients must be onboarded. Otherwise, all channels associated with them
 		// are removed.
 		assert_contains_only_onboarded(
-			<Router as Store>::HrmpChannels::iter().flat_map(|(k, _)| vec![k.sender, k.recipient]),
+			<Hrmp as Store>::HrmpChannels::iter().flat_map(|(k, _)| vec![k.sender, k.recipient]),
 			"senders and recipients in all channels should be onboarded",
 		);
 
@@ -1077,13 +1263,13 @@ mod tests {
 		//   (b, z)         (b, z)
 		//
 		// and then that we compare that to the channel list in the `HrmpChannels`.
-		let channel_set_derived_from_ingress = <Router as Store>::HrmpIngressChannelsIndex::iter()
+		let channel_set_derived_from_ingress = <Hrmp as Store>::HrmpIngressChannelsIndex::iter()
 			.flat_map(|(p, v)| v.into_iter().map(|i| (i, p)).collect::<Vec<_>>())
 			.collect::<HashSet<_>>();
-		let channel_set_derived_from_egress = <Router as Store>::HrmpEgressChannelsIndex::iter()
+		let channel_set_derived_from_egress = <Hrmp as Store>::HrmpEgressChannelsIndex::iter()
 			.flat_map(|(p, v)| v.into_iter().map(|e| (p, e)).collect::<Vec<_>>())
 			.collect::<HashSet<_>>();
-		let channel_set_ground_truth = <Router as Store>::HrmpChannels::iter()
+		let channel_set_ground_truth = <Hrmp as Store>::HrmpChannels::iter()
 			.map(|(k, _)| (k.sender, k.recipient))
 			.collect::<HashSet<_>>();
 		assert_eq!(
@@ -1092,18 +1278,18 @@ mod tests {
 		);
 		assert_eq!(channel_set_derived_from_egress, channel_set_ground_truth);
 
-		<Router as Store>::HrmpIngressChannelsIndex::iter()
+		<Hrmp as Store>::HrmpIngressChannelsIndex::iter()
 			.map(|(_, v)| v)
 			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
-		<Router as Store>::HrmpEgressChannelsIndex::iter()
+		<Hrmp as Store>::HrmpEgressChannelsIndex::iter()
 			.map(|(_, v)| v)
 			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
 
 		assert_contains_only_onboarded(
-			<Router as Store>::HrmpChannelDigests::iter().map(|(k, _)| k),
+			<Hrmp as Store>::HrmpChannelDigests::iter().map(|(k, _)| k),
 			"HRMP channel digests should contain only onboarded paras",
 		);
-		for (_digest_for_para, digest) in <Router as Store>::HrmpChannelDigests::iter() {
+		for (_digest_for_para, digest) in <Hrmp as Store>::HrmpChannelDigests::iter() {
 			// Assert that items are in **strictly** ascending order. The strictness also implies
 			// there are no duplicates.
 			assert!(digest.windows(2).all(|xs| xs[0].0 < xs[1].0));
@@ -1161,10 +1347,10 @@ mod tests {
 			register_parachain(para_b);
 
 			run_to_block(5, Some(vec![5]));
-			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			assert_storage_consistency_exhaustive();
 
-			Router::accept_open_channel(para_b, para_a).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			assert_storage_consistency_exhaustive();
 
 			// Advance to a block 6, but without session change. That means that the channel has
@@ -1189,15 +1375,15 @@ mod tests {
 			register_parachain(para_b);
 
 			run_to_block(5, Some(vec![5]));
-			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
-			Router::accept_open_channel(para_b, para_a).unwrap();
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
 			run_to_block(6, Some(vec![6]));
 			assert!(channel_exists(para_a, para_b));
 
 			// Close the channel. The effect is not immediate, but rather deferred to the next
 			// session change.
-			Router::close_channel(
+			Hrmp::close_channel(
 				para_b,
 				HrmpChannelId {
 					sender: para_a,
@@ -1228,8 +1414,8 @@ mod tests {
 			register_parachain(para_b);
 
 			run_to_block(5, Some(vec![5]));
-			Router::init_open_channel(para_a, para_b, 2, 20).unwrap();
-			Router::accept_open_channel(para_b, para_a).unwrap();
+			Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
 			// On Block 6:
 			// A sends a message to B
@@ -1240,15 +1426,15 @@ mod tests {
 				data: b"this is an emergency".to_vec(),
 			}];
 			let config = Configuration::config();
-			assert!(Router::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
-			let _ = Router::queue_outbound_hrmp(para_a, msgs);
+			assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
+			let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
 			assert_storage_consistency_exhaustive();
 
 			// On Block 7:
 			// B receives the message sent by A. B sets the watermark to 6.
 			run_to_block(7, None);
-			assert!(Router::check_hrmp_watermark(para_b, 7, 6).is_ok());
-			let _ = Router::prune_hrmp(para_b, 6);
+			assert!(Hrmp::check_hrmp_watermark(para_b, 7, 6).is_ok());
+			let _ = Hrmp::prune_hrmp(para_b, 6);
 			assert_storage_consistency_exhaustive();
 		});
 	}
@@ -1263,8 +1449,8 @@ mod tests {
 			register_parachain(para_b);
 
 			run_to_block(5, Some(vec![5]));
-			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
-			Router::accept_open_channel(para_b, para_a).unwrap();
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			deregister_parachain(para_a);
 
 			// On Block 6: session change. The channel should not be created.
@@ -1290,10 +1476,10 @@ mod tests {
 
 			// Open two channels to the same receiver, b:
 			// a -> b, c -> b
-			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
-			Router::accept_open_channel(para_b, para_a).unwrap();
-			Router::init_open_channel(para_c, para_b, 2, 8).unwrap();
-			Router::accept_open_channel(para_b, para_c).unwrap();
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+			Hrmp::init_open_channel(para_c, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_c).unwrap();
 
 			// On Block 6: session change.
 			run_to_block(6, Some(vec![6]));
@@ -1304,12 +1490,12 @@ mod tests {
 				data: b"knock".to_vec(),
 			}];
 			let config = Configuration::config();
-			assert!(Router::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
-			let _ = Router::queue_outbound_hrmp(para_a, msgs.clone());
+			assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
+			let _ = Hrmp::queue_outbound_hrmp(para_a, msgs.clone());
 
 			// Verify that the sent messages are there and that also the empty channels are present.
-			let mqc_heads = Router::hrmp_mqc_heads(para_b);
-			let contents = Router::inbound_hrmp_channels_contents(para_b);
+			let mqc_heads = Hrmp::hrmp_mqc_heads(para_b);
+			let contents = Hrmp::inbound_hrmp_channels_contents(para_b);
 			assert_eq!(
 				contents,
 				vec![

@@ -28,7 +28,7 @@ use primitives::v1::{
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, router};
+use crate::{initializer, inclusion, scheduler, configuration, paras, dmp, hrmp};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
@@ -310,15 +310,15 @@ where
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.
-pub fn dmq_contents<T: router::Trait>(
+pub fn dmq_contents<T: dmp::Trait>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<router::Module<T>>::dmq_contents(recipient)
+	<dmp::Module<T>>::dmq_contents(recipient)
 }
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
-pub fn inbound_hrmp_channels_contents<T: router::Trait>(
+pub fn inbound_hrmp_channels_contents<T: hrmp::Trait>(
 	recipient: ParaId,
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
-	<router::Module<T>>::inbound_hrmp_channels_contents(recipient)
+	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
 }
