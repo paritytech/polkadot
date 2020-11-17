@@ -24,6 +24,7 @@ use futures::{
 	task::{Poll, self},
 	stream,
 };
+use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
 use polkadot_node_subsystem::{
@@ -46,48 +47,6 @@ pub enum Error {
 	/// An error in the Runtime API.
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
-}
-
-/// Utility function to connect to different sets of validators at different relay parents.
-pub async fn connect_to_validators_at_different_heights<Context: SubsystemContext>(
-	ctx: &mut Context,
-	// (relay_parent, validators)
-	validators: Vec<(Hash, Vec<ValidatorId>)>,
-) -> Result<ConnectionRequest, Error> {
-	let mut validator_map = HashMap::new();
-	let mut authorities = Vec::new();
-
-	for (relay_parent, validators) in validators {
-		// ValidatorId -> AuthorityDiscoveryId
-		let (tx, rx) = oneshot::channel();
-
-		ctx.send_message(AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
-			)
-		)).await?;
-
-		let maybe_authorities = rx.await??;
-
-		authorities.extend(maybe_authorities.iter()
-			.cloned()
-			.filter_map(|id| id)
-		);
-
-		validator_map.extend(validators.into_iter()
-			.zip(maybe_authorities.into_iter())
-			.filter_map(|(k, v)| v.map(|v| (v, k)))
-		);
-	}
-
-	let (connections, revoke) = connect_to_authorities(ctx, authorities).await?;
-
-	Ok(ConnectionRequest {
-		validator_map,
-		connections,
-		revoke,
-	})
 }
 
 /// Utility function to make it easier to connect to validators.
@@ -144,6 +103,71 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 	)).await?;
 
 	Ok((connected_rx, revoke_tx))
+}
+
+/// A struct that assists performing multiple concurrent connection requests.
+///
+/// This allows concurrent connections to validator sets at different `relay_parents`
+/// and multiplexes their results into a single `Stream`.
+#[derive(Default)]
+pub struct ConnectionRequests {
+	// added connection requests relay_parent -> StreamUnordered token
+	id_map: HashMap<Hash, usize>,
+
+	// Connection requests themselves.
+	requests: StreamUnordered<ConnectionRequest>,
+}
+
+impl ConnectionRequests {
+	/// Insert a new connection request.
+	pub fn put(&mut self, relay_parent: Hash, request: ConnectionRequest) {
+		let token = self.requests.push(request);
+
+		self.id_map.insert(relay_parent, token);
+	}
+
+	/// Remove a connection request by a given `relay_parent`.
+	pub fn remove(&mut self, relay_parent: &Hash) {
+		if let Some(token) = self.id_map.remove(relay_parent) {
+			Pin::new(&mut self.requests).remove(token);
+		}
+	}
+}
+
+impl stream::Stream for ConnectionRequests {
+	/// (relay_parent, validator_id, peer_id).
+	type Item = (Hash, ValidatorId, PeerId);
+
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
+		loop {
+			match Pin::new(&mut self.requests).poll_next(cx) {
+				Poll::Ready(Some((yeild, token))) => {
+					match yeild {
+						StreamYield::Item(item) => {
+							let relay_parent = self.id_map.iter()
+								.find_map(|(relay_parent, &val)|
+									if val == token {
+										Some(relay_parent)
+									} else {
+										None
+									}
+								)
+								.expect("All requests' streams should be accounted for; qed");
+
+							return Poll::Ready(Some((*relay_parent, item.0, item.1)));
+						},
+						StreamYield::Finished(finished_stream) => {
+							finished_stream.remove(Pin::new(&mut self.requests));
+
+							self.id_map.retain(|_, t| *t != token);
+						}
+					}
+				},
+				Poll::Ready(None) => return Poll::Ready(None),
+				Poll::Pending => return Poll::Pending,
+			}
+		}
+	}
 }
 
 /// A pending connection request to validators.
