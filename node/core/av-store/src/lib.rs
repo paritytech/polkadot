@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
@@ -527,10 +527,10 @@ where
 				}
 			}
 		}
-		pov_pruning_time = pov_pruning_time => {
+		_ = pov_pruning_time => {
 			subsystem.prune_povs()?;
 		}
-		chunk_pruning_time = chunk_pruning_time => {
+		_ = chunk_pruning_time => {
 			subsystem.prune_chunks()?;
 		}
 		complete => return Ok(true),

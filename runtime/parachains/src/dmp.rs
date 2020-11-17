@@ -229,7 +229,7 @@ mod tests {
 	use primitives::v1::BlockNumber;
 	use frame_support::StorageValue;
 	use frame_support::traits::{OnFinalize, OnInitialize};
-	use codec::Encode;
+	use parity_scale_codec::Encode;
 	use crate::mock::{Configuration, new_test_ext, System, Dmp, GenesisConfig as MockGenesisConfig};
 
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
