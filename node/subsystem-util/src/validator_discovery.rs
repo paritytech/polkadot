@@ -144,6 +144,13 @@ impl stream::Stream for ConnectionRequests {
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
 		loop {
+			// If there are currently no requests going on, pend instead of
+			// polling `StreamUnordered` which would lead to it terminating
+			// and returning `Poll::Ready(None)`.
+			if self.requests.is_empty() {
+				return Poll::Pending;
+			}
+
 			match Pin::new(&mut self.requests).poll_next(cx) {
 				Poll::Ready(Some((yeild, token))) => {
 					match yeild {
