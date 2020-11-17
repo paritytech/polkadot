@@ -143,40 +143,38 @@ impl stream::Stream for ConnectionRequests {
 	type Item = (Hash, ValidatorId, PeerId);
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
-		loop {
-			// If there are currently no requests going on, pend instead of
-			// polling `StreamUnordered` which would lead to it terminating
-			// and returning `Poll::Ready(None)`.
-			if self.requests.is_empty() {
-				return Poll::Pending;
-			}
+		// If there are currently no requests going on, pend instead of
+		// polling `StreamUnordered` which would lead to it terminating
+		// and returning `Poll::Ready(None)`.
+		if self.requests.is_empty() {
+			return Poll::Pending;
+		}
 
-			match Pin::new(&mut self.requests).poll_next(cx) {
-				Poll::Ready(Some((yielded, token))) => {
-					match yielded {
-						StreamYield::Item(item) => {
-							if let Some(relay_parent) = self.id_map.iter()
-								.find_map(|(relay_parent, &val)|
-									if val == token {
-										Some(relay_parent)
-									} else {
-										None
-									}
-								) {
-								return Poll::Ready(Some((*relay_parent, item.0, item.1)));
-							}
-						}
-						StreamYield::Finished(finished_stream) => {
-							finished_stream.remove(Pin::new(&mut self.requests));
-
-							self.id_map.retain(|_, t| *t != token);
+		match Pin::new(&mut self.requests).poll_next(cx) {
+			Poll::Ready(Some((yielded, token))) => {
+				match yielded {
+					StreamYield::Item(item) => {
+						if let Some(relay_parent) = self.id_map.iter()
+							.find_map(|(relay_parent, &val)|
+								if val == token {
+									Some(relay_parent)
+								} else {
+									None
+								}
+							) {
+							return Poll::Ready(Some((*relay_parent, item.0, item.1)));
 						}
 					}
-				},
-				Poll::Ready(None) => return Poll::Ready(None),
-				Poll::Pending => return Poll::Pending,
-			}
+					StreamYield::Finished(_) => {
+						// Unreachable: `ConnectionRequest` never finishes
+						// in the current implementation
+					}
+				}
+			},
+			_ => {},
 		}
+
+		Poll::Pending
 	}
 }
 
