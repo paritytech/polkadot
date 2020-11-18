@@ -50,7 +50,10 @@ Disputes may occur against blocks that have happened in the session prior to the
 In this case, the prior validator set is responsible for handling the dispute and to do so with their keys from the last session.
 This means that validator duty actually extends 1 session beyond leaving the validator set.
 
-Wait for a 2/3 majority either way, by counting incoming votes. Or timeout.
+Wait for a 2/3 majority either way, by counting incoming votes. If there is no super majority reached within a timeout, this indicates a bipartition of the
+network with its validators, this should never happen given the timeout is set
+generously under our assumptions, hence partial slashing of all valditors
+is ok.
 
 After concluding with enough validators voting, the dispute will remain open for some time in order to collect further evidence of misbehaving validators, and then, issue a signal in the header-chain that this fork should be abandoned along with the hash of the last ancestor before inclusion, which the chain should be reverted to, along with information about the invalid block that should be used to blacklist it from being included.
 
@@ -138,7 +141,7 @@ After enough validator self-select, under the same escalation rules as for local
 
 After concluding, the remote dispute remains open for a set amount of blocks to accept any further proof of additional validators being on the wrong side.
 
-`UNAVAILABILITY_TIMEOUT` should be set generously, the validators are bound for 28 days, and this is maximum time until we slash. Recommended timeout is `1d`.
+`UNAVAILABILITY_TIMEOUT` until we decide if the block was actually ever available should be set generously, the validators are bound for 28 days, and this is maximum time until we slash. Recommended timeout is `1d`.
 
 Available disputed candidate:
 
