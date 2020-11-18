@@ -89,13 +89,7 @@ Iterate over every `BlockEntry` and remove `PeerId` from it.
 
 #### `NetworkBridgeEvent::PeerViewChange`
 
-For each block in the view:
-  1. Initialize `fresh_blocks = {}`
-  2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than the view's finalized number, go to step 6.
-  3. Inspect the `known_by` set. If the peer is already present, go to step 6.
-  4. Add the peer to `known_by` and add the hash of the block to `fresh_blocks`.
-  5. Return to step 2 with the ancestor of the block.
-  6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.
+Invoke `unify_with_peer(peer, view)` to catch them up to messages we have.
 
 We also need to use the `view.finalized_number` to remove the `PeerId` from any blocks that it won't be wanting information about anymore. Note that we have to be on guard for peers doing crazy stuff like jumping their 'finalized_number` forward 10 trillion blocks to try and get us stuck in a loop for ages.
 
@@ -119,8 +113,11 @@ If the message is of type `ApprovalDistributionV1Message::Approval(approval_vote
 
 #### `ApprovalDistributionMessage::NewBlocks`
 
-TODO: create `BlockEntry` and `CandidateEntries` for all blocks.
-TODO: check for new commonality with peers. Broadcast new information to peers we now understand better.
+Create `BlockEntry` and `CandidateEntries` for all blocks.
+
+For all peers:
+  * Compute `view_intersection` as the intersection of the peer's view blocks with the hashes of the new blocks.
+  * Invoke `unify_with_peer(peer, view_intersection)`.
 
 #### `ApprovalDistributionMessage::DistributeAsignment`
 
@@ -183,3 +180,14 @@ Imports an approval signature referenced by block hash and candidate index.
     * We guarantee elsewhere that all peers within `known_by` are aware of all assignments relative to the block.
     * We've checked that this specific approval has a corresponding assignment within the `BlockEntry`.
     * Thus, all peers are aware of the assignment or have a message to them in-flight which will make them so. 
+
+
+#### `unify_with_peer(peer: PeerId, view)`:
+
+For each block in the view:
+  1. Initialize `fresh_blocks = {}`
+  2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than the view's finalized number, go to step 6.
+  3. Inspect the `known_by` set of the `BlockEntry`. If the peer is already present, go to step 6.
+  4. Add the peer to `known_by` with a cloned version of `block_entry.knowledge`. and add the hash of the block to `fresh_blocks`.
+  5. Return to step 2 with the ancestor of the block.
+  6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.

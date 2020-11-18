@@ -27,13 +27,13 @@ enum ObservedRole {
 
 ```rust
 enum ApprovalDistributionV1Message {
-	/// An assignment for a candidate in some recent, unfinalized block.
+	/// Assignments for candidates in recent, unfinalized blocks.
 	///
 	/// The u32 is the claimed index of the candidate this assignment corresponds to. Actually checking the assignment
 	/// may yield a different result.
-	Assignment(IndirectAssignmentCert, u32),
-	/// An approval for a candidate in some recent, unfinalized block.
-	Approval(IndirectSignedApprovalVote),
+	Assignments(Vec<(IndirectAssignmentCert, u32)>),
+	/// Approvals for candidates in some recent, unfinalized block.
+	Approvals(Vec<IndirectSignedApprovalVote>),
 }
 ```
 
