@@ -27,6 +27,7 @@ use runtime_parachains::{
 	configuration, dmp, ump, hrmp, paras::{self, ParaGenesisArgs},
 };
 use primitives::v1::Id as ParaId;
+use parity_scale_codec::Encode;
 
 /// The module's configuration trait.
 pub trait Trait:
@@ -69,7 +70,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Send a downward message to the given para.
+		/// Send an opaque downward message to the given para.
 		///
 		/// The given parachain should exist and the payload should not exceed the preconfigured size
 		/// `config.max_downward_message_size`.
@@ -79,6 +80,22 @@ decl_module! {
 			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Module<T>>::config();
 			<dmp::Module<T>>::queue_downward_message(&config, id, payload)
+				.map_err(|e| match e {
+					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
+						Error::<T>::ExceedsMaxMessageSize.into(),
+				})
+		}
+
+		/// Send a downward XCM to the given para.
+		///
+		/// The given parachain should exist and the payload should not exceed the preconfigured size
+		/// `config.max_downward_message_size`.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn sudo_queue_downward_xcm(origin, id: ParaId, xcm: xcm::VersionedXcm) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
+			let config = <configuration::Module<T>>::config();
+			<dmp::Module<T>>::queue_downward_message(&config, id, xcm.encode())
 				.map_err(|e| match e {
 					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
 						Error::<T>::ExceedsMaxMessageSize.into(),

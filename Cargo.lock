@@ -5560,6 +5560,7 @@ dependencies = [
  "sp-trie",
  "static_assertions",
  "trie-db",
+ "xcm",
 ]
 
 [[package]]
