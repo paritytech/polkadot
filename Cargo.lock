@@ -2945,7 +2945,7 @@ dependencies = [
  "libp2p-yamux",
  "multihash",
  "parity-multiaddr",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "pin-project 1.0.1",
  "smallvec 1.4.2",
  "wasm-timer",
@@ -2970,7 +2970,7 @@ dependencies = [
  "multihash",
  "multistream-select",
  "parity-multiaddr",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "pin-project 1.0.1",
  "prost",
  "prost-build",
@@ -3138,7 +3138,7 @@ dependencies = [
  "libp2p-core",
  "log",
  "nohash-hasher",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "rand 0.7.3",
  "smallvec 1.4.2",
  "unsigned-varint 0.5.1",
@@ -3318,7 +3318,7 @@ checksum = "07c0c9b6ef7a168c2ae854170b0b6b77550599afe06cc3ac390eb45c5d9c7110"
 dependencies = [
  "futures 0.3.8",
  "libp2p-core",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "thiserror",
  "yamux",
 ]
@@ -3921,7 +3921,7 @@ version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f53cef67919d7d247eb9a2f128ca9e522789967ef1eb4ccd8c71a95a8aedf596"
 dependencies = [
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
 ]
 
 [[package]]
@@ -4677,9 +4677,9 @@ dependencies = [
 
 [[package]]
 name = "parking_lot"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4893845fa2ca272e647da5d0e46660a314ead9c2fdd9a883aabc32e481a8733"
+checksum = "6d7744ac029df22dca6284efe4e898991d28e3085c706c972bcd7da4a27a15eb"
 dependencies = [
  "instant",
  "lock_api 0.4.1",
@@ -5049,7 +5049,7 @@ dependencies = [
  "futures 0.3.8",
  "log",
  "parity-scale-codec",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -5270,7 +5270,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "pin-project 1.0.1",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
@@ -5293,7 +5293,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "pin-project 1.0.1",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5317,7 +5317,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "pin-project 1.0.1",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5360,7 +5360,7 @@ dependencies = [
  "futures 0.3.8",
  "log",
  "parity-scale-codec",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "polkadot-core-primitives",
  "sc-executor",
  "serde",
@@ -5627,7 +5627,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "polkadot-availability-bitfield-distribution",
  "polkadot-availability-distribution",
  "polkadot-collator-protocol",
@@ -6047,7 +6047,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "fnv",
  "lazy_static",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "regex",
  "thiserror",
 ]
@@ -9905,7 +9905,7 @@ checksum = "be0ecb0db480561e9a7642b5d3e4187c128914e58aa84330b9493e3eb68c5e7f"
 dependencies = [
  "futures 0.3.8",
  "js-sys",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "pin-utils",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -10353,7 +10353,7 @@ dependencies = [
  "futures 0.3.8",
  "log",
  "nohash-hasher",
- "parking_lot 0.11.0",
+ "parking_lot 0.11.1",
  "rand 0.7.3",
  "static_assertions",
 ]
