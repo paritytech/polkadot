@@ -6,11 +6,12 @@ set -e
 
 chainspec="rococo-local"
 
-if ! command -v polkadot-js-api > /dev/null; then
-  echo "polkadot-js-api required; try"
-  echo "  sudo yarn global add @polkadot/api-cli"
-  exit 1
-fi
+# disabled until we can actually successfully register the chain with polkadot-js-api
+# if ! command -v polkadot-js-api > /dev/null; then
+#   echo "polkadot-js-api required; try"
+#   echo "  sudo yarn global add @polkadot/api-cli"
+#   exit 1
+# fi
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 # shellcheck disable=SC1090
@@ -85,6 +86,7 @@ function run_node() {
   local port=$((30333+node_offset))
   local rpc_port=$((9933+node_offset))
   local ws_port=$((9944+node_offset))
+  local prometheus_port=$((9615+node_offset))
   node_offset=$((node_offset+1))
 
   # start the node
@@ -94,6 +96,7 @@ function run_node() {
     --port "$port" \
     --rpc-port "$rpc_port" \
     --ws-port "$ws_port" \
+    --prometheus-port "$prometheus_port" \
     --rpc-cors all \
     "$(flagify "$name")" \
   > "$stdout" \
@@ -127,6 +130,7 @@ function run_adder_collator() {
   local port=$((30333+node_offset))
   local rpc_port=$((9933+node_offset))
   local ws_port=$((9944+node_offset))
+  local prometheus_port=$((9615+node_offset))
   node_offset=$((node_offset+1))
 
   # start the node
@@ -136,6 +140,7 @@ function run_adder_collator() {
     --port "$port" \
     --rpc-port "$rpc_port" \
     --ws-port "$ws_port" \
+    --prometheus-port "$prometheus_port" \
     --rpc-cors all \
   > "$stdout" \
   2> "$stderr" \
@@ -169,15 +174,15 @@ run_adder_collator AdderCollator
 
 # register the adder collator
 # doesn't work yet due to https://github.com/polkadot-js/tools/issues/185
-polkadot-js-api \
-  --ws ws://localhost:9944 \
-  --sudo \
-  --seed "//Alice" \
-  tx.registrar.registerPara \
-    100 \
-    '{"scheduling":"Always"}' \
-    "@$validation_code" \
-    "@$genesis_state"
+# polkadot-js-api \
+#   --ws ws://localhost:9944 \
+#   --sudo \
+#   --seed "//Alice" \
+#   tx.registrar.registerPara \
+#     100 \
+#     '{"scheduling":"Always"}' \
+#     "@$validation_code" \
+#     "@$genesis_state"
 
 # now wait; this will exit on its own only if both subprocesses exit
 # the practical implication, as both subprocesses are supposed to run forever, is that
