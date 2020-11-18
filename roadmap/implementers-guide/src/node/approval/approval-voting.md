@@ -173,10 +173,10 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
 #### `ApprovalVotingMessage::CheckAndImportApproval`
 
 On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)` message:
-  * Fetch the `BlockEntry` from the indirect approval vote's `block_hash`. If none, return `VoteCheckResult::Bad`.
-  * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `VoteCheckResult::Bad`.
-  * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `VoteCheckResult::Bad`.
-  * Send `VoteCheckResult::Accepted`,
+  * Fetch the `BlockEntry` from the indirect approval vote's `block_hash`. If none, return `ApprovalCheckResult::Bad`.
+  * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
+  * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
+  * Send `ApprovalCheckResult::Accepted`
   * `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
@@ -200,7 +200,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Note the candidate index within the approval entry.
 
 #### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
-  * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`.
+  * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
   * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
     * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
     * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.

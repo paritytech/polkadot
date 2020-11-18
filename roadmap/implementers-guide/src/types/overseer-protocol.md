@@ -40,28 +40,30 @@ struct ActiveLeavesUpdate {
 Messages received by the approval voting subsystem.
 
 ```rust
-enum VoteCheckResult<T> {
+enum AssignmentCheckResult {
 	// The vote was accepted and should be propagated onwards.
-	Accepted(T),
+	Accepted(u32),
 	// The vote was valid but duplicate and should not be propagated onwards.
-	AcceptedDuplicate(T),
+	AcceptedDuplicate(u32),
 	// The vote was valid but too far in the future to accept right now.
 	TooFarInFuture,
 	// The vote was bad and should be ignored, reporting the peer who propagated it.
 	Bad,
-	// We do not have enough information to evaluate the vote. Ignore but don't report.
-	// This should occur primarily on startup.
-	Ignore,
+}
+
+enum ApprovalCheckResult {
+	// The vote was accepted and should be propagated onwards.
+	Accepted,
+	// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
 }
 
 enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
 	/// Should not be sent unless the block hash is known.
-	///
-	/// If accepted, the payload of the `VoteCheckResult` is the candidate index of the assignment.
 	CheckAndImportAssignment(
 		IndirectAssignmentCert,
-		ResponseChannel<VoteCheckResult<u32>>,
+		ResponseChannel<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
@@ -69,7 +71,7 @@ enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash within the indirect vote is known.
 	CheckAndImportApproval(
 		IndirectSignedApprovalVote,
-		ResponseChannel<VoteCheckResult<()>>,
+		ResponseChannel<ApprovalCehckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for. 
