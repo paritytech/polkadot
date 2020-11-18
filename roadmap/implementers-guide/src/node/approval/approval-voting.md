@@ -203,23 +203,38 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
     * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
 
-#### `tranches_to_approve(approval_entry) -> tranches`
+#### `tranches_to_approve(approval_entry) -> RequiredTranches`
+
+```rust
+enum RequiredTranches {
+  // All validators appear to be required, based on tranches already taken and remaining no-shows.
+  All,
+  // More tranches required - We're awaiting more assignments.
+  Pending,
+  // An exact number of required tranches.
+  Exact(DelayTranche),
+}
+```
+
+
   * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
-    * Then, count no-shows in tranches `0..k`. For each no-show, we require another checker. Take new tranches until each no-show is covered, so now we've taken `l` tranches. e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each.
+    * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take new tranches until each no-show is covered, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
     * Count no-shows in tranches `k..l` and for each of those, take tranches until all no-shows are covered. Repeat so on until either
-      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `ALL` which indicates that new assignments are needed.
-      * All no-shows are covered. Set `n_tranches` to the number of tranches taken
+      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `RequiredTranches::Pending` which indicates that new assignments are needed.
+      * All no-shows are covered by at least one non-empty tranche. Set `n_tranches` to the number of tranches taken
+      * The amount of assignments plus the amount of needed extras equals or exceeds the total number of validators for the approval entry, which can be obtained by measuring the bitfield. In this case we return a special value `RequiredTranches::All` indicating that all validators have effectively been assigned to check.
     * return `n_tranches`
 
 #### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
-  * If `n_tranches` is ALL, return false
+  * If `n_tranches` is `RequiredTranches::Pending`, return false
+  * If `n_tranches` is `RequiredTranches::All`,  then we return true if `3 * n_approvals > 2 n_validators` and false otherwise.
   * Otherwise, if all validators in `n_tranches` have approved, return `true`. If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
 
 #### `process_wakeup(relay_block, candidate_hash)`
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
   * Set `n_tranches = tranches_to_approve(approval_entry)`
-  * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
+  * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), `check_approval(block_entry, approval_entry, n_tranches)` is false, and we have not triggered the assignment already
     * Import to `ApprovalEntry`
     * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
     * Kick off approval work with `launch_approval`
