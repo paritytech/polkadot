@@ -32,12 +32,15 @@ type BlockScopedCandidate = (Hash, CandidateHash);
 
 /// The `State` struct is responsible for tracking the overall state of the subsystem.
 ///
-/// It tracks metadata about our view of the chain, which assignments and approvals we have seen, and our peers' views.
+/// It tracks metadata about our view of the unfinalized chain, which assignments and approvals we have seen, and our peers' views.
 struct State {
+  // These three fields are used in conjunction to construct a view over the unfinalized chain.
   blocks_by_number: BTreeMap<BlockNumber, Vec<Hash>>,
   blocks: HashMap<Hash, BlockEntry>,
-  peer_views: HashMap<PeerId, View>,
   finalized_number: BlockNumber,
+
+  // Peer view data is partially stored here, and partially inline within the `BlockEntry`s
+  peer_views: HashMap<PeerId, View>,
 }
 
 enum MessageFingerprint {
@@ -69,7 +72,8 @@ enum ApprovalState {
 }
 
 /// Information about candidates in the context of a particular block they are included in. In other words,
-/// multiple `CandidateEntry`s may exist for the same candidate, if it is included by multiple blocks - this is likely the case /// when there are forks.
+/// multiple `CandidateEntry`s may exist for the same candidate, if it is included by multiple blocks - this is likely the case 
+/// when there are forks.
 struct CandidateEntry {
   approvals: HashMap<ValidatorIndex, ApprovalState>,
 }
@@ -185,7 +189,7 @@ Imports an approval signature referenced by block hash and candidate index.
 #### `unify_with_peer(peer: PeerId, view)`:
 
 For each block in the view:
-  1. Initialize `fresh_blocks = {}`
+  1. Initialize a set `fresh_blocks = {}`
   2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than the view's finalized number, go to step 6.
   3. Inspect the `known_by` set of the `BlockEntry`. If the peer is already present, go to step 6.
   4. Add the peer to `known_by` with a cloned version of `block_entry.knowledge`. and add the hash of the block to `fresh_blocks`.

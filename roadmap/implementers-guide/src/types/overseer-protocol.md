@@ -71,7 +71,7 @@ enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash within the indirect vote is known.
 	CheckAndImportApproval(
 		IndirectSignedApprovalVote,
-		ResponseChannel<ApprovalCehckResult>,
+		ResponseChannel<ApprovalCheckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for. 
@@ -89,10 +89,16 @@ enum ApprovalVotingMessage {
 Messages received by the approval Distribution subsystem.
 
 ```rust
+/// Metadata about a block which is now live in the approval protocol.
 struct BlockApprovalMeta {
+	/// The hash of the block.
 	hash: Hash,
+	/// The number of the block.
 	number: BlockNumber,
+	/// The candidates included by the block. Note that these are not the same as the candidates that appear within the
+	/// block body.
 	candidates: Vec<CandidateHash>,
+	/// The consensus slot number of the block.
 	slot_number: SlotNumber,
 }
 

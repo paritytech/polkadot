@@ -77,14 +77,6 @@ enum StatementDistributionV1Message {
 }
 ```
 
-### Approval Distribution V1
-
-```rust
-enum ApprovalDistributionV1Message {
-	// TODO [now]
-}
-```
-
 ### Collator Protocol V1
 
 ```rust
