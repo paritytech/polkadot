@@ -77,7 +77,7 @@ There are two types of remote disputes. **Concluded** and **Unconcluded**.
 
 The first is a remote roll-up of a **concluded dispute**. These are simply all attestations for the block, those against it, and the result of all (secondary) approval checks. A concluded remote dispute can be resolved in a single transaction as it is an open-and-shut case of a quorum of validators disagreeing with another.
 
-The second type of remote dispute is the **unconcluded dispute**. An unconcluded remote dispute is started by any validator using a `UnconcludedDisputeGossipNotificationMessage`:
+The second type of remote dispute is the **unconcluded dispute**. An unconcluded remote dispute is started by any validator using a `DisputeGossipNotification` message:
 
 When beginning a remote dispute, at least one escalation by a validator is required, but this validator may be malicious and desires to be slashed. There is no guarantee that the para is registered on this fork of the relay chain or that the para was considered available on any fork of the relay chain.
 
@@ -192,15 +192,20 @@ sequenceDiagram
 ///
 /// Currently information as provided in `BackedCandidate<H=Hash>` with
 /// some extra info.
-struct DisputeGossipMessage<H = Hash> {
+struct DisputeGossipMessage<H = Hash, N: BlockNumber> {
   /// the committed candidate receipt
   pub candidate: CommittedCandidateReceipt<H>,
+  /// The block number in question
+  /// TODO: not sure if this is needed given, `CandidateDescriptor`
+  /// TODO: already includes sufficient identification info
+  pub block_number: N,
   /// session index relevant for the block in question
-  pub session_index : SessionIndex,
+  pub session_index: SessionIndex,
   /// the validity votes per validator
 	pub validity_votes: Vec<ValidityAttestation>,
-  /// validator indices
-  pub validators: BitVec<bitvec::order::Lsb0, u8>,
+  /// validator indices for the particular session, which validated the
+  /// disputed block.
+  pub backing_validators: BitVec<bitvec::order::Lsb0, u8>,
 }
 ```
 
