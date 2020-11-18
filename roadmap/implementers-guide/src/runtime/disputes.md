@@ -205,7 +205,9 @@ struct DisputeGossipMessage<H = Hash, N: BlockNumber> {
 	pub validity_votes: Vec<ValidityAttestation>,
   /// validator indices for the particular session, which validated the
   /// disputed block.
+  /// Invariant: is never all zeros/has at least one bit set
   pub backing_validators: BitVec<bitvec::order::Lsb0, u8>,
+  /// 
 }
 ```
 
