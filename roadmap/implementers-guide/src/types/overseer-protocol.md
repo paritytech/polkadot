@@ -43,6 +43,10 @@ Messages received by the approval voting subsystem.
 enum VoteCheckResult<T> {
 	// The vote was accepted and should be propagated onwards.
 	Accepted(T),
+	// The vote was valid but duplicate and should not be propagated onwards.
+	AcceptedDuplicate(T),
+	// The vote was valid but too far in the future to accept right now.
+	TooFarInFuture,
 	// The vote was bad and should be ignored, reporting the peer who propagated it.
 	Bad,
 	// We do not have enough information to evaluate the vote. Ignore but don't report.
@@ -54,13 +58,10 @@ enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
 	/// Should not be sent unless the block hash is known.
 	///
-	/// If accepted, the payload of the `VoteCheckResult` is the block hash
-	/// and candidate index of the assignment.
+	/// If accepted, the payload of the `VoteCheckResult` is the candidate index of the assignment.
 	CheckAndImportAssignment(
-		Hash, 
-		AssignmentCert, 
-		ValidatorIndex,
-		ResponseChannel<VoteCheckResult<(Hash, u32)>>,
+		IndirectAssignmentCert,
+		ResponseChannel<VoteCheckResult<u32>>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
@@ -98,10 +99,14 @@ enum ApprovalDistributionMessage {
 	/// them.
 	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
-	/// to be valid for the given relay-parent and validator index.
-	DistributeAssignment(Hash, u32, AssignmentCert, ValidatorIndex),
-	/// Distribute an approval vote for the local validator.
-	DistributeApproval(IndirectApprovalVote),
+	/// to be valid, relevant, and for the given relay-parent and validator index.
+	///
+	/// The `u32` param is the candidate index in the fully-included list.
+	DistributeAssignment(IndirectAssignmentCert, u32),
+	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
+	/// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
+	/// the message.
+	DistributeApproval(IndirectSignedApprovalVote),
 }
 ```
 

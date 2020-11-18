@@ -34,6 +34,19 @@ struct AssignmentCert {
 
 > TODO: RelayEquivocation cert. Probably can only be broadcast to chains that have handled an equivocation report.
 
+## IndirectAssignmentCert 
+
+An assignment cert which refers to the candidate under which the assignment is relevant by block hash.
+
+```rust
+struct IndirectAssignmentCert {
+    // A block hash where the candidate appears.
+    block_hash: Hash,
+    validator: ValidatorIndex,
+    cert: AssignmentCert,
+}
+```
+
 ## ApprovalVote
 
 A vote of approval on a candidate.

@@ -193,6 +193,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### `import_checked_assignment`
   * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
+  * Ignore if we already observe the validator as having been assigned.
   * Ensure the validator index is not part of the backing group for the candidate.
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
@@ -243,6 +244,6 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 #### `issue_approval(request)`:
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
   * Construct a `SignedApprovalVote` with the validator index for the session.
-  * Transform into an `IndirectSignedApprovalVote` using the `block_hash` and `candidate_index` from the request.
   * `import_checked_approval(block_entry, candidate_entry, validator_index)`
-  * Dispatch an `ApprovalDistributionMessage::DistributeApproval` message.
+  * Construct a `IndirectSignedApprovalVote` using the informatio about the vote.
+  * Dispatch `ApprovalDistributionMessage::DistributeApproval`.

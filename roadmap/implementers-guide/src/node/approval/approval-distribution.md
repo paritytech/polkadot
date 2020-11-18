@@ -40,14 +40,25 @@ struct State {
   finalized_number: BlockNumber,
 }
 
+enum MessageFingerprint {
+  Assigment(Hash, u32, ValidatorIndex),
+  Approval(Hash, u32, ValidatorIndex),
+}
+
+struct Knowledge {
+  known_messages: HashSet<MessageFingerprint>,
+}
+
 /// Information about blocks in our current view as well as whether peers know of them.
 struct BlockEntry {
-  // Peers who we know are aware of this block and thus, the candidates within it.
-  known_by: HashSet<PeerId>,
+  // Peers who we know are aware of this block and thus, the candidates within it. This maps to their knowledge of messages.
+  known_by: HashMap<PeerId, Knowledge>,
   // The number of the block.
   number: BlockNumber,
   // The parent hash of the block.
   parent_hash: Hash,
+  // Our knowledge of messages.
+  knowledge: Knowledge,
   // A votes entry for each candidate.
   candidates: IndexMap<CandidateHash, CandidateEntry>,
 }
@@ -100,21 +111,9 @@ Prune all lists from `blocks_by_number` with number less than or equal to `view.
 
 #### `NetworkBridgeEvent::PeerMessage`
 
-TODO: provide step-by-step for each of these checks.
+If the message is of type `ApprovalDistributionV1Message::Assignment(assignment_cert, claimed_index)`, then call `import_and_circulate_assignment(MessageSource::Peer(sender), assignment_cert, claimed_index)`
 
-If the message is an assignment,
-  * Check if we are already aware of this assignment. If so, ignore, but note that the peer is aware of the assignment also. If the peer was already aware of the assignment, give a minor reputation punishment. Otherwise, give a small reputation bump. Note that if we don't accept the assignment, we will not be aware of it in our state and will proceed to the next step.
-  * Check if we accept this assignment. If not, ignore & report.
-  * Issue an `ApprovalVotingMessage::CheckAndImportAssignment`. If the result is `VoteCheckResult::Bad`, ignore & report. If the result is `VoteCheckResult::Ignore`, just ignore. If the result is `VoteCheckResult::Accepted`, store the assignment and note that the peer is aware of the assignment.
-  * Distribute the assignment to all peers who will accept it.
-  * Distribute any relevant approvals to all peers who will accept them. We could not send peers approval messages before they're aware of an assignment.
-
-If the message is an approval,
-  * Check if the peer is already aware of the approval. If so, ignore & report.
-  * Check if we are already aware of this approval. If so, ignore, but note that the peer is aware of the approval also. Give a small reputation bump. Note that if we don't accept the approval, we will not be aware of it in our state and will proceed to the next step.
-  * Check if we accept this approval. If not, ignore & report.
-  * Issue an `ApprovalVotingMessage::CheckAndImportApproval`. If the result is `VoteCheckResult::Bad`, ignore & report. If the result is `VoteCheckResult::Ignore`, just ignore. If the result is `VoteCheckResult::Accepted`, store the approval and note that the peer is aware of the approval.
-  * Distribute the approval to all peers who will accept it.
+If the message is of type `ApprovalDistributionV1Message::Approval(approval_vote)`, then call `import_and_circulate_approval(MessageSource::Peer(sender), approval_vote)`
 
 ### Subsystem Updates
 
@@ -130,3 +129,40 @@ Load the corresponding `BlockEntry`. Distribute to all peers in `known_by`. Add 
 #### `ApprovalDistributionMessage::DistributeApproval`
 
 Load the corresponding `BlockEntry`. Distribute to all peers in `known_by`. Add to the corresponding `CandidateEntry`.
+
+### Utility
+
+```rust
+enum MessageSource {
+  Peer(PeerId),
+  Local,
+}
+```
+
+#### `import_and_circulate_assignment(source: MessageSource, assignment: IndirectAssignmentCert, claimed_candidate_index: u32)`
+
+Imports an assignment cert referenced by block hash and candidate index. As a postcondition, if the cert is valid, it will have distributed the cert to all peers who have the block in their view, with the exclusion of the peer referenced by the `MessageSource`. 
+
+  * Load the BlockEntry using `assignment.block_hash`.
+  * Compute a fingerprint for the `assignment` using `claimed_candidate_index`. 
+  * If the source is `MessageSource::Peer(sender)`:
+    * check if `peer` appears under `known_by` and whether the fingerprint is in the `known_messages` of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the knowledge contains the fingerprint, report for providing replicate data and return.
+    * If the message fingerprint appears under the `BlockEntry`'s `Knowledge`, give the peer a small positive reputation boost and return. Note that we must do this after checking for out-of-view to avoid being spammed.
+    * Dispatch `ApprovalVotingMessage::CheckAndImportAssignment(assignment.block_hash, assignment.cert, assignment.validator)`
+    * If the result is `VoteCheckResult::Accepted(candidate_index)` or `VoteCheckResult::AcceptedDuplicate(candidate_index)` 
+      * If `candidate_index` does not match `claimed_candidate_index`, punish the peer's reputation, recompute the fingerprint, and re-do our knowledge checks. The goal here is to accept messages which peers send us that are labeled wrongly, but punish them for it as they've made us do extra work.
+      * Otherwise, if the vote was accepted but not duplicate, give the peer a positive reputation boost.
+      * add the fingerprint to both our and the peer's knowledge in the `BlockEntry`. Note that we only doing this after making sure we have the right fingerprint.
+    * If the result is `VoteCheckResult::TooFarInFuture`, mildly punish the peer and return.
+    * If the result is `VoteCheckResult::Ignore`, return.
+    * If the result is `VoteCheckResult::Bad`, punish the peer and return.
+  * If the source is `MessageSource::Local(CandidateIndex)`
+    * check if the fingerprint appears under the `BlockEntry's` knowledge. If not, add it.
+  * Load the candidate entry for the given candidate index. It should exist unless there is a logic error in the approval voting subsystem.
+  * Set the approval state for the validator index to `ApprovalState::Assigned` unless the approval state is set already. This should not happen as long as the approval voting subsystem instructs us to ignore duplicate assignments.
+  * Dispatch a `ApprovalDistributionV1Message::Assignment(assignment)` to all peers in the `BlockEntry`'s `known_by` set, excluding the peer in the `source`, if `source` has kind `MessageSource::Peer`. Add the fingerprint of the assignment to the knowledge of each peer.
+
+
+#### `import_and_circulate_approval(source: MessageSource, approval: IndirectSignedApprovalVote)`
+
+Imports an approval signature referenced by block hash and candidate index.
