@@ -154,14 +154,9 @@ impl stream::Stream for ConnectionRequests {
 			Poll::Ready(Some((yielded, token))) => {
 				match yielded {
 					StreamYield::Item(item) => {
-						if let Some(relay_parent) = self.id_map.iter()
-							.find_map(|(relay_parent, &val)|
-								if val == token {
-									Some(relay_parent)
-								} else {
-									None
-								}
-							) {
+						if let Some((relay_parent, _)) = self.id_map.iter()
+							.find(|(_, &val)| val == token)
+						{
 							return Poll::Ready(Some((*relay_parent, item.0, item.1)));
 						}
 					}
