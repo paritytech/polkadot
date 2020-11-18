@@ -133,9 +133,7 @@ impl ConnectionRequests {
 	/// Remove a connection request by a given `relay_parent`.
 	pub fn remove(&mut self, relay_parent: &Hash) {
 		if let Some(token) = self.id_map.remove(relay_parent) {
-			if let Some(request) = Pin::new(&mut self.requests).take(token) {
-				request.revoke();
-			}
+			Pin::new(&mut self.requests).remove(token);
 		}
 	}
 }
@@ -171,16 +169,6 @@ impl stream::Stream for ConnectionRequests {
 		}
 
 		Poll::Pending
-	}
-}
-
-impl Drop for ConnectionRequests {
-	fn drop(&mut self) {
-		for (_, token) in self.id_map.iter() {
-			if let Some(request) = Pin::new(&mut self.requests).take(*token) {
-				request.revoke();
-			}
-		}
 	}
 }
 
