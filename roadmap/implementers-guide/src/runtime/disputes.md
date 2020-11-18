@@ -52,8 +52,8 @@ This means that validator duty actually extends 1 session beyond leaving the val
 
 Wait for a 2/3 majority either way, by counting incoming votes. If there is no super majority reached within a timeout, this indicates a bipartition of the
 network with its validators, this should never happen given the timeout is set
-generously under our assumptions, hence partial slashing of all valditors
-is ok.
+generously under our assumptions. If such an event occures, the chain should be
+put into a pending-governence intervention state, that is yet to be defined.
 
 After concluding with enough validators voting, the dispute will remain open for some time in order to collect further evidence of misbehaving validators, and then, issue a signal in the header-chain that this fork should be abandoned along with the hash of the last ancestor before inclusion, which the chain should be reverted to, along with information about the invalid block that should be used to blacklist it from being included.
 
