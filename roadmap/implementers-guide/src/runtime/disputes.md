@@ -145,12 +145,10 @@ After concluding, the remote dispute remains open for a set amount of blocks to 
 
 Available disputed candidate:
 
-> TODO: unify notion of `DisputeNotification`, `DisputeGossipMessage` and `...`
-
 ```mermaid
 sequenceDiagram
-    Alice ->> Bob: DisputeNotification
-    Alice ->> Charly: DisputeNotification
+    Alice ->> Bob: DisputeGossipMessage
+    Alice ->> Charly: DisputeGossipMessage
     Note right of Alice: Same approach<br>for Bob and Charlie
     Bob -->> ...: Check Availability
     ... -->> Bob: Block was available with supermajority
@@ -160,8 +158,8 @@ With an unavailable block
 
 ```mermaid
 sequenceDiagram
-    Alice ->> Bob: DisputeNotification
-    Alice ->> Charlie: DisputeNotification
+    Alice ->> Bob: DisputeGossipMessage
+    Alice ->> Charlie: DisputeGossipMessage
     Note right of Alice: Same approach<br>for Bob and Charlie
     Bob -->> ...: Check Availability
     ... -->> Bob: Block is unavailabe with supermajority
@@ -172,8 +170,8 @@ Timeout during supermajority
 
 ```mermaid
 sequenceDiagram
-    Alice ->> Bob: DisputeNotification
-    Alice ->> Charlie: DisputeNotification
+    Alice ->> Bob: DisputeGossipMessage
+    Alice ->> Charlie: DisputeGossipMessage
     Note right of Alice: Same approach<br>for Bob and Charlie
     Bob -->> ...: Check Availability
     ... -->> Bob: Timeout, did not reach a supermajority
@@ -186,6 +184,26 @@ sequenceDiagram
 * historical slashing provides means to store validator sets for later consumption to the off-chain storage
 
 # Messages
+
+
+```rust
+/// Gossip being sent on escalation to all other
+/// relevant validators for the dispute resolution.
+///
+/// Currently information as provided in `BackedCandidate<H=Hash>` with
+/// some extra info.
+struct DisputeGossipMessage<H = Hash> {
+  /// the committed candidate receipt
+  pub candidate: CommittedCandidateReceipt<H>,
+  /// session index relevant for the block in question
+  pub session_index : SessionIndex,
+  /// the validity votes per validator
+	pub validity_votes: Vec<ValidityAttestation>,
+  /// validator indices
+  pub validators: BitVec<bitvec::order::Lsb0, u8>,
+}
+```
+
 
 ```rust
 /// A vote to describe the tri-state of a cast vote.
