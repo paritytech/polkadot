@@ -36,7 +36,7 @@ use frame_support::{
 	traits::Get,
 	weights::Weight,
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use crate::{configuration, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
@@ -396,7 +396,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -418,7 +418,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
+	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
 		let upcoming_weight = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(i) => {
@@ -542,7 +542,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Returns whether the given ID refers to a valid para.
-	pub(crate) fn is_valid_para(id: ParaId) -> bool {
+	pub fn is_valid_para(id: ParaId) -> bool {
 		Self::parachains().binary_search(&id).is_ok()
 			|| Self::is_parathread(id)
 	}

@@ -1281,7 +1281,7 @@ where
 
 		loop {
 			select! {
-				x = self.running_subsystems.next() => {
+				_ = self.running_subsystems.next() => {
 					if self.running_subsystems.is_empty() {
 						break;
 					}
@@ -1780,7 +1780,7 @@ mod tests {
 
 			loop {
 				select! {
-					a = overseer_fut => break,
+					_ = overseer_fut => break,
 					s1_next = s1_rx.next() => {
 						match s1_next {
 							Some(msg) => {
@@ -1794,7 +1794,7 @@ mod tests {
 					},
 					s2_next = s2_rx.next() => {
 						match s2_next {
-							Some(msg) => s2_results.push(s2_next),
+							Some(_) => s2_results.push(s2_next),
 							None => break,
 						}
 					},

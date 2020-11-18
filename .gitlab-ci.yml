@@ -116,6 +116,9 @@ test-linux-stable:                 &test
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
     TARGET: native
+  artifacts:
+    paths:
+      - ./target/release/polkadot
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     - sccache -s
@@ -140,6 +143,16 @@ check-runtime-benchmarks:          &test
     # Check that the node will compile with `runtime-benchmarks` feature flag.
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
+
+check-transaction-versions:
+  image:                          node:15
+  stage:                          build
+  needs:
+    - job:                        test-linux-stable
+  before_script:
+    - npm install -g @polkadot/metadata-cmp
+    - git fetch origin release
+  script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
 build-wasm-release:
   stage:                          build

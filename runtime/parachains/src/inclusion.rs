@@ -31,12 +31,12 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
 	dispatch::DispatchResult, IterableStorageMap, weights::Weight, traits::Get,
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, router, scheduler::CoreAssignment};
+use crate::{configuration, paras, dmp, ump, hrmp, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -86,7 +86,12 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	frame_system::Trait + paras::Trait + router::Trait + configuration::Trait
+	frame_system::Trait
+	+ paras::Trait
+	+ dmp::Trait
+	+ ump::Trait
+	+ hrmp::Trait
+	+ configuration::Trait
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
@@ -186,8 +191,9 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+const LOG_TARGET: &str = "parachains_runtime_inclusion";
 
+impl<T: Trait> Module<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight { 0 }
 
@@ -400,7 +406,7 @@ impl<T: Trait> Module<T> {
 			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
 			// list.
 			'a:
-			for candidate in &candidates {
+			for (candidate_idx, candidate) in candidates.iter().enumerate() {
 				let para_id = candidate.descriptor().para_id;
 
 				// we require that the candidate is in the context of the parent block.
@@ -413,15 +419,27 @@ impl<T: Trait> Module<T> {
 					Error::<T>::NotCollatorSigned,
 				);
 
-				check_cx.check_validation_outputs(
-					para_id,
-					&candidate.candidate.commitments.head_data,
-					&candidate.candidate.commitments.new_validation_code,
-					candidate.candidate.commitments.processed_downward_messages,
-					&candidate.candidate.commitments.upward_messages,
-					T::BlockNumber::from(candidate.candidate.commitments.hrmp_watermark),
-					&candidate.candidate.commitments.horizontal_messages,
-				)?;
+				if let Err(err) = check_cx
+					.check_validation_outputs(
+						para_id,
+						&candidate.candidate.commitments.head_data,
+						&candidate.candidate.commitments.new_validation_code,
+						candidate.candidate.commitments.processed_downward_messages,
+						&candidate.candidate.commitments.upward_messages,
+						T::BlockNumber::from(candidate.candidate.commitments.hrmp_watermark),
+						&candidate.candidate.commitments.horizontal_messages,
+					)
+				{
+					frame_support::debug::RuntimeLogger::init();
+					log::debug!(
+						target: LOG_TARGET,
+						"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
+						candidate_idx,
+						u32::from(para_id),
+						err,
+					);
+					Err(err.strip_into_dispatch_err::<T>())?;
+				};
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -542,13 +560,11 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Run the acceptance criteria checks on the given candidate commitments.
-	///
-	/// Returns an 'Err` if any of the checks doesn't pass.
 	pub(crate) fn check_validation_outputs(
 		para_id: ParaId,
 		validation_outputs: primitives::v1::ValidationOutputs,
-	) -> Result<(), DispatchError> {
-		CandidateCheckContext::<T>::new().check_validation_outputs(
+	) -> bool {
+		if let Err(err) = CandidateCheckContext::<T>::new().check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
@@ -556,7 +572,18 @@ impl<T: Trait> Module<T> {
 			&validation_outputs.upward_messages,
 			T::BlockNumber::from(validation_outputs.hrmp_watermark),
 			&validation_outputs.horizontal_messages,
-		)
+		) {
+			frame_support::debug::RuntimeLogger::init();
+			log::debug!(
+				target: LOG_TARGET,
+				"Validation outputs checking for parachain `{}` failed: {:?}",
+				u32::from(para_id),
+				err,
+			);
+			false
+		} else {
+			true
+		}
 	}
 
 	fn enact_candidate(
@@ -578,19 +605,19 @@ impl<T: Trait> Module<T> {
 		}
 
 		// enact the messaging facet of the candidate.
-		weight += <router::Module<T>>::prune_dmq(
+		weight += <dmp::Module<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
 		);
-		weight += <router::Module<T>>::enact_upward_messages(
+		weight += <ump::Module<T>>::enact_upward_messages(
 			receipt.descriptor.para_id,
 			commitments.upward_messages,
 		);
-		weight += <router::Module<T>>::prune_hrmp(
+		weight += <hrmp::Module<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
 			T::BlockNumber::from(commitments.hrmp_watermark),
 		);
-		weight += <router::Module<T>>::queue_outbound_hrmp(
+		weight += <hrmp::Module<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
 			commitments.horizontal_messages,
 		);
@@ -692,6 +719,34 @@ const fn availability_threshold(n_validators: usize) -> usize {
 	threshold
 }
 
+#[derive(derive_more::From, Debug)]
+enum AcceptanceCheckErr<BlockNumber> {
+	HeadDataTooLarge,
+	PrematureCodeUpgrade,
+	NewCodeTooLarge,
+	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
+	UpwardMessages(ump::AcceptanceCheckErr),
+	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
+	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
+}
+
+impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
+	/// Returns the same error so that it can be threaded through a needle of `DispatchError` and
+	/// ultimately returned from a `Dispatchable`.
+	fn strip_into_dispatch_err<T: Trait>(self) -> Error<T> {
+		use AcceptanceCheckErr::*;
+		match self {
+			HeadDataTooLarge => Error::<T>::HeadDataTooLarge,
+			PrematureCodeUpgrade => Error::<T>::PrematureCodeUpgrade,
+			NewCodeTooLarge => Error::<T>::NewCodeTooLarge,
+			ProcessedDownwardMessages(_) => Error::<T>::IncorrectDownwardMessageHandling,
+			UpwardMessages(_) => Error::<T>::InvalidUpwardMessages,
+			HrmpWatermark(_) => Error::<T>::HrmpWatermarkMishandling,
+			OutboundHrmp(_) => Error::<T>::InvalidOutboundHrmp,
+		}
+	}
+}
+
 /// A collection of data required for checking a candidate.
 struct CandidateCheckContext<T: Trait> {
 	config: configuration::HostConfiguration<T::BlockNumber>,
@@ -720,10 +775,10 @@ impl<T: Trait> CandidateCheckContext<T> {
 		upward_messages: &[primitives::v1::UpwardMessage],
 		hrmp_watermark: T::BlockNumber,
 		horizontal_messages: &[primitives::v1::OutboundHrmpMessage<ParaId>],
-	) -> Result<(), DispatchError> {
+	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
-			Error::<T>::HeadDataTooLarge
+			AcceptanceCheckErr::HeadDataTooLarge,
 		);
 
 		// if any, the code upgrade attempt is allowed.
@@ -734,45 +789,28 @@ impl<T: Trait> CandidateCheckContext<T> {
 						&& self.relay_parent_number.saturating_sub(last)
 							>= self.config.validation_upgrade_frequency
 				});
-			ensure!(valid_upgrade_attempt, Error::<T>::PrematureCodeUpgrade);
+			ensure!(
+				valid_upgrade_attempt,
+				AcceptanceCheckErr::PrematureCodeUpgrade,
+			);
 			ensure!(
 				new_validation_code.0.len() <= self.config.max_code_size as _,
-				Error::<T>::NewCodeTooLarge
+				AcceptanceCheckErr::NewCodeTooLarge,
 			);
 		}
 
 		// check if the candidate passes the messaging acceptance criteria
-		ensure!(
-			<router::Module<T>>::check_processed_downward_messages(
-				para_id,
-				processed_downward_messages,
-			),
-			Error::<T>::IncorrectDownwardMessageHandling,
-		);
-		ensure!(
-			<router::Module<T>>::check_upward_messages(
-				&self.config,
-				para_id,
-				upward_messages,
-			),
-			Error::<T>::InvalidUpwardMessages,
-		);
-		ensure!(
-			<router::Module<T>>::check_hrmp_watermark(
-				para_id,
-				self.relay_parent_number,
-				hrmp_watermark,
-			),
-			Error::<T>::HrmpWatermarkMishandling,
-		);
-		ensure!(
-			<router::Module<T>>::check_outbound_hrmp(
-				&self.config,
-				para_id,
-				horizontal_messages,
-			),
-			Error::<T>::InvalidOutboundHrmp,
-		);
+		<dmp::Module<T>>::check_processed_downward_messages(
+			para_id,
+			processed_downward_messages,
+		)?;
+		<ump::Module<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
+		<hrmp::Module<T>>::check_hrmp_watermark(
+			para_id,
+			self.relay_parent_number,
+			hrmp_watermark,
+		)?;
+		<hrmp::Module<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
 
 		Ok(())
 	}

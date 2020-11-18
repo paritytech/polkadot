@@ -5,10 +5,10 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.5"
+futures = "0.3.8"
 tracing = "0.1.21"
 tracing-futures = "0.2.4"
-thiserror = "1.0.21"
+thiserror = "1.0.22"
 
 
 polkadot-primitives = { path = "../../../primitives" }
@@ -18,8 +18,8 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 
 [dev-dependencies]
 log = "0.4.11"
-env_logger = "0.7.1"
-assert_matches = "1.3.0"
+env_logger = "0.8.1"
+assert_matches = "1.4.0"
 smallvec = "1.4.2"
 futures-timer = "3.0.2"
 

@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
-use codec::Encode;
+use parity_scale_codec::Encode;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
@@ -73,7 +73,9 @@ use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
 use runtime_parachains::paras as parachains_paras;
-use runtime_parachains::router as parachains_router;
+use runtime_parachains::dmp as parachains_dmp;
+use runtime_parachains::ump as parachains_ump;
+use runtime_parachains::hrmp as parachains_hrmp;
 use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
@@ -184,7 +186,9 @@ construct_runtime! {
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		Paras: parachains_paras::{Module, Call, Storage},
 		Initializer: parachains_initializer::{Module, Call, Storage},
-		Router: parachains_router::{Module, Call, Storage},
+		Dmp: parachains_dmp::{Module, Call, Storage},
+		Ump: parachains_ump::{Module, Call, Storage},
+		Hrmp: parachains_hrmp::{Module, Call, Storage},
 
 		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
@@ -532,9 +536,14 @@ impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_router::Trait for Runtime {
-	type Origin = Origin;
+impl parachains_ump::Trait for Runtime {
 	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
+}
+
+impl parachains_dmp::Trait for Runtime {}
+
+impl parachains_hrmp::Trait for Runtime {
+	type Origin = Origin;
 }
 
 impl parachains_inclusion_inherent::Trait for Runtime {}
@@ -718,7 +727,7 @@ sp_api::impl_runtime_apis! {
 			_set_id: fg_primitives::SetId,
 			authority_id: fg_primitives::AuthorityId,
 		) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
-			use codec::Encode;
+			use parity_scale_codec::Encode;
 
 			Historical::prove((fg_primitives::KEY_TYPE, authority_id))
 				.map(|p| p.encode())
@@ -751,7 +760,7 @@ sp_api::impl_runtime_apis! {
 			_slot_number: babe_primitives::SlotNumber,
 			authority_id: babe_primitives::AuthorityId,
 		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
-			use codec::Encode;
+			use parity_scale_codec::Encode;
 
 			Historical::prove((babe_primitives::KEY_TYPE, authority_id))
 				.map(|p| p.encode())

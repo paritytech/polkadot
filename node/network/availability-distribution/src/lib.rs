@@ -24,7 +24,7 @@
 
 #![deny(unused_crate_dependencies, unused_qualifications)]
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
 
 use sp_core::crypto::Public;
