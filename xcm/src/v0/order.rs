@@ -17,7 +17,7 @@
 //! Version 0 of the Cross-Consensus Message format data structures.
 
 use alloc::vec::Vec;
-use codec::{self, Encode, Decode};
+use parity_scale_codec::{self, Encode, Decode};
 use super::{MultiAsset, MultiLocation};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.

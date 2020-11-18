@@ -17,7 +17,7 @@
 #![cfg(not(any(target_os = "android", target_os = "unknown")))]
 
 use std::{process, env, sync::Arc, sync::atomic, path::PathBuf};
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use crate::primitives::{ValidationParams, ValidationResult};
 use super::{
 	validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,

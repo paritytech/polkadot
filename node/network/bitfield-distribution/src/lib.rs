@@ -22,7 +22,7 @@
 
 #![deny(unused_crate_dependencies)]
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
 use log::{debug, trace, warn};

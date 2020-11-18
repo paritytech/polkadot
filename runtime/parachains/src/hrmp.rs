@@ -19,7 +19,7 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	initializer, paras, dmp,
 };
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, traits::Get, weights::Weight, StorageMap,
 	StorageValue, dispatch::DispatchResult,
@@ -882,7 +882,7 @@ impl<T: Trait> Module<T> {
 
 		let notification_bytes = {
 			use xcm::v0::Xcm;
-			use codec::Encode as _;
+			use parity_scale_codec::Encode as _;
 
 			Xcm::HrmpNewChannelOpenRequest {
 				sender: u32::from(origin),
@@ -939,7 +939,7 @@ impl<T: Trait> Module<T> {
 		<Self as Store>::HrmpAcceptedChannelRequestCount::insert(&origin, accepted_cnt + 1);
 
 		let notification_bytes = {
-			use codec::Encode as _;
+			use parity_scale_codec::Encode as _;
 			use xcm::v0::Xcm;
 
 			Xcm::HrmpChannelAccepted {
@@ -982,7 +982,7 @@ impl<T: Trait> Module<T> {
 
 		let config = <configuration::Module<T>>::config();
 		let notification_bytes = {
-			use codec::Encode as _;
+			use parity_scale_codec::Encode as _;
 			use xcm::v0::Xcm;
 
 			Xcm::HrmpChannelClosing {

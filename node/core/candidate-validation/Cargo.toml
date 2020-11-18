@@ -5,11 +5,11 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.5"
+futures = "0.3.8"
 log = "0.4.11"
 
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
-parity-scale-codec = { version = "1.3.0", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "1.3.5", default-features = false, features = ["bit-vec", "derive"] }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }
@@ -19,6 +19,6 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.5", features = ["thread-pool"] }
-assert_matches = "1.3.0"
+futures = { version = "0.3.8", features = ["thread-pool"] }
+assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

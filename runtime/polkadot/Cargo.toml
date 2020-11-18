@@ -7,13 +7,13 @@ build = "build.rs"
 
 [dependencies]
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
-log = { version = "0.3.9", optional = true }
-rustc-hex = { version = "2.0.1", default-features = false }
-serde = { version = "1.0.102", default-features = false }
-serde_derive = { version = "1.0.102", optional = true }
+parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
+log = { version = "0.4.11", optional = true }
+rustc-hex = { version = "2.1.0", default-features = false }
+serde = { version = "1.0.117", default-features = false }
+serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
-smallvec = "1.4.1"
+smallvec = "1.4.2"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -66,19 +66,19 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.2.1", optional = true }
+hex-literal = { version = "0.3.1", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.2.1"
-libsecp256k1 = "0.3.2"
-tiny-keccak = "1.5.0"
+hex-literal = "0.3.1"
+libsecp256k1 = "0.3.5"
+tiny-keccak = "2.0.2"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie-db = "0.22.0"
-serde_json = "1.0.41"
+trie-db = "0.22.1"
+serde_json = "1.0.59"
 
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
@@ -93,7 +93,7 @@ std = [
 	"bitvec/std",
 	"primitives/std",
 	"rustc-hex/std",
-	"codec/std",
+	"parity-scale-codec/std",
 	"inherents/std",
 	"sp-core/std",
 	"sp-api/std",

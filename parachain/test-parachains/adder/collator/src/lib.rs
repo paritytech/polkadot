@@ -16,10 +16,10 @@
 
 //! Collator for the adder test parachain.
 
-use codec::{Decode, Encode};
 use futures_timer::Delay;
 use polkadot_node_primitives::{Collation, CollatorFn};
 use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
+use parity_scale_codec::{Encode, Decode};
 use sp_core::Pair;
 use std::{
 	collections::HashMap,
@@ -179,7 +179,6 @@ impl Collator {
 mod tests {
 	use super::*;
 
-	use codec::Decode;
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
 	use polkadot_primitives::v1::{PersistedValidationData, ValidationData};
