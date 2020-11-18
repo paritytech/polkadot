@@ -161,8 +161,7 @@ impl stream::Stream for ConnectionRequests {
 						}
 					}
 					StreamYield::Finished(_) => {
-						// Unreachable: `ConnectionRequest` never finishes
-						// in the current implementation
+						// `ConnectionRequest` is fullfilled, but not revoked
 					}
 				}
 			},
