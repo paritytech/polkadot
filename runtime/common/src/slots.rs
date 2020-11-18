@@ -22,7 +22,7 @@ use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
-use codec::{Encode, Decode, Codec};
+use parity_scale_codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, WithdrawReasons, ExistenceRequirement, Get, Randomness},

@@ -20,12 +20,12 @@
 use sp_runtime::traits::{One, Saturating};
 use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData};
 
-use crate::{configuration, paras, router};
+use crate::{configuration, paras, dmp, hrmp};
 
 /// Make the persisted validation data for a particular parachain.
 ///
 /// This ties together the storage of several modules.
-pub fn make_persisted_validation_data<T: paras::Trait + router::Trait>(
+pub fn make_persisted_validation_data<T: paras::Trait + hrmp::Trait>(
 	para_id: ParaId,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
 	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
@@ -33,15 +33,15 @@ pub fn make_persisted_validation_data<T: paras::Trait + router::Trait>(
 	Some(PersistedValidationData {
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
 		block_number: relay_parent_number,
-		hrmp_mqc_heads: <router::Module<T>>::hrmp_mqc_heads(para_id),
-		dmq_mqc_head: <router::Module<T>>::dmq_mqc_head(para_id),
+		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
+		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
 	})
 }
 
 /// Make the transient validation data for a particular parachain.
 ///
 /// This ties together the storage of several modules.
-pub fn make_transient_validation_data<T: paras::Trait + router::Trait>(
+pub fn make_transient_validation_data<T: paras::Trait + dmp::Trait>(
 	para_id: ParaId,
 ) -> Option<TransientValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
@@ -67,6 +67,6 @@ pub fn make_transient_validation_data<T: paras::Trait + router::Trait>(
 		max_head_data_size: config.max_head_data_size,
 		balance: 0,
 		code_upgrade_allowed,
-		dmq_length: <router::Module<T>>::dmq_length(para_id),
+		dmq_length: <dmp::Module<T>>::dmq_length(para_id),
 	})
 }

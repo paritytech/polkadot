@@ -18,7 +18,7 @@
 
 use core::{result, mem, convert::TryFrom};
 
-use codec::{self, Encode, Decode};
+use parity_scale_codec::{self, Encode, Decode};
 use super::Junction;
 use crate::VersionedMultiLocation;
 

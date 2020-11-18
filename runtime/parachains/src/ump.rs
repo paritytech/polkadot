@@ -14,11 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Trait, Module, Store};
-use crate::configuration::{self, HostConfiguration};
+use crate::{
+	configuration::{self, HostConfiguration},
+	initializer,
+};
 use sp_std::{fmt, prelude::*};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use frame_support::{StorageMap, StorageValue, weights::Weight, traits::Get};
+use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
@@ -78,8 +80,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 			AcceptanceCheckErr::MoreMessagesThanPermitted { sent, permitted } => write!(
 				fmt,
 				"more upward messages than permitted by config ({} > {})",
-				sent,
-				permitted,
+				sent, permitted,
 			),
 			AcceptanceCheckErr::MessageSize {
 				idx,
@@ -88,29 +89,109 @@ impl fmt::Debug for AcceptanceCheckErr {
 			} => write!(
 				fmt,
 				"upward message idx {} larger than permitted by config ({} > {})",
-				idx,
-				msg_size,
-				max_size,
+				idx, msg_size, max_size,
 			),
 			AcceptanceCheckErr::CapacityExceeded { count, limit } => write!(
 				fmt,
 				"the ump queue would have more items than permitted by config ({} > {})",
-				count,
-				limit,
+				count, limit,
 			),
 			AcceptanceCheckErr::TotalSizeExceeded { total_size, limit } => write!(
 				fmt,
 				"the ump queue would have grown past the max size permitted by config ({} > {})",
-				total_size, 
-				limit,
+				total_size, limit,
 			),
 		}
 	}
 }
 
+pub trait Trait: frame_system::Trait + configuration::Trait {
+	/// A place where all received upward messages are funneled.
+	type UmpSink: UmpSink;
+}
+
+decl_storage! {
+	trait Store for Module<T: Trait> as Ump {
+		/// Paras that are to be cleaned up at the end of the session.
+		/// The entries are sorted ascending by the para id.
+		OutgoingParas: Vec<ParaId>;
+
+		/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
+		///
+		/// Note that some upward messages might have been already processed by the inclusion logic. E.g.
+		/// channel management messages.
+		///
+		/// The messages are processed in FIFO order.
+		RelayDispatchQueues: map hasher(twox_64_concat) ParaId => VecDeque<UpwardMessage>;
+		/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
+		///
+		/// First item in the tuple is the count of messages and second
+		/// is the total length (in bytes) of the message payloads.
+		///
+		/// Note that this is an auxilary mapping: it's possible to tell the byte size and the number of
+		/// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
+		/// loading the whole message queue if only the total size and count are required.
+		///
+		/// Invariant:
+		/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
+		RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
+		/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
+		///
+		/// Invariant:
+		/// - The set of items from this vector should be exactly the set of the keys in
+		///   `RelayDispatchQueues` and `RelayDispatchQueueSize`.
+		NeedsDispatch: Vec<ParaId>;
+		/// This is the para that gets will get dispatched first during the next upward dispatchable queue
+		/// execution round.
+		///
+		/// Invariant:
+		/// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
+		NextDispatchRoundStartWith: Option<ParaId>;
+	}
+}
+
+decl_module! {
+	/// The UMP module.
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	}
+}
+
 /// Routines related to the upward message passing.
 impl<T: Trait> Module<T> {
-	pub(super) fn clean_ump_after_outgoing(outgoing_para: ParaId) {
+	/// Block initialization logic, called by initializer.
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		0
+	}
+
+	/// Block finalization logic, called by initializer.
+	pub(crate) fn initializer_finalize() {}
+
+	/// Called by the initializer to note that a new session has started.
+	pub(crate) fn initializer_on_new_session(
+		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+	) {
+		Self::perform_outgoing_para_cleanup();
+	}
+
+	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup() {
+		let outgoing = OutgoingParas::take();
+		for outgoing_para in outgoing {
+			Self::clean_ump_after_outgoing(outgoing_para);
+		}
+	}
+
+	/// Schedule a para to be cleaned up at the start of the next session.
+	pub(crate) fn schedule_para_cleanup(id: ParaId) {
+		OutgoingParas::mutate(|v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
+			}
+		});
+	}
+
+	fn clean_ump_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::RelayDispatchQueueSize::remove(&outgoing_para);
 		<Self as Store>::RelayDispatchQueues::remove(&outgoing_para);
 
@@ -193,13 +274,10 @@ impl<T: Trait> Module<T> {
 				v.extend(upward_messages.into_iter())
 			});
 
-			<Self as Store>::RelayDispatchQueueSize::mutate(
-				&para,
-				|(ref mut cnt, ref mut size)| {
-					*cnt += extra_cnt;
-					*size += extra_size;
-				},
-			);
+			<Self as Store>::RelayDispatchQueueSize::mutate(&para, |(ref mut cnt, ref mut size)| {
+				*cnt += extra_cnt;
+				*size += extra_size;
+			});
 
 			<Self as Store>::NeedsDispatch::mutate(|v| {
 				if let Err(i) = v.binary_search(&para) {
@@ -545,8 +623,7 @@ pub(crate) mod mock_sink {
 mod tests {
 	use super::*;
 	use super::mock_sink::Probe;
-	use crate::router::tests::default_genesis_config;
-	use crate::mock::{Configuration, Router, new_test_ext};
+	use crate::mock::{Configuration, Ump, new_test_ext, GenesisConfig as MockGenesisConfig};
 	use frame_support::IterableStorageMap;
 	use std::collections::HashSet;
 
@@ -585,22 +662,33 @@ mod tests {
 		}
 	}
 
+	fn default_genesis_config() -> MockGenesisConfig {
+		MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: crate::configuration::HostConfiguration {
+					max_downward_message_size: 1024,
+					..Default::default()
+				},
+			},
+			..Default::default()
+		}
+	}
+
 	fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 		let msgs = vec![msg];
-		assert!(Router::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
-		let _ = Router::enact_upward_messages(para, msgs);
+		assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
+		let _ = Ump::enact_upward_messages(para, msgs);
 	}
 
 	fn assert_storage_consistency_exhaustive() {
 		// check that empty queues don't clutter the storage.
-		for (_para, queue) in <Router as Store>::RelayDispatchQueues::iter() {
+		for (_para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
 			assert!(!queue.is_empty());
 		}
 
 		// actually count the counts and sizes in queues and compare them to the bookkeeped version.
-		for (para, queue) in <Router as Store>::RelayDispatchQueues::iter() {
-			let (expected_count, expected_size) =
-				<Router as Store>::RelayDispatchQueueSize::get(para);
+		for (para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
+			let (expected_count, expected_size) = <Ump as Store>::RelayDispatchQueueSize::get(para);
 			let (actual_count, actual_size) =
 				queue.into_iter().fold((0, 0), |(acc_count, acc_size), x| {
 					(acc_count + 1, acc_size + x.len() as u32)
@@ -612,27 +700,29 @@ mod tests {
 
 		// since we wipe the empty queues the sets of paras in queue contents, queue sizes and
 		// need dispatch set should all be equal.
-		let queue_contents_set = <Router as Store>::RelayDispatchQueues::iter()
+		let queue_contents_set = <Ump as Store>::RelayDispatchQueues::iter()
 			.map(|(k, _)| k)
 			.collect::<HashSet<ParaId>>();
-		let queue_sizes_set = <Router as Store>::RelayDispatchQueueSize::iter()
+		let queue_sizes_set = <Ump as Store>::RelayDispatchQueueSize::iter()
 			.map(|(k, _)| k)
 			.collect::<HashSet<ParaId>>();
-		let needs_dispatch_set = <Router as Store>::NeedsDispatch::get()
+		let needs_dispatch_set = <Ump as Store>::NeedsDispatch::get()
 			.into_iter()
 			.collect::<HashSet<ParaId>>();
 		assert_eq!(queue_contents_set, queue_sizes_set);
 		assert_eq!(queue_contents_set, needs_dispatch_set);
 
 		// `NextDispatchRoundStartWith` should point into a para that is tracked.
-		if let Some(para) = <Router as Store>::NextDispatchRoundStartWith::get() {
+		if let Some(para) = <Ump as Store>::NextDispatchRoundStartWith::get() {
 			assert!(queue_contents_set.contains(&para));
 		}
 
 		// `NeedsDispatch` is always sorted.
-		assert!(<Router as Store>::NeedsDispatch::get()
-			.windows(2)
-			.all(|xs| xs[0] <= xs[1]));
+		assert!(
+			<Ump as Store>::NeedsDispatch::get()
+				.windows(2)
+				.all(|xs| xs[0] <= xs[1])
+		);
 	}
 
 	#[test]
@@ -641,7 +731,7 @@ mod tests {
 			assert_storage_consistency_exhaustive();
 
 			// make sure that the case with empty queues is handled properly
-			Router::process_pending_upward_messages();
+			Ump::process_pending_upward_messages();
 
 			assert_storage_consistency_exhaustive();
 		});
@@ -658,7 +748,7 @@ mod tests {
 			probe.assert_msg(a, msg.clone(), 0);
 			queue_upward_msg(a, msg);
 
-			Router::process_pending_upward_messages();
+			Ump::process_pending_upward_messages();
 
 			assert_storage_consistency_exhaustive();
 		});
@@ -697,7 +787,7 @@ mod tests {
 
 				probe.assert_msg(a, a_msg_1.clone(), 300);
 				probe.assert_msg(c, c_msg_1.clone(), 300);
-				Router::process_pending_upward_messages();
+				Ump::process_pending_upward_messages();
 				assert_storage_consistency_exhaustive();
 
 				drop(probe);
@@ -711,7 +801,7 @@ mod tests {
 				let mut probe = Probe::new();
 
 				probe.assert_msg(q, q_msg.clone(), 500);
-				Router::process_pending_upward_messages();
+				Ump::process_pending_upward_messages();
 				assert_storage_consistency_exhaustive();
 
 				drop(probe);
@@ -723,7 +813,7 @@ mod tests {
 
 				probe.assert_msg(a, a_msg_2.clone(), 100);
 				probe.assert_msg(c, c_msg_2.clone(), 100);
-				Router::process_pending_upward_messages();
+				Ump::process_pending_upward_messages();
 				assert_storage_consistency_exhaustive();
 
 				drop(probe);
@@ -733,7 +823,7 @@ mod tests {
 			{
 				let probe = Probe::new();
 
-				Router::process_pending_upward_messages();
+				Ump::process_pending_upward_messages();
 				assert_storage_consistency_exhaustive();
 
 				drop(probe);
@@ -775,7 +865,7 @@ mod tests {
 				probe.assert_msg(b, b_msg_1.clone(), 300);
 				probe.assert_msg(a, a_msg_2.clone(), 300);
 
-				Router::process_pending_upward_messages();
+				Ump::process_pending_upward_messages();
 
 				drop(probe);
 			}

@@ -20,7 +20,7 @@ use crate::{HeadData, BlockData};
 use core::panic;
 use sp_std::vec::Vec;
 use parachain::primitives::{ValidationResult, HeadData as GenericHeadData};
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 #[no_mangle]
 pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
@@ -31,7 +31,7 @@ pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 	let block_data = BlockData::decode(&mut &params.block_data.0[..])
 		.expect("invalid block data format.");
 
-	let parent_hash = tiny_keccak::keccak256(&params.parent_head.0[..]);
+	let parent_hash = crate::keccak256(&params.parent_head.0[..]);
 
 	let new_head = crate::execute(parent_hash, parent_head, &block_data).expect("Executes block");
 	parachain::write_result(

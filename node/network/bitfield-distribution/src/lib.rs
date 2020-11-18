@@ -22,7 +22,7 @@
 
 #![deny(unused_crate_dependencies)]
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
 use log::{debug, trace, warn};
@@ -167,7 +167,7 @@ impl BitfieldDistribution {
 						&mut ctx,
 						&mut state,
 						&self.metrics,
-						hash, 
+						hash,
 						signed_availability,
 					).await {
 						warn!(target: LOG_TARGET, "Failed to reply to `DistributeBitfield` message: {}", err);

@@ -21,7 +21,7 @@ use test_parachain_adder::{hash_state, BlockData, HeadData, execute};
 use futures_timer::Delay;
 use polkadot_primitives::v1::{PoV, CollatorId, CollatorPair};
 use polkadot_node_primitives::{Collation, CollatorFn};
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use sp_core::Pair;
 
 /// The amount we add when producing a new block.
@@ -168,7 +168,7 @@ mod tests {
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
 	use polkadot_primitives::v1::{ValidationData, PersistedValidationData};
-	use codec::Decode;
+	use parity_scale_codec::Decode;
 
 	#[test]
 	fn collator_works() {
