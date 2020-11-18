@@ -349,4 +349,69 @@ mod tests {
 			);
 		});
 	}
+
+	#[test]
+	fn replacing_a_connection_request_works() {
+		let mut connection_requests = ConnectionRequests::default();
+
+		executor::block_on(async move {
+			assert_eq!(poll!(Pin::new(&mut connection_requests).next()), Poll::Pending);
+
+			let validator_1 = ValidatorPair::generate().0.public();
+			let validator_2 = ValidatorPair::generate().0.public();
+
+			let auth_1 = AuthorityDiscoveryId::from_slice(&[1; 32]);
+			let auth_2 = AuthorityDiscoveryId::from_slice(&[2; 32]);
+
+			let mut validator_map_1 = HashMap::new();
+			let mut validator_map_2 = HashMap::new();
+
+			validator_map_1.insert(auth_1.clone(), validator_1.clone());
+			validator_map_2.insert(auth_2.clone(), validator_2.clone());
+
+			let (mut rq1_tx, rq1_rx) = mpsc::channel(8);
+			let (revoke_1_tx, _revoke_1_rx) = oneshot::channel();
+
+			let (mut rq2_tx, rq2_rx) = mpsc::channel(8);
+			let (revoke_2_tx, _revoke_2_rx) = oneshot::channel();
+
+			let peer_id_1 = PeerId::random();
+			let peer_id_2 = PeerId::random();
+
+			let connection_request_1 = ConnectionRequest {
+				validator_map: validator_map_1,
+				connections: rq1_rx,
+				revoke: revoke_1_tx,
+			};
+
+			let connection_request_2 = ConnectionRequest {
+				validator_map: validator_map_2,
+				connections: rq2_rx,
+				revoke: revoke_2_tx,
+			};
+
+			let relay_parent = Hash::repeat_byte(3);
+
+			connection_requests.put(relay_parent.clone(), connection_request_1);
+
+			rq1_tx.send((auth_1.clone(), peer_id_1.clone())).await.unwrap();
+
+			let res = Pin::new(&mut connection_requests).next().await.unwrap();
+			assert_eq!(res, (relay_parent, validator_1, peer_id_1.clone()));
+
+			connection_requests.put(relay_parent.clone(), connection_request_2);
+
+			assert!(rq1_tx.send((auth_1, peer_id_1.clone())).await.is_err());
+
+			rq2_tx.send((auth_2, peer_id_2.clone())).await.unwrap();
+
+			let res = Pin::new(&mut connection_requests).next().await.unwrap();
+			assert_eq!(res, (relay_parent, validator_2, peer_id_2));
+
+			assert_eq!(
+				poll!(Pin::new(&mut connection_requests).next()),
+				Poll::Pending,
+			);
+		});
+	}
 }
