@@ -33,7 +33,7 @@ use primitives::v1::{
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
 	impls::ToAuthor,
-	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
 };
 use runtime_parachains::{
 	self,
@@ -358,7 +358,7 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = MaximumBlockWeight;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 }

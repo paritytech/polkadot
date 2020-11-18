@@ -33,7 +33,7 @@ use primitives::v1::{
 use runtime_common::{
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
-	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
 	ParachainSessionKeyPlaceholder,
 };
 use sp_runtime::{
@@ -309,9 +309,6 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
-	pub OffchainSolutionWeightLimit: Weight = MaximumExtrinsicWeight::get()
-		.saturating_sub(BlockExecutionWeight::get())
-		.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 impl pallet_staking::Trait for Runtime {

@@ -24,7 +24,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::DealWithFees,
-	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength,
+	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength, OffchainSolutionWeightLimit,
 	ParachainSessionKeyPlaceholder,
 };
 
@@ -330,9 +330,6 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 16;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
-	pub OffchainSolutionWeightLimit: Weight = MaximumExtrinsicWeight::get()
-		.saturating_sub(BlockExecutionWeight::get())
-		.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -894,38 +891,7 @@ impl pallet_proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-<<<<<<< HEAD
-		// Update scheduler origin usage
-		#[derive(Encode, Decode)]
-		#[allow(non_camel_case_types)]
-		pub enum OldOriginCaller {
-			system(frame_system::Origin<Runtime>),
-			pallet_collective_Instance1(
-				pallet_collective::Origin<Runtime, pallet_collective::Instance1>
-			),
-			pallet_collective_Instance2(
-				pallet_collective::Origin<Runtime, pallet_collective::Instance2>
-			),
-		}
-
-		impl Into<OriginCaller> for OldOriginCaller {
-			fn into(self) -> OriginCaller {
-				match self {
-					OldOriginCaller::system(o) => OriginCaller::system(o),
-					OldOriginCaller::pallet_collective_Instance1(o) =>
-						OriginCaller::pallet_collective_Instance1(o),
-					OldOriginCaller::pallet_collective_Instance2(o) =>
-						OriginCaller::pallet_collective_Instance2(o),
-				}
-			}
-		}
-
-		pallet_scheduler::Module::<Runtime>::migrate_origin::<OldOriginCaller>();
-
-		<Runtime as frame_system::Trait>::MaximumBlockWeight::get()
-=======
 		0
->>>>>>> master
 	}
 }
 

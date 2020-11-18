@@ -124,7 +124,7 @@ parameter_types! {
 impl frame_system::Trait for Runtime {
 	type BaseCallFilter = ();
 	type BlockWeights = BlockWeights;
-	type BlockLength = ();
+	type BlockLength = BlockLength;
 	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;
@@ -325,7 +325,7 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = MaximumBlockWeight;
+	type OffchainSolutionWeightLimit = ();
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 

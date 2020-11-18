@@ -34,7 +34,7 @@ use primitives::v1::{
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::DealWithFees,
-	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength,
+	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength, OffchainSolutionWeightLimit,
 	ParachainSessionKeyPlaceholder,
 };
 use sp_runtime::{
@@ -323,9 +323,6 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
-	pub OffchainSolutionWeightLimit: Weight = MaximumExtrinsicWeight::get()
-		.saturating_sub(BlockExecutionWeight::get())
-		.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -1309,11 +1306,12 @@ mod test_fees {
 	#[test]
 	#[ignore]
 	fn block_cost() {
-		let raw_fee = WeightToFee::calc(&MaximumBlockWeight::get());
+		let max_block_weight = BlockWeights::get().max_block;
+		let raw_fee = WeightToFee::calc(&max_block_weight);
 
 		println!(
 			"Full Block weight == {} // WeightToFee(full_block) == {} plank",
-			MaximumBlockWeight::get(),
+			max_block_weight,
 			raw_fee.separated_string(),
 		);
 	}
