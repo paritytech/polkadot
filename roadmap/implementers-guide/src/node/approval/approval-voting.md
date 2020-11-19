@@ -228,7 +228,7 @@ enum RequiredTranches {
 
 #### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
   * If `n_tranches` is `RequiredTranches::Pending`, return false
-  * If `n_tranches` is `RequiredTranches::All`,  then we return true if `3 * n_approvals > 2 n_validators` and false otherwise.
+  * If `n_tranches` is `RequiredTranches::All`,  then we return `3 * n_approvals > 2 * n_validators`.
   * Otherwise, if all validators in `n_tranches` have approved, return `true`. If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
 
 #### `process_wakeup(relay_block, candidate_hash)`
