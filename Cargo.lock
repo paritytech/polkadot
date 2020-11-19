@@ -1334,9 +1334,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54532e3223c5af90a6a757c90b5c5521564b07e5e7a958681bcd2afad421cdcd"
+checksum = "f26ecb66b4bdca6c1409b40fb255eefc2bd4f6d135dab3c3124f80ffa2a9661e"
 dependencies = [
  "atty",
  "humantime 2.0.1",
@@ -1911,7 +1911,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "memchr",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "pin-utils",
  "proc-macro-hack",
  "proc-macro-nested",
@@ -2339,7 +2339,7 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "socket2",
  "tokio 0.2.22",
  "tower-service",
@@ -2929,7 +2929,7 @@ dependencies = [
  "multihash",
  "parity-multiaddr",
  "parking_lot 0.11.1",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "smallvec 1.5.0",
  "wasm-timer",
 ]
@@ -2954,7 +2954,7 @@ dependencies = [
  "multistream-select",
  "parity-multiaddr",
  "parking_lot 0.11.1",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "prost",
  "prost-build",
  "rand 0.7.3",
@@ -3694,7 +3694,7 @@ dependencies = [
  "bytes 0.5.6",
  "futures 0.3.8",
  "log",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "smallvec 1.5.0",
  "unsigned-varint 0.5.1",
 ]
@@ -4853,11 +4853,11 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee41d838744f60d959d7074e3afb6b35c7456d0f61cad38a24e35e6553f73841"
+checksum = "9ccc2237c2c489783abd8c4c80e5450fc0e98644555b1364da68cc29aa151ca7"
 dependencies = [
- "pin-project-internal 1.0.1",
+ "pin-project-internal 1.0.2",
 ]
 
 [[package]]
@@ -4873,9 +4873,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-internal"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81a4ffa594b66bff340084d4081df649a7dc049ac8d7fc458d8e628bfbbb2f86"
+checksum = "f8e8d2bf0b23038a4424865103a4df472855692821aab4e4f5c3312d461d9e5f"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -4927,7 +4927,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "bitvec",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "log",
  "maplit",
@@ -4951,7 +4951,7 @@ name = "polkadot-availability-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
@@ -5000,7 +5000,7 @@ name = "polkadot-collator-protocol"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
@@ -5082,7 +5082,7 @@ name = "polkadot-node-core-av-store"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "kvdb",
@@ -5281,7 +5281,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem-test-helpers",
@@ -5305,7 +5305,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
@@ -5325,13 +5325,13 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "pin-project 1.0.1",
+ "pin-project 1.0.2",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -5632,7 +5632,7 @@ dependencies = [
 name = "polkadot-service"
 version = "0.8.3"
 dependencies = [
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "futures 0.3.8",
