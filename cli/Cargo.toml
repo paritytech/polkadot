@@ -23,19 +23,19 @@ wasm-bindgen-futures = { version = "0.4.7", optional = true }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-parachain = { path = "../parachain", optional = true }
 
-sp-core = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
-sc-tracing = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
-frame-benchmarking-cli = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing", optional = true }
-sc-cli = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing", optional = true }
-sc-service = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
-# see https://github.com/mxinden/substrate/pull/6745
-sp-trie = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing", default-features = false }
+# see https://github.com/paritytech/substrate/pull/6745
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]

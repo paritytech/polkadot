@@ -20,11 +20,11 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-primitives = { path = "../../primitives" }
 
-sc-network = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
-sp-core = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
-sp-application-crypto = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
-sp-keystore = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
-substrate-prometheus-endpoint = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-timing" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 assert_matches = "1.3.0"
