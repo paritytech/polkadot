@@ -32,4 +32,4 @@ async-trait = "0.1.41"
 futures = { version = "0.3.8", features = ["thread-pool"] }
 parking_lot = "0.11.1"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
-env_logger = "0.8.1"
+env_logger = "0.8.2"
