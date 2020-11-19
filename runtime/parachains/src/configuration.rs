@@ -49,6 +49,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The maximum head-data size, in bytes.
 	#[codec(index = "4")]
 	pub max_head_data_size: u32,
+	/// THe maximum POV block size, in bytes.
+	pub max_pov_size: u32,
 	/// The amount of execution cores to dedicate to parathread execution.
 	#[codec(index = "5")]
 	pub parathread_cores: u32,
@@ -218,6 +220,16 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_code_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the max POV block size for incoming upgrades.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_pov_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_pov_size, new) != new
 			});
 			Ok(())
 		}
@@ -596,6 +608,7 @@ mod tests {
 				validation_upgrade_delay: 10,
 				acceptance_period: 5,
 				max_code_size: 100_000,
+				max_pov_size: 1024,
 				max_head_data_size: 1_000,
 				parathread_cores: 2,
 				parathread_retries: 5,
@@ -641,6 +654,9 @@ mod tests {
 			).unwrap();
 			Configuration::set_max_code_size(
 				Origin::root(), new_config.max_code_size,
+			).unwrap();
+			Configuration::set_max_pov_size(
+				Origin::root(), new_config.max_pov_size,
 			).unwrap();
 			Configuration::set_max_head_data_size(
 				Origin::root(), new_config.max_head_data_size,

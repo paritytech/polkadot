@@ -218,6 +218,7 @@ impl Default for TestState {
 			block_number: Default::default(),
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
+			max_pov_size: 1024,
 		};
 
 		let validator_index = Some((validators.len() - 1) as ValidatorIndex);
