@@ -159,7 +159,7 @@ pub type Scheduler = crate::scheduler::Module<Test>;
 pub type Inclusion = crate::inclusion::Module<Test>;
 
 /// Mocked session info module.
-// pub type SessionInfo = crate::session_info::Module<Test>;
+pub type SessionInfo = crate::session_info::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {

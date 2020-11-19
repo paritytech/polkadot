@@ -59,6 +59,7 @@ decl_module! {
 /// An abstraction for the authority discovery pallet
 /// to help with mock testing.
 pub trait AuthorityDiscoveryTrait {
+	/// Retrieve authority identifiers of the current and next authority set.
 	fn authorities() -> Vec<AuthorityDiscoveryId>;
 }
 
@@ -128,7 +129,37 @@ impl<T: Trait> Module<T> {
 
 #[cfg(test)]
 mod tests {
-	// use super::*;
+	use super::*;
+	use crate::mock::{
+		new_test_ext, Configuration, SessionInfo, System, GenesisConfig as MockGenesisConfig,
+	};
+	use primitives::v1::BlockNumber;
+
+	fn run_to_block(
+		to: BlockNumber,
+		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
+	) {
+		while System::block_number() < to {
+			let b = System::block_number();
+
+			SessionInfo::initializer_finalize();
+			Configuration::initializer_finalize();
+
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
+
+			if let Some(notification) = new_session(b + 1) {
+				Configuration::initializer_on_new_session(&notification);
+				SessionInfo::initializer_on_new_session(&notification);
+			}
+
+			Configuration::initializer_initialize(b + 1);
+			SessionInfo::initializer_initialize(b + 1);
+		}
+	}
+
 	#[test]
 	fn it_works() {
 		// TODO:
