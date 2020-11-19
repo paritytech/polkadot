@@ -28,6 +28,7 @@ use crate::{configuration, paras, dmp, hrmp};
 pub fn make_persisted_validation_data<T: paras::Trait + hrmp::Trait>(
 	para_id: ParaId,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
+	let config = <configuration::Module<T>>::config();
 	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
 
 	Some(PersistedValidationData {
@@ -35,6 +36,7 @@ pub fn make_persisted_validation_data<T: paras::Trait + hrmp::Trait>(
 		block_number: relay_parent_number,
 		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
 		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
+		max_pov_size: config.max_pov_size,
 	})
 }
 

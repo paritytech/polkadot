@@ -1031,6 +1031,7 @@ mod tests {
 					block_number: Default::default(),
 					hrmp_mqc_heads: Vec::new(),
 					dmq_mqc_head: Default::default(),
+					max_pov_size: 1024,
 				},
 				transient: TransientValidationData {
 					max_code_size: 1000,

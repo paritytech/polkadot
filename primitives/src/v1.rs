@@ -271,12 +271,23 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
 	/// passed by the collator.
 	pub dmq_mqc_head: Hash,
+	/// The maximum legal size of a POV block, in bytes.
+	pub max_pov_size: u32,
 }
 
 impl<N: Encode> PersistedValidationData<N> {
 	/// Compute the blake2-256 hash of the persisted validation data.
 	pub fn hash(&self) -> Hash {
 		BlakeTwo256::hash_of(self)
+	}
+
+	/// Modify this struct in-place
+	///
+	/// Simplifies initialization from default for testing purposes
+	#[cfg(any(test, feature = "std"))]
+	pub fn with(mut self, edit: impl FnOnce(&mut PersistedValidationData<N>)) -> PersistedValidationData<N> {
+		edit(&mut self);
+		self
 	}
 }
 
