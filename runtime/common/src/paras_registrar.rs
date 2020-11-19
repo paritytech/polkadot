@@ -90,7 +90,7 @@ decl_error! {
 		/// Parathreads registration is disabled.
 		ParathreadsRegistrationDisabled,
 		/// The validation code provided doesn't start with the Wasm file magic string.
-        DefinitelyNotWasm,
+		DefinitelyNotWasm,
 	}
 }
 
