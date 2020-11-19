@@ -350,12 +350,10 @@ fn perform_basic_checks(
 	max_pov_size: u32,
 	pov: &PoV,
 ) -> Result<(), InvalidCandidate> {
-	use std::convert::TryInto;
-
 	let encoded_pov = pov.encode();
 	let hash = pov.hash();
 
-	if encoded_pov.len().try_into().unwrap_or(!0) > max_pov_size {
+	if encoded_pov.len() > max_pov_size as usize {
 		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
 	}
 
@@ -819,7 +817,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_ok_is_ok() {
-		let validation_data = PersistedValidationData::default().with(|vd| vd.max_pov_size=1024);
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -859,7 +857,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_bad_return_is_invalid() {
-		let validation_data = PersistedValidationData::default().with(|vd| vd.max_pov_size=1024);
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -887,7 +885,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_timeout_is_internal_error() {
-		let validation_data = PersistedValidationData::default().with(|vd| vd.max_pov_size=1024);
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 

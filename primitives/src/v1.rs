@@ -280,15 +280,6 @@ impl<N: Encode> PersistedValidationData<N> {
 	pub fn hash(&self) -> Hash {
 		BlakeTwo256::hash_of(self)
 	}
-
-	/// Modify this struct in-place
-	///
-	/// Simplifies initialization from default for testing purposes
-	#[cfg(any(test, feature = "std"))]
-	pub fn with(mut self, edit: impl FnOnce(&mut PersistedValidationData<N>)) -> PersistedValidationData<N> {
-		edit(&mut self);
-		self
-	}
 }
 
 /// Validation data for checking outputs of the validation-function.
