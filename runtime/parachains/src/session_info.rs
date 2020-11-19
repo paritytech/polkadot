@@ -87,8 +87,7 @@ impl<T: Trait> Module<T> {
 		let n_cores = n_parachains + config.parathread_cores;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
 		let relay_vrf_modulo_samples = config.relay_vrf_modulo_samples;
-		// FIXME: add n_delay_tranches to config?
-		let n_delay_tranches = 0u32;
+		let n_delay_tranches = config.n_delay_tranches;
 		let no_show_slots = config.no_show_slots;
 		let needed_approvals = config.needed_approvals;
 
@@ -132,7 +131,10 @@ mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Configuration, SessionInfo, System, GenesisConfig as MockGenesisConfig,
+		Test,
 	};
+	use crate::initializer::SessionChangeNotification;
+	use frame_support::traits::{OnFinalize, OnInitialize};
 	use primitives::v1::BlockNumber;
 
 	fn run_to_block(
@@ -151,7 +153,7 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			if let Some(notification) = new_session(b + 1) {
-				Configuration::initializer_on_new_session(&notification);
+				Configuration::initializer_on_new_session(&notification.validators, &notification.queued);
 				SessionInfo::initializer_on_new_session(&notification);
 			}
 

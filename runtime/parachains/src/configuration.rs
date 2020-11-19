@@ -78,23 +78,26 @@ pub struct HostConfiguration<BlockNumber> {
 	/// Must be at least 1.
 	#[codec(index = "12")]
 	pub no_show_slots: u32,
+	/// The number of delay tranches in total.
+	#[codec(index = "13")]
+	pub n_delay_tranches: u32,
 	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
 	/// beyond 0 are all consolidated to form a wide 0 tranche.
-	#[codec(index = "13")]
+	#[codec(index = "14")]
 	pub zeroth_delay_tranche_width: u32,
 	/// The number of validators needed to approve a block.
-	#[codec(index = "14")]
+	#[codec(index = "15")]
 	pub needed_approvals: u32,
 	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
-	#[codec(index = "15")]
+	#[codec(index = "16")]
 	pub relay_vrf_modulo_samples: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
-	#[codec(index = "16")]
+	#[codec(index = "17")]
 	pub max_upward_queue_count: u32,
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
-	#[codec(index = "17")]
+	#[codec(index = "18")]
 	pub max_upward_queue_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
 	///
@@ -102,60 +105,60 @@ pub struct HostConfiguration<BlockNumber> {
 	/// the PoV size. Of course, there is a lot of other different things that a parachain may
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
-	#[codec(index = "18")]
+	#[codec(index = "19")]
 	pub max_downward_message_size: u32,
 	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
 	/// stage.
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
-	#[codec(index = "19")]
+	#[codec(index = "20")]
 	pub preferred_dispatchable_upward_messages_step_weight: Weight,
 	/// The maximum size of an upward message that can be sent by a candidate.
 	///
 	/// This parameter affects the size upper bound of the `CandidateCommitments`.
-	#[codec(index = "20")]
+	#[codec(index = "21")]
 	pub max_upward_message_size: u32,
 	/// The maximum number of messages that a candidate can contain.
 	///
 	/// This parameter affects the size upper bound of the `CandidateCommitments`.
-	#[codec(index = "21")]
+	#[codec(index = "22")]
 	pub max_upward_message_num_per_candidate: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
-	#[codec(index = "22")]
+	#[codec(index = "23")]
 	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
-	#[codec(index = "23")]
+	#[codec(index = "24")]
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
-	#[codec(index = "24")]
+	#[codec(index = "25")]
 	pub hrmp_recipient_deposit: Balance,
 	/// The maximum number of messages allowed in an HRMP channel at once.
-	#[codec(index = "25")]
+	#[codec(index = "26")]
 	pub hrmp_channel_max_capacity: u32,
 	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
-	#[codec(index = "26")]
+	#[codec(index = "27")]
 	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
-	#[codec(index = "27")]
+	#[codec(index = "28")]
 	pub hrmp_max_parachain_inbound_channels: u32,
 	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
-	#[codec(index = "28")]
+	#[codec(index = "29")]
 	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
-	#[codec(index = "29")]
+	#[codec(index = "30")]
 	pub hrmp_channel_max_message_size: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
-	#[codec(index = "30")]
+	#[codec(index = "31")]
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
-	#[codec(index = "31")]
+	#[codec(index = "32")]
 	pub hrmp_max_parathread_outbound_channels: u32,
 	/// The maximum number of outbound HRMP messages can be sent by a candidate.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
-	#[codec(index = "32")]
+	#[codec(index = "33")]
 	pub hrmp_max_message_num_per_candidate: u32,
 }
 
@@ -308,6 +311,16 @@ decl_module! {
 			ensure!(new >= 1, "no_show_slots must be at least 1");
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.no_show_slots, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the total number of delay tranches.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_n_delay_tranches(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.n_delay_tranches, new) != new
 			});
 			Ok(())
 		}
@@ -592,7 +605,8 @@ mod tests {
 				scheduling_lookahead: 3,
 				dispute_period: 239,
 				no_show_slots: 240,
-				zeroth_delay_tranche_width: 241,
+				n_delay_tranches: 241,
+				zeroth_delay_tranche_width: 242,
 				needed_approvals: 242,
 				relay_vrf_modulo_samples: 243,
 				max_upward_queue_count: 1337,
@@ -654,6 +668,9 @@ mod tests {
 			).unwrap();
 			Configuration::set_no_show_slots(
 				Origin::root(), new_config.no_show_slots,
+			).unwrap();
+			Configuration::set_n_delay_tranches(
+				Origin::root(), new_config.n_delay_tranches,
 			).unwrap();
 			Configuration::set_zeroth_delay_tranche_width(
 				Origin::root(), new_config.zeroth_delay_tranche_width,

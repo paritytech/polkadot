@@ -40,6 +40,8 @@ struct HostConfiguration {
 	/// submitting an approval vote before a validator is considered a no-show.
 	/// Must be at least 1.
 	pub no_show_slots: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
 	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
 	/// beyond 0 are all consolidated to form a wide 0 tranche.
 	pub zeroth_delay_tranche_width: u32,
