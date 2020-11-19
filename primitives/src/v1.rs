@@ -675,10 +675,8 @@ pub enum CandidateEvent<H = Hash> {
 #[derive(Clone, Encode, Decode)]
 pub struct SessionInfo {
 	/// Validators in canonical ordering.
-	#[codec(index = "0")]
 	pub validators: Vec<ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
-	#[codec(index = "1")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment and approval keys for validators.
 	// FIXME: implement this
@@ -687,26 +685,19 @@ pub struct SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	#[codec(index = "3")]
 	pub validator_groups: Vec<Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
-	#[codec(index = "4")]
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.
-	#[codec(index = "5")]
 	pub zeroth_delay_tranche_width: u32,
 	/// The number of samples we do of relay_vrf_modulo.
-	#[codec(index = "6")]
 	pub relay_vrf_modulo_samples: u32,
 	/// The number of delay tranches in total.
-	#[codec(index = "7")]
 	pub n_delay_tranches: u32,
 	/// How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
 	/// no-show.
-	#[codec(index = "8")]
 	pub no_show_slots: u32,
 	/// The number of validators needed to approve a block.
-	#[codec(index = "9")]
 	pub needed_approvals: u32,
 }
 
