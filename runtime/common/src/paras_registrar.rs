@@ -17,8 +17,8 @@
 //! Module to handle parathread/parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
+use crate::WASM_MAGIC;
 use sp_std::{prelude::*, result};
-
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure,
 	dispatch::DispatchResult,
@@ -37,9 +37,6 @@ use runtime_parachains::{
 	ensure_parachain,
 	Origin,
 };
-
-/// The sequence of bytes a valid wasm module binary always starts with.
-const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
 type BalanceOf<T> =
 	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;

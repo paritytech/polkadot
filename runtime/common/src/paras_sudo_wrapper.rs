@@ -16,6 +16,7 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
+use crate::WASM_MAGIC;
 use sp_std::prelude::*;
 use frame_support::{
 	decl_error, decl_module, ensure,
@@ -27,9 +28,6 @@ use runtime_parachains::{
 	configuration, dmp, ump, hrmp, paras::{self, ParaGenesisArgs},
 };
 use primitives::v1::Id as ParaId;
-
-/// The sequence of bytes a valid wasm module binary always starts with.
-const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
 /// The module's configuration trait.
 pub trait Trait:
