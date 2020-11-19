@@ -271,6 +271,8 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
 	/// passed by the collator.
 	pub dmq_mqc_head: Hash,
+	/// The maximum legal size of a POV block, in bytes.
+	pub max_pov_size: u32,
 }
 
 impl<N: Encode> PersistedValidationData<N> {

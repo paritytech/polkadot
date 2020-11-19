@@ -73,6 +73,7 @@ impl Default for TestState {
 			block_number: 5,
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
+			max_pov_size: 1024,
 		};
 
 		let pruning_config = PruningConfig {
