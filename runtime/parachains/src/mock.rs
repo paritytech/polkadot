@@ -24,7 +24,7 @@ use sp_runtime::{
 		BlakeTwo256, IdentityLookup,
 	},
 };
-use primitives::v1::{BlockNumber, Header};
+use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header};
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
 	weights::Weight, traits::Randomness as RandomnessT,
@@ -126,11 +126,11 @@ impl crate::inclusion::Trait for Test {
 
 impl crate::session_info::Trait for Test { }
 
-impl pallet_authority_discovery::Trait for Test { }
-
-// TODO: ah oh required by `pallet_authority_discovery`
-// impl pallet_session::Trait for Test {
-// }
+impl crate::session_info::AuthorityDiscoveryTrait for Test {
+	fn authorities() -> Vec<AuthorityDiscoveryId> {
+		Vec::new()
+	}
+}
 
 pub type System = frame_system::Module<Test>;
 
@@ -159,7 +159,7 @@ pub type Scheduler = crate::scheduler::Module<Test>;
 pub type Inclusion = crate::inclusion::Module<Test>;
 
 /// Mocked session info module.
-pub type SessionInfo = crate::session_info::Module<Test>;
+// pub type SessionInfo = crate::session_info::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {

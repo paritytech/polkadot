@@ -19,7 +19,7 @@
 //!
 //! See https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html.
 
-use primitives::v1::{SessionIndex, SessionInfo, ValidatorId};
+use primitives::v1::{AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	weights::Weight,
@@ -31,7 +31,7 @@ pub trait Trait:
 	+ configuration::Trait
 	+ paras::Trait
 	+ scheduler::Trait
-	+ pallet_authority_discovery::Trait
+	+ AuthorityDiscoveryTrait
 {
 }
 
@@ -56,8 +56,16 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
-	type Public = ValidatorId;
+/// An abstraction for the authority discovery pallet
+/// to help with mock testing.
+pub trait AuthorityDiscoveryTrait {
+	fn authorities() -> Vec<AuthorityDiscoveryId>;
+}
+
+impl<T: pallet_authority_discovery::Trait> AuthorityDiscoveryTrait for T {
+	fn authorities() -> Vec<AuthorityDiscoveryId> {
+		<pallet_authority_discovery::Module<T>>::authorities()
+	}
 }
 
 impl<T: Trait> Module<T> {
@@ -71,7 +79,7 @@ impl<T: Trait> Module<T> {
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 
 		let validators: Vec<_> = notification.validators.clone();
-		let discovery_keys = <pallet_authority_discovery::Module<T>>::authorities();
+		let discovery_keys = <T as AuthorityDiscoveryTrait>::authorities();
 		// FIXME:???
 		let approval_keys = Vec::new();
 		let validator_groups =  <scheduler::Module<T>>::validator_groups();
