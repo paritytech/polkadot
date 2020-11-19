@@ -749,9 +749,6 @@ sp_api::decl_runtime_apis! {
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
 
-		/// Yields the session info for the given session, if stored.
-		// fn session_info(index: SessionIndex) -> Option<SessionInfo>;
-
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
