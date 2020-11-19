@@ -24,7 +24,7 @@ renderer = ERB.new(
 )
 
 # get ref of last polkadot release
-last_ref = "refs/tags/" + github_client.latest_release(ENV['GITHUB_REPOSITORY']).tag_name
+last_ref = 'refs/tags/' + github_client.latest_release(ENV['GITHUB_REPOSITORY']).tag_name
 
 polkadot_cl = Changelog.new(
   'paritytech/polkadot', last_ref, current_ref, token: token
@@ -37,7 +37,7 @@ def get_substrate_commit(client, ref)
       client.contents(
         ENV['GITHUB_REPOSITORY'],
         path: 'Cargo.lock',
-        query: { ref: "#{ref}"}
+        query: { ref: ref.to_s }
       ).content
     )
   ).parsed
@@ -81,7 +81,9 @@ runtime_changes.each do |c|
   c[:pretty_title] = "✅ `trivial` #{c[:pretty_title]}"
 end
 
-release_priority = Changelog.highest_priority_for_changes(all_changes)
+# The priority of users upgraded is determined by the highest-priority
+# *Client* change
+release_priority = Changelog.highest_priority_for_changes(client_changes)
 
 # Pulled from the previous Github step
 rustc_stable = ENV['RUSTC_STABLE']

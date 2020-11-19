@@ -26,7 +26,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
 use sp_runtime::traits::One;
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
 	paras, scheduler, inclusion, dmp, ump, hrmp,

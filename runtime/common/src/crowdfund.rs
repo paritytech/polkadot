@@ -77,7 +77,7 @@ use sp_runtime::{ModuleId,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
 use crate::slots;
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 

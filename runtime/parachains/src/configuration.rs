@@ -25,7 +25,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use frame_system::ensure_root;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
