@@ -72,6 +72,7 @@ use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
+use runtime_parachains::session_info as parachains_session_info;
 use runtime_parachains::paras as parachains_paras;
 use runtime_parachains::dmp as parachains_dmp;
 use runtime_parachains::ump as parachains_ump;
@@ -535,6 +536,8 @@ impl parachains_inclusion::Trait for Runtime {
 impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
+
+impl parachains_session_info::Trait for Runtime {}
 
 impl parachains_ump::Trait for Runtime {
 	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.

@@ -29,6 +29,7 @@ use polkadot_runtime_parachains::configuration as parachains_configuration;
 use polkadot_runtime_parachains::inclusion as parachains_inclusion;
 use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use polkadot_runtime_parachains::initializer as parachains_initializer;
+use polkadot_runtime_parachains::session_info as parachains_session_info;
 use polkadot_runtime_parachains::paras as parachains_paras;
 use polkadot_runtime_parachains::dmp as parachains_dmp;
 use polkadot_runtime_parachains::ump as parachains_ump;
@@ -456,6 +457,8 @@ impl parachains_inclusion_inherent::Trait for Runtime {}
 impl parachains_initializer::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
+
+impl parachains_session_info::Trait for Runtime {}
 
 impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;

@@ -25,6 +25,7 @@ use frame_support::{
 	weights::Weight,
 };
 use crate::{configuration, paras, scheduler};
+use sp_std::vec::Vec;
 
 pub trait Trait:
 	frame_system::Trait
@@ -224,7 +225,7 @@ mod tests {
 			run_to_block(200, session_changes);
 			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
 
-			// we don't have that many session stored
+			// we don't have that many sessions stored
 			let new_dispute_period = 16;
 			Configuration::set_dispute_period(Origin::root(), new_dispute_period).unwrap();
 			run_to_block(300, session_changes);
