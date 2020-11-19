@@ -155,7 +155,7 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * We use the RuntiemApiSubsystem to determine information about these blocks. It is generally safe to assume that runtime state is available for recent, unfinalized blocks. In the case that it isn't, it means that we are catching up to the head of the chain and needn't worry about assignments to those blocks anyway, as the security assumption of the protocol tolerates nodes being temporarily offline or out-of-date.
     * We fetch the set of candidates included by each block by dispatching a `RuntimeApiRequest::CandidateEvents` and checking the `CandidateIncluded` events.
     * We fetch the session of the block by dispatching a `session_index_for_child` request with the parent-hash of the block.
-    * If the session index - `APPROVAL_SESSIONS` > `state.earliest_session`, then bump `state.earliest_sessions` to that amount and prune earlier sessions.
+    * If the `session index - APPROVAL_SESSIONS > state.earliest_session`, then bump `state.earliest_sessions` to that amount and prune earlier sessions.
     * If the session isn't in our `state.session_info`, load the session info for it and for all sessions since the earliest-session, including the earliest-session, if that is missing. And it can be, just after pruning, if we've done a big jump forward, as is the case when we've just finished chain synchronization.
     * If any of the runtime API calls fail, we just warn and skip the block.
   * We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks. 
