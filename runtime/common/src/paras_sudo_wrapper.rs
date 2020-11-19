@@ -28,6 +28,9 @@ use runtime_parachains::{
 };
 use primitives::v1::Id as ParaId;
 
+/// The sequence of bytes a valid wasm module binary always starts with.
+const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+
 /// The module's configuration trait.
 pub trait Trait:
 	configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait
@@ -41,6 +44,8 @@ decl_error! {
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
 		/// message.
 		ExceedsMaxMessageSize,
+		/// The validation code provided doesn't start with the Wasm file magic string.
+		DefinitelyNotWasm,
 	}
 }
 
@@ -57,6 +62,7 @@ decl_module! {
 			genesis: ParaGenesisArgs,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(genesis.validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 			Ok(())
 		}
