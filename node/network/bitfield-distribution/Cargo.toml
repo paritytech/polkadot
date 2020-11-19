@@ -21,6 +21,6 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 maplit = "1.0.2"
-env_logger = "0.8.1"
+env_logger = "0.8.2"
 assert_matches = "1.4.0"
 tempfile = "3.1.0"
