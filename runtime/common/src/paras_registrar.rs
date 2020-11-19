@@ -616,7 +616,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				2u32.into(),
 				vec![3; 3].into(),
-				[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00].to_vec().into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			let orig_bal = Balances::free_balance(&3u64);
@@ -626,7 +626,7 @@ mod tests {
 				Origin::signed(3u64),
 				8u32.into(),
 				vec![3; 3].into(),
-				[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00].to_vec().into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			// deposit should be taken (reserved)
@@ -665,13 +665,13 @@ mod tests {
 				Origin::signed(1),
 				8u32.into(),
 				vec![1; 3].into(),
-				[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00].to_vec().into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			assert_ok!(Registrar::register_parachain(
 				2u32.into(),
 				vec![1; 3].into(),
-				[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00].to_vec().into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			run_to_block(9);
@@ -699,7 +699,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00].to_vec().into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			run_to_block(4);
@@ -710,7 +710,7 @@ mod tests {
 			assert!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00].to_vec().into(),
+				WASM_MAGIC.to_vec().into(),
 			).is_err());
 
 			run_to_block(6);
@@ -718,7 +718,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00].to_vec().into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 		});
 	}
