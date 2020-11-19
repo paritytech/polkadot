@@ -79,10 +79,10 @@ impl<T: Trait> Module<T> {
 		let dispute_period = config.dispute_period;
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 
-		let validators: Vec<_> = notification.validators.clone();
+		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryTrait>::authorities();
 		// FIXME: once we define these keys
-		let approval_keys = Vec::new();
+		let approval_keys = Default::default();
 		let validator_groups =  <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
@@ -94,6 +94,7 @@ impl<T: Trait> Module<T> {
 		let new_session_index = notification.session_index;
 		let old_earliest_stored_session = EarliestStoredSession::get();
 		let new_earliest_stored_session = new_session_index.checked_sub(dispute_period).unwrap_or(0);
+		let new_earliest_stored_session = core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
 		// update `EarliestStoredSession` based on `config.dispute_period`
 		EarliestStoredSession::set(new_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
@@ -131,9 +132,10 @@ mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Configuration, SessionInfo, System, GenesisConfig as MockGenesisConfig,
-		Test,
+		Origin,
 	};
 	use crate::initializer::SessionChangeNotification;
+	use crate::configuration::HostConfiguration;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use primitives::v1::BlockNumber;
 
@@ -162,9 +164,90 @@ mod tests {
 		}
 	}
 
+	fn default_config() -> HostConfiguration<BlockNumber> {
+		HostConfiguration {
+			parathread_cores: 1,
+			dispute_period: 2,
+			needed_approvals: 3,
+			..Default::default()
+		}
+	}
+
+	fn genesis_config() -> MockGenesisConfig {
+		MockGenesisConfig {
+			configuration: configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		}
+	}
+
+	fn session_changes(n: BlockNumber) -> Option<SessionChangeNotification<BlockNumber>> {
+		match n {
+			100 => Some(SessionChangeNotification {
+				session_index: 10,
+				..Default::default()
+			}),
+			200 => Some(SessionChangeNotification {
+				session_index: 20,
+				..Default::default()
+			}),
+			300 => Some(SessionChangeNotification {
+				session_index: 30,
+				..Default::default()
+			}),
+			400 => Some(SessionChangeNotification {
+				session_index: 40,
+				..Default::default()
+			}),
+			_ => None,
+		}
+	}
+
+	fn new_session_every_block(n: BlockNumber) -> Option<SessionChangeNotification<BlockNumber>> {
+		Some(SessionChangeNotification{
+			session_index: n,
+			..Default::default()
+		})
+	}
+
 	#[test]
-	fn it_works() {
-		// TODO:
-		assert_eq!(2 + 2, 4);
+	fn session_pruning_is_based_on_dispute_deriod() {
+		new_test_ext(genesis_config()).execute_with(|| {
+			run_to_block(100, session_changes);
+			assert_eq!(EarliestStoredSession::get(), 10 - 2);
+
+			// changing dispute_period works
+			let dispute_period = 5;
+			Configuration::set_dispute_period(Origin::root(), dispute_period).unwrap();
+			run_to_block(200, session_changes);
+			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
+
+			// we don't have that many session stored
+			let new_dispute_period = 16;
+			Configuration::set_dispute_period(Origin::root(), new_dispute_period).unwrap();
+			run_to_block(300, session_changes);
+			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
+
+			// now we do
+			run_to_block(400, session_changes);
+			assert_eq!(EarliestStoredSession::get(), 40 - new_dispute_period);
+		})
+	}
+
+	#[test]
+	fn session_info_is_based_on_config() {
+		new_test_ext(genesis_config()).execute_with(|| {
+			run_to_block(1, new_session_every_block);
+			let session = Sessions::get(&1).unwrap();
+			assert_eq!(session.needed_approvals, 3);
+
+			// change some param
+			Configuration::set_needed_approvals(Origin::root(), 42).unwrap();
+			run_to_block(2, new_session_every_block);
+			let session = Sessions::get(&2).unwrap();
+			assert_eq!(session.needed_approvals, 42);
+		})
 	}
 }
