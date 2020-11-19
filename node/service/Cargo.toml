@@ -95,7 +95,7 @@ polkadot-statement-distribution = { path = "../network/statement-distribution", 
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
-env_logger = "0.8.1"
+env_logger = "0.8.2"
 
 [features]
 default = ["db", "full-node"]

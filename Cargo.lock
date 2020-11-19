@@ -1334,9 +1334,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54532e3223c5af90a6a757c90b5c5521564b07e5e7a958681bcd2afad421cdcd"
+checksum = "f26ecb66b4bdca6c1409b40fb255eefc2bd4f6d135dab3c3124f80ffa2a9661e"
 dependencies = [
  "atty",
  "humantime 2.0.1",
@@ -4927,7 +4927,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "bitvec",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "log",
  "maplit",
@@ -4949,7 +4949,7 @@ name = "polkadot-availability-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
@@ -4995,7 +4995,7 @@ name = "polkadot-collator-protocol"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
@@ -5073,7 +5073,7 @@ name = "polkadot-node-core-av-store"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "kvdb",
@@ -5303,7 +5303,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
@@ -5606,7 +5606,7 @@ dependencies = [
 name = "polkadot-service"
 version = "0.8.3"
 dependencies = [
- "env_logger 0.8.1",
+ "env_logger 0.8.2",
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "futures 0.3.8",
