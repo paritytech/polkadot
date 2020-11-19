@@ -81,7 +81,7 @@ impl<T: Trait> Module<T> {
 
 		let validators: Vec<_> = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryTrait>::authorities();
-		// FIXME:???
+		// FIXME: once we define these keys
 		let approval_keys = Vec::new();
 		let validator_groups =  <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
