@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 
 const PRIORITY_GROUP: &'static str = "parachain_validators";
-const LOG_TARGET: &str = "ValidatorDiscovery";
+const LOG_TARGET: &str = "validator_discovery";
 
 /// An abstraction over networking for the purposes of validator discovery service.
 #[async_trait]
