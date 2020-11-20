@@ -25,7 +25,6 @@ use futures::{
 	future::BoxFuture,
 	stream::FuturesUnordered,
 };
-use log::{trace, warn};
 
 use polkadot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
@@ -218,6 +217,7 @@ struct State {
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
+#[tracing::instrument(level = "trace", skip(ctx, state, tx), fields(subsystem = LOG_TARGET))]
 async fn fetch_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -236,9 +236,10 @@ where
 				if let Err(e) = tx.send((collation.1.clone(), collation.2.clone())) {
 					// We do not want this to be fatal because the receving subsystem
 					// may have closed the results channel for some reason.
-					trace!(
+					tracing::trace!(
 						target: LOG_TARGET,
-						"Failed to send collation: {:?}", e,
+						err = ?e,
+						"Failed to send collation",
 					);
 				}
 				return Ok(());
@@ -268,6 +269,7 @@ where
 }
 
 /// Report a collator for some malicious actions.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn report_collator<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -289,6 +291,7 @@ where
 }
 
 /// Some other subsystem has reported a collator as a good one, bump reputation.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn note_good_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -309,6 +312,7 @@ where
 /// A peer's view has changed. A number of things should be done:
 ///  - Ongoing collation requests have to be cancelled.
 ///  - Advertisements by this peer that are no longer relevant have to be removed.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change(
 	state: &mut State,
 	peer_id: PeerId,
@@ -350,6 +354,7 @@ async fn handle_peer_view_change(
 ///  - Cancel all ongoing requests
 ///  - Reply to interested parties if any
 ///  - Store collation.
+#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
 async fn received_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -398,6 +403,7 @@ where
 ///  - Check if the requested collation is in our view.
 ///  - Update PerRequest records with the `result` field if necessary.
 /// And as such invocations of this function may rely on that.
+#[tracing::instrument(level = "trace", skip(ctx, state, result), fields(subsystem = LOG_TARGET))]
 async fn request_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -410,19 +416,23 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	if !state.view.contains(&relay_parent) {
-		trace!(
+		tracing::trace!(
 			target: LOG_TARGET,
-			"Collation by {} on {} on relay parent {} is no longer in view",
-			peer_id, para_id, relay_parent,
+			peer_id = %peer_id,
+			para_id = %para_id,
+			relay_parent = %relay_parent,
+			"collation is no longer in view",
 		);
 		return Ok(());
 	}
 
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
-		trace!(
+		tracing::trace!(
 			target: LOG_TARGET,
-			"Collation by {} on {} on relay parent {} has already been requested",
-			peer_id, para_id, relay_parent,
+			peer_id = %peer_id,
+			para_id = %para_id,
+			relay_parent = %relay_parent,
+			"collation has already been requested",
 		);
 		return Ok(());
 	}
@@ -466,6 +476,7 @@ where
 }
 
 /// Notify `CandidateSelectionSubsystem` that a collation has been advertised.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn notify_candidate_selection<Context>(
 	ctx: &mut Context,
 	collator: CollatorId,
@@ -487,6 +498,7 @@ where
 }
 
 /// Networking message has been received.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -525,6 +537,7 @@ where
 /// A leaf has become inactive so we want to
 ///   - Cancel all ongoing collation requests that are on top of that leaf.
 ///   - Remove all stored collations relevant to that leaf.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn remove_relay_parent(
 	state: &mut State,
 	relay_parent: Hash,
@@ -550,6 +563,7 @@ async fn remove_relay_parent(
 }
 
 /// Our view has changed.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
 	state: &mut State,
 	view: View,
@@ -573,6 +587,7 @@ async fn handle_our_view_change(
 }
 
 /// A request has timed out.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn request_timed_out<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -598,6 +613,7 @@ where
 }
 
 /// Bridge event switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -631,6 +647,7 @@ where
 }
 
 /// The main message receiver switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg<Context>(
 	ctx: &mut Context,
 	msg: CollatorProtocolMessage,
@@ -645,13 +662,14 @@ where
 
 	match msg {
 		CollateOn(id) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
-				"CollateOn({}) message is not expected on the validator side of the protocol", id,
+				para_id = %id,
+				"CollateOn message is not expected on the validator side of the protocol",
 			);
 		}
 		DistributeCollation(_, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"DistributeCollation message is not expected on the validator side of the protocol",
 			);
@@ -671,9 +689,10 @@ where
 				state,
 				event,
 			).await {
-				warn!(
+				tracing::warn!(
 					target: LOG_TARGET,
-					"Failed to handle incoming network message: {:?}", e,
+					err = ?e,
+					"Failed to handle incoming network message",
 				);
 			}
 		}
@@ -683,6 +702,7 @@ where
 }
 
 /// The main run loop.
+#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	request_timeout: Duration,
@@ -703,7 +723,7 @@ where
 	loop {
 		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			let msg = msg?;
-			trace!(target: LOG_TARGET, "Received a message {:?}", msg);
+			tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
@@ -721,7 +741,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					trace!(target: LOG_TARGET, "Request timed out {}", id);
+					tracing::trace!(target: LOG_TARGET, id, "request timed out");
 					request_timed_out(&mut ctx, &mut state, id).await?;
 				}
 				CollationRequestResult::Received(id) => {
@@ -818,7 +838,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		log::trace!("Sending message:\n{:?}", &msg);
+		tracing::trace!("Sending message:\n{:?}", &msg);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -833,7 +853,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
 
-		log::trace!("Received message:\n{:?}", &msg);
+		tracing::trace!("Received message:\n{:?}", &msg);
 
 		msg
 	}
@@ -842,7 +862,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		timeout: Duration,
 	) -> Option<AllMessages> {
-		log::trace!("Waiting for message...");
+		tracing::trace!("Waiting for message...");
 		overseer
 			.recv()
 			.timeout(timeout)
@@ -860,7 +880,7 @@ mod tests {
 			} = test_harness;
 
 			let pair = CollatorPair::generate().0;
-			log::trace!("activating");
+			tracing::trace!("activating");
 
 			overseer_send(
 				&mut virtual_overseer,

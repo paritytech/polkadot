@@ -40,6 +40,8 @@ use sp_api::{ProvideRuntimeApi};
 
 use futures::prelude::*;
 
+const LOG_TARGET: &str = "RuntimeApi";
+
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
@@ -66,6 +68,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	subsystem: RuntimeApiSubsystem<Client>,
@@ -90,6 +93,7 @@ async fn run<Client>(
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(client, metrics), fields(subsystem = LOG_TARGET))]
 fn make_runtime_api_request<Client>(
 	client: &Client,
 	metrics: &Metrics,

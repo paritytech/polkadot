@@ -37,7 +37,7 @@ use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, 
 use std::{convert::TryFrom, pin::Pin};
 use thiserror::Error;
 
-const TARGET: &'static str = "candidate_selection";
+const LOG_TARGET: &'static str = "candidate_selection";
 
 struct CandidateSelectionJob {
 	sender: mpsc::Sender<FromJob>,
@@ -134,6 +134,7 @@ impl JobTrait for CandidateSelectionJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
+	#[tracing::instrument(skip(_relay_parent, _run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		_relay_parent: Hash,
 		_run_args: Self::RunArgs,
@@ -196,6 +197,7 @@ impl CandidateSelectionJob {
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_collation(
 		&mut self,
 		relay_parent: Hash,
@@ -214,10 +216,10 @@ impl CandidateSelectionJob {
 				).await {
 					Ok(response) => response,
 					Err(err) => {
-						log::warn!(
-							target: TARGET,
-							"failed to get collation from collator protocol subsystem: {:?}",
-							err
+						tracing::warn!(
+							target: LOG_TARGET,
+							err = ?err,
+							"failed to get collation from collator protocol subsystem",
 						);
 						return;
 					}
@@ -232,37 +234,38 @@ impl CandidateSelectionJob {
 			)
 			.await
 			{
-				Err(err) => log::warn!(target: TARGET, "failed to second a candidate: {:?}", err),
+				Err(err) => tracing::warn!(target: LOG_TARGET, err = ?err, "failed to second a candidate"),
 				Ok(()) => self.seconded_candidate = Some(collator_id),
 			}
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_invalid(&mut self, candidate_receipt: CandidateReceipt) {
 		let _timer = self.metrics.time_handle_invalid();
 
 		let received_from = match &self.seconded_candidate {
 			Some(peer) => peer,
 			None => {
-				log::warn!(
-					target: TARGET,
+				tracing::warn!(
+					target: LOG_TARGET,
 					"received invalidity notice for a candidate we don't remember seconding"
 				);
 				return;
 			}
 		};
-		log::info!(
-			target: TARGET,
-			"received invalidity note for candidate {:?}",
-			candidate_receipt
+		tracing::info!(
+			target: LOG_TARGET,
+			candidate_receipt = ?candidate_receipt,
+			"received invalidity note for candidate",
 		);
 
 		let result =
 			if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
-				log::warn!(
-					target: TARGET,
-					"failed to forward invalidity note: {:?}",
-					err
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?err,
+					"failed to forward invalidity note",
 				);
 				Err(())
 			} else {
@@ -275,6 +278,7 @@ impl CandidateSelectionJob {
 // get a collation from the Collator Protocol subsystem
 //
 // note that this gets an owned clone of the sender; that's becuase unlike `forward_invalidity_note`, it's expected to take a while longer
+#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_collation(
 	relay_parent: Hash,
 	para_id: ParaId,
@@ -309,7 +313,7 @@ async fn second_candidate(
 		.await
 	{
 		Err(err) => {
-			log::warn!(target: TARGET, "failed to send a seconding message");
+			tracing::warn!(target: LOG_TARGET, err = ?err, "failed to send a seconding message");
 			metrics.on_second(Err(()));
 			Err(err.into())
 		}

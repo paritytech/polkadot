@@ -29,6 +29,7 @@ use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 
 const PRIORITY_GROUP: &'static str = "parachain_validators";
+const LOG_TARGET: &str = "ValidatorDiscovery";
 
 /// An abstraction over networking for the purposes of validator discovery service.
 #[async_trait]
@@ -163,6 +164,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	/// Find connected validators using the given `validator_ids`.
 	///
 	/// Returns a [`HashMap`] that contains the found [`AuthorityDiscoveryId`]'s and their associated [`PeerId`]'s.
+	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), fields(subsystem = LOG_TARGET))]
 	async fn find_connected_validators(
 		&mut self,
 		validator_ids: &[AuthorityDiscoveryId],
@@ -201,6 +203,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	/// This method will also clean up all previously revoked requests.
 	/// it takes `network_service` and `authority_discovery_service` by value
 	/// and returns them as a workaround for the Future: Send requirement imposed by async fn impl.
+	#[tracing::instrument(level = "trace", skip(self, connected, revoke, network_service, authority_discovery_service), fields(subsystem = LOG_TARGET))]
 	pub async fn on_request(
 		&mut self,
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -283,7 +286,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			PRIORITY_GROUP.to_owned(),
 			multiaddr_to_add,
 		).await {
-			log::warn!(target: super::TARGET, "AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
+			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
 		let _ = network_service.remove_from_priority_group(PRIORITY_GROUP.to_owned(), multiaddr_to_remove).await;
@@ -304,6 +307,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	}
 
 	/// Should be called when a peer connected.
+	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), fields(subsystem = LOG_TARGET))]
 	pub async fn on_peer_connected(&mut self, peer_id: &PeerId, authority_discovery_service: &mut AD) {
 		// check if it's an authority we've been waiting for
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;

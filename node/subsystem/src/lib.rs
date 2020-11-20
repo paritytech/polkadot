@@ -239,7 +239,7 @@ where
 					Err(_) => return Ok(()),
 					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Ok(overseer_msg) => {
-						log::debug!(
+						tracing::debug!(
 							target: "dummy-subsystem",
 							"Discarding a message sent from overseer {:?}",
 							overseer_msg
