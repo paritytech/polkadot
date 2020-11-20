@@ -88,7 +88,7 @@ match msg {
 }
 ```
 
-Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(BackedCandidate))` message.
+Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(CandidateReceipt))` message.
 `Invalid` statements that conflict with already witnessed `Seconded` and `Valid` statements for the given candidate, statements that are double-votes, self-contradictions and so on, should result in issuing a [`ProvisionerMessage`][PM]`::MisbehaviorReport` message for each newly detected case of this kind.
 
 ### Validating Candidates.
