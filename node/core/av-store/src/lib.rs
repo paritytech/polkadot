@@ -690,7 +690,7 @@ where
 		RuntimeApiRequest::CandidateEvents(tx),
 	));
 
-	ctx.send_message(msg.into()).await?;
+	ctx.send_message(msg.into()).await;
 
 	Ok(rx.await??)
 }
@@ -858,7 +858,7 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 
-	ctx.send_message(AllMessages::ChainApi(ChainApiMessage::BlockNumber(block_hash, tx))).await?;
+	ctx.send_message(AllMessages::ChainApi(ChainApiMessage::BlockNumber(block_hash, tx))).await;
 
 	Ok(rx.await??.map(|number| number).unwrap_or_default())
 }

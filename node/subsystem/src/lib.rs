@@ -204,10 +204,10 @@ pub trait SubsystemContext: Send + 'static {
 	) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
+	async fn send_message(&mut self, msg: AllMessages);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
 }
 

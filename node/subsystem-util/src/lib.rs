@@ -207,13 +207,11 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 
-	ctx
-		.send_message(
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
-				.try_into()
-				.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
-		)
-		.await?;
+	ctx.send_message(
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
+			.try_into()
+			.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
+	).await;
 
 	Ok(rx)
 }
@@ -752,7 +750,7 @@ where
 						break
 					},
 				outgoing = jobs.next().fuse() =>
-					Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await,
+					Self::handle_outgoing(outgoing, &mut ctx).await,
 				complete => break,
 			}
 		}
@@ -866,13 +864,9 @@ where
 	async fn handle_outgoing(
 		outgoing: Option<Job::FromJob>,
 		ctx: &mut Context,
-		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 	) {
 		let msg = outgoing.expect("the Jobs stream never ends; qed");
-		if let Err(e) = ctx.send_message(msg.into()).await {
-			let e = JobsError::Utility(e.into());
-			Self::fwd_err(None, e, err_tx).await;
-		}
+		ctx.send_message(msg.into()).await;
 	}
 }
 

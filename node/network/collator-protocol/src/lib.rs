@@ -136,7 +136,7 @@ where
 
 /// Modify the reputation of a peer based on its behavior.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
+async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
@@ -149,7 +149,5 @@ where
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
-	)).await?;
-
-	Ok(())
+	)).await;
 }

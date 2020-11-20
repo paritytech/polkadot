@@ -56,61 +56,39 @@ const LOG_TARGET: &'static str = "availability_distribution";
 
 #[derive(Debug, Error)]
 enum Error {
-	#[error("Sending PendingAvailability query failed")]
-	QueryPendingAvailabilitySendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain PendingAvailability failed")]
 	QueryPendingAvailabilityResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain PendingAvailability failed")]
 	QueryPendingAvailability(#[source] RuntimeApiError),
 
-	#[error("Sending StoreChunk query failed")]
-	StoreChunkSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain StoreChunk failed")]
 	StoreChunkResponseChannel(#[source] oneshot::Canceled),
 
-	#[error("Sending QueryChunk query failed")]
-	QueryChunkSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QueryChunk failed")]
 	QueryChunkResponseChannel(#[source] oneshot::Canceled),
 
-	#[error("Sending QueryAncestors query failed")]
-	QueryAncestorsSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QueryAncestors failed")]
 	QueryAncestorsResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain QueryAncestors failed")]
 	QueryAncestors(#[source] ChainApiError),
 
-	#[error("Sending QuerySession query failed")]
-	QuerySessionSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QuerySession failed")]
 	QuerySessionResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain QuerySession failed")]
 	QuerySession(#[source] RuntimeApiError),
 
-	#[error("Sending QueryValidators query failed")]
-	QueryValidatorsSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QueryValidators failed")]
 	QueryValidatorsResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain QueryValidators failed")]
 	QueryValidators(#[source] RuntimeApiError),
 
-	#[error("Sending AvailabilityCores query failed")]
-	AvailabilityCoresSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain AvailabilityCores failed")]
 	AvailabilityCoresResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain AvailabilityCores failed")]
 	AvailabilityCores(#[source] RuntimeApiError),
 
-	#[error("Sending AvailabilityCores query failed")]
-	QueryAvailabilitySendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain AvailabilityCores failed")]
 	QueryAvailabilityResponseChannel(#[source] oneshot::Canceled),
-
-	#[error("Sending out a peer report message")]
-	ReportPeerMessageSend(#[source] SubsystemError),
-
-	#[error("Sending a gossip message")]
-	TrackedGossipMessage(#[source] SubsystemError),
 
 	#[error("Receive channel closed")]
 	IncomingMessageChannel(#[source] SubsystemError),
@@ -290,7 +268,7 @@ impl ProtocolState {
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn remove_relay_parent(&mut self, relay_parent: &Hash) -> Result<()> {
+	fn remove_relay_parent(&mut self, relay_parent: &Hash) {
 		// we might be ancestor of some other relay_parent
 		if let Some(ref mut descendants) = self.ancestry.get_mut(relay_parent) {
 			// if we were the last user, and it is
@@ -324,7 +302,6 @@ impl ProtocolState {
 				}
 			}
 		}
-		Ok(())
 	}
 }
 
@@ -351,7 +328,7 @@ where
 			state.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			handle_peer_view_change(ctx, state, peerid, view, metrics).await?;
+			handle_peer_view_change(ctx, state, peerid, view, metrics).await;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
 			handle_our_view_change(ctx, keystore, state, view, metrics).await?;
@@ -472,14 +449,14 @@ where
 			};
 
 			send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message)
-				.await?;
+				.await;
 		}
 	}
 
 	// cleanup the removed relay parents and their states
 	let removed = old_view.difference(&view).collect::<Vec<_>>();
 	for removed in removed {
-		state.remove_relay_parent(&removed)?;
+		state.remove_relay_parent(&removed);
 	}
 	Ok(())
 }
@@ -491,7 +468,7 @@ async fn send_tracked_gossip_message_to_peers<Context>(
 	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message: AvailabilityGossipMessage,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -506,7 +483,7 @@ async fn send_tracked_gossip_messages_to_peer<Context>(
 	metrics: &Metrics,
 	peer: PeerId,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -521,12 +498,12 @@ async fn send_tracked_gossip_messages_to_peers<Context>(
 	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	if peers.is_empty() {
-		return Ok(());
+		return;
 	}
 	for message in message_iter {
 		for peer in peers.iter() {
@@ -553,13 +530,10 @@ where
 				protocol_v1::ValidationProtocol::AvailabilityDistribution(wire_message),
 			),
 		))
-		.await
-		.map_err(|e| Error::TrackedGossipMessage(e))?;
+		.await;
 
 		metrics.on_chunk_distributed();
 	}
-
-	Ok(())
 }
 
 // Send the difference between two views which were not sent
@@ -571,7 +545,7 @@ async fn handle_peer_view_change<Context>(
 	origin: PeerId,
 	view: View,
 	metrics: &Metrics,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -616,9 +590,8 @@ where
 			.collect::<HashSet<_>>();
 
 		send_tracked_gossip_messages_to_peer(ctx, per_candidate, metrics, origin.clone(), messages)
-			.await?;
+			.await;
 	}
-	Ok(())
 }
 
 /// Obtain the first key which has a signing key.
@@ -662,7 +635,8 @@ where
 	let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash) {
 		live_candidate
 	} else {
-		return modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
+		modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
+		return Ok(());
 	};
 
 	// check the merkle proof
@@ -674,12 +648,14 @@ where
 	) {
 		hash
 	} else {
-		return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		return Ok(());
 	};
 
 	let erasure_chunk_hash = BlakeTwo256::hash(&message.erasure_chunk.chunk);
 	if anticipated_hash != erasure_chunk_hash {
-		return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		return Ok(());
 	}
 
 	// an internal unique identifier of this message
@@ -695,7 +671,8 @@ where
 				.entry(origin.clone())
 				.or_default();
 			if received_set.contains(&message_id) {
-				return modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+				modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+				return Ok(());
 			} else {
 				received_set.insert(message_id.clone());
 			}
@@ -707,9 +684,9 @@ where
 			.insert(message_id.1, message.clone())
 			.is_some()
 		{
-			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
 		} else {
-			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			// save the chunk for our index
 			if let Some(validator_index) = per_candidate.validator_index {
@@ -762,7 +739,8 @@ where
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
-	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await
+	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await;
+	Ok(())
 }
 
 /// The bitfield distribution subsystem.
@@ -947,8 +925,7 @@ where
 		relay_parent,
 		RuntimeApiRequest::AvailabilityCores(tx),
 	)))
-	.await
-	.map_err(|e| Error::AvailabilityCoresSendQuery(e))?;
+	.await;
 
 	let all_para_ids: Vec<_> = rx
 		.await
@@ -970,7 +947,7 @@ where
 
 /// Modify the reputation of a peer based on its behavior.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
+async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -982,9 +959,7 @@ where
 	);
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
-	))
-	.await
-	.map_err(|e| Error::ReportPeerMessageSend(e))
+	)).await;
 }
 
 /// Query the proof of validity for a particular candidate hash.
@@ -996,9 +971,8 @@ where
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
 		AvailabilityStoreMessage::QueryDataAvailability(candidate_hash, tx),
-	))
-	.await
-	.map_err(|e| Error::QueryAvailabilitySendQuery(e))?;
+	)).await;
+
 	rx.await
 		.map_err(|e| Error::QueryAvailabilityResponseChannel(e))
 }
@@ -1015,9 +989,8 @@ where
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
 		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
-	))
-	.await
-	.map_err(|e| Error::QueryChunkSendQuery(e))?;
+	)).await;
+
 	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
 }
 
@@ -1033,17 +1006,15 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(
-		AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreChunk {
-				candidate_hash,
-				relay_parent,
-				validator_index,
-				chunk: erasure_chunk,
-				tx,
-			}
-		)).await
-		.map_err(|e| Error::StoreChunkSendQuery(e))?;
+	ctx.send_message(AllMessages::AvailabilityStore(
+		AvailabilityStoreMessage::StoreChunk {
+			candidate_hash,
+			relay_parent,
+			validator_index,
+			chunk: erasure_chunk,
+			tx,
+		}
+	)).await;
 
 	rx.await.map_err(|e| Error::StoreChunkResponseChannel(e))
 }
@@ -1062,9 +1033,7 @@ where
 	ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 		relay_parent,
 		RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-	)))
-	.await
-	.map_err(|e| Error::QueryPendingAvailabilitySendQuery(e))?;
+	))).await;
 
 	rx.await
 		.map_err(|e| Error::QueryPendingAvailabilityResponseChannel(e))?
@@ -1087,8 +1056,7 @@ where
 	));
 
 	ctx.send_message(query_validators)
-		.await
-		.map_err(|e| Error::QueryValidatorsSendQuery(e))?;
+		.await;
 	rx.await
 		.map_err(|e| Error::QueryValidatorsResponseChannel(e))?
 		.map_err(|e| Error::QueryValidators(e))
@@ -1112,8 +1080,7 @@ where
 	});
 
 	ctx.send_message(query_ancestors)
-		.await
-		.map_err(|e| Error::QueryAncestorsSendQuery(e))?;
+		.await;
 	rx.await
 		.map_err(|e| Error::QueryAncestorsResponseChannel(e))?
 		.map_err(|e| Error::QueryAncestors(e))
@@ -1135,8 +1102,7 @@ where
 	));
 
 	ctx.send_message(query_session_idx_for_child)
-		.await
-		.map_err(|e| Error::QuerySessionSendQuery(e))?;
+		.await;
 	rx.await
 		.map_err(|e| Error::QuerySessionResponseChannel(e))?
 		.map_err(|e| Error::QuerySession(e))

@@ -374,21 +374,15 @@ async fn update_view(
 		WireMessage::ViewUpdate(new_view.clone()),
 	).await?;
 
-	if let Err(e) = dispatch_validation_event_to_all(
+	dispatch_validation_event_to_all(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
-	).await {
-		tracing::warn!(target: LOG_TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
-		return Err(e)
-	}
+	).await;
 
-	if let Err(e) = dispatch_collation_event_to_all(
+	dispatch_collation_event_to_all(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
-	).await {
-		tracing::warn!(target: LOG_TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
-		return Err(e)
-	}
+	).await;
 
 	Ok(())
 }
@@ -507,14 +501,14 @@ async fn send_message<M, I>(
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()> {
+) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()> {
+) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
@@ -522,7 +516,7 @@ async fn dispatch_collation_event_to_all(
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()>
+)
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
 		I::IntoIter: Send,
@@ -554,7 +548,7 @@ async fn dispatch_validation_events_to_all<I>(
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()>
+)
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::CollationProtocol>>,
 		I::IntoIter: Send,
@@ -665,7 +659,7 @@ where
 							view: View(Vec::new()),
 						});
 
-						let res = match peer_set {
+						match peer_set {
 							PeerSet::Validation => dispatch_validation_events_to_all(
 								vec![
 									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
@@ -686,11 +680,6 @@ where
 								],
 								&mut ctx,
 							).await,
-						};
-
-						if let Err(e) = res {
-							tracing::warn!(err = ?e, "Aborting - Failure to dispatch messages to overseer");
-							return Err(e);
 						}
 					}
 				}
@@ -704,7 +693,7 @@ where
 				validator_discovery.on_peer_disconnected(&peer);
 
 				if peer_map.remove(&peer).is_some() {
-					let res = match peer_set {
+					match peer_set {
 						PeerSet::Validation => dispatch_validation_event_to_all(
 							NetworkBridgeEvent::PeerDisconnected(peer),
 							&mut ctx,
@@ -713,15 +702,6 @@ where
 							NetworkBridgeEvent::PeerDisconnected(peer),
 							&mut ctx,
 						).await,
-					};
-
-					if let Err(e) = res {
-						tracing::warn!(
-							target: LOG_TARGET,
-							err = ?e,
-							"Aborting - Failure to dispatch messages to overseer",
-						);
-						return Err(e)
 					}
 				}
 			},
@@ -734,17 +714,7 @@ where
 						&mut network_service,
 					).await?;
 
-					if let Err(e) = dispatch_validation_events_to_all(
-						events,
-						&mut ctx,
-					).await {
-						tracing::warn!(
-							target: LOG_TARGET,
-							err = ?e,
-							"Aborting - Failure to dispatch messages to overseer",
-						);
-						return Err(e)
-					}
+					dispatch_validation_events_to_all(events, &mut ctx).await;
 				}
 
 				if !c_messages.is_empty() {
@@ -755,17 +725,7 @@ where
 						&mut network_service,
 					).await?;
 
-					if let Err(e) = dispatch_collation_events_to_all(
-						events,
-						&mut ctx,
-					).await {
-						tracing::warn!(
-							target: LOG_TARGET,
-							err = ?e,
-							"Aborting - Failure to dispatch messages to overseer",
-						);
-						return Err(e)
-					}
+					dispatch_collation_events_to_all(events, &mut ctx).await;
 				}
 			},
 		}

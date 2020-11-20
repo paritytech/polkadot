@@ -234,7 +234,7 @@ where
 			if let Some(view) = state.peer_views.get(peer) {
 				if view.contains(&relay_parent) {
 					let peer = peer.clone();
-					advertise_collation(ctx, state, relay_parent, vec![peer]).await?;
+					advertise_collation(ctx, state, relay_parent, vec![peer]).await;
 				}
 			}
 		}
@@ -320,7 +320,7 @@ async fn declare<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	to: Vec<PeerId>,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -331,9 +331,7 @@ where
 			to,
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await?;
-
-	Ok(())
+	)).await;
 }
 
 /// Issue a connection request to a set of validators and
@@ -370,15 +368,13 @@ async fn advertise_collation<Context>(
 	state: &mut State,
 	relay_parent: Hash,
 	to: Vec<PeerId>,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	let collating_on = match state.collating_on {
 		Some(collating_on) => collating_on,
-		None => {
-			return Ok(());
-		}
+		None => return,
 	};
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent, collating_on);
@@ -388,11 +384,9 @@ where
 			to,
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await?;
+	)).await;
 
 	state.metrics.on_advertisment_made();
-
-	Ok(())
 }
 
 /// The main incoming message dispatching switch.
@@ -482,7 +476,7 @@ async fn send_collation<Context>(
 	origin: PeerId,
 	receipt: CandidateReceipt,
 	pov: PoV,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -497,11 +491,9 @@ where
 			vec![origin],
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await?;
+	)).await;
 
 	state.metrics.on_collation_sent();
-
-	Ok(())
 }
 
 /// A networking messages switch.
@@ -535,7 +527,7 @@ where
 				Some(our_para_id) => {
 					if our_para_id == para_id {
 						if let Some(collation) = state.collations.get(&relay_parent).cloned() {
-							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await?;
+							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await;
 						}
 					} else {
 						tracing::warn!(
@@ -573,7 +565,7 @@ async fn handle_peer_view_change<Context>(
 	state: &mut State,
 	peer_id: PeerId,
 	view: View,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -585,11 +577,9 @@ where
 
 	for added in added.into_iter() {
 		if state.collations.contains_key(&added) {
-			advertise_collation(ctx, state, added.clone(), vec![peer_id.clone()]).await?;
+			advertise_collation(ctx, state, added.clone(), vec![peer_id.clone()]).await;
 		}
 	}
-
-	Ok(())
 }
 
 /// A validator is connected.
@@ -601,7 +591,7 @@ async fn handle_validator_connected<Context>(
 	state: &mut State,
 	peer_id: PeerId,
 	validator_id: ValidatorId,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -610,11 +600,9 @@ where
 
 	if unknown {
 		// Only declare the new peers.
-		declare(ctx, state, vec![peer_id.clone()]).await?;
+		declare(ctx, state, vec![peer_id.clone()]).await;
 		state.peer_views.insert(peer_id, Default::default());
 	}
-
-	Ok(())
 }
 
 /// Bridge messages switch.
@@ -635,7 +623,7 @@ where
 			// it should be handled here.
 		}
 		PeerViewChange(peer_id, view) => {
-			handle_peer_view_change(ctx, state, peer_id, view).await?;
+			handle_peer_view_change(ctx, state, peer_id, view).await;
 		}
 		PeerDisconnected(peer_id) => {
 			state.known_validators.retain(|_, v| *v != peer_id);
@@ -697,13 +685,7 @@ where
 			let _timer = state.metrics.time_handle_connection_request();
 
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
-				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await {
-					tracing::warn!(
-						target: LOG_TARGET,
-						err = ?err,
-						"Failed to declare our collator id",
-					);
-				}
+				handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await;
 			}
 			// put it back
 			state.last_connection_request = Some(request);
