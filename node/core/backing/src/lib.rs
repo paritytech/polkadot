@@ -481,8 +481,11 @@ impl CandidateBackingJob {
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn process_msg(&mut self, msg: CandidateBackingMessage) -> Result<(), Error> {
+
 		match msg {
 			CandidateBackingMessage::Second(_, candidate, pov) => {
+				let _timer = self.metrics.time_process_second();
+
 				// Sanity check that candidate is from our assignment.
 				if candidate.descriptor().para_id != self.assignment {
 					return Ok(());
@@ -509,6 +512,8 @@ impl CandidateBackingJob {
 				}
 			}
 			CandidateBackingMessage::Statement(_, statement) => {
+				let _timer = self.metrics.time_process_statement();
+
 				self.check_statement_signature(&statement)?;
 				match self.maybe_validate_and_import(statement).await {
 					Err(Error::ValidationFailed(_)) => return Ok(()),
@@ -517,6 +522,8 @@ impl CandidateBackingJob {
 				}
 			}
 			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
+				let _timer = self.metrics.time_get_backed_candidates();
+
 				let backed = self.get_backed();
 
 				tx.send(backed).map_err(|data| Error::Send(data))?;
@@ -898,7 +905,10 @@ impl util::JobTrait for CandidateBackingJob {
 #[derive(Clone)]
 struct MetricsInner {
 	signed_statements_total: prometheus::Counter<prometheus::U64>,
-	candidates_seconded_total: prometheus::Counter<prometheus::U64>
+	candidates_seconded_total: prometheus::Counter<prometheus::U64>,
+	process_second: prometheus::Histogram,
+	process_statement: prometheus::Histogram,
+	get_backed_candidates: prometheus::Histogram,
 }
 
 /// Candidate backing metrics.
@@ -917,6 +927,21 @@ impl Metrics {
 			metrics.candidates_seconded_total.inc();
 		}
 	}
+
+	/// Provide a timer for handling `CandidateBackingMessage:Second` which observes on drop.
+	fn time_process_second(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.process_second.start_timer())
+	}
+
+	/// Provide a timer for handling `CandidateBackingMessage::Statement` which observes on drop.
+	fn time_process_statement(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.process_statement.start_timer())
+	}
+
+	/// Provide a timer for handling `CandidateBackingMessage::GetBackedCandidates` which observes on drop.
+	fn time_get_backed_candidates(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.get_backed_candidates.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -924,15 +949,42 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			signed_statements_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_signed_statements_total",
+					"parachain_candidate_backing_signed_statements_total",
 					"Number of statements signed.",
 				)?,
 				registry,
 			)?,
 			candidates_seconded_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_candidates_seconded_total",
+					"parachain_candidate_backing_candidates_seconded_total",
 					"Number of candidates seconded.",
+				)?,
+				registry,
+			)?,
+			process_second: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_backing_process_second",
+						"Time spent within `candidate_backing::process_second`",
+					)
+				)?,
+				registry,
+			)?,
+			process_statement: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_backing_process_statement",
+						"Time spent within `candidate_backing::process_statement`",
+					)
+				)?,
+				registry,
+			)?,
+			get_backed_candidates: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_backing_get_backed_candidates",
+						"Time spent within `candidate_backing::get_backed_candidates`",
+					)
 				)?,
 				registry,
 			)?,

@@ -183,6 +183,8 @@ impl BitfieldDistribution {
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
+					let _timer = self.metrics.time_active_leaves_update();
+
 					for relay_parent in activated {
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
 						// query basic system parameters once
@@ -257,6 +259,8 @@ async fn handle_bitfield_distribution<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
+	let _timer = metrics.time_handle_bitfield_distribution();
+
 	// Ignore anything the overseer did not tell this subsystem to work on
 	let mut job_data = state.per_relay_parent.get_mut(&relay_parent);
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
@@ -461,6 +465,8 @@ async fn handle_network_msg<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
+	let _timer = metrics.time_handle_network_msg();
+
 	match bridge_message {
 		NetworkBridgeEvent::PeerConnected(peerid, _role) => {
 			// insert if none already present
@@ -659,6 +665,9 @@ where
 struct MetricsInner {
 	gossipped_own_availability_bitfields: prometheus::Counter<prometheus::U64>,
 	received_availability_bitfields: prometheus::Counter<prometheus::U64>,
+	active_leaves_update: prometheus::Histogram,
+	handle_bitfield_distribution: prometheus::Histogram,
+	handle_network_msg: prometheus::Histogram,
 }
 
 /// Bitfield Distribution metrics.
@@ -677,6 +686,21 @@ impl Metrics {
 			metrics.received_availability_bitfields.inc();
 		}
 	}
+
+	/// Provide a timer for `active_leaves_update` which observes on drop.
+	fn time_active_leaves_update(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.active_leaves_update.start_timer())
+	}
+
+	/// Provide a timer for `handle_bitfield_distribution` which observes on drop.
+	fn time_handle_bitfield_distribution(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_bitfield_distribution.start_timer())
+	}
+
+	/// Provide a timer for `handle_network_msg` which observes on drop.
+	fn time_handle_network_msg(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_network_msg.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -693,6 +717,33 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_received_availabilty_bitfields_total",
 					"Number of valid availability bitfields received from other peers."
+				)?,
+				registry,
+			)?,
+			active_leaves_update: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_bitfield_distribution_active_leaves_update",
+						"Time spent within `bitfield_distribution::active_leaves_update`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_bitfield_distribution: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_bitfield_distribution_handle_bitfield_distribution",
+						"Time spent within `bitfield_distribution::handle_bitfield_distribution`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_network_msg: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_bitfield_distribution_handle_network_msg",
+						"Time spent within `bitfield_distribution::handle_network_msg`",
+					)
 				)?,
 				registry,
 			)?,

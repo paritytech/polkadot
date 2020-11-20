@@ -16,13 +16,17 @@
 
 //! Collator for the adder test parachain.
 
-use std::{sync::{Arc, Mutex}, collections::HashMap, time::Duration};
-use test_parachain_adder::{hash_state, BlockData, HeadData, execute};
 use futures_timer::Delay;
-use polkadot_primitives::v1::{PoV, CollatorId, CollatorPair};
 use polkadot_node_primitives::{Collation, CollatorFn};
+use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
 use parity_scale_codec::{Encode, Decode};
 use sp_core::Pair;
+use std::{
+	collections::HashMap,
+	sync::{Arc, Mutex},
+	time::Duration,
+};
+use test_parachain_adder::{execute, hash_state, BlockData, HeadData};
 
 /// The amount we add when producing a new block.
 ///
@@ -60,15 +64,19 @@ impl State {
 		self.best_block = parent_head.number;
 
 		let block = BlockData {
-			state: *self.head_to_state.get(&parent_head).expect("Getting state using parent head"),
+			state: *self
+				.head_to_state
+				.get(&parent_head)
+				.expect("Getting state using parent head"),
 			add: ADD,
 		};
 
-		let new_head = execute(parent_head.hash(), parent_head, &block)
-			.expect("Produces valid block");
+		let new_head =
+			execute(parent_head.hash(), parent_head, &block).expect("Produces valid block");
 
 		let new_head_arc = Arc::new(new_head.clone());
-		self.head_to_state.insert(new_head_arc.clone(), block.state.wrapping_add(ADD));
+		self.head_to_state
+			.insert(new_head_arc.clone(), block.state.wrapping_add(ADD));
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
 		(block, new_head)
@@ -92,7 +100,13 @@ impl Collator {
 
 	/// Get the SCALE encoded genesis head of the adder parachain.
 	pub fn genesis_head(&self) -> Vec<u8> {
-		self.state.lock().unwrap().number_to_head.get(&0).expect("Genesis header exists").encode()
+		self.state
+			.lock()
+			.unwrap()
+			.number_to_head
+			.get(&0)
+			.expect("Genesis header exists")
+			.encode()
 	}
 
 	/// Get the validation code of the adder parachain.
@@ -113,9 +127,7 @@ impl Collator {
 	/// Create the collation function.
 	///
 	/// This collation function can be plugged into the overseer to generate collations for the adder parachain.
-	pub fn create_collation_function(
-		&self,
-	) -> CollatorFn {
+	pub fn create_collation_function(&self) -> CollatorFn {
 		use futures::FutureExt as _;
 
 		let state = self.state.clone();
@@ -137,7 +149,9 @@ impl Collator {
 				horizontal_messages: Vec::new(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
-				proof_of_validity: PoV { block_data: block_data.encode().into() },
+				proof_of_validity: PoV {
+					block_data: block_data.encode().into(),
+				},
 				processed_downward_messages: 0,
 				hrmp_watermark: validation_data.persisted.block_number,
 			};
@@ -155,7 +169,7 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return
+				return;
 			}
 		}
 	}
@@ -167,8 +181,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
-	use polkadot_primitives::v1::{ValidationData, PersistedValidationData};
-	use parity_scale_codec::Decode;
+	use polkadot_primitives::v1::{PersistedValidationData, ValidationData};
 
 	#[test]
 	fn collator_works() {
@@ -176,7 +189,14 @@ mod tests {
 		let collation_function = collator.create_collation_function();
 
 		for i in 0..5 {
-			let parent_head = collator.state.lock().unwrap().number_to_head.get(&i).unwrap().clone();
+			let parent_head = collator
+				.state
+				.lock()
+				.unwrap()
+				.number_to_head
+				.get(&i)
+				.unwrap()
+				.clone();
 
 			let validation_data = ValidationData {
 				persisted: PersistedValidationData {
@@ -186,7 +206,8 @@ mod tests {
 				..Default::default()
 			};
 
-			let collation = block_on(collation_function(Default::default(), &validation_data)).unwrap();
+			let collation =
+				block_on(collation_function(Default::default(), &validation_data)).unwrap();
 			validate_collation(&collator, (*parent_head).clone(), collation);
 		}
 	}
@@ -203,9 +224,19 @@ mod tests {
 			},
 			&IsolationStrategy::InProcess,
 			sp_core::testing::TaskExecutor::new(),
-		).unwrap();
+		)
+		.unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
-		assert_eq!(**collator.state.lock().unwrap().number_to_head.get(&(parent_head.number + 1)).unwrap(), new_head);
+		assert_eq!(
+			**collator
+				.state
+				.lock()
+				.unwrap()
+				.number_to_head
+				.get(&(parent_head.number + 1))
+				.unwrap(),
+			new_head
+		);
 	}
 }

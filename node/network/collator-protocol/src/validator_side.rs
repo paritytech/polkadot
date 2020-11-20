@@ -63,11 +63,23 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `process_msg` which observes on drop.
+	fn time_process_msg(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.process_msg.start_timer())
+	}
+
+	/// Provide a timer for `handle_collation_request_result` which observes on drop.
+	fn time_handle_collation_request_result(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_collation_request_result.start_timer())
+	}
 }
 
 #[derive(Clone)]
 struct MetricsInner {
 	collation_requests: prometheus::CounterVec<prometheus::U64>,
+	process_msg: prometheus::Histogram,
+	handle_collation_request_result: prometheus::Histogram,
 }
 
 impl metrics::Metrics for Metrics {
@@ -84,7 +96,25 @@ impl metrics::Metrics for Metrics {
 					&["success"],
 				)?,
 				registry,
-			)?
+			)?,
+			process_msg: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_collator_protocol_validator_process_msg",
+						"Time spent within `collator_protocol_validator::process_msg`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_collation_request_result: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_collator_protocol_validator_handle_collation_request_result",
+						"Time spent within `collator_protocol_validator::handle_collation_request_result`",
+					)
+				)?,
+				registry,
+			)?,
 		};
 
 		Ok(Metrics(Some(metrics)))
@@ -628,6 +658,8 @@ where
 {
 	use CollatorProtocolMessage::*;
 
+	let _timer = state.metrics.time_process_msg();
+
 	match msg {
 		CollateOn(id) => {
 			tracing::warn!(
@@ -703,6 +735,8 @@ where
 		}
 
 		while let Poll::Ready(Some(request)) = futures::poll!(state.requests_in_progress.next()) {
+			let _timer = state.metrics.time_handle_collation_request_result();
+
 			// Request has timed out, we need to penalize the collator and re-send the request
 			// if the chain has not moved on yet.
 			match request {
