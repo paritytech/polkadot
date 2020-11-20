@@ -18,7 +18,7 @@ use sp_std::marker::PhantomData;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use frame_support::traits::Get;
-use codec::Encode;
+use parity_scale_codec::Encode;
 use xcm::v0::{MultiLocation, NetworkId, Junction};
 use xcm_executor::traits::LocationConversion;
 

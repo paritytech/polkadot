@@ -45,7 +45,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error,
 	weights::Weight,
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::{Saturating, Zero};
 
 use rand::{SeedableRng, seq::SliceRandom};

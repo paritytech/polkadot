@@ -40,6 +40,8 @@ use sp_api::{ProvideRuntimeApi};
 
 use futures::prelude::*;
 
+const LOG_TARGET: &str = "RuntimeApi";
+
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
@@ -66,6 +68,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	subsystem: RuntimeApiSubsystem<Client>,
@@ -90,6 +93,7 @@ async fn run<Client>(
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(client, metrics), fields(subsystem = LOG_TARGET))]
 fn make_runtime_api_request<Client>(
 	client: &Client,
 	metrics: &Metrics,
@@ -99,6 +103,8 @@ fn make_runtime_api_request<Client>(
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block>,
 {
+	let _timer = metrics.time_make_runtime_api_request();
+
 	macro_rules! query {
 		($api_name:ident ($($param:expr),*), $sender:expr) => {{
 			let sender = $sender;
@@ -137,6 +143,7 @@ fn make_runtime_api_request<Client>(
 #[derive(Clone)]
 struct MetricsInner {
 	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
+	make_runtime_api_request: prometheus::Histogram,
 }
 
 /// Runtime API metrics.
@@ -153,6 +160,11 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `make_runtime_api_request` which observes on drop.
+	fn time_make_runtime_api_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -165,6 +177,15 @@ impl metrics::Metrics for Metrics {
 						"Number of Runtime API requests served.",
 					),
 					&["success"],
+				)?,
+				registry,
+			)?,
+			make_runtime_api_request: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_runtime_api_make_runtime_api_request",
+						"Time spent within `runtime_api::make_runtime_api_request`",
+					)
 				)?,
 				registry,
 			)?,
