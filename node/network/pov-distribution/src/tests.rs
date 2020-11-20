@@ -373,10 +373,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 				n_validators: 10,
 			};
 
-			let per_fetched_pov = PerFetchedPoV {
-				send_to: vec![pov_send],
-			};
-			b.fetching.insert(pov_hash, per_fetched_pov);
+			b.fetching.insert(pov_hash, vec![pov_send]);
 			s.insert(hash_a, b);
 			s
 		},
@@ -654,16 +651,8 @@ fn peer_view_change_leads_to_us_informing() {
 
 			// pov_a is still being fetched, whereas the fetch of pov_b has already
 			// completed, as implied by the empty vector.
-			let per_fetched_a = PerFetchedPoV {
-				send_to: vec![pov_a_send],
-			};
-
-			let per_fetched_b = PerFetchedPoV {
-				send_to: vec![],
-			};
-
-			b.fetching.insert(pov_a_hash, per_fetched_a);
-			b.fetching.insert(pov_b_hash, per_fetched_b);
+			b.fetching.insert(pov_a_hash, vec![pov_a_send]);
+			b.fetching.insert(pov_b_hash, vec![]);
 
 			s.insert(hash_a, b);
 			s
@@ -731,10 +720,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 			};
 
 			// pov is being fetched.
-			let per_fetched = PerFetchedPoV {
-				send_to: vec![pov_send],
-			};
-			b.fetching.insert(pov_hash, per_fetched);
+			b.fetching.insert(pov_hash, vec![pov_send]);
 
 			s.insert(hash_a, b);
 			s
@@ -830,10 +816,7 @@ fn peer_punished_for_sending_bad_pov() {
 			};
 
 			// pov is being fetched.
-			let per_fetched = PerFetchedPoV {
-				send_to: vec![pov_send],
-			};
-			b.fetching.insert(pov_hash, per_fetched);
+			b.fetching.insert(pov_hash, vec![pov_send]);
 
 			s.insert(hash_a, b);
 			s
@@ -868,7 +851,7 @@ fn peer_punished_for_sending_bad_pov() {
 		).await.unwrap();
 
 		// didn't complete our sender.
-		assert_eq!(state.relay_parent_state[&hash_a].fetching[&pov_hash].send_to.len(), 1);
+		assert_eq!(state.relay_parent_state[&hash_a].fetching[&pov_hash].len(), 1);
 
 		assert_matches!(
 			handle.recv().await,
@@ -1244,11 +1227,8 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 				n_validators: 10,
 			};
 
-			let per_fetched_pov = PerFetchedPoV {
-				send_to: vec![pov_send],
-			};
 			// pov is being fetched.
-			b.fetching.insert(pov_hash, per_fetched_pov);
+			b.fetching.insert(pov_hash, vec![pov_send]);
 
 			s.insert(hash_a, b);
 			s
@@ -1336,11 +1316,8 @@ fn peer_completing_request_no_longer_awaiting() {
 				n_validators: 10,
 			};
 
-			let per_fetched_pov = PerFetchedPoV {
-				send_to: vec![pov_send],
-			};
 			// pov is being fetched.
-			b.fetching.insert(pov_hash, per_fetched_pov);
+			b.fetching.insert(pov_hash, vec![pov_send]);
 
 			s.insert(hash_a, b);
 			s

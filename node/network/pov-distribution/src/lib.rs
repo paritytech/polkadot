@@ -114,18 +114,9 @@ struct BlockBasedState {
 	///
 	/// This may be an empty list, which indicates that we were once awaiting this PoV but have
 	/// received it already.
-	fetching: HashMap<Hash, PerFetchedPoV>,
+	fetching: HashMap<Hash, Vec<oneshot::Sender<Arc<PoV>>>>,
 
 	n_validators: usize,
-}
-
-/// Information kept about each PoV we attempt to fetch.
-struct PerFetchedPoV {
-	/// Channels expecting the data.
-	///
-	/// This may be an empty list, which indicates that we were once awaiting this PoV
-	/// but have received it already.
-	send_to: Vec<oneshot::Sender<Arc<PoV>>>,
 }
 
 #[derive(Default)]
@@ -224,7 +215,7 @@ async fn notify_one_we_are_awaiting_many(
 	let awaiting_hashes = relay_parent_state.get(&relay_parent).into_iter().flat_map(|s| {
 		// Send the peer everything we are fetching at this relay-parent
 		s.fetching.iter()
-			.filter(|(_, per_fetched)| !per_fetched.send_to.is_empty()) // that has not been completed already.
+			.filter(|(_, senders)| !senders.is_empty()) // that has not been completed already.
 			.map(|(pov_hash, _)| *pov_hash)
 	}).collect::<Vec<_>>();
 
@@ -359,7 +350,7 @@ async fn handle_fetch(
 	};
 
 	if let Some(pov) = relay_parent_state.known.get(&descriptor.pov_hash) {
-		let _ = response_sender.send(pov.clone());
+		let _  = response_sender.send(pov.clone());
 		return Ok(());
 	}
 
@@ -367,7 +358,7 @@ async fn handle_fetch(
 		match relay_parent_state.fetching.entry(descriptor.pov_hash) {
 			Entry::Occupied(mut e) => {
 				// we are already awaiting this PoV if there is an entry.
-				e.get_mut().send_to.push(response_sender);
+				e.get_mut().push(response_sender);
 				return Ok(());
 			}
 			Entry::Vacant(e) => {
@@ -384,9 +375,7 @@ async fn handle_fetch(
 
 					state.connection_requests.put(relay_parent, new_connection_request);
 
-					e.insert(PerFetchedPoV {
-						send_to: vec![response_sender],
-					});
+					e.insert(vec![response_sender]);
 				}
 			}
 		}
@@ -421,7 +410,7 @@ async fn handle_distribute(
 		//
 		// It signals that we were at one point awaiting this, so we will be able to tell
 		// why peers are sending it to us.
-		for response_sender in our_awaited.send_to.drain(..) {
+		for response_sender in our_awaited.drain(..) {
 			let _ = response_sender.send(pov.clone());
 		}
 	}
@@ -541,7 +530,7 @@ async fn handle_incoming_pov(
 
 		let pov = Arc::new(pov);
 
-		if fetching.send_to.is_empty() {
+		if fetching.is_empty() {
 			// fetching is empty whenever we were awaiting something and
 			// it was completed afterwards.
 			report_peer(ctx, peer.clone(), BENEFIT_LATE_POV).await?;
@@ -550,7 +539,7 @@ async fn handle_incoming_pov(
 			report_peer(ctx, peer.clone(), BENEFIT_FRESH_POV).await?;
 		}
 
-		for response_sender in fetching.send_to.drain(..) {
+		for response_sender in fetching.drain(..) {
 			let _ = response_sender.send(pov.clone());
 		}
 
@@ -716,6 +705,8 @@ impl PoVDistribution {
 		}
 	}
 }
+
+
 
 #[derive(Clone)]
 struct MetricsInner {
