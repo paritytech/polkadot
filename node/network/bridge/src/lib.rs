@@ -24,7 +24,7 @@ use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 
 use sc_network::Event as NetworkEvent;
 
@@ -246,7 +246,6 @@ enum Action {
 	ConnectToValidators {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
-		revoke: oneshot::Receiver<()>,
 	},
 	ReportPeer(PeerId, ReputationChange),
 
@@ -278,11 +277,8 @@ fn action_from_overseer_message(
 				=> Action::SendValidationMessage(peers, msg),
 			NetworkBridgeMessage::SendCollationMessage(peers, msg)
 				=> Action::SendCollationMessage(peers, msg),
-			NetworkBridgeMessage::ConnectToValidators {
-				validator_ids,
-				connected,
-				revoke,
-			} => Action::ConnectToValidators { validator_ids, connected, revoke },
+			NetworkBridgeMessage::ConnectToValidators { validator_ids, connected }
+				=> Action::ConnectToValidators { validator_ids, connected },
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
@@ -627,12 +623,10 @@ where
 			Action::ConnectToValidators {
 				validator_ids,
 				connected,
-				revoke,
 			} => {
 				let (ns, ads) = validator_discovery.on_request(
 					validator_ids,
 					connected,
-					revoke,
 					network_service,
 					authority_discovery_service,
 				).await;
