@@ -67,7 +67,7 @@ The goal of a Candidate Backing Job is to produce as many backable candidates as
 
 ```rust
 match msg {
-  CetBackedCandidates(hash, tx) => {
+  GetBackedCandidates(hash, tx) => {
     // Send back a set of backable candidates.
   }
   CandidateBackingMessage::Second(hash, candidate) => {
