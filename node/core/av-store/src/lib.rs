@@ -612,7 +612,7 @@ where
 	Ok(())
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, db), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, db, metrics), fields(subsystem = LOG_TARGET))]
 async fn process_block_activated<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
