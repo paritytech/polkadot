@@ -181,7 +181,7 @@ enum BitfieldSigningMessage { }
 enum CandidateBackingMessage {
   /// Requests a set of backable candidates that could be backed in a child of the given
   /// relay-parent, referenced by its hash.
-  GetBackedCandidates(Vec<CandidateHash>, ResponseChannel<Vec<BackedCandidate>>),
+  GetBackedCandidates(Hash, Vec<CandidateHash>, ResponseChannel<Vec<BackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
   /// The PoV is expected to match the `pov_hash` in the descriptor.
