@@ -236,6 +236,30 @@ enum ChainApiMessage {
 		/// The response channel.
 		response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
 	}
+	/// Blacklist a set of block hashes to be considered poisened.
+	/// Assumes all hashes exist only once in the set.
+	Blacklist{
+		set: Vec<Hash>,
+		response: ResponseChannel<Result<()>>,
+	},
+	/// Collects all hashes, that are part from a given hash up to
+	/// the current active heads.
+	Descendants {
+		/// The hash from where to start descendening.
+		hash: Hash,
+		/// An upper bound, on how many to return.
+		bounded: Option<usize>,
+		/// Response channel.
+		/// Returns `Err` variant in case the `hash`
+		/// does not exist.
+		/// The result is a set of sets of hashes per active head.
+		/// The ordering of the returned hashes are linear towards
+		/// to the active head.
+		/// Hence the first items in a `Vec` are
+		/// direct children, later items are
+		/// grand-grand-grand-..-children.
+		response: ResponseChannel<Result<HashSet<Hash, Vec<Hash>>>>,
+	}
 }
 ```
 
