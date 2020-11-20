@@ -187,7 +187,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 					if let Some(ids) = self.connected_peers.get_mut(&peer_id) {
 						ids.insert(id.clone());
 						result.insert(id.clone(), peer_id.clone());
-						continue;
 					}
 				}
 			}
