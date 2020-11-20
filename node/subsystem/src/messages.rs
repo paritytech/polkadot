@@ -42,10 +42,6 @@ use polkadot_primitives::v1::{
 use std::sync::Arc;
 use std::collections::btree_map::BTreeMap;
 
-/// A notification of a new backed candidate.
-#[derive(Debug)]
-pub struct NewBackedCandidate(pub BackedCandidate);
-
 /// Messages received by the Candidate Selection subsystem.
 #[derive(Debug)]
 pub enum CandidateSelectionMessage {
@@ -77,7 +73,7 @@ impl Default for CandidateSelectionMessage {
 pub enum CandidateBackingMessage {
 	/// Requests a set of backable candidates that could be backed in a child of the given
 	/// relay-parent, referenced by its hash.
-	GetBackedCandidates(Hash, oneshot::Sender<Vec<NewBackedCandidate>>),
+	GetBackedCandidates(Hash, Vec<CandidateHash>, oneshot::Sender<Vec<BackedCandidate>>),
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PoV),
@@ -90,7 +86,7 @@ impl CandidateBackingMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::GetBackedCandidates(hash, _) => Some(*hash),
+			Self::GetBackedCandidates(hash, _, _) => Some(*hash),
 			Self::Second(hash, _, _) => Some(*hash),
 			Self::Statement(hash, _) => Some(*hash),
 		}
@@ -507,7 +503,7 @@ pub enum ProvisionableData {
 	/// This bitfield indicates the availability of various candidate blocks.
 	Bitfield(Hash, SignedAvailabilityBitfield),
 	/// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
-	BackedCandidate(BackedCandidate),
+	BackedCandidate(CandidateReceipt),
 	/// Misbehavior reports are self-contained proofs of validator misbehavior.
 	MisbehaviorReport(Hash, MisbehaviorReport),
 	/// Disputes trigger a broad dispute resolution process.

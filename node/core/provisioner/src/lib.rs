@@ -27,7 +27,7 @@ use futures::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
+		AllMessages, CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage, RuntimeApiMessage,
 	},
 };
@@ -38,7 +38,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
-	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
+	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
 use std::{convert::TryFrom, pin::Pin};
@@ -52,7 +52,7 @@ struct ProvisioningJob {
 	sender: mpsc::Sender<FromJob>,
 	receiver: mpsc::Receiver<ToJob>,
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
-	backed_candidates: Vec<BackedCandidate>,
+	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
 }
@@ -94,6 +94,7 @@ impl From<ProvisionerMessage> for ToJob {
 }
 
 enum FromJob {
+	CandidateBacking(CandidateBackingMessage),
 	ChainApi(ChainApiMessage),
 	Runtime(RuntimeApiMessage),
 }
@@ -101,8 +102,9 @@ enum FromJob {
 impl From<FromJob> for AllMessages {
 	fn from(from_job: FromJob) -> AllMessages {
 		match from_job {
-			FromJob::ChainApi(cam) => AllMessages::ChainApi(cam),
-			FromJob::Runtime(ram) => AllMessages::RuntimeApi(ram),
+			FromJob::CandidateBacking(msg) => AllMessages::CandidateBacking(msg),
+			FromJob::ChainApi(msg) => AllMessages::ChainApi(msg),
+			FromJob::Runtime(msg) => AllMessages::RuntimeApi(msg),
 		}
 	}
 }
@@ -112,8 +114,9 @@ impl TryFrom<AllMessages> for FromJob {
 
 	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
 		match msg {
-			AllMessages::ChainApi(chain) => Ok(FromJob::ChainApi(chain)),
-			AllMessages::RuntimeApi(runtime) => Ok(FromJob::Runtime(runtime)),
+			AllMessages::CandidateBacking(msg) => Ok(FromJob::CandidateBacking(msg)),
+			AllMessages::ChainApi(msg) => Ok(FromJob::ChainApi(msg)),
+			AllMessages::RuntimeApi(msg) => Ok(FromJob::Runtime(msg)),
 			_ => Err(()),
 		}
 	}
@@ -135,6 +138,9 @@ enum Error {
 
 	#[error("Failed to send message to ChainAPI")]
 	ChainApiMessageSend(#[source] mpsc::SendError),
+
+	#[error("Failed to send message to CandidateBacking to get backed candidates")]
+	GetBackedCandidatesSend(#[source] mpsc::SendError),
 
 	#[error("Failed to send return message with Inherents")]
 	InherentDataReturnChannel,
@@ -289,7 +295,7 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
-	candidates: &[BackedCandidate],
+	candidates: &[CandidateReceipt],
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
 	mut from_job: mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
@@ -357,7 +363,7 @@ fn select_availability_bitfields(
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
-	candidates: &[BackedCandidate],
+	candidates: &[CandidateReceipt],
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJob>,
 ) -> Result<Vec<BackedCandidate>, Error> {
@@ -407,15 +413,24 @@ async fn select_candidates(
 
 		// we arbitrarily pick the first of the backed candidates which match the appropriate selection criteria
 		if let Some(candidate) = candidates.iter().find(|backed_candidate| {
-			let descriptor = &backed_candidate.candidate.descriptor;
+			let descriptor = &backed_candidate.descriptor;
 			descriptor.para_id == scheduled_core.para_id
 				&& descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
-			selected_candidates.push(candidate.clone());
+			selected_candidates.push(candidate.hash());
 		}
 	}
 
-	Ok(selected_candidates)
+	// now get the backed candidates corresponding to these candidate receipts
+	let (tx, rx) = oneshot::channel();
+	sender.send(FromJob::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(
+		relay_parent,
+		selected_candidates,
+		tx,
+	))).await.map_err(|err| Error::GetBackedCandidatesSend(err))?;
+	let candidates = rx.await?;
+
+	Ok(candidates)
 }
 
 /// Produces a block number 1 higher than that of the relay parent

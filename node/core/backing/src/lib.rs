@@ -39,7 +39,7 @@ use polkadot_node_primitives::{
 use polkadot_subsystem::{
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
-		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
+		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
@@ -74,7 +74,7 @@ enum Error {
 	#[error("Signature is invalid")]
 	InvalidSignature,
 	#[error("Failed to send candidates {0:?}")]
-	Send(Vec<NewBackedCandidate>),
+	Send(Vec<BackedCandidate>),
 	#[error("Oneshot never resolved")]
 	Oneshot(#[from] #[source] oneshot::Canceled),
 	#[error("Obtaining erasure chunks failed")]
@@ -390,18 +390,12 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	fn get_backed(&self) -> Vec<NewBackedCandidate> {
+	fn get_backed(&self) -> impl '_ + Iterator<Item=BackedCandidate> {
 		let proposed = self.table.proposed_candidates(&self.table_context);
-		let mut res = Vec::with_capacity(proposed.len());
 
-		for p in proposed.into_iter() {
-			match table_attested_to_backed(p, &self.table_context) {
-				None => continue,
-				Some(backed) => res.push(NewBackedCandidate(backed)),
-			}
-		}
-
-		res
+		proposed
+			.into_iter()
+			.filter_map(move |attested| table_attested_to_backed(attested, &self.table_context))
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
@@ -461,7 +455,7 @@ impl CandidateBackingJob {
 					{
 						let message = ProvisionerMessage::ProvisionableData(
 							self.parent,
-							ProvisionableData::BackedCandidate(backed),
+							ProvisionableData::BackedCandidate(backed.receipt()),
 						);
 						self.send_to_provisioner(message).await?;
 					}
@@ -510,8 +504,11 @@ impl CandidateBackingJob {
 					Ok(()) => (),
 				}
 			}
-			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
-				let backed = self.get_backed();
+			CandidateBackingMessage::GetBackedCandidates(_, requested_candidates, tx) => {
+				let backed = self
+					.get_backed()
+					.filter(|candidate| requested_candidates.contains(&candidate.hash()))
+					.collect();
 
 				tx.send(backed).map_err(|data| Error::Send(data))?;
 			}
