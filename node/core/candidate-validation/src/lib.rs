@@ -85,6 +85,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
@@ -102,12 +103,15 @@ async fn run(
 					pov,
 					response_sender,
 				) => {
+					let _timer = metrics.time_validate_from_chain_state();
+
 					let res = spawn_validate_from_chain_state(
 						&mut ctx,
 						isolation_strategy.clone(),
 						descriptor,
 						pov,
 						spawn.clone(),
+						&metrics,
 					).await;
 
 					match res {
@@ -125,6 +129,8 @@ async fn run(
 					pov,
 					response_sender,
 				) => {
+					let _timer = metrics.time_validate_from_exhaustive();
+
 					let res = spawn_validate_exhaustive(
 						&mut ctx,
 						isolation_strategy.clone(),
@@ -133,13 +139,14 @@ async fn run(
 						descriptor,
 						pov,
 						spawn.clone(),
+						&metrics,
 					).await;
 
 					match res {
 						Ok(x) => {
 							metrics.on_validation_event(&x);
 							if let Err(_e) = response_sender.send(x) {
-								log::warn!(
+								tracing::warn!(
 									target: LOG_TARGET,
 									"Requester of candidate validation dropped",
 								)
@@ -176,6 +183,7 @@ enum AssumptionCheckOutcome {
 	BadRequest,
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn check_assumption_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -226,6 +234,7 @@ async fn check_assumption_validation_data(
 	})
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn find_assumed_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -257,12 +266,14 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	isolation_strategy: IsolationStrategy,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
+	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (validation_data, validation_code) =
 		match find_assumed_validation_data(ctx, &descriptor).await? {
@@ -288,6 +299,7 @@ async fn spawn_validate_from_chain_state(
 		descriptor.clone(),
 		pov,
 		spawn,
+		metrics,
 	)
 	.await;
 
@@ -316,6 +328,7 @@ async fn spawn_validate_from_chain_state(
 	validation_result
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	isolation_strategy: IsolationStrategy,
@@ -324,8 +337,10 @@ async fn spawn_validate_exhaustive(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
+	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (tx, rx) = oneshot::channel();
+	let metrics = metrics.clone();
 	let fut = async move {
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
 			isolation_strategy,
@@ -334,6 +349,7 @@ async fn spawn_validate_exhaustive(
 			descriptor,
 			pov,
 			spawn,
+			&metrics,
 		);
 
 		let _ = tx.send(res);
@@ -345,18 +361,17 @@ async fn spawn_validate_exhaustive(
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
 /// are passed, `Err` otherwise.
+#[tracing::instrument(level = "trace", skip(pov), fields(subsystem = LOG_TARGET))]
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
-	max_block_data_size: Option<u64>,
+	max_pov_size: u32,
 	pov: &PoV,
 ) -> Result<(), InvalidCandidate> {
 	let encoded_pov = pov.encode();
 	let hash = pov.hash();
 
-	if let Some(max_size) = max_block_data_size {
-		if encoded_pov.len() as u64 > max_size {
-			return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
-		}
+	if encoded_pov.len() > max_pov_size as usize {
+		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
 	}
 
 	if hash != candidate.pov_hash {
@@ -404,6 +419,7 @@ impl ValidationBackend for RealValidationBackend {
 /// Validates the candidate from exhaustive parameters.
 ///
 /// Sends the result of validation on the channel once complete.
+#[tracing::instrument(level = "trace", skip(backend_arg, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,
@@ -411,8 +427,11 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: S,
+	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed> {
-	if let Err(e) = perform_basic_checks(&descriptor, None, &*pov) {
+	let _timer = metrics.time_validate_candidate_exhaustive();
+
+	if let Err(e) = perform_basic_checks(&descriptor, persisted_validation_data.max_pov_size, &*pov) {
 		return Ok(ValidationResult::Invalid(e))
 	}
 
@@ -455,6 +474,9 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 #[derive(Clone)]
 struct MetricsInner {
 	validation_requests: prometheus::CounterVec<prometheus::U64>,
+	validate_from_chain_state: prometheus::Histogram,
+	validate_from_exhaustive: prometheus::Histogram,
+	validate_candidate_exhaustive: prometheus::Histogram,
 }
 
 /// Candidate validation metrics.
@@ -477,6 +499,21 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `validate_from_chain_state` which observes on drop.
+	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
+	}
+
+	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
+	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
+	}
+
+	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
+	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -489,6 +526,33 @@ impl metrics::Metrics for Metrics {
 						"Number of validation requests served.",
 					),
 					&["validity"],
+				)?,
+				registry,
+			)?,
+			validate_from_chain_state: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_chain_state",
+						"Time spent within `candidate_validation::validate_from_chain_state`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_from_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_exhaustive",
+						"Time spent within `candidate_validation::validate_from_exhaustive`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_candidate_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_candidate_exhaustive",
+						"Time spent within `candidate_validation::validate_candidate_exhaustive`",
+					)
 				)?,
 				registry,
 			)?,
@@ -819,7 +883,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_ok_is_ok() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -827,7 +891,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data: HeadData(vec![1, 1, 1]),
@@ -845,6 +909,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
@@ -859,7 +924,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_bad_return_is_invalid() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -867,7 +932,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -880,6 +945,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::BadReturn));
@@ -887,7 +953,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_timeout_is_internal_error() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -895,7 +961,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -908,6 +974,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		);
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));

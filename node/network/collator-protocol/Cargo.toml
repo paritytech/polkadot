@@ -6,7 +6,8 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-log = "0.4.11"
+tracing = "0.1.21"
+tracing-futures = "0.2.4"
 thiserror = "1.0.22"
 
 
@@ -16,6 +17,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 
 [dev-dependencies]
+log = "0.4.11"
 env_logger = "0.8.2"
 assert_matches = "1.4.0"
 smallvec = "1.5.0"
