@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.8"
 futures-timer = "3.0.2"
-log = "0.4.11"
+tracing = "0.1.21"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }

@@ -579,11 +579,11 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
-				log::error!(
-					"{}({}) finished with an error {:?}",
-					Job::NAME,
-					parent_hash,
-					e,
+				tracing::error!(
+					job = Job::NAME,
+					parent_hash = %parent_hash,
+					err = ?e,
+					"job finished with an error",
 				);
 
 				if let Some(mut err_tx) = err_tx {
@@ -591,7 +591,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 					// there's no point trying to propagate this error onto the channel too
 					// all we can do is warn that error propagation has failed
 					if let Err(e) = err_tx.send((Some(parent_hash), JobsError::Job(e))).await {
-						log::warn!("failed to forward error: {:?}", e);
+						tracing::warn!(err = ?e, "failed to forward error");
 					}
 				}
 			}
@@ -632,7 +632,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
 		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
 			if job.get_mut().send_msg(msg).await.is_err() {
-				log::debug!("failed to send message to job ({}), will remove it", Job::NAME);
+				tracing::debug!(job = Job::NAME, "failed to send message to job, will remove it");
 				job.remove();
 			}
 		}
@@ -767,7 +767,7 @@ where
 			// if we can't send on the error transmission channel, we can't do anything useful about it
 			// still, we can at least log the failure
 			if let Err(e) = err_tx.send((hash, err)).await {
-				log::warn!("failed to forward error: {:?}", e);
+				tracing::warn!(err = ?e, "failed to forward error");
 			}
 		}
 	}
@@ -792,7 +792,11 @@ where
 				for hash in activated {
 					let metrics = metrics.clone();
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
-						log::error!("Failed to spawn a job({}): {:?}", Job::NAME, e);
+						tracing::error!(
+							job = Job::NAME,
+							err = ?e,
+							"failed to spawn a job",
+						);
 						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
 						return true;
 					}
@@ -821,7 +825,11 @@ where
 					.forward(drain())
 					.await
 				{
-					log::error!("failed to stop all jobs ({}) on conclude signal: {:?}", Job::NAME, e);
+					tracing::error!(
+						job = Job::NAME,
+						err = ?e,
+						"failed to stop a job on conclude signal",
+					);
 					let e = Error::from(e);
 					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
 				}
@@ -832,16 +840,20 @@ where
 				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
 					match to_job.relay_parent() {
 						Some(hash) => jobs.send_msg(hash, to_job).await,
-						None => log::debug!(
-							"Trying to send a message to a job ({}) without specifying a relay parent.",
-							Job::NAME,
+						None => tracing::debug!(
+							job = Job::NAME,
+							"trying to send a message to a job without specifying a relay parent",
 						),
 					}
 				}
 			}
 			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
-				log::error!("error receiving message from subsystem context for job ({}): {:?}", Job::NAME, err);
+				tracing::error!(
+					job = Job::NAME,
+					err = ?err,
+					"error receiving message from subsystem context for job",
+				);
 				Self::fwd_err(None, JobsError::Utility(Error::from(err)), err_tx).await;
 				return true;
 			}
@@ -956,6 +968,7 @@ macro_rules! delegated_subsystem {
 			}
 
 			/// Run this subsystem
+			#[tracing::instrument(skip(ctx, run_args, metrics, spawner), fields(subsystem = $subsystem_name))]
 			pub async fn run(ctx: Context, run_args: $run_args, metrics: $metrics, spawner: Spawner) {
 				<Manager<Spawner, Context>>::run(ctx, run_args, metrics, spawner, None).await
 			}

@@ -135,6 +135,7 @@ enum ToOverseer {
 /// This structure exists solely for the purposes of decoupling
 /// `Overseer` code from the client code and the necessity to call
 /// `HeaderBackend::block_number_from_id()`.
+#[derive(Debug)]
 pub struct BlockInfo {
 	/// hash of the block.
 	pub hash: Hash,
@@ -191,16 +192,19 @@ pub struct OverseerHandler {
 
 impl OverseerHandler {
 	/// Inform the `Overseer` that that some block was imported.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		self.events_tx.send(Event::BlockImported(block)).await.map_err(Into::into)
 	}
 
 	/// Send some message to one of the `Subsystem`s.
+	#[tracing::instrument(level = "trace", skip(self, msg), fields(subsystem = LOG_TARGET))]
 	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) -> SubsystemResult<()> {
 		self.events_tx.send(Event::MsgToSubsystem(msg.into())).await.map_err(Into::into)
 	}
 
 	/// Inform the `Overseer` that that some block was finalized.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		self.events_tx.send(Event::BlockFinalized(block)).await.map_err(Into::into)
 	}
@@ -212,6 +216,7 @@ impl OverseerHandler {
 	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
 	/// the response channel may never return if the hash was deactivated before this call.
 	/// In this case, it's the caller's responsibility to ensure a timeout is set.
+	#[tracing::instrument(level = "trace", skip(self, response_channel), fields(subsystem = LOG_TARGET))]
 	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) -> SubsystemResult<()> {
 		self.events_tx.send(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 			hash,
@@ -220,6 +225,7 @@ impl OverseerHandler {
 	}
 
 	/// Tell `Overseer` to shutdown.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn stop(&mut self) -> SubsystemResult<()> {
 		self.events_tx.send(Event::Stop).await.map_err(Into::into)
 	}
@@ -1287,6 +1293,7 @@ where
 	}
 
 	/// Run the `Overseer`.
+	#[tracing::instrument(skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let leaves = std::mem::take(&mut self.leaves);
 		let mut update = ActiveLeavesUpdate::default();
@@ -1337,7 +1344,7 @@ where
 
 			// Some subsystem exited? It's time to panic.
 			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
-				log::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
+				tracing::error!(target: LOG_TARGET, subsystem = ?finished, "subsystem finished unexpectedly");
 				self.stop().await;
 				return finished;
 			}
@@ -1347,6 +1354,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
@@ -1376,6 +1384,7 @@ where
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
@@ -1399,6 +1408,7 @@ where
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn broadcast_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
 		if let Some(ref mut s) = self.candidate_validation_subsystem.instance {
 			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
@@ -1463,6 +1473,7 @@ where
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn route_message(&mut self, msg: AllMessages) {
 		self.metrics.on_message_relayed();
 		match msg {
@@ -1544,6 +1555,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_activated(&mut self, hash: &Hash) {
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
@@ -1554,6 +1566,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_deactivated(&mut self, hash: &Hash) {
 		self.metrics.on_head_deactivated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
@@ -1562,6 +1575,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn clean_up_external_listeners(&mut self) {
 		self.activation_external_listeners.retain(|_, v| {
 			// remove dead listeners
@@ -1570,6 +1584,7 @@ where
 		})
 	}
 
+	#[tracing::instrument(level = "trace", skip(self, request), fields(subsystem = LOG_TARGET))]
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
@@ -1607,9 +1622,9 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	let fut = Box::pin(async move {
 		if let Err(e) = future.await {
-			log::error!("Subsystem {} exited with error {:?}", name, e);
+			tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
 		} else {
-			log::debug!("Subsystem {} exited without an error", name);
+			tracing::debug!(subsystem=name, "subsystem exited without an error");
 		}
 		let _ = tx.send(());
 	});
@@ -1617,7 +1632,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner.spawn(name, fut);
 
 	let _ = streams.push(from_rx);
-	futures.push(Box::pin(rx.map(|e| { log::warn!("Dropping error {:?}", e); Ok(()) })));
+	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
 		tx: to_tx,

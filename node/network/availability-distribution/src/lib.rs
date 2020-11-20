@@ -30,7 +30,6 @@ use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View,
@@ -53,7 +52,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter;
 use thiserror::Error;
 
-const TARGET: &'static str = "avad";
+const LOG_TARGET: &'static str = "AvailabilityDistribution";
 
 #[derive(Debug, Error)]
 enum Error {
@@ -197,6 +196,7 @@ struct PerRelayParent {
 
 impl ProtocolState {
 	/// Collects the relay_parents ancestors including the relay parents themselfes.
+	#[tracing::instrument(level = "trace", skip(relay_parents), fields(subsystem = LOG_TARGET))]
 	fn extend_with_ancestors<'a>(
 		&'a self,
 		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
@@ -218,6 +218,7 @@ impl ProtocolState {
 	/// Unionize all cached entries for the given relay parents and its ancestors.
 	/// Ignores all non existent relay parents, so this can be used directly with a peers view.
 	/// Returns a map from candidate hash -> receipt
+	#[tracing::instrument(level = "trace", skip(relay_parents), fields(subsystem = LOG_TARGET))]
 	fn cached_live_candidates_unioned<'a>(
 		&'a self,
 		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
@@ -232,6 +233,7 @@ impl ProtocolState {
 			.collect()
 	}
 
+	#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 	async fn add_relay_parent<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -287,6 +289,7 @@ impl ProtocolState {
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn remove_relay_parent(&mut self, relay_parent: &Hash) -> Result<()> {
 		// we might be ancestor of some other relay_parent
 		if let Some(ref mut descendants) = self.ancestry.get_mut(relay_parent) {
@@ -327,6 +330,7 @@ impl ProtocolState {
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
+#[tracing::instrument(level = "trace", skip(ctx, keystore, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	keystore: &SyncCryptoStorePtr,
@@ -370,6 +374,7 @@ where
 }
 
 /// Handle the changes necessary when our view changes.
+#[tracing::instrument(level = "trace", skip(ctx, keystore, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
 	keystore: &SyncCryptoStorePtr,
@@ -507,6 +512,7 @@ where
 		.await
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, metrics, message_iter), fields(subsystem = LOG_TARGET))]
 async fn send_tracked_gossip_messages_to_peers<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
@@ -556,6 +562,7 @@ where
 
 // Send the difference between two views which were not sent
 // to that particular peer.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -633,6 +640,7 @@ async fn obtain_our_validator_index(
 }
 
 /// Handle an incoming message from a peer.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -711,8 +719,8 @@ where
 					)
 					.await?
 					{
-						warn!(
-							target: TARGET,
+						tracing::warn!(
+							target: LOG_TARGET,
 							"Failed to store erasure chunk to availability store"
 						);
 					}
@@ -771,6 +779,7 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, mut ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -795,9 +804,10 @@ impl AvailabilityDistributionSubsystem {
 					)
 					.await
 					{
-						warn!(
-							target: TARGET,
-							"Failed to handle incoming network messages: {:?}", e
+						tracing::warn!(
+							target: LOG_TARGET,
+							err = ?e,
+							"Failed to handle incoming network messages",
 						);
 					}
 				}
@@ -834,6 +844,7 @@ where
 }
 
 /// Obtain all live candidates based on an iterator of relay heads.
+#[tracing::instrument(level = "trace", skip(ctx, relay_parents), fields(subsystem = LOG_TARGET))]
 async fn query_live_candidates_without_ancestors<Context>(
 	ctx: &mut Context,
 	relay_parents: impl IntoIterator<Item = Hash>,
@@ -859,6 +870,7 @@ where
 /// Obtain all live candidates based on an iterator or relay heads including `k` ancestors.
 ///
 /// Relay parent.
+#[tracing::instrument(level = "trace", skip(ctx, relay_parents), fields(subsystem = LOG_TARGET))]
 async fn query_live_candidates<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -921,6 +933,7 @@ where
 }
 
 /// Query all para IDs.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_para_ids<Context>(ctx: &mut Context, relay_parent: Hash) -> Result<Vec<ParaId>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -952,15 +965,16 @@ where
 }
 
 /// Modify the reputation of a peer based on its behavior.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	trace!(
-		target: TARGET,
-		"Reputation change of {:?} for peer {:?}",
-		rep,
-		peer
+	tracing::trace!(
+		target: LOG_TARGET,
+		rep = ?rep,
+		peer_id = ?peer,
+		"Reputation change for peer",
 	);
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
@@ -970,6 +984,7 @@ where
 }
 
 /// Query the proof of validity for a particular candidate hash.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_data_availability<Context>(ctx: &mut Context, candidate_hash: CandidateHash) -> Result<bool>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -984,6 +999,7 @@ where
 		.map_err(|e| Error::QueryAvailabilityResponseChannel(e))
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_chunk<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
@@ -1001,6 +1017,7 @@ where
 	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, erasure_chunk), fields(subsystem = LOG_TARGET))]
 async fn store_chunk<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
@@ -1028,6 +1045,7 @@ where
 }
 
 /// Request the head data for a particular para.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_pending_availability<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1050,6 +1068,7 @@ where
 }
 
 /// Query the validator set.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_validators<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1072,6 +1091,7 @@ where
 }
 
 /// Query the hash of the `K` ancestors
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_k_ancestors<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1096,6 +1116,7 @@ where
 }
 
 /// Query the session index of a relay parent
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_session_index_for_child<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1118,6 +1139,7 @@ where
 }
 
 /// Queries up to k ancestors with the constraints of equiv session
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_up_to_k_ancestors_in_same_session<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,

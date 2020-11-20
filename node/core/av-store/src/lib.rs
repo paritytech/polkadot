@@ -73,13 +73,13 @@ enum Error {
 }
 
 impl Error {
-	fn severity(&self) -> log::Level {
+	fn trace(&self) {
 		match self {
 			// don't spam the log with spurious errors
 			Self::RuntimeApi(_) |
-			Self::Oneshot(_) => log::Level::Debug,
+			Self::Oneshot(_) => tracing::debug!(target: LOG_TARGET, err = ?self),
 			// it's worth reporting otherwise
-			_ => log::Level::Warn,
+			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
 		}
 	}
 }
@@ -311,18 +311,19 @@ pub struct AvailabilityStoreSubsystem {
 
 impl AvailabilityStoreSubsystem {
 	// Perform pruning of PoVs
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn prune_povs(&self) -> Result<(), Error> {
 		let mut tx = DBTransaction::new();
 		let mut pov_pruning = pov_pruning(&self.inner).unwrap_or_default();
 		let now = PruningDelay::now()?;
 
-		log::trace!(target: LOG_TARGET, "Pruning PoVs");
+		tracing::trace!(target: LOG_TARGET, "Pruning PoVs");
 		let outdated_records_count = pov_pruning.iter()
 			.take_while(|r| r.prune_at <= now)
 			.count();
 
 		for record in pov_pruning.drain(..outdated_records_count) {
-			log::trace!(target: LOG_TARGET, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
 			tx.delete(
 				columns::DATA,
 				available_data_key(&record.candidate_hash).as_slice(),
@@ -335,18 +336,19 @@ impl AvailabilityStoreSubsystem {
 	}
 
 	// Perform pruning of chunks.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn prune_chunks(&self) -> Result<(), Error> {
 		let mut tx = DBTransaction::new();
 		let mut chunk_pruning = chunk_pruning(&self.inner).unwrap_or_default();
 		let now = PruningDelay::now()?;
 
-		log::trace!(target: LOG_TARGET, "Pruning Chunks");
+		tracing::trace!(target: LOG_TARGET, "Pruning Chunks");
 		let outdated_records_count = chunk_pruning.iter()
 			.take_while(|r| r.prune_at <= now)
 			.count();
 
 		for record in chunk_pruning.drain(..outdated_records_count) {
-			log::trace!(target: LOG_TARGET, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
 			tx.delete(
 				columns::DATA,
 				erasure_chunk_key(&record.candidate_hash, record.chunk_index).as_slice(),
@@ -361,6 +363,7 @@ impl AvailabilityStoreSubsystem {
 	// Return a `Future` that either resolves when another PoV pruning has to happen
 	// or is indefinitely `pending` in case no pruning has to be done.
 	// Just a helper to `select` over multiple things at once.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn maybe_prune_povs(&self) -> Result<impl Future<Output = ()>, Error> {
 		let future = match get_next_pov_pruning_time(&self.inner) {
 			Some(pruning) => {
@@ -375,6 +378,7 @@ impl AvailabilityStoreSubsystem {
 	// Return a `Future` that either resolves when another chunk pruning has to happen
 	// or is indefinitely `pending` in case no pruning has to be done.
 	// Just a helper to `select` over multiple things at once.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn maybe_prune_chunks(&self) -> Result<impl Future<Output = ()>, Error> {
 		let future = match get_next_chunk_pruning_time(&self.inner) {
 			Some(pruning) => {
@@ -473,6 +477,7 @@ fn get_next_chunk_pruning_time(db: &Arc<dyn KeyValueDB>) -> Option<NextChunkPrun
 	query_inner(db, columns::META, &NEXT_CHUNK_PRUNING)
 }
 
+#[tracing::instrument(skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
@@ -481,10 +486,10 @@ where
 		let res = run_iteration(&mut subsystem, &mut ctx).await;
 		match res {
 			Err(e) => {
-				log::log!(target: LOG_TARGET, e.severity(), "{}", e);
+				e.trace();
 			}
 			Ok(true) => {
-				log::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				break;
 			},
 			Ok(false) => continue,
@@ -492,6 +497,7 @@ where
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn run_iteration<Context>(subsystem: &mut AvailabilityStoreSubsystem, ctx: &mut Context)
 	-> Result<bool, Error>
 where
@@ -545,6 +551,7 @@ where
 /// The state of data has to be changed from
 /// `CandidateState::Included` to `CandidateState::Finalized` and their pruning times have
 /// to be updated to `now` + keep_finalized_{block, chunk}_for`.
+#[tracing::instrument(level = "trace", skip(subsystem, ctx, db), fields(subsystem = LOG_TARGET))]
 async fn process_block_finalized<Context>(
 	subsystem: &AvailabilityStoreSubsystem,
 	ctx: &mut Context,
@@ -561,10 +568,10 @@ where
 		// numbers we have to iterate through the whole collection here.
 		for record in pov_pruning.iter_mut() {
 			if record.block_number <= block_number {
-				log::trace!(
+				tracing::trace!(
 					target: LOG_TARGET,
-					"Updating pruning record for finalized block {}",
-					record.block_number,
+					block_number = %record.block_number,
+					"Updating pruning record for finalized block",
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -580,10 +587,10 @@ where
 	if let Some(mut chunk_pruning) = chunk_pruning(db) {
 		for record in chunk_pruning.iter_mut() {
 			if record.block_number <= block_number {
-				log::trace!(
+				tracing::trace!(
 					target: LOG_TARGET,
-					"Updating chunk pruning record for finalized block {}",
-					record.block_number,
+					block_number = %record.block_number,
+					"Updating chunk pruning record for finalized block",
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -599,6 +606,7 @@ where
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, db), fields(subsystem = LOG_TARGET))]
 async fn process_block_activated<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
@@ -610,17 +618,21 @@ where
 	let events = match request_candidate_events(ctx, hash).await {
 		Ok(events) => events,
 		Err(err) => {
-			log::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
+			tracing::debug!(target: LOG_TARGET, err = ?err, "requesting candidate events failed");
 			return Ok(());
 		}
 	};
 
-	log::trace!(target: LOG_TARGET, "block activated {}", hash);
+	tracing::trace!(target: LOG_TARGET, hash = %hash, "block activated");
 	let mut included = HashSet::new();
 
 	for event in events.into_iter() {
 		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-			log::trace!(target: LOG_TARGET, "Candidate {:?} was included", receipt.hash());
+			tracing::trace!(
+				target: LOG_TARGET,
+				hash = %receipt.hash(),
+				"Candidate {:?} was included", receipt.hash(),
+			);
 			included.insert(receipt.hash());
 		}
 	}
@@ -654,6 +666,7 @@ where
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn request_candidate_events<Context>(
 	ctx: &mut Context,
 	hash: Hash,
@@ -673,6 +686,7 @@ where
 	Ok(rx.await??)
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn process_message<Context>(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	ctx: &mut Context,
@@ -744,6 +758,7 @@ fn chunk_pruning(db: &Arc<dyn KeyValueDB>) -> Option<Vec<ChunkPruningRecord>> {
 	query_inner(db, columns::META, &CHUNK_PRUNING_KEY)
 }
 
+#[tracing::instrument(level = "trace", skip(db, tx), fields(subsystem = LOG_TARGET))]
 fn put_pov_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
@@ -784,6 +799,7 @@ fn put_pov_pruning(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(db, tx), fields(subsystem = LOG_TARGET))]
 fn put_chunk_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
@@ -836,6 +852,7 @@ where
 	Ok(rx.await??.map(|number| number).unwrap_or_default())
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem, available_data), fields(subsystem = LOG_TARGET))]
 fn store_available_data(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
@@ -902,6 +919,7 @@ fn store_available_data(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem), fields(subsystem = LOG_TARGET))]
 fn store_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
@@ -953,6 +971,7 @@ fn store_chunk(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", skip(subsystem), fields(subsystem = LOG_TARGET))]
 fn get_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
@@ -996,7 +1015,7 @@ fn query_inner<D: Decode>(
 		}
 		Ok(None) => None,
 		Err(e) => {
-			log::warn!(target: LOG_TARGET, "Error reading from the availability store: {:?}", e);
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
 			None
 		}
 	}
@@ -1018,6 +1037,7 @@ where
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(metrics), fields(subsystem = LOG_TARGET))]
 fn get_chunks(data: &AvailableData, n_validators: usize, metrics: &Metrics) -> Result<Vec<ErasureChunk>, Error> {
 	let chunks = erasure::obtain_chunks_v1(n_validators, data)?;
 	metrics.on_chunks_received(chunks.len());

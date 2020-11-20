@@ -9,12 +9,13 @@ description = "Subsystem traits and message definitions"
 async-trait = "0.1.41"
 futures = "0.3.8"
 futures-timer = "3.0.2"
-log = "0.4.11"
-thiserror = "1.0.22"
 parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
 parking_lot = { version = "0.11.1", optional = true }
 pin-project = "1.0.2"
 streamunordered = "0.5.1"
+thiserror = "1.0.22"
+tracing = "0.1.21"
+tracing-futures = "0.2.4"
 
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
@@ -29,7 +30,8 @@ substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate
 [dev-dependencies]
 assert_matches = "1.4.0"
 async-trait = "0.1.41"
+env_logger = "0.8.2"
 futures = { version = "0.3.8", features = ["thread-pool"] }
+log = "0.4.11"
 parking_lot = "0.11.1"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
-env_logger = "0.8.2"

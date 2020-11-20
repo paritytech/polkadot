@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use super::{LOG_TARGET,  Result};
 
 use futures::{StreamExt, task::Poll};
-use log::warn;
 
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
@@ -138,6 +137,7 @@ struct State {
 /// or the relay-parent isn't in the active-leaves set, we ignore the message
 /// as it must be invalid in that case - although this indicates a logic error
 /// elsewhere in the node.
+#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
 async fn distribute_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -152,10 +152,10 @@ where
 
 	// This collation is not in the active-leaves set.
 	if !state.view.contains(&relay_parent) {
-		warn!(
+		tracing::warn!(
 			target: LOG_TARGET,
-			"Distribute collation message parent {:?} is outside of our view",
-			relay_parent,
+			relay_parent = %relay_parent,
+			"distribute collation message parent is outside of our view",
 		);
 
 		return Ok(());
@@ -171,9 +171,11 @@ where
 	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
 		Some(core) => core,
 		None => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
-				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
+				para_id = %id,
+				relay_parent = %relay_parent,
+				"looks like no core is assigned to {} at {}", id, relay_parent,
 			);
 			return Ok(());
 		}
@@ -183,9 +185,10 @@ where
 	let our_validators = match determine_our_validators(ctx, our_core, num_cores, relay_parent).await? {
 		Some(validators) => validators,
 		None => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
-				"There are no validators assigned to {:?} core", our_core,
+				core = ?our_core,
+				"there are no validators assigned to core",
 			);
 
 			return Ok(());
@@ -217,6 +220,7 @@ where
 
 /// Get the Id of the Core that is assigned to the para being collated on if any
 /// and the total number of cores.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn determine_core<Context>(
 	ctx: &mut Context,
 	para_id: ParaId,
@@ -241,6 +245,7 @@ where
 /// Figure out a group of validators assigned to the para being collated on.
 ///
 /// This returns validators for the current group and the next group.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
 	core_index: CoreIndex,
@@ -280,6 +285,7 @@ where
 }
 
 /// Issue a `Declare` collation message to a set of peers.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn declare<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -302,6 +308,7 @@ where
 
 /// Issue a connection request to a set of validators and
 /// revoke the previous connection request.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn connect_to_validators<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -327,6 +334,7 @@ where
 }
 
 /// Advertise collation to a set of relay chain validators.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -358,6 +366,7 @@ where
 }
 
 /// The main incoming message dispatching switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -377,39 +386,39 @@ where
 				Some(id) if receipt.descriptor.para_id != id => {
 					// If the ParaId of a collation requested to be distributed does not match
 					// the one we expect, we ignore the message.
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
-						"DistributeCollation message for para {:?} while collating on {:?}",
-						receipt.descriptor.para_id,
-						id,
+						para_id = %receipt.descriptor.para_id,
+						collating_on = %id,
+						"DistributeCollation for unexpected para_id",
 					);
 				}
 				Some(id) => {
 					distribute_collation(ctx, state, id, receipt, pov).await?;
 				}
 				None => {
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
-						"DistributeCollation message for para {:?} while not collating on any",
-						receipt.descriptor.para_id,
+						para_id = %receipt.descriptor.para_id,
+						"DistributeCollation message while not collating on any",
 					);
 				}
 			}
 		}
 		FetchCollation(_, _, _, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"FetchCollation message is not expected on the collator side of the protocol",
 			);
 		}
 		ReportCollator(_) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"ReportCollator message is not expected on the collator side of the protocol",
 			);
 		}
 		NoteGoodCollation(_) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"NoteGoodCollation message is not expected on the collator side of the protocol",
 			);
@@ -420,9 +429,10 @@ where
 				state,
 				event,
 			).await {
-				warn!(
+				tracing::warn!(
 					target: LOG_TARGET,
-					"Failed to handle incoming network message: {:?}", e,
+					err = ?e,
+					"Failed to handle incoming network message",
 				);
 			}
 		},
@@ -432,6 +442,7 @@ where
 }
 
 /// Issue a response to a previously requested collation.
+#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
 async fn send_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -462,6 +473,7 @@ where
 }
 
 /// A networking messages switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -475,13 +487,13 @@ where
 
 	match msg {
 		Declare(_) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
 		AdvertiseCollation(_, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
@@ -494,24 +506,25 @@ where
 							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await?;
 						}
 					} else {
-						warn!(
+						tracing::warn!(
 							target: LOG_TARGET,
-							"Received a RequestCollation for {:?} while collating on {:?}",
-							para_id, our_para_id,
+							for_para_id = %para_id,
+							our_para_id = %our_para_id,
+							"received a RequestCollation for unexpected para_id",
 						);
 					}
 				}
 				None => {
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
-						"Received a RequestCollation for {:?} while not collating on any para",
-						para_id,
+						for_para_id = %para_id,
+						"received a RequestCollation while not collating on any para",
 					);
 				}
 			}
 		}
 		Collation(_, _, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"Collation message is not expected on the collator side of the protocol",
 			);
@@ -522,6 +535,7 @@ where
 }
 
 /// Our view has changed.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -549,6 +563,7 @@ where
 /// A validator is connected.
 ///
 /// `Declare` that we are a collator with a given `CollatorId`.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_validator_connected<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -571,6 +586,7 @@ where
 }
 
 /// Bridge messages switch.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -605,6 +621,7 @@ where
 }
 
 /// Handles our view changes.
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
 	state: &mut State,
 	view: View,
@@ -624,6 +641,7 @@ async fn handle_our_view_change(
 }
 
 /// The collator protocol collator side main loop.
+#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	our_id: CollatorId,
@@ -646,10 +664,10 @@ where
 		if let Some(mut request) = state.last_connection_request.take() {
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
 				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await {
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
-						"Failed to declare our collator id: {:?}",
-						err,
+						err = ?err,
+						"Failed to declare our collator id",
 					);
 				}
 			}
@@ -661,7 +679,7 @@ where
 			match msg? {
 				Communication { msg } => {
 					if let Err(e) = process_msg(&mut ctx, &mut state, msg).await {
-						warn!(target: LOG_TARGET, "Failed to process message: {}", e);
+						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to process message");
 					}
 				},
 				Signal(ActiveLeaves(_update)) => {}
@@ -682,7 +700,6 @@ mod tests {
 
 	use assert_matches::assert_matches;
 	use futures::{executor, future, Future};
-	use log::trace;
 	use smallvec::smallvec;
 
 	use sp_core::crypto::Pair;
@@ -839,7 +856,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		trace!("Sending message:\n{:?}", &msg);
+		tracing::trace!(msg = ?msg, "sending message");
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -854,7 +871,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is more than enough to receive messages", TIMEOUT));
 
-		trace!("Received message:\n{:?}", &msg);
+		tracing::trace!(msg = ?msg, "received message");
 
 		msg
 	}
@@ -863,7 +880,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		timeout: Duration,
 	) -> Option<AllMessages> {
-		trace!("Waiting for message...");
+		tracing::trace!("waiting for message...");
 		overseer
 			.recv()
 			.timeout(timeout)

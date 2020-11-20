@@ -25,7 +25,6 @@ use futures::{
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
-use kv_log_macro as log;
 
 use polkadot_primitives::v1::{BlockData, PoV};
 use polkadot_overseer::{Overseer, AllSubsystems};
@@ -43,13 +42,13 @@ impl Subsystem1 {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
 					if let FromOverseer::Communication { msg } = msg {
-						log::info!("msg {:?}", msg);
+						tracing::info!("msg {:?}", msg);
 					}
 					continue;
 				}
 				Ok(None) => (),
 				Err(_) => {
-					log::info!("exiting");
+					tracing::info!("exiting");
 					return;
 				}
 			}
@@ -94,7 +93,7 @@ impl Subsystem2 {
 			"subsystem-2-job",
 			Box::pin(async {
 				loop {
-					log::info!("Job tick");
+					tracing::info!("Job tick");
 					Delay::new(Duration::from_secs(1)).await;
 				}
 			}),
@@ -103,12 +102,12 @@ impl Subsystem2 {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					log::info!("Subsystem2 received message {:?}", msg);
+					tracing::info!("Subsystem2 received message {:?}", msg);
 					continue;
 				}
 				Ok(None) => { pending!(); }
 				Err(_) => {
-					log::info!("exiting");
+					tracing::info!("exiting");
 					return;
 				},
 			}
@@ -159,7 +158,7 @@ fn main() {
 			select! {
 				_ = overseer_fut => break,
 				_ = timer_stream.next() => {
-					log::info!("tick");
+					tracing::info!("tick");
 				}
 				complete => break,
 			}

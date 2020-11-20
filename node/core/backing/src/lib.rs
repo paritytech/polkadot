@@ -244,6 +244,7 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(attested, table_context), fields(subsystem = LOG_TARGET))]
 fn table_attested_to_backed(
 	attested: TableAttestedCandidate<
 		ParaId,
@@ -308,6 +309,7 @@ impl CandidateBackingJob {
 	/// Validate the candidate that is requested to be `Second`ed and distribute validation result.
 	///
 	/// Returns `Ok(true)` if we issued a `Seconded` statement about this candidate.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn validate_and_second(
 		&mut self,
 		candidate: &CandidateReceipt,
@@ -390,6 +392,7 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn get_backed(&self) -> Vec<NewBackedCandidate> {
 		let proposed = self.table.proposed_candidates(&self.table_context);
 		let mut res = Vec::with_capacity(proposed.len());
@@ -407,6 +410,7 @@ impl CandidateBackingJob {
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
 	///
 	/// TODO: Report multiple misbehaviors (https://github.com/paritytech/polkadot/issues/1387)
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn issue_new_misbehaviors(&mut self) -> Result<(), Error> {
 		let mut reports = Vec::new();
 
@@ -440,6 +444,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Import a statement into the statement table and return the summary of the import.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn import_statement(
 		&mut self,
 		statement: &SignedFullStatement,
@@ -474,6 +479,7 @@ impl CandidateBackingJob {
 		Ok(summary)
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn process_msg(&mut self, msg: CandidateBackingMessage) -> Result<(), Error> {
 		match msg {
 			CandidateBackingMessage::Second(_, candidate, pov) => {
@@ -521,6 +527,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off validation work and distribute the result as a signed statement.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
@@ -585,6 +592,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn maybe_validate_and_import(
 		&mut self,
 		statement: SignedFullStatement,
@@ -600,6 +608,7 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
 		let signed = self.table_context
 			.validator
@@ -611,6 +620,7 @@ impl CandidateBackingJob {
 		Some(signed)
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
 		let idx = statement.validator_index() as usize;
 
@@ -703,6 +713,7 @@ impl CandidateBackingJob {
 	// This calls an inspection function before making the PoV available for any last checks
 	// that need to be done. If the inspection function returns an error, this function returns
 	// early without making the PoV available.
+	#[tracing::instrument(level = "trace", skip(self, pov, with_commitments), fields(subsystem = LOG_TARGET))]
 	async fn make_pov_available<T, E>(
 		&mut self,
 		pov: Arc<PoV>,
@@ -767,6 +778,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 	const NAME: &'static str = "CandidateBackingJob";
 
+	#[tracing::instrument(skip(keystore, metrics, rx_to, tx_from), fields(subsystem = LOG_TARGET))]
 	fn run(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
@@ -780,10 +792,10 @@ impl util::JobTrait for CandidateBackingJob {
 					match $x {
 						Ok(x) => x,
 						Err(e) => {
-							log::warn!(
+							tracing::warn!(
 								target: LOG_TARGET,
-								"Failed to fetch runtime API data for job: {:?}",
-								e,
+								err = ?e,
+								"Failed to fetch runtime API data for job",
 							);
 
 							// We can't do candidate validation work if we don't have the
@@ -820,10 +832,10 @@ impl util::JobTrait for CandidateBackingJob {
 				Ok(v) => v,
 				Err(util::Error::NotAValidator) => { return Ok(()) },
 				Err(e) => {
-					log::warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
-						"Cannot participate in candidate backing: {:?}",
-						e
+						err = ?e,
+						"Cannot participate in candidate backing",
 					);
 
 					return Ok(())

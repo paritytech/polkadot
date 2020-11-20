@@ -74,6 +74,7 @@ impl CollationGenerationSubsystem {
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
@@ -95,7 +96,7 @@ impl CollationGenerationSubsystem {
 				msg = receiver.next().fuse() => {
 					if let Some(msg) = msg {
 						if let Err(err) = ctx.send_message(msg).await {
-							log::warn!(target: LOG_TARGET, "failed to forward message to overseer: {:?}", err);
+							tracing::warn!(target: LOG_TARGET, err = ?err, "failed to forward message to overseer");
 							break;
 						}
 					}
@@ -108,6 +109,7 @@ impl CollationGenerationSubsystem {
 	// note: this doesn't strictly need to be a separate function; it's more an administrative function
 	// so that we don't clutter the run loop. It could in principle be inlined directly into there.
 	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
+	#[tracing::instrument(level = "trace", skip(self, ctx, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_incoming<Context>(
 		&mut self,
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
@@ -129,7 +131,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						log::warn!(target: LOG_TARGET, "failed to handle new activations: {}", err);
+						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations");
 					};
 				}
 				false
@@ -139,7 +141,7 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
-					log::error!(target: LOG_TARGET, "double initialization");
+					tracing::error!(target: LOG_TARGET, "double initialization");
 				} else {
 					self.config = Some(Arc::new(config));
 				}
@@ -147,8 +149,9 @@ impl CollationGenerationSubsystem {
 			}
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
-				log::error!(
+				tracing::error!(
 					target: LOG_TARGET,
+					err = ?err,
 					"error receiving message from subsystem context: {:?}",
 					err
 				);
@@ -175,6 +178,7 @@ where
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, metrics, sender), fields(subsystem = LOG_TARGET))]
 async fn handle_new_activations<Context: SubsystemContext>(
 	config: Arc<CollationGenerationConfig>,
 	activated: &[Hash],
@@ -237,10 +241,10 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
 					Some(collation) => collation,
 					None => {
-						log::debug!(
+						tracing::debug!(
 							target: LOG_TARGET,
-							"collator returned no collation on collate for para_id {}.",
-							scheduled_core.para_id,
+							para_id = %scheduled_core.para_id,
+							"collator returned no collation on collate",
 						);
 						return
 					}
@@ -262,11 +266,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				) {
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
-						log::error!(
+						tracing::error!(
 							target: LOG_TARGET,
-							"failed to calculate erasure root for para_id {}: {:?}",
-							scheduled_core.para_id,
-							err
+							para_id = %scheduled_core.para_id,
+							err = ?err,
+							"failed to calculate erasure root",
 						);
 						return
 					}
@@ -299,11 +303,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
 					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
 				)).await {
-					log::warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
-						"failed to send collation result for para_id {}: {:?}",
-						scheduled_core.para_id,
-						err
+						para_id = %scheduled_core.para_id,
+						err = ?err,
+						"failed to send collation result",
 					);
 				}
 			})).await?;
@@ -313,6 +317,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	Ok(())
 }
 
+#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn erasure_root(
 	n_validators: usize,
 	persisted_validation: PersistedValidationData,

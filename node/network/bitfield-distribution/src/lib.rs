@@ -25,7 +25,6 @@
 use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use log::{debug, trace, warn};
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
@@ -79,7 +78,7 @@ impl BitfieldGossipMessage {
 
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct ProtocolState {
 	/// track all active peers and their views
 	/// to determine what is relevant to them.
@@ -144,6 +143,7 @@ impl BitfieldDistribution {
 	}
 
 	/// Start processing work as passed on from the Overseer.
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
@@ -154,7 +154,7 @@ impl BitfieldDistribution {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(e) => {
-					debug!(target: LOG_TARGET, "Failed to receive a message from Overseer: {}, exiting", e);
+					tracing::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
 					return;
 				},
 			};
@@ -162,7 +162,7 @@ impl BitfieldDistribution {
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
 				} => {
-					trace!(target: LOG_TARGET, "Processing DistributeBitfield");
+					tracing::trace!(target: LOG_TARGET, "Processing DistributeBitfield");
 					if let Err(err) = handle_bitfield_distribution(
 						&mut ctx,
 						&mut state,
@@ -170,21 +170,21 @@ impl BitfieldDistribution {
 						hash,
 						signed_availability,
 					).await {
-						warn!(target: LOG_TARGET, "Failed to reply to `DistributeBitfield` message: {}", err);
+						tracing::warn!(target: LOG_TARGET, err = ?err, "Failed to reply to `DistributeBitfield` message");
 					}
 				}
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
-					trace!(target: LOG_TARGET, "Processing NetworkMessage");
+					tracing::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
 					if let Err(e) = handle_network_msg(&mut ctx, &mut state, &self.metrics, event).await {
-						warn!(target: LOG_TARGET, "Failed to handle incoming network messages: {:?}", e);
+						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to handle incoming network messages");
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 					for relay_parent in activated {
-						trace!(target: LOG_TARGET, "Start {:?}", relay_parent);
+						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
 						// query basic system parameters once
 						match query_basics(&mut ctx, relay_parent).await {
 							Ok(Some((validator_set, signing_context))) => {
@@ -203,22 +203,22 @@ impl BitfieldDistribution {
 								);
 							}
 							Err(e) => {
-								warn!(target: LOG_TARGET, "query_basics has failed: {}", e);
+								tracing::warn!(target: LOG_TARGET, err = ?e, "query_basics has failed");
 							}
 							_ => {},
 						}
 					}
 
 					for relay_parent in deactivated {
-						trace!(target: LOG_TARGET, "Stop {:?}", relay_parent);
+						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "deactivated");
 						// defer the cleanup to the view change
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					trace!(target: LOG_TARGET, "Block finalized {:?}", hash);
+					tracing::trace!(target: LOG_TARGET, hash = %hash, "block finalized");
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					trace!(target: LOG_TARGET, "Conclude");
+					tracing::trace!(target: LOG_TARGET, "Conclude");
 					return;
 				}
 			}
@@ -227,6 +227,7 @@ impl BitfieldDistribution {
 }
 
 /// Modify the reputation of a peer based on its behaviour.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
@@ -235,7 +236,7 @@ async fn modify_reputation<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	trace!(target: LOG_TARGET, "Reputation change of {:?} for peer {:?}", rep, peer);
+	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "reputation change");
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
 	))
@@ -245,6 +246,7 @@ where
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// For this variant the source is this node.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_bitfield_distribution<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -260,17 +262,17 @@ where
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		trace!(
+		tracing::trace!(
 			target: LOG_TARGET,
-			"Not supposed to work on relay parent {} related data",
-			relay_parent
+			relay_parent = %relay_parent,
+			"Not supposed to work on relay parent related data",
 		);
 
 		return Ok(());
 	};
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
-		trace!(target: LOG_TARGET, "Validator set for {:?} is empty", relay_parent);
+		tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "validator set is empty");
 		return Ok(());
 	}
 
@@ -278,7 +280,7 @@ where
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
-		trace!(target: LOG_TARGET, "Could not find a validator for index {}", validator_index);
+		tracing::trace!(target: LOG_TARGET, "Could not find a validator for index {}", validator_index);
 		return Ok(());
 	};
 
@@ -298,6 +300,7 @@ where
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// Can be originated by another subsystem or received via network from another peer.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
@@ -342,10 +345,10 @@ where
 		.collect::<Vec<PeerId>>();
 
 	if interested_peers.is_empty() {
-		trace!(
+		tracing::trace!(
 			target: LOG_TARGET,
-			"No peers are interested in gossip for relay parent {:?}",
-			message.relay_parent
+			relay_parent = %message.relay_parent,
+			"no peers are interested in gossip for relay parent",
 		);
 	} else {
 		ctx.send_message(AllMessages::NetworkBridge(
@@ -360,6 +363,7 @@ where
 }
 
 /// Handle an incoming message from a peer.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -385,10 +389,10 @@ where
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
-		trace!(
+		tracing::trace!(
 			target: LOG_TARGET,
-			"Validator set for relay parent {:?} is empty",
-			&message.relay_parent
+			relay_parent = %message.relay_parent,
+			"Validator set is empty",
 		);
 		return modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
 	}
@@ -427,10 +431,10 @@ where
 
 		// only relay_message a message of a validator once
 		if one_per_validator.get(&validator).is_some() {
-			trace!(
+			tracing::trace!(
 				target: LOG_TARGET,
-				"Already received a message for validator at index {}",
-				validator_index
+				validator_index,
+				"already received a message for validator",
 			);
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
 			return Ok(());
@@ -447,6 +451,7 @@ where
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -474,7 +479,7 @@ where
 		NetworkBridgeEvent::PeerMessage(remote, message) => {
 			match message {
 				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
-					trace!(target: LOG_TARGET, "Received bitfield gossip from peer {:?}", &remote);
+					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "received bitfield gossip from peer");
 					let gossiped_bitfield = BitfieldGossipMessage {
 						relay_parent,
 						signed_availability: bitfield,
@@ -488,13 +493,15 @@ where
 }
 
 /// Handle the changes necassary when our view changes.
+#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn handle_our_view_change(state: &mut ProtocolState, view: View) -> SubsystemResult<()> {
 	let old_view = std::mem::replace(&mut (state.view), view);
 
 	for added in state.view.difference(&old_view) {
 		if !state.per_relay_parent.contains_key(&added) {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
+				added = %added,
 				"Our view contains {} but the overseer never told use we should work on this",
 				&added
 			);
@@ -510,6 +517,7 @@ fn handle_our_view_change(state: &mut ProtocolState, view: View) -> SubsystemRes
 
 // Send the difference between two views which were not sent
 // to that particular peer.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -560,6 +568,7 @@ where
 }
 
 /// Send a gossip message and track it in the per relay parent data.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn send_tracked_gossip_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -610,6 +619,7 @@ where
 }
 
 /// Query our validator set and signing context for a particular relay parent.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -639,7 +649,7 @@ where
 			SigningContext { parent_hash: relay_parent, session_index: s },
 		))),
 		(Err(e), _) | (_, Err(e)) => {
-			warn!(target: LOG_TARGET, "Failed to fetch basics from runtime API: {:?}", e);
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to fetch basics from runtime API");
 			Ok(None)
 		}
 	}

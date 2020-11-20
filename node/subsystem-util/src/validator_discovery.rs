@@ -218,7 +218,7 @@ impl ConnectionRequest {
 	/// This can be done either by calling this function or dropping the request.
 	pub fn revoke(self) {
 		if let Err(_) = self.revoke.send(()) {
-			log::warn!(
+			tracing::warn!(
 				"Failed to revoke a validator connection request",
 			);
 		}

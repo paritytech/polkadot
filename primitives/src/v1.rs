@@ -469,8 +469,8 @@ impl From<u32> for CoreIndex {
 }
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy)]
-#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, Debug))]
+#[derive(Encode, Decode, Default, Clone, Copy, Debug)]
+#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq))]
 pub struct GroupIndex(pub u32);
 
 impl From<u32> for GroupIndex {
@@ -571,8 +571,8 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct OccupiedCore<N = BlockNumber> {
 	/// The ID of the para occupying the core.
 	pub para_id: Id,
@@ -596,8 +596,8 @@ pub struct OccupiedCore<N = BlockNumber> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug, Default))]
+#[derive(Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -606,8 +606,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreState<N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]

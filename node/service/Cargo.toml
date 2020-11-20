@@ -55,7 +55,8 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 futures = "0.3.8"
 hex-literal = "0.3.1"
 lazy_static = "1.4.0"
-log = "0.4.11"
+tracing = "0.1.21"
+tracing-futures = "0.2.4"
 parking_lot = "0.11.1"
 serde = { version = "1.0.117", features = ["derive"] }
 slog = "2.5.2"
