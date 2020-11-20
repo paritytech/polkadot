@@ -148,7 +148,7 @@ async fn handle_signal(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	signal: OverseerSignal,
-) -> crate::error::Result<bool> {
+) -> error::Result<bool> {
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
@@ -182,7 +182,7 @@ async fn notify_all_we_are_awaiting(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	pov_hash: Hash,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	// We use `awaited` as a proxy for which heads are in the peer's view.
 	let peers_to_send: Vec<_> = peers.iter()
 		.filter_map(|(peer, state)| if state.awaited.contains_key(&relay_parent) {
@@ -211,7 +211,7 @@ async fn notify_one_we_are_awaiting_many(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent_state: &HashMap<Hash, BlockBasedState>,
 	relay_parent: Hash,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	let awaiting_hashes = relay_parent_state.get(&relay_parent).into_iter().flat_map(|s| {
 		// Send the peer everything we are fetching at this relay-parent
 		s.fetching.iter()
@@ -240,7 +240,7 @@ async fn distribute_to_awaiting(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: &PoV,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
 	//
 	// Also removes it from their awaiting set.
@@ -274,7 +274,7 @@ async fn determine_core(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	para_id: ParaId,
 	relay_parent: Hash,
-) -> crate::error::Result<Option<(CoreIndex, usize)>> {
+) -> error::Result<Option<(CoreIndex, usize)>> {
 	let cores = request_availability_cores_ctx(relay_parent, ctx).await?.await??;
 
 	for (idx, core) in cores.iter().enumerate() {
@@ -294,7 +294,7 @@ async fn determine_validators_for_core(
 	core_index: CoreIndex,
 	num_cores: usize,
 	relay_parent: Hash,
-) -> crate::error::Result<Option<Vec<ValidatorId>>> {
+) -> error::Result<Option<Vec<ValidatorId>>> {
 	let groups = request_validator_groups_ctx(relay_parent, ctx).await?.await??;
 
 	let group_index = groups.1.group_for_core(core_index, num_cores);
@@ -318,7 +318,7 @@ async fn determine_relevant_validators(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	para_id: ParaId,
-) -> crate::error::Result<Option<Vec<ValidatorId>>> {
+) -> error::Result<Option<Vec<ValidatorId>>> {
 	// Determine which core the para_id is assigned to.
 	let (core, num_cores) = match determine_core(ctx, para_id, relay_parent).await? {
 		Some(core) => core,
@@ -343,7 +343,7 @@ async fn handle_fetch(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	response_sender: oneshot::Sender<Arc<PoV>>,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		Some(s) => s,
 		None => return Ok(()),
@@ -399,7 +399,7 @@ async fn handle_distribute(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => return Ok(()),
 		Some(s) => s,
@@ -433,7 +433,7 @@ async fn report_peer(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
 	rep: Rep,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await?;
 
 	Ok(())
@@ -447,7 +447,7 @@ async fn handle_awaiting(
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	if !state.our_view.0.contains(&relay_parent) {
 		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
 		return Ok(());
@@ -503,7 +503,7 @@ async fn handle_incoming_pov(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: PoV,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None =>	{
 			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
@@ -563,15 +563,10 @@ async fn handle_incoming_pov(
 }
 
 /// Handles a newly connected validator in the context of some relay leaf.
-async fn handle_validator_connected(
-	state: &mut State,
-	peer_id: PeerId,
-) -> crate::error::Result<()> {
+async fn handle_validator_connected(state: &mut State, peer_id: PeerId) {
 	if !state.peer_state.contains_key(&peer_id) {
 		state.peer_state.insert(peer_id.clone(), PeerState::default());
 	}
-
-	Ok(())
 }
 
 /// Handles a network bridge update.
@@ -580,7 +575,7 @@ async fn handle_network_update(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	update: NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>,
-) -> crate::error::Result<()> {
+) -> error::Result<()> {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
 			state.peer_state.insert(peer, PeerState { awaited: HashMap::new() });
@@ -651,22 +646,15 @@ impl PoVDistribution {
 	async fn run(
 		self,
 		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
-	) -> crate::error::Result<()> {
+	) -> error::Result<()> {
 		let mut state = State::default();
 		state.metrics = self.metrics;
 
 		loop {
 			while let Poll::Ready(Some((_relay_parent, _validator_id, peer_id))) =
-				futures::poll!(state.connection_requests.next()) {
-					if let Err(err) = handle_validator_connected(
-						&mut state,
-						peer_id,
-					).await {
-						warn!(
-							target: LOG_TARGET,
-							"Failed to handle validator connected: {:?}", err,
-						);
-					}
+				futures::poll!(state.connection_requests.next())
+			{
+				handle_validator_connected(&mut state, peer_id).await;
 			}
 
 			while let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
