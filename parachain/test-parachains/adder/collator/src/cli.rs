@@ -46,18 +46,6 @@ pub struct RunCmd {
 	#[structopt(flatten)]
 	pub base: sc_cli::RunCmd,
 
-	/// Force using Kusama native runtime.
-	#[structopt(long = "force-kusama")]
-	pub force_kusama: bool,
-
-	/// Force using Westend native runtime.
-	#[structopt(long = "force-westend")]
-	pub force_westend: bool,
-
-	/// Force using Rococo native runtime.
-	#[structopt(long = "force-rococo")]
-	pub force_rococo: bool,
-
 	/// Setup a GRANDPA scheduled voting pause.
 	///
 	/// This parameter takes two values, namely a block number and a delay (in
