@@ -103,6 +103,8 @@ fn make_runtime_api_request<Client>(
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block>,
 {
+	let _timer = metrics.time_make_runtime_api_request();
+
 	macro_rules! query {
 		($api_name:ident ($($param:expr),*), $sender:expr) => {{
 			let sender = $sender;
@@ -141,6 +143,7 @@ fn make_runtime_api_request<Client>(
 #[derive(Clone)]
 struct MetricsInner {
 	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
+	make_runtime_api_request: prometheus::Histogram,
 }
 
 /// Runtime API metrics.
@@ -157,6 +160,11 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `make_runtime_api_request` which observes on drop.
+	fn time_make_runtime_api_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -169,6 +177,15 @@ impl metrics::Metrics for Metrics {
 						"Number of Runtime API requests served.",
 					),
 					&["success"],
+				)?,
+				registry,
+			)?,
+			make_runtime_api_request: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_runtime_api_make_runtime_api_request",
+						"Time spent within `runtime_api::make_runtime_api_request`",
+					)
 				)?,
 				registry,
 			)?,

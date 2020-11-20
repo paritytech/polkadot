@@ -125,6 +125,8 @@ async fn handle_signal(
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+			let _timer = state.metrics.time_handle_signal();
+
 			for relay_parent in activated {
 				let (vals_tx, vals_rx) = oneshot::channel();
 				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -267,6 +269,8 @@ async fn handle_fetch(
 	descriptor: CandidateDescriptor,
 	response_sender: oneshot::Sender<Arc<PoV>>,
 ) -> SubsystemResult<()> {
+	let _timer = state.metrics.time_handle_fetch();
+
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		Some(s) => s,
 		None => return Ok(()),
@@ -316,6 +320,8 @@ async fn handle_distribute(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 ) -> SubsystemResult<()> {
+	let _timer = state.metrics.time_handle_distribute();
+
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => return Ok(()),
 		Some(s) => s,
@@ -483,6 +489,8 @@ async fn handle_network_update(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	update: NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>,
 ) -> SubsystemResult<()> {
+	let _timer = state.metrics.time_handle_network_update();
+
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
 			state.peer_state.insert(peer, PeerState { awaited: HashMap::new() });
@@ -600,6 +608,10 @@ impl PoVDistribution {
 #[derive(Clone)]
 struct MetricsInner {
 	povs_distributed: prometheus::Counter<prometheus::U64>,
+	handle_signal: prometheus::Histogram,
+	handle_fetch: prometheus::Histogram,
+	handle_distribute: prometheus::Histogram,
+	handle_network_update: prometheus::Histogram,
 }
 
 /// Availability Distribution metrics.
@@ -612,6 +624,26 @@ impl Metrics {
 			metrics.povs_distributed.inc();
 		}
 	}
+
+	/// Provide a timer for `handle_signal` which observes on drop.
+	fn time_handle_signal(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_signal.start_timer())
+	}
+
+	/// Provide a timer for `handle_fetch` which observes on drop.
+	fn time_handle_fetch(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_fetch.start_timer())
+	}
+
+	/// Provide a timer for `handle_distribute` which observes on drop.
+	fn time_handle_distribute(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_distribute.start_timer())
+	}
+
+	/// Provide a timer for `handle_network_update` which observes on drop.
+	fn time_handle_network_update(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_network_update.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -621,6 +653,42 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_povs_distributed_total",
 					"Number of PoVs distributed to other peers."
+				)?,
+				registry,
+			)?,
+			handle_signal: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_pov_distribution_handle_signal",
+						"Time spent within `pov_distribution::handle_signal`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_fetch: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_pov_distribution_handle_fetch",
+						"Time spent within `pov_distribution::handle_fetch`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_distribute: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_pov_distribution_handle_distribute",
+						"Time spent within `pov_distribution::handle_distribute`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_network_update: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_pov_distribution_handle_network_update",
+						"Time spent within `pov_distribution::handle_network_update`",
+					)
 				)?,
 				registry,
 			)?,

@@ -385,6 +385,8 @@ async fn handle_our_view_change<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
+	let _timer = metrics.time_handle_our_view_change();
+
 	let old_view = std::mem::replace(&mut (state.view), view);
 
 	// needed due to borrow rules
@@ -651,6 +653,8 @@ async fn process_incoming_peer_message<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
+	let _timer = metrics.time_process_incoming_peer_message();
+
 	// obtain the set of candidates we are interested in based on our current view
 	let live_candidates = state.cached_live_candidates_unioned(state.view.0.iter());
 
@@ -1180,6 +1184,8 @@ where
 #[derive(Clone)]
 struct MetricsInner {
 	gossipped_availability_chunks: prometheus::Counter<prometheus::U64>,
+	handle_our_view_change: prometheus::Histogram,
+	process_incoming_peer_message: prometheus::Histogram,
 }
 
 /// Availability Distribution metrics.
@@ -1192,6 +1198,16 @@ impl Metrics {
 			metrics.gossipped_availability_chunks.inc();
 		}
 	}
+
+	/// Provide a timer for `handle_our_view_change` which observes on drop.
+	fn time_handle_our_view_change(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_our_view_change.start_timer())
+	}
+
+	/// Provide a timer for `process_incoming_peer_message` which observes on drop.
+	fn time_process_incoming_peer_message(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.process_incoming_peer_message.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -1203,6 +1219,24 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_gossipped_availability_chunks_total",
 					"Number of availability chunks gossipped to other peers.",
+				)?,
+				registry,
+			)?,
+			handle_our_view_change: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_availability_distribution_handle_our_view_change",
+						"Time spent within `availability_distribution::handle_our_view_change`",
+					)
+				)?,
+				registry,
+			)?,
+			process_incoming_peer_message: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_availability_distribution_process_incoming_peer_message",
+						"Time spent within `availability_distribution::process_incoming_peer_message`",
+					)
 				)?,
 				registry,
 			)?,
