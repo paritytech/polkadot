@@ -288,7 +288,7 @@ async fn determine_core(
 	Ok(None)
 }
 
-/// Figure our a group of validators assigned to a given `ParaId`.
+/// Figure out a group of validators assigned to a given `ParaId`.
 async fn determine_validators_for_core(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	core_index: CoreIndex,
