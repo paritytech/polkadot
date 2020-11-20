@@ -2,11 +2,11 @@
 
 ## ApprovalId
 
-The public key of a keypair used by a validator for approval voting.
+The public key of a keypair used by a validator for approval voting on included parachain candidates.
 
 ## AssignmentId
 
-The private key of a keypair used by a validator for approval voting.
+The public key of a keypair used by a validator for determining assignments to approve included parachain candidates.
 
 ## AssignmentCert
 

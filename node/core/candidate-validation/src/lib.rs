@@ -358,16 +358,14 @@ async fn spawn_validate_exhaustive(
 /// are passed, `Err` otherwise.
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
-	max_block_data_size: Option<u64>,
+	max_pov_size: u32,
 	pov: &PoV,
 ) -> Result<(), InvalidCandidate> {
 	let encoded_pov = pov.encode();
 	let hash = pov.hash();
 
-	if let Some(max_size) = max_block_data_size {
-		if encoded_pov.len() as u64 > max_size {
-			return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
-		}
+	if encoded_pov.len() > max_pov_size as usize {
+		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
 	}
 
 	if hash != candidate.pov_hash {
@@ -426,7 +424,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 ) -> Result<ValidationResult, ValidationFailed> {
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
-	if let Err(e) = perform_basic_checks(&descriptor, None, &*pov) {
+	if let Err(e) = perform_basic_checks(&descriptor, persisted_validation_data.max_pov_size, &*pov) {
 		return Ok(ValidationResult::Invalid(e))
 	}
 
@@ -878,7 +876,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_ok_is_ok() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -886,7 +884,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data: HeadData(vec![1, 1, 1]),
@@ -919,7 +917,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_bad_return_is_invalid() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -927,7 +925,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -948,7 +946,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_timeout_is_internal_error() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -956,7 +954,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
