@@ -44,6 +44,8 @@ use std::sync::Arc;
 
 use futures::prelude::*;
 
+const LOG_TARGET: &str = "ChainApiSubsystem";
+
 /// The Chain API Subsystem implementation.
 pub struct ChainApiSubsystem<Client> {
 	client: Arc<Client>,
@@ -75,6 +77,7 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = ChainApiMessage>,
 	subsystem: ChainApiSubsystem<Client>,
@@ -113,6 +116,7 @@ where
 					let _ = response_channel.send(Ok(result));
 				},
 				ChainApiMessage::Ancestors { hash, k, response_channel } => {
+					tracing::span!(tracing::Level::TRACE, "ChainApiMessage::Ancestors", subsystem=LOG_TARGET, hash=%hash, k=k);
 					let mut hash = hash;
 
 					let next_parent = core::iter::from_fn(|| {
