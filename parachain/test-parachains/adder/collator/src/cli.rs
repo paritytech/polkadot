@@ -56,6 +56,17 @@ pub struct RunCmd {
 	pub grandpa_pause: Vec<u32>,
 }
 
+impl RunCmd {
+	/// Get the specified Grandpa Pause value
+	pub fn grandpa_pause(&self) -> Option<(u32, u32)> {
+		if self.grandpa_pause.len() == 2 {
+			Some((self.grandpa_pause[0], self.grandpa_pause[1]))
+		} else {
+			None
+		}
+	}
+}
+
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub struct Cli {

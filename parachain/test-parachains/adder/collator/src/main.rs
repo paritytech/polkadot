@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 						let full_node = polkadot_service::build_full(
 							config,
 							polkadot_service::IsCollator::Yes(collator.collator_id()),
-							None,
+							cli.run.grandpa_pause(),
 							Some(sc_authority_discovery::WorkerConfig {
 								query_interval: Duration::from_secs(1),
 								query_start_delay: Duration::from_secs(0),
