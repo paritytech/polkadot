@@ -57,12 +57,24 @@ impl Metrics {
 			metrics.collations_sent.inc();
 		}
 	}
+
+	/// Provide a timer for handling `ConnectionRequest` which observes on drop.
+	fn time_handle_connection_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_connection_request.start_timer())
+	}
+
+	/// Provide a timer for `process_msg` which observes on drop.
+	fn time_process_msg(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.process_msg.start_timer())
+	}
 }
 
 #[derive(Clone)]
 struct MetricsInner {
 	advertisements_made: prometheus::Counter<prometheus::U64>,
 	collations_sent: prometheus::Counter<prometheus::U64>,
+	handle_connection_request: prometheus::Histogram,
+	process_msg: prometheus::Histogram,
 }
 
 impl metrics::Metrics for Metrics {
@@ -81,6 +93,24 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_collations_sent_total",
 					"A number of collations sent to validators.",
+				)?,
+				registry,
+			)?,
+			handle_connection_request: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_collator_protocol_collator_handle_connection_request",
+						"Time spent within `collator_protocol_collator::handle_connection_request`",
+					)
+				)?,
+				registry,
+			)?,
+			process_msg: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_collator_protocol_collator_process_msg",
+						"Time spent within `collator_protocol_collator::process_msg`",
+					)
 				)?,
 				registry,
 			)?,
@@ -377,6 +407,8 @@ where
 {
 	use CollatorProtocolMessage::*;
 
+	let _timer = state.metrics.time_process_msg();
+
 	match msg {
 		CollateOn(id) => {
 			state.collating_on = Some(id);
@@ -662,6 +694,8 @@ where
 
 	loop {
 		if let Some(mut request) = state.last_connection_request.take() {
+			let _timer = state.metrics.time_handle_connection_request();
+
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
 				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await {
 					tracing::warn!(

@@ -230,6 +230,7 @@ async fn construct_availability_bitfield(
 #[derive(Clone)]
 struct MetricsInner {
 	bitfields_signed_total: prometheus::Counter<prometheus::U64>,
+	run: prometheus::Histogram,
 }
 
 /// Bitfield signing metrics.
@@ -242,6 +243,11 @@ impl Metrics {
 			metrics.bitfields_signed_total.inc();
 		}
 	}
+
+	/// Provide a timer for `prune_povs` which observes on drop.
+	fn time_run(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.run.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -251,6 +257,15 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_bitfields_signed_total",
 					"Number of bitfields signed.",
+				)?,
+				registry,
+			)?,
+			run: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_bitfield_signing_run",
+						"Time spent within `bitfield_signing::run`",
+					)
 				)?,
 				registry,
 			)?,
@@ -277,6 +292,7 @@ impl JobTrait for BitfieldSigningJob {
 		_receiver: mpsc::Receiver<ToJob>,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let metrics = metrics.clone();
 		async move {
 			let wait_until = Instant::now() + JOB_DELAY;
 
@@ -290,6 +306,10 @@ impl JobTrait for BitfieldSigningJob {
 
 			// wait a bit before doing anything else
 			Delay::new_at(wait_until).await?;
+
+			// this timer does not appear at the head of the function because we don't want to include
+			// JOB_DELAY each time.
+			let _timer = metrics.time_run();
 
 			let bitfield =
 				match construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await

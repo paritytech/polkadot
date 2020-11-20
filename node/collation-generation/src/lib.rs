@@ -189,7 +189,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 
+	let _overall_timer = metrics.time_new_activations();
+
 	for relay_parent in activated.iter().copied() {
+		let _relay_parent_timer = metrics.time_new_activations_relay_parent();
+
 		// double-future magic happens here: the first layer of requests takes a mutable borrow of the context, and
 		// returns a receiver. The second layer of requests actually polls those receivers to completion.
 		let (availability_cores, validators) = join!(
@@ -201,6 +205,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 		let n_validators = validators??.len();
 
 		for core in availability_cores {
+			let _availability_core_timer = metrics.time_new_activations_availability_core();
+
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) => {
 					(scheduled_core, OccupiedCoreAssumption::Free)
@@ -335,6 +341,9 @@ fn erasure_root(
 #[derive(Clone)]
 struct MetricsInner {
 	collations_generated_total: prometheus::Counter<prometheus::U64>,
+	new_activations_overall: prometheus::Histogram,
+	new_activations_per_relay_parent: prometheus::Histogram,
+	new_activations_per_availability_core: prometheus::Histogram,
 }
 
 /// CollationGenerationSubsystem metrics.
@@ -347,6 +356,21 @@ impl Metrics {
 			metrics.collations_generated_total.inc();
 		}
 	}
+
+	/// Provide a timer for new activations which updates on drop.
+	fn time_new_activations(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.new_activations_overall.start_timer())
+	}
+
+	/// Provide a timer per relay parents which updates on drop.
+	fn time_new_activations_relay_parent(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.new_activations_per_relay_parent.start_timer())
+	}
+
+	/// Provide a timer per availability core which updates on drop.
+	fn time_new_activations_availability_core(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.new_activations_per_availability_core.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -356,6 +380,33 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_collations_generated_total",
 					"Number of collations generated."
+				)?,
+				registry,
+			)?,
+			new_activations_overall: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_collation_generation_new_activations",
+						"Time spent within fn handle_new_activations",
+					)
+				)?,
+				registry,
+			)?,
+			new_activations_per_relay_parent: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_collation_generation_per_relay_parent",
+						"Time spent handling a particular relay parent within fn handle_new_activations"
+					)
+				)?,
+				registry,
+			)?,
+			new_activations_per_availability_core: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_collation_generation_per_availability_core",
+						"Time spent handling a particular availability core for a relay parent in fn handle_new_activations",
+					)
 				)?,
 				registry,
 			)?,
