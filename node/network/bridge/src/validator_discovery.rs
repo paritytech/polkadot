@@ -275,7 +275,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		for id in revoked_validators.into_iter() {
 			let result = authority_discovery_service.get_addresses_by_authority_id(id).await;
 			if let Some(addresses) = result {
-				multiaddr_to_remove.extend(addresses.into_iter().take(MAX_ADDR_PER_PEER));
+				multiaddr_to_remove.extend(addresses.into_iter());
 			}
 		}
 
