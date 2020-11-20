@@ -293,7 +293,7 @@ enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
-	/// This can be done by dropping the sender.
+	/// This can be done by dropping the receiver.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
