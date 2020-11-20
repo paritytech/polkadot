@@ -349,7 +349,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	if let Some(request) = state.last_connection_request.take() {
-		request.revoke();
+		drop(request);
 	}
 
 	let request = validator_discovery::connect_to_validators(

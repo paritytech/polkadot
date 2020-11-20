@@ -52,7 +52,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter;
 use thiserror::Error;
 
-const LOG_TARGET: &'static str = "AvailabilityDistribution";
+const LOG_TARGET: &'static str = "availability_distribution";
 
 #[derive(Debug, Error)]
 enum Error {
