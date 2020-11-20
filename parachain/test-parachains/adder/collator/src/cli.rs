@@ -45,26 +45,6 @@ pub struct RunCmd {
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
 	pub base: sc_cli::RunCmd,
-
-	/// Setup a GRANDPA scheduled voting pause.
-	///
-	/// This parameter takes two values, namely a block number and a delay (in
-	/// blocks). After the given block number is finalized the GRANDPA voter
-	/// will temporarily stop voting for new blocks until the given delay has
-	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
-	#[structopt(long = "grandpa-pause", number_of_values(2))]
-	pub grandpa_pause: Vec<u32>,
-}
-
-impl RunCmd {
-	/// Get the specified Grandpa Pause value
-	pub fn grandpa_pause(&self) -> Option<(u32, u32)> {
-		if self.grandpa_pause.len() == 2 {
-			Some((self.grandpa_pause[0], self.grandpa_pause[1]))
-		} else {
-			None
-		}
-	}
 }
 
 #[allow(missing_docs)]
