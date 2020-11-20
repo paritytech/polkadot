@@ -85,6 +85,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
@@ -139,7 +140,7 @@ async fn run(
 						Ok(x) => {
 							metrics.on_validation_event(&x);
 							if let Err(_e) = response_sender.send(x) {
-								log::warn!(
+								tracing::warn!(
 									target: LOG_TARGET,
 									"Requester of candidate validation dropped",
 								)
@@ -176,6 +177,7 @@ enum AssumptionCheckOutcome {
 	BadRequest,
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn check_assumption_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -226,6 +228,7 @@ async fn check_assumption_validation_data(
 	})
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn find_assumed_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -257,6 +260,7 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, pov, spawn), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	isolation_strategy: IsolationStrategy,
@@ -316,6 +320,7 @@ async fn spawn_validate_from_chain_state(
 	validation_result
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, validation_code, pov, spawn), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	isolation_strategy: IsolationStrategy,
@@ -345,18 +350,17 @@ async fn spawn_validate_exhaustive(
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
 /// are passed, `Err` otherwise.
+#[tracing::instrument(level = "trace", skip(pov), fields(subsystem = LOG_TARGET))]
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
-	max_block_data_size: Option<u64>,
+	max_pov_size: u32,
 	pov: &PoV,
 ) -> Result<(), InvalidCandidate> {
 	let encoded_pov = pov.encode();
 	let hash = pov.hash();
 
-	if let Some(max_size) = max_block_data_size {
-		if encoded_pov.len() as u64 > max_size {
-			return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
-		}
+	if encoded_pov.len() > max_pov_size as usize {
+		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
 	}
 
 	if hash != candidate.pov_hash {
@@ -404,6 +408,7 @@ impl ValidationBackend for RealValidationBackend {
 /// Validates the candidate from exhaustive parameters.
 ///
 /// Sends the result of validation on the channel once complete.
+#[tracing::instrument(level = "trace", skip(backend_arg, validation_code, pov, spawn), fields(subsystem = LOG_TARGET))]
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,
@@ -412,7 +417,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	pov: Arc<PoV>,
 	spawn: S,
 ) -> Result<ValidationResult, ValidationFailed> {
-	if let Err(e) = perform_basic_checks(&descriptor, None, &*pov) {
+	if let Err(e) = perform_basic_checks(&descriptor, persisted_validation_data.max_pov_size, &*pov) {
 		return Ok(ValidationResult::Invalid(e))
 	}
 
@@ -819,7 +824,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_ok_is_ok() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -827,7 +832,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data: HeadData(vec![1, 1, 1]),
@@ -859,7 +864,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_bad_return_is_invalid() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -867,7 +872,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -887,7 +892,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_timeout_is_internal_error() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -895,7 +900,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {

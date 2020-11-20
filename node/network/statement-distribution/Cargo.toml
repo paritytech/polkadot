@@ -7,7 +7,8 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-log = "0.4.11"
+tracing = "0.1.21"
+tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

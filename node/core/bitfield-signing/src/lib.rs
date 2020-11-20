@@ -140,6 +140,7 @@ pub enum Error {
 
 /// If there is a candidate pending availability, query the Availability Store
 /// for whether we have the availability chunk for our validator index.
+#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
 	relay_parent: Hash,
 	core: CoreState,
@@ -164,7 +165,7 @@ async fn get_core_availability(
 			Ok(None) => return Ok(false),
 			Err(e) => {
 				// Don't take down the node on runtime API errors.
-				log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", e);
+				tracing::warn!(target: LOG_TARGET, err = ?e, "Encountered a runtime API error");
 				return Ok(false);
 			}
 		};
@@ -201,6 +202,7 @@ async fn get_availability_cores(relay_parent: Hash, sender: &mut mpsc::Sender<Fr
 /// - for each core, concurrently determine chunk availability (see `get_core_availability`)
 /// - return the bitfield if there were no errors at any point in this process
 ///   (otherwise, it's prone to false negatives)
+#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	validator_idx: ValidatorIndex,
@@ -267,6 +269,7 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "BitfieldSigningJob";
 
 	/// Run a job for the parent block indicated
+	#[tracing::instrument(skip(keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
@@ -293,7 +296,7 @@ impl JobTrait for BitfieldSigningJob {
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
-					log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", runtime_err);
+					tracing::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
 					return Ok(());
 				}
 				Err(err) => return Err(err),

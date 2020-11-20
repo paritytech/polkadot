@@ -193,7 +193,7 @@ where
 			let provisioner_data = match self.get_provisioner_data().await {
 				Ok(pd) => pd,
 				Err(err) => {
-					log::warn!("could not get provisioner inherent data; injecting default data: {}", err);
+					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
 					Default::default()
 				}
 			};
