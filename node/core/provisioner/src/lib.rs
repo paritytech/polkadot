@@ -127,8 +127,17 @@ enum Error {
 	#[error(transparent)]
 	Util(#[from] util::Error),
 
-	#[error(transparent)]
-	OneshotRecv(#[from] oneshot::Canceled),
+	#[error("failed to get availability cores")]
+	CanceledAvailabilityCores(#[source] oneshot::Canceled),
+
+	#[error("failed to get persisted validation data")]
+	CanceledPersistedValidationData(#[source] oneshot::Canceled),
+
+	#[error("failed to get block number")]
+	CanceledBlockNumber(#[source] oneshot::Canceled),
+
+	#[error("failed to get backed candidates")]
+	CanceledBackedCandidates(#[source] oneshot::Canceled),
 
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
@@ -136,13 +145,13 @@ enum Error {
 	#[error(transparent)]
 	Runtime(#[from] RuntimeApiError),
 
-	#[error("Failed to send message to ChainAPI")]
+	#[error("failed to send message to ChainAPI")]
 	ChainApiMessageSend(#[source] mpsc::SendError),
 
-	#[error("Failed to send message to CandidateBacking to get backed candidates")]
+	#[error("failed to send message to CandidateBacking to get backed candidates")]
 	GetBackedCandidatesSend(#[source] mpsc::SendError),
 
-	#[error("Failed to send return message with Inherents")]
+	#[error("failed to send return message with Inherents")]
 	InherentDataReturnChannel,
 }
 
@@ -304,7 +313,7 @@ async fn send_inherent_data(
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
 		.await?
-		.await??;
+		.await.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
 	let bitfields = select_availability_bitfields(&availability_cores, bitfields);
 	let candidates = select_candidates(
@@ -408,7 +417,7 @@ async fn select_candidates(
 			sender,
 		)
 		.await?
-		.await??
+		.await.map_err(|err| Error::CanceledPersistedValidationData(err))??
 		{
 			Some(v) => v,
 			None => continue,
@@ -433,7 +442,7 @@ async fn select_candidates(
 		selected_candidates,
 		tx,
 	))).await.map_err(|err| Error::GetBackedCandidatesSend(err))?;
-	let candidates = rx.await?;
+	let candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
 	Ok(candidates)
 }
@@ -453,7 +462,7 @@ async fn get_block_number_under_construction(
 		)))
 		.await
 		.map_err(|e| Error::ChainApiMessageSend(e))?;
-	match rx.await? {
+	match rx.await.map_err(|err| Error::CanceledBlockNumber(err))? {
 		Ok(Some(n)) => Ok(n + 1),
 		Ok(None) => Ok(0),
 		Err(err) => Err(err.into()),
