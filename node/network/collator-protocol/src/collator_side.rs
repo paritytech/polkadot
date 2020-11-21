@@ -706,6 +706,7 @@ pub(crate) async fn run(
 			res = state.connection_requests.next().fuse() => {
 				let (relay_parent, validator_id, peer_id) = match res {
 					Some(res) => res,
+					// Will never happen, but better to be safe.
 					None => continue,
 				};
 
