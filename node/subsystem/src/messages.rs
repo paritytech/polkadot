@@ -208,6 +208,7 @@ pub enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
+	/// This can be done by dropping the receiver.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -215,13 +216,6 @@ pub enum NetworkBridgeMessage {
 		/// the validators as they are connected.
 		/// The response is sent immediately for already connected peers.
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
-		/// By revoking the request the caller allows the network to
-		/// free some peer slots thus freeing the resources.
-		/// It doesn't necessarily lead to peers disconnection though.
-		/// The revokation is enacted on in the next connection request.
-		///
-		/// This can be done by sending to the channel or dropping the sender.
-		revoke: oneshot::Receiver<()>,
 	},
 }
 
