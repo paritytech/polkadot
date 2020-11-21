@@ -45,11 +45,9 @@ use polkadot_node_network_protocol::{
 
 use futures::prelude::*;
 use futures::channel::oneshot;
-use log::warn;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::sync::Arc;
-use std::task::Poll;
 
 mod error;
 
@@ -325,16 +323,18 @@ async fn determine_relevant_validators(
 	let (core, num_cores) = match determine_core(ctx, para_id, relay_parent).await? {
 		Some(core) => core,
 		None => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
-				"Looks like no core is assigned to {:?} at {:?}", para_id, relay_parent,
+				"Looks like no core is assigned to {:?} at {:?}",
+				para_id,
+				relay_parent,
 			);
 
 			return Ok(None);
 		}
 	};
 
-	Ok(determine_validators_for_core(ctx, core, num_cores, relay_parent).await?)
+	determine_validators_for_core(ctx, core, num_cores, relay_parent).await
 }
 
 /// Handles a `FetchPoV` message.
@@ -569,10 +569,8 @@ async fn handle_incoming_pov(
 }
 
 /// Handles a newly connected validator in the context of some relay leaf.
-async fn handle_validator_connected(state: &mut State, peer_id: PeerId) {
-	if !state.peer_state.contains_key(&peer_id) {
-		state.peer_state.insert(peer_id.clone(), PeerState::default());
-	}
+fn handle_validator_connected(state: &mut State, peer_id: PeerId) {
+	state.peer_state.entry(peer_id).or_default();
 }
 
 /// Handles a network bridge update.
@@ -659,46 +657,54 @@ impl PoVDistribution {
 		state.metrics = self.metrics;
 
 		loop {
-			while let Poll::Ready(Some((_relay_parent, _validator_id, peer_id))) =
-				futures::poll!(state.connection_requests.next())
-			{
-				handle_validator_connected(&mut state, peer_id).await;
-			}
-
-			while let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
-				match msg? {
-					FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
-						return Ok(());
-					},
-					FromOverseer::Communication { msg } => match msg {
-						PoVDistributionMessage::FetchPoV(relay_parent, descriptor, response_sender) =>
-							handle_fetch(
-								&mut state,
-								&mut ctx,
-								relay_parent,
-								descriptor,
-								response_sender,
-							).await?,
-						PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
-							handle_distribute(
-								&mut state,
-								&mut ctx,
-								relay_parent,
-								descriptor,
-								pov,
-							).await?,
-						PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
-							handle_network_update(
-								&mut state,
-								&mut ctx,
-								event,
-							).await?,
-					},
+			// `select_biased` is used since receiving connection notifications and
+			// peer view update messages may be racy and we want connection notifications
+			// first.
+			futures::select_biased! {
+				v = state.connection_requests.next().fuse() => {
+					match v {
+						Some((_relay_parent, _validator_id, peer_id)) => {
+							handle_validator_connected(&mut state, peer_id);
+						}
+						None => break,
+					}
 				}
-			}
-
-			futures::pending!()
+				v = ctx.recv().fuse() => {
+					match v? {
+						FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
+							return Ok(());
+						}
+						FromOverseer::Communication { msg } => match msg {
+							PoVDistributionMessage::FetchPoV(relay_parent, descriptor, response_sender) =>
+								handle_fetch(
+									&mut state,
+									&mut ctx,
+									relay_parent,
+									descriptor,
+									response_sender,
+								).await?,
+							PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
+								handle_distribute(
+									&mut state,
+									&mut ctx,
+									relay_parent,
+									descriptor,
+									pov,
+								).await?,
+							PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
+								handle_network_update(
+									&mut state,
+									&mut ctx,
+									event,
+								).await?,
+						}
+					}
+				}
+				complete => break,
+			};
 		}
+
+		Ok(())
 	}
 }
 
