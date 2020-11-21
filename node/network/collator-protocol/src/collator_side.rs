@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::{HashMap, HashSet}, pin::Pin};
+use std::collections::{HashMap, HashSet};
 
 use super::{LOG_TARGET,  Result};
 
-use futures::{StreamExt, task::{Poll, Context}, Future, select, FutureExt};
+use futures::{StreamExt, select, FutureExt};
 
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
@@ -173,42 +173,6 @@ impl From<HashSet<ValidatorId>> for ValidatorGroup {
 	}
 }
 
-/// Wrapper around the connection requests per relay parent.
-///
-/// Implements [`Future`] to check if any of the internal requests returned a result to propagate it to the calling
-/// context. It is safe to call this future multiple times, if there are no requests or none of them returned a result
-/// (because they returned either [`Poll::Pending`]/`None`) it just returns [`Poll::Pending`].
-#[derive(Default)]
-struct ConnectionRequests {
-	requests: HashMap<Hash, validator_discovery::ConnectionRequest>,
-}
-
-impl ConnectionRequests {
-	/// Insert a new connection request.
-	fn put(&mut self, relay_parent: Hash, request: validator_discovery::ConnectionRequest) {
-		self.requests.insert(relay_parent, request);
-	}
-
-	/// Remove a connection request for the given `relay_parent`.
-	fn remove(&mut self, relay_parent: &Hash) {
-		self.requests.remove(&relay_parent);
-	}
-}
-
-impl Future for ConnectionRequests {
-	type Output = (Hash, ValidatorId, PeerId);
-
-	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-		for (relay_parent, request) in self.requests.iter_mut() {
-			if let Poll::Ready(Some(res)) = request.poll_next_unpin(cx) {
-				return Poll::Ready((*relay_parent, res.0, res.1))
-			}
-		}
-
-		Poll::Pending
-	}
-}
-
 #[derive(Default)]
 struct State {
 	/// Our id.
@@ -237,7 +201,7 @@ struct State {
 	declared_at: HashSet<PeerId>,
 
 	/// The connection requests to validators per relay parent.
-	connection_requests: ConnectionRequests,
+	connection_requests: validator_discovery::ConnectionRequests,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -739,7 +703,12 @@ pub(crate) async fn run(
 
 	loop {
 		select! {
-			(relay_parent, validator_id, peer_id) = (&mut state.connection_requests).fuse() => {
+			res = state.connection_requests.next().fuse() => {
+				let (relay_parent, validator_id, peer_id) = match res {
+					Some(res) => res,
+					None => continue,
+				};
+
 				let _timer = state.metrics.time_handle_connection_request();
 
 				if let Err(err) = handle_validator_connected(
