@@ -18,6 +18,7 @@
 //! This subsystem implements both sides of the collator protocol.
 
 #![deny(missing_docs, unused_crate_dependencies)]
+#![recursion_limit="256"]
 
 use std::time::Duration;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
