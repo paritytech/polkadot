@@ -189,7 +189,7 @@ impl Default for TestState {
 }
 
 #[test]
-fn ask_newly_connected_validators_for_povs() {
+fn ask_validators_for_povs() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
@@ -348,6 +348,160 @@ fn ask_newly_connected_validators_for_povs() {
 		).await;
 
 		assert_eq!(*pov_fetch_result.await.unwrap(), pov_block);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(id, benefit)) => {
+				assert_eq!(benefit, BENEFIT_FRESH_POV);
+				assert_eq!(id, test_state.validator_peer_id[2].clone());
+			}
+		);
+
+		// Now let's test that if some peer is ahead of us we would still
+		// send `Await` on `FetchPoV` message to it.
+		let next_leaf = Hash::repeat_byte(10);
+
+		// A validator's view changes and now is lets say ahead of us.
+		overseer_send(
+			&mut virtual_overseer,
+			PoVDistributionMessage::NetworkBridgeUpdateV1(
+				NetworkBridgeEvent::PeerViewChange(
+					test_state.validator_peer_id[2].clone(),
+					View(vec![next_leaf]),
+				)
+			)
+		).await;
+
+		let pov_block = PoV {
+			block_data: BlockData(vec![45, 46, 47]),
+		};
+
+		let pov_hash = pov_block.hash();
+
+		let candidate = CandidateDescriptor {
+			para_id: test_state.chain_ids[0],
+			pov_hash,
+			relay_parent: next_leaf.clone(),
+			..Default::default()
+		};
+
+		let (tx, _pov_fetch_result) = oneshot::channel();
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![next_leaf.clone()],
+				deactivated: smallvec![current.clone()],
+			})
+		).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Validators(tx),
+			)) => {
+				assert_eq!(relay_parent, next_leaf);
+				tx.send(Ok(test_state.validator_public.clone())).unwrap();
+			}
+		);
+
+		overseer_send(
+			&mut virtual_overseer,
+			PoVDistributionMessage::FetchPoV(next_leaf.clone(), candidate, tx),
+		).await;
+
+		// Obtain the availability cores.
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::AvailabilityCores(tx)
+			)) => {
+				assert_eq!(relay_parent, next_leaf);
+				tx.send(Ok(test_state.availability_cores.clone())).unwrap();
+			}
+		);
+
+		// Obtain the validator groups
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::ValidatorGroups(tx)
+			)) => {
+				assert_eq!(relay_parent, next_leaf);
+				tx.send(Ok(test_state.validator_groups.clone())).unwrap();
+			}
+		);
+
+		// obtain the validators per relay parent
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Validators(tx),
+			)) => {
+				assert_eq!(relay_parent, next_leaf);
+				tx.send(Ok(test_state.validator_public.clone())).unwrap();
+			}
+		);
+
+		// obtain the validator_id to authority_id mapping
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::ValidatorDiscovery(validators, tx),
+			)) => {
+				assert_eq!(relay_parent, next_leaf);
+				assert_eq!(validators.len(), 3);
+				assert!(validators.iter().all(|v| test_state.validator_public.contains(&v)));
+
+				let result = vec![
+					Some(test_state.validator_authority_id[2].clone()),
+					Some(test_state.validator_authority_id[0].clone()),
+					Some(test_state.validator_authority_id[4].clone()),
+				];
+				tx.send(Ok(result)).unwrap();
+			}
+		);
+
+		// We now should connect to our validator group.
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ConnectToValidators {
+					validator_ids,
+					mut connected,
+					..
+				}
+			) => {
+				assert_eq!(validator_ids.len(), 3);
+				assert!(validator_ids.iter().all(|id| test_state.validator_authority_id.contains(id)));
+
+				let result = vec![
+					(test_state.validator_authority_id[2].clone(), test_state.validator_peer_id[2].clone()),
+					(test_state.validator_authority_id[0].clone(), test_state.validator_peer_id[0].clone()),
+					(test_state.validator_authority_id[4].clone(), test_state.validator_peer_id[4].clone()),
+				];
+
+				result.into_iter().for_each(|r| connected.try_send(r).unwrap());
+			}
+		);
+
+		// We already know that the leaf in question in the peer's view so we request
+		// a chunk from them right away.
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				to_peers,
+				payload,
+			)) => {
+				assert_eq!(to_peers, vec![test_state.validator_peer_id[2].clone()]);
+				assert_eq!(payload, awaiting_message(next_leaf.clone(), vec![pov_hash.clone()]));
+			}
+		);
 	});
 }
 

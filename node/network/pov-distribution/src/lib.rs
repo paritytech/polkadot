@@ -390,9 +390,16 @@ async fn handle_fetch(
 			relay_parent_state.fetching.len = relay_parent_state.fetching.len(),
 			"other subsystems have requested PoV distribution to fetch more PoVs than reasonably expected",
 		);
+		return Ok(());
 	}
 
-	Ok(())
+	// Issue an `Awaiting` message to all peers with this in their view.
+	notify_all_we_are_awaiting(
+		&mut state.peer_state,
+		ctx,
+		relay_parent,
+		descriptor.pov_hash
+	).await
 }
 
 /// Handles a `DistributePoV` message.
@@ -700,7 +707,6 @@ impl PoVDistribution {
 						}
 					}
 				}
-				complete => break,
 			};
 		}
 
