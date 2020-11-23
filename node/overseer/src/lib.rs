@@ -351,9 +351,9 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	{
 		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
 		if self.tx.send_all(&mut msgs).await.is_err() {
-			tracing::info!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				context = std::any::type_name::<M>(),
+				msg_type = std::any::type_name::<M>(),
 				"Failed to send messages to Overseer",
 			);
 
@@ -364,9 +364,9 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 impl<M> OverseerSubsystemContext<M> {
 	async fn send_logging_error(&mut self, msg: ToOverseer) {
 		if self.tx.send(msg).await.is_err() {
-			tracing::info!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				context = std::any::type_name::<M>(),
+				msg_type = std::any::type_name::<M>(),
 				"Failed to send a message to Overseer",
 			);
 		}
