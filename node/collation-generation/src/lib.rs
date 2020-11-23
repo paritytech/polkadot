@@ -95,10 +95,7 @@ impl CollationGenerationSubsystem {
 				},
 				msg = receiver.next().fuse() => {
 					if let Some(msg) = msg {
-						if let Err(err) = ctx.send_message(msg).await {
-							tracing::warn!(target: LOG_TARGET, err = ?err, "failed to forward message to overseer");
-							break;
-						}
+						ctx.send_message(msg).await;
 					}
 				},
 			}

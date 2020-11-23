@@ -132,7 +132,7 @@ async fn handle_signal(
 				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					relay_parent,
 					RuntimeApiRequest::Validators(vals_tx),
-				))).await?;
+				))).await;
 
 				let n_validators = match vals_rx.await? {
 					Ok(v) => v.len(),
@@ -178,7 +178,7 @@ async fn notify_all_we_are_awaiting(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	pov_hash: Hash,
-) -> SubsystemResult<()> {
+) {
 	// We use `awaited` as a proxy for which heads are in the peer's view.
 	let peers_to_send: Vec<_> = peers.iter()
 		.filter_map(|(peer, state)| if state.awaited.contains_key(&relay_parent) {
@@ -188,7 +188,9 @@ async fn notify_all_we_are_awaiting(
 		})
 		.collect();
 
-	if peers_to_send.is_empty() { return Ok(()) }
+	if peers_to_send.is_empty() {
+		return;
+	}
 
 	let payload = awaiting_message(relay_parent, vec![pov_hash]);
 
@@ -205,7 +207,7 @@ async fn notify_one_we_are_awaiting_many(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent_state: &HashMap<Hash, BlockBasedState>,
 	relay_parent: Hash,
-) -> SubsystemResult<()> {
+) {
 	let awaiting_hashes = relay_parent_state.get(&relay_parent).into_iter().flat_map(|s| {
 		// Send the peer everything we are fetching at this relay-parent
 		s.fetching.iter()
@@ -213,7 +215,9 @@ async fn notify_one_we_are_awaiting_many(
 			.map(|(pov_hash, _)| *pov_hash)
 	}).collect::<Vec<_>>();
 
-	if awaiting_hashes.is_empty() { return Ok(()) }
+	if awaiting_hashes.is_empty() {
+		return;
+	}
 
 	let payload = awaiting_message(relay_parent, awaiting_hashes);
 
@@ -232,7 +236,7 @@ async fn distribute_to_awaiting(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: &PoV,
-) -> SubsystemResult<()> {
+) {
 	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
 	//
 	// Also removes it from their awaiting set.
@@ -246,18 +250,16 @@ async fn distribute_to_awaiting(
 		}))
 		.collect();
 
-	if peers_to_send.is_empty() { return Ok(()) }
+	if peers_to_send.is_empty() { return; }
 
 	let payload = send_pov_message(relay_parent, pov_hash, pov.clone());
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
 		payload,
-	))).await?;
+	))).await;
 
 	metrics.on_pov_distributed();
-
-	Ok(())
 }
 
 /// Handles a `FetchPoV` message.
@@ -268,17 +270,17 @@ async fn handle_fetch(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	response_sender: oneshot::Sender<Arc<PoV>>,
-) -> SubsystemResult<()> {
+) {
 	let _timer = state.metrics.time_handle_fetch();
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		Some(s) => s,
-		None => return Ok(()),
+		None => return,
 	};
 
 	if let Some(pov) = relay_parent_state.known.get(&descriptor.pov_hash) {
 		let _  = response_sender.send(pov.clone());
-		return Ok(());
+		return;
 	}
 
 	{
@@ -286,7 +288,7 @@ async fn handle_fetch(
 			Entry::Occupied(mut e) => {
 				// we are already awaiting this PoV if there is an entry.
 				e.get_mut().push(response_sender);
-				return Ok(());
+				return;
 			}
 			Entry::Vacant(e) => {
 				e.insert(vec![response_sender]);
@@ -299,7 +301,7 @@ async fn handle_fetch(
 			relay_parent_state.fetching.len = relay_parent_state.fetching.len(),
 			"other subsystems have requested PoV distribution to fetch more PoVs than reasonably expected",
 		);
-		return Ok(());
+		return;
 	}
 
 	// Issue an `Awaiting` message to all peers with this in their view.
@@ -319,12 +321,12 @@ async fn handle_distribute(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
-) -> SubsystemResult<()> {
+) {
 	let _timer = state.metrics.time_handle_distribute();
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
-		None => return Ok(()),
 		Some(s) => s,
+		None => return,
 	};
 
 	if let Some(our_awaited) = relay_parent_state.fetching.get_mut(&descriptor.pov_hash) {
@@ -355,7 +357,7 @@ async fn report_peer(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
 	rep: Rep,
-) -> SubsystemResult<()> {
+) {
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
 }
 
@@ -367,16 +369,16 @@ async fn handle_awaiting(
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
-) -> SubsystemResult<()> {
+) {
 	if !state.our_view.0.contains(&relay_parent) {
-		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
-		return Ok(());
+		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await;
+		return;
 	}
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => {
 			tracing::warn!("PoV Distribution relay parent state out-of-sync with our view");
-			return Ok(());
+			return;
 		}
 		Some(s) => s,
 	};
@@ -385,8 +387,8 @@ async fn handle_awaiting(
 		state.peer_state.get_mut(&peer).and_then(|s| s.awaited.get_mut(&relay_parent))
 	{
 		None => {
-			report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
-			return Ok(());
+			report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await;
+			return;
 		}
 		Some(a) => a,
 	};
@@ -400,16 +402,14 @@ async fn handle_awaiting(
 				let payload = send_pov_message(relay_parent, pov_hash, (&**pov).clone());
 				ctx.send_message(AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-				)).await?;
+				)).await;
 			} else {
 				peer_awaiting.insert(pov_hash);
 			}
 		}
 	} else {
-		report_peer(ctx, peer, COST_APPARENT_FLOOD).await?;
+		report_peer(ctx, peer, COST_APPARENT_FLOOD).await;
 	}
-
-	Ok(())
 }
 
 /// Handle an incoming PoV from our peer. Reports them if unexpected, rewards them if not.
@@ -423,11 +423,11 @@ async fn handle_incoming_pov(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: PoV,
-) -> SubsystemResult<()> {
+) {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None =>	{
-			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
-			return Ok(());
+			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
+			return;
 		},
 		Some(r) => r,
 	};
@@ -436,16 +436,16 @@ async fn handle_incoming_pov(
 		// Do validity checks and complete all senders awaiting this PoV.
 		let fetching = match relay_parent_state.fetching.get_mut(&pov_hash) {
 			None => {
-				report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
-				return Ok(());
+				report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
+				return;
 			}
 			Some(f) => f,
 		};
 
 		let hash = pov.hash();
 		if hash != pov_hash {
-			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
-			return Ok(());
+			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
+			return;
 		}
 
 		let pov = Arc::new(pov);
@@ -453,10 +453,10 @@ async fn handle_incoming_pov(
 		if fetching.is_empty() {
 			// fetching is empty whenever we were awaiting something and
 			// it was completed afterwards.
-			report_peer(ctx, peer.clone(), BENEFIT_LATE_POV).await?;
+			report_peer(ctx, peer.clone(), BENEFIT_LATE_POV).await;
 		} else {
 			// fetching is non-empty when the peer just provided us with data we needed.
-			report_peer(ctx, peer.clone(), BENEFIT_FRESH_POV).await?;
+			report_peer(ctx, peer.clone(), BENEFIT_FRESH_POV).await;
 		}
 
 		for response_sender in fetching.drain(..) {
@@ -488,17 +488,15 @@ async fn handle_network_update(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	update: NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>,
-) -> SubsystemResult<()> {
+) {
 	let _timer = state.metrics.time_handle_network_update();
 
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
 			state.peer_state.insert(peer, PeerState { awaited: HashMap::new() });
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			state.peer_state.remove(&peer);
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 			if let Some(peer_state) = state.peer_state.get_mut(&peer_id) {
@@ -516,12 +514,11 @@ async fn handle_network_update(
 							ctx,
 							&state.relay_parent_state,
 							*relay_parent,
-						).await?;
+						).await;
 					}
 				}
 			}
 
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			match message {
@@ -546,7 +543,6 @@ async fn handle_network_update(
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
 			state.our_view = view;
-			Ok(())
 		}
 	}
 }
@@ -582,7 +578,7 @@ impl PoVDistribution {
 							relay_parent,
 							descriptor,
 							response_sender,
-						).await?,
+						).await,
 					PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
 						handle_distribute(
 							&mut state,
@@ -590,13 +586,13 @@ impl PoVDistribution {
 							relay_parent,
 							descriptor,
 							pov,
-						).await?,
+						).await,
 					PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
 						handle_network_update(
 							&mut state,
 							&mut ctx,
 							event,
-						).await?,
+						).await,
 				},
 			}
 		}

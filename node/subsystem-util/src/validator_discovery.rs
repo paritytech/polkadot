@@ -63,7 +63,7 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 			relay_parent,
 			RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
 		)
-	)).await?;
+	)).await;
 
 	let maybe_authorities = rx.await??;
 	let authorities: Vec<_> = maybe_authorities.iter()
@@ -97,7 +97,7 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 			validator_ids,
 			connected,
 		}
-	)).await?;
+	)).await;
 
 	Ok(connected_rx)
 }

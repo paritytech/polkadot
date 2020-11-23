@@ -64,7 +64,7 @@ impl Subsystem1 {
 					}.into(),
 					tx,
 				)
-			)).await.unwrap();
+			)).await;
 		}
 	}
 }
