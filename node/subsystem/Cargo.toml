@@ -6,7 +6,7 @@ edition = "2018"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
-async-trait = "0.1.41"
+async-trait = "0.1.42"
 derive_more = "0.99.11"
 futures = "0.3.8"
 futures-timer = "3.0.2"
@@ -27,7 +27,7 @@ thiserror = "1.0.22"
 
 [dev-dependencies]
 assert_matches = "1.4.0"
-async-trait = "0.1.41"
+async-trait = "0.1.42"
 futures = { version = "0.3.8", features = ["thread-pool"] }
 parking_lot = "0.11.1"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
