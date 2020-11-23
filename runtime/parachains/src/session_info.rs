@@ -25,7 +25,7 @@ use frame_support::{
 	weights::Weight,
 };
 use crate::{configuration, paras, scheduler};
-use sp_std::vec::Vec;
+use sp_std::{cmp, vec::Vec};
 
 pub trait Trait:
 	frame_system::Trait
@@ -94,8 +94,9 @@ impl<T: Trait> Module<T> {
 
 		let new_session_index = notification.session_index;
 		let old_earliest_stored_session = EarliestStoredSession::get();
-		let new_earliest_stored_session = new_session_index.checked_sub(dispute_period).unwrap_or(0);
-		let new_earliest_stored_session = core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
+		let dispute_period = cmp::max(1, dispute_period);
+		let new_earliest_stored_session = new_session_index.checked_sub(dispute_period - 1).unwrap_or(0);
+		let new_earliest_stored_session = cmp::max(new_earliest_stored_session, old_earliest_stored_session);
 		// update `EarliestStoredSession` based on `config.dispute_period`
 		EarliestStoredSession::set(new_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
@@ -217,23 +218,23 @@ mod tests {
 	fn session_pruning_is_based_on_dispute_deriod() {
 		new_test_ext(genesis_config()).execute_with(|| {
 			run_to_block(100, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 10 - 2);
+			assert_eq!(EarliestStoredSession::get(), 9);
 
 			// changing dispute_period works
 			let dispute_period = 5;
 			Configuration::set_dispute_period(Origin::root(), dispute_period).unwrap();
 			run_to_block(200, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
+			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period + 1);
 
 			// we don't have that many sessions stored
 			let new_dispute_period = 16;
 			Configuration::set_dispute_period(Origin::root(), new_dispute_period).unwrap();
 			run_to_block(300, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
+			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period + 1);
 
 			// now we do
 			run_to_block(400, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 40 - new_dispute_period);
+			assert_eq!(EarliestStoredSession::get(), 40 - new_dispute_period + 1);
 		})
 	}
 
