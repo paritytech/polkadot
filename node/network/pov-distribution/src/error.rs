@@ -16,6 +16,8 @@
 
 use thiserror::Error;
 
+//! The `Error` and `Result` types used by the subsystem.
+
 #[derive(Debug, Error)]
 pub enum Error {
 	#[error(transparent)]
