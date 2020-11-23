@@ -5,15 +5,16 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.5"
-log = "0.4.8"
+futures = "0.3.8"
+tracing = "0.1.21"
+tracing-futures = "0.2.4"
 polkadot-erasure-coding = { path = "../../erasure-coding" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.21"
+thiserror = "1.0.22"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

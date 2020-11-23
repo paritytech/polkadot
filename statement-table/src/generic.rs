@@ -30,7 +30,7 @@ use std::fmt::Debug;
 
 use primitives::v1::{ValidityAttestation as PrimitiveValidityAttestation, ValidatorSignature};
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 /// Context for the statement table.
 pub trait Context {

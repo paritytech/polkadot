@@ -24,7 +24,7 @@
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::v0::{self, Hash as H256, BlakeTwo256, HashT};
 use primitives::v1;
@@ -352,12 +352,12 @@ struct ShardInput<'a, I> {
 	cur_shard: Option<(&'a [u8], usize)>,
 }
 
-impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+impl<'a, I: Iterator<Item=&'a [u8]>> parity_scale_codec::Input for ShardInput<'a, I> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
 		Ok(Some(self.remaining_len))
 	}
 
-	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
+	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
 		let mut read_bytes = 0;
 
 		loop {

@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
-use codec::Encode;
+use parity_scale_codec::Encode;
 
 use polkadot_runtime_parachains::configuration as parachains_configuration;
 use polkadot_runtime_parachains::inclusion as parachains_inclusion;

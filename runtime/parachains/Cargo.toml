@@ -6,11 +6,11 @@ edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
 log = "0.4.11"
-rustc-hex = { version = "2.0.1", default-features = false }
-serde = { version = "1.0.102", features = [ "derive" ], optional = true }
-derive_more = { version = "0.99.11" }
+rustc-hex = { version = "2.1.0", default-features = false }
+serde = { version = "1.0.117", features = [ "derive" ], optional = true }
+derive_more = "0.99.11"
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -36,14 +36,14 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
+libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
 
-rand = { version = "0.7", default-features = false }
+rand = { version = "0.7.3", default-features = false }
 rand_chacha = { version = "0.2.2", default-features = false }
 
 [dev-dependencies]
-futures = "0.3.4"
-hex-literal = "0.2.1"
+futures = "0.3.8"
+hex-literal = "0.3.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -51,8 +51,8 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
-serde_json = "1.0.41"
-libsecp256k1 = "0.3.2"
+serde_json = "1.0.59"
+libsecp256k1 = "0.3.5"
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master"}
 
@@ -62,7 +62,7 @@ default = ["std"]
 no_std = []
 std = [
 	"bitvec/std",
-	"codec/std",
+	"parity-scale-codec/std",
 	"rustc-hex/std",
 	"serde",
 	"primitives/std",

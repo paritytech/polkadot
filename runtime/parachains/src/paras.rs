@@ -36,7 +36,7 @@ use frame_support::{
 	traits::Get,
 	weights::Weight,
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use crate::{configuration, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 

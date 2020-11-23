@@ -27,7 +27,7 @@ use parachain::{
 	},
 	wasm_executor::{ValidationPool, IsolationStrategy}
 };
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use adder::{HeadData, BlockData, hash_state};
 
 fn isolation_strategy() -> IsolationStrategy {

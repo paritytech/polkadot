@@ -23,7 +23,7 @@
 #![no_std]
 extern crate alloc;
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 pub mod v0;
 

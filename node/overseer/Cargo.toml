@@ -5,8 +5,9 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.5"
-log = "0.4.11"
+futures = "0.3.8"
+tracing = "0.1.21"
+tracing-futures = "0.2.4"
 futures-timer = "3.0.2"
 streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../primitives" }
@@ -14,13 +15,12 @@ client = { package = "sc-client-api", git = "https://github.com/paritytech/subst
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
-async-trait = "0.1"
+async-trait = "0.1.42"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
-futures = { version = "0.3.5", features = ["thread-pool"] }
+futures = { version = "0.3.8", features = ["thread-pool"] }
 futures-timer = "3.0.2"
 femme = "2.1.1"
-log = "0.4.11"
 kv-log-macro = "1.0.7"
