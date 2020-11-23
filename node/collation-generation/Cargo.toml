@@ -6,7 +6,8 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-log = "0.4.11"
+tracing = "0.1.21"
+tracing-futures = "0.2.4"
 polkadot-erasure-coding = { path = "../../erasure-coding" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }

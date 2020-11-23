@@ -18,10 +18,10 @@
 //! This subsystem implements both sides of the collator protocol.
 
 #![deny(missing_docs, unused_crate_dependencies)]
+#![recursion_limit="256"]
 
 use std::time::Duration;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
-use log::trace;
 use thiserror::Error;
 
 use polkadot_subsystem::{
@@ -96,6 +96,7 @@ impl CollatorProtocolSubsystem {
 		}
 	}
 
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -135,13 +136,16 @@ where
 }
 
 /// Modify the reputation of a peer based on its behavior.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
-	trace!(
+	tracing::trace!(
 		target: LOG_TARGET,
-		"Reputation change of {:?} for peer {:?}", rep, peer,
+		rep = ?rep,
+		peer_id = %peer,
+		"reputation change for peer",
 	);
 
 	ctx.send_message(AllMessages::NetworkBridge(

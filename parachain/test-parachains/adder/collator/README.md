@@ -13,3 +13,5 @@ cargo run --features=real-overseer --release -p test-parachain-adder-collator --
 
 The last step is to register the parachain using polkadot-js. The parachain id is
 100. The genesis state and the validation code are printed at startup by the collator.
+
+To do this automatically, run `scripts/adder-collator.sh`.

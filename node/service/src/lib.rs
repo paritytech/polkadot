@@ -28,7 +28,7 @@ use {
 	std::convert::TryInto,
 	std::time::Duration,
 
-	log::info,
+	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
@@ -704,7 +704,10 @@ pub fn new_full<RuntimeApi, Executor>(
 		// given delay.
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
-				info!("GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
+				info!(
+					block_number = %block,
+					delay = %delay,
+					"GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
 					block,
 					delay,
 				);
