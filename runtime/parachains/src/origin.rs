@@ -49,7 +49,7 @@ frame_support::decl_module! {
 	/// This module fulfills only the single purpose of housing the `Origin` in `construct_runtime`.
 	///
 	// ideally, though, the `construct_runtime` should support a free-standing origin.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {}
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Config>::Origin {}
 }
 
 impl From<u32> for Origin {

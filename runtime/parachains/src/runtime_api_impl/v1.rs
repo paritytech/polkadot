@@ -271,7 +271,7 @@ pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 pub fn candidate_events<T, F>(extract_event: F) -> Vec<CandidateEvent<T::Hash>>
 where
 	T: initializer::Trait,
-	F: Fn(<T as frame_system::Trait>::Event) -> Option<inclusion::Event<T>>,
+	F: Fn(<T as frame_system::Config>::Event) -> Option<inclusion::Event<T>>,
 {
 	use inclusion::Event as RawEvent;
 

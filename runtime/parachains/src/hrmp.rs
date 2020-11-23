@@ -209,7 +209,7 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 
 pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait + dmp::Trait {
 	type Origin: From<crate::Origin>
-		+ From<<Self as frame_system::Trait>::Origin>
+		+ From<<Self as frame_system::Config>::Origin>
 		+ Into<Result<crate::Origin, <Self as Trait>::Origin>>;
 }
 
@@ -322,7 +322,7 @@ decl_error! {
 
 decl_module! {
 	/// The HRMP module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		#[weight = 0]

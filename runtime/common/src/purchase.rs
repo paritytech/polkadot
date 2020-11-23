@@ -30,7 +30,7 @@ use sp_std::prelude::*;
 /// Configuration trait.
 pub trait Trait: frame_system::Trait {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	/// Balances Pallet
 	type Currency: Currency<Self::AccountId>;
 	/// Vesting Pallet
@@ -47,7 +47,7 @@ pub trait Trait: frame_system::Trait {
 	type MaxUnlocked: Get<BalanceOf<Self>>;
 }
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The kind of a statement an account needs to make for a claim to be valid.
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
@@ -103,9 +103,9 @@ pub struct AccountStatus<Balance> {
 
 decl_event!(
 	pub enum Event<T> where
-		AccountId = <T as frame_system::Trait>::AccountId,
+		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
-		BlockNumber = <T as frame_system::Trait>::BlockNumber,
+		BlockNumber = <T as frame_system::Config>::BlockNumber,
 	{
 		/// A [new] account was created.
 		AccountCreated(AccountId),
@@ -428,7 +428,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;

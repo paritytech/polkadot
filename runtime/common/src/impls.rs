@@ -24,10 +24,10 @@ pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
 	R: pallet_balances::Trait + pallet_authorship::Trait,
-	<R as frame_system::Trait>::AccountId: From<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::AccountId: Into<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::Event: From<pallet_balances::RawEvent<
-		<R as frame_system::Trait>::AccountId,
+	<R as frame_system::Config>::AccountId: From<primitives::v1::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::v1::AccountId>,
+	<R as frame_system::Config>::Event: From<pallet_balances::RawEvent<
+		<R as frame_system::Config>::AccountId,
 		<R as pallet_balances::Trait>::Balance,
 		pallet_balances::DefaultInstance>
 	>,
@@ -45,10 +45,10 @@ impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
 where
 	R: pallet_balances::Trait + pallet_treasury::Trait + pallet_authorship::Trait,
 	pallet_treasury::Module<R>: OnUnbalanced<NegativeImbalance<R>>,
-	<R as frame_system::Trait>::AccountId: From<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::AccountId: Into<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::Event: From<pallet_balances::RawEvent<
-		<R as frame_system::Trait>::AccountId,
+	<R as frame_system::Config>::AccountId: From<primitives::v1::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::v1::AccountId>,
+	<R as frame_system::Config>::Event: From<pallet_balances::RawEvent<
+		<R as frame_system::Config>::AccountId,
 		<R as pallet_balances::Trait>::Balance,
 		pallet_balances::DefaultInstance>
 	>,
@@ -97,7 +97,7 @@ mod tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
 	}
 
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Index = u64;

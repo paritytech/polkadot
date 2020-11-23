@@ -82,13 +82,13 @@ use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 
 pub type BalanceOf<T> =
-	<<T as slots::Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+	<<T as slots::Trait>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 #[allow(dead_code)]
 pub type NegativeImbalanceOf<T> =
-	<<T as slots::Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
+	<<T as slots::Trait>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 pub trait Trait: slots::Trait {
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// ModuleID for the crowdfund module. An appropriate value could be ```ModuleId(*b"py/cfund")```
 	type ModuleId: Get<ModuleId>;
@@ -184,7 +184,7 @@ decl_storage! {
 
 decl_event! {
 	pub enum Event<T> where
-		<T as frame_system::Trait>::AccountId,
+		<T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
 		/// Create a new crowdfunding campaign. [fund_index]
@@ -599,7 +599,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = ();
@@ -936,7 +936,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into()
 			));
@@ -947,7 +947,7 @@ mod tests {
 			assert_eq!(
 				fund.deploy_data,
 				Some(DeployData {
-					code_hash: <Test as frame_system::Trait>::Hash::default(),
+					code_hash: <Test as frame_system::Config>::Hash::default(),
 					code_size: 0,
 					initial_head_data: vec![0].into(),
 				}),
@@ -966,7 +966,7 @@ mod tests {
 			assert_noop!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into()),
 				Error::<Test>::InvalidOrigin
@@ -976,7 +976,7 @@ mod tests {
 			assert_noop!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				1,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into()),
 				Error::<Test>::InvalidFundIndex
@@ -986,7 +986,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -994,7 +994,7 @@ mod tests {
 			assert_noop!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![1].into()),
 				Error::<Test>::ExistingDeployData
@@ -1014,7 +1014,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1060,7 +1060,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1088,7 +1088,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1131,7 +1131,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1273,7 +1273,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1302,7 +1302,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1341,14 +1341,14 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				1,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));

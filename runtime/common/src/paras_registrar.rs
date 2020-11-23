@@ -39,14 +39,14 @@ use runtime_parachains::{
 };
 
 type BalanceOf<T> =
-	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+	<<T as Trait>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait Trait: paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait {
 	/// The aggregated origin type must support the `parachains` origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
 	/// clause everywhere.
-	type Origin: From<<Self as frame_system::Trait>::Origin>
+	type Origin: From<<Self as frame_system::Config>::Origin>
 		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
 
 	/// The system's currency for parathread payment.
@@ -92,7 +92,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		/// Register a parathread with given code for immediate use.
@@ -306,7 +306,7 @@ mod tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -499,8 +499,8 @@ mod tests {
 		fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 			call: Call,
 			_public: test_keys::ReporterId,
-			_account: <Test as frame_system::Trait>::AccountId,
-			nonce: <Test as frame_system::Trait>::Index,
+			_account: <Test as frame_system::Config>::AccountId,
+			nonce: <Test as frame_system::Config>::Index,
 		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}

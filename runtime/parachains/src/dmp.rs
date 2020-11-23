@@ -85,7 +85,7 @@ decl_storage! {
 
 decl_module! {
 	/// The DMP module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin { }
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Config>::Origin { }
 }
 
 /// Routines and getters related to downward message passing.

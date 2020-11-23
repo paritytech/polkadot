@@ -48,7 +48,7 @@ pub use crate::Origin;
 pub trait Trait: frame_system::Trait + configuration::Trait {
 	/// The outer origin type.
 	type Origin: From<Origin>
-		+ From<<Self as frame_system::Trait>::Origin>
+		+ From<<Self as frame_system::Config>::Origin>
 		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
 }
 
@@ -249,7 +249,7 @@ decl_error! {
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 	}
 }

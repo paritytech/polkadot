@@ -152,7 +152,7 @@ decl_storage! {
 
 decl_module! {
 	/// The UMP module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Config>::Origin {
 	}
 }
 

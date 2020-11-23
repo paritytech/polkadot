@@ -37,13 +37,13 @@ use sp_runtime::{
 };
 use primitives::v1::ValidityError;
 
-type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as frame_system::Trait>::AccountId>>::Currency;
-type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as frame_system::Config>::AccountId>>::Currency;
+type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Configuration trait.
 pub trait Trait: frame_system::Trait {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
 	type MoveClaimOrigin: EnsureOrigin<Self::Origin>;
@@ -130,7 +130,7 @@ impl sp_std::fmt::Debug for EcdsaSignature {
 decl_event!(
 	pub enum Event<T> where
 		Balance = BalanceOf<T>,
-		AccountId = <T as frame_system::Trait>::AccountId
+		AccountId = <T as frame_system::Config>::AccountId
 	{
 		/// Someone claimed some DOTs. [who, ethereum_address, amount]
 		Claimed(AccountId, EthereumAddress, Balance),
@@ -539,10 +539,10 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>;
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	#[cfg(feature = "std")]
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
@@ -556,7 +556,7 @@ impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	/// Create new `SignedExtension` to check runtime version.
 	pub fn new() -> Self {
@@ -565,10 +565,10 @@ impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	type AccountId = T::AccountId;
-	type Call = <T as frame_system::Trait>::Call;
+	type Call = <T as frame_system::Config>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
 	const IDENTIFIER: &'static str = "PrevalidateAttests";
@@ -665,7 +665,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;

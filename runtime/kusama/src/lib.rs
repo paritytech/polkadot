@@ -127,7 +127,7 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
-impl frame_system::Trait for Runtime {
+impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
 	type Origin = Origin;
 	type Call = Call;
@@ -616,7 +616,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 		call: Call,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as frame_system::Trait>::Index,
+		nonce: <Runtime as frame_system::Config>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		// take the biggest period possible.
 		let period = BlockHashCount::get()

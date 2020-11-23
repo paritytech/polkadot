@@ -93,7 +93,7 @@ pub trait Trait:
 	+ hrmp::Trait
 	+ configuration::Trait
 {
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 }
 
 decl_storage! {
@@ -170,7 +170,7 @@ decl_error! {
 }
 
 decl_event! {
-	pub enum Event<T> where <T as frame_system::Trait>::Hash {
+	pub enum Event<T> where <T as frame_system::Config>::Hash {
 		/// A candidate was backed. [candidate, head_data]
 		CandidateBacked(CandidateReceipt<Hash>, HeadData),
 		/// A candidate was included. [candidate, head_data]
@@ -183,7 +183,7 @@ decl_event! {
 decl_module! {
 	/// The parachain-candidate inclusion module.
 	pub struct Module<T: Trait>
-		for enum Call where origin: <T as frame_system::Trait>::Origin
+		for enum Call where origin: <T as frame_system::Config>::Origin
 	{
 		type Error = Error<T>;
 
