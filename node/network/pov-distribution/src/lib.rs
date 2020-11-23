@@ -591,7 +591,7 @@ async fn handle_network_update(
 
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
-			state.peer_state.insert(peer, PeerState { awaited: HashMap::new() });
+			handle_validator_connected(state, peer);
 			Ok(())
 		}
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
