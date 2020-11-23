@@ -204,10 +204,10 @@ pub trait SubsystemContext: Send + 'static {
 	) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
+	async fn send_message(&mut self, msg: AllMessages);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
 }
 
@@ -239,7 +239,7 @@ where
 					Err(_) => return Ok(()),
 					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Ok(overseer_msg) => {
-						log::debug!(
+						tracing::debug!(
 							target: "dummy-subsystem",
 							"Discarding a message sent from overseer {:?}",
 							overseer_msg

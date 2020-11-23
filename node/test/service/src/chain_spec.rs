@@ -167,6 +167,7 @@ fn polkadot_testnet_genesis(
 				validation_upgrade_delay: 5,
 				acceptance_period: 1200,
 				max_code_size: 5 * 1024 * 1024,
+				max_pov_size: 50 * 1024 * 1024,
 				max_head_data_size: 32 * 1024,
 				group_rotation_frequency: 10,
 				..Default::default()

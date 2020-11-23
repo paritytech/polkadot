@@ -135,6 +135,7 @@ enum ToOverseer {
 /// This structure exists solely for the purposes of decoupling
 /// `Overseer` code from the client code and the necessity to call
 /// `HeaderBackend::block_number_from_id()`.
+#[derive(Debug)]
 pub struct BlockInfo {
 	/// hash of the block.
 	pub hash: Hash,
@@ -191,18 +192,21 @@ pub struct OverseerHandler {
 
 impl OverseerHandler {
 	/// Inform the `Overseer` that that some block was imported.
-	pub async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		self.events_tx.send(Event::BlockImported(block)).await.map_err(Into::into)
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	pub async fn block_imported(&mut self, block: BlockInfo) {
+		self.send_and_log_error(Event::BlockImported(block)).await
 	}
 
 	/// Send some message to one of the `Subsystem`s.
-	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) -> SubsystemResult<()> {
-		self.events_tx.send(Event::MsgToSubsystem(msg.into())).await.map_err(Into::into)
+	#[tracing::instrument(level = "trace", skip(self, msg), fields(subsystem = LOG_TARGET))]
+	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) {
+		self.send_and_log_error(Event::MsgToSubsystem(msg.into())).await
 	}
 
 	/// Inform the `Overseer` that that some block was finalized.
-	pub async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		self.events_tx.send(Event::BlockFinalized(block)).await.map_err(Into::into)
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	pub async fn block_finalized(&mut self, block: BlockInfo) {
+		self.send_and_log_error(Event::BlockFinalized(block)).await
 	}
 
 	/// Wait for a block with the given hash to be in the active-leaves set.
@@ -212,16 +216,24 @@ impl OverseerHandler {
 	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
 	/// the response channel may never return if the hash was deactivated before this call.
 	/// In this case, it's the caller's responsibility to ensure a timeout is set.
-	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) -> SubsystemResult<()> {
-		self.events_tx.send(Event::ExternalRequest(ExternalRequest::WaitForActivation {
+	#[tracing::instrument(level = "trace", skip(self, response_channel), fields(subsystem = LOG_TARGET))]
+	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) {
+		self.send_and_log_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 			hash,
 			response_channel
-		})).await.map_err(Into::into)
+		})).await
 	}
 
 	/// Tell `Overseer` to shutdown.
-	pub async fn stop(&mut self) -> SubsystemResult<()> {
-		self.events_tx.send(Event::Stop).await.map_err(Into::into)
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	pub async fn stop(&mut self) {
+		self.send_and_log_error(Event::Stop).await
+	}
+
+	async fn send_and_log_error(&mut self, event: Event) {
+		if self.events_tx.send(event).await.is_err() {
+			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+		}
 	}
 }
 
@@ -233,7 +245,7 @@ impl OverseerHandler {
 pub async fn forward_events<P: BlockchainEvents<Block>>(
 	client: Arc<P>,
 	mut handler: OverseerHandler,
-) -> SubsystemResult<()> {
+) {
 	let mut finality = client.finality_notification_stream();
 	let mut imports = client.import_notification_stream();
 
@@ -242,7 +254,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 			f = finality.next() => {
 				match f {
 					Some(block) => {
-						handler.block_finalized(block.into()).await?;
+						handler.block_finalized(block.into()).await;
 					}
 					None => break,
 				}
@@ -250,7 +262,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 			i = imports.next() => {
 				match i {
 					Some(block) => {
-						handler.block_imported(block.into()).await?;
+						handler.block_imported(block.into()).await;
 					}
 					None => break,
 				}
@@ -258,8 +270,6 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 			complete => break,
 		}
 	}
-
-	Ok(())
 }
 
 impl Debug for ToOverseer {
@@ -332,15 +342,34 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		}).await.map_err(Into::into)
 	}
 
-	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
-		self.tx.send(ToOverseer::SubsystemMessage(msg)).await.map_err(Into::into)
+	async fn send_message(&mut self, msg: AllMessages) {
+		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
 	}
 
-	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
 	{
 		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
-		self.tx.send_all(&mut msgs).await.map_err(Into::into)
+		if self.tx.send_all(&mut msgs).await.is_err() {
+			tracing::debug!(
+				target: LOG_TARGET,
+				msg_type = std::any::type_name::<M>(),
+				"Failed to send messages to Overseer",
+			);
+
+		}
+	}
+}
+
+impl<M> OverseerSubsystemContext<M> {
+	async fn send_and_log_error(&mut self, msg: ToOverseer) {
+		if self.tx.send(msg).await.is_err() {
+			tracing::debug!(
+				target: LOG_TARGET,
+				msg_type = std::any::type_name::<M>(),
+				"Failed to send a message to Overseer",
+			);
+		}
 	}
 }
 
@@ -1287,6 +1316,7 @@ where
 	}
 
 	/// Run the `Overseer`.
+	#[tracing::instrument(skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let leaves = std::mem::take(&mut self.leaves);
 		let mut update = ActiveLeavesUpdate::default();
@@ -1337,7 +1367,7 @@ where
 
 			// Some subsystem exited? It's time to panic.
 			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
-				log::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
+				tracing::error!(target: LOG_TARGET, subsystem = ?finished, "subsystem finished unexpectedly");
 				self.stop().await;
 				return finished;
 			}
@@ -1347,6 +1377,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
@@ -1376,6 +1407,7 @@ where
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
@@ -1399,6 +1431,7 @@ where
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn broadcast_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
 		if let Some(ref mut s) = self.candidate_validation_subsystem.instance {
 			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
@@ -1463,6 +1496,7 @@ where
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn route_message(&mut self, msg: AllMessages) {
 		self.metrics.on_message_relayed();
 		match msg {
@@ -1544,6 +1578,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_activated(&mut self, hash: &Hash) {
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
@@ -1554,6 +1589,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_deactivated(&mut self, hash: &Hash) {
 		self.metrics.on_head_deactivated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
@@ -1562,6 +1598,7 @@ where
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn clean_up_external_listeners(&mut self) {
 		self.activation_external_listeners.retain(|_, v| {
 			// remove dead listeners
@@ -1570,6 +1607,7 @@ where
 		})
 	}
 
+	#[tracing::instrument(level = "trace", skip(self, request), fields(subsystem = LOG_TARGET))]
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
@@ -1607,9 +1645,9 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	let fut = Box::pin(async move {
 		if let Err(e) = future.await {
-			log::error!("Subsystem {} exited with error {:?}", name, e);
+			tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
 		} else {
-			log::debug!("Subsystem {} exited without an error", name);
+			tracing::debug!(subsystem=name, "subsystem exited without an error");
 		}
 		let _ = tx.send(());
 	});
@@ -1617,7 +1655,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner.spawn(name, fut);
 
 	let _ = streams.push(from_rx);
-	futures.push(Box::pin(rx.map(|e| { log::warn!("Dropping error {:?}", e); Ok(()) })));
+	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
 		tx: to_tx,
@@ -1697,7 +1735,7 @@ mod tests {
 										tx,
 									)
 								)
-							).await.unwrap();
+							).await;
 							c += 1;
 							continue;
 						}
@@ -1771,7 +1809,7 @@ mod tests {
 							Some(msg) => {
 								s1_results.push(msg);
 								if s1_results.len() == 10 {
-									handler.stop().await.unwrap();
+									handler.stop().await;
 								}
 							}
 							None => break,
@@ -1829,10 +1867,10 @@ mod tests {
 
 			pin_mut!(overseer_fut);
 
-			handler.block_imported(second_block).await.unwrap();
-			handler.block_imported(third_block).await.unwrap();
-			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await.unwrap();
-			handler.stop().await.unwrap();
+			handler.block_imported(second_block).await;
+			handler.block_imported(third_block).await;
+			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+			handler.stop().await;
 
 			select! {
 				res = overseer_fut => {
@@ -1997,8 +2035,8 @@ mod tests {
 			let mut ss5_results = Vec::new();
 			let mut ss6_results = Vec::new();
 
-			handler.block_imported(second_block).await.unwrap();
-			handler.block_imported(third_block).await.unwrap();
+			handler.block_imported(second_block).await;
+			handler.block_imported(third_block).await;
 
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(first_block_hash)),
@@ -2033,7 +2071,7 @@ mod tests {
 
 				if ss5_results.len() == expected_heartbeats.len() &&
 					ss6_results.len() == expected_heartbeats.len() {
-						handler.stop().await.unwrap();
+						handler.stop().await;
 				}
 			}
 
@@ -2091,7 +2129,7 @@ mod tests {
 			let mut ss6_results = Vec::new();
 
 			// this should stop work on both forks we started with earlier.
-			handler.block_finalized(third_block).await.unwrap();
+			handler.block_finalized(third_block).await;
 
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -2126,7 +2164,7 @@ mod tests {
 
 				if ss5_results.len() == expected_heartbeats.len() &&
 					ss6_results.len() == expected_heartbeats.len() {
-						handler.stop().await.unwrap();
+						handler.stop().await;
 				}
 			}
 
@@ -2328,28 +2366,28 @@ mod tests {
 				hash: Default::default(),
 				parent_hash: Default::default(),
 				number: Default::default(),
-			}).await.unwrap();
+			}).await;
 
 			// send a msg to each subsystem
 			// except for BitfieldSigning as the message is not instantiable
-			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await.unwrap();
-			handler.send_msg(AllMessages::CandidateBacking(test_candidate_backing_msg())).await.unwrap();
-			handler.send_msg(AllMessages::CandidateSelection(test_candidate_selection_msg())).await.unwrap();
-			handler.send_msg(AllMessages::CollationGeneration(test_collator_generation_msg())).await.unwrap();
-			handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await.unwrap();
-			handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await.unwrap();
-			handler.send_msg(AllMessages::AvailabilityDistribution(test_availability_distribution_msg())).await.unwrap();
-			// handler.send_msg(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await.unwrap();
-			handler.send_msg(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await.unwrap();
-			handler.send_msg(AllMessages::Provisioner(test_provisioner_msg())).await.unwrap();
-			handler.send_msg(AllMessages::PoVDistribution(test_pov_distribution_msg())).await.unwrap();
-			handler.send_msg(AllMessages::RuntimeApi(test_runtime_api_msg())).await.unwrap();
-			handler.send_msg(AllMessages::AvailabilityStore(test_availability_store_msg())).await.unwrap();
-			handler.send_msg(AllMessages::NetworkBridge(test_network_bridge_msg())).await.unwrap();
-			handler.send_msg(AllMessages::ChainApi(test_chain_api_msg())).await.unwrap();
+			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+			handler.send_msg(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
+			handler.send_msg(AllMessages::CandidateSelection(test_candidate_selection_msg())).await;
+			handler.send_msg(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
+			handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
+			handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
+			handler.send_msg(AllMessages::AvailabilityDistribution(test_availability_distribution_msg())).await;
+			// handler.send_msg(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
+			handler.send_msg(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
+			handler.send_msg(AllMessages::Provisioner(test_provisioner_msg())).await;
+			handler.send_msg(AllMessages::PoVDistribution(test_pov_distribution_msg())).await;
+			handler.send_msg(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
+			handler.send_msg(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
+			handler.send_msg(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
+			handler.send_msg(AllMessages::ChainApi(test_chain_api_msg())).await;
 
 			// send a stop signal to each subsystems
-			handler.stop().await.unwrap();
+			handler.stop().await;
 
 			select! {
 				res = overseer_fut => {

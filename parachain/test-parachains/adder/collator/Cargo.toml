@@ -26,6 +26,7 @@ polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
