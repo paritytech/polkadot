@@ -6,7 +6,7 @@ edition = "2018"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
-async-trait = "0.1.41"
+async-trait = "0.1.42"
 futures = "0.3.8"
 futures-timer = "3.0.2"
 parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
@@ -29,7 +29,7 @@ substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate
 
 [dev-dependencies]
 assert_matches = "1.4.0"
-async-trait = "0.1.41"
+async-trait = "0.1.42"
 env_logger = "0.8.2"
 futures = { version = "0.3.8", features = ["thread-pool"] }
 log = "0.4.11"
