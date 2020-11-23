@@ -225,7 +225,7 @@ async fn fetch_collation<Context>(
 	collator_id: CollatorId,
 	para_id: ParaId,
 	tx: oneshot::Sender<(CandidateReceipt, PoV)>
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -242,7 +242,7 @@ where
 						"Failed to send collation",
 					);
 				}
-				return Ok(());
+				return;
 			}
 		}
 	}
@@ -262,10 +262,8 @@ where
 	// Request the collation.
 	// Assume it is `request_collation`'s job to check and ignore duplicate requests.
 	if let Some(relevant_advertiser) = relevant_advertiser {
-		request_collation(ctx, state, relay_parent, para_id, relevant_advertiser, tx).await?;
+		request_collation(ctx, state, relay_parent, para_id, relevant_advertiser, tx).await;
 	}
-
-	Ok(())
 }
 
 /// Report a collator for some malicious actions.
@@ -274,7 +272,7 @@ async fn report_collator<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	id: CollatorId,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -283,11 +281,9 @@ where
 	// is a tolerable thing to do.
 	for (k, v) in state.known_collators.iter() {
 		if *v == id {
-			modify_reputation(ctx, k.clone(), COST_REPORT_BAD).await?;
+			modify_reputation(ctx, k.clone(), COST_REPORT_BAD).await;
 		}
 	}
-
-	Ok(())
 }
 
 /// Some other subsystem has reported a collator as a good one, bump reputation.
@@ -296,17 +292,15 @@ async fn note_good_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	id: CollatorId,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	for (peer_id, collator_id) in state.known_collators.iter() {
 		if id == *collator_id {
-			modify_reputation(ctx, peer_id.clone(), BENEFIT_NOTIFY_GOOD).await?;
+			modify_reputation(ctx, peer_id.clone(), BENEFIT_NOTIFY_GOOD).await;
 		}
 	}
-
-	Ok(())
 }
 
 /// A peer's view has changed. A number of things should be done:
@@ -362,7 +356,7 @@ async fn received_collation<Context>(
 	request_id: RequestId,
 	receipt: CandidateReceipt,
 	pov: PoV,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -390,11 +384,9 @@ where
 		// If this collation is not just a delayed one that we were expecting,
 		// but our view has moved on, in that case modify peer's reputation.
 		if !state.recently_removed_heads.contains(&relay_parent) {
-			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await?;
+			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 	}
-
-	Ok(())
 }
 
 /// Request a collation from the network.
@@ -411,7 +403,7 @@ async fn request_collation<Context>(
 	para_id: ParaId,
 	peer_id: PeerId,
 	result: oneshot::Sender<(CandidateReceipt, PoV)>,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -423,7 +415,7 @@ where
 			relay_parent = %relay_parent,
 			"collation is no longer in view",
 		);
-		return Ok(());
+		return;
 	}
 
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
@@ -434,7 +426,7 @@ where
 			relay_parent = %relay_parent,
 			"collation has already been requested",
 		);
-		return Ok(());
+		return;
 	}
 
 	let request_id = state.next_request_id;
@@ -470,9 +462,7 @@ where
 			vec![peer_id],
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await?;
-
-	Ok(())
+	)).await;
 }
 
 /// Notify `CandidateSelectionSubsystem` that a collation has been advertised.
@@ -482,7 +472,7 @@ async fn notify_candidate_selection<Context>(
 	collator: CollatorId,
 	relay_parent: Hash,
 	para_id: ParaId,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -492,9 +482,7 @@ where
 			para_id,
 			collator,
 		)
-	)).await?;
-
-	Ok(())
+	)).await;
 }
 
 /// Networking message has been received.
@@ -504,7 +492,7 @@ async fn process_incoming_peer_message<Context>(
 	state: &mut State,
 	origin: PeerId,
 	msg: protocol_v1::CollatorProtocolMessage,
-)-> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -519,19 +507,17 @@ where
 			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
-				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await?;
+				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
 			}
 		}
 		RequestCollation(_, _, _) => {
 			// This is a validator side of the protocol, collation requests are not expected here.
-			return modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
+			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 		Collation(request_id, receipt, pov) => {
-			received_collation(ctx, state, origin, request_id, receipt, pov).await?;
+			received_collation(ctx, state, origin, request_id, receipt, pov).await;
 		}
 	}
-
-	Ok(())
 }
 
 /// A leaf has become inactive so we want to
@@ -592,7 +578,7 @@ async fn request_timed_out<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	id: RequestId,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -604,12 +590,10 @@ where
 			if let Some(_) = state.requests_info.remove(&id) {
 				let peer_id = key.2;
 
-				modify_reputation(ctx, peer_id, COST_REQUEST_TIMED_OUT).await?;
+				modify_reputation(ctx, peer_id, COST_REQUEST_TIMED_OUT).await;
 			}
 		}
 	}
-
-	Ok(())
 }
 
 /// Bridge event switch.
@@ -639,7 +623,7 @@ where
 			handle_our_view_change(state, view).await?;
 		},
 		PeerMessage(remote, msg) => {
-			process_incoming_peer_message(ctx, state, remote, msg).await?;
+			process_incoming_peer_message(ctx, state, remote, msg).await;
 		}
 	}
 
@@ -652,7 +636,7 @@ async fn process_msg<Context>(
 	ctx: &mut Context,
 	msg: CollatorProtocolMessage,
 	state: &mut State,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -675,13 +659,13 @@ where
 			);
 		}
 		FetchCollation(relay_parent, collator_id, para_id, tx) => {
-			fetch_collation(ctx, state, relay_parent, collator_id, para_id, tx).await?;
+			fetch_collation(ctx, state, relay_parent, collator_id, para_id, tx).await;
 		}
 		ReportCollator(id) => {
-			report_collator(ctx, state, id).await?;
+			report_collator(ctx, state, id).await;
 		}
 		NoteGoodCollation(id) => {
-			note_good_collation(ctx, state, id).await?;
+			note_good_collation(ctx, state, id).await;
 		}
 		NetworkBridgeUpdateV1(event) => {
 			if let Err(e) = handle_network_msg(
@@ -697,8 +681,6 @@ where
 			}
 		}
 	}
-
-	Ok(())
 }
 
 /// The main run loop.
@@ -726,7 +708,7 @@ where
 			tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 
 			match msg {
-				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
+				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
 				Signal(BlockFinalized(_)) => {}
 				Signal(ActiveLeaves(_)) => {}
 				Signal(Conclude) => { break }
@@ -742,7 +724,7 @@ where
 			match request {
 				CollationRequestResult::Timeout(id) => {
 					tracing::trace!(target: LOG_TARGET, id, "request timed out");
-					request_timed_out(&mut ctx, &mut state, id).await?;
+					request_timed_out(&mut ctx, &mut state, id).await;
 				}
 				CollationRequestResult::Received(id) => {
 					state.requests_info.remove(&id);

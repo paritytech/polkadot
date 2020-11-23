@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use thiserror::Error;
-
 //! The `Error` and `Result` types used by the subsystem.
+
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {

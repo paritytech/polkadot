@@ -1233,6 +1233,28 @@ pub fn rococo_testnet_genesis(
 				max_pov_size: 50 * 1024 * 1024,
 				max_head_data_size: 32 * 1024,
 				group_rotation_frequency: 10,
+				max_upward_queue_count: 8,
+				max_upward_queue_size: 8 * 1024,
+				max_downward_message_size: 1024,
+				// this is approximatelly 4ms.
+				//
+				// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
+				// an import since that's a made up number and should be replaced with a constant
+				// obtained by benchmarking anyway.
+				preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
+				max_upward_message_size: 1024,
+				max_upward_message_num_per_candidate: 5,
+				hrmp_open_request_ttl: 5,
+				hrmp_sender_deposit: 0,
+				hrmp_recipient_deposit: 0,
+				hrmp_channel_max_capacity: 8,
+				hrmp_channel_max_total_size: 8 * 1024,
+				hrmp_max_parachain_inbound_channels: 4,
+				hrmp_max_parathread_inbound_channels: 4,
+				hrmp_channel_max_message_size: 1024,
+				hrmp_max_parachain_outbound_channels: 4,
+				hrmp_max_parathread_outbound_channels: 4,
+				hrmp_max_message_num_per_candidate: 5,
 				..Default::default()
 			},
 		}),

@@ -336,13 +336,11 @@ impl PolkadotTestNode {
 
 		self.overseer_handler
 			.send_msg(CollationGenerationMessage::Initialize(config))
-			.await
-			.expect("Registers the collator");
+			.await;
 
 		self.overseer_handler
 			.send_msg(CollatorProtocolMessage::CollateOn(para_id))
-			.await
-			.expect("Sends CollateOn");
+			.await;
 	}
 }
 

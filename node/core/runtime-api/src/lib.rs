@@ -40,7 +40,7 @@ use sp_api::{ProvideRuntimeApi};
 
 use futures::prelude::*;
 
-const LOG_TARGET: &str = "RuntimeApi";
+const LOG_TARGET: &str = "runtime_api";
 
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {

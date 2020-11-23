@@ -86,13 +86,11 @@ fn main() -> Result<()> {
 						};
 						overseer_handler
 							.send_msg(CollationGenerationMessage::Initialize(config))
-							.await
-							.expect("Registers collator");
+							.await;
 
 						overseer_handler
 							.send_msg(CollatorProtocolMessage::CollateOn(PARA_ID))
-							.await
-							.expect("Collates on");
+							.await;
 
 						Ok(full_node.task_manager)
 					}

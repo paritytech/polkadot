@@ -182,7 +182,7 @@ async fn notify_all_we_are_awaiting(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	pov_hash: Hash,
-) -> error::Result<()> {
+) {
 	// We use `awaited` as a proxy for which heads are in the peer's view.
 	let peers_to_send: Vec<_> = peers.iter()
 		.filter_map(|(peer, state)| if state.awaited.contains_key(&relay_parent) {
@@ -192,16 +192,16 @@ async fn notify_all_we_are_awaiting(
 		})
 		.collect();
 
-	if peers_to_send.is_empty() { return Ok(()) }
+	if peers_to_send.is_empty() {
+		return;
+	}
 
 	let payload = awaiting_message(relay_parent, vec![pov_hash]);
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
 		payload,
-	))).await?;
-
-	Ok(())
+	))).await;
 }
 
 /// Notify one peer about everything we're awaiting at a given relay-parent.
@@ -211,7 +211,7 @@ async fn notify_one_we_are_awaiting_many(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent_state: &HashMap<Hash, BlockBasedState>,
 	relay_parent: Hash,
-) -> error::Result<()> {
+) {
 	let awaiting_hashes = relay_parent_state.get(&relay_parent).into_iter().flat_map(|s| {
 		// Send the peer everything we are fetching at this relay-parent
 		s.fetching.iter()
@@ -219,16 +219,16 @@ async fn notify_one_we_are_awaiting_many(
 			.map(|(pov_hash, _)| *pov_hash)
 	}).collect::<Vec<_>>();
 
-	if awaiting_hashes.is_empty() { return Ok(()) }
+	if awaiting_hashes.is_empty() {
+		return;
+	}
 
 	let payload = awaiting_message(relay_parent, awaiting_hashes);
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		vec![peer.clone()],
 		payload,
-	))).await?;
-
-	Ok(())
+	))).await;
 }
 
 /// Distribute a PoV to peers who are awaiting it.
@@ -240,7 +240,7 @@ async fn distribute_to_awaiting(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: &PoV,
-) -> error::Result<()> {
+) {
 	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
 	//
 	// Also removes it from their awaiting set.
@@ -254,18 +254,16 @@ async fn distribute_to_awaiting(
 		}))
 		.collect();
 
-	if peers_to_send.is_empty() { return Ok(()) }
+	if peers_to_send.is_empty() { return; }
 
 	let payload = send_pov_message(relay_parent, pov_hash, pov.clone());
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
 		payload,
-	))).await?;
+	))).await;
 
 	metrics.on_pov_distributed();
-
-	Ok(())
 }
 
 /// Get the Id of the Core that is assigned to the para being collated on if any
@@ -399,7 +397,9 @@ async fn handle_fetch(
 		ctx,
 		relay_parent,
 		descriptor.pov_hash
-	).await
+	).await;
+
+	Ok(())
 }
 
 /// Handles a `DistributePoV` message.
@@ -410,12 +410,12 @@ async fn handle_distribute(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
-) -> error::Result<()> {
+) {
 	let _timer = state.metrics.time_handle_distribute();
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
-		None => return Ok(()),
 		Some(s) => s,
+		None => return,
 	};
 
 	if let Some(our_awaited) = relay_parent_state.fetching.get_mut(&descriptor.pov_hash) {
@@ -446,10 +446,8 @@ async fn report_peer(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
 	rep: Rep,
-) -> error::Result<()> {
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await?;
-
-	Ok(())
+) {
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
 }
 
 /// Handle a notification from a peer that they are awaiting some PoVs.
@@ -460,16 +458,16 @@ async fn handle_awaiting(
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
-) -> error::Result<()> {
+) {
 	if !state.our_view.0.contains(&relay_parent) {
-		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
-		return Ok(());
+		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await;
+		return;
 	}
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => {
 			tracing::warn!("PoV Distribution relay parent state out-of-sync with our view");
-			return Ok(());
+			return;
 		}
 		Some(s) => s,
 	};
@@ -478,8 +476,8 @@ async fn handle_awaiting(
 		state.peer_state.get_mut(&peer).and_then(|s| s.awaited.get_mut(&relay_parent))
 	{
 		None => {
-			report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
-			return Ok(());
+			report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await;
+			return;
 		}
 		Some(a) => a,
 	};
@@ -493,16 +491,14 @@ async fn handle_awaiting(
 				let payload = send_pov_message(relay_parent, pov_hash, (&**pov).clone());
 				ctx.send_message(AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-				)).await?;
+				)).await;
 			} else {
 				peer_awaiting.insert(pov_hash);
 			}
 		}
 	} else {
-		report_peer(ctx, peer, COST_APPARENT_FLOOD).await?;
+		report_peer(ctx, peer, COST_APPARENT_FLOOD).await;
 	}
-
-	Ok(())
 }
 
 /// Handle an incoming PoV from our peer. Reports them if unexpected, rewards them if not.
@@ -516,11 +512,11 @@ async fn handle_incoming_pov(
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: PoV,
-) -> error::Result<()> {
+) {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None =>	{
-			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
-			return Ok(());
+			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
+			return;
 		},
 		Some(r) => r,
 	};
@@ -529,16 +525,16 @@ async fn handle_incoming_pov(
 		// Do validity checks and complete all senders awaiting this PoV.
 		let fetching = match relay_parent_state.fetching.get_mut(&pov_hash) {
 			None => {
-				report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
-				return Ok(());
+				report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
+				return;
 			}
 			Some(f) => f,
 		};
 
 		let hash = pov.hash();
 		if hash != pov_hash {
-			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
-			return Ok(());
+			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
+			return;
 		}
 
 		let pov = Arc::new(pov);
@@ -546,10 +542,10 @@ async fn handle_incoming_pov(
 		if fetching.is_empty() {
 			// fetching is empty whenever we were awaiting something and
 			// it was completed afterwards.
-			report_peer(ctx, peer.clone(), BENEFIT_LATE_POV).await?;
+			report_peer(ctx, peer.clone(), BENEFIT_LATE_POV).await;
 		} else {
 			// fetching is non-empty when the peer just provided us with data we needed.
-			report_peer(ctx, peer.clone(), BENEFIT_FRESH_POV).await?;
+			report_peer(ctx, peer.clone(), BENEFIT_FRESH_POV).await;
 		}
 
 		for response_sender in fetching.drain(..) {
@@ -586,17 +582,15 @@ async fn handle_network_update(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	update: NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>,
-) -> error::Result<()> {
+) {
 	let _timer = state.metrics.time_handle_network_update();
 
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
 			handle_validator_connected(state, peer);
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			state.peer_state.remove(&peer);
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 			if let Some(peer_state) = state.peer_state.get_mut(&peer_id) {
@@ -614,12 +608,11 @@ async fn handle_network_update(
 							ctx,
 							&state.relay_parent_state,
 							*relay_parent,
-						).await?;
+						).await;
 					}
 				}
 			}
 
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			match message {
@@ -644,7 +637,6 @@ async fn handle_network_update(
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
 			state.our_view = view;
-			Ok(())
 		}
 	}
 }
@@ -697,13 +689,13 @@ impl PoVDistribution {
 									relay_parent,
 									descriptor,
 									pov,
-								).await?,
+								).await,
 							PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
 								handle_network_update(
 									&mut state,
 									&mut ctx,
 									event,
-								).await?,
+								).await,
 						}
 					}
 				}
