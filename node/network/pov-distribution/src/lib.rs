@@ -369,13 +369,18 @@ async fn handle_fetch(
 					relay_parent,
 					descriptor.para_id,
 				).await? {
-					let new_connection_request = validator_discovery::connect_to_validators(
-						ctx,
-						relay_parent,
-						relevant_validators.clone(),
-					).await?;
+					// We only need one connection request per (relay_parent, para_id)
+					// so here we take this shortcut to avoid calling `connect_to_validators`
+					// more than once.
+					if !state.connection_requests.contains_request(&relay_parent) {
+						let new_connection_request = validator_discovery::connect_to_validators(
+							ctx,
+							relay_parent,
+							relevant_validators.clone(),
+						).await?;
 
-					state.connection_requests.put(relay_parent, new_connection_request);
+						state.connection_requests.put(relay_parent, new_connection_request);
+					}
 
 					e.insert(vec![response_sender]);
 				}

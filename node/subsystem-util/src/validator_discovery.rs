@@ -133,6 +133,11 @@ impl ConnectionRequests {
 			Pin::new(&mut self.requests).remove(token);
 		}
 	}
+
+	/// Is a connection at this relay parent already present in the request
+	pub fn contains_request(&self, relay_parent: &Hash) -> bool {
+		self.id_map.contains_key(relay_parent)
+	}
 }
 
 impl stream::Stream for ConnectionRequests {
