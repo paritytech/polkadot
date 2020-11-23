@@ -21,7 +21,6 @@ use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProt
 use polkadot_primitives::v1::Id as ParaId;
 use sc_cli::{Result, Role, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
-use std::time::Duration;
 use test_parachain_adder_collator::Collator;
 
 const PARA_ID: ParaId = ParaId::new(100);
@@ -60,11 +59,6 @@ fn main() -> Result<()> {
 							config,
 							polkadot_service::IsCollator::Yes(collator.collator_id()),
 							None,
-							Some(sc_authority_discovery::WorkerConfig {
-								query_interval: Duration::from_secs(1),
-								query_start_delay: Duration::from_secs(0),
-								..Default::default()
-							}),
 						)?;
 						let mut overseer_handler = full_node
 							.overseer_handler

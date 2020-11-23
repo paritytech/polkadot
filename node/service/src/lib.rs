@@ -33,7 +33,7 @@ use {
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
-	sc_authority_discovery::{Service as AuthorityDiscoveryService, WorkerConfig as AuthorityWorkerConfig},
+	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
 	sp_core::traits::SpawnNamed,
 	sp_keystore::SyncCryptoStorePtr,
@@ -474,7 +474,6 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	authority_discovery_config: Option<AuthorityWorkerConfig>,
 	isolation_strategy: IsolationStrategy,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
@@ -583,8 +582,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
-			authority_discovery_config.unwrap_or_default(),
+		let (worker, service) = sc_authority_discovery::new_worker_and_service(
 			client.clone(),
 			network.clone(),
 			Box::pin(dht_event_stream),
@@ -897,14 +895,12 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	authority_discovery_config: Option<AuthorityWorkerConfig>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
 			Default::default(),
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
@@ -912,7 +908,6 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
 			Default::default(),
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
@@ -920,7 +915,6 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
 			Default::default(),
 		).map(|full| full.with_client(Client::Westend))
 	} else {
@@ -928,7 +922,6 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
 			Default::default(),
 		).map(|full| full.with_client(Client::Polkadot))
 	}
