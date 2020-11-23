@@ -80,7 +80,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 			hash_a,
 			descriptor,
 			Arc::new(pov.clone()),
-		).await.unwrap();
+		).await;
 
 		assert!(!state.peer_state[&peer_a].awaited[&hash_a].contains(&pov_hash));
 		assert!(state.peer_state[&peer_c].awaited[&hash_b].contains(&pov_hash));
@@ -160,7 +160,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 			hash_a,
 			descriptor,
 			pov_send,
-		).await.unwrap();
+		).await;
 
 		assert_eq!(state.relay_parent_state[&hash_a].fetching[&pov_hash].len(), 1);
 
@@ -234,7 +234,7 @@ fn peer_view_change_leads_to_us_informing() {
 			&mut state,
 			&mut ctx,
 			NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View(vec![hash_a, hash_b])),
-		).await.unwrap();
+		).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -310,7 +310,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 				peer_a.clone(),
 				send_pov_message(hash_a, pov_hash, pov.clone()),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		handle_network_update(
 			&mut state,
@@ -319,7 +319,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 				peer_b.clone(),
 				send_pov_message(hash_a, pov_hash, pov.clone()),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		assert_eq!(&*pov_recv.await.unwrap(), &pov);
 
@@ -399,7 +399,7 @@ fn peer_punished_for_sending_bad_pov() {
 				peer_a.clone(),
 				send_pov_message(hash_a, pov_hash, bad_pov.clone()),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		// didn't complete our sender.
 		assert_eq!(state.relay_parent_state[&hash_a].fetching[&pov_hash].len(), 1);
@@ -463,7 +463,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 				peer_a.clone(),
 				send_pov_message(hash_a, pov_hash, pov.clone()),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -525,7 +525,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 				peer_a.clone(),
 				send_pov_message(hash_b, pov_hash, pov.clone()),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -588,7 +588,7 @@ fn peer_reported_for_awaiting_too_much() {
 					peer_a.clone(),
 					awaiting_message(hash_a, vec![pov_hash]),
 				).focus().unwrap(),
-			).await.unwrap();
+			).await;
 		}
 
 		assert_eq!(state.peer_state[&peer_a].awaited[&hash_a].len(), max_plausibly_awaited);
@@ -602,7 +602,7 @@ fn peer_reported_for_awaiting_too_much() {
 				peer_a.clone(),
 				awaiting_message(hash_a, vec![last_pov_hash]),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		// No more bookkeeping for you!
 		assert_eq!(state.peer_state[&peer_a].awaited[&hash_a].len(), max_plausibly_awaited);
@@ -672,7 +672,7 @@ fn peer_reported_for_awaiting_outside_their_view() {
 				peer_a.clone(),
 				awaiting_message(hash_b, vec![pov_hash]),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		assert!(state.peer_state[&peer_a].awaited.get(&hash_b).is_none());
 
@@ -735,7 +735,7 @@ fn peer_reported_for_awaiting_outside_our_view() {
 				peer_a.clone(),
 				awaiting_message(hash_b, vec![pov_hash]),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		// Illegal `awaited` is ignored.
 		assert!(state.peer_state[&peer_a].awaited[&hash_b].is_empty());
@@ -810,7 +810,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 				peer_a.clone(),
 				send_pov_message(hash_a, pov_hash, pov.clone()),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		assert_eq!(&*pov_recv.await.unwrap(), &pov);
 
@@ -893,7 +893,7 @@ fn peer_completing_request_no_longer_awaiting() {
 				peer_a.clone(),
 				send_pov_message(hash_a, pov_hash, pov.clone()),
 			).focus().unwrap(),
-		).await.unwrap();
+		).await;
 
 		assert_eq!(&*pov_recv.await.unwrap(), &pov);
 
