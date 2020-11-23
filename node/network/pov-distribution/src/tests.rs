@@ -775,7 +775,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 
 		};
 
-		futures::join!(handle_future, check_future).0.unwrap();
+		futures::join!(handle_future, check_future);
 	});
 }
 

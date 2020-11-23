@@ -26,7 +26,7 @@ use polkadot_primitives::v1::{
 	Hash, PoV, CandidateDescriptor, ValidatorId, Id as ParaId, CoreIndex, CoreState,
 };
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, SubsystemError, Subsystem,
+	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, SubsystemResult, SubsystemError, Subsystem,
 	FromOverseer, SpawnedSubsystem,
 	messages::{
 		PoVDistributionMessage, AllMessages, NetworkBridgeMessage,
@@ -343,17 +343,17 @@ async fn handle_fetch(
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
 	response_sender: oneshot::Sender<Arc<PoV>>,
-) -> error::Result<()> {
+) {
 	let _timer = state.metrics.time_handle_fetch();
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		Some(s) => s,
-		None => return Ok(()),
+		None => return,
 	};
 
 	if let Some(pov) = relay_parent_state.known.get(&descriptor.pov_hash) {
 		let _  = response_sender.send(pov.clone());
-		return Ok(());
+		return;
 	}
 
 	{
@@ -361,25 +361,34 @@ async fn handle_fetch(
 			Entry::Occupied(mut e) => {
 				// we are already awaiting this PoV if there is an entry.
 				e.get_mut().push(response_sender);
-				return Ok(());
+				return;
 			}
 			Entry::Vacant(e) => {
-				if let Some(relevant_validators) = determine_relevant_validators(
+				if let Ok(Some(relevant_validators)) = determine_relevant_validators(
 					ctx,
 					relay_parent,
 					descriptor.para_id,
-				).await? {
+				).await {
 					// We only need one connection request per (relay_parent, para_id)
 					// so here we take this shortcut to avoid calling `connect_to_validators`
 					// more than once.
 					if !state.connection_requests.contains_request(&relay_parent) {
-						let new_connection_request = validator_discovery::connect_to_validators(
+						match validator_discovery::connect_to_validators(
 							ctx,
 							relay_parent,
 							relevant_validators.clone(),
-						).await?;
-
-						state.connection_requests.put(relay_parent, new_connection_request);
+						).await {
+						    Ok(new_connection_request) => {
+								state.connection_requests.put(relay_parent, new_connection_request);
+							}
+						    Err(e) => {
+								tracing::debug!(
+									target: LOG_TARGET,
+									"Failed to create a validator connection request {:?}",
+									e,
+								);
+							}
+						}
 					}
 
 					e.insert(vec![response_sender]);
@@ -393,7 +402,7 @@ async fn handle_fetch(
 			relay_parent_state.fetching.len = relay_parent_state.fetching.len(),
 			"other subsystems have requested PoV distribution to fetch more PoVs than reasonably expected",
 		);
-		return Ok(());
+		return;
 	}
 
 	// Issue an `Awaiting` message to all peers with this in their view.
@@ -402,9 +411,7 @@ async fn handle_fetch(
 		ctx,
 		relay_parent,
 		descriptor.pov_hash
-	).await;
-
-	Ok(())
+	).await
 }
 
 /// Handles a `DistributePoV` message.
@@ -656,7 +663,7 @@ impl PoVDistribution {
 	async fn run(
 		self,
 		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
-	) -> error::Result<()> {
+	) -> SubsystemResult<()> {
 		let mut state = State::default();
 		state.metrics = self.metrics;
 
@@ -675,7 +682,11 @@ impl PoVDistribution {
 				}
 				v = ctx.recv().fuse() => {
 					match v? {
-						FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
+						FromOverseer::Signal(signal) => if let Ok(true) = handle_signal(
+							&mut state,
+							&mut ctx,
+							signal,
+						).await {
 							return Ok(());
 						}
 						FromOverseer::Communication { msg } => match msg {
@@ -686,7 +697,7 @@ impl PoVDistribution {
 									relay_parent,
 									descriptor,
 									response_sender,
-								).await?,
+								).await,
 							PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
 								handle_distribute(
 									&mut state,
