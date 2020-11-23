@@ -18,6 +18,8 @@ element `CommittedCanddidateReceipt` is verifiable.
 
 * Missing Definition of Governance Mode.
 * Is a `PoV` enough or should the whole `CommittedCandidateReceipt` be included?
+* Currently [`fn mark_bad()`](https://github.com/paritytech/substrate/pull/6301/files#diff-8faeb5c685a8fdff428c5ec6d9102fd59e127ff69762d43045cd38e586db5559R60-R64) does not persist data.
+
 ## IO
 
 Inputs:
