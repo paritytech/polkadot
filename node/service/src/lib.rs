@@ -162,10 +162,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
 				babe::BabeLink<Block>
 			),
-			(
-				grandpa::SharedVoterState,
-				Arc<GrandpaFinalityProofProvider<FullBackend, Block>>,
-			),
+			grandpa::SharedVoterState,
 		)
 	>,
 	Error
@@ -219,7 +216,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
-		None,
 		client.clone(),
 		select_chain.clone(),
 		inherent_data_providers.clone(),
@@ -235,7 +231,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
-	let rpc_setup = (shared_voter_state.clone(), finality_proof_provider.clone());
+	let rpc_setup = shared_voter_state.clone();
 
 	let babe_config = babe_link.config().clone();
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
@@ -508,7 +504,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
-	let (shared_voter_state, finality_proof_provider) = rpc_setup;
+	let shared_voter_state = rpc_setup;
 
 	#[cfg(feature = "real-overseer")]
 	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
@@ -522,8 +518,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			import_queue,
 			on_demand: None,
 			block_announce_validator_builder: None,
-			finality_proof_request_builder: None,
-			finality_proof_provider: Some(finality_proof_provider.clone()),
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -774,16 +768,12 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		on_demand.clone(),
 	));
 
-	let grandpa_block_import = grandpa::light_block_import(
+	let (grandpa_block_import, _) = grandpa::block_import(
 		client.clone(),
-		backend.clone(),
 		&(client.clone() as Arc<_>),
-		Arc::new(on_demand.checker().clone()),
+		select_chain.clone(),
 	)?;
-
-	let finality_proof_import = grandpa_block_import.clone();
-	let finality_proof_request_builder =
-		finality_proof_import.create_finality_proof_request_builder();
+	let justification_import = grandpa_block_import.clone();
 
 	let (babe_block_import, babe_link) = babe::block_import(
 		babe::Config::get_or_compute(&*client)?,
@@ -797,8 +787,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 	let import_queue = babe::import_queue(
 		babe_link,
 		babe_block_import,
-		None,
-		Some(Box::new(finality_proof_import)),
+		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
 		inherent_data_providers.clone(),
@@ -806,9 +795,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		config.prometheus_registry(),
 		consensus_common::NeverCanAuthor,
 	)?;
-
-	let finality_proof_provider =
-		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -819,8 +805,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 			import_queue,
 			on_demand: Some(on_demand.clone()),
 			block_announce_validator_builder: None,
-			finality_proof_request_builder: Some(finality_proof_request_builder),
-			finality_proof_provider: Some(finality_proof_provider),
 		})?;
 
 	if config.offchain_worker.enabled {
