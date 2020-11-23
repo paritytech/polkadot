@@ -194,19 +194,19 @@ impl OverseerHandler {
 	/// Inform the `Overseer` that that some block was imported.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn block_imported(&mut self, block: BlockInfo) {
-		self.send_logging_error(Event::BlockImported(block)).await
+		self.send_and_log_error(Event::BlockImported(block)).await
 	}
 
 	/// Send some message to one of the `Subsystem`s.
 	#[tracing::instrument(level = "trace", skip(self, msg), fields(subsystem = LOG_TARGET))]
 	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) {
-		self.send_logging_error(Event::MsgToSubsystem(msg.into())).await
+		self.send_and_log_error(Event::MsgToSubsystem(msg.into())).await
 	}
 
 	/// Inform the `Overseer` that that some block was finalized.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn block_finalized(&mut self, block: BlockInfo) {
-		self.send_logging_error(Event::BlockFinalized(block)).await
+		self.send_and_log_error(Event::BlockFinalized(block)).await
 	}
 
 	/// Wait for a block with the given hash to be in the active-leaves set.
@@ -218,7 +218,7 @@ impl OverseerHandler {
 	/// In this case, it's the caller's responsibility to ensure a timeout is set.
 	#[tracing::instrument(level = "trace", skip(self, response_channel), fields(subsystem = LOG_TARGET))]
 	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) {
-		self.send_logging_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
+		self.send_and_log_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 			hash,
 			response_channel
 		})).await
@@ -227,10 +227,10 @@ impl OverseerHandler {
 	/// Tell `Overseer` to shutdown.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn stop(&mut self) {
-		self.send_logging_error(Event::Stop).await
+		self.send_and_log_error(Event::Stop).await
 	}
 
-	async fn send_logging_error(&mut self, event: Event) {
+	async fn send_and_log_error(&mut self, event: Event) {
 		if self.events_tx.send(event).await.is_err() {
 			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 		}
@@ -343,7 +343,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) {
-		self.send_logging_error(ToOverseer::SubsystemMessage(msg)).await
+		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
@@ -362,7 +362,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 }
 
 impl<M> OverseerSubsystemContext<M> {
-	async fn send_logging_error(&mut self, msg: ToOverseer) {
+	async fn send_and_log_error(&mut self, msg: ToOverseer) {
 		if self.tx.send(msg).await.is_err() {
 			tracing::debug!(
 				target: LOG_TARGET,
