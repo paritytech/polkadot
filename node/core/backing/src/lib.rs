@@ -518,10 +518,17 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::GetBackedCandidates(_, requested_candidates, tx) => {
 				let _timer = self.metrics.time_get_backed_candidates();
 
-				let backed = self
+				let backed: Vec<_> = self
 					.get_backed()
 					.filter(|candidate| requested_candidates.contains(&candidate.hash()))
 					.collect();
+
+				tracing::info!(
+					target: LOG_TARGET,
+					requested_candidates_len = requested_candidates.len(),
+					backed_len = backed.len(),
+					"got and filtered backed candidates",
+				);
 
 				tx.send(backed).map_err(|data| Error::Send(data))?;
 			}
