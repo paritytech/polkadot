@@ -20,7 +20,7 @@ service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "1.0.1"
+assert_cmd = "1.0.2"
 nix = "0.19.0"
 tempfile = "3.1.0"
 
