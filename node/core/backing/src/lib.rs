@@ -32,6 +32,7 @@ use polkadot_primitives::v1::{
 	ValidatorIndex, SigningContext, PoV, CandidateHash,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments, CoreState, CoreIndex, CollatorId, ValidationOutputs,
+	ValidityAttestation,
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
@@ -256,7 +257,7 @@ fn table_attested_to_backed(
 ) -> Option<BackedCandidate> {
 	let TableAttestedCandidate { candidate, validity_votes, group_id: para_id } = attested;
 
-	let (ids, validity_votes): (Vec<_>, Vec<_>) = validity_votes
+	let (ids, validity_votes): (Vec<_>, Vec<ValidityAttestation>) = validity_votes
 		.into_iter()
 		.map(|(id, vote)| (id, vote.into()))
 		.unzip();
@@ -267,15 +268,30 @@ fn table_attested_to_backed(
 
 	validator_indices.resize(group.len(), false);
 
-	for id in ids.iter() {
+	// The order of the validity votes in the backed candidate must match
+	// the order of bits set in the bitfield, which is not necessarily
+	// the order of the `validity_votes` we got from the table.
+	let mut vote_positions = Vec::with_capacity(validity_votes.len());
+	for (orig_idx, id) in ids.iter().enumerate() {
 		if let Some(position) = group.iter().position(|x| x == id) {
 			validator_indices.set(position, true);
+			vote_positions.push((orig_idx, position));
+		} else {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Logic error: Validity vote from table does not correspond to group",
+			);
+
+			return None;
 		}
 	}
+	vote_positions.sort_by_key(|(_orig, pos_in_group)| *pos_in_group);
 
 	Some(BackedCandidate {
 		candidate,
-		validity_votes,
+		validity_votes: vote_positions.into_iter()
+			.map(|(pos_in_votes, _pos_in_group)| validity_votes[pos_in_votes].clone())
+			.collect(),
 		validator_indices,
 	})
 }
@@ -1003,7 +1019,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ScheduledCore, BlockData, CandidateCommitments,
 		PersistedValidationData, ValidationData, TransientValidationData, HeadData,
-		ValidityAttestation, GroupRotationInfo,
+		GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
 		messages::RuntimeApiRequest,
@@ -2122,5 +2138,81 @@ mod tests {
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
 		});
+	}
+
+	#[test]
+	fn candidate_backing_reorders_votes() {
+		use sp_core::Encode;
+
+		let relay_parent = [1; 32].into();
+		let para_id = ParaId::from(10);
+		let session_index = 5;
+		let signing_context = SigningContext { parent_hash: relay_parent, session_index };
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+			Sr25519Keyring::One,
+		];
+
+		let validator_public = validator_pubkeys(&validators);
+		let validator_groups = {
+			let mut validator_groups = HashMap::new();
+			validator_groups.insert(para_id, vec![0, 1, 2, 3, 4, 5]);
+			validator_groups
+		};
+
+		let table_context = TableContext {
+			signing_context,
+			validator: None,
+			groups: validator_groups,
+			validators: validator_public.clone(),
+		};
+
+		let fake_attestation = |idx: u32| {
+			let candidate: CommittedCandidateReceipt  = Default::default();
+			let hash = candidate.hash();
+			let mut data = vec![0; 64];
+			data[0..32].copy_from_slice(hash.0.as_bytes());
+			data[32..36].copy_from_slice(idx.encode().as_slice());
+
+			let sig = ValidatorSignature::try_from(data).unwrap();
+			statement_table::generic::ValidityAttestation::Implicit(sig)
+		};
+
+		let attested = TableAttestedCandidate {
+			candidate: Default::default(),
+			validity_votes: vec![
+				(5, fake_attestation(5)),
+				(3, fake_attestation(3)),
+				(1, fake_attestation(1)),
+			],
+			group_id: para_id,
+		};
+
+		let backed = table_attested_to_backed(attested, &table_context).unwrap();
+
+		let expected_bitvec = {
+			let mut validator_indices = BitVec::<bitvec::order::Lsb0, u8>::with_capacity(6);
+			validator_indices.resize(6, false);
+
+			validator_indices.set(1, true);
+			validator_indices.set(3, true);
+			validator_indices.set(5, true);
+
+			validator_indices
+		};
+
+		// Should be in bitfield order, which is opposite to the order provided to the function.
+		let expected_attestations = vec![
+			fake_attestation(1).into(),
+			fake_attestation(3).into(),
+			fake_attestation(5).into(),
+		];
+
+		assert_eq!(backed.validator_indices, expected_bitvec);
+		assert_eq!(backed.validity_votes, expected_attestations);
 	}
 }

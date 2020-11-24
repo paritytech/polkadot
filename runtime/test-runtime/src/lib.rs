@@ -682,7 +682,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
-			runtime_api_impl::session_info::<Runtime>(index)
+			runtime_impl::session_info::<Runtime>(index)
 		}
 
 		fn dmq_contents(
