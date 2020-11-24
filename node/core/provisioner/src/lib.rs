@@ -440,6 +440,7 @@ async fn select_candidates(
 	}
 
 	// now get the backed candidates corresponding to these candidate receipts
+	tracing::info!(target: LOG_TARGET, relay_parent = ?relay_parent, "requesting GetBackedCandidates");
 	let (tx, rx) = oneshot::channel();
 	sender.send(FromJob::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(
 		relay_parent,
