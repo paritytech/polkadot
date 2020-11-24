@@ -91,9 +91,7 @@ struct BlockEntry {
 // unix epoch.
 type Tick = u64;
 
-struct TrackerEntry 
-
-struct StoredBlockRange(BlockNumber, BlockNumber)
+struct StoredBlockRange(BlockNumber, BlockNumber);
 ```
 
 In the schema, we map
@@ -106,6 +104,10 @@ CandidateHash => CandidateEntry
 ```
 
 ## Logic
+
+```rust
+const APPROVAL_SESSIONS: SessionIndex = 6;
+```
 
 In-memory state:
 
@@ -149,7 +151,14 @@ On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `
 
 On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. 
-  * We update the `StoredBlockRange` and the `BlockNumber` maps. We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks. 
+  * We update the `StoredBlockRange` and the `BlockNumber` maps.
+  * We use the RuntimeApiSubsystem to determine information about these blocks. It is generally safe to assume that runtime state is available for recent, unfinalized blocks. In the case that it isn't, it means that we are catching up to the head of the chain and needn't worry about assignments to those blocks anyway, as the security assumption of the protocol tolerates nodes being temporarily offline or out-of-date.
+    * We fetch the set of candidates included by each block by dispatching a `RuntimeApiRequest::CandidateEvents` and checking the `CandidateIncluded` events.
+    * We fetch the session of the block by dispatching a `session_index_for_child` request with the parent-hash of the block.
+    * If the `session index - APPROVAL_SESSIONS > state.earliest_session`, then bump `state.earliest_sessions` to that amount and prune earlier sessions.
+    * If the session isn't in our `state.session_info`, load the session info for it and for all sessions since the earliest-session, including the earliest-session, if that is missing. And it can be, just after pruning, if we've done a big jump forward, as is the case when we've just finished chain synchronization.
+    * If any of the runtime API calls fail, we just warn and skip the block.
+  * We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks. 
   * We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate obtained from `CandidateIncluded` events after making a `RuntimeApiRequest::CandidateEvents` request.
   * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
