@@ -13,7 +13,7 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
 statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
-bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
+bitvec = { version = "0.19.4", default-features = false, features = ["alloc"] }
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 thiserror = "1.0.22"
