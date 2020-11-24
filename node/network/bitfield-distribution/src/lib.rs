@@ -859,9 +859,13 @@ mod test {
 								.expect("Malicious key created");
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed =
-			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &malicious.into()))
-			.expect("should be signed");
+		let signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			0,
+			&malicious.into(),
+		)).expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -920,9 +924,13 @@ mod test {
 		state.peer_views.insert(peer_b.clone(), view![hash_a]);
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed =
-			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 42, &validator))
-			.expect("should be signed");
+		let signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			42,
+			&validator,
+		)).expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -973,9 +981,13 @@ mod test {
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed_bitfield =
-			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &validator))
-			.expect("should be signed");
+		let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			0,
+			&validator,
+		)).expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1084,9 +1096,13 @@ mod test {
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed_bitfield =
-			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &validator))
-			.expect("should be signed");
+		let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			0,
+			&validator,
+		)).expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);
@@ -1176,9 +1192,13 @@ mod test {
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed_bitfield =
-			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &validator))
-			.expect("should be signed");
+		let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			0,
+			&validator,
+		)).expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1331,9 +1351,13 @@ mod test {
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed_bitfield =
-			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &validator))
-			.expect("should be signed");
+		let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			0,
+			&validator,
+		)).expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);
