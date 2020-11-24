@@ -121,11 +121,8 @@ impl PerRelayParentData {
 		peer: &PeerId,
 		validator: &ValidatorId,
 	) -> bool {
-		if let Some(set) = self.message_sent_to_peer.get(peer) {
-			!set.contains(validator)
-		} else {
-			false
-		}
+		self.message_sent_to_peer.get(peer).map(|v| !v.contains(validator)).unwrap_or(true)
+			&& self.message_received_from_peer.get(peer).map(|v| !v.contains(validator)).unwrap_or(true)
 	}
 }
 
@@ -321,21 +318,20 @@ where
 	))
 	.await;
 
-	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
-
 	// pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
 		.iter()
 		.filter_map(|(peer, view)| {
 			// check interest in the peer in this message's relay parent
 			if view.contains(&message.relay_parent) {
+				let message_needed = job_data.message_from_validator_needed_by_peer(&peer, &validator);
 				// track the message as sent for this peer
-				let is_new = message_sent_to_peer
+				job_data.message_sent_to_peer
 					.entry(peer.clone())
 					.or_default()
 					.insert(validator.clone());
 
-				if is_new {
+				if message_needed {
 					Some(peer.clone())
 				} else {
 					None
@@ -446,9 +442,6 @@ where
 			return;
 		}
 		one_per_validator.insert(validator.clone(), message.clone());
-
-		// If the peer has sent us a message, we don't need to send him the same.
-		job_data.message_sent_to_peer.entry(origin.clone()).or_default().insert(validator.clone());
 
 		relay_message(ctx, job_data, &mut state.peer_views, validator, message).await;
 
@@ -588,8 +581,7 @@ where
 		return;
 	};
 
-	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
-	message_sent_to_peer
+	job_data.message_sent_to_peer
 		.entry(dest.clone())
 		.or_default()
 		.insert(validator.clone());
