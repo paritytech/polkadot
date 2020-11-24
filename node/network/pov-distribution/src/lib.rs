@@ -146,20 +146,48 @@ async fn handle_signal(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	signal: OverseerSignal,
-) -> error::Result<bool> {
+) -> SubsystemResult<bool> {
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 			let _timer = state.metrics.time_handle_signal();
 
 			for relay_parent in activated {
-				let n_validators = request_validators_ctx(relay_parent.clone(), ctx).await?.await??.len();
+				match request_validators_ctx(relay_parent.clone(), ctx).await {
+					Ok(vals_rx) => {
+						let n_validators = match vals_rx.await? {
+							Ok(v) => v.len(),
+							Err(e) => {
+								tracing::warn!(
+									target: LOG_TARGET,
+									err = ?e,
+									"Error fetching validators from runtime API for active leaf",
+								);
 
-				state.relay_parent_state.insert(relay_parent, BlockBasedState {
-					known: HashMap::new(),
-					fetching: HashMap::new(),
-					n_validators,
-				});
+								// Not adding bookkeeping here might make us behave funny, but we
+								// shouldn't take down the node on spurious runtime API errors.
+								//
+								// and this is "behave funny" as in be bad at our job, but not in any
+								// slashable or security-related way.
+								continue;
+							}
+						};
+
+						state.relay_parent_state.insert(relay_parent, BlockBasedState {
+							known: HashMap::new(),
+							fetching: HashMap::new(),
+							n_validators,
+						});
+					}
+					Err(e) => {
+						// continue here also as above.
+						tracing::warn!(
+							target: LOG_TARGET,
+							err = ?e,
+							"Error fetching validators from runtime API for active leaf",
+						);
+					}
+				}
 			}
 
 			for relay_parent in deactivated {
@@ -682,11 +710,11 @@ impl PoVDistribution {
 				}
 				v = ctx.recv().fuse() => {
 					match v? {
-						FromOverseer::Signal(signal) => if let Ok(true) = handle_signal(
+						FromOverseer::Signal(signal) => if handle_signal(
 							&mut state,
 							&mut ctx,
 							signal,
-						).await {
+						).await? {
 							return Ok(());
 						}
 						FromOverseer::Communication { msg } => match msg {
