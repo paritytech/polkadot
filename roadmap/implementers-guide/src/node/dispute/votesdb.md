@@ -24,11 +24,12 @@ element `CommittedCanddidateReceipt` is verifiable.
 
 Inputs:
 
-* `VotesDbMessage::*`
+* `VotesDbMessage::`
 
 Outputs:
 
-* `DisputeConclusionMessage::*`
+* `DisputeConclusionMessage::Detection`
+* `DisputeConclusionMessage::Resolution`
 * `ChainApiMessage::Blacklist`
 
 ## Messages
@@ -36,15 +37,23 @@ Outputs:
 ```rust
 enum VotesDbMessage {
     /// Allow querying all `Hash`es queried by a particular validator.
-    QueryByValidatorAndSessionIndex {
-        identification: (SessionIndex, ValidatorIndex), response: ResponseChannel<Vec<Hash>>
-    },
-    QueryByValidatorId {
-        identification: ValidatorId, response: ResponseChannel<Vec<Hash>>
+    QueryValidatorVotes {
+        /// Validator indentification.
+        session: SessionIndex,
+        validator: ValidatorIndex,
+        response: ResponseChannel<Vec<Hash>>,
     },
 
-    /// Register a vote for a particular dispute
-    RegisterVote(DisputeGossipMessage<H = Hash, N: BlockNumber>),
+    /// Store a vote for a particular dispute
+    StoreVote{
+        /// Unique validator indentification
+        session: SessionIndex,
+        validator: ValidatorIndex,
+        /// Vote.
+        vote: Vote,
+        /// Attestation.
+        attestation: ValidityAttestation,
+    },
 }
 ```
 
@@ -53,7 +62,11 @@ enum DisputeMessage {
     /// A dispute is detected
     Detection {
         /// unique validator indentification
-        identification: (SessionIndex, ValidatorIndex),
+        session: SessionIndex,
+        validator: ValidatorIndex,
+        /// The attestation.
+        attestation: ValidityAttestation,
+        /// response channel
         response: ResponseChannel<Vec<Hash>>,
     },
     /// Concluded a dispute with the following resolution
@@ -71,39 +84,17 @@ enum DisputeMessage {
 /// Snapshot of the current vote state and recorded votes
 struct Snapshot {
     /// all entries must be unique
-    pro: Vec<(ValidatorIndex, SessionIndex)>,
+    pro: Vec<(ValidatorIndex, SessionIndex, ValidityAttestation)>,
     /// all entries must be unique
-    cons: Vec<(ValidatorIndex, SessionIndex)>,
-}
-```
-
-```rust
-/// Gossip being sent on escalation to all other
-/// relevant validators for the dispute resolution.
-///
-/// Currently information as provided in `BackedCandidate<H=Hash>` with
-/// some extra info.
-struct DisputeGossipMessage<H = Hash, N: BlockNumber> {
-    /// the committed candidate receipt
-    pub candidate: CommittedCandidateReceipt<H>,
-    /// The block number in question
-    /// TODO: not sure if this is needed given, `CandidateDescriptor`
-    /// TODO: already includes sufficient identification info
-    pub block_number: N,
-    /// session index relevant for the block in question
-    pub session_index: SessionIndex,
-    /// the validity votes per validator
-    pub validity_votes: Vec<ValidityAttestation>,
-    /// validator indices for the particular session, which validated the
-    /// disputed block.
-    /// Invariant: is never all zeros/has at least one bit set
-    pub backing_validators: BitVec<bitvec::order::Lsb0, u8>,
+    cons: Vec<(ValidatorIndex, SessionIndex, ValidityAttestation)>,
 }
 ```
 
 ## Session Change
 
-Nop.
+A sweep clean is to be done to remove stored attestions
+of all validators that are not slashable / have no funds
+bound anymore in order to save storage space.
 
 ## Storage
 
@@ -139,11 +130,10 @@ In case a block was disputed successfully, and is now deemed invalid.
 1. iff:
     1. put the chain into governance mode
 
-
 ### Query
 
 1. Incoming query request
-    1. Resolve `ValidatorId` to a set of `(ValidatorIndex, SessionIndex)`.
-    1. For each `(ValidatorIndex, SessionIndex)`:
+    1. Resolve `ValidatorId` to a set of `(SessionIndex, ValidatorIndex)`.
+    1. For each `(SessionIndex, ValidatorIndex)`:
         1. Accumulate `Hash`es.
     1. Lookup all `PoV`s.
