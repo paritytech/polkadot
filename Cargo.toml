@@ -13,7 +13,7 @@ readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-color-eyre = "0.5.7"
+color-eyre = "0.5.8"
 thiserror = "1.0.22"
 futures = "0.3.8"
 service = { package = "polkadot-service", path = "node/service" }
