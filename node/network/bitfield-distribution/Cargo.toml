@@ -20,9 +20,7 @@ bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 maplit = "1.0.2"
 log = "0.4.11"
 env_logger = "0.8.2"
 assert_matches = "1.4.0"
-tempfile = "3.1.0"
