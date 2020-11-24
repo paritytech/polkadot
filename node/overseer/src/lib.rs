@@ -1413,9 +1413,7 @@ where
 
 		self.clean_up_external_listeners();
 
-		if !update.is_empty() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-		}
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
 	}
@@ -1437,7 +1435,11 @@ where
 			self.on_head_deactivated(deactivated)
 		}
 
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		// Most of the time we have a leave already closed when it is finalized, so we check here if there are actually
+		// any updates before sending it to the subsystems.
+		if !update.is_empty() {
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		}
 
 		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash)).await?;
 
