@@ -59,4 +59,4 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde_json = "1.0.59"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "0.3", features = ["macros"] }
