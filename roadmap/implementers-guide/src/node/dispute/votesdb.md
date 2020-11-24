@@ -8,7 +8,7 @@ for a fixed number of sessions.
 
 Votes must be persisted. Disputes might happen long after
 there was a dispute, as such just keeping things in memory
-is thus sufficient, as every blip (OOM, bug, maintanance)
+is thus insufficient, as every blip (OOM, bug, maintanance)
 could cause the node to forget the state.
 
 `UnsignedTransaction`s are OK to be used, since the inner
