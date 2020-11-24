@@ -1320,7 +1320,7 @@ where
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
-		while let Some((hash, number)) = self.leaves.pop() {
+		for (hash, number) in std::mem::take(&mut self.leaves) {
 			update.activated.push(hash);
 			let _ = self.active_leaves.insert(hash, number);
 			self.on_head_activated(&hash);
