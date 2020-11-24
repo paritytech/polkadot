@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use assert_matches::assert_matches;
 use futures::executor;
-use tracing::log::trace;
+use tracing::trace;
 use smallvec::smallvec;
 
 use sp_keyring::Sr25519Keyring;
@@ -47,12 +47,12 @@ fn test_harness<T: Future<Output = ()>>(
 	let _ = env_logger::builder()
 		.is_test(true)
 		.filter(
-			Some("polkadot_collator_protocol"),
-			tracing::log::LevelFilter::Trace,
+			Some("polkadot_pov_distribution"),
+			log::LevelFilter::Trace,
 		)
 		.filter(
 			Some(LOG_TARGET),
-			tracing::log::LevelFilter::Trace,
+			log::LevelFilter::Trace,
 		)
 		.try_init();
 
