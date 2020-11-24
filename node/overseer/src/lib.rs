@@ -68,7 +68,7 @@ use std::collections::{hash_map, HashMap};
 
 use futures::channel::{mpsc, oneshot};
 use futures::{
-	pending, poll, select,
+	poll, select,
 	future::BoxFuture,
 	stream::{self, FuturesUnordered},
 	Future, FutureExt, SinkExt, StreamExt,
@@ -1318,10 +1318,9 @@ where
 	/// Run the `Overseer`.
 	#[tracing::instrument(skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn run(mut self) -> SubsystemResult<()> {
-		let leaves = std::mem::take(&mut self.leaves);
 		let mut update = ActiveLeavesUpdate::default();
 
-		for (hash, number) in leaves.into_iter() {
+		while let Some((hash, number)) = self.leaves.pop() {
 			update.activated.push(hash);
 			let _ = self.active_leaves.insert(hash, number);
 			self.on_head_activated(&hash);
@@ -1330,50 +1329,62 @@ where
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		loop {
-			while let Poll::Ready(Some(msg)) = poll!(&mut self.events_rx.next()) {
-				match msg {
-					Event::MsgToSubsystem(msg) => {
-						self.route_message(msg).await;
-					}
-					Event::Stop => {
-						self.stop().await;
-						return Ok(());
-					}
-					Event::BlockImported(block) => {
-						self.block_imported(block).await?;
-					}
-					Event::BlockFinalized(block) => {
-						self.block_finalized(block).await?;
-					}
-					Event::ExternalRequest(request) => {
-						self.handle_external_request(request);
-					}
-				}
-			}
+			select! {
+				msg = self.events_rx.next().fuse() => {
+					let msg = if let Some(msg) = msg {
+						msg
+					} else {
+						continue
+					};
 
-			while let Poll::Ready(Some((StreamYield::Item(msg), _))) = poll!(
-				&mut self.running_subsystems_rx.next()
-			) {
-				match msg {
-					ToOverseer::SubsystemMessage(msg) => self.route_message(msg).await,
-					ToOverseer::SpawnJob { name, s } => {
-						self.spawn_job(name, s);
+					match msg {
+						Event::MsgToSubsystem(msg) => {
+							self.route_message(msg).await;
+						}
+						Event::Stop => {
+							self.stop().await;
+							return Ok(());
+						}
+						Event::BlockImported(block) => {
+							self.block_imported(block).await?;
+						}
+						Event::BlockFinalized(block) => {
+							self.block_finalized(block).await?;
+						}
+						Event::ExternalRequest(request) => {
+							self.handle_external_request(request);
+						}
 					}
-					ToOverseer::SpawnBlockingJob { name, s } => {
-						self.spawn_blocking_job(name, s);
+				},
+				msg = self.running_subsystems_rx.next().fuse() => {
+					let msg = if let Some((StreamYield::Item(msg), _)) = msg {
+						msg
+					} else {
+						continue
+					};
+
+					match msg {
+						ToOverseer::SubsystemMessage(msg) => self.route_message(msg).await,
+						ToOverseer::SpawnJob { name, s } => {
+							self.spawn_job(name, s);
+						}
+						ToOverseer::SpawnBlockingJob { name, s } => {
+							self.spawn_blocking_job(name, s);
+						}
 					}
-				}
-			}
+				},
+				res = self.running_subsystems.next().fuse() => {
+					let finished = if let Some(finished) = res {
+						finished
+					} else {
+						continue
+					};
 
-			// Some subsystem exited? It's time to panic.
-			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
-				tracing::error!(target: LOG_TARGET, subsystem = ?finished, "subsystem finished unexpectedly");
-				self.stop().await;
-				return finished;
+					tracing::error!(target: LOG_TARGET, subsystem = ?finished, "subsystem finished unexpectedly");
+					self.stop().await;
+					return finished;
+				},
 			}
-
-			// Looks like nothing is left to be polled, let's take a break.
-			pending!();
 		}
 	}
 
@@ -1402,7 +1413,9 @@ where
 
 		self.clean_up_external_listeners();
 
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		if !update.is_empty() {
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		}
 
 		Ok(())
 	}
@@ -1671,7 +1684,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 mod tests {
 	use std::sync::atomic;
 	use std::collections::HashMap;
-	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
+	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt, pending};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::messages::RuntimeApiRequest;
