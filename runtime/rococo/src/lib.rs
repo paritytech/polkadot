@@ -28,7 +28,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
+	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
@@ -691,8 +691,9 @@ sp_api::impl_runtime_apis! {
 				}
 			})
 		}
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-			runtime_api_impl::validator_discovery::<Runtime>(validators)
+
+		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+			runtime_api_impl::session_info::<Runtime>(index)
 		}
 
 		fn dmq_contents(recipient: Id) -> Vec<InboundDownwardMessage<BlockNumber>> {

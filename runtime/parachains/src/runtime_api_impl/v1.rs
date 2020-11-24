@@ -23,7 +23,7 @@ use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
+	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
 	InboundDownwardMessage, InboundHrmpMessage,
 };
 use sp_runtime::traits::Zero;
@@ -285,29 +285,9 @@ where
 		.collect()
 }
 
-/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s and session.
-///
-/// We assume that every validator runs authority discovery,
-/// which would allow us to establish point-to-point connection to given validators.
-pub fn validator_discovery<T>(index: SessionIndex, validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
-where
-	T: initializer::Trait + pallet_authority_discovery::Trait,
-{
-	let (session_validators, discovery_keys) = match <session_info::Module<T>>::session_info(index) {
-		Some(info) => (info.validators, info.discovery_keys),
-		None => return Vec::new(),
-	};
-
-	let id_to_index = session_validators.iter()
-		.zip(0usize..)
-		.collect::<BTreeMap<_, _>>();
-	// We assume the same ordering in authorities as in validators so we can do an index search
-	validators.iter()
-		.map(|id| {
-			let validator_index = id_to_index.get(&id);
-			validator_index.and_then(|i| discovery_keys.get(*i).cloned())
-		})
-		.collect()
+/// Get the session info for the given session, if stored.
+pub fn session_info<T: session_info::Trait>(index: SessionIndex) -> Option<SessionInfo> {
+	<session_info::Module<T>>::session_info(index)
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.

@@ -31,7 +31,7 @@ use polkadot_node_primitives::{
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber,
+	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
 	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
@@ -434,14 +434,8 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
-	/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-	/// Currently this request is limited to validators in the current session.
-	///
-	/// Returns `None` for validators not found in the current session.
-	ValidatorDiscovery(
-		Vec<ValidatorId>,
-		RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>,
-	),
+	/// Get the session info for the given session, if stored.
+	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
 	DmqContents(
 		ParaId,

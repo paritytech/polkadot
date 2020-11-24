@@ -672,7 +672,8 @@ pub enum CandidateEvent<H = Hash> {
 }
 
 /// Information about validator sets of a session.
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default))]
 pub struct SessionInfo {
 	/// Validators in canonical ordering.
 	pub validators: Vec<ValidatorId>,
@@ -740,6 +741,9 @@ sp_api::decl_runtime_apis! {
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
 
+		/// Get the session info for the given session, if stored.
+		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
+
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
@@ -764,13 +768,6 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
-
-		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-		/// Currently this request is limited to validators in the current session.
-		///
-		/// We assume that every validator runs authority discovery,
-		/// which would allow us to establish point-to-point connection to given validators.
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 
 		/// Get all the pending inbound messages in the downward message queue for a para.
 		fn dmq_contents(

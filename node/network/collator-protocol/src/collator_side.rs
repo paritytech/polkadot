@@ -738,6 +738,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		BlockData, CandidateDescriptor, CollatorPair, ScheduledCore,
 		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
+		SessionInfo,
 	};
 	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
 	use polkadot_node_subsystem_util::TimeoutExt;
@@ -868,20 +869,6 @@ mod tests {
 				.iter()
 				.map(|i| self.validator_authority_id[*i as usize].clone())
 				.collect()
-		}
-
-		fn next_group_validator_ids(&self) -> Vec<ValidatorId> {
-			self.next_group_validator_indices()
-				.iter()
-				.map(|i| self.validator_public[*i as usize].clone())
-				.collect()
-		}
-
-		/// Returns the unique count of validators in the current and next group.
-		fn current_and_next_group_unique_validator_count(&self) -> usize {
-			let mut indices = self.next_group_validator_indices().iter().collect::<HashSet<_>>();
-			indices.extend(self.current_group_validator_indices());
-			indices.len()
 		}
 
 		/// Generate a new relay parent and inform the subsystem about the new view.
@@ -1085,25 +1072,40 @@ mod tests {
 			}
 		);
 
+		let current_index = 1;
+
 		// obtain the validator_id to authority_id mapping
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				relay_parent,
-				RuntimeApiRequest::ValidatorDiscovery(validators, tx),
+				RuntimeApiRequest::SessionIndexForChild(tx),
 			)) => {
 				assert_eq!(relay_parent, test_state.relay_parent);
-				assert_eq!(validators.len(), test_state.current_and_next_group_unique_validator_count());
+				tx.send(Ok(current_index)).unwrap();
+			}
+		);
 
-				let current_validators = test_state.current_group_validator_ids();
-				let next_validators = test_state.next_group_validator_ids();
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(index, tx),
+			)) => {
+				assert_eq!(relay_parent, test_state.relay_parent);
+				assert_eq!(index, current_index);
 
-				assert!(validators.iter().all(|v| current_validators.contains(&v) || next_validators.contains(&v)));
+				let validators = test_state.current_group_validator_ids();
+				let current_discovery_keys = test_state.current_group_validator_authority_ids();
+				let next_discovery_keys = test_state.next_group_validator_authority_ids();
 
-				let current_validators = test_state.current_group_validator_authority_ids();
-				let next_validators = test_state.next_group_validator_authority_ids();
+				let discovery_keys = [&current_discovery_keys[..], &next_discovery_keys[..]].concat();
 
-				tx.send(Ok(current_validators.into_iter().chain(next_validators).map(Some).collect())).unwrap();
+				tx.send(Ok(Some(SessionInfo {
+					validators,
+					discovery_keys,
+					..Default::default()
+				}))).unwrap();
 			}
 		);
 

@@ -41,7 +41,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
@@ -681,8 +681,8 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-			runtime_impl::validator_discovery::<Runtime>(validators)
+		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+			runtime_api_impl::session_info::<Runtime>(index)
 		}
 
 		fn dmq_contents(
