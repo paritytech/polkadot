@@ -1488,8 +1488,21 @@ where
 				}
 			}
 			AllMessages::CandidateBacking(msg) => {
+				{
+					if let CandidateBackingMessage::GetBackedCandidates(relay_parent, ..) = &msg {
+						tracing::info!(target: LOG_TARGET, relay_parent = ?relay_parent, "Overseer passing along CandidateBackingMessage::GetBackedCandidates");
+					}
+				}
+
 				if let Some(ref mut s) = self.candidate_backing_subsystem.instance {
-					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+					let send_result = s.tx.send(FromOverseer::Communication { msg }).await;
+					tracing::info!(
+						target: LOG_TARGET,
+						send_result = ?send_result,
+						"Overseer sent message to candidate backing subsystem instance",
+					);
+				} else {
+					tracing::warn!(target: LOG_TARGET, "Overseer candidate backing subsystem instance missing");
 				}
 			}
 			AllMessages::CandidateSelection(msg) => {

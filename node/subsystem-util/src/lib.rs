@@ -636,6 +636,8 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 				tracing::debug!(job = Job::NAME, "failed to send message to job, will remove it");
 				job.remove();
 			}
+		} else {
+			tracing::warn!(relay_parent = ?parent_hash, "received message for unknown job");
 		}
 	}
 }
