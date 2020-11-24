@@ -77,8 +77,9 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		self.activated.len() == other.activated.len() && self.activated.iter().all(|a| other.activated.contains(a))
-			&& self.deactivated.len() == other.deactivated.len() && self.deactivated.iter().all(|a| other.deactivated.contains(a))
+		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len() 
+			&& self.activated.iter().all(|a| other.activated.contains(a))
+			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
 	}
 }
 
