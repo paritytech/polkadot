@@ -28,7 +28,7 @@ use primitives::v1::{
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, dmp, hrmp};
+use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
@@ -285,28 +285,29 @@ where
 		.collect()
 }
 
-/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-/// Currently this request is limited to validators in the current session.
+/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s and session.
 ///
 /// We assume that every validator runs authority discovery,
 /// which would allow us to establish point-to-point connection to given validators.
-// FIXME: handle previous sessions:
-// https://github.com/paritytech/polkadot/issues/1461
-pub fn validator_discovery<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
+pub fn validator_discovery<T>(index: SessionIndex, validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
 where
 	T: initializer::Trait + pallet_authority_discovery::Trait,
 {
-	// FIXME: the mapping might be invalid if a session change happens in between the calls
-	// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
-	let current_validators = <inclusion::Module<T>>::validators();
-	let authorities = <pallet_authority_discovery::Module<T>>::authorities();
+	let (session_validators, discovery_keys) = match <session_info::Module<T>>::session_info(index) {
+		Some(info) => (info.validators, info.discovery_keys),
+		None => return Vec::new(),
+	};
+
+	let id_to_index = session_validators.iter()
+		.zip(0usize..)
+		.collect::<BTreeMap<_, _>>();
 	// We assume the same ordering in authorities as in validators so we can do an index search
-	validators.iter().map(|id| {
-		// FIXME: linear search is slow O(n^2)
-		// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
-		let validator_index = current_validators.iter().position(|v| v == id);
-		validator_index.and_then(|i| authorities.get(i).cloned())
-	}).collect()
+	validators.iter()
+		.map(|id| {
+			let validator_index = id_to_index.get(&id);
+			validator_index.and_then(|i| discovery_keys.get(*i).cloned())
+		})
+		.collect()
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.
