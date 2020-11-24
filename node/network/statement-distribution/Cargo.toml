@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-tracing = "0.1.21"
+tracing = "0.1.22"
 tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
