@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-tracing = "0.1.21"
+tracing = "0.1.22"
 tracing-futures = "0.2.4"
 futures-timer = "3.0.2"
 streamunordered = "0.5.1"
