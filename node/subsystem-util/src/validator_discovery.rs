@@ -115,6 +115,12 @@ pub struct ConnectionRequests {
 	requests: StreamUnordered<ConnectionRequest>,
 }
 
+impl stream::FusedStream for ConnectionRequests {
+	fn is_terminated(&self) -> bool {
+		false
+	}
+}
+
 impl ConnectionRequests {
 	/// Insert a new connection request.
 	///

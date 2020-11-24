@@ -672,7 +672,7 @@ impl PoVDistribution {
 			// peer view update messages may be racy and we want connection notifications
 			// first.
 			futures::select_biased! {
-				v = state.connection_requests.next().fuse() => {
+				v = state.connection_requests.next() => {
 					match v {
 						Some((_relay_parent, _validator_id, peer_id)) => {
 							handle_validator_connected(&mut state, peer_id);
