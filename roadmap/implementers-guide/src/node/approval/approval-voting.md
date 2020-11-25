@@ -10,8 +10,8 @@ Input:
   - `ApprovalVotingMessage::ApprovedAncestor`
 
 Output:
-  - `ApprovalNetworkingMessage::DistributeAssignment`
-  - `ApprovalNetworkingMessage::DistributeApproval`
+  - `ApprovalDistributionMessage::DistributeAssignment`
+  - `ApprovalDistributionMessage::DistributeApproval`
   - `RuntimeApiMessage::Request`
   - `ChainApiMessage`
   - `AvailabilityRecoveryMessage::Recover`
@@ -72,7 +72,6 @@ struct BlockEntry {
     block_hash: Hash,
     session: SessionIndex,
     slot: SlotNumber,
-    received_late_by: Duration,
     // random bytes derived from the VRF submitted within the block by the block
     // author as a credential and used as input to approval assignment criteria.
     relay_vrf_story: [u8; 32],
@@ -163,8 +162,9 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
     * Only if not a member of the backing group.
-    * Run `RelayVRFModulo` and `RelayVRFDelay` according to the [the approvals protocol section](../../protocol-approval.md#assignment-criteria)
+    * Run `RelayVRFModulo` and `RelayVRFDelay` according to the [the approvals protocol section](../../protocol-approval.md#assignment-criteria). Ensure that the assigned core derived from the output is covered by the auxiliary signature aggregated in the `VRFPRoof`.
   * invoke `process_wakeup(relay_block, candidate)` for each new candidate in each new block - this will automatically broadcast a 0-tranche assignment, kick off approval work, and schedule the next delay.
+  * Dispatch an `ApprovalDistributionMessage::NewBlocks` with the meta information filled out for each new block.
 
 #### `ApprovalVotingMessage::CheckAndImportAssignment`
 
@@ -175,16 +175,18 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
   * Check the assignment cert
     * If the cert kind is `RelayVRFModulo`, then the certificate is valid as long as `sample < session_info.relay_vrf_samples` and the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ sample.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We set `core_index = vrf.make_bytes().to_u32() % session_info.n_cores`. If the `BlockEntry` causes inclusion of a candidate at `core_index`, then this is a valid assignment for the candidate at `core_index` and has delay tranche 0. Otherwise, it can be ignored.
     * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate. The delay tranche for the assignment is determined by reducing `(vrf.make_bytes().to_u64() % (session_info.n_delay_tranches + session_info.zeroth_delay_tranche_width)).saturating_sub(session_info.zeroth_delay_tranche_width)`.
+    * We also check that the core index derived by the output is covered by the `VRFProof` by means of an auxiliary signature.
+    * If the delay tranche is too far in the future, return `VoteCheckResult::Ignore`.
     * `import_checked_assignment`
     * return the appropriate `VoteCheckResult` on the response channel.
 
 #### `ApprovalVotingMessage::CheckAndImportApproval`
 
 On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)` message:
-  * Fetch the `BlockEntry` from the indirect approval vote's `block_hash`. If none, return `VoteCheckResult::Bad`.
-  * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `VoteCheckResult::Bad`.
-  * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `VoteCheckResult::Bad`.
-  * Send `VoteCheckResult::Accepted`,
+  * Fetch the `BlockEntry` from the indirect approval vote's `block_hash`. If none, return `ApprovalCheckResult::Bad`.
+  * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
+  * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
+  * Send `ApprovalCheckResult::Accepted`
   * `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
@@ -201,13 +203,14 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### `import_checked_assignment`
   * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
+  * Ignore if we already observe the validator as having been assigned.
   * Ensure the validator index is not part of the backing group for the candidate.
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
 
 #### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
-  * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`.
+  * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
   * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
     * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
     * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
@@ -230,8 +233,8 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Set `n_tranches = tranches_to_approve(approval_entry)`
   * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
     * Import to `ApprovalEntry`
-    * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
-    * Kick off approval work with `launch_approval`
+    * Broadcast on network with an `ApprovalDistributionMessage::DistributeAssignment`.
+    * Kick off approval work with `launch_approval`. Note that if the candidate appears in multiple current blocks, we will launch approval for each block it appears in. It may make sense to shortcut around this with caching either at this level or on the level of the other subsystems invoked by that function.
   * Schedule another wakeup based on `next_wakeup`
 
 #### `next_wakeup(approval_entry, candidate_entry)`:
@@ -251,6 +254,6 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 #### `issue_approval(request)`:
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
   * Construct a `SignedApprovalVote` with the validator index for the session.
-  * Transform into an `IndirectSignedApprovalVote` using the `block_hash` and `candidate_index` from the request.
   * `import_checked_approval(block_entry, candidate_entry, validator_index)`
-  * Dispatch an `ApprovalNetworkingMessage::DistributeApproval` message.
+  * Construct a `IndirectSignedApprovalVote` using the informatio about the vote.
+  * Dispatch `ApprovalDistributionMessage::DistributeApproval`.
