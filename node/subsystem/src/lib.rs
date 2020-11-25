@@ -58,12 +58,17 @@ pub struct ActiveLeavesUpdate {
 impl ActiveLeavesUpdate {
 	/// Create a ActiveLeavesUpdate with a single activated hash
 	pub fn start_work(hash: Hash) -> Self {
-		Self { activated: [hash].as_ref().into(), ..Default::default() }
+		Self { activated: [hash][..].into(), ..Default::default() }
 	}
 
 	/// Create a ActiveLeavesUpdate with a single deactivated hash
 	pub fn stop_work(hash: Hash) -> Self {
-		Self { deactivated: [hash].as_ref().into(), ..Default::default() }
+		Self { deactivated: [hash][..].into(), ..Default::default() }
+	}
+
+	/// Is this update empty and doesn't contain any information?
+	pub fn is_empty(&self) -> bool {
+		self.activated.is_empty() && self.deactivated.is_empty()
 	}
 }
 
@@ -72,9 +77,9 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		use std::collections::HashSet;
-		self.activated.iter().collect::<HashSet<_>>() == other.activated.iter().collect::<HashSet<_>>() &&
-			self.deactivated.iter().collect::<HashSet<_>>() == other.deactivated.iter().collect::<HashSet<_>>()
+		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len() 
+			&& self.activated.iter().all(|a| other.activated.contains(a))
+			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
 	}
 }
 
