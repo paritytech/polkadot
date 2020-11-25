@@ -41,7 +41,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_im_online.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_im_online::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_im_online::WeightInfo for WeightInfo<T> {
 	fn validate_unsigned_and_then_heartbeat(k: u32, e: u32, ) -> Weight {
 		(108_057_000 as Weight)
 			.saturating_add((217_000 as Weight).saturating_mul(k as Weight))

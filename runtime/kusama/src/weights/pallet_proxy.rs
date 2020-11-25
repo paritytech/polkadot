@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_proxy.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_proxy::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	fn proxy(p: u32, ) -> Weight {
 		(30_797_000 as Weight)
 			.saturating_add((182_000 as Weight).saturating_mul(p as Weight))

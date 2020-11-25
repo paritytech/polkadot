@@ -41,7 +41,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_indices.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_indices::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 	fn claim() -> Weight {
 		(51_356_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))

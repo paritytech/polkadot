@@ -62,10 +62,10 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	}
 }
 
-pub trait Trait: frame_system::Trait + configuration::Trait {}
+pub trait Config: frame_system::Config + configuration::Config {}
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Dmp {
+	trait Store for Module<T: Config> as Dmp {
 		/// Paras that are to be cleaned up at the end of the session.
 		/// The entries are sorted ascending by the para id.
 		OutgoingParas: Vec<ParaId>;
@@ -85,11 +85,11 @@ decl_storage! {
 
 decl_module! {
 	/// The DMP module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin { }
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin { }
 }
 
 /// Routines and getters related to downward message passing.
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0

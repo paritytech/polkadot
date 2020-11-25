@@ -41,7 +41,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_identity.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_identity::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 	fn add_registrar(r: u32, ) -> Weight {
 		(26_425_000 as Weight)
 			.saturating_add((296_000 as Weight).saturating_mul(r as Weight))
