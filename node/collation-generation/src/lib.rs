@@ -702,6 +702,7 @@ mod tests {
 				collator: config.key.public(),
 				persisted_validation_data_hash: expect_validation_data_hash,
 				pov_hash: expect_pov_hash,
+				erasure_root: Default::default(), // this isn't something we're checking right now
 			};
 
 			assert_eq!(sent_messages.len(), 1);
@@ -728,6 +729,7 @@ mod tests {
 					let expect_descriptor = {
 						let mut expect_descriptor = expect_descriptor;
 						expect_descriptor.signature = descriptor.signature.clone();
+						expect_descriptor.erasure_root = descriptor.erasure_root.clone();
 						expect_descriptor
 					};
 					assert_eq!(descriptor, &expect_descriptor);
