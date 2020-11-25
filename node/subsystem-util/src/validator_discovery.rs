@@ -61,7 +61,7 @@ pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
 	let (session_validators, discovery_keys) = match session_info {
 		Some(info) => (info.validators, info.discovery_keys),
 		None => return Err(RuntimeApiError::from(
-			"No session_info found for the current index".to_owned()
+			format!("No SessionInfo found for the index {}", session_index)
 		).into()),
 	};
 
