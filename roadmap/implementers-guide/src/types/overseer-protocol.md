@@ -42,9 +42,9 @@ Messages received by the approval voting subsystem.
 ```rust
 enum AssignmentCheckResult {
 	// The vote was accepted and should be propagated onwards.
-	Accepted(u32),
+	Accepted,
 	// The vote was valid but duplicate and should not be propagated onwards.
-	AcceptedDuplicate(u32),
+	AcceptedDuplicate,
 	// The vote was valid but too far in the future to accept right now.
 	TooFarInFuture,
 	// The vote was bad and should be ignored, reporting the peer who propagated it.

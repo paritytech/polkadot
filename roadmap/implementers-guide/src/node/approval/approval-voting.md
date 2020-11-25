@@ -153,7 +153,7 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
     * Only if not a member of the backing group.
-    * Run `RelayVRFModulo` and `RelayVRFDelay` according to the [the approvals protocol section](../../protocol-approval.md#assignment-criteria)
+    * Run `RelayVRFModulo` and `RelayVRFDelay` according to the [the approvals protocol section](../../protocol-approval.md#assignment-criteria). Ensure that the assigned core derived from the output is covered by the auxiliary signature aggregated in the `VRFPRoof`.
   * invoke `process_wakeup(relay_block, candidate)` for each new candidate in each new block - this will automatically broadcast a 0-tranche assignment, kick off approval work, and schedule the next delay.
   * Dispatch an `ApprovalDistributionMessage::NewBlocks` with the meta information filled out for each new block.
 
@@ -166,6 +166,7 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
   * Check the assignment cert
     * If the cert kind is `RelayVRFModulo`, then the certificate is valid as long as `sample < session_info.relay_vrf_samples` and the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ sample.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We set `core_index = vrf.make_bytes().to_u32() % session_info.n_cores`. If the `BlockEntry` causes inclusion of a candidate at `core_index`, then this is a valid assignment for the candidate at `core_index` and has delay tranche 0. Otherwise, it can be ignored.
     * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate. The delay tranche for the assignment is determined by reducing `(vrf.make_bytes().to_u64() % (session_info.n_delay_tranches + session_info.zeroth_delay_tranche_width)).saturating_sub(session_info.zeroth_delay_tranche_width)`.
+    * We also check that the core index derived by the output is covered by the `VRFProof` by means of an auxiliary signature.
     * If the delay tranche is too far in the future, return `VoteCheckResult::Ignore`.
     * `import_checked_assignment`
     * return the appropriate `VoteCheckResult` on the response channel.

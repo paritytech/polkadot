@@ -16,7 +16,7 @@ Approval messages should always follow assignments, so we need to be able to dis
   1. Is a particular assignment relevant under a given `View`?
   2. Is a particular approval relevant to any assignment in a set?
 
-These two queries need not be perfect, but they must never yield false positives. For our own local view, they must not yield false negatives. When applied to our peers' views, it is acceptable for them to yield false negatives. The reason for that is that our peers' views may be beyond ours, and we are not capable of fully evaluating them. Once we have caught up, we can check again for false negatives to continue distributing.
+It is acceptable for these two queries to yield false negatives with respect to our peers' views. For our own local view, they must not yield false negatives. When applied to our peers' views, it is acceptable for them to yield false negatives. The reason for that is that our peers' views may be beyond ours, and we are not capable of fully evaluating them. Once we have caught up, we can check again for false negatives to continue distributing.
 
 For assignments, what we need to be checking is whether we are aware of the (block, candidate) pair that the assignment references. For approvals, we need to be aware of an assignment by the same validator which references the candidate being approved.
 
@@ -150,9 +150,8 @@ Imports an assignment cert referenced by block hash and candidate index. As a po
     * check if `peer` appears under `known_by` and whether the fingerprint is in the `known_messages` of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the knowledge contains the fingerprint, report for providing replicate data and return.
     * If the message fingerprint appears under the `BlockEntry`'s `Knowledge`, give the peer a small positive reputation boost and return. Note that we must do this after checking for out-of-view to avoid being spammed. If we did this check earlier, a peer could provide data out-of-view repeatedly and be rewarded for it.
     * Dispatch `ApprovalVotingMessage::CheckAndImportAssignment(assignment)` and wait for the response.
-    * If the result is `AssignmentCheckResult::Accepted(candidate_index)` or `AssignmentCheckResult::AcceptedDuplicate(candidate_index)` 
-      * If `candidate_index` does not match `claimed_candidate_index`, punish the peer's reputation, recompute the fingerprint, and re-do our knowledge checks. The goal here is to accept messages which peers send us that are labeled wrongly, but punish them for it as they've made us do extra work.
-      * Otherwise, if the vote was accepted but not duplicate, give the peer a positive reputation boost
+    * If the result is `AssignmentCheckResult::Accepted` or `AssignmentCheckResult::AcceptedDuplicate` 
+      * If the vote was accepted but not duplicate, give the peer a positive reputation boost
       * add the fingerprint to both our and the peer's knowledge in the `BlockEntry`. Note that we only doing this after making sure we have the right fingerprint.
     * If the result is `AssignmentCheckResult::TooFarInFuture`, mildly punish the peer and return.
     * If the result is `AssignmentCheckResult::Bad`, punish the peer and return.
