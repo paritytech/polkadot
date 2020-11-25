@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	messages::{AllMessages, NetworkBridgeMessage},
 	SubsystemContext,
 };
-use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId};
+use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
 use sc_network::PeerId;
 use crate::Error;
 
@@ -42,9 +42,19 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	validators: Vec<ValidatorId>,
 ) -> Result<ConnectionRequest, Error> {
 	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
+	connect_to_past_session_validators(ctx, relay_parent, validators, current_index).await
+}
+
+/// Utility function to make it easier to connect to validators in the past sessions.
+pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	validators: Vec<ValidatorId>,
+	session_index: SessionIndex,
+) -> Result<ConnectionRequest, Error> {
 	let session_info = crate::request_session_info_ctx(
 		relay_parent,
-		current_index,
+		session_index,
 		ctx,
 	).await?.await??;
 
