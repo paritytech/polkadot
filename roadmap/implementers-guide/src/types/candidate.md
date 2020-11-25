@@ -276,26 +276,3 @@ struct SigningContext {
 	session_index: SessionIndex,
 }
 ```
-
-## Validation Outputs
-
-This struct encapsulates the outputs of candidate validation.
-
-```rust
-struct ValidationOutputs {
-	/// The head-data produced by validation.
-	head_data: HeadData,
-	/// The validation data, persisted.
-	validation_data: PersistedValidationData,
-	/// Messages directed to other paras routed via the relay chain.
-	horizontal_messages: Vec<OutboundHrmpMessage>,
-	/// Upwards messages to the relay chain.
-	upwards_messages: Vec<UpwardsMessage>,
-	/// The new validation code submitted by the execution, if any.
-	new_validation_code: Option<ValidationCode>,
-	/// The number of messages processed from the DMQ.
-	processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
-	hrmp_watermark: BlockNumber,
-}
-```
