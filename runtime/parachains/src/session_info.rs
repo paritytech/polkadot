@@ -42,6 +42,7 @@ decl_storage! {
 		EarliestStoredSession get(fn earliest_stored_session): SessionIndex;
 		/// Session information in a rolling window.
 		/// Should have an entry in range `EarliestStoredSession..=CurrentSessionIndex`.
+		/// Does not have any entries before the session index in the first session change notification.
 		Sessions get(fn session_info): map hasher(identity) SessionIndex => Option<SessionInfo>;
 	}
 }
