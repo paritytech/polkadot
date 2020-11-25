@@ -115,6 +115,12 @@ pub struct ConnectionRequests {
 	requests: StreamUnordered<ConnectionRequest>,
 }
 
+impl stream::FusedStream for ConnectionRequests {
+	fn is_terminated(&self) -> bool {
+		false
+	}
+}
+
 impl ConnectionRequests {
 	/// Insert a new connection request.
 	///
@@ -132,6 +138,11 @@ impl ConnectionRequests {
 		if let Some(token) = self.id_map.remove(relay_parent) {
 			Pin::new(&mut self.requests).remove(token);
 		}
+	}
+
+	/// Is a connection at this relay parent already present in the request
+	pub fn contains_request(&self, relay_parent: &Hash) -> bool {
+		self.id_map.contains_key(relay_parent)
 	}
 }
 
