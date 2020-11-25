@@ -25,6 +25,7 @@ use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
+use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
@@ -56,6 +57,34 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+
+
+/// The key type ID for a parachain approval voting key.
+pub const APPROVAL_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"aprv");
+
+mod approval_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::APPROVAL_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for approval voting
+/// on included parachain candidates.
+pub type ApprovalId = approval_app::Public;
+
+/// The key type ID for parachain assignment key.
+pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
+
+// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+mod assigment_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::ASSIGNMENT_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+pub type AssignmentId = assigment_app::Public;
+
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
@@ -679,9 +708,7 @@ pub struct SessionInfo {
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment and approval keys for validators.
-	// FIXME: implement this
-	#[codec(skip)]
-	pub approval_keys: Vec<()>,
+	pub approval_keys: Vec<(ApprovalId, AssignmentId)>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.

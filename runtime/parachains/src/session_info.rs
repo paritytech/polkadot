@@ -83,7 +83,7 @@ impl<T: Trait> Module<T> {
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryTrait>::authorities();
-		// FIXME: once we define these keys
+		// FIXME: once we store these keys: https://github.com/paritytech/polkadot/issues/1975
 		let approval_keys = Default::default();
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
