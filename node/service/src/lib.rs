@@ -28,12 +28,12 @@ use {
 	std::convert::TryInto,
 	std::time::Duration,
 
-	log::info,
+	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
-	sc_authority_discovery::{Service as AuthorityDiscoveryService, WorkerConfig as AuthorityWorkerConfig},
+	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
 	sp_core::traits::SpawnNamed,
 	sp_keystore::SyncCryptoStorePtr,
@@ -50,7 +50,7 @@ use service::RpcHandlers;
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
-pub use polkadot_parachain::wasm_executor::run_worker as run_validation_worker;
+pub use polkadot_parachain::wasm_executor::IsolationStrategy;
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
@@ -162,10 +162,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
 				babe::BabeLink<Block>
 			),
-			(
-				grandpa::SharedVoterState,
-				Arc<GrandpaFinalityProofProvider<FullBackend, Block>>,
-			),
+			grandpa::SharedVoterState,
 		)
 	>,
 	Error
@@ -219,7 +216,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
-		None,
 		client.clone(),
 		select_chain.clone(),
 		inherent_data_providers.clone(),
@@ -235,7 +231,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
-	let rpc_setup = (shared_voter_state.clone(), finality_proof_provider.clone());
+	let rpc_setup = shared_voter_state.clone();
 
 	let babe_config = babe_link.config().clone();
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
@@ -296,6 +292,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,
+	_: IsolationStrategy,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -321,6 +318,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	is_collator: IsCollator,
+	isolation_strategy: IsolationStrategy,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -375,6 +373,7 @@ where
 		candidate_validation: CandidateValidationSubsystem::new(
 			spawner.clone(),
 			Metrics::register(registry)?,
+			isolation_strategy,
 		),
 		chain_api: ChainApiSubsystem::new(
 			runtime_client.clone(),
@@ -475,7 +474,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	authority_discovery_config: Option<AuthorityWorkerConfig>,
+	isolation_strategy: IsolationStrategy,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -485,6 +484,8 @@ pub fn new_full<RuntimeApi, Executor>(
 {
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
+	let backoff_authoring_blocks =
+		Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default());
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
@@ -502,7 +503,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
-	let (shared_voter_state, finality_proof_provider) = rpc_setup;
+	let shared_voter_state = rpc_setup;
 
 	#[cfg(feature = "real-overseer")]
 	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
@@ -516,8 +517,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			import_queue,
 			on_demand: None,
 			block_announce_validator_builder: None,
-			finality_proof_request_builder: None,
-			finality_proof_provider: Some(finality_proof_provider.clone()),
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -583,8 +582,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
-			authority_discovery_config.unwrap_or_default(),
+		let (worker, service) = sc_authority_discovery::new_worker_and_service(
 			client.clone(),
 			network.clone(),
 			Box::pin(dht_event_stream),
@@ -611,6 +609,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.as_ref(),
 			spawner,
 			is_collator,
+			isolation_strategy,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
@@ -656,6 +655,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			sync_oracle: network.clone(),
 			inherent_data_providers: inherent_data_providers.clone(),
 			force_authoring,
+			backoff_authoring_blocks,
 			babe_link,
 			can_author_with,
 		};
@@ -696,7 +696,10 @@ pub fn new_full<RuntimeApi, Executor>(
 		// given delay.
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
-				info!("GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
+				info!(
+					block_number = %block,
+					delay = %delay,
+					"GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
 					block,
 					delay,
 				);
@@ -763,16 +766,12 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		on_demand.clone(),
 	));
 
-	let grandpa_block_import = grandpa::light_block_import(
+	let (grandpa_block_import, _) = grandpa::block_import(
 		client.clone(),
-		backend.clone(),
 		&(client.clone() as Arc<_>),
-		Arc::new(on_demand.checker().clone()),
+		select_chain.clone(),
 	)?;
-
-	let finality_proof_import = grandpa_block_import.clone();
-	let finality_proof_request_builder =
-		finality_proof_import.create_finality_proof_request_builder();
+	let justification_import = grandpa_block_import.clone();
 
 	let (babe_block_import, babe_link) = babe::block_import(
 		babe::Config::get_or_compute(&*client)?,
@@ -786,8 +785,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 	let import_queue = babe::import_queue(
 		babe_link,
 		babe_block_import,
-		None,
-		Some(Box::new(finality_proof_import)),
+		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
 		inherent_data_providers.clone(),
@@ -795,9 +793,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		config.prometheus_registry(),
 		consensus_common::NeverCanAuthor,
 	)?;
-
-	let finality_proof_provider =
-		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -808,8 +803,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 			import_queue,
 			on_demand: Some(on_demand.clone()),
 			block_announce_validator_builder: None,
-			finality_proof_request_builder: Some(finality_proof_request_builder),
-			finality_proof_provider: Some(finality_proof_provider),
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -902,35 +895,34 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	authority_discovery_config: Option<AuthorityWorkerConfig>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
+			Default::default(),
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
+			Default::default(),
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
+			Default::default(),
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
-			authority_discovery_config,
+			Default::default(),
 		).map(|full| full.with_client(Client::Polkadot))
 	}
 }

@@ -20,7 +20,7 @@ use sp_keyring::Sr25519Keyring::{Alice, Bob};
 
 #[substrate_test_utils::test]
 async fn call_function_actually_work(task_executor: TaskExecutor) {
-	let alice = run_test_node(task_executor, Alice, || {}, Vec::new());
+	let alice = run_validator_node(task_executor, Alice, || {}, Vec::new());
 
 	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
 		Default::default(),
@@ -37,7 +37,7 @@ async fn call_function_actually_work(task_executor: TaskExecutor) {
 	assert_eq!(
 		result.as_str().map(|x| x.starts_with("0x")),
 		Some(true),
-		"result starts with 0x"
+		"result starts with 0x",
 	);
 
 	alice.task_manager.clean_shutdown().await;

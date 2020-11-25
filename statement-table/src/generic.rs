@@ -30,7 +30,7 @@ use std::fmt::Debug;
 
 use primitives::v1::{ValidityAttestation as PrimitiveValidityAttestation, ValidatorSignature};
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 /// Context for the statement table.
 pub trait Context {
@@ -159,7 +159,7 @@ enum ValidityVote<S: Eq + Clone> {
 }
 
 /// A summary of import of a statement.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Summary<D, G> {
 	/// The digest of the candidate referenced.
 	pub candidate: D,

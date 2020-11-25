@@ -23,7 +23,7 @@ use frame_support::{
 	traits::{Currency, Get, VestingSchedule, EnsureOrigin, IsSubType}, weights::{Pays, DispatchClass}
 };
 use frame_system::{ensure_signed, ensure_root, ensure_none};
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
@@ -633,7 +633,7 @@ mod tests {
 	use secp_utils::*;
 
 	use sp_core::H256;
-	use codec::Encode;
+	use parity_scale_codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};

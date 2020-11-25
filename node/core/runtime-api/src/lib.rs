@@ -40,6 +40,8 @@ use sp_api::{ProvideRuntimeApi};
 
 use futures::prelude::*;
 
+const LOG_TARGET: &str = "runtime_api";
+
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
@@ -66,6 +68,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	subsystem: RuntimeApiSubsystem<Client>,
@@ -90,6 +93,7 @@ async fn run<Client>(
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(client, metrics), fields(subsystem = LOG_TARGET))]
 fn make_runtime_api_request<Client>(
 	client: &Client,
 	metrics: &Metrics,
@@ -99,6 +103,8 @@ fn make_runtime_api_request<Client>(
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block>,
 {
+	let _timer = metrics.time_make_runtime_api_request();
+
 	macro_rules! query {
 		($api_name:ident ($($param:expr),*), $sender:expr) => {{
 			let sender = $sender;
@@ -130,12 +136,14 @@ fn make_runtime_api_request<Client>(
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
 		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
 		Request::DmqContents(id, sender) => query!(dmq_contents(id), sender),
+		Request::InboundHrmpChannelsContents(id, sender) => query!(inbound_hrmp_channels_contents(id), sender),
 	}
 }
 
 #[derive(Clone)]
 struct MetricsInner {
 	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
+	make_runtime_api_request: prometheus::Histogram,
 }
 
 /// Runtime API metrics.
@@ -152,6 +160,11 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `make_runtime_api_request` which observes on drop.
+	fn time_make_runtime_api_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -164,6 +177,15 @@ impl metrics::Metrics for Metrics {
 						"Number of Runtime API requests served.",
 					),
 					&["success"],
+				)?,
+				registry,
+			)?,
+			make_runtime_api_request: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_runtime_api_make_runtime_api_request",
+						"Time spent within `runtime_api::make_runtime_api_request`",
+					)
 				)?,
 				registry,
 			)?,
@@ -180,12 +202,11 @@ mod tests {
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
-		BlockNumber,
+		BlockNumber, InboundHrmpMessage,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
-
-	use std::collections::HashMap;
+	use std::collections::{HashMap, BTreeMap};
 	use futures::channel::oneshot;
 
 	#[derive(Default, Clone)]
@@ -201,6 +222,7 @@ mod tests {
 		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
 		candidate_events: Vec<CandidateEvent>,
 		dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
+		hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
 	}
 
 	impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -306,8 +328,15 @@ mod tests {
 			fn dmq_contents(
 				&self,
 				recipient: ParaId,
-			) -> Vec<polkadot_primitives::v1::InboundDownwardMessage> {
+			) -> Vec<InboundDownwardMessage> {
 				self.dmq_contents.get(&recipient).map(|q| q.clone()).unwrap_or_default()
+			}
+
+			fn inbound_hrmp_channels_contents(
+				&self,
+				recipient: ParaId
+			) -> BTreeMap<ParaId, Vec<InboundHrmpMessage>> {
+				self.hrmp_channels.get(&recipient).map(|q| q.clone()).unwrap_or_default()
 			}
 		}
 	}
@@ -693,6 +722,72 @@ mod tests {
 					msg: b"Novus Ordo Seclorum".to_vec(),
 				}]
 			);
+
+			ctx_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
+		};
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_inbound_hrmp_channels_contents() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+
+		let relay_parent = [1; 32].into();
+		let para_a = 99.into();
+		let para_b = 66.into();
+		let para_c = 33.into();
+
+		let para_b_inbound_channels = [
+			(para_a, vec![]),
+			(
+				para_c,
+				vec![InboundHrmpMessage {
+					sent_at: 1,
+					data: "𝙀=𝙈𝘾²".as_bytes().to_owned(),
+				}],
+			),
+		]
+		.iter()
+		.cloned()
+		.collect::<BTreeMap<_, _>>();
+
+		let runtime_api = Arc::new({
+			let mut runtime_api = MockRuntimeApi::default();
+
+			runtime_api.hrmp_channels.insert(para_a, BTreeMap::new());
+			runtime_api
+				.hrmp_channels
+				.insert(para_b, para_b_inbound_channels.clone());
+
+			runtime_api
+		});
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::InboundHrmpChannelsContents(para_a, tx),
+					),
+				})
+				.await;
+			assert_eq!(rx.await.unwrap().unwrap(), BTreeMap::new());
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::InboundHrmpChannelsContents(para_b, tx),
+					),
+				})
+				.await;
+			assert_eq!(rx.await.unwrap().unwrap(), para_b_inbound_channels,);
 
 			ctx_handle
 				.send(FromOverseer::Signal(OverseerSignal::Conclude))

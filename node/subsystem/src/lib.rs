@@ -204,10 +204,10 @@ pub trait SubsystemContext: Send + 'static {
 	) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
+	async fn send_message(&mut self, msg: AllMessages);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
 }
 
@@ -228,14 +228,24 @@ pub trait Subsystem<C: SubsystemContext> {
 /// types of messages. Used for tests or as a placeholder.
 pub struct DummySubsystem;
 
-impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem
+where
+	C::Message: std::fmt::Debug
+{
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Err(_) => return Ok(()),
-					_ => continue,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(overseer_msg) => {
+						tracing::debug!(
+							target: "dummy-subsystem",
+							"Discarding a message sent from overseer {:?}",
+							overseer_msg
+						);
+						continue;
+					}
 				}
 			}
 		});

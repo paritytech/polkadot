@@ -17,7 +17,7 @@ Output:
 
 ## Functionality
 
-This network protocol is responsible for distributing [`PoV`s](../../types/availability.md#proof-of-validity) by gossip. Since PoVs are heavy in practice, gossip is far from the most efficient way to distribute them. In the future, this should be replaced by a better network protocol that finds validators who have validated the block and connects to them directly. This protocol is descrbied.
+This network protocol is responsible for distributing [`PoV`s](../../types/availability.md#proof-of-validity) by gossip. Since PoVs are heavy in practice, gossip is far from the most efficient way to distribute them. In the future, this should be replaced by a better network protocol that finds validators who have validated the block and connects to them directly. This protocol is described.
 
 This protocol is described in terms of "us" and our peers, with the understanding that this is the procedure that any honest node will run. It has the following goals:
   - We never have to buffer an unbounded amount of data
@@ -25,7 +25,7 @@ This protocol is described in terms of "us" and our peers, with the understandin
 
 As we are gossiping, we need to track which PoVs our peers are waiting for to avoid sending them data that they are not expecting. It is not reasonable to expect our peers to buffer unexpected PoVs, just as we will not buffer unexpected PoVs. So notifying our peers about what is being awaited is key. However it is important that the notifications system is also bounded.
 
-For this, in order to avoid reaching into the internals of the [Statement Distribution](statement-distribution.md) Subsystem, we can rely on an expected propery of candidate backing: that each validator can second up to 2 candidates per chain head. This will typically be only one, because they are only supposed to issue one, but they can equivocate if they are willing to  be slashed. So we can set a cap on the number of PoVs each peer is allowed to notify us that they are waiting for at a given relay-parent. This cap will be twice the number of validators at that relay-parent. In practice, this is a very lax upper bound that can be reduced much further if desired.
+For this, in order to avoid reaching into the internals of the [Statement Distribution](statement-distribution.md) Subsystem, we can rely on an expected property of candidate backing: that each validator can second up to 2 candidates per chain head. This will typically be only one, because they are only supposed to issue one, but they can equivocate if they are willing to  be slashed. So we can set a cap on the number of PoVs each peer is allowed to notify us that they are waiting for at a given relay-parent. This cap will be twice the number of validators at that relay-parent. In practice, this is a very lax upper bound that can be reduced much further if desired.
 
 The view update mechanism of the [Network Bridge](../utility/network-bridge.md) ensures that peers are only allowed to consider a certain set of relay-parents as live. So this bounding mechanism caps the amount of data we need to store per peer at any time at `sum({ 2 * n_validators_at_head(head) * sizeof(hash) for head in view_heads })`. Additionally, peers should only be allowed to notify us of PoV hashes they are waiting for in the context of relay-parents in our own local view, which means that `n_validators_at_head` is implied to be `0` for relay-parents not in our own local view.
 

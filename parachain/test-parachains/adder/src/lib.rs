@@ -20,7 +20,8 @@
 
 #![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
+use tiny_keccak::{Hasher as _, Keccak};
 
 #[cfg(not(feature = "std"))]
 mod wasm_validation;
@@ -32,6 +33,14 @@ static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+
+fn keccak256(input: &[u8]) -> [u8; 32] {
+	let mut out = [0u8; 32];
+	let mut keccak256 = Keccak::v256();
+	keccak256.update(input);
+	keccak256.finalize(&mut out);
+	out
+}
 
 /// Wasm binary unwrapped. If built with `BUILD_DUMMY_WASM_BINARY`, the function panics.
 #[cfg(feature = "std")]
@@ -53,7 +62,7 @@ pub struct HeadData {
 
 impl HeadData {
 	pub fn hash(&self) -> [u8; 32] {
-		tiny_keccak::keccak256(&self.encode())
+		keccak256(&self.encode())
 	}
 }
 
@@ -67,7 +76,7 @@ pub struct BlockData {
 }
 
 pub fn hash_state(state: u64) -> [u8; 32] {
-	tiny_keccak::keccak256(state.encode().as_slice())
+	keccak256(state.encode().as_slice())
 }
 
 /// Start state mismatched with parent header's state hash.

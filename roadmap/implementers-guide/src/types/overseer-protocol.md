@@ -74,11 +74,11 @@ enum ApprovalVotingMessage {
 		ResponseChannel<ApprovalCheckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
-	/// acceptable to vote on finality for. 
+	/// acceptable to vote on finality for.
 	/// The `BlockNumber` provided is the number of the block's ancestor which is the
 	/// earliest possible vote.
-	/// 
-	/// It can also return the same block hash, if that is acceptable to vote upon. 
+	///
+	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
 	ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
 }
@@ -148,8 +148,8 @@ Messages received by the availability recovery subsystem.
 enum AvailabilityRecoveryMessage {
 	/// Recover available data from validators on the network.
 	RecoverAvailableData(
-		CandidateDescriptor, 
-		SessionIndex, 
+		CandidateDescriptor,
+		SessionIndex,
 		ResponseChannel<Option<AvailableData>>,
 	),
 }
@@ -162,18 +162,18 @@ Messages to and from the availability store.
 ```rust
 enum AvailabilityStoreMessage {
 	/// Query the `AvailableData` of a candidate by hash.
-	QueryAvailableData(Hash, ResponseChannel<Option<AvailableData>>),
+	QueryAvailableData(CandidateHash, ResponseChannel<Option<AvailableData>>),
 	/// Query whether an `AvailableData` exists within the AV Store.
-	QueryDataAvailability(Hash, ResponseChannel<bool>),
+	QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(Hash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
+	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
-	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+	StoreChunk(CandidateHash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
 	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
 	/// `AvailabilityChunkAndProof`.
-	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
+	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
 
@@ -319,6 +319,7 @@ enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
+	/// This can be done by dropping the receiver.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -326,13 +327,6 @@ enum NetworkBridgeMessage {
 		/// the validators as they are connected.
 		/// The response is sent immediately for already connected peers.
 		connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
-		/// By revoking the request the caller allows the network to
-		/// free some peer slots thus freeing the resources.
-		/// It doesn't necessarily lead to peers disconnection though.
-		/// The revokation is enacted on in the next connection request.
-		///
-		/// This can be done by sending to the channel or dropping the sender.
-		revoke: ReceiverChannel<()>,
 	},
 }
 ```
@@ -435,7 +429,7 @@ enum RuntimeApiRequest {
 	SessionIndex(ResponseChannel<SessionIndex>),
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Fetch the historical validation code used by a para for candidates executed in 
+	/// Fetch the historical validation code used by a para for candidates executed in
 	/// the context of a given block height in the current chain.
 	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
 	/// with the given occupied core assumption.

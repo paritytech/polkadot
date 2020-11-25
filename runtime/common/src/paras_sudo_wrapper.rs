@@ -16,23 +16,35 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
+use crate::WASM_MAGIC;
+use sp_std::prelude::*;
 use frame_support::{
-	decl_error, decl_module,
+	decl_error, decl_module, ensure,
 	dispatch::DispatchResult,
 	weights::DispatchClass,
 };
 use frame_system::ensure_root;
 use runtime_parachains::{
-	router,
-	paras::{self, ParaGenesisArgs},
+	configuration, dmp, ump, hrmp, paras::{self, ParaGenesisArgs},
 };
 use primitives::v1::Id as ParaId;
 
 /// The module's configuration trait.
-pub trait Trait: paras::Trait + router::Trait { }
+pub trait Trait:
+	configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait
+{
+}
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Trait> {
+		/// The specified parachain or parathread is not registered.
+		ParaDoesntExist,
+		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
+		/// message.
+		ExceedsMaxMessageSize,
+		/// The validation code provided doesn't start with the Wasm file magic string.
+		DefinitelyNotWasm,
+	}
 }
 
 decl_module! {
@@ -48,7 +60,8 @@ decl_module! {
 			genesis: ParaGenesisArgs,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			paras::Module::<T>::schedule_para_initialize(id, genesis);
+			ensure!(genesis.validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
+			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 			Ok(())
 		}
 
@@ -56,9 +69,24 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn sudo_schedule_para_cleanup(origin, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
-			paras::Module::<T>::schedule_para_cleanup(id);
-			router::Module::<T>::schedule_para_cleanup(id);
+			runtime_parachains::schedule_para_cleanup::<T>(id);
 			Ok(())
+		}
+
+		/// Send a downward message to the given para.
+		///
+		/// The given parachain should exist and the payload should not exceed the preconfigured size
+		/// `config.max_downward_message_size`.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn sudo_queue_downward_message(origin, id: ParaId, payload: Vec<u8>) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
+			let config = <configuration::Module<T>>::config();
+			<dmp::Module<T>>::queue_downward_message(&config, id, payload)
+				.map_err(|e| match e {
+					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
+						Error::<T>::ExceedsMaxMessageSize.into(),
+				})
 		}
 	}
 }

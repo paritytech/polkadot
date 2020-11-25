@@ -15,7 +15,25 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //! Weights for pallet_balances
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0
-//! DATE: 2020-09-28, STEPS: [50], REPEAT: 20, LOW RANGE: [], HIGH RANGE: []
+//! DATE: 2020-10-30, STEPS: [50, ], REPEAT: 20, LOW RANGE: [], HIGH RANGE: []
+//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 128
+
+// Executed Command:
+// ./target/release/polkadot
+// benchmark
+// --chain
+// kusama-dev
+// --steps=50
+// --repeat=20
+// --pallet=pallet_balances
+// --extrinsic=*
+// --execution=wasm
+// --wasm-execution=compiled
+// --heap-pages=4096
+// --header
+// ./file_header.txt
+// --output=./runtime/kusama/src/weights/
+
 
 #![allow(unused_parens)]
 #![allow(unused_imports)]
@@ -23,30 +41,31 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
+/// Weight functions for pallet_balances.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Trait> pallet_balances::WeightInfo for WeightInfo<T> {
 	fn transfer() -> Weight {
-		(90_276_000 as Weight)
+		(91_625_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn transfer_keep_alive() -> Weight {
-		(61_636_000 as Weight)
+		(62_431_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn set_balance_creating() -> Weight {
-		(33_748_000 as Weight)
+		(34_599_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn set_balance_killing() -> Weight {
-		(42_563_000 as Weight)
+		(43_308_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn force_transfer() -> Weight {
-		(88_694_000 as Weight)
+		(90_578_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}

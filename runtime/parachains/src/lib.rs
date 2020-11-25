@@ -27,10 +27,12 @@ pub mod inclusion;
 pub mod inclusion_inherent;
 pub mod initializer;
 pub mod paras;
-pub mod router;
 pub mod scheduler;
 pub mod validity;
 pub mod origin;
+pub mod dmp;
+pub mod ump;
+pub mod hrmp;
 
 pub mod runtime_api_impl;
 
@@ -40,3 +42,25 @@ mod util;
 mod mock;
 
 pub use origin::{Origin, ensure_parachain};
+
+/// Schedule a para to be initialized at the start of the next session with the given genesis data.
+pub fn schedule_para_initialize<T: paras::Trait>(
+	id: primitives::v1::Id,
+	genesis: paras::ParaGenesisArgs,
+) {
+	<paras::Module<T>>::schedule_para_initialize(id, genesis);
+}
+
+/// Schedule a para to be cleaned up at the start of the next session.
+pub fn schedule_para_cleanup<T>(id: primitives::v1::Id)
+where
+	T: paras::Trait
+	+ dmp::Trait
+	+ ump::Trait
+	+ hrmp::Trait,
+{
+	<paras::Module<T>>::schedule_para_cleanup(id);
+	<dmp::Module<T>>::schedule_para_cleanup(id);
+	<ump::Module<T>>::schedule_para_cleanup(id);
+	<hrmp::Module<T>>::schedule_para_cleanup(id);
+}

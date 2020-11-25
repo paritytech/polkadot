@@ -18,16 +18,17 @@
 //! functions.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
-	InboundDownwardMessage,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, router};
+use crate::{initializer, inclusion, scheduler, configuration, paras, dmp, hrmp};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
@@ -222,8 +223,7 @@ pub fn check_validation_outputs<T: initializer::Trait>(
 	para_id: ParaId,
 	outputs: primitives::v1::ValidationOutputs,
 ) -> bool {
-	// we strip detailed information from error here for the sake of simplicity of runtime API.
-	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs).is_ok()
+	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
@@ -310,8 +310,15 @@ where
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.
-pub fn dmq_contents<T: router::Trait>(
+pub fn dmq_contents<T: dmp::Trait>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<router::Module<T>>::dmq_contents(recipient)
+	<dmp::Module<T>>::dmq_contents(recipient)
+}
+
+/// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
+pub fn inbound_hrmp_channels_contents<T: hrmp::Trait>(
+	recipient: ParaId,
+) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
+	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
 }
