@@ -290,11 +290,11 @@ impl TestCandidateBuilder {
 				para_id: self.para_id,
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
+				erasure_root: self.erasure_root,
 				..Default::default()
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,
-				erasure_root: self.erasure_root,
 				..Default::default()
 			},
 		}
@@ -323,7 +323,7 @@ fn helper_integrity() {
 	let message =
 		make_valid_availability_gossip(&test_state, candidate.hash(), 2, pov_block.clone());
 
-	let root = dbg!(&candidate.commitments.erasure_root);
+	let root = dbg!(&candidate.descriptor.erasure_root);
 
 	let anticipated_hash = branch_hash(
 		root,
