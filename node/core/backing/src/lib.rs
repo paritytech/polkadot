@@ -31,8 +31,7 @@ use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV, CandidateHash,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
-	CandidateCommitments, CoreState, CoreIndex, CollatorId, ValidationOutputs,
-	ValidityAttestation,
+	CoreState, CoreIndex, CollatorId, ValidityAttestation,
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
@@ -229,6 +228,8 @@ impl TryFrom<AllMessages> for FromJob {
 	}
 }
 
+struct InvalidErasureRoot;
+
 // It looks like it's not possible to do an `impl From` given the current state of
 // the code. So this does the necessary conversion.
 fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
@@ -347,36 +348,38 @@ impl CandidateBackingJob {
 		let candidate_hash = candidate.hash();
 
 		let statement = match valid {
-			ValidationResult::Valid(outputs, validation_data) => {
+			ValidationResult::Valid(commitments, validation_data) => {
 				// make PoV available for later distribution. Send data to the availability
 				// store to keep. Sign and dispatch `valid` statement to network if we
 				// have not seconded the given candidate.
 				//
 				// If the commitments hash produced by validation is not the same as given by
 				// the collator, do not make available and report the collator.
-				let commitments_check = self.make_pov_available(
-					pov,
-					candidate_hash,
-					validation_data,
-					outputs,
-					|commitments| if commitments.hash() == candidate.commitments_hash {
-						Ok(CommittedCandidateReceipt {
-							descriptor: candidate.descriptor().clone(),
-							commitments,
-						})
-					} else {
-						Err(())
-					},
-				).await?;
+				if candidate.commitments_hash != commitments.hash() {
+					self.issue_candidate_invalid_message(candidate.clone()).await?;
+					None
+				} else {
+					let erasure_valid = self.make_pov_available(
+						pov,
+						candidate_hash,
+						validation_data,
+						candidate.descriptor.erasure_root,
+					).await?;
 
-				match commitments_check {
-					Ok(candidate) => {
-						self.issued_statements.insert(candidate_hash);
-						Some(Statement::Seconded(candidate))
-					}
-					Err(()) => {
-						self.issue_candidate_invalid_message(candidate.clone()).await?;
-						None
+					match erasure_valid {
+						Ok(()) => {
+							let candidate = CommittedCandidateReceipt {
+								descriptor: candidate.descriptor().clone(),
+								commitments,
+							};
+
+							self.issued_statements.insert(candidate_hash);
+							Some(Statement::Seconded(candidate))
+						}
+						Err(InvalidErasureRoot) => {
+							self.issue_candidate_invalid_message(candidate.clone()).await?;
+							None
+						}
 					}
 				}
 			}
@@ -566,6 +569,7 @@ impl CandidateBackingJob {
 		// and not just those things that the function uses.
 		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?;
 		let expected_commitments = candidate.commitments.clone();
+		let expected_erasure_root = candidate.descriptor.erasure_root;
 
 		let descriptor = candidate.descriptor().clone();
 
@@ -585,23 +589,22 @@ impl CandidateBackingJob {
 		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
 
 		let statement = match v {
-			ValidationResult::Valid(outputs, validation_data) => {
+			ValidationResult::Valid(commitments, validation_data) => {
 				// If validation produces a new set of commitments, we vote the candidate as invalid.
-				let commitments_check = self.make_pov_available(
-					pov,
-					candidate_hash,
-					validation_data,
-					outputs,
-					|commitments| if commitments == expected_commitments {
-						Ok(())
-					} else {
-						Err(())
-					}
-				).await?;
+				if commitments != expected_commitments {
+					Statement::Invalid(candidate_hash)
+				} else {
+					let erasure_valid = self.make_pov_available(
+						pov,
+						candidate_hash,
+						validation_data,
+						expected_erasure_root,
+					).await?;
 
-				match commitments_check {
-					Ok(()) => Statement::Valid(candidate_hash),
-					Err(()) => Statement::Invalid(candidate_hash),
+					match erasure_valid {
+						Ok(()) => Statement::Valid(candidate_hash),
+						Err(InvalidErasureRoot) => Statement::Invalid(candidate_hash),
+					}
 				}
 			}
 			ValidationResult::Invalid(_reason) => {
@@ -733,18 +736,16 @@ impl CandidateBackingJob {
 
 	// Make a `PoV` available.
 	//
-	// This calls an inspection function before making the PoV available for any last checks
-	// that need to be done. If the inspection function returns an error, this function returns
-	// early without making the PoV available.
-	#[tracing::instrument(level = "trace", skip(self, pov, with_commitments), fields(subsystem = LOG_TARGET))]
-	async fn make_pov_available<T, E>(
+	// This will compute the erasure root internally and compare it to the expected erasure root.
+	// This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
+	#[tracing::instrument(level = "trace", skip(self, pov), fields(subsystem = LOG_TARGET))]
+	async fn make_pov_available(
 		&mut self,
 		pov: Arc<PoV>,
 		candidate_hash: CandidateHash,
 		validation_data: polkadot_primitives::v1::PersistedValidationData,
-		outputs: ValidationOutputs,
-		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
-	) -> Result<Result<T, E>, Error> {
+		expected_erasure_root: Hash,
+	) -> Result<Result<(), InvalidErasureRoot>, Error> {
 		let available_data = AvailableData {
 			pov,
 			validation_data,
@@ -758,20 +759,9 @@ impl CandidateBackingJob {
 		let branches = erasure_coding::branches(chunks.as_ref());
 		let erasure_root = branches.root();
 
-		let commitments = CandidateCommitments {
-			upward_messages: outputs.upward_messages,
-			horizontal_messages: outputs.horizontal_messages,
-			erasure_root,
-			new_validation_code: outputs.new_validation_code,
-			head_data: outputs.head_data,
-			processed_downward_messages: outputs.processed_downward_messages,
-			hrmp_watermark: outputs.hrmp_watermark,
-		};
-
-		let res = match with_commitments(commitments) {
-			Ok(x) => x,
-			Err(e) => return Ok(Err(e)),
-		};
+		if erasure_root != expected_erasure_root {
+			return Ok(Err(InvalidErasureRoot));
+		}
 
 		self.store_available_data(
 			self.table_context.validator.as_ref().map(|v| v.index()),
@@ -780,7 +770,7 @@ impl CandidateBackingJob {
 			available_data,
 		).await?;
 
-		Ok(Ok(res))
+		Ok(Ok(()))
 	}
 
 	async fn distribute_signed_statement(&mut self, s: SignedFullStatement) -> Result<(), Error> {
@@ -1183,11 +1173,11 @@ mod tests {
 					para_id: self.para_id,
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
+					erasure_root: self.erasure_root,
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
 					head_data: self.head_data,
-					erasure_root: self.erasure_root,
 					..Default::default()
 				},
 			}
@@ -1290,7 +1280,7 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
-						ValidationResult::Valid(ValidationOutputs {
+						ValidationResult::Valid(CandidateCommitments {
 							head_data: expected_head_data.clone(),
 							horizontal_messages: Vec::new(),
 							upward_messages: Vec::new(),
@@ -1428,7 +1418,7 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
-						ValidationResult::Valid(ValidationOutputs {
+						ValidationResult::Valid(CandidateCommitments {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							horizontal_messages: Vec::new(),
@@ -1579,7 +1569,7 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
-						ValidationResult::Valid(ValidationOutputs {
+						ValidationResult::Valid(CandidateCommitments {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							horizontal_messages: Vec::new(),
@@ -1764,7 +1754,7 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
-						ValidationResult::Valid(ValidationOutputs {
+						ValidationResult::Valid(CandidateCommitments {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							horizontal_messages: Vec::new(),
