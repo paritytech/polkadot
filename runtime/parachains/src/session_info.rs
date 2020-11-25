@@ -84,7 +84,7 @@ impl<T: Trait> Module<T> {
 		let discovery_keys = <T as AuthorityDiscoveryTrait>::authorities();
 		// FIXME: once we define these keys
 		let approval_keys = Default::default();
-		let validator_groups =  <scheduler::Module<T>>::validator_groups();
+		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
 		let relay_vrf_modulo_samples = config.relay_vrf_modulo_samples;
