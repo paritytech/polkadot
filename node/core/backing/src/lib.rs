@@ -1006,7 +1006,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ScheduledCore, BlockData, CandidateCommitments,
 		PersistedValidationData, ValidationData, TransientValidationData, HeadData,
-		ValidityAttestation, GroupRotationInfo,
+		GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
 		messages::RuntimeApiRequest,
@@ -1458,22 +1458,10 @@ mod tests {
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
 						_,
-						ProvisionableData::BackedCandidate(BackedCandidate {
-							candidate,
-							validity_votes,
-							validator_indices,
-						})
+						ProvisionableData::BackedCandidate(candidate_receipt)
 					)
-				) if candidate == candidate_a => {
-					assert_eq!(validity_votes.len(), 3);
-
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Explicit(signed_b.signature().clone())
-					));
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Implicit(signed_a.signature().clone())
-					));
-					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0, 1]);
+				) => {
+					assert_eq!(candidate_receipt, candidate_a.to_plain());
 				}
 			);
 
@@ -2010,6 +1998,7 @@ mod tests {
 			let (tx, rx) = oneshot::channel();
 			let msg = CandidateBackingMessage::GetBackedCandidates(
 				test_state.relay_parent,
+				vec![candidate.hash()],
 				tx,
 			);
 
