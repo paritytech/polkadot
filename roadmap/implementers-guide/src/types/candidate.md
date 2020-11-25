@@ -80,6 +80,8 @@ struct CandidateDescriptor {
 	persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
+	/// The root of a block's erasure encoding Merkle tree.
+	erasure_root: Hash,
 	/// Signature on blake2-256 of components of this receipt:
 	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
 	signature: CollatorSignature,
@@ -251,8 +253,6 @@ struct CandidateCommitments {
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	upward_messages: Vec<UpwardMessage>,
-	/// The root of a block's erasure encoding Merkle tree.
-	erasure_root: Hash,
 	/// New validation code.
 	new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
