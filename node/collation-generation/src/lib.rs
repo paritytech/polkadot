@@ -284,7 +284,6 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					horizontal_messages: collation.horizontal_messages,
 					new_validation_code: collation.new_validation_code,
 					head_data: collation.head_data,
-					erasure_root,
 					processed_downward_messages: collation.processed_downward_messages,
 					hrmp_watermark: collation.hrmp_watermark,
 				};
@@ -298,6 +297,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						collator: task_config.key.public(),
 						persisted_validation_data_hash,
 						pov_hash,
+						erasure_root,
 					},
 				};
 
