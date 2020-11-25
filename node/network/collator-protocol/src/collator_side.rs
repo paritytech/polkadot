@@ -738,7 +738,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		BlockData, CandidateDescriptor, CollatorPair, ScheduledCore,
 		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
-		SessionInfo,
+		SessionIndex, SessionInfo,
 	};
 	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
 	use polkadot_node_subsystem_util::TimeoutExt;
@@ -777,6 +777,7 @@ mod tests {
 		relay_parent: Hash,
 		availability_core: CoreState,
 		our_collator_pair: CollatorPair,
+		session_index: SessionIndex,
 	}
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -833,6 +834,7 @@ mod tests {
 				relay_parent,
 				availability_core,
 				our_collator_pair,
+				session_index: 1,
 			}
 		}
 	}
@@ -840,6 +842,10 @@ mod tests {
 	impl TestState {
 		fn current_group_validator_indices(&self) -> &[ValidatorIndex] {
 			&self.validator_groups.0[0]
+		}
+
+		fn current_session_index(&self) -> SessionIndex {
+			self.session_index
 		}
 
 		fn current_group_validator_peer_ids(&self) -> Vec<PeerId> {
@@ -1072,8 +1078,6 @@ mod tests {
 			}
 		);
 
-		let current_index = 1;
-
 		// obtain the validator_id to authority_id mapping
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
@@ -1082,7 +1086,7 @@ mod tests {
 				RuntimeApiRequest::SessionIndexForChild(tx),
 			)) => {
 				assert_eq!(relay_parent, test_state.relay_parent);
-				tx.send(Ok(current_index)).unwrap();
+				tx.send(Ok(test_state.current_session_index())).unwrap();
 			}
 		);
 
@@ -1093,7 +1097,7 @@ mod tests {
 				RuntimeApiRequest::SessionInfo(index, tx),
 			)) => {
 				assert_eq!(relay_parent, test_state.relay_parent);
-				assert_eq!(index, current_index);
+				assert_eq!(index, test_state.current_session_index());
 
 				let validators = test_state.current_group_validator_ids();
 				let current_discovery_keys = test_state.current_group_validator_authority_ids();
