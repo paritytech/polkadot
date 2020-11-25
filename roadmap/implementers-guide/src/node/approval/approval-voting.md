@@ -219,8 +219,8 @@ enum RequiredTranches {
 
   * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
-    * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take new tranches until each no-show is covered, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
-    * Count no-shows in tranches `k..l` and for each of those, take tranches until all no-shows are covered. Repeat so on until either
+    * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take another non-empty tranche for each no-show, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
+    * Count no-shows in tranches `k..l` and for each of those, take another non-empty tranche for each no-show. Repeat so on until either
       * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `RequiredTranches::Pending` which indicates that new assignments are needed.
       * All no-shows are covered by at least one non-empty tranche. Set `n_tranches` to the number of tranches taken
       * The amount of assignments in non-empty & taken tranches plus the amount of needed extras equals or exceeds the total number of validators for the approval entry, which can be obtained by measuring the bitfield. In this case we return a special value `RequiredTranches::All` indicating that all validators have effectively been assigned to check.
