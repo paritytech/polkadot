@@ -571,6 +571,33 @@ mod tests {
 	}
 
 	#[test]
+	fn requests_session_info() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let session_index = 1;
+		runtime_api.session_info.insert(session_index, Default::default());
+		let runtime_api = Arc::new(runtime_api);
+
+		let relay_parent = [1; 32].into();
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::SessionInfo(session_index, tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
 	fn requests_validation_code() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 		let mut runtime_api = Arc::new(MockRuntimeApi::default());
