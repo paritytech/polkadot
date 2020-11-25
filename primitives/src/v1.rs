@@ -314,24 +314,6 @@ pub struct TransientValidationData<N = BlockNumber> {
 	pub dmq_length: u32,
 }
 
-/// Outputs of validating a candidate.
-#[derive(Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
-pub struct ValidationOutputs {
-	/// The head-data produced by validation.
-	pub head_data: HeadData,
-	/// Upward messages to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// The horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
-	/// The new validation code submitted by the execution, if any.
-	pub new_validation_code: Option<ValidationCode>,
-	/// The number of messages processed from the DMQ.
-	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
-	pub hrmp_watermark: BlockNumber,
-}
-
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
