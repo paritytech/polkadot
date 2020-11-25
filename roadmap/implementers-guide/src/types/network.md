@@ -8,7 +8,12 @@ These types are those that are actually sent over the network to subsystems.
 type RequestId = u64;
 type ProtocolVersion = u32;
 struct PeerId(...); // opaque, unique identifier of a peer.
-struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
+struct View {
+	// Up to `N` (5?) chain heads.
+	heads: Vec<Hash>,
+	// The number of the finalized block.
+	finalized_number: BlockNumber,
+}
 
 enum ObservedRole {
 	Full,
@@ -17,6 +22,20 @@ enum ObservedRole {
 ```
 
 ## V1 Network Subsystem Message Types
+
+### Approval Distribution V1
+
+```rust
+enum ApprovalDistributionV1Message {
+	/// Assignments for candidates in recent, unfinalized blocks.
+	///
+	/// The u32 is the claimed index of the candidate this assignment corresponds to. Actually checking the assignment
+	/// may yield a different result.
+	Assignments(Vec<(IndirectAssignmentCert, u32)>),
+	/// Approvals for candidates in some recent, unfinalized block.
+	Approvals(Vec<IndirectSignedApprovalVote>),
+}
+```
 
 ### Availability Distribution V1
 
@@ -82,6 +101,7 @@ These are the messages for the protocol on the validation peer-set.
 
 ```rust
 enum ValidationProtocolV1 {
+	ApprovalDistribution(ApprovalDistributionV1Message),
 	AvailabilityDistribution(AvailabilityDistributionV1Message),
 	BitfieldDistribution(BitfieldDistributionV1Message),
 	PoVDistribution(PoVDistributionV1Message),

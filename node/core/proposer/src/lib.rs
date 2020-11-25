@@ -143,13 +143,13 @@ where
 
 		let (sender, receiver) = futures::channel::oneshot::channel();
 
-		overseer.wait_for_activation(parent_header_hash, sender).await?;
+		overseer.wait_for_activation(parent_header_hash, sender).await;
 		receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
 		let (sender, receiver) = futures::channel::oneshot::channel();
 		overseer.send_msg(AllMessages::Provisioner(
 			ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-		)).await?;
+		)).await;
 
 		let mut timeout = futures_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
 
@@ -193,7 +193,7 @@ where
 			let provisioner_data = match self.get_provisioner_data().await {
 				Ok(pd) => pd,
 				Err(err) => {
-					log::warn!("could not get provisioner inherent data; injecting default data: {}", err);
+					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
 					Default::default()
 				}
 			};
