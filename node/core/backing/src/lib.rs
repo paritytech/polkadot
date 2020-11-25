@@ -394,15 +394,6 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn get_backed(&self) -> impl '_ + Iterator<Item=BackedCandidate> {
-		let proposed = self.table.proposed_candidates(&self.table_context);
-
-		proposed
-			.into_iter()
-			.filter_map(move |attested| table_attested_to_backed(attested, &self.table_context))
-	}
-
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
 	///
 	/// TODO: Report multiple misbehaviors (https://github.com/paritytech/polkadot/issues/1387)
@@ -522,9 +513,12 @@ impl CandidateBackingJob {
 
 				tracing::info!(target: LOG_TARGET, relay_parent = ?relay_parent, "started handling GetBackedCandidates");
 
-				let backed: Vec<_> = self
-					.get_backed()
-					.filter(|candidate| requested_candidates.contains(&candidate.hash()))
+				let backed = requested_candidates
+					.into_iter()
+					.filter_map(|hash| {
+						self.table.attested_candidate(&hash, &self.table_context)
+							.and_then(|attested| table_attested_to_backed(attested, &self.table_context))
+					})
 					.collect();
 
 				tx.send(backed).map_err(|data| Error::Send(data))?;
