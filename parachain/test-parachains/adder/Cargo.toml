@@ -17,7 +17,7 @@ dlmalloc = { version = "0.2.1", features = [ "global" ] }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = [ "disable_allocator" ] }
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
+substrate-wasm-builder = "3.0.0"
 
 [features]
 default = [ "std" ]

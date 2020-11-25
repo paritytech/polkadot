@@ -59,6 +59,13 @@ pub type Hash = sp_core::H256;
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Debug, Default)]
 pub struct CandidateHash(pub Hash);
 
+#[cfg(feature="std")]
+impl std::fmt::Display for CandidateHash {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		self.0.fmt(f)
+	}
+}
+
 /// Index of a transaction in the relay chain. 32-bit should be plenty.
 pub type Nonce = u32;
 

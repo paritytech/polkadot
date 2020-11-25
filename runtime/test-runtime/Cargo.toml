@@ -12,7 +12,7 @@ log = { version = "0.4.11", optional = true }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.117", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
-smallvec = "1.4.2"
+smallvec = "1.5.0"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -65,7 +65,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.59"
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
+substrate-wasm-builder = "3.0.0"
 
 [features]
 default = ["std"]
