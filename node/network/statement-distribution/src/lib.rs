@@ -312,7 +312,9 @@ impl PeerData {
 		fingerprint: &(CompactStatement, ValidatorIndex),
 		max_message_count: usize,
 	) -> Result<bool, Rep> {
-		self.view_knowledge.get_mut(relay_parent).ok_or(COST_UNEXPECTED_STATEMENT)?
+		self.view_knowledge
+			.get_mut(relay_parent)
+			.ok_or(COST_UNEXPECTED_STATEMENT)?
 			.receive(fingerprint, max_message_count)
 	}
 }
@@ -492,13 +494,15 @@ fn check_statement_signature(
 		.and_then(|v| statement.check_signature(&signing_context, v))
 }
 
+type StatementListeners = Vec<mpsc::Sender<SignedFullStatement>>;
+
 /// Informs all registered listeners about a newly received statement.
 ///
 /// Removes all closed listeners.
 #[tracing::instrument(level = "trace", skip(listeners), fields(subsystem = LOG_TARGET))]
 async fn inform_statement_listeners(
 	statement: &SignedFullStatement,
-	listeners: &mut Vec<mpsc::Sender<SignedFullStatement>>,
+	listeners: &mut StatementListeners,
 ) {
 	// Ignore the errors since these will be removed later.
 	stream::iter(listeners.iter_mut()).for_each_concurrent(
@@ -523,42 +527,42 @@ async fn circulate_statement_and_dependents(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	metrics: &Metrics,
-) -> SubsystemResult<()> {
-	if let Some(active_head)= active_heads.get_mut(&relay_parent) {
+) {
+	let active_head = match active_heads.get_mut(&relay_parent) {
+		Some(res) => res,
+		None => return,
+	};
 
-		// First circulate the statement directly to all peers needing it.
-		// The borrow of `active_head` needs to encompass only this (Rust) statement.
-		let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
-			match active_head.note_statement(statement) {
-				NotedStatement::Fresh(stored) => Some((
-					*stored.compact().candidate_hash(),
-					circulate_statement(peers, ctx, relay_parent, stored).await?,
-				)),
-				_ => None,
-			}
-		};
+	// First circulate the statement directly to all peers needing it.
+	// The borrow of `active_head` needs to encompass only this (Rust) statement.
+	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
+		match active_head.note_statement(statement) {
+			NotedStatement::Fresh(stored) => Some((
+				*stored.compact().candidate_hash(),
+				circulate_statement(peers, ctx, relay_parent, stored).await,
+			)),
+			_ => None,
+		}
+	};
 
-		// Now send dependent statements to all peers needing them, if any.
-		if let Some((candidate_hash, peers_needing_dependents)) = outputs {
-			for peer in peers_needing_dependents {
-				if let Some(peer_data) = peers.get_mut(&peer) {
-					// defensive: the peer data should always be some because the iterator
-					// of peers is derived from the set of peers.
-					send_statements_about(
-						peer,
-						peer_data,
-						ctx,
-						relay_parent,
-						candidate_hash,
-						&*active_head,
-						metrics,
-					).await?;
-				}
+	// Now send dependent statements to all peers needing them, if any.
+	if let Some((candidate_hash, peers_needing_dependents)) = outputs {
+		for peer in peers_needing_dependents {
+			if let Some(peer_data) = peers.get_mut(&peer) {
+				// defensive: the peer data should always be some because the iterator
+				// of peers is derived from the set of peers.
+				send_statements_about(
+					peer,
+					peer_data,
+					ctx,
+					relay_parent,
+					candidate_hash,
+					&*active_head,
+					metrics,
+				).await;
 			}
 		}
 	}
-
-	Ok(())
 }
 
 fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
@@ -577,7 +581,7 @@ async fn circulate_statement(
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	relay_parent: Hash,
 	stored: &StoredStatement,
-) -> SubsystemResult<Vec<PeerId>> {
+) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
 	let mut peers_to_send = HashMap::new();
@@ -594,14 +598,14 @@ async fn circulate_statement(
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 			peers_to_send.keys().cloned().collect(),
 			payload,
-		))).await?;
+		))).await;
 	}
 
-	Ok(peers_to_send.into_iter().filter_map(|(peer, needs_dependent)| if needs_dependent {
+	peers_to_send.into_iter().filter_map(|(peer, needs_dependent)| if needs_dependent {
 		Some(peer)
 	} else {
 		None
-	}).collect())
+	}).collect()
 }
 
 /// Send all statements about a given candidate hash to a peer.
@@ -614,7 +618,7 @@ async fn send_statements_about(
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
-) -> SubsystemResult<()> {
+) {
 	for statement in active_head.statements_about(candidate_hash) {
 		if peer_data.send(&relay_parent, &statement.fingerprint()).is_some() {
 			let payload = statement_message(
@@ -624,13 +628,11 @@ async fn send_statements_about(
 
 			ctx.send_message(AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-			)).await?;
+			)).await;
 
 			metrics.on_statement_distributed();
 		}
 	}
-
-	Ok(())
 }
 
 /// Send all statements at a given relay-parent to a peer.
@@ -642,7 +644,7 @@ async fn send_statements(
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
-) -> SubsystemResult<()> {
+) {
 	for statement in active_head.statements() {
 		if peer_data.send(&relay_parent, &statement.fingerprint()).is_some() {
 			let payload = statement_message(
@@ -652,20 +654,18 @@ async fn send_statements(
 
 			ctx.send_message(AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-			)).await?;
+			)).await;
 
 			metrics.on_statement_distributed();
 		}
 	}
-
-	Ok(())
 }
 
 async fn report_peer(
 	ctx: &mut impl SubsystemContext,
 	peer: PeerId,
 	rep: Rep,
-) -> SubsystemResult<()> {
+) {
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep)
 	)).await
@@ -685,13 +685,15 @@ async fn handle_incoming_message<'a>(
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	message: protocol_v1::StatementDistributionMessage,
 	metrics: &Metrics,
-) -> SubsystemResult<Option<(Hash, &'a StoredStatement)>> {
+	statement_listeners: &mut StatementListeners,
+) -> Option<(Hash, &'a StoredStatement)> {
 	let (relay_parent, statement) = match message {
 		protocol_v1::StatementDistributionMessage::Statement(r, s) => (r, s),
 	};
 
 	if !our_view.contains(&relay_parent) {
-		return report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await.map(|_| None);
+		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+		return None;
 	}
 
 	let active_head = match active_heads.get_mut(&relay_parent) {
@@ -703,13 +705,14 @@ async fn handle_incoming_message<'a>(
 				requested_relay_parent = %relay_parent,
 				"our view out-of-sync with active heads; head not found",
 			);
-			return Ok(None);
+			return None;
 		}
 	};
 
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
-		return report_peer(ctx, peer, COST_INVALID_SIGNATURE).await.map(|_| None);
+		report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+		return None;
 	}
 
 	// Ensure the statement is stored in the peer data.
@@ -720,8 +723,8 @@ async fn handle_incoming_message<'a>(
 	let max_message_count = active_head.validators.len() * 2;
 	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
 		Err(rep) => {
-			report_peer(ctx, peer, rep).await?;
-			return Ok(None)
+			report_peer(ctx, peer, rep).await;
+			return None;
 		}
 		Ok(true) => {
 			// Send the peer all statements concerning the candidate that we have,
@@ -734,22 +737,24 @@ async fn handle_incoming_message<'a>(
 				fingerprint.0.candidate_hash().clone(),
 				&*active_head,
 				metrics,
-			).await?
+			).await;
 		}
 		Ok(false) => {}
 	}
 
+	inform_statement_listeners(&statement, statement_listeners).await;
+
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
 	match active_head.note_statement(statement) {
-		NotedStatement::NotUseful => Ok(None),
+		NotedStatement::NotUseful => None,
 		NotedStatement::UsefulButKnown => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await?;
-			Ok(None)
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+			None
 		}
 		NotedStatement::Fresh(statement) => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await?;
-			Ok(Some((relay_parent, statement)))
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+			Some((relay_parent, statement))
 		}
 	}
 }
@@ -763,7 +768,7 @@ async fn update_peer_view_and_send_unlocked(
 	active_heads: &HashMap<Hash, ActiveHeadData>,
 	new_view: View,
 	metrics: &Metrics,
-) -> SubsystemResult<()> {
+) {
 	let old_view = std::mem::replace(&mut peer_data.view, new_view);
 
 	// Remove entries for all relay-parents in the old view but not the new.
@@ -785,11 +790,9 @@ async fn update_peer_view_and_send_unlocked(
 				new,
 				active_head,
 				metrics,
-			).await?;
+			).await;
 		}
 	}
-
-	Ok(())
 }
 
 #[tracing::instrument(level = "trace", skip(peers, active_heads, ctx, metrics), fields(subsystem = LOG_TARGET))]
@@ -800,19 +803,17 @@ async fn handle_network_update(
 	our_view: &mut View,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
-) -> SubsystemResult<()> {
+	statement_listeners: &mut StatementListeners,
+) {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _role) => {
 			peers.insert(peer, PeerData {
 				view: Default::default(),
 				view_knowledge: Default::default(),
 			});
-
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			peers.remove(&peer);
-			Ok(())
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			match peers.get_mut(&peer) {
@@ -825,7 +826,8 @@ async fn handle_network_update(
 						ctx,
 						message,
 						metrics,
-					).await?;
+						statement_listeners,
+					).await;
 
 					if let Some((relay_parent, new)) = new_stored {
 						// When we receive a new message from a peer, we forward it to the
@@ -833,12 +835,10 @@ async fn handle_network_update(
 						let message = AllMessages::CandidateBacking(
 							CandidateBackingMessage::Statement(relay_parent, new.statement.clone())
 						);
-						ctx.send_message(message).await?;
+						ctx.send_message(message).await;
 					}
-
-					Ok(())
 				}
-				None => Ok(()),
+				None => (),
 			}
 
 		}
@@ -854,7 +854,7 @@ async fn handle_network_update(
 						metrics,
 					).await
 				}
-				None => Ok(()),
+				None => (),
 			}
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
@@ -872,8 +872,6 @@ async fn handle_network_update(
 					);
 				}
 			}
-
-			Ok(())
 		}
 	}
 
@@ -888,7 +886,7 @@ impl StatementDistribution {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut our_view = View::default();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
-		let mut statement_listeners: Vec<mpsc::Sender<SignedFullStatement>> = Vec::new();
+		let mut statement_listeners = StatementListeners::new();
 		let metrics = self.metrics;
 
 		loop {
@@ -917,7 +915,7 @@ impl StatementDistribution {
 
 							ctx.send_messages(
 								std::iter::once(val_message).chain(std::iter::once(session_message))
-							).await?;
+							).await;
 
 							match (val_rx.await?, session_rx.await?) {
 								(Ok(v), Ok(s)) => (v, s),
@@ -959,7 +957,7 @@ impl StatementDistribution {
 							relay_parent,
 							statement,
 							&metrics,
-						).await?;
+						).await;
 					}
 					StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
 						let _timer = metrics.time_network_bridge_update_v1();
@@ -971,7 +969,8 @@ impl StatementDistribution {
 							&mut our_view,
 							event,
 							&metrics,
-						).await?
+							&mut statement_listeners,
+						).await;
 					}
 					StatementDistributionMessage::RegisterStatementListener(tx) => {
 						statement_listeners.push(tx);
@@ -1428,7 +1427,7 @@ mod tests {
 				&active_heads,
 				new_view.clone(),
 				&Default::default(),
-			).await.unwrap();
+			).await;
 
 			assert_eq!(peer_data.view, new_view);
 			assert!(!peer_data.view_knowledge.contains_key(&hash_a));
@@ -1544,7 +1543,7 @@ mod tests {
 				&mut ctx,
 				hash_b,
 				&statement,
-			).await.unwrap();
+			).await;
 
 			{
 				assert_eq!(needs_dependents.len(), 2);

@@ -274,7 +274,7 @@ async fn distribute_collation(
 			"there are no validators assigned to core",
 		);
 
-		return Ok(())
+		return Ok(());
 	}
 
 	// Issue a discovery request for the validators of the current group and the next group.
@@ -342,7 +342,7 @@ async fn declare(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
 	peer: PeerId,
-) -> Result<()> {
+) {
 	let wire_message = protocol_v1::CollatorProtocolMessage::Declare(state.our_id.clone());
 
 	ctx.send_message(AllMessages::NetworkBridge(
@@ -350,9 +350,7 @@ async fn declare(
 			vec![peer],
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await?;
-
-	Ok(())
+	)).await;
 }
 
 /// Issue a connection request to a set of validators and
@@ -385,12 +383,10 @@ async fn advertise_collation(
 	state: &mut State,
 	relay_parent: Hash,
 	peer: PeerId,
-) -> Result<()> {
+) {
 	let collating_on = match state.collating_on {
 		Some(collating_on) => collating_on,
-		None => {
-			return Ok(());
-		}
+		None => return,
 	};
 
 	let should_advertise = state.our_validators_groups
@@ -399,7 +395,7 @@ async fn advertise_collation(
 		.unwrap_or(false);
 
 	if !state.collations.contains_key(&relay_parent) || !should_advertise {
-		return Ok(())
+		return;
 	}
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent, collating_on);
@@ -409,15 +405,13 @@ async fn advertise_collation(
 			vec![peer.clone()],
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await?;
+	)).await;
 
 	if let Some(validators) = state.our_validators_groups.get_mut(&relay_parent) {
 		validators.advertised_to_peer(&peer);
 	}
 
 	state.metrics.on_advertisment_made();
-
-	Ok(())
 }
 
 /// The main incoming message dispatching switch.
@@ -504,7 +498,7 @@ async fn send_collation(
 	origin: PeerId,
 	receipt: CandidateReceipt,
 	pov: PoV,
-) -> Result<()> {
+) {
 	let wire_message = protocol_v1::CollatorProtocolMessage::Collation(
 		request_id,
 		receipt,
@@ -516,11 +510,9 @@ async fn send_collation(
 			vec![origin],
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await?;
+	)).await;
 
 	state.metrics.on_collation_sent();
-
-	Ok(())
 }
 
 /// A networking messages switch.
@@ -551,7 +543,7 @@ async fn handle_incoming_peer_message(
 				Some(our_para_id) => {
 					if our_para_id == para_id {
 						if let Some(collation) = state.collations.get(&relay_parent).cloned() {
-							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await?;
+							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await;
 						}
 					} else {
 						tracing::warn!(
@@ -589,7 +581,7 @@ async fn handle_peer_view_change(
 	state: &mut State,
 	peer_id: PeerId,
 	view: View,
-) -> Result<()> {
+) {
 	let current = state.peer_views.entry(peer_id.clone()).or_default();
 
 	let added: Vec<Hash> = view.difference(&*current).cloned().collect();
@@ -597,10 +589,8 @@ async fn handle_peer_view_change(
 	*current = view;
 
 	for added in added.into_iter() {
-		advertise_collation(ctx, state, added, peer_id.clone()).await?;
+		advertise_collation(ctx, state, added, peer_id.clone()).await;
 	}
-
-	Ok(())
 }
 
 /// A validator is connected.
@@ -613,11 +603,11 @@ async fn handle_validator_connected(
 	peer_id: PeerId,
 	validator_id: ValidatorId,
 	relay_parent: Hash,
-) -> Result<()> {
+) {
 	let not_declared = state.declared_at.insert(peer_id.clone());
 
 	if not_declared {
-		declare(ctx, state, peer_id.clone()).await?;
+		declare(ctx, state, peer_id.clone()).await;
 	}
 
 	// Store the PeerId and find out if we should advertise to this peer.
@@ -630,10 +620,8 @@ async fn handle_validator_connected(
 	};
 
 	if advertise && state.peer_interested_in_leaf(&peer_id, &relay_parent) {
-		advertise_collation(ctx, state, relay_parent, peer_id).await?;
+		advertise_collation(ctx, state, relay_parent, peer_id).await;
 	}
-
-	Ok(())
 }
 
 /// Bridge messages switch.
@@ -651,7 +639,7 @@ async fn handle_network_msg(
 			// it should be handled here.
 		}
 		PeerViewChange(peer_id, view) => {
-			handle_peer_view_change(ctx, state, peer_id, view).await?;
+			handle_peer_view_change(ctx, state, peer_id, view).await;
 		}
 		PeerDisconnected(peer_id) => {
 			state.peer_views.remove(&peer_id);
@@ -712,19 +700,13 @@ pub(crate) async fn run(
 
 				let _timer = state.metrics.time_handle_connection_request();
 
-				if let Err(err) = handle_validator_connected(
+				handle_validator_connected(
 					&mut ctx,
 					&mut state,
 					peer_id,
 					validator_id,
 					relay_parent,
-				).await {
-					tracing::warn!(
-						target: LOG_TARGET,
-						err = ?err,
-						"Failed to declare our collator id",
-					);
-				}
+				).await;
 			},
 			msg = ctx.recv().fuse() => match msg? {
 				Communication { msg } => {

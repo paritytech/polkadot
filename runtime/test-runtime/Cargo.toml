@@ -65,7 +65,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.59"
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
+substrate-wasm-builder = "3.0.0"
 
 [features]
 default = ["std"]

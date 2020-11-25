@@ -143,13 +143,13 @@ where
 
 		let (sender, receiver) = futures::channel::oneshot::channel();
 
-		overseer.wait_for_activation(parent_header_hash, sender).await?;
+		overseer.wait_for_activation(parent_header_hash, sender).await;
 		receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
 		let (sender, receiver) = futures::channel::oneshot::channel();
 		overseer.send_msg(AllMessages::Provisioner(
 			ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-		)).await?;
+		)).await;
 
 		let mut timeout = futures_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
 

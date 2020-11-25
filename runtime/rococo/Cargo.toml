@@ -58,7 +58,7 @@ xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", defa
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
+substrate-wasm-builder = "3.0.0"
 
 [features]
 default = ["std"]

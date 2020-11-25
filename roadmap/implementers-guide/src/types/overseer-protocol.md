@@ -40,24 +40,30 @@ struct ActiveLeavesUpdate {
 Messages received by the approval voting subsystem.
 
 ```rust
-enum VoteCheckResult {
+enum AssignmentCheckResult {
+	// The vote was accepted and should be propagated onwards.
+	Accepted,
+	// The vote was valid but duplicate and should not be propagated onwards.
+	AcceptedDuplicate,
+	// The vote was valid but too far in the future to accept right now.
+	TooFarInFuture,
+	// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+}
+
+enum ApprovalCheckResult {
 	// The vote was accepted and should be propagated onwards.
 	Accepted,
 	// The vote was bad and should be ignored, reporting the peer who propagated it.
 	Bad,
-	// We do not have enough information to evaluate the vote. Ignore but don't report.
-	// This should occur primarily on startup.
-	Ignore,
 }
 
 enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
-		Hash,
-		AssignmentCert,
-		ValidatorIndex,
-		ResponseChannel<VoteCheckResult>,
+		IndirectAssignmentCert,
+		ResponseChannel<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
@@ -65,7 +71,7 @@ enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash within the indirect vote is known.
 	CheckAndImportApproval(
 		IndirectSignedApprovalVote,
-		ResponseChannel<VoteCheckResult>,
+		ResponseChannel<ApprovalCheckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for.
@@ -78,17 +84,37 @@ enum ApprovalVotingMessage {
 }
 ```
 
-## Approval Networking
+## Approval Distribution
 
-Messages received by the approval networking subsystem.
+Messages received by the approval Distribution subsystem.
 
 ```rust
-enum ApprovalNetworkingMessage {
+/// Metadata about a block which is now live in the approval protocol.
+struct BlockApprovalMeta {
+	/// The hash of the block.
+	hash: Hash,
+	/// The number of the block.
+	number: BlockNumber,
+	/// The candidates included by the block. Note that these are not the same as the candidates that appear within the
+	/// block body.
+	candidates: Vec<CandidateHash>,
+	/// The consensus slot number of the block.
+	slot_number: SlotNumber,
+}
+
+enum ApprovalDistributionMessage {
+	/// Notify the `ApprovalDistribution` subsystem about new blocks and the candidates contained within
+	/// them.
+	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
-	/// to be valid for the given relay-parent and validator index.
-	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),
-	/// Distribute an approval vote for the local validator.
-	DistributeApproval(IndirectApprovalVote),
+	/// to be valid, relevant, and for the given relay-parent and validator index.
+	///
+	/// The `u32` param is the candidate index in the fully-included list.
+	DistributeAssignment(IndirectAssignmentCert, u32),
+	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
+	/// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
+	/// the message.
+	DistributeApproval(IndirectSignedApprovalVote),
 }
 ```
 
