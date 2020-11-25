@@ -42,6 +42,7 @@ decl_storage! {
 		EarliestStoredSession get(fn earliest_stored_session): SessionIndex;
 		/// Session information in a rolling window.
 		/// Should have an entry in range `EarliestStoredSession..=CurrentSessionIndex`.
+		/// Does not have any entries before the session index in the first session change notification.
 		Sessions get(fn session_info): map hasher(identity) SessionIndex => Option<SessionInfo>;
 	}
 }
@@ -82,9 +83,9 @@ impl<T: Trait> Module<T> {
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryTrait>::authorities();
-		// FIXME: once we define these keys
+		// FIXME: once we store these keys: https://github.com/paritytech/polkadot/issues/1975
 		let approval_keys = Default::default();
-		let validator_groups =  <scheduler::Module<T>>::validator_groups();
+		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
 		let relay_vrf_modulo_samples = config.relay_vrf_modulo_samples;
