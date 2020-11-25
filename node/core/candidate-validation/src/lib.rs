@@ -171,7 +171,7 @@ async fn runtime_api_request<T>(
 			relay_parent,
 			request,
 		))
-	).await?;
+	).await;
 
 	receiver.await.map_err(Into::into)
 }

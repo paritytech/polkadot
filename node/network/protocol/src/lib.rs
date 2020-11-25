@@ -166,6 +166,15 @@ impl<M> NetworkBridgeEvent<M> {
 pub struct View(pub Vec<Hash>);
 
 impl View {
+	/// Replace `self` with `new`.
+	///
+	/// Returns an iterator that will yield all elements of `new` that were not part of `self`.
+	pub fn replace_difference(&mut self, new: View) -> impl Iterator<Item = &Hash> {
+		let old = std::mem::replace(self, new);
+
+		self.0.iter().filter(move |h| !old.contains(h))
+	}
+
 	/// Returns an iterator of the hashes present in `Self` but not in `other`.
 	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
 		self.0.iter().filter(move |h| !other.contains(h))
