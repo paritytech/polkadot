@@ -406,10 +406,10 @@ async fn handle_fetch(
 							relay_parent,
 							relevant_validators.clone(),
 						).await {
-						    Ok(new_connection_request) => {
+							Ok(new_connection_request) => {
 								state.connection_requests.put(relay_parent, new_connection_request);
 							}
-						    Err(e) => {
+							Err(e) => {
 								tracing::debug!(
 									target: LOG_TARGET,
 									"Failed to create a validator connection request {:?}",
