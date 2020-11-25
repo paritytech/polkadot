@@ -19,10 +19,10 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/mxinden/substrate", branch = "use-request-response" }
 smallvec = "1.5.0"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "use-request-response" }
+substrate-prometheus-endpoint = { git = "https://github.com/mxinden/substrate", branch = "use-request-response" }
 thiserror = "1.0.22"
 
 [dev-dependencies]
