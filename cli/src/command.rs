@@ -18,7 +18,6 @@ use log::info;
 use service::{IdentifyVariant, self};
 use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
-use std::sync::Arc;
 
 fn get_exec_name() -> Option<String> {
 	std::env::current_exe()
@@ -126,7 +125,6 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -141,14 +139,14 @@ pub fn run() -> Result<()> {
 				info!("----------------------------");
 			}
 
-			runner.run_node_until_exit(|config| {
+			runner.run_node_until_exit(|config| async move {
 				let role = config.role.clone();
 
 				match role {
 					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
 					_ => service::build_full(
 						config,
-						authority_discovery_disabled,
+						service::IsCollator::No,
 						grandpa_pause,
 					).map(|full| full.task_manager),
 				}
@@ -157,43 +155,6 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
-		},
-		Some(Subcommand::BuildSyncSpec(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
-
-			set_default_ss58_version(chain_spec);
-
-			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
-			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
-				None
-			} else {
-				Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
-			};
-
-			if chain_spec.is_kusama() {
-				info!("----------------------------");
-				info!("This chain is not in any way");
-				info!("      endorsed by the       ");
-				info!("     KUSAMA FOUNDATION      ");
-				info!("----------------------------");
-			}
-
-			runner.async_run(|config| {
-				let chain_spec = config.chain_spec.cloned_box();
-				let network_config = config.network.clone();
-				let service::NewFull {
-					task_manager,
-					client,
-					network_status_sinks,
-					..
-				} = service::build_full(
-					config, authority_discovery_disabled, grandpa_pause,
-				)?;
-				let client = Arc::new(client);
-
-				Ok((cmd.run(chain_spec, network_config, client, network_status_sinks), task_manager))
-			})
 		},
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -257,11 +218,11 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::ValidationWorker(cmd)) => {
 			let _ = sc_cli::init_logger("", sc_tracing::TracingReceiver::Log, None);
 
-			if cfg!(feature = "browser") {
+			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
-				#[cfg(all(not(feature = "browser"), not(feature = "service-rewr")))]
-				service::run_validation_worker(&cmd.mem_id)?;
+				#[cfg(not(any(target_os = "android", feature = "browser")))]
+				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
 				Ok(())
 			}
 		},
@@ -275,5 +236,6 @@ pub fn run() -> Result<()> {
 				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 			})
 		},
+		Some(Subcommand::Key(cmd)) => cmd.run(),
 	}
 }

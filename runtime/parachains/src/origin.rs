@@ -19,7 +19,7 @@
 use sp_std::result;
 use sp_runtime::traits::BadOrigin;
 use primitives::v1::Id as ParaId;
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 /// Origin for the parachains.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, sp_core::RuntimeDebug)]
@@ -50,4 +50,10 @@ frame_support::decl_module! {
 	///
 	// ideally, though, the `construct_runtime` should support a free-standing origin.
 	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {}
+}
+
+impl From<u32> for Origin {
+	fn from(id: u32) -> Origin {
+		Origin::Parachain(id.into())
+	}
 }

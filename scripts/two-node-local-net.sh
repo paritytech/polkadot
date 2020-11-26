@@ -6,6 +6,10 @@
 
 set -e
 
+# chainspec defaults to polkadot-local if no arguments are passed to this script;
+# if arguments are passed in, the first is the chainspec
+chainspec="${1:-polkadot-local}"
+
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 # shellcheck disable=SC1090
 source "$(dirname "$0")"/common.sh
@@ -23,7 +27,7 @@ polkadot="target/release/polkadot"
 
 # ensure the polkadot binary exists and is up to date
 if [ ! -x "$polkadot" ] || [ "$polkadot" -ot "$last_modified_rust_file" ]; then
-  cargo build --release
+  cargo build --release --features real-overseer
 fi
 
 # setup variables
@@ -70,7 +74,7 @@ function run_node() {
 
   # start the node
   "$polkadot" \
-    --chain polkadot-local \
+    --chain "$chainspec" \
     --tmp \
     --port "$port" \
     --rpc-port "$rpc_port" \

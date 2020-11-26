@@ -17,30 +17,27 @@
 //! The provisioner is responsible for assembling a relay chain block
 //! from a set of available parachain candidates of its choice.
 
-#![deny(missing_docs)]
+#![deny(missing_docs, unused_crate_dependencies, unused_results)]
 
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
-use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
+	errors::ChainApiError,
 	messages::{
-		AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
-		CandidateValidationMessage, CollatorProtocolMessage,
+		AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage,
 	},
 };
 use polkadot_node_subsystem_util::{
 	self as util, delegated_subsystem, JobTrait, ToJobTrait,
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{
-	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
-};
-use std::{convert::TryFrom, pin::Pin, sync::Arc};
+use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use std::{convert::TryFrom, pin::Pin};
+use thiserror::Error;
 
-const TARGET: &'static str = "candidate_selection";
+const LOG_TARGET: &'static str = "candidate_selection";
 
 struct CandidateSelectionJob {
 	sender: mpsc::Sender<FromJob>,
@@ -88,7 +85,6 @@ impl From<CandidateSelectionMessage> for ToJob {
 
 #[derive(Debug)]
 enum FromJob {
-	Validation(CandidateValidationMessage),
 	Backing(CandidateBackingMessage),
 	Collator(CollatorProtocolMessage),
 }
@@ -96,7 +92,6 @@ enum FromJob {
 impl From<FromJob> for AllMessages {
 	fn from(from_job: FromJob) -> AllMessages {
 		match from_job {
-			FromJob::Validation(msg) => AllMessages::CandidateValidation(msg),
 			FromJob::Backing(msg) => AllMessages::CandidateBacking(msg),
 			FromJob::Collator(msg) => AllMessages::CollatorProtocol(msg),
 		}
@@ -108,7 +103,6 @@ impl TryFrom<AllMessages> for FromJob {
 
 	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
 		match msg {
-			AllMessages::CandidateValidation(msg) => Ok(FromJob::Validation(msg)),
 			AllMessages::CandidateBacking(msg) => Ok(FromJob::Backing(msg)),
 			AllMessages::CollatorProtocol(msg) => Ok(FromJob::Collator(msg)),
 			_ => Err(()),
@@ -116,18 +110,16 @@ impl TryFrom<AllMessages> for FromJob {
 	}
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Sending(mpsc::SendError),
-	#[from]
-	Util(util::Error),
-	#[from]
-	OneshotRecv(oneshot::Canceled),
-	#[from]
-	ChainApi(ChainApiError),
-	#[from]
-	Runtime(RuntimeApiError),
+	#[error(transparent)]
+	Sending(#[from] mpsc::SendError),
+	#[error(transparent)]
+	Util(#[from] util::Error),
+	#[error(transparent)]
+	OneshotRecv(#[from] oneshot::Canceled),
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
 }
 
 impl JobTrait for CandidateSelectionJob {
@@ -142,6 +134,7 @@ impl JobTrait for CandidateSelectionJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
+	#[tracing::instrument(skip(_relay_parent, _run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		_relay_parent: Hash,
 		_run_args: Self::RunArgs,
@@ -149,14 +142,13 @@ impl JobTrait for CandidateSelectionJob {
 		receiver: mpsc::Receiver<ToJob>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		async move {
+		Box::pin(async move {
 			let job = CandidateSelectionJob::new(metrics, sender, receiver);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
 			job.run_loop().await
-		}
-		.boxed()
+		})
 	}
 }
 
@@ -187,8 +179,7 @@ impl CandidateSelectionJob {
 					para_id,
 					collator_id,
 				)) => {
-					self.handle_collation(relay_parent, para_id, collator_id)
-						.await;
+					self.handle_collation(relay_parent, para_id, collator_id).await;
 				}
 				ToJob::CandidateSelection(CandidateSelectionMessage::Invalid(
 					_,
@@ -206,12 +197,15 @@ impl CandidateSelectionJob {
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_collation(
 		&mut self,
 		relay_parent: Hash,
 		para_id: ParaId,
 		collator_id: CollatorId,
 	) {
+		let _timer = self.metrics.time_handle_collation();
+
 		if self.seconded_candidate.is_none() {
 			let (candidate_receipt, pov) =
 				match get_collation(
@@ -222,33 +216,14 @@ impl CandidateSelectionJob {
 				).await {
 					Ok(response) => response,
 					Err(err) => {
-						log::warn!(
-							target: TARGET,
-							"failed to get collation from collator protocol subsystem: {:?}",
-							err
+						tracing::warn!(
+							target: LOG_TARGET,
+							err = ?err,
+							"failed to get collation from collator protocol subsystem",
 						);
 						return;
 					}
 				};
-
-			let pov = Arc::new(pov);
-
-			if !candidate_is_valid(
-				candidate_receipt.descriptor.clone(),
-				pov.clone(),
-				self.sender.clone(),
-			)
-			.await
-			{
-				return;
-			}
-
-			let pov = if let Ok(pov) = Arc::try_unwrap(pov) {
-				pov
-			} else {
-				log::warn!(target: TARGET, "Arc unwrapping is expected to succeed, the other fns should have already run to completion by now.");
-				return;
-			};
 
 			match second_candidate(
 				relay_parent,
@@ -259,35 +234,38 @@ impl CandidateSelectionJob {
 			)
 			.await
 			{
-				Err(err) => log::warn!(target: TARGET, "failed to second a candidate: {:?}", err),
+				Err(err) => tracing::warn!(target: LOG_TARGET, err = ?err, "failed to second a candidate"),
 				Ok(()) => self.seconded_candidate = Some(collator_id),
 			}
 		}
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_invalid(&mut self, candidate_receipt: CandidateReceipt) {
+		let _timer = self.metrics.time_handle_invalid();
+
 		let received_from = match &self.seconded_candidate {
 			Some(peer) => peer,
 			None => {
-				log::warn!(
-					target: TARGET,
+				tracing::warn!(
+					target: LOG_TARGET,
 					"received invalidity notice for a candidate we don't remember seconding"
 				);
 				return;
 			}
 		};
-		log::info!(
-			target: TARGET,
-			"received invalidity note for candidate {:?}",
-			candidate_receipt
+		tracing::info!(
+			target: LOG_TARGET,
+			candidate_receipt = ?candidate_receipt,
+			"received invalidity note for candidate",
 		);
 
 		let result =
 			if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
-				log::warn!(
-					target: TARGET,
-					"failed to forward invalidity note: {:?}",
-					err
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?err,
+					"failed to forward invalidity note",
 				);
 				Err(())
 			} else {
@@ -300,6 +278,7 @@ impl CandidateSelectionJob {
 // get a collation from the Collator Protocol subsystem
 //
 // note that this gets an owned clone of the sender; that's becuase unlike `forward_invalidity_note`, it's expected to take a while longer
+#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_collation(
 	relay_parent: Hash,
 	para_id: ParaId,
@@ -318,34 +297,6 @@ async fn get_collation(
 	rx.await.map_err(Into::into)
 }
 
-// find out whether a candidate is valid or not
-async fn candidate_is_valid(
-	candidate_descriptor: CandidateDescriptor,
-	pov: Arc<PoV>,
-	sender: mpsc::Sender<FromJob>,
-) -> bool {
-	std::matches!(
-		candidate_is_valid_inner(candidate_descriptor, pov, sender).await,
-		Ok(true)
-	)
-}
-
-// find out whether a candidate is valid or not, with a worse interface
-// the external interface is worse, but the internal implementation is easier
-async fn candidate_is_valid_inner(
-	candidate_descriptor: CandidateDescriptor,
-	pov: Arc<PoV>,
-	mut sender: mpsc::Sender<FromJob>,
-) -> Result<bool, Error> {
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send(FromJob::Validation(
-			CandidateValidationMessage::ValidateFromChainState(candidate_descriptor, pov, tx),
-		))
-		.await?;
-	Ok(std::matches!(rx.await, Ok(Ok(ValidationResult::Valid(_)))))
-}
-
 async fn second_candidate(
 	relay_parent: Hash,
 	candidate_receipt: CandidateReceipt,
@@ -362,7 +313,7 @@ async fn second_candidate(
 		.await
 	{
 		Err(err) => {
-			log::warn!(target: TARGET, "failed to send a seconding message");
+			tracing::warn!(target: LOG_TARGET, err = ?err, "failed to send a seconding message");
 			metrics.on_second(Err(()));
 			Err(err.into())
 		}
@@ -389,6 +340,8 @@ async fn forward_invalidity_note(
 struct MetricsInner {
 	seconds: prometheus::CounterVec<prometheus::U64>,
 	invalid_selections: prometheus::CounterVec<prometheus::U64>,
+	handle_collation: prometheus::Histogram,
+	handle_invalid: prometheus::Histogram,
 }
 
 /// Candidate selection metrics.
@@ -409,6 +362,16 @@ impl Metrics {
 			metrics.invalid_selections.with_label_values(&[label]).inc();
 		}
 	}
+
+	/// Provide a timer for `handle_collation` which observes on drop.
+	fn time_handle_collation(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_collation.start_timer())
+	}
+
+	/// Provide a timer for `handle_invalid` which observes on drop.
+	fn time_handle_invalid(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_invalid.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -417,10 +380,10 @@ impl metrics::Metrics for Metrics {
 			seconds: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"candidate_selection_invalid_selections_total",
-						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
+						"candidate_selection_seconds_total",
+						"Number of Candidate Selection subsystem seconding events.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -430,7 +393,25 @@ impl metrics::Metrics for Metrics {
 						"candidate_selection_invalid_selections_total",
 						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
+				)?,
+				registry,
+			)?,
+			handle_collation: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_selection_handle_collation",
+						"Time spent within `candidate_selection::handle_collation`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_invalid: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_selection:handle_invalid",
+						"Time spent within `candidate_selection::handle_invalid`",
+					)
 				)?,
 				registry,
 			)?,
@@ -445,9 +426,9 @@ delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSel
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_node_primitives::ValidationOutputs;
-	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData};
+	use polkadot_primitives::v1::BlockData;
 	use sp_core::crypto::Public;
+	use std::sync::Arc;
 
 	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(
 		preconditions: Preconditions,
@@ -476,27 +457,6 @@ mod tests {
 		));
 
 		postconditions(job, job_result);
-	}
-
-	fn default_validation_outputs() -> ValidationOutputs {
-		let head_data: Vec<u8> = (0..32).rev().cycle().take(256).collect();
-		let parent_head_data = head_data
-			.iter()
-			.copied()
-			.map(|x| x.saturating_sub(1))
-			.collect();
-
-		ValidationOutputs {
-			head_data: HeadData(head_data),
-			validation_data: PersistedValidationData {
-				parent_head: HeadData(parent_head_data),
-				block_number: 123,
-				hrmp_mqc_heads: Vec::new(),
-			},
-			upward_messages: Vec::new(),
-			fees: 0,
-			new_validation_code: None,
-		}
 	}
 
 	/// when nothing is seconded so far, the collation is fetched and seconded
@@ -544,20 +504,6 @@ mod tests {
 
 							return_sender
 								.send((candidate_receipt.clone(), pov.clone()))
-								.unwrap();
-						}
-						FromJob::Validation(
-							CandidateValidationMessage::ValidateFromChainState(
-								got_candidate_descriptor,
-								got_pov,
-								return_sender,
-							),
-						) => {
-							assert_eq!(got_candidate_descriptor, candidate_receipt.descriptor);
-							assert_eq!(got_pov.as_ref(), &pov);
-
-							return_sender
-								.send(Ok(ValidationResult::Valid(default_validation_outputs())))
 								.unwrap();
 						}
 						FromJob::Backing(CandidateBackingMessage::Second(

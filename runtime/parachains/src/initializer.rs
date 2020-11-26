@@ -26,10 +26,10 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
 use sp_runtime::traits::One;
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	paras, router, scheduler, inclusion,
+	paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
 /// Information about a session change that has just occurred.
@@ -63,7 +63,10 @@ pub trait Trait:
 	+ paras::Trait
 	+ scheduler::Trait
 	+ inclusion::Trait
-	+ router::Trait
+	+ session_info::Trait
+	+ dmp::Trait
+	+ ump::Trait
+	+ hrmp::Trait
 {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash>;
@@ -121,13 +124,19 @@ decl_module! {
 			// - Paras
 			// - Scheduler
 			// - Inclusion
+			// - SessionInfo
 			// - Validity
-			// - Router
+			// - DMP
+			// - UMP
+			// - HRMP
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
-				router::Module::<T>::initializer_initialize(now);
+				session_info::Module::<T>::initializer_initialize(now) +
+				dmp::Module::<T>::initializer_initialize(now) +
+				ump::Module::<T>::initializer_initialize(now) +
+				hrmp::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -137,7 +146,10 @@ decl_module! {
 		fn on_finalize() {
 			// reverse initialization order.
 
-			router::Module::<T>::initializer_finalize();
+			hrmp::Module::<T>::initializer_finalize();
+			ump::Module::<T>::initializer_finalize();
+			dmp::Module::<T>::initializer_finalize();
+			session_info::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
@@ -181,7 +193,10 @@ impl<T: Trait> Module<T> {
 		paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
-		router::Module::<T>::initializer_on_new_session(&notification);
+		session_info::Module::<T>::initializer_on_new_session(&notification);
+		dmp::Module::<T>::initializer_on_new_session(&notification);
+		ump::Module::<T>::initializer_on_new_session(&notification);
+		hrmp::Module::<T>::initializer_on_new_session(&notification);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied

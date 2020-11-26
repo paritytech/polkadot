@@ -19,7 +19,7 @@
 use core::{result, convert::TryFrom};
 use alloc::vec::Vec;
 
-use codec::{self, Encode, Decode};
+use parity_scale_codec::{self, Encode, Decode};
 use super::{MultiLocation, VersionedMultiAsset};
 
 /// A general identifier for an instance of a non-fungible asset class.
