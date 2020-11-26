@@ -25,6 +25,7 @@ use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
+use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
@@ -56,6 +57,34 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+
+
+/// The key type ID for a parachain approval voting key.
+pub const APPROVAL_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"aprv");
+
+mod approval_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::APPROVAL_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for approval voting
+/// on included parachain candidates.
+pub type ApprovalId = approval_app::Public;
+
+/// The key type ID for parachain assignment key.
+pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
+
+// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+mod assigment_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::ASSIGNMENT_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+pub type AssignmentId = assigment_app::Public;
+
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
@@ -671,6 +700,35 @@ pub enum CandidateEvent<H = Hash> {
 	CandidateTimedOut(CandidateReceipt<H>, HeadData),
 }
 
+/// Information about validator sets of a session.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default))]
+pub struct SessionInfo {
+	/// Validators in canonical ordering.
+	pub validators: Vec<ValidatorId>,
+	/// Validators' authority discovery keys for the session in canonical ordering.
+	pub discovery_keys: Vec<AuthorityDiscoveryId>,
+	/// The assignment and approval keys for validators.
+	pub approval_keys: Vec<(ApprovalId, AssignmentId)>,
+	/// Validators in shuffled ordering - these are the validator groups as produced
+	/// by the `Scheduler` module for the session and are typically referred to by
+	/// `GroupIndex`.
+	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// The number of availability cores used by the protocol during this session.
+	pub n_cores: u32,
+	/// The zeroth delay tranche width.
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of samples we do of relay_vrf_modulo.
+	pub relay_vrf_modulo_samples: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
+	/// How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
+	/// no-show.
+	pub no_show_slots: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
@@ -710,6 +768,9 @@ sp_api::decl_runtime_apis! {
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
 
+		/// Get the session info for the given session, if stored.
+		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
+
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
@@ -734,13 +795,6 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
-
-		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-		/// Currently this request is limited to validators in the current session.
-		///
-		/// We assume that every validator runs authority discovery,
-		/// which would allow us to establish point-to-point connection to given validators.
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 
 		/// Get all the pending inbound messages in the downward message queue for a para.
 		fn dmq_contents(

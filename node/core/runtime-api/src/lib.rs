@@ -134,7 +134,7 @@ fn make_runtime_api_request<Client>(
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
-		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
+		Request::SessionInfo(index, sender) => query!(session_info(index), sender),
 		Request::DmqContents(id, sender) => query!(dmq_contents(id), sender),
 		Request::InboundHrmpChannelsContents(id, sender) => query!(inbound_hrmp_channels_contents(id), sender),
 	}
@@ -201,8 +201,8 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
-		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
-		BlockNumber, InboundHrmpMessage,
+		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
+		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -216,6 +216,7 @@ mod tests {
 		availability_cores: Vec<CoreState>,
 		validation_data: HashMap<ParaId, ValidationData>,
 		session_index_for_child: SessionIndex,
+		session_info: HashMap<SessionIndex, SessionInfo>,
 		validation_code: HashMap<ParaId, ValidationCode>,
 		historical_validation_code: HashMap<ParaId, Vec<(BlockNumber, ValidationCode)>>,
 		validation_outputs_results: HashMap<ParaId, bool>,
@@ -289,6 +290,10 @@ mod tests {
 				self.session_index_for_child.clone()
 			}
 
+			fn session_info(&self, index: SessionIndex) -> Option<SessionInfo> {
+				self.session_info.get(&index).cloned()
+			}
+
 			fn validation_code(
 				&self,
 				para: ParaId,
@@ -319,10 +324,6 @@ mod tests {
 
 			fn candidate_events(&self) -> Vec<CandidateEvent> {
 				self.candidate_events.clone()
-			}
-
-			fn validator_discovery(ids: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-				vec![None; ids.len()]
 			}
 
 			fn dmq_contents(
@@ -562,6 +563,33 @@ mod tests {
 			}).await;
 
 			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.session_index_for_child);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_session_info() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let session_index = 1;
+		runtime_api.session_info.insert(session_index, Default::default());
+		let runtime_api = Arc::new(runtime_api);
+
+		let relay_parent = [1; 32].into();
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::SessionInfo(session_index, tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
 
 			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};

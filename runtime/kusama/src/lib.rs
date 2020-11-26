@@ -29,7 +29,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
@@ -1092,6 +1092,10 @@ sp_api::impl_runtime_apis! {
 			0
 		}
 
+		fn session_info(_: SessionIndex) -> Option<SessionInfo> {
+			None
+		}
+
 		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
 			None
 		}
@@ -1105,10 +1109,6 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			Vec::new()
-		}
-
-		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			Vec::new()
 		}
 

@@ -23,12 +23,12 @@ use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
+	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
 	InboundDownwardMessage, InboundHrmpMessage,
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, dmp, hrmp};
+use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
@@ -285,28 +285,9 @@ where
 		.collect()
 }
 
-/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-/// Currently this request is limited to validators in the current session.
-///
-/// We assume that every validator runs authority discovery,
-/// which would allow us to establish point-to-point connection to given validators.
-// FIXME: handle previous sessions:
-// https://github.com/paritytech/polkadot/issues/1461
-pub fn validator_discovery<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
-where
-	T: initializer::Trait + pallet_authority_discovery::Trait,
-{
-	// FIXME: the mapping might be invalid if a session change happens in between the calls
-	// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
-	let current_validators = <inclusion::Module<T>>::validators();
-	let authorities = <pallet_authority_discovery::Module<T>>::authorities();
-	// We assume the same ordering in authorities as in validators so we can do an index search
-	validators.iter().map(|id| {
-		// FIXME: linear search is slow O(n^2)
-		// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
-		let validator_index = current_validators.iter().position(|v| v == id);
-		validator_index.and_then(|i| authorities.get(i).cloned())
-	}).collect()
+/// Get the session info for the given session, if stored.
+pub fn session_info<T: session_info::Trait>(index: SessionIndex) -> Option<SessionInfo> {
+	<session_info::Module<T>>::session_info(index)
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.

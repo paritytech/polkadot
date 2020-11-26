@@ -262,14 +262,14 @@ mod tests {
 		}, testing::{UintAuthorityId, TestXt}, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::v1::{
-		Balance, BlockNumber, Header, Signature,
+		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId,
 	};
 	use frame_support::{
 		traits::{Randomness, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
-	use runtime_parachains::{initializer, configuration, inclusion, scheduler, dmp, ump, hrmp};
+	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp};
 	use pallet_session::OneSessionHandler;
 
 	impl_outer_origin! {
@@ -476,6 +476,14 @@ mod tests {
 	impl inclusion::Trait for Test {
 		type Event = ();
 	}
+
+	impl session_info::AuthorityDiscoveryTrait for Test {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			Vec::new()
+		}
+	}
+
+	impl session_info::Trait for Test { }
 
 	pub struct TestRandomness;
 

@@ -29,6 +29,7 @@ use polkadot_runtime_parachains::configuration as parachains_configuration;
 use polkadot_runtime_parachains::inclusion as parachains_inclusion;
 use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use polkadot_runtime_parachains::initializer as parachains_initializer;
+use polkadot_runtime_parachains::session_info as parachains_session_info;
 use polkadot_runtime_parachains::paras as parachains_paras;
 use polkadot_runtime_parachains::dmp as parachains_dmp;
 use polkadot_runtime_parachains::ump as parachains_ump;
@@ -40,7 +41,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
@@ -457,6 +458,8 @@ impl parachains_initializer::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
 
+impl parachains_session_info::Trait for Runtime {}
+
 impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
@@ -678,8 +681,8 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-			runtime_impl::validator_discovery::<Runtime>(validators)
+		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+			runtime_impl::session_info::<Runtime>(index)
 		}
 
 		fn dmq_contents(

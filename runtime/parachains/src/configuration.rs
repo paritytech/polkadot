@@ -19,9 +19,10 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::v1::{Balance, ValidatorId};
+use primitives::v1::{Balance, ValidatorId, SessionIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
+	ensure,
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 };
@@ -60,6 +61,21 @@ pub struct HostConfiguration<BlockNumber> {
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
+	/// The amount of sessions to keep for disputes.
+	pub dispute_period: SessionIndex,
+	/// The amount of consensus slots that must pass between submitting an assignment and
+	/// submitting an approval vote before a validator is considered a no-show.
+	/// Must be at least 1.
+	pub no_show_slots: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
+	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
+	/// beyond 0 are all consolidated to form a wide 0 tranche.
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
+	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
+	pub relay_vrf_modulo_samples: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
 	pub max_upward_queue_count: u32,
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
@@ -251,6 +267,68 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.scheduling_lookahead, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the dispute period, in number of sessions to keep for disputes.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_dispute_period(origin, new: SessionIndex) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.dispute_period, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the no show slots, in number of number of consensus slots.
+		/// Must be at least 1.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_no_show_slots(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(new >= 1, "no_show_slots must be at least 1");
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.no_show_slots, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the total number of delay tranches.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_n_delay_tranches(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.n_delay_tranches, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the zeroth delay tranche width.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_zeroth_delay_tranche_width(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.zeroth_delay_tranche_width, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of validators needed to approve a block.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_needed_approvals(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.needed_approvals, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of samples to do of the RelayVRFModulo approval assignment criterion.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_relay_vrf_modulo_samples(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.relay_vrf_modulo_samples, new) != new
 			});
 			Ok(())
 		}
@@ -504,6 +582,12 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
+				dispute_period: 239,
+				no_show_slots: 240,
+				n_delay_tranches: 241,
+				zeroth_delay_tranche_width: 242,
+				needed_approvals: 242,
+				relay_vrf_modulo_samples: 243,
 				max_upward_queue_count: 1337,
 				max_upward_queue_size: 228,
 				max_downward_message_size: 2048,
@@ -560,6 +644,24 @@ mod tests {
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
+			).unwrap();
+			Configuration::set_dispute_period(
+				Origin::root(), new_config.dispute_period,
+			).unwrap();
+			Configuration::set_no_show_slots(
+				Origin::root(), new_config.no_show_slots,
+			).unwrap();
+			Configuration::set_n_delay_tranches(
+				Origin::root(), new_config.n_delay_tranches,
+			).unwrap();
+			Configuration::set_zeroth_delay_tranche_width(
+				Origin::root(), new_config.zeroth_delay_tranche_width,
+			).unwrap();
+			Configuration::set_needed_approvals(
+				Origin::root(), new_config.needed_approvals,
+			).unwrap();
+			Configuration::set_relay_vrf_modulo_samples(
+				Origin::root(), new_config.relay_vrf_modulo_samples,
 			).unwrap();
 			Configuration::set_max_upward_queue_count(
 				Origin::root(), new_config.max_upward_queue_count,

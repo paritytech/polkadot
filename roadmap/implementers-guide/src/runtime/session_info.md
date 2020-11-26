@@ -30,11 +30,11 @@ struct SessionInfo {
     // no-show.
     no_show_slots: u32,
     /// The number of validators needed to approve a block.
-	needed_approvals: u32,
+    needed_approvals: u32,
 }
 ```
 
-Storage Layout: 
+Storage Layout:
 
 ```rust
 /// The earliest session for which previous session info is stored.
@@ -45,7 +45,6 @@ Sessions: map SessionIndex => Option<SessionInfo>,
 
 ## Session Change
 
-1. Update the `CurrentSessionIndex`.
 1. Update `EarliestStoredSession` based on `config.dispute_period` and remove all entries from `Sessions` from the previous value up to the new value.
 1. Create a new entry in `Sessions` with information about the current session.
 

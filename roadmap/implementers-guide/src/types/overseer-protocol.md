@@ -424,14 +424,8 @@ enum RuntimeApiRequest {
 	Validators(ResponseChannel<Vec<ValidatorId>>),
 	/// Get the validator groups and rotation info.
 	ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
-	/// Get the session index for children of the block. This can be used to construct a signing
-	/// context.
-	SessionIndex(ResponseChannel<SessionIndex>),
-	/// Get the validation code for a specific para, using the given occupied core assumption.
-	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Fetch the historical validation code used by a para for candidates executed in
-	/// the context of a given block height in the current chain.
-	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
+	/// Get information about all availability cores.
+	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
 	/// with the given occupied core assumption.
 	PersistedValidationData(
 		ParaId,
@@ -450,12 +444,25 @@ enum RuntimeApiRequest {
 		CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
-	/// Get information about all availability cores.
-	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
+	/// Get the session index for children of the block. This can be used to construct a signing
+	/// context.
+	SessionIndexForChild(ResponseChannel<SessionIndex>),
+	/// Get the validation code for a specific para, using the given occupied core assumption.
+	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
+	/// Fetch the historical validation code used by a para for candidates executed in
+	/// the context of a given block height in the current chain.
+	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
 	/// Get a committed candidate receipt for all candidates pending availability.
 	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates in the last block.
 	CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
+	/// Get the session info for the given session, if stored.
+	SessionInfo(SessionIndex, ResponseChannel<Option<SessionInfo>>),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(ParaId, ResponseChannel<Vec<InboundDownwardMessage<BlockNumber>>>),
+	/// Get the contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
 }
 
 enum RuntimeApiMessage {

@@ -37,6 +37,7 @@ use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
+	SessionInfo,
 };
 use sp_core::{
 	traits::SpawnNamed,
@@ -193,6 +194,7 @@ specialize_requests! {
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
+	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 }
 
 /// Request some data from the `RuntimeApi` via a SubsystemContext.
@@ -274,6 +276,7 @@ specialize_requests_ctx! {
 	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability_ctx(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events_ctx() -> Vec<CandidateEvent>; CandidateEvents;
+	fn request_session_info_ctx(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
