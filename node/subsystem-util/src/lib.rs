@@ -630,7 +630,6 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	/// Send a message to the appropriate job for this `parent_hash`.
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
 		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
-			tracing::info!(job = Job::NAME, relay_parent = ?parent_hash, "send_msg sending message");
 			if job.get_mut().send_msg(msg).await.is_err() {
 				tracing::warn!(job = Job::NAME, "failed to send message to job, will remove it");
 				job.remove();
