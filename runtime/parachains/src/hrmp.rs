@@ -336,7 +336,7 @@ decl_module! {
 		/// The channel can be opened only after the recipient confirms it and only on a session
 		/// change.
 		#[weight = 0]
-		fn hrmp_init_open_channel(
+		pub fn hrmp_init_open_channel(
 			origin,
 			recipient: ParaId,
 			proposed_max_capacity: u32,
@@ -356,7 +356,7 @@ decl_module! {
 		///
 		/// The channel will be opened only on the next session boundary.
 		#[weight = 0]
-		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
+		pub fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
 			Ok(())
@@ -367,7 +367,7 @@ decl_module! {
 		///
 		/// The closure can only happen on a session change.
 		#[weight = 0]
-		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
+		pub fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::close_channel(origin, channel_id)?;
 			Ok(())
@@ -825,7 +825,12 @@ impl<T: Config> Module<T> {
 		weight
 	}
 
-	fn init_open_channel(
+	/// Initiate opening a channel from a parachain to a given recipient with given channel
+	/// parameters.
+	///
+	/// Basically the same as [`hrmp_init_open_channel`] but intendend for calling directly from
+	/// other pallets rather than dispatched.
+	pub fn init_open_channel(
 		origin: ParaId,
 		recipient: ParaId,
 		proposed_max_capacity: u32,
@@ -919,7 +924,11 @@ impl<T: Config> Module<T> {
 		Ok(())
 	}
 
-	fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
+	/// Accept a pending open channel request from the given sender.
+	///
+	/// Basically the same as [`hrmp_accept_open_channel`] but intendend for calling directly from
+	/// other pallets rather than dispatched.
+	pub fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
 		let channel_id = HrmpChannelId {
 			sender,
 			recipient: origin,
