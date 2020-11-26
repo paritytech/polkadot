@@ -325,6 +325,16 @@ decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
+		/// Initiate opening a channel from a parachain to a given recipient with given channel
+		/// parameters.
+		///
+		/// - `proposed_max_capacity` - specifies how many messages can be in the channel at once.
+		/// - `proposed_max_message_size` - specifies the maximum size of any of the messages.
+		///
+		/// These numbers are a subject to the relay-chain configuration limits.
+		///
+		/// The channel can be opened only after the recipient confirms it and only on a session
+		/// change.
 		#[weight = 0]
 		fn hrmp_init_open_channel(
 			origin,
@@ -342,6 +352,9 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Accept a pending open channel request from the given sender.
+		///
+		/// The channel will be opened only on the next session boundary.
 		#[weight = 0]
 		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
@@ -349,6 +362,10 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Initiate unilateral closing of a channel. The origin must be either the sender or the
+		/// recipient in the channel being closed.
+		///
+		/// The closure can only happen on a session change.
 		#[weight = 0]
 		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
