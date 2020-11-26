@@ -493,7 +493,9 @@ impl pallet_collective::Trait<CouncilCollective> for Runtime {
 
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
-	pub const VotingBondBase: Balance = 5 * DOLLARS;
+	// 1 storage item created, key size is 32 bytes, value size is 16+16.
+	pub const VotingBondBase: Balance = deposit(1, 64);
+	// additional data per vote is 32 bytes (account id).
 	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Weekly council elections; scaling up to monthly eventually.
 	pub const TermDuration: BlockNumber = 7 * DAYS;
@@ -516,7 +518,6 @@ impl pallet_elections_phragmen::Trait for Runtime {
 	type VotingBondBase = VotingBondBase;
 	type VotingBondFactor = VotingBondFactor;
 	type LoserCandidate = Treasury;
-	type BadReport = Treasury;
 	type KickedMember = Treasury;
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
@@ -906,7 +907,7 @@ impl frame_support::traits::OnRuntimeUpgrade for PurchaseRuntimeUpgrade {
 pub struct PhragmenElectionDepositRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for PhragmenElectionDepositRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_elections_phragmen::migrations::migrate_to_recorded_deposit::<Runtime>(5 * DOLLARS)
+		pallet_elections_phragmen::migrations::migrate_to_3_0_0::<Runtime>(5 * CENTS, DOLLARS)
 	}
 }
 
