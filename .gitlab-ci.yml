@@ -21,7 +21,6 @@ workflow:
 variables:
   GIT_STRATEGY:                    fetch
   GIT_DEPTH:                       100
-  GIT_FETCH_EXTRA_FLAGS:           release:refs/remotes/origin/release refs/tags/*:refs/tags/*
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
@@ -82,7 +81,7 @@ check-runtime:
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   variables:
-    GIT_DEPTH:                     1000
+    GIT_DEPTH:                     0
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
