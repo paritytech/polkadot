@@ -6,7 +6,7 @@ use std::io::{self, Write};
 
 fn main(){
     loop {
-		fuzz!(|data: (usize, Vec<(Vec<u8>, usize)>)| {
+        fuzz!(|data: (usize, Vec<(Vec<u8>, usize)>)| {
             let (num_validators, chunk_input) = data;
             #[cfg(not(fuzzing))]
             {

@@ -6,7 +6,7 @@ use honggfuzz::fuzz;
 
 fn main(){
     loop {
-		fuzz!(|data: &[u8]| {
+        fuzz!(|data: &[u8]| {
             let pov_block = PoV {
                 block_data: BlockData(data.iter().cloned().collect()),
             };
