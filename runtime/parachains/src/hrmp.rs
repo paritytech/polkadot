@@ -808,7 +808,7 @@ impl<T: Config> Module<T> {
 		weight
 	}
 
-	pub(super) fn init_open_channel(
+	fn init_open_channel(
 		origin: ParaId,
 		recipient: ParaId,
 		proposed_max_capacity: u32,
@@ -902,7 +902,7 @@ impl<T: Config> Module<T> {
 		Ok(())
 	}
 
-	pub(super) fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
+	fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
 		let channel_id = HrmpChannelId {
 			sender,
 			recipient: origin,
@@ -958,7 +958,7 @@ impl<T: Config> Module<T> {
 		Ok(())
 	}
 
-	pub(super) fn close_channel(origin: ParaId, channel_id: HrmpChannelId) -> Result<(), Error<T>> {
+	fn close_channel(origin: ParaId, channel_id: HrmpChannelId) -> Result<(), Error<T>> {
 		// check if the origin is allowed to close the channel.
 		ensure!(
 			origin == channel_id.sender || origin == channel_id.recipient,
