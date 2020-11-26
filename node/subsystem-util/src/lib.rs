@@ -642,7 +642,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 				tracing::info!(job = Job::NAME, relay_parent = ?parent_hash, "send_msg sending message");
 			}
 			if job.get_mut().send_msg(msg).await.is_err() {
-				tracing::debug!(job = Job::NAME, "failed to send message to job, will remove it");
+				tracing::warn!(job = Job::NAME, "failed to send message to job, will remove it");
 				job.remove();
 			}
 		} else {
