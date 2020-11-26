@@ -895,7 +895,7 @@ impl frame_support::traits::OnRuntimeUpgrade for FixCouncilHistoricalVotes {
 		use frame_support::traits::ReservableCurrency;
 		let mut failure: Balance = 0;
 		// https://github.com/paritytech/polkadot/pull/1252/files#diff-cba4e599a9fdd88fe8d33b5ed913958d63f844186b53c5cbe9bc73a2e2944857R22
-		let old_bond = 5 * CENTS * 6;
+		let old_bond = DOTS / 100 * 5;
 		let current_bond = 5 * CENTS;
 		let to_unreserve = old_bond - current_bond;
 		// source: https://github.com/paritytech/substrate/issues/7223
@@ -1235,8 +1235,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-	// TODO: CustomOnRuntimeUpgrade is done, lets just remove it here?
-	(CustomOnRuntimeUpgrade, FixCouncilHistoricalVotes,)
+	FixCouncilHistoricalVotes,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
