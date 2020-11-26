@@ -4,7 +4,7 @@ use std::sync::Arc;
 use honggfuzz::fuzz;
 
 
-fn main(){
+fn main() {
 	loop {
 		fuzz!(|data: &[u8]| {
 			let pov_block = PoV {

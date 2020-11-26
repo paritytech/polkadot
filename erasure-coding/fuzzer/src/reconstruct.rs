@@ -2,7 +2,7 @@ use polkadot_erasure_coding::*;
 use primitives::v1::AvailableData;
 use honggfuzz::fuzz;
 
-fn main(){
+fn main() {
 	loop {
 		fuzz!(|data: (usize, Vec<(Vec<u8>, usize)>)| {
 			let (num_validators, chunk_input) = data;
