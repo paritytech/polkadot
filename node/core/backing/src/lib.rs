@@ -304,7 +304,9 @@ impl CandidateBackingJob {
 			tracing::info!(target: LOG_TARGET, relay_parent = ?self.parent, msg = ?msg, "run_loop received a message");
 			match msg {
 				ToJob::CandidateBacking(msg) => {
-					self.process_msg(msg).await?;
+					if let Err(err) = self.process_msg(msg).await {
+						tracing::error!(target: LOG_TARGET, err = ?err, "failed to process CandidateBackingMessage");
+					}
 				}
 				ToJob::Stop => break,
 			}
