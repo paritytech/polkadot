@@ -1,18 +1,12 @@
 use polkadot_erasure_coding::*;
-use primitives::v1::{AvailableData, BlockData, PoV};
+use primitives::v1::AvailableData;
 use std::sync::Arc;
 use honggfuzz::fuzz;
-use std::io::{self, Write};
 
 fn main(){
     loop {
         fuzz!(|data: (usize, Vec<(Vec<u8>, usize)>)| {
             let (num_validators, chunk_input) = data;
-            #[cfg(not(fuzzing))]
-            {
-                eprintln!("num validators {:?}", num_validators);
-                eprintln!("chunk_input {:?}", chunk_input);
-            }
             if num_validators <= 1 || num_validators > 10_000 {
                 return;
             }
