@@ -15,7 +15,24 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //! Weights for pallet_scheduler
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0
-//! DATE: 2020-09-28, STEPS: [50], REPEAT: 20, LOW RANGE: [], HIGH RANGE: []
+//! DATE: 2020-10-29, STEPS: [50, ], REPEAT: 20, LOW RANGE: [], HIGH RANGE: []
+//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("polkadot-dev"), DB CACHE: 128
+
+// Executed Command:
+// ./target/release/polkadot
+// benchmark
+// --chain=polkadot-dev
+// --steps=50
+// --repeat=20
+// --pallet=pallet_scheduler
+// --extrinsic=*
+// --execution=wasm
+// --wasm-execution=compiled
+// --heap-pages=4096
+// --header
+// ./file_header.txt
+// --output=./runtime/polkadot/src/weights/
+
 
 #![allow(unused_parens)]
 #![allow(unused_imports)]
@@ -23,29 +40,30 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
+/// Weight functions for pallet_scheduler.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Trait> pallet_scheduler::WeightInfo for WeightInfo<T> {
 	fn schedule(s: u32, ) -> Weight {
-		(33_047_000 as Weight)
-			.saturating_add((47_000 as Weight).saturating_mul(s as Weight))
+		(33_070_000 as Weight)
+			.saturating_add((43_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn cancel(s: u32, ) -> Weight {
-		(30_172_000 as Weight)
-			.saturating_add((3_053_000 as Weight).saturating_mul(s as Weight))
+		(29_962_000 as Weight)
+			.saturating_add((3_080_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn schedule_named(s: u32, ) -> Weight {
-		(42_799_000 as Weight)
-			.saturating_add((64_000 as Weight).saturating_mul(s as Weight))
+		(42_402_000 as Weight)
+			.saturating_add((60_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn cancel_named(s: u32, ) -> Weight {
-		(34_134_000 as Weight)
-			.saturating_add((3_064_000 as Weight).saturating_mul(s as Weight))
+		(33_800_000 as Weight)
+			.saturating_add((3_093_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}

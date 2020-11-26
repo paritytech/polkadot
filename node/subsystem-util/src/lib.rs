@@ -22,27 +22,22 @@
 //!
 //! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
 
+#![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
+	errors::RuntimeApiError,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
-use futures::{
-	channel::{mpsc, oneshot},
-	future::Either,
-	prelude::*,
-	select,
-	stream::Stream,
-	task,
-};
+use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
-use pin_project::{pin_project, pinned_drop};
+use pin_project::pin_project;
 use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
+	SessionInfo,
 };
 use sp_core::{
 	traits::SpawnNamed,
@@ -55,7 +50,7 @@ use sp_keystore::{
 	Error as KeystoreError,
 };
 use std::{
-	collections::HashMap,
+	collections::{HashMap, hash_map::Entry},
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
@@ -63,6 +58,7 @@ use std::{
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
+use thiserror::Error;
 
 pub mod validator_discovery;
 
@@ -76,41 +72,37 @@ pub mod reexports {
 	};
 }
 
-
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
 
-
 /// Utility errors
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 pub enum Error {
 	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[from]
-	Oneshot(oneshot::Canceled),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
 	/// Attempted to send on a MPSC channel which has been canceled
-	#[from]
-	Mpsc(mpsc::SendError),
+	#[error(transparent)]
+	Mpsc(#[from] mpsc::SendError),
 	/// A subsystem error
-	#[from]
-	Subsystem(SubsystemError),
-	/// An error in the Chain API.
-	#[from]
-	ChainApi(ChainApiError),
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
 	/// An error in the Runtime API.
-	#[from]
-	RuntimeApi(RuntimeApiError),
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
 	/// The type system wants this even though it doesn't make sense
-	#[from]
-	Infallible(std::convert::Infallible),
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
 	/// Attempted to convert from an AllMessages to a FromJob, and failed.
+	#[error("AllMessage not relevant to Job")]
 	SenderConversion(String),
 	/// The local node is not a validator.
+	#[error("Node is not a validator")]
 	NotAValidator,
-	/// The desired job is not present in the jobs list.
-	JobNotFound(Hash),
 	/// Already forwarding errors to another sender
+	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
 }
 
@@ -202,6 +194,7 @@ specialize_requests! {
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
+	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 }
 
 /// Request some data from the `RuntimeApi` via a SubsystemContext.
@@ -216,13 +209,11 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 
-	ctx
-		.send_message(
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
-				.try_into()
-				.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
-		)
-		.await?;
+	ctx.send_message(
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
+			.try_into()
+			.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
+	).await;
 
 	Ok(rx)
 }
@@ -285,6 +276,7 @@ specialize_requests_ctx! {
 	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability_ctx(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events_ctx() -> Vec<CandidateEvent>; CandidateEvents;
+	fn request_session_info_ctx(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
@@ -301,6 +293,7 @@ pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePt
 ///
 /// It can be created if the local node is a validator in the context of a particular
 /// relay chain block.
+#[derive(Debug)]
 pub struct Validator {
 	signing_context: SigningContext,
 	key: ValidatorId,
@@ -410,12 +403,19 @@ pub trait ToJobTrait: TryFrom<AllMessages> {
 	fn relay_parent(&self) -> Option<Hash>;
 }
 
+struct AbortOnDrop(future::AbortHandle);
+
+impl Drop for AbortOnDrop {
+	fn drop(&mut self) {
+		self.0.abort();
+	}
+}
+
 /// A JobHandle manages a particular job for a subsystem.
 struct JobHandle<ToJob> {
-	abort_handle: future::AbortHandle,
+	_abort_handle: AbortOnDrop,
 	to_job: mpsc::Sender<ToJob>,
 	finished: oneshot::Receiver<()>,
-	outgoing_msgs_handle: usize,
 }
 
 impl<ToJob> JobHandle<ToJob> {
@@ -431,27 +431,21 @@ impl<ToJob: ToJobTrait> JobHandle<ToJob> {
 	/// If it hasn't shut itself down after `JOB_GRACEFUL_STOP_DURATION`, abort it.
 	async fn stop(mut self) {
 		// we don't actually care if the message couldn't be sent
-		if let Err(_) = self.to_job.send(ToJob::STOP).await {
-			// no need to wait further here: the job is either stalled or
-			// disconnected, and in either case, we can just abort it immediately
-			self.abort_handle.abort();
+		if self.to_job.send(ToJob::STOP).await.is_err() {
 			return;
 		}
+
 		let stop_timer = Delay::new(JOB_GRACEFUL_STOP_DURATION);
 
-		match future::select(stop_timer, self.finished).await {
-			Either::Left((_, _)) => {}
-			Either::Right((_, _)) => {
-				self.abort_handle.abort();
-			}
-		}
+		future::select(stop_timer, self.finished).await;
 	}
 }
 
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
-	/// Reexport Prometheus types.
+	/// Reexport Substrate Prometheus types.
 	pub use substrate_prometheus_endpoint as prometheus;
+
 
 	/// Subsystem- or job-specific Prometheus metrics.
 	///
@@ -462,18 +456,15 @@ pub mod metrics {
 		/// Try to register metrics in the Prometheus registry.
 		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
 
-		/// Convience method to register metrics in the optional Prometheus registry.
-		/// If the registration fails, prints a warning and returns `Default::default()`.
-		fn register(registry: Option<&prometheus::Registry>) -> Self {
-			registry.map(|r| {
-				match Self::try_register(r) {
-					Err(e) => {
-						log::warn!("Failed to register metrics: {:?}", e);
-						Default::default()
-					},
-					Ok(metrics) => metrics,
-				}
-			}).unwrap_or_default()
+		/// Convenience method to register metrics in the optional Promethius registry.
+		///
+		/// If no registry is provided, returns `Default::default()`. Otherwise, returns the same
+		/// thing that `try_register` does.
+		fn register(registry: Option<&prometheus::Registry>) -> Result<Self, prometheus::PrometheusError> {
+			match registry {
+				None => Ok(Self::default()),
+				Some(registry) => Self::try_register(registry),
+			}
 		}
 	}
 
@@ -496,7 +487,7 @@ pub trait JobTrait: Unpin {
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<AllMessages> + Send;
 	/// Job runtime error.
-	type Error: 'static + std::fmt::Debug + Send;
+	type Error: 'static + std::error::Error + Send;
 	/// Extra arguments this job needs to run properly.
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
@@ -519,32 +510,19 @@ pub trait JobTrait: Unpin {
 		receiver: mpsc::Receiver<Self::ToJob>,
 		sender: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
-
-	/// Handle a message which has no relay parent, and therefore can't be dispatched to a particular job
-	///
-	/// By default, this is implemented with a NOP function. However, if
-	/// ToJob occasionally has messages which do not correspond to a particular
-	/// parent relay hash, then this function will be spawned as a one-off
-	/// task to handle those messages.
-	// TODO: the API here is likely not precisely what we want; figure it out more
-	// once we're implementing a subsystem which actually needs this feature.
-	// In particular, we're quite likely to want this to return a future instead of
-	// interrupting the active thread for the duration of the handler.
-	fn handle_unanchored_msg(_msg: Self::ToJob) -> Result<(), Self::Error> {
-		Ok(())
-	}
 }
 
 /// Error which can be returned by the jobs manager
 ///
 /// Wraps the utility error type and the job-specific error
-#[derive(Debug, derive_more::From)]
-pub enum JobsError<JobError> {
+#[derive(Debug, Error)]
+pub enum JobsError<JobError: 'static + std::error::Error> {
 	/// utility error
-	#[from]
-	Utility(Error),
+	#[error("Utility")]
+	Utility(#[source] Error),
 	/// internal job error
-	Job(JobError),
+	#[error("Internal")]
+	Job(#[source] JobError),
 }
 
 /// Jobs manager for a subsystem
@@ -554,12 +532,12 @@ pub enum JobsError<JobError> {
 /// - Dispatches messages to the appropriate job for a given relay-parent.
 /// - When dropped, aborts all remaining jobs.
 /// - implements `Stream<Item=Job::FromJob>`, collecting all messages from subordinate jobs.
-#[pin_project(PinnedDrop)]
+#[pin_project]
 pub struct Jobs<Spawner, Job: JobTrait> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<Job::ToJob>>,
-	#[pin]
 	outgoing_msgs: StreamUnordered<mpsc::Receiver<Job::FromJob>>,
+	#[pin]
 	job: std::marker::PhantomData<Job>,
 	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 }
@@ -599,30 +577,28 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (finished_tx, finished) = oneshot::channel();
 
-		// clone the error transmitter to move into the future
 		let err_tx = self.errors.clone();
 
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
-				log::error!(
-					"{}({}) finished with an error {:?}",
-					Job::NAME,
-					parent_hash,
-					e,
+				tracing::error!(
+					job = Job::NAME,
+					parent_hash = %parent_hash,
+					err = ?e,
+					"job finished with an error",
 				);
 
 				if let Some(mut err_tx) = err_tx {
 					// if we can't send the notification of error on the error channel, then
 					// there's no point trying to propagate this error onto the channel too
-					// all we can do is warn that error propagatio has failed
+					// all we can do is warn that error propagation has failed
 					if let Err(e) = err_tx.send((Some(parent_hash), JobsError::Job(e))).await {
-						log::warn!("failed to forward error: {:?}", e);
+						tracing::warn!(err = ?e, "failed to forward error");
 					}
 				}
 			}
 		});
 
-		// the spawn mechanism requires that the spawned future has no output
 		let future = async move {
 			// job errors are already handled within the future, meaning
 			// that any errors here are due to the abortable mechanism.
@@ -634,15 +610,12 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		};
 		self.spawner.spawn(Job::NAME, future.boxed());
 
-		// this handle lets us remove the appropriate receiver from self.outgoing_msgs
-		// when it's time to stop the job.
-		let outgoing_msgs_handle = self.outgoing_msgs.push(from_job_rx);
+		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle {
-			abort_handle,
+			_abort_handle: AbortOnDrop(abort_handle),
 			to_job: to_job_tx,
 			finished,
-			outgoing_msgs_handle,
 		};
 
 		self.running.insert(parent_hash, handle);
@@ -651,37 +624,19 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Stop the job associated with this `parent_hash`.
-	pub async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), Error> {
-		match self.running.remove(&parent_hash) {
-			Some(handle) => {
-				Pin::new(&mut self.outgoing_msgs).remove(handle.outgoing_msgs_handle);
-				handle.stop().await;
-				Ok(())
-			}
-			None => Err(Error::JobNotFound(parent_hash)),
+	pub async fn stop_job(&mut self, parent_hash: Hash) {
+		if let Some(handle) = self.running.remove(&parent_hash) {
+			handle.stop().await;
 		}
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
-	/// Will not return an error if the job is not running.
-	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) -> Result<(), Error> {
-		match self.running.get_mut(&parent_hash) {
-			Some(job) => job.send_msg(msg).await?,
-			None => {
-				// don't bring down the subsystem, this can happen to due a race condition
-			},
-		}
-		Ok(())
-	}
-}
-
-// Note that on drop, we don't have the chance to gracefully spin down each of the remaining handles;
-// we just abort them all. Still better than letting them dangle.
-#[pinned_drop]
-impl<Spawner, Job: JobTrait> PinnedDrop for Jobs<Spawner, Job> {
-	fn drop(self: Pin<&mut Self>) {
-		for job_handle in self.running.values() {
-			job_handle.abort_handle.abort();
+	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
+		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
+			if job.get_mut().send_msg(msg).await.is_err() {
+				tracing::debug!(job = Job::NAME, "failed to send message to job, will remove it");
+				job.remove();
+			}
 		}
 	}
 }
@@ -693,18 +648,18 @@ where
 {
 	type Item = Job::FromJob;
 
-	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<Option<Self::Item>> {
-		// pin-project the outgoing messages
-		let result = self.project().outgoing_msgs.poll_next(cx).map(|opt| {
-			opt.and_then(|(stream_yield, _)| match stream_yield {
-				StreamYield::Item(msg) => Some(msg),
-				StreamYield::Finished(_) => None,
-			})
-		});
-		// we don't want the stream to end if the jobs are empty at some point
-		match result {
-			task::Poll::Ready(None) => task::Poll::Pending,
-			otherwise => otherwise,
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+		loop {
+			match Pin::new(&mut self.outgoing_msgs).poll_next(cx) {
+				Poll::Pending => return Poll::Pending,
+				Poll::Ready(r) => match r.map(|v| v.0) {
+					Some(StreamYield::Item(msg)) => return Poll::Ready(Some(msg)),
+					// If a job is finished, rerun the loop
+					Some(StreamYield::Finished(_)) => continue,
+					// Don't end if there are no jobs running
+					None => return Poll::Pending,
+				}
+			}
 		}
 	}
 }
@@ -787,8 +742,18 @@ where
 
 		loop {
 			select! {
-				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, &metrics, &mut err_tx).await { break },
-				outgoing = jobs.next().fuse() => Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await,
+				incoming = ctx.recv().fuse() =>
+					if Self::handle_incoming(
+						incoming,
+						&mut jobs,
+						&run_args,
+						&metrics,
+						&mut err_tx,
+					).await {
+						break
+					},
+				outgoing = jobs.next().fuse() =>
+					Self::handle_outgoing(outgoing, &mut ctx).await,
 				complete => break,
 			}
 		}
@@ -804,7 +769,7 @@ where
 			// if we can't send on the error transmission channel, we can't do anything useful about it
 			// still, we can at least log the failure
 			if let Err(e) = err_tx.send((hash, err)).await {
-				log::warn!("failed to forward error: {:?}", e);
+				tracing::warn!(err = ?e, "failed to forward error");
 			}
 		}
 	}
@@ -829,18 +794,18 @@ where
 				for hash in activated {
 					let metrics = metrics.clone();
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
-						log::error!("Failed to spawn a job: {:?}", e);
-						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						tracing::error!(
+							job = Job::NAME,
+							err = ?e,
+							"failed to spawn a job",
+						);
+						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
 						return true;
 					}
 				}
 
 				for hash in deactivated {
-					if let Err(e) = jobs.stop_job(hash).await {
-						log::error!("Failed to stop a job: {:?}", e);
-						Self::fwd_err(Some(hash), e.into(), err_tx).await;
-						return true;
-					}
+					jobs.stop_job(hash).await;
 				}
 			}
 			Ok(Signal(Conclude)) => {
@@ -862,8 +827,13 @@ where
 					.forward(drain())
 					.await
 				{
-					log::error!("failed to stop all jobs on conclude signal: {:?}", e);
-					Self::fwd_err(None, Error::from(e).into(), err_tx).await;
+					tracing::error!(
+						job = Job::NAME,
+						err = ?e,
+						"failed to stop a job on conclude signal",
+					);
+					let e = Error::from(e);
+					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
 				}
 
 				return true;
@@ -871,27 +841,22 @@ where
 			Ok(Communication { msg }) => {
 				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
 					match to_job.relay_parent() {
-						Some(hash) => {
-							if let Err(err) = jobs.send_msg(hash, to_job).await {
-								log::error!("Failed to send a message to a job: {:?}", err);
-								Self::fwd_err(Some(hash), err.into(), err_tx).await;
-								return true;
-							}
-						}
-						None => {
-							if let Err(err) = Job::handle_unanchored_msg(to_job) {
-								log::error!("Failed to handle unhashed message: {:?}", err);
-								Self::fwd_err(None, JobsError::Job(err), err_tx).await;
-								return true;
-							}
-						}
+						Some(hash) => jobs.send_msg(hash, to_job).await,
+						None => tracing::debug!(
+							job = Job::NAME,
+							"trying to send a message to a job without specifying a relay parent",
+						),
 					}
 				}
 			}
 			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
-				log::error!("error receiving message from subsystem context: {:?}", err);
-				Self::fwd_err(None, Error::from(err).into(), err_tx).await;
+				tracing::error!(
+					job = Job::NAME,
+					err = ?err,
+					"error receiving message from subsystem context for job",
+				);
+				Self::fwd_err(None, JobsError::Utility(Error::from(err)), err_tx).await;
 				return true;
 			}
 		}
@@ -902,12 +867,9 @@ where
 	async fn handle_outgoing(
 		outgoing: Option<Job::FromJob>,
 		ctx: &mut Context,
-		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 	) {
 		let msg = outgoing.expect("the Jobs stream never ends; qed");
-		if let Err(e) = ctx.send_message(msg.into()).await {
-			Self::fwd_err(None, Error::from(e).into(), err_tx).await;
-		}
+		ctx.send_message(msg.into()).await;
 	}
 }
 
@@ -929,6 +891,7 @@ where
 
 		let future = Box::pin(async move {
 			Self::run(ctx, run_args, metrics, spawner, errors).await;
+			Ok(())
 		});
 
 		SpawnedSubsystem {
@@ -1003,6 +966,7 @@ macro_rules! delegated_subsystem {
 			}
 
 			/// Run this subsystem
+			#[tracing::instrument(skip(ctx, run_args, metrics, spawner), fields(subsystem = $subsystem_name))]
 			pub async fn run(ctx: Context, run_args: $run_args, metrics: $metrics, spawner: Spawner) {
 				<Manager<Spawner, Context>>::run(ctx, run_args, metrics, spawner, None).await
 			}
@@ -1032,6 +996,8 @@ pub struct Timeout<F: Future> {
 
 /// Extends `Future` to allow time-limited futures.
 pub trait TimeoutExt: Future {
+	/// Adds a timeout of `duration` to the given `Future`.
+	/// Returns a new `Future`.
 	fn timeout(self, duration: Duration) -> Timeout<Self>
 	where
 		Self: Sized,
@@ -1065,7 +1031,8 @@ impl<F: Future> Future for Timeout<F> {
 
 #[cfg(test)]
 mod tests {
-	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
+	use super::{JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
+	use thiserror::Error;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -1156,10 +1123,10 @@ mod tests {
 	// Error will mostly be a wrapper to make the try operator more convenient;
 	// deriving From implementations for most variants is recommended.
 	// It must implement Debug for logging.
-	#[derive(Debug, derive_more::From)]
+	#[derive(Debug, Error)]
 	enum Error {
-		#[from]
-		Sending(mpsc::SendError),
+		#[error(transparent)]
+		Sending(#[from]mpsc::SendError),
 	}
 
 	impl JobTrait for FakeCandidateSelectionJob {
@@ -1261,7 +1228,7 @@ mod tests {
 	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);
@@ -1292,32 +1259,10 @@ mod tests {
 	}
 
 	#[test]
-	fn stopping_non_running_job_fails() {
-		let relay_parent: Hash = [0; 32].into();
-		let run_args = HashMap::new();
-
-		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::stop_work(relay_parent),
-				)))
-				.await;
-
-			let errs: Vec<_> = err_rx.collect().await;
-			assert_eq!(errs.len(), 1);
-			assert_eq!(errs[0].0, Some(relay_parent));
-			assert_matches!(
-				errs[0].1,
-				JobsError::Utility(UtilError::JobNotFound(match_relay_parent)) if relay_parent == match_relay_parent
-			);
-		});
-	}
-
-	#[test]
 	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 		let relay_parent = Hash::repeat_byte(0x01);
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);

@@ -19,18 +19,19 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::v1::ValidatorId;
+use primitives::v1::{Balance, ValidatorId, SessionIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
+	ensure,
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use frame_system::ensure_root;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, Default)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, Default, sp_core::RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	/// The minimum frequency at which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
@@ -43,6 +44,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
 	pub max_head_data_size: u32,
+	/// THe maximum POV block size, in bytes.
+	pub max_pov_size: u32,
 	/// The amount of execution cores to dedicate to parathread execution.
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
@@ -58,6 +61,73 @@ pub struct HostConfiguration<BlockNumber> {
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
+	/// The amount of sessions to keep for disputes.
+	pub dispute_period: SessionIndex,
+	/// The amount of consensus slots that must pass between submitting an assignment and
+	/// submitting an approval vote before a validator is considered a no-show.
+	/// Must be at least 1.
+	pub no_show_slots: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
+	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
+	/// beyond 0 are all consolidated to form a wide 0 tranche.
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
+	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
+	pub relay_vrf_modulo_samples: u32,
+	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+	pub max_upward_queue_count: u32,
+	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
+	/// no further messages may be added to it. If it exceeds this then the queue may contain only
+	/// a single message.
+	pub max_upward_queue_size: u32,
+	/// The maximum size of a message that can be put in a downward message queue.
+	///
+	/// Since we require receiving at least one DMP message the obvious upper bound of the size is
+	/// the PoV size. Of course, there is a lot of other different things that a parachain may
+	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
+	/// size.
+	pub max_downward_message_size: u32,
+	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
+	/// stage.
+	///
+	/// NOTE that this is a soft limit and could be exceeded.
+	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	/// The maximum size of an upward message that can be sent by a candidate.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_size: u32,
+	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_num_per_candidate: u32,
+	/// Number of sessions after which an HRMP open channel request expires.
+	pub hrmp_open_request_ttl: u32,
+	/// The deposit that the sender should provide for opening an HRMP channel.
+	pub hrmp_sender_deposit: Balance,
+	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
+	pub hrmp_recipient_deposit: Balance,
+	/// The maximum number of messages allowed in an HRMP channel at once.
+	pub hrmp_channel_max_capacity: u32,
+	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
+	pub hrmp_channel_max_total_size: u32,
+	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
+	pub hrmp_max_parachain_inbound_channels: u32,
+	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
+	pub hrmp_max_parathread_inbound_channels: u32,
+	/// The maximum size of a message that could ever be put into an HRMP channel.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_channel_max_message_size: u32,
+	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
+	pub hrmp_max_parachain_outbound_channels: u32,
+	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
+	pub hrmp_max_parathread_outbound_channels: u32,
+	/// The maximum number of outbound HRMP messages can be sent by a candidate.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_max_message_num_per_candidate: u32,
 }
 
 pub trait Trait: frame_system::Trait { }
@@ -116,6 +186,16 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_code_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the max POV block size for incoming upgrades.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_pov_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_pov_size, new) != new
 			});
 			Ok(())
 		}
@@ -190,6 +270,239 @@ decl_module! {
 			});
 			Ok(())
 		}
+
+		/// Set the dispute period, in number of sessions to keep for disputes.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_dispute_period(origin, new: SessionIndex) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.dispute_period, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the no show slots, in number of number of consensus slots.
+		/// Must be at least 1.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_no_show_slots(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(new >= 1, "no_show_slots must be at least 1");
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.no_show_slots, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the total number of delay tranches.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_n_delay_tranches(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.n_delay_tranches, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the zeroth delay tranche width.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_zeroth_delay_tranche_width(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.zeroth_delay_tranche_width, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of validators needed to approve a block.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_needed_approvals(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.needed_approvals, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of samples to do of the RelayVRFModulo approval assignment criterion.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_relay_vrf_modulo_samples(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.relay_vrf_modulo_samples, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum items that can present in a upward dispatch queue at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_queue_count(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_queue_count, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_queue_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_queue_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the critical downward message size.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_downward_message_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_downward_message_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_preferred_dispatchable_upward_messages_step_weight(origin, new: Weight) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.preferred_dispatchable_upward_messages_step_weight, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum size of an upward message that can be sent by a candidate.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_message_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_message_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of messages that a candidate can contain.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_message_num_per_candidate(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_message_num_per_candidate, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the number of sessions after which an HRMP open channel request expires.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_open_request_ttl(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_open_request_ttl, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the amount of funds that the sender should provide for opening an HRMP channel.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_sender_deposit(origin, new: Balance) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_sender_deposit, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the amount of funds that the recipient should provide for accepting opening an HRMP
+		/// channel.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_recipient_deposit(origin, new: Balance) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_recipient_deposit, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of messages allowed in an HRMP channel at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_channel_max_capacity(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_channel_max_capacity, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum total size of messages in bytes allowed in an HRMP channel at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_channel_max_total_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_channel_max_total_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parachain_inbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parachain_inbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parathread_inbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parathread_inbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum size of a message that could ever be put into an HRMP channel.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_channel_max_message_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_channel_max_message_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of outbound HRMP channels a parachain is allowed to open.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parachain_outbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parachain_outbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parathread_outbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parathread_outbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of outbound HRMP messages can be sent by a candidate.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_message_num_per_candidate(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_message_num_per_candidate, new) != new
+			});
+			Ok(())
+		}
 	}
 }
 
@@ -261,6 +574,7 @@ mod tests {
 				validation_upgrade_delay: 10,
 				acceptance_period: 5,
 				max_code_size: 100_000,
+				max_pov_size: 1024,
 				max_head_data_size: 1_000,
 				parathread_cores: 2,
 				parathread_retries: 5,
@@ -268,6 +582,29 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
+				dispute_period: 239,
+				no_show_slots: 240,
+				n_delay_tranches: 241,
+				zeroth_delay_tranche_width: 242,
+				needed_approvals: 242,
+				relay_vrf_modulo_samples: 243,
+				max_upward_queue_count: 1337,
+				max_upward_queue_size: 228,
+				max_downward_message_size: 2048,
+				preferred_dispatchable_upward_messages_step_weight: 20000,
+				max_upward_message_size: 448,
+				max_upward_message_num_per_candidate: 5,
+				hrmp_open_request_ttl: 1312,
+				hrmp_sender_deposit: 22,
+				hrmp_recipient_deposit: 4905,
+				hrmp_channel_max_capacity: 3921,
+				hrmp_channel_max_total_size: 7687,
+				hrmp_max_parachain_inbound_channels: 3722,
+				hrmp_max_parathread_inbound_channels: 1967,
+				hrmp_channel_max_message_size: 8192,
+				hrmp_max_parachain_outbound_channels: 100,
+				hrmp_max_parathread_outbound_channels: 200,
+				hrmp_max_message_num_per_candidate: 20,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get().is_none());
@@ -283,6 +620,9 @@ mod tests {
 			).unwrap();
 			Configuration::set_max_code_size(
 				Origin::root(), new_config.max_code_size,
+			).unwrap();
+			Configuration::set_max_pov_size(
+				Origin::root(), new_config.max_pov_size,
 			).unwrap();
 			Configuration::set_max_head_data_size(
 				Origin::root(), new_config.max_head_data_size,
@@ -304,6 +644,86 @@ mod tests {
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
+			).unwrap();
+			Configuration::set_dispute_period(
+				Origin::root(), new_config.dispute_period,
+			).unwrap();
+			Configuration::set_no_show_slots(
+				Origin::root(), new_config.no_show_slots,
+			).unwrap();
+			Configuration::set_n_delay_tranches(
+				Origin::root(), new_config.n_delay_tranches,
+			).unwrap();
+			Configuration::set_zeroth_delay_tranche_width(
+				Origin::root(), new_config.zeroth_delay_tranche_width,
+			).unwrap();
+			Configuration::set_needed_approvals(
+				Origin::root(), new_config.needed_approvals,
+			).unwrap();
+			Configuration::set_relay_vrf_modulo_samples(
+				Origin::root(), new_config.relay_vrf_modulo_samples,
+			).unwrap();
+			Configuration::set_max_upward_queue_count(
+				Origin::root(), new_config.max_upward_queue_count,
+			).unwrap();
+			Configuration::set_max_upward_queue_size(
+				Origin::root(), new_config.max_upward_queue_size,
+			).unwrap();
+			Configuration::set_max_downward_message_size(
+				Origin::root(), new_config.max_downward_message_size,
+			).unwrap();
+			Configuration::set_preferred_dispatchable_upward_messages_step_weight(
+				Origin::root(), new_config.preferred_dispatchable_upward_messages_step_weight,
+			).unwrap();
+			Configuration::set_max_upward_message_size(
+				Origin::root(), new_config.max_upward_message_size,
+			).unwrap();
+			Configuration::set_max_upward_message_num_per_candidate(
+				Origin::root(), new_config.max_upward_message_num_per_candidate,
+			).unwrap();
+			Configuration::set_hrmp_open_request_ttl(
+				Origin::root(),
+				new_config.hrmp_open_request_ttl,
+			).unwrap();
+			Configuration::set_hrmp_sender_deposit(
+				Origin::root(),
+				new_config.hrmp_sender_deposit,
+			).unwrap();
+			Configuration::set_hrmp_recipient_deposit(
+				Origin::root(),
+				new_config.hrmp_recipient_deposit,
+			).unwrap();
+			Configuration::set_hrmp_channel_max_capacity(
+				Origin::root(),
+				new_config.hrmp_channel_max_capacity,
+			).unwrap();
+			Configuration::set_hrmp_channel_max_total_size(
+				Origin::root(),
+				new_config.hrmp_channel_max_total_size,
+			).unwrap();
+			Configuration::set_hrmp_max_parachain_inbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parachain_inbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_max_parathread_inbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parathread_inbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_channel_max_message_size(
+				Origin::root(),
+				new_config.hrmp_channel_max_message_size,
+			).unwrap();
+			Configuration::set_hrmp_max_parachain_outbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parachain_outbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_max_parathread_outbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parathread_outbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_max_message_num_per_candidate(
+				Origin::root(),
+				new_config.hrmp_max_message_num_per_candidate,
 			).unwrap();
 
 			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(new_config));

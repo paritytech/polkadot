@@ -125,7 +125,6 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -147,7 +146,7 @@ pub fn run() -> Result<()> {
 					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
 					_ => service::build_full(
 						config,
-						authority_discovery_disabled,
+						service::IsCollator::No,
 						grandpa_pause,
 					).map(|full| full.task_manager),
 				}
@@ -219,11 +218,11 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::ValidationWorker(cmd)) => {
 			let _ = sc_cli::init_logger("", sc_tracing::TracingReceiver::Log, None);
 
-			if cfg!(feature = "browser") {
+			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
-				#[cfg(all(not(feature = "browser"), not(feature = "service-rewr")))]
-				service::run_validation_worker(&cmd.mem_id)?;
+				#[cfg(not(any(target_os = "android", feature = "browser")))]
+				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
 				Ok(())
 			}
 		},
@@ -237,5 +236,6 @@ pub fn run() -> Result<()> {
 				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 			})
 		},
+		Some(Subcommand::Key(cmd)) => cmd.run(),
 	}
 }

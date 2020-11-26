@@ -20,13 +20,15 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
+#![deny(missing_docs)]
+
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
-	HeadData, PoV, CollatorPair, Id as ParaId,
+	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
+	HeadData, PoV, CollatorPair, Id as ParaId, OutboundHrmpMessage, ValidationOutputs, CandidateHash,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -52,10 +54,10 @@ pub enum Statement {
 	Seconded(CommittedCandidateReceipt),
 	/// A statement that a validator has deemed a candidate valid.
 	#[codec(index = "2")]
-	Valid(Hash),
+	Valid(CandidateHash),
 	/// A statement that a validator has deemed a candidate invalid.
 	#[codec(index = "3")]
-	Invalid(Hash),
+	Invalid(CandidateHash),
 }
 
 impl Statement {
@@ -114,26 +116,13 @@ pub struct FromTableMisbehavior {
 	pub key: ValidatorId,
 }
 
-/// Outputs of validating a candidate.
-#[derive(Debug)]
-pub struct ValidationOutputs {
-	/// The head-data produced by validation.
-	pub head_data: HeadData,
-	/// The persisted validation data.
-	pub validation_data: PersistedValidationData,
-	/// Upward messages to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	pub fees: Balance,
-	/// The new validation code submitted by the execution, if any.
-	pub new_validation_code: Option<ValidationCode>,
-}
-
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
 	/// Failed to execute.`validate_block`. This includes function panicking.
 	ExecutionError(String),
+	/// Validation outputs check doesn't pass.
+	InvalidOutputs,
 	/// Execution timeout.
 	Timeout,
 	/// Validation input is over the limit.
@@ -148,19 +137,14 @@ pub enum InvalidCandidate {
 	HashMismatch,
 	/// Bad collator signature.
 	BadSignature,
-	/// Output code is too large
-	NewCodeTooLarge(u64),
-	/// Head-data is over the limit.
-	HeadDataTooLarge(u64),
-	/// Code upgrade triggered but not allowed.
-	CodeUpgradeNotAllowed,
 }
 
 /// Result of the validation of the candidate.
 #[derive(Debug)]
 pub enum ValidationResult {
-	/// Candidate is valid. The validation process yields these outputs.
-	Valid(ValidationOutputs),
+	/// Candidate is valid. The validation process yields these outputs and the persisted validation
+	/// data used to form inputs.
+	Valid(ValidationOutputs, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid(InvalidCandidate),
 }
@@ -268,29 +252,40 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 /// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
-pub struct Collation {
-	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
+pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// The horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<ParaId>>,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
 	/// Proof to verify the state transition of the parachain.
 	pub proof_of_validity: PoV,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: BlockNumber,
 }
+
+/// Collation function.
+///
+/// Will be called with the hash of the relay chain block the parachain
+/// block should be build on and the [`ValidationData`] that provides
+/// information about the state of the parachain on the relay chain.
+pub type CollatorFn = Box<
+	dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
+		+ Send
+		+ Sync,
+>;
 
 /// Configuration for the collation generator
 pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
-	/// Collation function.
-	///
-	/// Will be called with the hash of the relay chain block the parachain
-	/// block should be build on and the [`ValidationData`] that provides
-	/// information about the state of the parachain on the relay chain.
-	pub collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync>,
+	/// Collation function. See [`CollatorFn`] for more details.
+	pub collator: CollatorFn,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }

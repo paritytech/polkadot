@@ -28,7 +28,7 @@ Approval has roughly two parts:
 
 - **Approval checks** listens to the assignments subsystem for outgoing assignment notices that we shall check specific candidates.  It then performs these checks by first invoking the reconstruction subsystem to obtain the candidate, second invoking the candidate validity utility subsystem upon the candidate, and finally sending out an approval vote, or perhaps initiating a dispute.
 
-These both run first as off-chain consensus protocols using messages gossiped among all validators, and second as an on-chain record of this off-chain protocols' progress after the fact.  We need the on-chain protocol to provide rewards for the on-chain protocol, and doing an on-chain protocol simplify interaction with GRANDPA.  
+These both run first as off-chain consensus protocols using messages gossiped among all validators, and second as an on-chain record of this off-chain protocols' progress after the fact.  We need the on-chain protocol to provide rewards for the off-chain protocol.
 
 Approval requires two gossiped message types, assignment notices created by its assignments subsystem, and approval votes sent by our approval checks subsystem when authorized by the candidate validity utility subsystem.  
 
@@ -102,11 +102,11 @@ Assignment criteria come in three flavors, `RelayVRFModulo`, `RelayVRFDelay` and
 
 Among these, we have two distinct VRF output computations:
 
-`RelayVRFModulo` runs several distinct samples whose VRF input is the `RelayVRFStory` and the sample number.  It computes the VRF output with `schnorrkel::vrf::VRFInOut::make_bytes` using the context "core", reduces this number modulo the number of availability cores, and outputs the candidate just declared available by, and included by aka leaving, that availability core.  We drop any samples that return no candidate because no candidate was leaving the sampled availability core in this relay chain block.  We choose three samples initially, but we could make polkadot more secure and efficient by increasing this to four or five, and reducing the backing checks accordingly.  All successful `RelayVRFModulo` samples are assigned delay tranche zero.
+`RelayVRFModulo` runs several distinct samples whose VRF input is the `RelayVRFStory` and the sample number.  It computes the VRF output with `schnorrkel::vrf::VRFInOut::make_bytes` using the context "A&V Core", reduces this number modulo the number of availability cores, and outputs the candidate just declared available by, and included by aka leaving, that availability core.  We drop any samples that return no candidate because no candidate was leaving the sampled availability core in this relay chain block.  We choose three samples initially, but we could make polkadot more secure and efficient by increasing this to four or five, and reducing the backing checks accordingly.  All successful `RelayVRFModulo` samples are assigned delay tranche zero.
 
 There is no sampling process for `RelayVRFDelay` and `RelayEquivocation`.  We instead run them on specific candidates and they compute a delay from their VRF output.  `RelayVRFDelay` runs for all candidates included under, aka declared available by, a relay chain block, and inputs the associated VRF output via `RelayVRFStory`.  `RelayEquivocation` runs only on candidate block equivocations, and inputs their block hashes via the `RelayEquivocation` story.
 
-`RelayVRFDelay` and `RelayEquivocation` both compute their output with `schnorrkel::vrf::VRFInOut::make_bytes` using the context "tranche" and reduce the result modulo `num_delay_tranches + zeroth_delay_tranche_width`, and consolidate results 0 through `zeroth_delay_tranche_width` to be 0.  In this way, they ensure the zeroth delay tranche has `zeroth_delay_tranche_width+1` times as many assignments as any other tranche.
+`RelayVRFDelay` and `RelayEquivocation` both compute their output with `schnorrkel::vrf::VRFInOut::make_bytes` using the context "A&V Tranche" and reduce the result modulo `num_delay_tranches + zeroth_delay_tranche_width`, and consolidate results 0 through `zeroth_delay_tranche_width` to be 0.  In this way, they ensure the zeroth delay tranche has `zeroth_delay_tranche_width+1` times as many assignments as any other tranche.
 
 As future work (or TODO?), we should merge assignment notices with the same delay and story using `vrf_merge`.  We cannot merge those with the same delay and different stories because `RelayEquivocationStory`s could change but `RelayVRFStory` never changes. 
 
@@ -152,7 +152,7 @@ TODO: When?  Is this optimal for the network?  etc.
 
 ## On-chain verification
 
-We should verify approval on-chain to reward approval checkers and to simplify integration with GRANDPA.  We therefore require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain, which helps with both these goals.
+We should verify approval on-chain to reward approval checkers. We therefore require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain, which helps with this goal. The major challenge with an on-chain record of the off-chain process is adversarial block producers who may either censor votes or publish votes to the chain which cause other votes to be ignored and unrewards (reward stealing).
 
 In principle, all validators have some "tranche" at which they're assigned to the parachain candidate, which ensures we reach enough validators eventually.  As noted above, we often retract "no shows" when the slow validator eventually shows up, so witnessing their initially being a "no show" helps manage rewards.
 
@@ -185,6 +185,14 @@ VRFs though require adversaries wait far longer between such attacks, which also
 Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We retain but delay gossiping the assignment notices until they agree with our local clock.  
 
 Assignment notices being gossiped too early might create a denial of service vector.  If so, we might exploit the relative time scheme that synchronises our clocks, which conceivably permits just dropping excessively early assignments. 
+
+## Finality GRANDPA Voting Rule
+
+The relay-chain requires validators to participate in GRANDPA. In GRANDPA, validators submit off-chain votes on what they believe to be the best block of the chain, and GRANDPA determines the common block contained by a supermajority of sub-chains. There are also additional constraints on what can be submitted based on results of previous rounds of voting.
+
+In order to avoid finalizing anything which has not received enough approval votes or is disputed, we will pair the approval protocol with an alteration to the GRANDPA voting strategy for honest nodes which causes them to vote only on chains where every parachain candidate within has been approved.  Furthermore, the voting rule prevents voting for chains where there is any live dispute or any dispute has resolved to a candidate being invalid.
+
+Thus, the finalized relay-chain should contain only relay-chain blocks where a majority believe that every block within has been sufficiently approved.
 
 ### Future work
 

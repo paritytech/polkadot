@@ -19,7 +19,7 @@
 
 use sp_std::vec::Vec;
 
-use codec::{Encode, Decode, CompactAs};
+use parity_scale_codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
 
 #[cfg(feature = "std")]
@@ -28,37 +28,25 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
-use polkadot_core_primitives::Hash;
+use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 
 /// Block number type used by the relay chain.
 pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-impl From<Vec<u8>> for HeadData {
-	fn from(head: Vec<u8>) -> Self {
-		HeadData(head)
-	}
-}
-
 /// Parachain validation code.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-impl From<Vec<u8>> for ValidationCode {
-	fn from(code: Vec<u8>) -> Self {
-		ValidationCode(code)
-	}
-}
 
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
@@ -147,6 +135,45 @@ impl sp_std::ops::Add<u32> for Id {
 	}
 }
 
+#[derive(Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+pub struct Sibling(pub Id);
+
+impl From<Id> for Sibling {
+	fn from(i: Id) -> Self {
+		Self(i)
+	}
+}
+
+impl From<Sibling> for Id {
+	fn from(i: Sibling) -> Self {
+		i.0
+	}
+}
+
+impl AsRef<Id> for Sibling {
+	fn as_ref(&self) -> &Id {
+		&self.0
+	}
+}
+
+impl TypeId for Sibling {
+	const TYPE_ID: [u8; 4] = *b"sibl";
+}
+
+impl From<Sibling> for u32 {
+	fn from(x: Sibling) -> Self { x.0.into() }
+}
+
+impl From<u32> for Sibling {
+	fn from(x: u32) -> Self { Sibling(x.into()) }
+}
+
+impl IsSystem for Sibling {
+	fn is_system(&self) -> bool {
+		IsSystem::is_system(&self.0)
+	}
+}
+
 /// This type can be converted into and possibly from an AccountId (which itself is generic).
 pub trait AccountIdConversion<AccountId>: Sized {
 	/// Convert into an account ID. This is infallible.
@@ -159,12 +186,12 @@ pub trait AccountIdConversion<AccountId>: Sized {
 // TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
 // #360
 struct TrailingZeroInput<'a>(&'a [u8]);
-impl<'a> codec::Input for TrailingZeroInput<'a> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
 		Ok(None)
 	}
 
-	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
+	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
 		let len = into.len().min(self.0.len());
 		into[..len].copy_from_slice(&self.0[..len]);
 		for i in &mut into[len..] {
@@ -198,44 +225,23 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	}
 }
 
-/// Which origin a parachain's message to the relay chain should be dispatched from.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Hash))]
-#[repr(u8)]
-pub enum ParachainDispatchOrigin {
-	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
-	/// interacting with standard modules such as `balances`.
-	Signed,
-	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
-	/// aware modules which need to succinctly verify that the origin is a parachain.
-	Parachain,
-	/// As the simple, superuser `Origin::Root`. This can only be done on specially permissioned
-	/// parachains.
-	Root,
-}
-
-impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
-	type Error = ();
-	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
-		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;
-		const PARACHAIN: u8 = ParachainDispatchOrigin::Parachain as u8;
-		Ok(match x {
-			SIGNED => ParachainDispatchOrigin::Signed,
-			PARACHAIN => ParachainDispatchOrigin::Parachain,
-			_ => return Err(()),
-		})
-	}
+/// A type that uniquely identifies an HRMP channel. An HRMP channel is established between two paras.
+/// In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
+/// unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
+/// that we use the first item tuple for the sender and the second for the recipient. Only one channel
+/// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
+/// identified by `(A, B)`.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash))]
+pub struct HrmpChannelId {
+	/// The para that acts as the sender in this channel.
+	pub sender: Id,
+	/// The para that acts as the recipient in this channel.
+	pub recipient: Id,
 }
 
 /// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Hash))]
-pub struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
-}
+pub type UpwardMessage = Vec<u8>;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
@@ -248,6 +254,11 @@ pub struct ValidationParams {
 	pub block_data: BlockData,
 	/// The current relay-chain block number.
 	pub relay_chain_height: RelayChainBlockNumber,
+	/// The MQC head for the DMQ.
+	///
+	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
+	/// passed by the collator.
+	pub dmq_mqc_head: Hash,
 	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
@@ -255,7 +266,7 @@ pub struct ValidationParams {
 }
 
 /// The result of parachain validation.
-// TODO: egress and balance uploads (https://github.com/paritytech/polkadot/issues/220)
+// TODO: balance uploads (https://github.com/paritytech/polkadot/issues/220)
 #[derive(PartialEq, Eq, Encode)]
 #[cfg_attr(feature = "std", derive(Debug, Decode))]
 pub struct ValidationResult {
@@ -265,8 +276,12 @@ pub struct ValidationResult {
 	pub new_validation_code: Option<ValidationCode>,
 	/// Upward messages send by the Parachain.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// Outbound horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
 	/// Number of downward messages that were processed by the Parachain.
 	///
 	/// It is expected that the Parachain processes them from first to last.
 	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: RelayChainBlockNumber,
 }

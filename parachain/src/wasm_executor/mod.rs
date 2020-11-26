@@ -22,7 +22,7 @@
 
 use std::{any::{TypeId, Any}, path::PathBuf};
 use crate::primitives::{ValidationParams, ValidationResult};
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
@@ -37,38 +37,49 @@ const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
-/// A stub validation-pool defined when compiling for Android or WASM.
-#[cfg(any(target_os = "android", target_os = "unknown"))]
-#[derive(Clone)]
-pub struct ValidationPool {
-	_inner: (), // private field means not publicly-instantiable
-}
-
-#[cfg(any(target_os = "android", target_os = "unknown"))]
-impl ValidationPool {
-	/// Create a new `ValidationPool`.
-	pub fn new() -> Self {
-		ValidationPool { _inner: () }
-	}
-}
-
-/// A stub function defined when compiling for Android or WASM.
-#[cfg(any(target_os = "android", target_os = "unknown"))]
-pub fn run_worker(_: &str) -> Result<(), String> {
-	Err("Cannot run validation worker on this platform".to_string())
-}
-
-/// The execution mode for the `ValidationPool`.
-#[derive(Clone)]
-#[cfg_attr(not(any(target_os = "android", target_os = "unknown")), derive(Debug))]
-pub enum ExecutionMode {
+/// The strategy we employ for isolating execution of wasm parachain validation function (PVF).
+///
+/// For a typical validator an external process is the default way to run PVF. The rationale is based
+/// on the following observations:
+///
+/// (a) PVF is completely under control of parachain developers who may or may not be malicious.
+/// (b) Collators are in charge of providing PoV who also may or may not be malicious.
+/// (c) PVF is executed by a wasm engine based on optimizing compiler which is a very complex piece
+///     of machinery.
+///
+/// (a) and (b) may lead to a situation where due to a combination of PVF and PoV the validation work
+/// can stuck in an infinite loop, which can open up resource exhaustion or DoS attack vectors.
+///
+/// While some execution engines provide functionality to interrupt execution of wasm module from
+/// another thread, there are also some caveats to that: there is no clean way to interrupt execution
+/// if the control flow is in the host side and at the moment we haven't rigoriously vetted that all
+/// host functions terminate or, at least, return in a short amount of time. Additionally, we want
+/// some freedom on choosing wasm execution environment.
+///
+/// On top of that, execution in a separate process helps to minimize impact of (c) if exploited.
+/// It's not only the risk of miscompilation, but it also includes risk of JIT-bombs, i.e. cases
+/// of specially crafted code that take enourmous amounts of time and memory to compile.
+///
+/// At the same time, since PVF validates self-contained candidates, validation workers don't require
+/// extensive communication with polkadot host, therefore there should be no observable performance penalty
+/// coming from inter process communication.
+///
+/// All of the above should give a sense why isolation is crucial for a typical use-case.
+///
+/// However, in some cases, e.g. when running PVF validation on android (for whatever reason), we
+/// cannot afford the luxury of process isolation and thus there is an option to run validation in
+/// process. Also, running in process is convenient for testing.
+#[derive(Clone, Debug)]
+pub enum IsolationStrategy {
 	/// The validation worker is ran in a thread inside the same process.
 	InProcess,
 	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
 	/// following by the address of the shared memory.
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	ExternalProcessSelfHost(ValidationPool),
 	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
 	/// memory is added at the end of the arguments.
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	ExternalProcessCustomHost {
 		/// Validation pool.
 		pool: ValidationPool,
@@ -80,64 +91,75 @@ pub enum ExecutionMode {
 	},
 }
 
+impl Default for IsolationStrategy {
+	fn default() -> Self {
+		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+		{
+			Self::ExternalProcessSelfHost(ValidationPool::new())
+		}
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-/// Candidate validation error.
-pub enum ValidationError {
-	/// Validation failed due to internal reasons. The candidate might still be valid.
-	Internal(InternalError),
-	/// Candidate is invalid.
-	InvalidCandidate(InvalidCandidate),
-}
-
-/// Error type that indicates invalid candidate.
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum InvalidCandidate {
-	/// Wasm executor error.
-	#[display(fmt = "WASM executor error: {:?}", _0)]
-	WasmExecutor(sc_executor::error::Error),
-	/// Call data is too large.
-	#[display(fmt = "Validation parameters are {} bytes, max allowed is {}", _0, MAX_RUNTIME_MEM)]
-	#[from(ignore)]
-	ParamsTooLarge(usize),
-	/// Code size it too large.
-	#[display(fmt = "WASM code is {} bytes, max allowed is {}", _0, MAX_CODE_MEM)]
-	CodeTooLarge(usize),
-	/// Error decoding returned data.
-	#[display(fmt = "Validation function returned invalid data.")]
-	BadReturn,
-	#[display(fmt = "Validation function timeout.")]
-	Timeout,
-	#[display(fmt = "External WASM execution error: {}", _0)]
-	ExternalWasmExecutor(String),
-}
-
-/// Host error during candidate validation. This does not indicate an invalid candidate.
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum InternalError {
-	#[display(fmt = "IO error: {}", _0)]
-	Io(std::io::Error),
-	#[display(fmt = "System error: {}", _0)]
-	System(Box<dyn std::error::Error + Send>),
-	#[display(fmt = "Shared memory error: {}", _0)]
-	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-	SharedMem(shared_memory::SharedMemError),
-	#[display(fmt = "WASM worker error: {}", _0)]
-	WasmWorker(String),
-}
-
-impl std::error::Error for ValidationError {
-	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-		match self {
-			ValidationError::Internal(InternalError::Io(ref err)) => Some(err),
-			ValidationError::Internal(InternalError::System(ref err)) => Some(&**err),
-			#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-			ValidationError::Internal(InternalError::SharedMem(ref err)) => Some(err),
-			ValidationError::InvalidCandidate(InvalidCandidate::WasmExecutor(ref err)) => Some(err),
-			_ => None,
+		#[cfg(any(target_os = "android", target_os = "unknown"))]
+		{
+			Self::InProcess
 		}
 	}
 }
+
+#[derive(Debug, thiserror::Error)]
+/// Candidate validation error.
+pub enum ValidationError {
+	/// Validation failed due to internal reasons. The candidate might still be valid.
+	#[error(transparent)]
+	Internal(#[from] InternalError),
+	/// Candidate is invalid.
+	#[error(transparent)]
+	InvalidCandidate(#[from] InvalidCandidate),
+}
+
+/// Error type that indicates invalid candidate.
+#[derive(Debug, thiserror::Error)]
+pub enum InvalidCandidate {
+	/// Wasm executor error.
+	#[error("WASM executor error")]
+	WasmExecutor(#[from] sc_executor::error::Error),
+	/// Call data is too large.
+	#[error("Validation parameters are {0} bytes, max allowed is {}", MAX_RUNTIME_MEM)]
+	ParamsTooLarge(usize),
+	/// Code size it too large.
+	#[error("WASM code is {0} bytes, max allowed is {}", MAX_CODE_MEM)]
+	CodeTooLarge(usize),
+	/// Error decoding returned data.
+	#[error("Validation function returned invalid data.")]
+	BadReturn,
+	#[error("Validation function timeout.")]
+	Timeout,
+	#[error("External WASM execution error: {0}")]
+	ExternalWasmExecutor(String),
+}
+
+impl core::convert::From<String> for InvalidCandidate {
+	fn from(s: String) -> Self {
+		Self::ExternalWasmExecutor(s)
+	}
+}
+
+/// Host error during candidate validation. This does not indicate an invalid candidate.
+#[derive(Debug, thiserror::Error)]
+pub enum InternalError {
+	#[error("IO error: {0}")]
+	Io(#[from] std::io::Error),
+
+	#[error("System error: {0}")]
+	System(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
+
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+	#[error("Shared memory error: {0}")]
+	SharedMem(#[from] shared_memory::SharedMemError),
+
+	#[error("WASM worker error: {0}")]
+	WasmWorker(String),
+}
+
 
 /// Validate a candidate under the given validation code.
 ///
@@ -145,29 +167,22 @@ impl std::error::Error for ValidationError {
 pub fn validate_candidate(
 	validation_code: &[u8],
 	params: ValidationParams,
-	execution_mode: &ExecutionMode,
+	isolation_strategy: &IsolationStrategy,
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
-	match execution_mode {
-		ExecutionMode::InProcess => {
+	match isolation_strategy {
+		IsolationStrategy::InProcess => {
 			validate_candidate_internal(validation_code, &params.encode(), spawner)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::ExternalProcessSelfHost(pool) => {
+		IsolationStrategy::ExternalProcessSelfHost(pool) => {
 			pool.validate_candidate(validation_code, params)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::ExternalProcessCustomHost { pool, binary, args } => {
+		IsolationStrategy::ExternalProcessCustomHost { pool, binary, args } => {
 			let args: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
 			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
-		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::ExternalProcessSelfHost(_) | ExecutionMode::ExternalProcessCustomHost { .. } =>
-			Err(ValidationError::Internal(InternalError::System(
-				Box::<dyn std::error::Error + Send + Sync>::from(
-					"Remote validator not available".to_string()
-				) as Box<_>
-			))),
 	}
 }
 

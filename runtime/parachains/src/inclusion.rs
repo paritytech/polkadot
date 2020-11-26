@@ -31,12 +31,12 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
 	dispatch::DispatchResult, IterableStorageMap, weights::Weight, traits::Get,
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, scheduler::CoreAssignment};
+use crate::{configuration, paras, dmp, ump, hrmp, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -86,7 +86,12 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	frame_system::Trait + paras::Trait + configuration::Trait
+	frame_system::Trait
+	+ paras::Trait
+	+ dmp::Trait
+	+ ump::Trait
+	+ hrmp::Trait
+	+ configuration::Trait
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
@@ -131,8 +136,12 @@ decl_error! {
 		WrongCollator,
 		/// Scheduled cores out of order.
 		ScheduledOutOfOrder,
+		/// Head data exceeds the configured maximum.
+		HeadDataTooLarge,
 		/// Code upgrade prematurely.
 		PrematureCodeUpgrade,
+		/// Output code is too large
+		NewCodeTooLarge,
 		/// Candidate not in parent context.
 		CandidateNotInParentContext,
 		/// The bitfield contains a bit relating to an unassigned availability core.
@@ -149,6 +158,14 @@ decl_error! {
 		ValidationDataHashMismatch,
 		/// Internal error only returned when compiled with debug assertions.
 		InternalError,
+		/// The downward message queue is not processed correctly.
+		IncorrectDownwardMessageHandling,
+		/// At least one upward message sent does not pass the acceptance criteria.
+		InvalidUpwardMessages,
+		/// The candidate didn't follow the rules of HRMP watermark advancement.
+		HrmpWatermarkMishandling,
+		/// The HRMP messages sent by the candidate is not valid.
+		InvalidOutboundHrmp,
 	}
 }
 
@@ -174,8 +191,9 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+const LOG_TARGET: &str = "parachains_runtime_inclusion";
 
+impl<T: Trait> Module<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight { 0 }
 
@@ -304,7 +322,7 @@ impl<T: Trait> Module<T> {
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
 				<PendingAvailability<T>>::remove(&para_id);
-				let commitments = match <PendingAvailabilityCommitments>::take(&para_id) {
+				let commitments = match PendingAvailabilityCommitments::take(&para_id) {
 					Some(commitments) => commitments,
 					None => {
 						debug::warn!(r#"
@@ -345,9 +363,7 @@ impl<T: Trait> Module<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
-	)
-		-> Result<Vec<CoreIndex>, DispatchError>
-	{
+	) -> Result<Vec<CoreIndex>, DispatchError> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
@@ -356,9 +372,7 @@ impl<T: Trait> Module<T> {
 
 		let validators = Validators::get();
 		let parent_hash = <frame_system::Module<T>>::parent_hash();
-		let config = <configuration::Module<T>>::config();
-		let now = <frame_system::Module<T>>::block_number();
-		let relay_parent_number = now - One::one();
+		let check_cx = CandidateCheckContext::<T>::new();
 
 		// do all checks before writing storage.
 		let core_indices = {
@@ -392,7 +406,7 @@ impl<T: Trait> Module<T> {
 			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
 			// list.
 			'a:
-			for candidate in &candidates {
+			for (candidate_idx, candidate) in candidates.iter().enumerate() {
 				let para_id = candidate.descriptor().para_id;
 
 				// we require that the candidate is in the context of the parent block.
@@ -400,26 +414,32 @@ impl<T: Trait> Module<T> {
 					candidate.descriptor().relay_parent == parent_hash,
 					Error::<T>::CandidateNotInParentContext,
 				);
-
-				// if any, the code upgrade attempt is allowed.
-				let valid_upgrade_attempt =
-					candidate.candidate.commitments.new_validation_code.is_none() ||
-					<paras::Module<T>>::last_code_upgrade(para_id, true)
-						.map_or(
-							true,
-							|last| last <= relay_parent_number &&
-								relay_parent_number.saturating_sub(last)
-									>= config.validation_upgrade_frequency,
-						);
-
-				ensure!(
-					valid_upgrade_attempt,
-					Error::<T>::PrematureCodeUpgrade,
-				);
 				ensure!(
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
 				);
+
+				if let Err(err) = check_cx
+					.check_validation_outputs(
+						para_id,
+						&candidate.candidate.commitments.head_data,
+						&candidate.candidate.commitments.new_validation_code,
+						candidate.candidate.commitments.processed_downward_messages,
+						&candidate.candidate.commitments.upward_messages,
+						T::BlockNumber::from(candidate.candidate.commitments.hrmp_watermark),
+						&candidate.candidate.commitments.horizontal_messages,
+					)
+				{
+					frame_support::debug::RuntimeLogger::init();
+					log::debug!(
+						target: LOG_TARGET,
+						"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
+						candidate_idx,
+						u32::from(para_id),
+						err,
+					);
+					Err(err.strip_into_dispatch_err::<T>())?;
+				};
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -498,7 +518,7 @@ impl<T: Trait> Module<T> {
 					false,
 					Error::<T>::UnscheduledCandidate,
 				);
-			};
+			}
 
 			// check remainder of scheduled cores, if any.
 			for assignment in scheduled[skip..].iter() {
@@ -530,13 +550,40 @@ impl<T: Trait> Module<T> {
 				core,
 				descriptor,
 				availability_votes,
-				relay_parent_number,
-				backed_in_number: now,
+				relay_parent_number: check_cx.relay_parent_number,
+				backed_in_number: check_cx.now,
 			});
 			<PendingAvailabilityCommitments>::insert(&para_id, commitments);
 		}
 
 		Ok(core_indices)
+	}
+
+	/// Run the acceptance criteria checks on the given candidate commitments.
+	pub(crate) fn check_validation_outputs(
+		para_id: ParaId,
+		validation_outputs: primitives::v1::ValidationOutputs,
+	) -> bool {
+		if let Err(err) = CandidateCheckContext::<T>::new().check_validation_outputs(
+			para_id,
+			&validation_outputs.head_data,
+			&validation_outputs.new_validation_code,
+			validation_outputs.processed_downward_messages,
+			&validation_outputs.upward_messages,
+			T::BlockNumber::from(validation_outputs.hrmp_watermark),
+			&validation_outputs.horizontal_messages,
+		) {
+			frame_support::debug::RuntimeLogger::init();
+			log::debug!(
+				target: LOG_TARGET,
+				"Validation outputs checking for parachain `{}` failed: {:?}",
+				u32::from(para_id),
+				err,
+			);
+			false
+		} else {
+			true
+		}
 	}
 
 	fn enact_candidate(
@@ -556,6 +603,24 @@ impl<T: Trait> Module<T> {
 				relay_parent_number + config.validation_upgrade_delay,
 			);
 		}
+
+		// enact the messaging facet of the candidate.
+		weight += <dmp::Module<T>>::prune_dmq(
+			receipt.descriptor.para_id,
+			commitments.processed_downward_messages,
+		);
+		weight += <ump::Module<T>>::enact_upward_messages(
+			receipt.descriptor.para_id,
+			commitments.upward_messages,
+		);
+		weight += <hrmp::Module<T>>::prune_hrmp(
+			receipt.descriptor.para_id,
+			T::BlockNumber::from(commitments.hrmp_watermark),
+		);
+		weight += <hrmp::Module<T>>::queue_outbound_hrmp(
+			receipt.descriptor.para_id,
+			commitments.horizontal_messages,
+		);
 
 		Self::deposit_event(
 			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
@@ -654,6 +719,103 @@ const fn availability_threshold(n_validators: usize) -> usize {
 	threshold
 }
 
+#[derive(derive_more::From, Debug)]
+enum AcceptanceCheckErr<BlockNumber> {
+	HeadDataTooLarge,
+	PrematureCodeUpgrade,
+	NewCodeTooLarge,
+	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
+	UpwardMessages(ump::AcceptanceCheckErr),
+	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
+	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
+}
+
+impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
+	/// Returns the same error so that it can be threaded through a needle of `DispatchError` and
+	/// ultimately returned from a `Dispatchable`.
+	fn strip_into_dispatch_err<T: Trait>(self) -> Error<T> {
+		use AcceptanceCheckErr::*;
+		match self {
+			HeadDataTooLarge => Error::<T>::HeadDataTooLarge,
+			PrematureCodeUpgrade => Error::<T>::PrematureCodeUpgrade,
+			NewCodeTooLarge => Error::<T>::NewCodeTooLarge,
+			ProcessedDownwardMessages(_) => Error::<T>::IncorrectDownwardMessageHandling,
+			UpwardMessages(_) => Error::<T>::InvalidUpwardMessages,
+			HrmpWatermark(_) => Error::<T>::HrmpWatermarkMishandling,
+			OutboundHrmp(_) => Error::<T>::InvalidOutboundHrmp,
+		}
+	}
+}
+
+/// A collection of data required for checking a candidate.
+struct CandidateCheckContext<T: Trait> {
+	config: configuration::HostConfiguration<T::BlockNumber>,
+	now: T::BlockNumber,
+	relay_parent_number: T::BlockNumber,
+}
+
+impl<T: Trait> CandidateCheckContext<T> {
+	fn new() -> Self {
+		let now = <frame_system::Module<T>>::block_number();
+		Self {
+			config: <configuration::Module<T>>::config(),
+			now,
+			relay_parent_number: now - One::one(),
+		}
+	}
+
+	/// Check the given outputs after candidate validation on whether it passes the acceptance
+	/// criteria.
+	fn check_validation_outputs(
+		&self,
+		para_id: ParaId,
+		head_data: &HeadData,
+		new_validation_code: &Option<primitives::v1::ValidationCode>,
+		processed_downward_messages: u32,
+		upward_messages: &[primitives::v1::UpwardMessage],
+		hrmp_watermark: T::BlockNumber,
+		horizontal_messages: &[primitives::v1::OutboundHrmpMessage<ParaId>],
+	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
+		ensure!(
+			head_data.0.len() <= self.config.max_head_data_size as _,
+			AcceptanceCheckErr::HeadDataTooLarge,
+		);
+
+		// if any, the code upgrade attempt is allowed.
+		if let Some(new_validation_code) = new_validation_code {
+			let valid_upgrade_attempt = <paras::Module<T>>::last_code_upgrade(para_id, true)
+				.map_or(true, |last| {
+					last <= self.relay_parent_number
+						&& self.relay_parent_number.saturating_sub(last)
+							>= self.config.validation_upgrade_frequency
+				});
+			ensure!(
+				valid_upgrade_attempt,
+				AcceptanceCheckErr::PrematureCodeUpgrade,
+			);
+			ensure!(
+				new_validation_code.0.len() <= self.config.max_code_size as _,
+				AcceptanceCheckErr::NewCodeTooLarge,
+			);
+		}
+
+		// check if the candidate passes the messaging acceptance criteria
+		<dmp::Module<T>>::check_processed_downward_messages(
+			para_id,
+			processed_downward_messages,
+		)?;
+		<ump::Module<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
+		<hrmp::Module<T>>::check_hrmp_watermark(
+			para_id,
+			self.relay_parent_number,
+			hrmp_watermark,
+		)?;
+		<hrmp::Module<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
+
+		Ok(())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -682,6 +844,7 @@ mod tests {
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		let mut config = HostConfiguration::default();
 		config.parathread_cores = 1;
+		config.max_code_size = 3;
 		config
 	}
 
@@ -855,6 +1018,7 @@ mod tests {
 		relay_parent: Hash,
 		persisted_validation_data_hash: Hash,
 		new_validation_code: Option<ValidationCode>,
+		hrmp_watermark: BlockNumber,
 	}
 
 	impl TestCandidateBuilder {
@@ -870,6 +1034,7 @@ mod tests {
 				commitments: CandidateCommitments {
 					head_data: self.head_data,
 					new_validation_code: self.new_validation_code,
+					hrmp_watermark: self.hrmp_watermark,
 					..Default::default()
 				},
 			}
@@ -1268,6 +1433,9 @@ mod tests {
 		let chain_b = ParaId::from(2);
 		let thread_a = ParaId::from(3);
 
+		// The block number of the relay-parent for testing.
+		const RELAY_PARENT_NUM: BlockNumber = 4;
+
 		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 		let validators = vec![
 			Sr25519Keyring::Alice,
@@ -1330,6 +1498,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1363,6 +1532,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 				let mut candidate_b = TestCandidateBuilder {
@@ -1370,6 +1540,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([2; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1419,6 +1590,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1488,6 +1660,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1527,6 +1700,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1565,6 +1739,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1612,6 +1787,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1652,6 +1828,7 @@ mod tests {
 					pov_hash: Hash::from([1; 32]),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1694,6 +1871,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: [42u8; 32].into(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1728,6 +1906,9 @@ mod tests {
 		let chain_a = ParaId::from(1);
 		let chain_b = ParaId::from(2);
 		let thread_a = ParaId::from(3);
+
+		// The block number of the relay-parent for testing.
+        const RELAY_PARENT_NUM: BlockNumber = 4;
 
 		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 		let validators = vec![
@@ -1789,6 +1970,7 @@ mod tests {
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1801,6 +1983,7 @@ mod tests {
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([2; 32]),
 				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1813,6 +1996,7 @@ mod tests {
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([3; 32]),
 				persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1910,6 +2094,9 @@ mod tests {
 	fn can_include_candidate_with_ok_code_upgrade() {
 		let chain_a = ParaId::from(1);
 
+		// The block number of the relay-parent for testing.
+		const RELAY_PARENT_NUM: BlockNumber = 4;
+
 		let paras = vec![(chain_a, true)];
 		let validators = vec![
 			Sr25519Keyring::Alice,
@@ -1953,6 +2140,7 @@ mod tests {
 				pov_hash: Hash::from([1; 32]),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				new_validation_code: Some(vec![1, 2, 3].into()),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(

@@ -17,8 +17,8 @@
 //! Module to handle parathread/parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
+use crate::WASM_MAGIC;
 use sp_std::{prelude::*, result};
-
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure,
 	dispatch::DispatchResult,
@@ -33,7 +33,7 @@ use runtime_parachains::{
 		self,
 		ParaGenesisArgs,
 	},
-	router,
+	dmp, ump, hrmp,
 	ensure_parachain,
 	Origin,
 };
@@ -41,7 +41,7 @@ use runtime_parachains::{
 type BalanceOf<T> =
 	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
-pub trait Trait: paras::Trait + router::Trait {
+pub trait Trait: paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait {
 	/// The aggregated origin type must support the `parachains` origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
@@ -86,6 +86,8 @@ decl_error! {
 		HeadDataTooLarge,
 		/// Parathreads registration is disabled.
 		ParathreadsRegistrationDisabled,
+		/// The validation code provided doesn't start with the Wasm file magic string.
+		DefinitelyNotWasm,
 	}
 }
 
@@ -96,7 +98,7 @@ decl_module! {
 		/// Register a parathread with given code for immediate use.
 		///
 		/// Must be sent from a Signed origin that is able to have `ParathreadDeposit` reserved.
-		/// `gensis_head` and `validation_code` are used to initalize the parathread's state.
+		/// `genesis_head` and `validation_code` are used to initalize the parathread's state.
 		#[weight = 0]
 		fn register_parathread(
 			origin,
@@ -107,6 +109,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 
 			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
+			ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
 			ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 
@@ -125,7 +128,7 @@ decl_module! {
 				parachain: false,
 			};
 
-			<paras::Module<T>>::schedule_para_initialize(id, genesis);
+			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 
 			Ok(())
 		}
@@ -150,8 +153,7 @@ decl_module! {
 			let debtor = <Debtors<T>>::take(id);
 			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
-			<paras::Module<T>>::schedule_para_cleanup(id);
-			<router::Module::<T>>::schedule_para_cleanup(id);
+			runtime_parachains::schedule_para_cleanup::<T>(id);
 
 			Ok(())
 		}
@@ -218,6 +220,7 @@ impl<T: Trait> Module<T> {
 		validation_code: ValidationCode,
 	) -> DispatchResult {
 		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
+		ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
 		let outgoing = <paras::Module<T>>::outgoing_paras();
 
@@ -231,7 +234,7 @@ impl<T: Trait> Module<T> {
 			parachain: true,
 		};
 
-		<paras::Module<T>>::schedule_para_initialize(id, genesis);
+		runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 
 		Ok(())
 	}
@@ -242,8 +245,7 @@ impl<T: Trait> Module<T> {
 
 		ensure!(is_parachain, Error::<T>::InvalidChainId);
 
-		<paras::Module<T>>::schedule_para_cleanup(id);
-		<router::Module::<T>>::schedule_para_cleanup(id);
+		runtime_parachains::schedule_para_cleanup::<T>(id);
 
 		Ok(())
 	}
@@ -260,14 +262,14 @@ mod tests {
 		}, testing::{UintAuthorityId, TestXt}, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::v1::{
-		Balance, BlockNumber, Header, Signature,
+		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId,
 	};
 	use frame_support::{
 		traits::{Randomness, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
-	use runtime_parachains::{initializer, configuration, inclusion, router, scheduler};
+	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp};
 	use pallet_session::OneSessionHandler;
 
 	impl_outer_origin! {
@@ -425,7 +427,15 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl router::Trait for Test { }
+	impl dmp::Trait for Test {}
+
+	impl ump::Trait for Test {
+		type UmpSink = ();
+	}
+
+	impl hrmp::Trait for Test {
+		type Origin = Origin;
+	}
 
 	impl pallet_session::historical::Trait for Test {
 		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
@@ -466,6 +476,14 @@ mod tests {
 	impl inclusion::Trait for Test {
 		type Event = ();
 	}
+
+	impl session_info::AuthorityDiscoveryTrait for Test {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			Vec::new()
+		}
+	}
+
+	impl session_info::Trait for Test { }
 
 	pub struct TestRandomness;
 
@@ -603,7 +621,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				2u32.into(),
 				vec![3; 3].into(),
-				vec![3; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			let orig_bal = Balances::free_balance(&3u64);
@@ -613,7 +631,7 @@ mod tests {
 				Origin::signed(3u64),
 				8u32.into(),
 				vec![3; 3].into(),
-				vec![3; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			// deposit should be taken (reserved)
@@ -652,13 +670,13 @@ mod tests {
 				Origin::signed(1),
 				8u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			assert_ok!(Registrar::register_parachain(
 				2u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			run_to_block(9);
@@ -686,7 +704,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			run_to_block(4);
@@ -697,7 +715,7 @@ mod tests {
 			assert!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			).is_err());
 
 			run_to_block(6);
@@ -705,7 +723,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 		});
 	}

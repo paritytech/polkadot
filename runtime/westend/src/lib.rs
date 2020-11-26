@@ -18,14 +18,17 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
-use codec::{Encode, Decode};
+use sp_std::collections::btree_map::BTreeMap;
+use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate, CurrencyToVote,
@@ -85,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 46,
+	spec_version: 47,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -220,8 +223,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = ToAuthor<Runtime>;
+	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -600,7 +602,9 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Multisig(..)
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(..)
+				Call::Staking(..) |
+				Call::Session(..) |
+				Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(pallet_sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
@@ -608,8 +612,8 @@ impl InstanceFilter<Call> for ProxyType {
 				_ => false,
 			},
 			ProxyType::IdentityJudgement => matches!(c,
-				Call::Identity(pallet_identity::Call::provide_judgement(..))
-				| Call::Utility(pallet_utility::Call::batch(..))
+				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
+				Call::Utility(..)
 			)
 		}
 	}
@@ -821,8 +825,23 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
+		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCode> {
+			None
+		}
+
+		fn check_validation_outputs(
+			_: Id,
+			_: primitives::v1::ValidationOutputs
+		) -> bool {
+			false
+		}
+
 		fn session_index_for_child() -> SessionIndex {
 			0
+		}
+
+		fn session_info(_: SessionIndex) -> Option<SessionInfo> {
+			None
 		}
 
 		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
@@ -837,8 +856,16 @@ sp_api::impl_runtime_apis! {
 			Vec::new()
 		}
 
-		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+		fn dmq_contents(
+			_recipient: Id,
+		) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			Vec::new()
+		}
+
+		fn inbound_hrmp_channels_contents(
+			_recipient: Id
+		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
+			BTreeMap::new()
 		}
 	}
 
@@ -866,7 +893,7 @@ sp_api::impl_runtime_apis! {
 			_set_id: fg_primitives::SetId,
 			authority_id: fg_primitives::AuthorityId,
 		) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
-			use codec::Encode;
+			use parity_scale_codec::Encode;
 
 			Historical::prove((fg_primitives::KEY_TYPE, authority_id))
 				.map(|p| p.encode())
@@ -899,7 +926,7 @@ sp_api::impl_runtime_apis! {
 			_slot_number: babe_primitives::SlotNumber,
 			authority_id: babe_primitives::AuthorityId,
 		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
-			use codec::Encode;
+			use parity_scale_codec::Encode;
 
 			Historical::prove((babe_primitives::KEY_TYPE, authority_id))
 				.map(|p| p.encode())

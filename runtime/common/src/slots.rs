@@ -22,10 +22,10 @@ use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{
 	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
 };
-use codec::{Encode, Decode, Codec};
+use parity_scale_codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
-	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
+	traits::{Currency, ReservableCurrency, WithdrawReasons, ExistenceRequirement, Get, Randomness},
 	weights::{DispatchClass, Weight},
 };
 use primitives::v1::{
@@ -630,7 +630,7 @@ impl<T: Trait> Module<T> {
 					if T::Currency::withdraw(
 						&bidder.who,
 						amount,
-						WithdrawReason::Fee.into(),
+						WithdrawReasons::FEE,
 						ExistenceRequirement::AllowDeath
 					).is_err() {
 						continue;
@@ -667,7 +667,7 @@ impl<T: Trait> Module<T> {
 						if T::Currency::withdraw(
 							&para_id.into_account(),
 							additional,
-							WithdrawReason::Fee.into(),
+							WithdrawReasons::FEE,
 							ExistenceRequirement::AllowDeath
 						).is_err() {
 							continue;

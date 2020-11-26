@@ -30,7 +30,7 @@ use std::fmt::Debug;
 
 use primitives::v1::{ValidityAttestation as PrimitiveValidityAttestation, ValidatorSignature};
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 /// Context for the statement table.
 pub trait Context {
@@ -159,7 +159,7 @@ enum ValidityVote<S: Eq + Clone> {
 }
 
 /// A summary of import of a statement.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Summary<D, G> {
 	/// The digest of the candidate referenced.
 	pub candidate: D,
@@ -256,15 +256,14 @@ impl<C: Context> CandidateData<C> {
 	// if it has enough validity votes
 	// and no authorities have called it bad.
 	fn can_be_included(&self, validity_threshold: usize) -> bool {
-		self.indicated_bad_by.is_empty()
-			&& self.validity_votes.len() >= validity_threshold
+		self.validity_votes.len() >= validity_threshold
 	}
 
 	fn summary(&self, digest: C::Digest) -> Summary<C::Digest, C::GroupId> {
 		Summary {
 			candidate: digest,
 			group_id: self.group_id.clone(),
-			validity_votes: self.validity_votes.len() - self.indicated_bad_by.len(),
+			validity_votes: self.validity_votes.len(),
 			signalled_bad: self.indicated_bad(),
 		}
 	}
@@ -359,6 +358,20 @@ impl<C: Context> Table<C> {
 		self.candidate_votes.get(digest).map_or(false, |data| {
 			let v_threshold = context.requisite_votes(&data.group_id);
 			data.can_be_included(v_threshold)
+		})
+	}
+
+	/// Get the attested candidate for `digest`.
+	///
+	/// Returns `Some(_)` if the candidate exists and is includable.
+	pub fn attested_candidate(&self, digest: &C::Digest, context: &C)
+		-> Option<AttestedCandidate<
+			C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
+		>>
+	{
+		self.candidate_votes.get(digest).and_then(|data| {
+			let v_threshold = context.requisite_votes(&data.group_id);
+			data.attested(v_threshold)
 		})
 	}
 
@@ -489,7 +502,7 @@ impl<C: Context> Table<C> {
 		if new_proposal {
 			self.candidate_votes.entry(digest.clone()).or_insert_with(move || CandidateData {
 				group_id: group,
-				candidate: candidate,
+				candidate,
 				validity_votes: HashMap::new(),
 				indicated_bad_by: Vec::new(),
 			});
@@ -581,7 +594,7 @@ impl<C: Context> Table<C> {
 			}
 			Entry::Vacant(vacant) => {
 				if let ValidityVote::Invalid(_) = vote {
-					votes.indicated_bad_by.push(from);
+					votes.indicated_bad_by.push(from.clone());
 				}
 
 				vacant.insert(vote);
@@ -595,7 +608,12 @@ impl<C: Context> Table<C> {
 	}
 }
 
-fn update_includable_count<G: Hash + Eq + Clone>(map: &mut HashMap<G, usize>, group_id: &G, was_includable: bool, is_includable: bool) {
+fn update_includable_count<G: Hash + Eq + Clone>(
+	map: &mut HashMap<G, usize>,
+	group_id: &G,
+	was_includable: bool,
+	is_includable: bool,
+) {
 	if was_includable && !is_includable {
 		if let Entry::Occupied(mut entry) = map.entry(group_id.clone()) {
 			*entry.get_mut() -= 1;
@@ -989,7 +1007,7 @@ mod tests {
 
 		candidate.indicated_bad_by.push(AuthorityId(1024));
 
-		assert!(!candidate.can_be_included(validity_threshold));
+		assert!(candidate.can_be_included(validity_threshold));
 	}
 
 	#[test]
@@ -1039,8 +1057,8 @@ mod tests {
 
 		table.import_statement(&context, vote);
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(3)));
-		assert!(!table.candidate_includable(&candidate_digest, &context));
-		assert!(table.includable_count.is_empty());
+		assert!(table.candidate_includable(&candidate_digest, &context));
+		assert!(table.includable_count.get(&GroupId(2)).is_some());
 	}
 
 	#[test]

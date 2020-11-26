@@ -12,14 +12,13 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use wasm_builder_runner::WasmBuilder;
+use substrate_wasm_builder::WasmBuilder;
 
 fn main() {
 	WasmBuilder::new()
 		.with_current_project()
-		.with_wasm_builder_from_crates("2.0.0")
 		.import_memory()
 		.export_heap_base()
 		.build()
