@@ -343,9 +343,6 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) {
-		if let AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(relay_parent, ..)) = &msg {
-			tracing::info!(target: LOG_TARGET, relay_parent = ?relay_parent, "OverseerSubsystemContext passing along CandidateBackingMessage::GetBackedCandidates");
-		}
 		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
 	}
 

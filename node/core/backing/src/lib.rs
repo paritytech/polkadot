@@ -524,10 +524,8 @@ impl CandidateBackingJob {
 					Ok(()) => (),
 				}
 			}
-			CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) => {
+			CandidateBackingMessage::GetBackedCandidates(_, requested_candidates, tx) => {
 				let _timer = self.metrics.time_get_backed_candidates();
-
-				tracing::info!(target: LOG_TARGET, relay_parent = ?relay_parent, "started handling GetBackedCandidates");
 
 				let backed = requested_candidates
 					.into_iter()
@@ -535,11 +533,9 @@ impl CandidateBackingJob {
 						self.table.attested_candidate(&hash, &self.table_context)
 							.and_then(|attested| table_attested_to_backed(attested, &self.table_context))
 					})
-					.collect();
+				.collect();
 
 				tx.send(backed).map_err(|data| Error::Send(data))?;
-
-				tracing::info!(target: LOG_TARGET, relay_parent = ?relay_parent, "finished handling GetBackedCandidates");
 			}
 		}
 
