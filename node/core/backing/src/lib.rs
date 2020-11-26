@@ -533,7 +533,7 @@ impl CandidateBackingJob {
 						self.table.attested_candidate(&hash, &self.table_context)
 							.and_then(|attested| table_attested_to_backed(attested, &self.table_context))
 					})
-				.collect();
+					.collect();
 
 				tx.send(backed).map_err(|data| Error::Send(data))?;
 			}
