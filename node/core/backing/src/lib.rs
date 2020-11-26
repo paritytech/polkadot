@@ -152,7 +152,6 @@ impl TableContextTrait for TableContext {
 }
 
 /// A message type that is sent from `CandidateBackingSubsystem` to `CandidateBackingJob`.
-#[derive(Debug)]
 pub enum ToJob {
 	/// A `CandidateBackingMessage`.
 	CandidateBacking(CandidateBackingMessage),
@@ -301,7 +300,6 @@ impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(mut self) -> Result<(), Error> {
 		while let Some(msg) = self.rx_to.next().await {
-			tracing::info!(target: LOG_TARGET, relay_parent = ?self.parent, msg = ?msg, "run_loop received a message");
 			match msg {
 				ToJob::CandidateBacking(msg) => {
 					if let Err(err) = self.process_msg(msg).await {
