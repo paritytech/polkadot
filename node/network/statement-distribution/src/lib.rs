@@ -30,9 +30,7 @@ use polkadot_subsystem::{
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use node_primitives::SignedFullStatement;
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
