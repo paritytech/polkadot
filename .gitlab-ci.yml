@@ -82,7 +82,6 @@ check-runtime:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   variables:
     GIT_DEPTH:                     1000
-    GIT_FETCH_EXTRA_FLAGS:         '--tags'
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
