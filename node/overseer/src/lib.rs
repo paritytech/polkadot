@@ -1458,16 +1458,7 @@ where
 				let _ = self.candidate_validation_subsystem.send_message(msg).await;
 			},
 			AllMessages::CandidateBacking(msg) => {
-				if let CandidateBackingMessage::GetBackedCandidates(relay_parent, ..) = &msg {
-					tracing::info!(target: LOG_TARGET, relay_parent = ?relay_parent, "Overseer passing along CandidateBackingMessage::GetBackedCandidates");
-				}
-
-				let send_result = self.candidate_backing_subsystem.send_message(msg).await;
-				tracing::info!(
-					target: LOG_TARGET,
-					send_result = ?send_result,
-					"Overseer sent message to candidate backing subsystem instance",
-				);
+				let _ = self.candidate_backing_subsystem.send_message(msg).await;
 			},
 			AllMessages::CandidateSelection(msg) => {
 				let _ = self.candidate_selection_subsystem.send_message(msg).await;
