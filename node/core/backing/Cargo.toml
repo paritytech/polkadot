@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.31" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
@@ -19,10 +19,10 @@ tracing-futures = "0.2.4"
 thiserror = "1.0.22"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.31" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.31" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.31" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.31" }
 futures = { version = "0.3.8", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
