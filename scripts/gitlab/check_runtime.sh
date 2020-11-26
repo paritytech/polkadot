@@ -23,7 +23,7 @@ SUBSTRATE_REPO="https://github.com/paritytech/substrate"
 SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}"
 SUBSTRATE_VERSIONS_FILE="bin/node/runtime/src/lib.rs"
 
-git fetch origin 'refs/tags/*:refs/tags/*'
+# git fetch origin 'refs/tags/*:refs/tags/*'
 # figure out the latest release tag
 LATEST_TAG="$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-?[0-9]*$' | sort -V | tail -n 1)"
 boldprint "latest release tag ${LATEST_TAG}"
