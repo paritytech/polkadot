@@ -174,6 +174,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		Executor: NativeExecutionDispatch + 'static,
 {
 	set_prometheus_registry(config)?;
+	polkadot_subsystem::init_jaeger(&config.network.node_name);
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 

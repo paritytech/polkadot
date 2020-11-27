@@ -828,6 +828,7 @@ async fn handle_network_update(
 					).await;
 
 					if let Some((relay_parent, new)) = new_stored {
+						let mut _span = polkadot_subsystem::hash_span(&relay_parent, "sending-statement");
 						// When we receive a new message from a peer, we forward it to the
 						// candidate backing subsystem.
 						let message = AllMessages::CandidateBacking(
@@ -943,6 +944,7 @@ impl StatementDistribution {
 				FromOverseer::Communication { msg } => match msg {
 					StatementDistributionMessage::Share(relay_parent, statement) => {
 						let _timer = metrics.time_share();
+						let mut _span = polkadot_subsystem::hash_span(&relay_parent, "circulate-statement");
 
 						inform_statement_listeners(
 							&statement,

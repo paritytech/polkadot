@@ -28,7 +28,7 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{Hash, PoV};
 use async_trait::async_trait;
 use smallvec::SmallVec;
 use thiserror::Error;
@@ -77,7 +77,7 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len() 
+		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len()
 			&& self.activated.iter().all(|a| other.activated.contains(a))
 			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
 	}
@@ -260,4 +260,77 @@ where
 			future,
 		}
 	}
+}
+
+// Jaeger integration.
+//
+// See <https://www.jaegertracing.io/> for an introduction.
+//
+// The easiest way to try Jaeger is:
+//
+// - Start a docker container with the all-in-one docker image (see below).
+// - Open your browser and navigate to <https://localhost:16686> to acces the UI.
+//
+// The all-in-one docker image can be started with:
+//
+// ```not_rust
+// docker run -d --name jaeger \
+//  -e COLLECTOR_ZIPKIN_HTTP_PORT=9411 \
+//  -p 5775:5775/udp \
+//  -p 6831:6831/udp \
+//  -p 6832:6832/udp \
+//  -p 5778:5778 \
+//  -p 16686:16686 \
+//  -p 14268:14268 \
+//  -p 14250:14250 \
+//  -p 9411:9411 \
+//  jaegertracing/all-in-one:1.21
+// ```
+//
+
+/// Shortcut for [`hash_span`] with the hash of the `PoV`.
+pub fn pov_span(pov: &PoV, span_name: &str) -> mick_jaeger::Span {
+	hash_span(&pov.hash(), span_name)
+}
+
+/// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
+/// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
+pub fn hash_span(hash: &Hash, span_name: &str) -> mick_jaeger::Span {
+	let trace_id = {
+		let mut buf = [0u8; 16];
+		buf.copy_from_slice(&hash.as_ref()[0..16]);
+		std::num::NonZeroU128::new(u128::from_be_bytes(buf)).unwrap()
+	};
+
+	TRACES_IN.lock().unwrap().as_ref().unwrap().span(trace_id, span_name)
+}
+
+/// Must be called otherwise the other jaeger-related functions will panic.
+///
+/// THIS API IS REALLY BAD AND SHOULDN'T BE FOUND IN THE MASTER BRANCH
+pub fn init_jaeger(node_name: &str) {
+	let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
+		service_name: format!("polkadot-{}", node_name),
+	});
+
+	let jaeger_agent: std::net::SocketAddr = "127.0.0.1:6831".parse().unwrap();
+
+	// Spawn a background task that pulls span information and sends them on the network.
+	async_std::task::spawn(async move {
+		let udp_socket = async_std::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
+
+		loop {
+			let buf = traces_out.next().await;
+			// UDP sending errors happen only either if the API is misused (in which case
+			// panicking is desirable) or in case of missing priviledge, in which case a
+			// panic is preferable in order to inform the user.
+			udp_socket.send_to(&buf, jaeger_agent).await.unwrap();
+		}
+	});
+
+	*TRACES_IN.lock().unwrap() = Some(traces_in);
+}
+
+lazy_static::lazy_static! {
+	static ref TRACES_IN: std::sync::Mutex<Option<std::sync::Arc<mick_jaeger::TracesIn>>> = std::sync::Mutex::new(None);
 }
