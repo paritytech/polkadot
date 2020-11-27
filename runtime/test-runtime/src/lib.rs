@@ -650,7 +650,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v1::ValidationOutputs,
+			outputs: primitives::v1::CandidateCommitments,
 		) -> bool {
 			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
