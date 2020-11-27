@@ -377,7 +377,7 @@ impl CandidateBackingJob {
 							Some(Statement::Seconded(candidate))
 						}
 						Err(InvalidErasureRoot) => {
-							self.issue_candidate_invalid_message(candidate.clone()).await?;
+							self.issue_candidate_invalid_message(candidate).await?;
 							None
 						}
 					}
