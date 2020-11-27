@@ -124,7 +124,8 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_)
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) |
+			Call::Bounties(_) | Call::Tips(_)
 			=> true,
 		}
 	}
@@ -581,10 +582,6 @@ impl pallet_treasury::Trait for Runtime {
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
-	type Tippers = ElectionsPhragmen;
-	type TipCountdown = TipCountdown;
-	type TipFindersFee = TipFindersFee;
-	type TipReportDepositBase = TipReportDepositBase;
 	type DataDepositPerByte = DataDepositPerByte;
 	type Event = Event;
 	type OnSlash = Treasury;
@@ -592,14 +589,32 @@ impl pallet_treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type MaximumReasonLength = MaximumReasonLength;
+	type BurnDestination = ();
+	type SpendFunds = Bounties;
+	type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
+	// type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
+}
+
+impl pallet_bounties::Trait for Runtime {
+	type Event = Event;
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
 	type BountyUpdatePeriod = BountyUpdatePeriod;
-	type MaximumReasonLength = MaximumReasonLength;
 	type BountyCuratorDeposit = BountyCuratorDeposit;
 	type BountyValueMinimum = BountyValueMinimum;
-	type BurnDestination = ();
-	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
+	type WeightInfo = pallet_bounties::weights::SubstrateWeight<Runtime>;
+	// type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+}
+
+impl pallet_tips::Trait for Runtime {
+	type Event = Event;
+	type Tippers = ElectionsPhragmen;
+	type TipCountdown = TipCountdown;
+	type TipFindersFee = TipFindersFee;
+	type TipReportDepositBase = TipReportDepositBase;
+	type WeightInfo = pallet_tips::weights::SubstrateWeight<Runtime>;
+	// type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -936,7 +951,8 @@ construct_runtime! {
 		TechnicalCommittee: pallet_collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
 		ElectionsPhragmen: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>} = 17,
 		TechnicalMembership: pallet_membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>} = 18,
-		Treasury: pallet_treasury::{Module, Call, Storage, Event<T>} = 19,
+		// Treasury: pallet_treasury::{Module, Call, Storage, Event<T>} = 19,
+		Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>} = 19,
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 24,
@@ -953,6 +969,13 @@ construct_runtime! {
 
 		// Multisig dispatch. Late addition.
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 30,
+
+		// Bounties module.
+		Bounties: pallet_bounties::{Module, Call, Storage, Event<T>} = 34,
+
+		// Tips module.
+		Tips: pallet_tips::{Module, Call, Storage, Event<T>} = 35,
+
 	}
 }
 
@@ -1285,6 +1308,9 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
+
+			add_benchmark!(params, batches, pallet_bounties, Bounties);
+			add_benchmark!(params, batches, pallet_tips, Tips);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

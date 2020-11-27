@@ -235,6 +235,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
@@ -589,6 +590,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(kusama::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
@@ -1014,6 +1016,7 @@ pub fn polkadot_testnet_genesis(
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
@@ -1106,6 +1109,7 @@ pub fn kusama_testnet_genesis(
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(kusama::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
