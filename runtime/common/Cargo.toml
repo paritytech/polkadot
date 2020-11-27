@@ -80,6 +80,7 @@ std = [
 	"pallet-timestamp/std",
 	"pallet-vesting/std",
 	"pallet-transaction-payment/std",
+	"runtime-parachains/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
