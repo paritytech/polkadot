@@ -111,6 +111,7 @@ struct CandidateBackingJob {
 	keystore: SyncCryptoStorePtr,
 	table: Table<TableContext>,
 	table_context: TableContext,
+	//awaiting_validation: HashSet<CandidateHash>,
 	metrics: Metrics,
 }
 
@@ -297,6 +298,105 @@ fn table_attested_to_backed(
 	})
 }
 
+async fn store_available_data(
+	tx_from: &mut mpsc::Sender<FromJob>,
+	id: Option<ValidatorIndex>,
+	n_validators: u32,
+	candidate_hash: CandidateHash,
+	available_data: AvailableData,
+) -> Result<(), Error> {
+	let (tx, rx) = oneshot::channel();
+	tx_from.send(FromJob::AvailabilityStore(
+			AvailabilityStoreMessage::StoreAvailableData(
+				candidate_hash,
+				id,
+				n_validators,
+				available_data,
+				tx,
+			)
+		)
+	).await?;
+
+	let _ = rx.await?;
+
+	Ok(())
+}
+
+// Make a `PoV` available.
+//
+// This will compute the erasure root internally and compare it to the expected erasure root.
+// This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
+#[tracing::instrument(level = "trace", skip(tx_from, pov), fields(subsystem = LOG_TARGET))]
+async fn make_pov_available(
+	tx_from: &mut mpsc::Sender<FromJob>,
+	validator_index: Option<ValidatorIndex>,
+	n_validators: usize,
+	pov: Arc<PoV>,
+	candidate_hash: CandidateHash,
+	validation_data: polkadot_primitives::v1::PersistedValidationData,
+	expected_erasure_root: Hash,
+) -> Result<Result<(), InvalidErasureRoot>, Error> {
+	let available_data = AvailableData {
+		pov,
+		validation_data,
+	};
+
+	let chunks = erasure_coding::obtain_chunks_v1(
+		n_validators,
+		&available_data,
+	)?;
+
+	let branches = erasure_coding::branches(chunks.as_ref());
+	let erasure_root = branches.root();
+
+	if erasure_root != expected_erasure_root {
+		return Ok(Err(InvalidErasureRoot));
+	}
+
+	store_available_data(
+		tx_from,
+		validator_index,
+		n_validators as u32,
+		candidate_hash,
+		available_data,
+	).await?;
+
+	Ok(Ok(()))
+}
+
+async fn request_pov_from_distribution(
+	tx_from: &mut mpsc::Sender<FromJob>,
+	parent: Hash,
+	descriptor: CandidateDescriptor,
+) -> Result<Arc<PoV>, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	tx_from.send(FromJob::PoVDistribution(
+		PoVDistributionMessage::FetchPoV(parent, descriptor, tx)
+	)).await?;
+
+	Ok(rx.await?)
+}
+
+async fn request_candidate_validation(
+	tx_from: &mut mpsc::Sender<FromJob>,
+	candidate: CandidateDescriptor,
+	pov: Arc<PoV>,
+) -> Result<ValidationResult, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	tx_from.send(FromJob::CandidateValidation(
+			CandidateValidationMessage::ValidateFromChainState(
+				candidate,
+				pov,
+				tx,
+			)
+		)
+	).await?;
+
+	Ok(rx.await??)
+}
+
 impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(mut self) -> Result<(), Error> {
@@ -340,7 +440,8 @@ impl CandidateBackingJob {
 			return Ok(false);
 		}
 
-		let valid = self.request_candidate_validation(
+		let valid = request_candidate_validation(
+			&mut self.tx_from,
 			candidate.descriptor().clone(),
 			pov.clone(),
 		).await?;
@@ -359,7 +460,10 @@ impl CandidateBackingJob {
 					self.issue_candidate_invalid_message(candidate.clone()).await?;
 					None
 				} else {
-					let erasure_valid = self.make_pov_available(
+					let erasure_valid = make_pov_available(
+						&mut self.tx_from,
+						self.table_context.validator.as_ref().map(|v| v.index()),
+						self.table_context.validators.len(),
 						pov,
 						candidate_hash,
 						validation_data,
@@ -585,8 +689,12 @@ impl CandidateBackingJob {
 			return Ok(());
 		}
 
-		let pov = self.request_pov_from_distribution(descriptor.clone()).await?;
-		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
+		let pov = request_pov_from_distribution(
+			&mut self.tx_from,
+			self.parent,
+			descriptor.clone(),
+		).await?;
+		let v = request_candidate_validation(&mut self.tx_from, descriptor, pov.clone()).await?;
 
 		let statement = match v {
 			ValidationResult::Valid(commitments, validation_data) => {
@@ -594,7 +702,10 @@ impl CandidateBackingJob {
 				if commitments != expected_commitments {
 					Statement::Invalid(candidate_hash)
 				} else {
-					let erasure_valid = self.make_pov_available(
+					let erasure_valid = make_pov_available(
+						&mut self.tx_from,
+						self.table_context.validator.as_ref().map(|v| v.index()),
+						self.table_context.validators.len(),
 						pov,
 						candidate_hash,
 						validation_data,
@@ -676,101 +787,6 @@ impl CandidateBackingJob {
 		self.tx_from.send(FromJob::PoVDistribution(
 			PoVDistributionMessage::DistributePoV(self.parent, descriptor, pov),
 		)).await.map_err(Into::into)
-	}
-
-	async fn request_pov_from_distribution(
-		&mut self,
-		descriptor: CandidateDescriptor,
-	) -> Result<Arc<PoV>, Error> {
-		let (tx, rx) = oneshot::channel();
-
-		self.tx_from.send(FromJob::PoVDistribution(
-			PoVDistributionMessage::FetchPoV(self.parent, descriptor, tx)
-		)).await?;
-
-		Ok(rx.await?)
-	}
-
-	async fn request_candidate_validation(
-		&mut self,
-		candidate: CandidateDescriptor,
-		pov: Arc<PoV>,
-	) -> Result<ValidationResult, Error> {
-		let (tx, rx) = oneshot::channel();
-
-		self.tx_from.send(FromJob::CandidateValidation(
-				CandidateValidationMessage::ValidateFromChainState(
-					candidate,
-					pov,
-					tx,
-				)
-			)
-		).await?;
-
-		Ok(rx.await??)
-	}
-
-	async fn store_available_data(
-		&mut self,
-		id: Option<ValidatorIndex>,
-		n_validators: u32,
-		candidate_hash: CandidateHash,
-		available_data: AvailableData,
-	) -> Result<(), Error> {
-		let (tx, rx) = oneshot::channel();
-		self.tx_from.send(FromJob::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(
-					candidate_hash,
-					id,
-					n_validators,
-					available_data,
-					tx,
-				)
-			)
-		).await?;
-
-		let _ = rx.await?;
-
-		Ok(())
-	}
-
-	// Make a `PoV` available.
-	//
-	// This will compute the erasure root internally and compare it to the expected erasure root.
-	// This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
-	#[tracing::instrument(level = "trace", skip(self, pov), fields(subsystem = LOG_TARGET))]
-	async fn make_pov_available(
-		&mut self,
-		pov: Arc<PoV>,
-		candidate_hash: CandidateHash,
-		validation_data: polkadot_primitives::v1::PersistedValidationData,
-		expected_erasure_root: Hash,
-	) -> Result<Result<(), InvalidErasureRoot>, Error> {
-		let available_data = AvailableData {
-			pov,
-			validation_data,
-		};
-
-		let chunks = erasure_coding::obtain_chunks_v1(
-			self.table_context.validators.len(),
-			&available_data,
-		)?;
-
-		let branches = erasure_coding::branches(chunks.as_ref());
-		let erasure_root = branches.root();
-
-		if erasure_root != expected_erasure_root {
-			return Ok(Err(InvalidErasureRoot));
-		}
-
-		self.store_available_data(
-			self.table_context.validator.as_ref().map(|v| v.index()),
-			self.table_context.validators.len() as u32,
-			candidate_hash,
-			available_data,
-		).await?;
-
-		Ok(Ok(()))
 	}
 
 	async fn distribute_signed_statement(&mut self, s: SignedFullStatement) -> Result<(), Error> {
