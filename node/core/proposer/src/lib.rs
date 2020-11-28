@@ -141,20 +141,23 @@ where
 		let mut overseer = self.overseer.clone();
 		let parent_header_hash = self.parent_header_hash.clone();
 
-		let (sender, receiver) = futures::channel::oneshot::channel();
+		let pid = async {
+			let (sender, receiver) = futures::channel::oneshot::channel();
+			overseer.wait_for_activation(parent_header_hash, sender).await;
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
-		overseer.wait_for_activation(parent_header_hash, sender).await?;
-		receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
+			let (sender, receiver) = futures::channel::oneshot::channel();
+			overseer.send_msg(AllMessages::Provisioner(
+				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
+			)).await;
 
-		let (sender, receiver) = futures::channel::oneshot::channel();
-		overseer.send_msg(AllMessages::Provisioner(
-			ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-		)).await?;
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingInherentData)
+		};
 
 		let mut timeout = futures_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
 
 		select! {
-			pid = receiver.fuse() => pid.map_err(|_| Error::ClosedChannelAwaitingInherentData),
+			pid = pid.fuse() => pid,
 			_ = timeout => Err(Error::Timeout),
 		}
 	}
@@ -193,7 +196,7 @@ where
 			let provisioner_data = match self.get_provisioner_data().await {
 				Ok(pd) => pd,
 				Err(err) => {
-					log::warn!("could not get provisioner inherent data; injecting default data: {}", err);
+					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
 					Default::default()
 				}
 			};

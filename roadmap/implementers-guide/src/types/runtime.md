@@ -12,6 +12,9 @@ struct HostConfiguration {
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
+	/// The acceptance period, in blocks. This is the amount of blocks after availability that validators
+	/// and fishermen have to perform secondary checks or issue reports.
+	pub acceptance_period: BlockNumber,
 	/// The maximum validation code size, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
@@ -37,6 +40,8 @@ struct HostConfiguration {
 	/// submitting an approval vote before a validator is considered a no-show.
 	/// Must be at least 1.
 	pub no_show_slots: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
 	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
 	/// beyond 0 are all consolidated to form a wide 0 tranche.
 	pub zeroth_delay_tranche_width: u32,

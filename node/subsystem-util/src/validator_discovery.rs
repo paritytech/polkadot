@@ -20,34 +20,20 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::mpsc,
 	task::{Poll, self},
 	stream,
 };
 use streamunordered::{StreamUnordered, StreamYield};
-use thiserror::Error;
 
 use polkadot_node_subsystem::{
-	errors::RuntimeApiError, SubsystemError,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeMessage},
+	errors::RuntimeApiError,
+	messages::{AllMessages, NetworkBridgeMessage},
 	SubsystemContext,
 };
-use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId};
+use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
 use sc_network::PeerId;
-
-/// Error when making a request to connect to validators.
-#[derive(Debug, Error)]
-pub enum Error {
-	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-	/// A subsystem error.
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-	/// An error in the Runtime API.
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-}
+use crate::Error;
 
 /// Utility function to make it easier to connect to validators.
 pub async fn connect_to_validators<Context: SubsystemContext>(
@@ -55,17 +41,42 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
 ) -> Result<ConnectionRequest, Error> {
-	// ValidatorId -> AuthorityDiscoveryId
-	let (tx, rx) = oneshot::channel();
+	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
+	connect_to_past_session_validators(ctx, relay_parent, validators, current_index).await
+}
 
-	ctx.send_message(AllMessages::RuntimeApi(
-		RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
-		)
-	)).await?;
+/// Utility function to make it easier to connect to validators in the past sessions.
+pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	validators: Vec<ValidatorId>,
+	session_index: SessionIndex,
+) -> Result<ConnectionRequest, Error> {
+	let session_info = crate::request_session_info_ctx(
+		relay_parent,
+		session_index,
+		ctx,
+	).await?.await??;
 
-	let maybe_authorities = rx.await??;
+	let (session_validators, discovery_keys) = match session_info {
+		Some(info) => (info.validators, info.discovery_keys),
+		None => return Err(RuntimeApiError::from(
+			format!("No SessionInfo found for the index {}", session_index)
+		).into()),
+	};
+
+	let id_to_index = session_validators.iter()
+		.zip(0usize..)
+		.collect::<HashMap<_, _>>();
+
+	// We assume the same ordering in authorities as in validators so we can do an index search
+	let maybe_authorities: Vec<_> = validators.iter()
+		.map(|id| {
+			let validator_index = id_to_index.get(&id);
+			validator_index.and_then(|i| discovery_keys.get(*i).cloned())
+		})
+		.collect();
+
 	let authorities: Vec<_> = maybe_authorities.iter()
 		.cloned()
 		.filter_map(|id| id)
@@ -76,33 +87,30 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 		.filter_map(|(k, v)| v.map(|v| (v, k)))
 		.collect::<HashMap<AuthorityDiscoveryId, ValidatorId>>();
 
-	let (connections, revoke) = connect_to_authorities(ctx, authorities).await?;
+	let connections = connect_to_authorities(ctx, authorities).await?;
 
 	Ok(ConnectionRequest {
 		validator_map,
 		connections,
-		revoke,
 	})
 }
 
 async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
-) -> Result<(mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, oneshot::Sender<()>), Error> {
+) -> Result<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, Error> {
 	const PEERS_CAPACITY: usize = 8;
 
-	let (revoke_tx, revoke) = oneshot::channel();
 	let (connected, connected_rx) = mpsc::channel(PEERS_CAPACITY);
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ConnectToValidators {
 			validator_ids,
 			connected,
-			revoke,
 		}
-	)).await?;
+	)).await;
 
-	Ok((connected_rx, revoke_tx))
+	Ok(connected_rx)
 }
 
 /// A struct that assists performing multiple concurrent connection requests.
@@ -116,6 +124,12 @@ pub struct ConnectionRequests {
 
 	// Connection requests themselves.
 	requests: StreamUnordered<ConnectionRequest>,
+}
+
+impl stream::FusedStream for ConnectionRequests {
+	fn is_terminated(&self) -> bool {
+		false
+	}
 }
 
 impl ConnectionRequests {
@@ -135,6 +149,11 @@ impl ConnectionRequests {
 		if let Some(token) = self.id_map.remove(relay_parent) {
 			Pin::new(&mut self.requests).remove(token);
 		}
+	}
+
+	/// Is a connection at this relay parent already present in the request
+	pub fn contains_request(&self, relay_parent: &Hash) -> bool {
+		self.id_map.contains_key(relay_parent)
 	}
 }
 
@@ -176,15 +195,12 @@ impl stream::Stream for ConnectionRequests {
 /// This struct implements `Stream` to allow for asynchronous
 /// discovery of validator addresses.
 ///
-/// NOTE: you should call `revoke` on this struct
-/// when you're no longer interested in the requested validators.
+/// NOTE: the request will be revoked on drop.
 #[must_use = "dropping a request will result in its immediate revokation"]
 pub struct ConnectionRequest {
 	validator_map: HashMap<AuthorityDiscoveryId, ValidatorId>,
 	#[must_use = "streams do nothing unless polled"]
 	connections: mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>,
-	#[must_use = "a request should be revoked at some point"]
-	revoke: oneshot::Sender<()>,
 }
 
 impl stream::Stream for ConnectionRequest {
@@ -209,29 +225,13 @@ impl stream::Stream for ConnectionRequest {
 	}
 }
 
-impl ConnectionRequest {
-	/// By revoking the request the caller allows the network to
-	/// free some peer slots thus freeing the resources.
-	/// It doesn't necessarily lead to peers disconnection though.
-	/// The revokation is enacted on in the next connection request.
-	///
-	/// This can be done either by calling this function or dropping the request.
-	pub fn revoke(self) {
-		if let Err(_) = self.revoke.send(()) {
-			log::warn!(
-				"Failed to revoke a validator connection request",
-			);
-		}
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use polkadot_primitives::v1::ValidatorPair;
 	use sp_core::{Pair, Public};
 
-	use futures::{executor, poll, channel::{mpsc, oneshot}, StreamExt, SinkExt};
+	use futures::{executor, poll, StreamExt, SinkExt};
 
 	#[test]
 	fn adding_a_connection_request_works() {
@@ -251,7 +251,6 @@ mod tests {
 			validator_map.insert(auth_2.clone(), validator_2.clone());
 
 			let (mut rq1_tx, rq1_rx) = mpsc::channel(8);
-			let (revoke_1_tx, _revoke_1_rx) = oneshot::channel();
 
 			let peer_id_1 = PeerId::random();
 			let peer_id_2 = PeerId::random();
@@ -259,7 +258,6 @@ mod tests {
 			let connection_request_1 = ConnectionRequest {
 				validator_map,
 				connections: rq1_rx,
-				revoke: revoke_1_tx,
 			};
 
 			let relay_parent_1 = Hash::repeat_byte(1);
@@ -302,10 +300,8 @@ mod tests {
 			validator_map_2.insert(auth_2.clone(), validator_2.clone());
 
 			let (mut rq1_tx, rq1_rx) = mpsc::channel(8);
-			let (revoke_1_tx, _revoke_1_rx) = oneshot::channel();
 
 			let (mut rq2_tx, rq2_rx) = mpsc::channel(8);
-			let (revoke_2_tx, _revoke_2_rx) = oneshot::channel();
 
 			let peer_id_1 = PeerId::random();
 			let peer_id_2 = PeerId::random();
@@ -313,13 +309,11 @@ mod tests {
 			let connection_request_1 = ConnectionRequest {
 				validator_map: validator_map_1,
 				connections: rq1_rx,
-				revoke: revoke_1_tx,
 			};
 
 			let connection_request_2 = ConnectionRequest {
 				validator_map: validator_map_2,
 				connections: rq2_rx,
-				revoke: revoke_2_tx,
 			};
 
 			let relay_parent_1 = Hash::repeat_byte(1);
@@ -364,10 +358,8 @@ mod tests {
 			validator_map_2.insert(auth_2.clone(), validator_2.clone());
 
 			let (mut rq1_tx, rq1_rx) = mpsc::channel(8);
-			let (revoke_1_tx, _revoke_1_rx) = oneshot::channel();
 
 			let (mut rq2_tx, rq2_rx) = mpsc::channel(8);
-			let (revoke_2_tx, _revoke_2_rx) = oneshot::channel();
 
 			let peer_id_1 = PeerId::random();
 			let peer_id_2 = PeerId::random();
@@ -375,13 +367,11 @@ mod tests {
 			let connection_request_1 = ConnectionRequest {
 				validator_map: validator_map_1,
 				connections: rq1_rx,
-				revoke: revoke_1_tx,
 			};
 
 			let connection_request_2 = ConnectionRequest {
 				validator_map: validator_map_2,
 				connections: rq2_rx,
-				revoke: revoke_2_tx,
 			};
 
 			let relay_parent = Hash::repeat_byte(3);

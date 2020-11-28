@@ -40,6 +40,8 @@ use sp_api::{ProvideRuntimeApi};
 
 use futures::prelude::*;
 
+const LOG_TARGET: &str = "runtime_api";
+
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
@@ -66,6 +68,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	subsystem: RuntimeApiSubsystem<Client>,
@@ -90,6 +93,7 @@ async fn run<Client>(
 	}
 }
 
+#[tracing::instrument(level = "trace", skip(client, metrics), fields(subsystem = LOG_TARGET))]
 fn make_runtime_api_request<Client>(
 	client: &Client,
 	metrics: &Metrics,
@@ -99,6 +103,8 @@ fn make_runtime_api_request<Client>(
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block>,
 {
+	let _timer = metrics.time_make_runtime_api_request();
+
 	macro_rules! query {
 		($api_name:ident ($($param:expr),*), $sender:expr) => {{
 			let sender = $sender;
@@ -128,7 +134,7 @@ fn make_runtime_api_request<Client>(
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
-		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
+		Request::SessionInfo(index, sender) => query!(session_info(index), sender),
 		Request::DmqContents(id, sender) => query!(dmq_contents(id), sender),
 		Request::InboundHrmpChannelsContents(id, sender) => query!(inbound_hrmp_channels_contents(id), sender),
 	}
@@ -137,6 +143,7 @@ fn make_runtime_api_request<Client>(
 #[derive(Clone)]
 struct MetricsInner {
 	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
+	make_runtime_api_request: prometheus::Histogram,
 }
 
 /// Runtime API metrics.
@@ -153,6 +160,11 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `make_runtime_api_request` which observes on drop.
+	fn time_make_runtime_api_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -168,6 +180,15 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			make_runtime_api_request: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_runtime_api_make_runtime_api_request",
+						"Time spent within `runtime_api::make_runtime_api_request`",
+					)
+				)?,
+				registry,
+			)?,
 		};
 		Ok(Metrics(Some(metrics)))
 	}
@@ -180,8 +201,8 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
-		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
-		BlockNumber, InboundHrmpMessage,
+		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
+		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -195,6 +216,7 @@ mod tests {
 		availability_cores: Vec<CoreState>,
 		validation_data: HashMap<ParaId, ValidationData>,
 		session_index_for_child: SessionIndex,
+		session_info: HashMap<SessionIndex, SessionInfo>,
 		validation_code: HashMap<ParaId, ValidationCode>,
 		historical_validation_code: HashMap<ParaId, Vec<(BlockNumber, ValidationCode)>>,
 		validation_outputs_results: HashMap<ParaId, bool>,
@@ -254,7 +276,7 @@ mod tests {
 			fn check_validation_outputs(
 				&self,
 				para_id: ParaId,
-				_commitments: polkadot_primitives::v1::ValidationOutputs,
+				_commitments: polkadot_primitives::v1::CandidateCommitments,
 			) -> bool {
 				self.validation_outputs_results
 					.get(&para_id)
@@ -266,6 +288,10 @@ mod tests {
 
 			fn session_index_for_child(&self) -> SessionIndex {
 				self.session_index_for_child.clone()
+			}
+
+			fn session_info(&self, index: SessionIndex) -> Option<SessionInfo> {
+				self.session_info.get(&index).cloned()
 			}
 
 			fn validation_code(
@@ -298,10 +324,6 @@ mod tests {
 
 			fn candidate_events(&self) -> Vec<CandidateEvent> {
 				self.candidate_events.clone()
-			}
-
-			fn validator_discovery(ids: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-				vec![None; ids.len()]
 			}
 
 			fn dmq_contents(
@@ -476,7 +498,7 @@ mod tests {
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
-		let commitments = polkadot_primitives::v1::ValidationOutputs::default();
+		let commitments = polkadot_primitives::v1::CandidateCommitments::default();
 
 		runtime_api.validation_outputs_results.insert(para_a, false);
 		runtime_api.validation_outputs_results.insert(para_b, true);
@@ -541,6 +563,33 @@ mod tests {
 			}).await;
 
 			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.session_index_for_child);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_session_info() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let session_index = 1;
+		runtime_api.session_info.insert(session_index, Default::default());
+		let runtime_api = Arc::new(runtime_api);
+
+		let relay_parent = [1; 32].into();
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::SessionInfo(session_index, tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
 
 			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};

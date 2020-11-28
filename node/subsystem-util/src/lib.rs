@@ -37,6 +37,7 @@ use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
+	SessionInfo,
 };
 use sp_core::{
 	traits::SpawnNamed,
@@ -193,6 +194,7 @@ specialize_requests! {
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
+	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 }
 
 /// Request some data from the `RuntimeApi` via a SubsystemContext.
@@ -207,13 +209,11 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 
-	ctx
-		.send_message(
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
-				.try_into()
-				.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
-		)
-		.await?;
+	ctx.send_message(
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
+			.try_into()
+			.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
+	).await;
 
 	Ok(rx)
 }
@@ -276,6 +276,7 @@ specialize_requests_ctx! {
 	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability_ctx(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events_ctx() -> Vec<CandidateEvent>; CandidateEvents;
+	fn request_session_info_ctx(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
@@ -442,8 +443,9 @@ impl<ToJob: ToJobTrait> JobHandle<ToJob> {
 
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
-	/// Reexport Prometheus types.
+	/// Reexport Substrate Prometheus types.
 	pub use substrate_prometheus_endpoint as prometheus;
+
 
 	/// Subsystem- or job-specific Prometheus metrics.
 	///
@@ -579,11 +581,11 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
-				log::error!(
-					"{}({}) finished with an error {:?}",
-					Job::NAME,
-					parent_hash,
-					e,
+				tracing::error!(
+					job = Job::NAME,
+					parent_hash = %parent_hash,
+					err = ?e,
+					"job finished with an error",
 				);
 
 				if let Some(mut err_tx) = err_tx {
@@ -591,7 +593,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 					// there's no point trying to propagate this error onto the channel too
 					// all we can do is warn that error propagation has failed
 					if let Err(e) = err_tx.send((Some(parent_hash), JobsError::Job(e))).await {
-						log::warn!("failed to forward error: {:?}", e);
+						tracing::warn!(err = ?e, "failed to forward error");
 					}
 				}
 			}
@@ -632,7 +634,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
 		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
 			if job.get_mut().send_msg(msg).await.is_err() {
-				log::debug!("failed to send message to job ({}), will remove it", Job::NAME);
+				tracing::debug!(job = Job::NAME, "failed to send message to job, will remove it");
 				job.remove();
 			}
 		}
@@ -751,7 +753,7 @@ where
 						break
 					},
 				outgoing = jobs.next().fuse() =>
-					Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await,
+					Self::handle_outgoing(outgoing, &mut ctx).await,
 				complete => break,
 			}
 		}
@@ -767,7 +769,7 @@ where
 			// if we can't send on the error transmission channel, we can't do anything useful about it
 			// still, we can at least log the failure
 			if let Err(e) = err_tx.send((hash, err)).await {
-				log::warn!("failed to forward error: {:?}", e);
+				tracing::warn!(err = ?e, "failed to forward error");
 			}
 		}
 	}
@@ -792,7 +794,11 @@ where
 				for hash in activated {
 					let metrics = metrics.clone();
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
-						log::error!("Failed to spawn a job({}): {:?}", Job::NAME, e);
+						tracing::error!(
+							job = Job::NAME,
+							err = ?e,
+							"failed to spawn a job",
+						);
 						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
 						return true;
 					}
@@ -821,7 +827,11 @@ where
 					.forward(drain())
 					.await
 				{
-					log::error!("failed to stop all jobs ({}) on conclude signal: {:?}", Job::NAME, e);
+					tracing::error!(
+						job = Job::NAME,
+						err = ?e,
+						"failed to stop a job on conclude signal",
+					);
 					let e = Error::from(e);
 					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
 				}
@@ -832,16 +842,20 @@ where
 				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
 					match to_job.relay_parent() {
 						Some(hash) => jobs.send_msg(hash, to_job).await,
-						None => log::debug!(
-							"Trying to send a message to a job ({}) without specifying a relay parent.",
-							Job::NAME,
+						None => tracing::debug!(
+							job = Job::NAME,
+							"trying to send a message to a job without specifying a relay parent",
 						),
 					}
 				}
 			}
 			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
-				log::error!("error receiving message from subsystem context for job ({}): {:?}", Job::NAME, err);
+				tracing::error!(
+					job = Job::NAME,
+					err = ?err,
+					"error receiving message from subsystem context for job",
+				);
 				Self::fwd_err(None, JobsError::Utility(Error::from(err)), err_tx).await;
 				return true;
 			}
@@ -853,13 +867,9 @@ where
 	async fn handle_outgoing(
 		outgoing: Option<Job::FromJob>,
 		ctx: &mut Context,
-		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 	) {
 		let msg = outgoing.expect("the Jobs stream never ends; qed");
-		if let Err(e) = ctx.send_message(msg.into()).await {
-			let e = JobsError::Utility(e.into());
-			Self::fwd_err(None, e, err_tx).await;
-		}
+		ctx.send_message(msg.into()).await;
 	}
 }
 
@@ -956,6 +966,7 @@ macro_rules! delegated_subsystem {
 			}
 
 			/// Run this subsystem
+			#[tracing::instrument(skip(ctx, run_args, metrics, spawner), fields(subsystem = $subsystem_name))]
 			pub async fn run(ctx: Context, run_args: $run_args, metrics: $metrics, spawner: Spawner) {
 				<Manager<Spawner, Context>>::run(ctx, run_args, metrics, spawner, None).await
 			}

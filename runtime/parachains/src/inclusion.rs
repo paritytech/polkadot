@@ -562,7 +562,7 @@ impl<T: Trait> Module<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs(
 		para_id: ParaId,
-		validation_outputs: primitives::v1::ValidationOutputs,
+		validation_outputs: primitives::v1::CandidateCommitments,
 	) -> bool {
 		if let Err(err) = CandidateCheckContext::<T>::new().check_validation_outputs(
 			para_id,

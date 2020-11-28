@@ -13,14 +13,14 @@ readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-color-eyre = "0.5.7"
+color-eyre = "0.5.8"
 thiserror = "1.0.22"
 futures = "0.3.8"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "1.0.1"
+assert_cmd = "1.0.2"
 nix = "0.19.0"
 tempfile = "3.1.0"
 

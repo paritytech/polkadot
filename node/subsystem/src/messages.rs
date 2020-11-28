@@ -31,7 +31,7 @@ use polkadot_node_primitives::{
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber,
+	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
 	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
@@ -208,6 +208,7 @@ pub enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
+	/// This can be done by dropping the receiver.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -215,13 +216,6 @@ pub enum NetworkBridgeMessage {
 		/// the validators as they are connected.
 		/// The response is sent immediately for already connected peers.
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
-		/// By revoking the request the caller allows the network to
-		/// free some peer slots thus freeing the resources.
-		/// It doesn't necessarily lead to peers disconnection though.
-		/// The revokation is enacted on in the next connection request.
-		///
-		/// This can be done by sending to the channel or dropping the sender.
-		revoke: oneshot::Receiver<()>,
 	},
 }
 
@@ -412,7 +406,7 @@ pub enum RuntimeApiRequest {
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,
-		polkadot_primitives::v1::ValidationOutputs,
+		polkadot_primitives::v1::CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
 	/// Get the session index that a child of the block will have.
@@ -440,14 +434,8 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
-	/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-	/// Currently this request is limited to validators in the current session.
-	///
-	/// Returns `None` for validators not found in the current session.
-	ValidatorDiscovery(
-		Vec<ValidatorId>,
-		RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>,
-	),
+	/// Get the session info for the given session, if stored.
+	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
 	DmqContents(
 		ParaId,
