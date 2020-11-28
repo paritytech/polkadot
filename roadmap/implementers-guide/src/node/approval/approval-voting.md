@@ -196,6 +196,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
+  * Schedule a wakeup with `next_wakeup`.
 
 #### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`.
@@ -246,6 +247,7 @@ enum RequiredTranches {
   * Schedule another wakeup based on `next_wakeup`
 
 #### `next_wakeup(approval_entry, candidate_entry)`:
+  * If the `approval_entry` is approved, this doesn't need to be woken up again.
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
 
