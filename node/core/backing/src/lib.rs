@@ -52,6 +52,7 @@ use polkadot_node_subsystem_util::{
 	request_from_runtime,
 	Validator,
 	delegated_subsystem,
+	FromJobCommand,
 	metrics::{self, prometheus},
 };
 use statement_table::{
@@ -197,9 +198,9 @@ enum FromJob {
 	StatementDistribution(StatementDistributionMessage),
 }
 
-impl From<FromJob> for AllMessages {
-	fn from(f: FromJob) -> Self {
-		match f {
+impl From<FromJob> for FromJobCommand {
+	fn from(f: FromJob) -> FromJobCommand {
+		FromJobCommand::SendMessage(match f {
 			FromJob::AvailabilityStore(msg) => AllMessages::AvailabilityStore(msg),
 			FromJob::RuntimeApiMessage(msg) => AllMessages::RuntimeApi(msg),
 			FromJob::CandidateValidation(msg) => AllMessages::CandidateValidation(msg),
@@ -207,7 +208,7 @@ impl From<FromJob> for AllMessages {
 			FromJob::StatementDistribution(msg) => AllMessages::StatementDistribution(msg),
 			FromJob::PoVDistribution(msg) => AllMessages::PoVDistribution(msg),
 			FromJob::Provisioner(msg) => AllMessages::Provisioner(msg),
-		}
+		})
 	}
 }
 
