@@ -476,6 +476,16 @@ pub mod metrics {
 	}
 }
 
+/// Commands from a job to the broader subsystem.
+pub enum FromJobCommand {
+	/// Send a message to another subsystem.
+	SendMessage(AllMessages),
+	/// Spawn a child task on the executor.
+	Spawn(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
+	/// Spawn a blocking child task on the executor's dedicated thread pool.
+	SpawnBlocking(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
+}
+
 /// This trait governs jobs.
 ///
 /// Jobs are instantiated and killed automatically on appropriate overseer messages.
@@ -485,7 +495,7 @@ pub trait JobTrait: Unpin {
 	/// Message type to the job. Typically a subset of AllMessages.
 	type ToJob: 'static + ToJobTrait + Send;
 	/// Message type from the job. Typically a subset of AllMessages.
-	type FromJob: 'static + Into<AllMessages> + Send;
+	type FromJob: 'static + Into<FromJobCommand> + Send;
 	/// Job runtime error.
 	type Error: 'static + std::error::Error + Send;
 	/// Extra arguments this job needs to run properly.
@@ -752,8 +762,11 @@ where
 					).await {
 						break
 					},
-				outgoing = jobs.next().fuse() =>
-					Self::handle_outgoing(outgoing, &mut ctx).await,
+				outgoing = jobs.next().fuse() => {
+					if let Err(e) = Self::handle_from_job(outgoing, &mut ctx).await {
+						tracing::warn!(err = ?e, "failed to handle command from job");
+					}
+				}
 				complete => break,
 			}
 		}
@@ -863,13 +876,19 @@ where
 		false
 	}
 
-	// handle an outgoing message.
-	async fn handle_outgoing(
+	// handle a command from a job.
+	async fn handle_from_job(
 		outgoing: Option<Job::FromJob>,
 		ctx: &mut Context,
-	) {
-		let msg = outgoing.expect("the Jobs stream never ends; qed");
-		ctx.send_message(msg.into()).await;
+	) -> SubsystemResult<()> {
+		let cmd: FromJobCommand = outgoing.expect("the Jobs stream never ends; qed").into();
+		match cmd {
+			FromJobCommand::SendMessage(msg) => ctx.send_message(msg).await,
+			FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await?,
+			FromJobCommand::SpawnBlocking(name, task) => ctx.spawn_blocking(name, task).await?,
+		}
+
+		Ok(())
 	}
 }
 
@@ -1031,7 +1050,7 @@ impl<F: Future> Future for Timeout<F> {
 
 #[cfg(test)]
 mod tests {
-	use super::{JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
+	use super::{JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait, FromJobCommand};
 	use thiserror::Error;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
@@ -1101,9 +1120,9 @@ mod tests {
 		}
 	}
 
-	// FromJob must be infallibly convertable into AllMessages.
+	// FromJob must be infallibly convertable into FromJobCommand.
 	//
-	// It exists to be a type-safe subset of AllMessages that this job is specified to send.
+	// It exists to be a type-safe subset of FromJobCommand that this job is specified to send.
 	//
 	// Note: the Clone impl here is not generally required; it's just ueful for this test context because
 	// we include it in the RunArgs
@@ -1112,10 +1131,12 @@ mod tests {
 		Test,
 	}
 
-	impl From<FromJob> for AllMessages {
-		fn from(from_job: FromJob) -> AllMessages {
+	impl From<FromJob> for FromJobCommand {
+		fn from(from_job: FromJob) -> FromJobCommand {
 			match from_job {
-				FromJob::Test => AllMessages::CandidateSelection(CandidateSelectionMessage::default()),
+				FromJob::Test => FromJobCommand::SendMessage(
+					AllMessages::CandidateSelection(CandidateSelectionMessage::default())
+				),
 			}
 		}
 	}
