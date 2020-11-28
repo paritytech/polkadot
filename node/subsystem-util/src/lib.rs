@@ -674,6 +674,17 @@ where
 	}
 }
 
+impl<Spawner, Job> stream::FusedStream for Jobs<Spawner, Job>
+where
+	Spawner: SpawnNamed,
+	Job: JobTrait,
+{
+	fn is_terminated(&self) -> bool {
+		false
+	}
+}
+
+
 /// A basic implementation of a subsystem.
 ///
 /// This struct is responsible for handling message traffic between
@@ -762,7 +773,7 @@ where
 					).await {
 						break
 					},
-				outgoing = jobs.next().fuse() => {
+				outgoing = jobs.next() => {
 					if let Err(e) = Self::handle_from_job(outgoing, &mut ctx).await {
 						tracing::warn!(err = ?e, "failed to handle command from job");
 					}
