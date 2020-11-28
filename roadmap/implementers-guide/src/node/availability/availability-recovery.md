@@ -147,7 +147,7 @@ On `Conclude`, shut down the subsystem.
 
 1. Compute the threshold from the session info. It should be `f + 1`, where `n = 3f + k`, where `k in {1, 2, 3}`, and `n` is the number of validators.
 1. Set the various fields of `Interaction` based on the validator lists in `session_info`. Compute a random shuffling of the validator indices.
-1. Set the `to_state` sender to be equal to 
+1. Set the `to_state` sender to be equal to a clone of `state.from_interaction_tx`.
 1. Initialize `received_chunks` to an empty set, as well as `requesting_chunks`.
 
 Launch the interaction as a background task running `interaction_loop(interaction)`.
