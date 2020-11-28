@@ -235,7 +235,7 @@ enum RequiredTranches {
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
   * Set `required = tranches_to_approve(approval_entry)`
   * Determine if we should trigger our assignment.
-    * If we've already triggered or `OurAssignment` is `None`, we do not trigger..
+    * If we've already triggered or `OurAssignment` is `None`, we do not trigger.
     * If `required` is `RequiredTranches::All`, then we trigger if `check_approval(block_entry, approval_entry, All)` is false and our tranche is live according to our local clock.
     * If `required` is `RequiredTranches::Pending(max), then we trigger if our assignment's tranche is less than or equal to `max`.
     * If `required` is `RequiredTranches::Exact(tranche)` then we do not trigger, because this value indicates that no new assignments are needed at the moment.
