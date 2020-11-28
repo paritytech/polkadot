@@ -207,21 +207,21 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 ```rust
 enum RequiredTranches {
-  // All validators appear to be required, based on tranches already taken and remaining no-shows.
+  // All validators appear to be required, based on tranches already taken and remaining no-shows. 
   All,
-  // More tranches required - We're awaiting more assignments.
-  Pending,
-  // An exact number of required tranches.
-  Exact(DelayTranche),
+  // More tranches required - We're awaiting more assignments. The given `DelayTranche` indicates the
+  // upper bound of tranches that should broadcast based on the last no-show.
+  Pending(DelayTranche),
+  // An exact number of required tranches and a number of no-shows. This indicates that the amount of `needed_approvals` are assigned and additionally all no-shows are covered.
+  Exact(DelayTranche, usize),
 }
 ```
-
 
   * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
     * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take another non-empty tranche for each no-show, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
     * Count no-shows in tranches `k..l` and for each of those, take another non-empty tranche for each no-show. Repeat so on until either
-      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `RequiredTranches::Pending` which indicates that new assignments are needed.
+      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `RequiredTranches::All(last_no_show_tranche + 1)` which indicates that new assignments are needed.
       * All no-shows are covered by at least one non-empty tranche. Set `n_tranches` to the number of tranches taken
       * The amount of assignments in non-empty & taken tranches plus the amount of needed extras equals or exceeds the total number of validators for the approval entry, which can be obtained by measuring the bitfield. In this case we return a special value `RequiredTranches::All` indicating that all validators have effectively been assigned to check.
     * return `n_tranches`
@@ -229,13 +229,18 @@ enum RequiredTranches {
 #### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
   * If `n_tranches` is `RequiredTranches::Pending`, return false
   * If `n_tranches` is `RequiredTranches::All`,  then we return `3 * n_approvals > 2 * n_validators`.
-  * Otherwise, if all validators in `n_tranches` have approved, return `true`. If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
+  * If `n_tranches` is `RequiredTranches::Exact(tranche, no_shows), then we return whether all assigned validators up to `tranche` less `no_shows` have approved. e.g. if we had 5 tranches and 1 no-show, we would accept all validators in tranches 0..=5 except for 1 approving. In that example, we also accept all validators in tranches 0..=5 approving, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. If there are more missing approvals than there are no-shows, that indicates that there are some assignments which are not yet no-shows, but may become them.
 
 #### `process_wakeup(relay_block, candidate_hash)`
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
-  * Set `n_tranches = tranches_to_approve(approval_entry)`
-  * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), `check_approval(block_entry, approval_entry, n_tranches)` is false, and we have not triggered the assignment already
-    * Import to `ApprovalEntry`
+  * Set `required = tranches_to_approve(approval_entry)`
+  * Determine if we should trigger our assignment.
+    * If we've already triggered or `OurAssignment` is `None`, we do not trigger..
+    * If `required` is `RequiredTranches::All`, then we trigger if `check_approval(block_entry, approval_entry, All)` is false and our tranche is live according to our local clock.
+    * If `required` is `RequiredTranches::Pending(max), then we trigger if our assignment's tranche is less than or equal to `max`.
+    * If `required` is `RequiredTranches::Exact(tranche)` then we do not trigger, because this value indicates that no new assignments are needed at the moment.
+  * If we should trigger our assignment
+    * Import the assignment to the `ApprovalEntry`
     * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
     * Kick off approval work with `launch_approval`
   * Schedule another wakeup based on `next_wakeup`
