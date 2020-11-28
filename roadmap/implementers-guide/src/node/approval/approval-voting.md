@@ -222,7 +222,7 @@ enum RequiredTranches {
     * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take another non-empty tranche for each no-show, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
     * Count no-shows in tranches `k..l` and for each of those, take another non-empty tranche for each no-show. Repeat so on until either
       * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `RequiredTranches::Pending(last_no_show_tranche + 1)` which indicates that new assignments are needed. `last_no_show_tranche` is the tranche containing our last no-show, or 0 if we haven't seen any no-shows.
-      * All no-shows are covered by at least one non-empty tranche. Set `n_tranches` to the number of tranches taken
+      * All no-shows are covered by at least one non-empty tranche. Set `n_tranches` to the number of tranches taken and return `RequiredTranches::Exact(n_tranches)`.
       * The amount of assignments in non-empty & taken tranches plus the amount of needed extras equals or exceeds the total number of validators for the approval entry, which can be obtained by measuring the bitfield. In this case we return a special value `RequiredTranches::All` indicating that all validators have effectively been assigned to check.
     * return `n_tranches`
 
