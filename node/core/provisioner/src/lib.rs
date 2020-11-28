@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	self as util,
-	delegated_subsystem,
+	delegated_subsystem, FromJobCommand,
 	request_availability_cores, request_persisted_validation_data, JobTrait, ToJobTrait,
 	metrics::{self, prometheus},
 };
@@ -98,12 +98,12 @@ enum FromJob {
 	Runtime(RuntimeApiMessage),
 }
 
-impl From<FromJob> for AllMessages {
-	fn from(from_job: FromJob) -> AllMessages {
-		match from_job {
+impl From<FromJob> for FromJobCommand {
+	fn from(from_job: FromJob) -> FromJobCommand {
+		FromJobCommand::SendMessage(match from_job {
 			FromJob::ChainApi(cam) => AllMessages::ChainApi(cam),
 			FromJob::Runtime(ram) => AllMessages::RuntimeApi(ram),
-		}
+		})
 	}
 }
 
