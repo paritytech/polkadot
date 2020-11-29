@@ -528,8 +528,6 @@ impl CandidateBackingJob {
 
 		match command {
 			ValidatedCandidateCommand::Second(res) => {
-				println!("Received a command to second");
-
 				match res {
 					Ok((candidate, commitments, pov)) => {
 						// sanity check.
@@ -1545,6 +1543,16 @@ mod tests {
 				}
 			);
 
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::Share(hash, stmt)
+				) => {
+					assert_eq!(test_state.relay_parent, hash);
+					stmt.check_signature(&test_state.signing_context, &public0.into()).expect("Is signed correctly");
+				}
+			);
+
 			let statement = CandidateBackingMessage::Statement(
 				test_state.relay_parent,
 				signed_b.clone(),
@@ -1576,13 +1584,149 @@ mod tests {
 				}
 			);
 
+			virtual_overseer.send(FromOverseer::Signal(
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
+			).await;
+		});
+	}
+
+	#[test]
+	fn backing_works_while_validation_ongoing() {
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let pov = PoV {
+				block_data: BlockData(vec![1, 2, 3]),
+			};
+
+			let pov_hash = pov.hash();
+
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let candidate_a = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				..Default::default()
+			}.build();
+
+			let candidate_a_hash = candidate_a.hash();
+			let public1 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[5].to_seed()),
+			).await.expect("Insert key into keystore");
+			let public2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[2].to_seed()),
+			).await.expect("Insert key into keystore");
+			let public3 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[3].to_seed()),
+			).await.expect("Insert key into keystore");
+
+			let signed_a = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Seconded(candidate_a.clone()),
+				&test_state.signing_context,
+				2,
+				&public2.into(),
+			).await.expect("should be signed");
+
+			let signed_b = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Valid(candidate_a_hash),
+				&test_state.signing_context,
+				5,
+				&public1.into(),
+			).await.expect("should be signed");
+
+			let signed_c = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Valid(candidate_a_hash),
+				&test_state.signing_context,
+				3,
+				&public3.into(),
+			).await.expect("should be signed");
+
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			// Sending a `Statement::Seconded` for our assignment will start
+			// validation process. The first thing requested is PoV from the
+			// `PoVDistribution`.
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::Share(hash, stmt)
-				) => {
-					assert_eq!(test_state.relay_parent, hash);
-					stmt.check_signature(&test_state.signing_context, &public0.into()).expect("Is signed correctly");
+				AllMessages::PoVDistribution(
+					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
+				) if relay_parent == test_state.relay_parent => {
+					tx.send(Arc::new(pov.clone())).unwrap();
+				}
+			);
+
+			// The next step is the actual request to Validation subsystem
+			// to validate the `Seconded` candidate.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::ValidateFromChainState(
+						c,
+						pov,
+						tx,
+					)
+				) if pov == pov && &c == candidate_a.descriptor() => {
+					// we never validate the candidate. our local node
+					// shouldn't issue any statements.
+					std::mem::forget(tx);
+				}
+			);
+
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_b.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_c.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			// Candidate gets backed entirely by other votes.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::Provisioner(
+					ProvisionerMessage::ProvisionableData(
+						_,
+						ProvisionableData::BackedCandidate(BackedCandidate {
+							candidate,
+							validity_votes,
+							validator_indices,
+						})
+					)
+				) if candidate == candidate_a => {
+					assert_eq!(validity_votes.len(), 3);
+
+					assert!(validity_votes.contains(
+						&ValidityAttestation::Implicit(signed_a.signature().clone())
+					));
+					assert!(validity_votes.contains(
+						&ValidityAttestation::Explicit(signed_b.signature().clone())
+					));
+					assert!(validity_votes.contains(
+						&ValidityAttestation::Explicit(signed_c.signature().clone())
+					));
+					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
 				}
 			);
 
