@@ -518,6 +518,7 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self, command), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
 		command: ValidatedCandidateCommand,
@@ -568,15 +569,23 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	#[tracing::instrument(level = "trace", skip(self, params), fields(subsystem = LOG_TARGET))]
 	async fn background_validate_and_make_available(
 		&mut self,
-		params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand>,
+		params: BackgroundValidationParams<
+			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static
+		>,
 	) -> Result<(), Error> {
 		let candidate_hash = params.candidate.hash();
 
 		if self.awaiting_validation.insert(candidate_hash) {
 			// spawn background task.
-			validate_and_make_available(params).await?;
+			let bg = async move {
+				if let Err(e) = validate_and_make_available(params).await {
+					tracing::error!("Failed to validate and make available: {:?}", e);
+				}
+			};
+			self.tx_from.send(FromJob::Spawn("Backing Validation", bg.boxed())).await?;
 		}
 
 		Ok(())
