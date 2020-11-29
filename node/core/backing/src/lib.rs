@@ -218,19 +218,22 @@ enum FromJob {
 	Provisioner(ProvisionerMessage),
 	PoVDistribution(PoVDistributionMessage),
 	StatementDistribution(StatementDistributionMessage),
+	Spawn(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
 }
 
 impl From<FromJob> for FromJobCommand {
 	fn from(f: FromJob) -> FromJobCommand {
-		FromJobCommand::SendMessage(match f {
-			FromJob::AvailabilityStore(msg) => AllMessages::AvailabilityStore(msg),
-			FromJob::RuntimeApiMessage(msg) => AllMessages::RuntimeApi(msg),
-			FromJob::CandidateValidation(msg) => AllMessages::CandidateValidation(msg),
-			FromJob::CandidateSelection(msg) => AllMessages::CandidateSelection(msg),
-			FromJob::StatementDistribution(msg) => AllMessages::StatementDistribution(msg),
-			FromJob::PoVDistribution(msg) => AllMessages::PoVDistribution(msg),
-			FromJob::Provisioner(msg) => AllMessages::Provisioner(msg),
-		})
+		let send_msg = |msg| FromJobCommand::SendMessage(msg);
+		match f {
+			FromJob::AvailabilityStore(msg) => send_msg(AllMessages::AvailabilityStore(msg)),
+			FromJob::RuntimeApiMessage(msg) => send_msg(AllMessages::RuntimeApi(msg)),
+			FromJob::CandidateValidation(msg) => send_msg(AllMessages::CandidateValidation(msg)),
+			FromJob::CandidateSelection(msg) => send_msg(AllMessages::CandidateSelection(msg)),
+			FromJob::StatementDistribution(msg) => send_msg(AllMessages::StatementDistribution(msg)),
+			FromJob::PoVDistribution(msg) => send_msg(AllMessages::PoVDistribution(msg)),
+			FromJob::Provisioner(msg) => send_msg(AllMessages::Provisioner(msg)),
+			FromJob::Spawn(name, task) => FromJobCommand::Spawn(name, task),
+		}
 	}
 }
 
