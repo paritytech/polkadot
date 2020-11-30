@@ -88,10 +88,22 @@ enum Error {
 }
 
 enum ValidatedCandidateCommand {
-	// We were instructed to second the candidate, and the outcome is represented by the provided bool.
+	// We were instructed to second the candidate.
 	Second(BackgroundValidationResult),
-	// We were instructed to validate the candidate, and the outcome is represented by the provided bool.
+	// We were instructed to validate the candidate.
 	Attest(BackgroundValidationResult),
+}
+
+impl std::fmt::Debug for ValidatedCandidateCommand {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		let candidate_hash = self.candidate_hash();
+		match *self {
+			ValidatedCandidateCommand::Second(_) =>
+				write!(f, "Second({})", candidate_hash),
+			ValidatedCandidateCommand::Attest(_) =>
+				write!(f, "Attest({})", candidate_hash),
+		}
+	}
 }
 
 impl ValidatedCandidateCommand {
@@ -436,7 +448,7 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, command), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
 		command: ValidatedCandidateCommand,
