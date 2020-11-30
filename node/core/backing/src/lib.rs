@@ -299,6 +299,7 @@ fn table_attested_to_backed(
 impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(mut self) -> Result<(), Error> {
+		tracing::info!(target: LOG_TARGET, relay_parent = ?self.parent, "run_loop started");
 		while let Some(msg) = self.rx_to.next().await {
 			match msg {
 				ToJob::CandidateBacking(msg) => {
