@@ -745,25 +745,4 @@ mod tests {
 			assert!(<Configuration as Store>::PendingConfig::get().is_none())
 		});
 	}
-
-	#[test]
-	fn test_migration_config_to_active_config() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let mut config: HostConfiguration<<Test as frame_system::Trait>::BlockNumber>
-				= Default::default();
-			config.max_code_size = 99;
-
-			migration::put_storage_value(b"Configuration", b"Config", b"", &config);
-
-			Configuration::on_runtime_upgrade();
-
-			assert_eq!(ActiveConfig::<Test>::get(), config);
-			assert_eq!(migration::have_storage_value(b"Configuration", b"Config", b""), false);
-
-			Configuration::on_runtime_upgrade();
-
-			assert_eq!(ActiveConfig::<Test>::get(), config);
-			assert_eq!(migration::have_storage_value(b"Configuration", b"Config", b""), false);
-		});
-	}
 }
