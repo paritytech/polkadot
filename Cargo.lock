@@ -4960,6 +4960,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",

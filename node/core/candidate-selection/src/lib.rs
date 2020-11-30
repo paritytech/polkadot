@@ -19,27 +19,38 @@
 
 #![deny(missing_docs, unused_crate_dependencies, unused_results)]
 
+use std::collections::HashMap;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
+use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_subsystem::{
 	errors::ChainApiError,
 	messages::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage,
+		RuntimeApiRequest,
 	},
 };
 use polkadot_node_subsystem_util::{
-	self as util, delegated_subsystem, JobTrait, ToJobTrait, FromJobCommand,
+	self as util,
+	delegated_subsystem,
+	request_validator_groups,
+	request_from_runtime,
+	Validator,
+	JobTrait, ToJobTrait, FromJobCommand,
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use polkadot_primitives::v1::{
+	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
+};
 use std::{convert::TryFrom, pin::Pin};
 use thiserror::Error;
 
 const LOG_TARGET: &'static str = "candidate_selection";
 
 struct CandidateSelectionJob {
+	assignment: ParaId,
 	sender: mpsc::Sender<FromJob>,
 	receiver: mpsc::Receiver<ToJob>,
 	metrics: Metrics,
@@ -126,7 +137,7 @@ impl JobTrait for CandidateSelectionJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = ();
+	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "CandidateSelectionJob";
@@ -134,16 +145,78 @@ impl JobTrait for CandidateSelectionJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	#[tracing::instrument(skip(_relay_parent, _run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(relay_parent, keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
-		_relay_parent: Hash,
-		_run_args: Self::RunArgs,
+		relay_parent: Hash,
+		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ToJob>,
-		sender: mpsc::Sender<FromJob>,
+		mut sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		Box::pin(async move {
-			let job = CandidateSelectionJob::new(metrics, sender, receiver);
+			macro_rules! try_runtime_api {
+				($x: expr) => {
+					match $x {
+						Ok(x) => x,
+						Err(e) => {
+							tracing::warn!(
+								target: LOG_TARGET,
+								err = ?e,
+								"Failed to fetch runtime API data for job",
+							);
+
+							// We can't do candidate validation work if we don't have the
+							// requisite runtime API data. But these errors should not take
+							// down the node.
+							return Ok(());
+						}
+					}
+				}
+			}
+
+			let (groups, cores) = futures::try_join!(
+				request_validator_groups(relay_parent, &mut sender).await?,
+				request_from_runtime(
+					relay_parent,
+					&mut sender,
+					|tx| RuntimeApiRequest::AvailabilityCores(tx),
+				).await?,
+			)?;
+
+			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
+			let cores = try_runtime_api!(cores);
+
+			let n_cores = cores.len();
+
+			let validator = match Validator::new(relay_parent, keystore.clone(), sender.clone()).await {
+				Ok(validator) => validator,
+				Err(util::Error::NotAValidator) => return Ok(()),
+				Err(err) => return Err(Error::Util(err)),
+			};
+
+			let mut groups = HashMap::new();
+
+			let mut assignment = None;
+			for (idx, core) in cores.into_iter().enumerate() {
+				// Ignore prospective assignments on occupied cores for the time being.
+				if let CoreState::Scheduled(scheduled) = core {
+					let core_index = CoreIndex(idx as _);
+					let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+					if let Some(g) = validator_groups.get(group_index.0 as usize) {
+						if g.contains(&validator.index()) {
+							assignment = Some(scheduled.para_id);
+						}
+						let _ = groups.insert(scheduled.para_id, g.clone());
+					}
+				}
+			}
+
+			let assignment = match assignment {
+				Some(assignment) => assignment,
+				None => return Ok(()),
+			};
+
+			let job = CandidateSelectionJob::new(assignment, metrics, sender, receiver);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
@@ -154,6 +227,7 @@ impl JobTrait for CandidateSelectionJob {
 
 impl CandidateSelectionJob {
 	pub fn new(
+		assignment: ParaId,
 		metrics: Metrics,
 		sender: mpsc::Sender<FromJob>,
 		receiver: mpsc::Receiver<ToJob>,
@@ -162,6 +236,7 @@ impl CandidateSelectionJob {
 			sender,
 			receiver,
 			metrics,
+			assignment,
 			seconded_candidate: None,
 		}
 	}
@@ -205,6 +280,16 @@ impl CandidateSelectionJob {
 		collator_id: CollatorId,
 	) {
 		let _timer = self.metrics.time_handle_collation();
+
+		if self.assignment != para_id {
+			tracing::info!(
+				target: LOG_TARGET,
+				"Collator {:?} sent a collation outside of our assignment {:?}",
+				collator_id,
+				para_id,
+			);
+			return;
+		}
 
 		if self.seconded_candidate.is_none() {
 			let (candidate_receipt, pov) =
@@ -420,7 +505,7 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSelectionSubsystem);
+delegated_subsystem!(CandidateSelectionJob(SyncCryptoStorePtr, Metrics) <- ToJob as CandidateSelectionSubsystem);
 
 #[cfg(test)]
 mod tests {
@@ -443,6 +528,7 @@ mod tests {
 		let (to_job_tx, to_job_rx) = mpsc::channel(0);
 		let (from_job_tx, from_job_rx) = mpsc::channel(0);
 		let mut job = CandidateSelectionJob {
+			assignment: 123.into(),
 			sender: from_job_tx,
 			receiver: to_job_rx,
 			metrics: Default::default(),

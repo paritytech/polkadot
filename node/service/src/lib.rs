@@ -367,7 +367,7 @@ where
 		),
 		candidate_selection: CandidateSelectionSubsystem::new(
 			spawner.clone(),
-			(),
+			keystore.clone(),
 			Metrics::register(registry)?,
 		),
 		candidate_validation: CandidateValidationSubsystem::new(
