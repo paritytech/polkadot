@@ -130,24 +130,24 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 }
 
-pub trait Trait: frame_system::Trait { }
+pub trait Config: frame_system::Config { }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Configuration {
+	trait Store for Module<T: Config> as Configuration {
 		/// The active configuration for the current session.
-		Config get(fn config) config(): HostConfiguration<T::BlockNumber>;
+		ActiveConfig get(fn config) config(): HostConfiguration<T::BlockNumber>;
 		/// Pending configuration (if any) for the next session.
 		PendingConfig: Option<HostConfiguration<T::BlockNumber>>;
 	}
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		/// Set the validation upgrade frequency.
@@ -506,7 +506,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
@@ -518,7 +518,7 @@ impl<T: Trait> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
 		if let Some(pending) = <Self as Store>::PendingConfig::take() {
-			<Self as Store>::Config::set(pending);
+			<Self as Store>::ActiveConfig::set(pending);
 		}
 	}
 

@@ -123,7 +123,7 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
-impl frame_system::Trait for Runtime {
+impl frame_system::Config for Runtime {
 	type BaseCallFilter = ();
 	type Origin = Origin;
 	type Call = Call;
@@ -163,7 +163,7 @@ parameter_types! {
 	pub storage ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
-impl pallet_babe::Trait for Runtime {
+impl pallet_babe::Config for Runtime {
 	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
 
@@ -191,7 +191,7 @@ parameter_types! {
 	pub storage IndexDeposit: Balance = 1 * DOLLARS;
 }
 
-impl pallet_indices::Trait for Runtime {
+impl pallet_indices::Config for Runtime {
 	type AccountIndex = AccountIndex;
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
@@ -204,7 +204,7 @@ parameter_types! {
 	pub storage MaxLocks: u32 = 50;
 }
 
-impl pallet_balances::Trait for Runtime {
+impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = Event;
@@ -218,7 +218,7 @@ parameter_types! {
 	pub storage TransactionByteFee: Balance = 10 * MILLICENTS;
 }
 
-impl pallet_transaction_payment::Trait for Runtime {
+impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
@@ -229,7 +229,7 @@ parameter_types! {
 	pub storage SlotDuration: u64 = SLOT_DURATION;
 	pub storage MinimumPeriod: u64 = SlotDuration::get() / 2;
 }
-impl pallet_timestamp::Trait for Runtime {
+impl pallet_timestamp::Config for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
@@ -241,7 +241,7 @@ parameter_types! {
 }
 
 // TODO: substrate#2986 implement this properly
-impl pallet_authorship::Trait for Runtime {
+impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
@@ -266,7 +266,7 @@ parameter_types! {
 	pub storage DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
-impl pallet_session::Trait for Runtime {
+impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
@@ -279,7 +279,7 @@ impl pallet_session::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl pallet_session::historical::Trait for Runtime {
+impl pallet_session::historical::Config for Runtime {
 	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
@@ -310,7 +310,7 @@ parameter_types! {
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
-impl pallet_staking::Trait for Runtime {
+impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
@@ -337,7 +337,7 @@ impl pallet_staking::Trait for Runtime {
 
 }
 
-impl pallet_grandpa::Trait for Runtime {
+impl pallet_grandpa::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 
@@ -363,7 +363,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 		call: Call,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as frame_system::Trait>::Index,
+		nonce: <Runtime as frame_system::Config>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		let period = BlockHashCount::get()
 			.checked_next_power_of_two()
@@ -404,14 +404,14 @@ parameter_types! {
 	pub storage OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
 }
 
-impl pallet_offences::Trait for Runtime {
+impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
-impl pallet_authority_discovery::Trait for Runtime {}
+impl pallet_authority_discovery::Config for Runtime {}
 
 parameter_types! {
 	pub storage LeasePeriod: BlockNumber = 100_000;
@@ -422,7 +422,7 @@ parameter_types! {
 	pub Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 }
 
-impl claims::Trait for Runtime {
+impl claims::Config for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
@@ -433,7 +433,7 @@ parameter_types! {
 	pub storage MinVestedTransfer: Balance = 100 * DOLLARS;
 }
 
-impl pallet_vesting::Trait for Runtime {
+impl pallet_vesting::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
@@ -441,42 +441,42 @@ impl pallet_vesting::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl pallet_sudo::Trait for Runtime {
+impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 }
 
-impl parachains_configuration::Trait for Runtime {}
+impl parachains_configuration::Config for Runtime {}
 
-impl parachains_inclusion::Trait for Runtime {
+impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
 }
 
-impl parachains_inclusion_inherent::Trait for Runtime {}
+impl parachains_inclusion_inherent::Config for Runtime {}
 
-impl parachains_initializer::Trait for Runtime {
+impl parachains_initializer::Config for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
 
-impl parachains_session_info::Trait for Runtime {}
+impl parachains_session_info::Config for Runtime {}
 
-impl parachains_paras::Trait for Runtime {
+impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_dmp::Trait for Runtime {}
+impl parachains_dmp::Config for Runtime {}
 
-impl parachains_ump::Trait for Runtime {
+impl parachains_ump::Config for Runtime {
 	type UmpSink = ();
 }
 
-impl parachains_hrmp::Trait for Runtime {
+impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_scheduler::Trait for Runtime {}
+impl parachains_scheduler::Config for Runtime {}
 
-impl paras_sudo_wrapper::Trait for Runtime {}
+impl paras_sudo_wrapper::Config for Runtime {}
 
 construct_runtime! {
 	pub enum Runtime where

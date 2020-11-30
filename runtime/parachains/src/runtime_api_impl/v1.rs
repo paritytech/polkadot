@@ -31,12 +31,12 @@ use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
 
 /// Implementation for the `validators` function of the runtime API.
-pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
+pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
 	<inclusion::Module<T>>::validators()
 }
 
 /// Implementation for the `validator_groups` function of the runtime API.
-pub fn validator_groups<T: initializer::Trait>() -> (
+pub fn validator_groups<T: initializer::Config>() -> (
 	Vec<Vec<ValidatorIndex>>,
 	GroupRotationInfo<T::BlockNumber>,
 ) {
@@ -47,7 +47,7 @@ pub fn validator_groups<T: initializer::Trait>() -> (
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.
-pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumber>> {
+pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNumber>> {
 	let cores = <scheduler::Module<T>>::availability_cores();
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
@@ -163,24 +163,24 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 	core_states
 }
 
-fn with_assumption<Trait, T, F>(
+fn with_assumption<Config, T, F>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 	build: F,
 ) -> Option<T> where
-	Trait: inclusion::Trait,
+	Config: inclusion::Config,
 	F: FnOnce() -> Option<T>,
 {
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<Trait>>::force_enact(para_id);
+			<inclusion::Module<Config>>::force_enact(para_id);
 			build()
 		}
 		OccupiedCoreAssumption::TimedOut => {
 			build()
 		}
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<Trait>>::pending_availability(para_id).is_some() {
+			if <inclusion::Module<Config>>::pending_availability(para_id).is_some() {
 				None
 			} else {
 				build()
@@ -190,7 +190,7 @@ fn with_assumption<Trait, T, F>(
 }
 
 /// Implementation for the `full_validation_data` function of the runtime API.
-pub fn full_validation_data<T: initializer::Trait>(
+pub fn full_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 )
@@ -207,7 +207,7 @@ pub fn full_validation_data<T: initializer::Trait>(
 }
 
 /// Implementation for the `persisted_validation_data` function of the runtime API.
-pub fn persisted_validation_data<T: initializer::Trait>(
+pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
@@ -219,7 +219,7 @@ pub fn persisted_validation_data<T: initializer::Trait>(
 }
 
 /// Implementation for the `check_validation_outputs` function of the runtime API.
-pub fn check_validation_outputs<T: initializer::Trait>(
+pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
@@ -227,7 +227,7 @@ pub fn check_validation_outputs<T: initializer::Trait>(
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
-pub fn session_index_for_child<T: initializer::Trait>() -> SessionIndex {
+pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	// Just returns the session index from `inclusion`. Runtime APIs follow
 	// initialization so the initializer will have applied any pending session change
 	// which is expected at the child of the block whose context the runtime API was invoked
@@ -239,7 +239,7 @@ pub fn session_index_for_child<T: initializer::Trait>() -> SessionIndex {
 }
 
 /// Implementation for the `validation_code` function of the runtime API.
-pub fn validation_code<T: initializer::Trait>(
+pub fn validation_code<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<ValidationCode> {
@@ -251,7 +251,7 @@ pub fn validation_code<T: initializer::Trait>(
 }
 
 /// Implementation for the `historical_validation_code` function of the runtime API.
-pub fn historical_validation_code<T: initializer::Trait>(
+pub fn historical_validation_code<T: initializer::Config>(
 	para_id: ParaId,
 	context_height: T::BlockNumber,
 ) -> Option<ValidationCode> {
@@ -259,7 +259,7 @@ pub fn historical_validation_code<T: initializer::Trait>(
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
-pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
+pub fn candidate_pending_availability<T: initializer::Config>(para_id: ParaId)
 	-> Option<CommittedCandidateReceipt<T::Hash>>
 {
 	<inclusion::Module<T>>::candidate_pending_availability(para_id)
@@ -270,8 +270,8 @@ pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 // this means it can run in a different session than other runtime APIs at the same block.
 pub fn candidate_events<T, F>(extract_event: F) -> Vec<CandidateEvent<T::Hash>>
 where
-	T: initializer::Trait,
-	F: Fn(<T as frame_system::Trait>::Event) -> Option<inclusion::Event<T>>,
+	T: initializer::Config,
+	F: Fn(<T as frame_system::Config>::Event) -> Option<inclusion::Event<T>>,
 {
 	use inclusion::Event as RawEvent;
 
@@ -286,19 +286,19 @@ where
 }
 
 /// Get the session info for the given session, if stored.
-pub fn session_info<T: session_info::Trait>(index: SessionIndex) -> Option<SessionInfo> {
+pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<SessionInfo> {
 	<session_info::Module<T>>::session_info(index)
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.
-pub fn dmq_contents<T: dmp::Trait>(
+pub fn dmq_contents<T: dmp::Config>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 	<dmp::Module<T>>::dmq_contents(recipient)
 }
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
-pub fn inbound_hrmp_channels_contents<T: hrmp::Trait>(
+pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 	recipient: ParaId,
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
 	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)

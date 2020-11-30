@@ -153,10 +153,10 @@ impl CoreAssignment {
 	}
 }
 
-pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait { }
+pub trait Config: frame_system::Config + configuration::Config + paras::Config { }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as ParaScheduler {
+	trait Store for Module<T: Config> as ParaScheduler {
 		/// All the validator groups. One for each core.
 		///
 		/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
@@ -190,17 +190,17 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The scheduler module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the scheduler module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		Self::schedule(Vec::new());
