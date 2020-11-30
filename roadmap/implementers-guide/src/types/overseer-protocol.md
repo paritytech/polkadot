@@ -503,7 +503,7 @@ Various modules request that the [Candidate Validation subsystem](../node/utilit
 enum ValidationResult {
 	/// Candidate is valid, and here are the outputs and the validation data used to form inputs.
 	/// In practice, this should be a shared type so that validation caching can be done.
-	Valid(ValidationOutputs, PersistedValidationData),
+	Valid(CandidateCommitments, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid,
 }
