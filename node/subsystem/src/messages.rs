@@ -464,7 +464,8 @@ pub enum RuntimeApiRequest {
 /// A message to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiMessage {
-	/// Make a request of the runtime API against the post-state of the given relay-parent.
+	/// Make a request of the runtime API against
+	/// the post-state of the given relay-parent.
 	Request(Hash, RuntimeApiRequest),
 }
 
@@ -588,6 +589,55 @@ impl CollationGenerationMessage {
 	}
 }
 
+
+
+
+
+/// Message to the VotesDB subsystem.
+enum VotesDbMessage {
+    /// Allow querying all `Hash`es that are voted on by a particular validator.
+    QueryValidatorVotes {
+        /// Validator indentification.
+        session: SessionIndex,
+        validator: ValidatorIndex,
+        response: ResponseChannel<Vec<(Hash, Vote)>>,
+    },
+
+    /// Store a vote for a particular dispute
+    StoreVote{
+        /// Unique validator indentification
+        session: SessionIndex,
+        validator: ValidatorIndex,
+        /// Vote.
+        vote: Vote,
+        /// Attestation.
+        attestation: Signed<Statement>,
+    },
+}
+
+/// Resolution of a votes, emitted by VotesDB
+enum DisputeMessage {
+    /// A dispute is detected
+    Detection {
+        /// unique validator indentification
+        session: SessionIndex,
+        validator: ValidatorIndex,
+        /// The attestation.
+        attestation: ValidityAttestation,
+        /// response channel
+        response: ResponseChannel<Vec<Hash>>,
+    },
+    /// Concluded a dispute with the following resolution
+    Resolution {
+        /// Resolution of the block can either be,
+        /// the block being valid or not.
+        valid: bool,
+    }
+}
+
+
+
+
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug, derive_more::From)]
 pub enum AllMessages {
@@ -621,4 +671,6 @@ pub enum AllMessages {
 	NetworkBridge(NetworkBridgeMessage),
 	/// Message for the Collation Generation subsystem
 	CollationGeneration(CollationGenerationMessage),
+	/// Message to interact with votes stored.
+	DisputeVotesDB()
 }
