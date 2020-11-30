@@ -36,10 +36,14 @@ use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{pin::Pin, collections::BTreeMap};
+use std::{pin::Pin, collections::BTreeMap, time::Instant};
 use thiserror::Error;
+use futures_timer::Delay;
 
 const LOG_TARGET: &str = "provisioner";
+
+/// How long to wait for information to come in before proposing.
+const PRE_PROPOSE_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
 
 struct ProvisioningJob {
 	relay_parent: Hash,
@@ -49,6 +53,7 @@ struct ProvisioningJob {
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
+	propose_after: Instant,
 }
 
 #[derive(Debug, Error)]
@@ -92,7 +97,13 @@ impl JobTrait for ProvisioningJob {
 		sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = ProvisioningJob::new(relay_parent, metrics, sender, receiver);
+			let job = ProvisioningJob::new(
+				relay_parent,
+				metrics,
+				sender,
+				receiver,
+				Instant::now() + PRE_PROPOSE_DELAY,
+			);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
@@ -108,6 +119,7 @@ impl ProvisioningJob {
 		metrics: Metrics,
 		sender: mpsc::Sender<FromJobCommand>,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
+		propose_after: Instant,
 	) -> Self {
 		Self {
 			relay_parent,
@@ -116,6 +128,7 @@ impl ProvisioningJob {
 			provisionable_data_channels: Vec::new(),
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
+			propose_after,
 			metrics,
 		}
 	}
@@ -135,6 +148,7 @@ impl ProvisioningJob {
 						&self.signed_bitfields,
 						&self.backed_candidates,
 						return_sender,
+						self.propose_after,
 						self.sender.clone(),
 					)
 					.await
@@ -229,8 +243,15 @@ async fn send_inherent_data(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
+	propose_after: Instant,
 	mut from_job: mpsc::Sender<FromJobCommand>,
 ) -> Result<(), Error> {
+	let now = Instant::now();
+	if now < propose_after {
+		let diff = propose_after - now;
+		let _ = Delay::new(diff).await;
+	}
+
 	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
 		.await?
 		.await??;
