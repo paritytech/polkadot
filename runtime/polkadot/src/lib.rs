@@ -596,7 +596,7 @@ impl pallet_treasury::Config for Runtime {
 	// type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
 
-impl pallet_bounties::Trait for Runtime {
+impl pallet_bounties::Config for Runtime {
 	type Event = Event;
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
@@ -607,7 +607,7 @@ impl pallet_bounties::Trait for Runtime {
 	// type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
 }
 
-impl pallet_tips::Trait for Runtime {
+impl pallet_tips::Config for Runtime {
 	type Event = Event;
 	type Tippers = ElectionsPhragmen;
 	type TipCountdown = TipCountdown;
