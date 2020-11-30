@@ -1,7 +1,9 @@
 # Votes DB
 
-Responsible module for tracking all kind of dispute votes by all validators
-for a fixed number of sessions.
+Responsible module for tracking
+all kinds of votes on candidates
+by all validators for a fixed number
+of sessions.
 
 
 ## Remarks
