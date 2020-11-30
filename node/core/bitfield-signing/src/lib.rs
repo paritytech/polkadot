@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, JobManager, JobTrait, ToJobTrait, Validator,
+	self as util, JobManager, JobTrait, ToJobTrait, Validator, FromJobCommand,
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
@@ -90,14 +90,14 @@ pub enum FromJob {
 	RuntimeApi(RuntimeApiMessage),
 }
 
-impl From<FromJob> for AllMessages {
-	fn from(from_job: FromJob) -> AllMessages {
-		match from_job {
+impl From<FromJob> for FromJobCommand {
+	fn from(from_job: FromJob) -> FromJobCommand {
+		FromJobCommand::SendMessage(match from_job {
 			FromJob::AvailabilityStore(asm) => AllMessages::AvailabilityStore(asm),
 			FromJob::BitfieldDistribution(bdm) => AllMessages::BitfieldDistribution(bdm),
 			FromJob::CandidateBacking(cbm) => AllMessages::CandidateBacking(cbm),
 			FromJob::RuntimeApi(ram) => AllMessages::RuntimeApi(ram),
-		}
+		})
 	}
 }
 

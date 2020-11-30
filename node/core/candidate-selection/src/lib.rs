@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 	},
 };
 use polkadot_node_subsystem_util::{
-	self as util, delegated_subsystem, JobTrait, ToJobTrait,
+	self as util, delegated_subsystem, JobTrait, ToJobTrait, FromJobCommand,
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
@@ -89,12 +89,12 @@ enum FromJob {
 	Collator(CollatorProtocolMessage),
 }
 
-impl From<FromJob> for AllMessages {
-	fn from(from_job: FromJob) -> AllMessages {
-		match from_job {
+impl From<FromJob> for FromJobCommand {
+	fn from(from_job: FromJob) -> FromJobCommand {
+		FromJobCommand::SendMessage(match from_job {
 			FromJob::Backing(msg) => AllMessages::CandidateBacking(msg),
 			FromJob::Collator(msg) => AllMessages::CollatorProtocol(msg),
-		}
+		})
 	}
 }
 

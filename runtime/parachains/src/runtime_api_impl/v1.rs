@@ -221,7 +221,7 @@ pub fn persisted_validation_data<T: initializer::Trait>(
 /// Implementation for the `check_validation_outputs` function of the runtime API.
 pub fn check_validation_outputs<T: initializer::Trait>(
 	para_id: ParaId,
-	outputs: primitives::v1::ValidationOutputs,
+	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
 	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs)
 }

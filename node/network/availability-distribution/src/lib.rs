@@ -627,7 +627,7 @@ where
 	};
 
 	// check the merkle proof
-	let root = &live_candidate.commitments.erasure_root;
+	let root = &live_candidate.descriptor.erasure_root;
 	let anticipated_hash = if let Ok(hash) = branch_hash(
 		root,
 		&message.erasure_chunk.proof,

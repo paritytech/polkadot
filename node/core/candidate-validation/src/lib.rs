@@ -36,7 +36,7 @@ use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
-	OccupiedCoreAssumption, Hash, ValidationOutputs,
+	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
 use polkadot_parachain::wasm_executor::{
 	self, IsolationStrategy, ValidationError, InvalidCandidate as WasmInvalidCandidate
@@ -458,7 +458,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let outputs = ValidationOutputs {
+			let outputs = CandidateCommitments {
 				head_data: res.head_data,
 				upward_messages: res.upward_messages,
 				horizontal_messages: res.horizontal_messages,

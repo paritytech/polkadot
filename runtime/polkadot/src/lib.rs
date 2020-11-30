@@ -1088,7 +1088,7 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn check_validation_outputs(_: Id, _: primitives::v1::ValidationOutputs) -> bool {
+		fn check_validation_outputs(_: Id, _: primitives::v1::CandidateCommitments) -> bool {
 			false
 		}
 

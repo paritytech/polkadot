@@ -142,6 +142,8 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov.
 	pub pov_hash: Hash,
+	/// The root of a block's erasure encoding Merkle tree.
+	pub erasure_root: Hash,
 	/// Signature on blake2-256 of components of this receipt:
 	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
 	pub signature: CollatorSignature,
@@ -341,24 +343,6 @@ pub struct TransientValidationData<N = BlockNumber> {
 	pub dmq_length: u32,
 }
 
-/// Outputs of validating a candidate.
-#[derive(Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
-pub struct ValidationOutputs {
-	/// The head-data produced by validation.
-	pub head_data: HeadData,
-	/// Upward messages to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// The horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
-	/// The new validation code submitted by the execution, if any.
-	pub new_validation_code: Option<ValidationCode>,
-	/// The number of messages processed from the DMQ.
-	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
-	pub hrmp_watermark: BlockNumber,
-}
-
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
@@ -367,8 +351,6 @@ pub struct CandidateCommitments<N = BlockNumber> {
 	pub upward_messages: Vec<UpwardMessage>,
 	/// Horizontal messages sent by the parachain.
 	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
-	/// The root of a block's erasure encoding Merkle tree.
-	pub erasure_root: Hash,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
@@ -761,7 +743,7 @@ sp_api::decl_runtime_apis! {
 			-> Option<PersistedValidationData<N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
-		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
+		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 
 		/// Returns the session index expected at a child of the block.
 		///

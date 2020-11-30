@@ -276,7 +276,7 @@ mod tests {
 			fn check_validation_outputs(
 				&self,
 				para_id: ParaId,
-				_commitments: polkadot_primitives::v1::ValidationOutputs,
+				_commitments: polkadot_primitives::v1::CandidateCommitments,
 			) -> bool {
 				self.validation_outputs_results
 					.get(&para_id)
@@ -498,7 +498,7 @@ mod tests {
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
-		let commitments = polkadot_primitives::v1::ValidationOutputs::default();
+		let commitments = polkadot_primitives::v1::CandidateCommitments::default();
 
 		runtime_api.validation_outputs_results.insert(para_a, false);
 		runtime_api.validation_outputs_results.insert(para_b, true);
