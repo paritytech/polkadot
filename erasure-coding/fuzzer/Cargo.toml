@@ -1,7 +1,7 @@
 [package]
 name = "erasure_coding_fuzzer"
 version = "0.1.0"
-authors = ["Vincent Ulitzsch <vincent@srlabs.de>"]
+authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
