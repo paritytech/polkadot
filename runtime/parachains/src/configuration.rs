@@ -658,6 +658,9 @@ mod tests {
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
 			).unwrap();
+			Configuration::set_max_validators_per_core(
+				Origin::root(), new_config.max_validators_per_core,
+			).unwrap();
 			Configuration::set_dispute_period(
 				Origin::root(), new_config.dispute_period,
 			).unwrap();
