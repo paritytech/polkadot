@@ -26,97 +26,29 @@ use futures::{
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::{
-		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
-		ProvisionerMessage, RuntimeApiMessage,
-	},
+	messages::{ChainApiMessage, ProvisionableData, ProvisionerInherentData, ProvisionerMessage, AllMessages},
 };
 use polkadot_node_subsystem_util::{
-	self as util,
-	delegated_subsystem, FromJobCommand,
-	request_availability_cores, request_persisted_validation_data, JobTrait, ToJobTrait,
-	metrics::{self, prometheus},
+	self as util, delegated_subsystem, FromJobCommand,
+	request_availability_cores, request_persisted_validation_data, JobTrait, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{convert::TryFrom, pin::Pin};
-use std::collections::BTreeMap;
+use std::{pin::Pin, collections::BTreeMap};
 use thiserror::Error;
 
 const LOG_TARGET: &str = "provisioner";
 
 struct ProvisioningJob {
 	relay_parent: Hash,
-	sender: mpsc::Sender<FromJob>,
-	receiver: mpsc::Receiver<ToJob>,
+	sender: mpsc::Sender<FromJobCommand>,
+	receiver: mpsc::Receiver<ProvisionerMessage>,
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
-}
-
-/// This enum defines the messages that the provisioner is prepared to receive.
-pub enum ToJob {
-	/// The provisioner message is the main input to the provisioner.
-	Provisioner(ProvisionerMessage),
-	/// This message indicates that the provisioner should shut itself down.
-	Stop,
-}
-
-impl ToJobTrait for ToJob {
-	const STOP: Self = Self::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::Provisioner(pm) => pm.relay_parent(),
-			Self::Stop => None,
-		}
-	}
-}
-
-impl TryFrom<AllMessages> for ToJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::Provisioner(pm) => Ok(Self::Provisioner(pm)),
-			_ => Err(()),
-		}
-	}
-}
-
-impl From<ProvisionerMessage> for ToJob {
-	fn from(pm: ProvisionerMessage) -> Self {
-		Self::Provisioner(pm)
-	}
-}
-
-enum FromJob {
-	ChainApi(ChainApiMessage),
-	Runtime(RuntimeApiMessage),
-}
-
-impl From<FromJob> for FromJobCommand {
-	fn from(from_job: FromJob) -> FromJobCommand {
-		FromJobCommand::SendMessage(match from_job {
-			FromJob::ChainApi(cam) => AllMessages::ChainApi(cam),
-			FromJob::Runtime(ram) => AllMessages::RuntimeApi(ram),
-		})
-	}
-}
-
-impl TryFrom<AllMessages> for FromJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::ChainApi(chain) => Ok(FromJob::ChainApi(chain)),
-			AllMessages::RuntimeApi(runtime) => Ok(FromJob::Runtime(runtime)),
-			_ => Err(()),
-		}
-	}
 }
 
 #[derive(Debug, Error)]
@@ -141,8 +73,7 @@ enum Error {
 }
 
 impl JobTrait for ProvisioningJob {
-	type ToJob = ToJob;
-	type FromJob = FromJob;
+	type ToJob = ProvisionerMessage;
 	type Error = Error;
 	type RunArgs = ();
 	type Metrics = Metrics;
@@ -157,8 +88,8 @@ impl JobTrait for ProvisioningJob {
 		relay_parent: Hash,
 		_run_args: Self::RunArgs,
 		metrics: Self::Metrics,
-		receiver: mpsc::Receiver<ToJob>,
-		sender: mpsc::Sender<FromJob>,
+		receiver: mpsc::Receiver<ProvisionerMessage>,
+		sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
 			let job = ProvisioningJob::new(relay_parent, metrics, sender, receiver);
@@ -175,8 +106,8 @@ impl ProvisioningJob {
 	pub fn new(
 		relay_parent: Hash,
 		metrics: Metrics,
-		sender: mpsc::Sender<FromJob>,
-		receiver: mpsc::Receiver<ToJob>,
+		sender: mpsc::Sender<FromJobCommand>,
+		receiver: mpsc::Receiver<ProvisionerMessage>,
 	) -> Self {
 		Self {
 			relay_parent,
@@ -190,13 +121,13 @@ impl ProvisioningJob {
 	}
 
 	async fn run_loop(mut self) -> Result<(), Error> {
-		while let Some(msg) = self.receiver.next().await {
-			use ProvisionerMessage::{
-				ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
-			};
+		use ProvisionerMessage::{
+			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
+		};
 
-			match msg {
-				ToJob::Provisioner(RequestInherentData(_, return_sender)) => {
+		loop {
+			match self.receiver.next().await  {
+				Some(RequestInherentData(_, return_sender)) => {
 					let _timer = self.metrics.time_request_inherent_data();
 
 					if let Err(err) = send_inherent_data(
@@ -214,10 +145,10 @@ impl ProvisioningJob {
 						self.metrics.on_inherent_data_request(Ok(()));
 					}
 				}
-				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
+				Some(RequestBlockAuthorshipData(_, sender)) => {
 					self.provisionable_data_channels.push(sender)
 				}
-				ToJob::Provisioner(ProvisionableData(_, data)) => {
+				Some(ProvisionableData(_, data)) => {
 					let _timer = self.metrics.time_provisionable_data();
 
 					let mut bad_indices = Vec::new();
@@ -252,7 +183,7 @@ impl ProvisioningJob {
 						.map(|(_, item)| item)
 						.collect();
 				}
-				ToJob::Stop => break,
+				None => break,
 			}
 		}
 
@@ -298,7 +229,7 @@ async fn send_inherent_data(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
-	mut from_job: mpsc::Sender<FromJob>,
+	mut from_job: mpsc::Sender<FromJobCommand>,
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
 		.await?
@@ -368,7 +299,7 @@ async fn select_candidates(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
 	relay_parent: Hash,
-	sender: &mut mpsc::Sender<FromJob>,
+	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
@@ -432,14 +363,14 @@ async fn select_candidates(
 #[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
-	sender: &mut mpsc::Sender<FromJob>,
+	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<BlockNumber, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send(FromJob::ChainApi(ChainApiMessage::BlockNumber(
+		.send(AllMessages::from(ChainApiMessage::BlockNumber(
 			relay_parent,
 			tx,
-		)))
+		)).into())
 		.await
 		.map_err(|e| Error::ChainApiMessageSend(e))?;
 	match rx.await? {
@@ -558,7 +489,7 @@ impl metrics::Metrics for Metrics {
 }
 
 
-delegated_subsystem!(ProvisioningJob((), Metrics) <- ToJob as ProvisioningSubsystem);
+delegated_subsystem!(ProvisioningJob((), Metrics) <- ProvisionerMessage as ProvisioningSubsystem);
 
 #[cfg(test)]
 mod tests;

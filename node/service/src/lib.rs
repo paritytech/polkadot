@@ -406,6 +406,7 @@ where
 		runtime_api: RuntimeApiSubsystem::new(
 			runtime_client,
 			Metrics::register(registry)?,
+			spawner.clone(),
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
 			Metrics::register(registry)?,

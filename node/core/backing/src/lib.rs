@@ -40,8 +40,7 @@ use polkadot_subsystem::{
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
-		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
-		RuntimeApiRequest,
+		ProvisionerMessage, StatementDistributionMessage, ValidationFailed, RuntimeApiRequest,
 	},
 };
 use polkadot_node_subsystem_util::{
@@ -111,9 +110,9 @@ struct CandidateBackingJob {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// Inbound message channel receiving part.
-	rx_to: mpsc::Receiver<ToJob>,
+	rx_to: mpsc::Receiver<CandidateBackingMessage>,
 	/// Outbound message channel sending part.
-	tx_from: mpsc::Sender<FromJob>,
+	tx_from: mpsc::Sender<FromJobCommand>,
 	/// The `ParaId` assigned to this validator
 	assignment: ParaId,
 	/// The collator required to author the candidate, if any.
@@ -170,87 +169,6 @@ impl TableContextTrait for TableContext {
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
 		self.groups.get(group).map_or(usize::max_value(), |g| group_quorum(g.len()))
-	}
-}
-
-/// A message type that is sent from `CandidateBackingSubsystem` to `CandidateBackingJob`.
-pub enum ToJob {
-	/// A `CandidateBackingMessage`.
-	CandidateBacking(CandidateBackingMessage),
-	/// Stop working.
-	Stop,
-}
-
-impl TryFrom<AllMessages> for ToJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::CandidateBacking(msg) => Ok(ToJob::CandidateBacking(msg)),
-			_ => Err(()),
-		}
-	}
-}
-
-impl From<CandidateBackingMessage> for ToJob {
-	fn from(msg: CandidateBackingMessage) -> Self {
-		Self::CandidateBacking(msg)
-	}
-}
-
-impl util::ToJobTrait for ToJob {
-	const STOP: Self = ToJob::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::CandidateBacking(cb) => cb.relay_parent(),
-			Self::Stop => None,
-		}
-	}
-}
-
-/// A message type that is sent from `CandidateBackingJob` to `CandidateBackingSubsystem`.
-enum FromJob {
-	AvailabilityStore(AvailabilityStoreMessage),
-	RuntimeApiMessage(RuntimeApiMessage),
-	CandidateValidation(CandidateValidationMessage),
-	CandidateSelection(CandidateSelectionMessage),
-	Provisioner(ProvisionerMessage),
-	PoVDistribution(PoVDistributionMessage),
-	StatementDistribution(StatementDistributionMessage),
-	Spawn(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
-}
-
-impl From<FromJob> for FromJobCommand {
-	fn from(f: FromJob) -> FromJobCommand {
-		let send_msg = |msg| FromJobCommand::SendMessage(msg);
-		match f {
-			FromJob::AvailabilityStore(msg) => send_msg(AllMessages::AvailabilityStore(msg)),
-			FromJob::RuntimeApiMessage(msg) => send_msg(AllMessages::RuntimeApi(msg)),
-			FromJob::CandidateValidation(msg) => send_msg(AllMessages::CandidateValidation(msg)),
-			FromJob::CandidateSelection(msg) => send_msg(AllMessages::CandidateSelection(msg)),
-			FromJob::StatementDistribution(msg) => send_msg(AllMessages::StatementDistribution(msg)),
-			FromJob::PoVDistribution(msg) => send_msg(AllMessages::PoVDistribution(msg)),
-			FromJob::Provisioner(msg) => send_msg(AllMessages::Provisioner(msg)),
-			FromJob::Spawn(name, task) => FromJobCommand::Spawn(name, task),
-		}
-	}
-}
-
-impl TryFrom<AllMessages> for FromJob {
-	type Error = &'static str;
-
-	fn try_from(f: AllMessages) -> Result<Self, Self::Error> {
-		match f {
-			AllMessages::AvailabilityStore(msg) => Ok(FromJob::AvailabilityStore(msg)),
-			AllMessages::RuntimeApi(msg) => Ok(FromJob::RuntimeApiMessage(msg)),
-			AllMessages::CandidateValidation(msg) => Ok(FromJob::CandidateValidation(msg)),
-			AllMessages::CandidateSelection(msg) => Ok(FromJob::CandidateSelection(msg)),
-			AllMessages::StatementDistribution(msg) => Ok(FromJob::StatementDistribution(msg)),
-			AllMessages::PoVDistribution(msg) => Ok(FromJob::PoVDistribution(msg)),
-			AllMessages::Provisioner(msg) => Ok(FromJob::Provisioner(msg)),
-			_ => Err("can't convert this AllMessages variant to FromJob"),
-		}
 	}
 }
 
@@ -324,14 +242,14 @@ fn table_attested_to_backed(
 }
 
 async fn store_available_data(
-	tx_from: &mut mpsc::Sender<FromJob>,
+	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	id: Option<ValidatorIndex>,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
-	tx_from.send(FromJob::AvailabilityStore(
+	tx_from.send(AllMessages::AvailabilityStore(
 			AvailabilityStoreMessage::StoreAvailableData(
 				candidate_hash,
 				id,
@@ -339,7 +257,7 @@ async fn store_available_data(
 				available_data,
 				tx,
 			)
-		)
+		).into()
 	).await?;
 
 	let _ = rx.await?;
@@ -353,7 +271,7 @@ async fn store_available_data(
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
 #[tracing::instrument(level = "trace", skip(tx_from, pov), fields(subsystem = LOG_TARGET))]
 async fn make_pov_available(
-	tx_from: &mut mpsc::Sender<FromJob>,
+	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
 	pov: Arc<PoV>,
@@ -390,33 +308,33 @@ async fn make_pov_available(
 }
 
 async fn request_pov_from_distribution(
-	tx_from: &mut mpsc::Sender<FromJob>,
+	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	parent: Hash,
 	descriptor: CandidateDescriptor,
 ) -> Result<Arc<PoV>, Error> {
 	let (tx, rx) = oneshot::channel();
 
-	tx_from.send(FromJob::PoVDistribution(
+	tx_from.send(AllMessages::PoVDistribution(
 		PoVDistributionMessage::FetchPoV(parent, descriptor, tx)
-	)).await?;
+	).into()).await?;
 
 	Ok(rx.await?)
 }
 
 async fn request_candidate_validation(
-	tx_from: &mut mpsc::Sender<FromJob>,
+	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	candidate: CandidateDescriptor,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
-	tx_from.send(FromJob::CandidateValidation(
+	tx_from.send(AllMessages::CandidateValidation(
 			CandidateValidationMessage::ValidateFromChainState(
 				candidate,
 				pov,
 				tx,
 			)
-		)
+		).into()
 	).await?;
 
 	Ok(rx.await??)
@@ -425,7 +343,7 @@ async fn request_candidate_validation(
 type BackgroundValidationResult = Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
 
 struct BackgroundValidationParams<F> {
-	tx_from: mpsc::Sender<FromJob>,
+	tx_from: mpsc::Sender<FromJobCommand>,
 	tx_command: mpsc::Sender<ValidatedCandidateCommand>,
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
@@ -507,8 +425,8 @@ impl CandidateBackingJob {
 					}
 				}
 				to_job = self.rx_to.next() => match to_job {
-					None | Some(ToJob::Stop) => break,
-					Some(ToJob::CandidateBacking(msg)) => {
+					None => break,
+					Some(msg) => {
 						self.process_msg(msg).await?;
 					}
 				}
@@ -583,7 +501,7 @@ impl CandidateBackingJob {
 					tracing::error!("Failed to validate and make available: {:?}", e);
 				}
 			};
-			self.tx_from.send(FromJob::Spawn("Backing Validation", bg.boxed())).await?;
+			self.tx_from.send(FromJobCommand::Spawn("Backing Validation", bg.boxed())).await?;
 		}
 
 		Ok(())
@@ -593,9 +511,7 @@ impl CandidateBackingJob {
 		&mut self,
 		candidate: CandidateReceipt,
 	) -> Result<(), Error> {
-		self.tx_from.send(FromJob::CandidateSelection(
-			CandidateSelectionMessage::Invalid(self.parent, candidate)
-		)).await?;
+		self.tx_from.send(AllMessages::from(CandidateSelectionMessage::Invalid(self.parent, candidate)).into()).await?;
 
 		Ok(())
 	}
@@ -859,7 +775,7 @@ impl CandidateBackingJob {
 	}
 
 	async fn send_to_provisioner(&mut self, msg: ProvisionerMessage) -> Result<(), Error> {
-		self.tx_from.send(FromJob::Provisioner(msg)).await?;
+		self.tx_from.send(AllMessages::from(msg).into()).await?;
 
 		Ok(())
 	}
@@ -869,23 +785,22 @@ impl CandidateBackingJob {
 		descriptor: CandidateDescriptor,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
-		self.tx_from.send(FromJob::PoVDistribution(
+		self.tx_from.send(AllMessages::from(
 			PoVDistributionMessage::DistributePoV(self.parent, descriptor, pov),
-		)).await.map_err(Into::into)
+		).into()).await.map_err(Into::into)
 	}
 
 	async fn distribute_signed_statement(&mut self, s: SignedFullStatement) -> Result<(), Error> {
 		let smsg = StatementDistributionMessage::Share(self.parent, s);
 
-		self.tx_from.send(FromJob::StatementDistribution(smsg)).await?;
+		self.tx_from.send(AllMessages::from(smsg).into()).await?;
 
 		Ok(())
 	}
 }
 
 impl util::JobTrait for CandidateBackingJob {
-	type ToJob = ToJob;
-	type FromJob = FromJob;
+	type ToJob = CandidateBackingMessage;
 	type Error = Error;
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
@@ -898,7 +813,7 @@ impl util::JobTrait for CandidateBackingJob {
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
-		mut tx_from: mpsc::Sender<Self::FromJob>,
+		mut tx_from: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
 			macro_rules! try_runtime_api {
@@ -1104,7 +1019,7 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-delegated_subsystem!(CandidateBackingJob(SyncCryptoStorePtr, Metrics) <- ToJob as CandidateBackingSubsystem);
+delegated_subsystem!(CandidateBackingJob(SyncCryptoStorePtr, Metrics) <- CandidateBackingMessage as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {
@@ -1116,7 +1031,7 @@ mod tests {
 		TransientValidationData, HeadData, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
-		messages::RuntimeApiRequest,
+		messages::{RuntimeApiRequest, RuntimeApiMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
 	use polkadot_node_primitives::InvalidCandidate;
