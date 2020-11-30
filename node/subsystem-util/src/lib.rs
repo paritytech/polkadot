@@ -56,6 +56,7 @@ use std::{
 	pin::Pin,
 	task::{Poll, Context},
 	time::Duration,
+	fmt,
 };
 use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
@@ -117,18 +118,11 @@ pub async fn request_from_runtime<RequestBuilder, Response, FromJob>(
 ) -> Result<RuntimeApiReceiver<Response>, Error>
 where
 	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+	FromJob: From<AllMessages>,
 {
 	let (tx, rx) = oneshot::channel();
 
-	sender
-		.send(
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
-				.try_into()
-				.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
-		)
-		.await?;
+	sender.send(AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx))).into()).await?;
 
 	Ok(rx)
 }
@@ -157,8 +151,7 @@ macro_rules! specialize_requests {
 			sender: &mut mpsc::Sender<FromJob>,
 		) -> Result<RuntimeApiReceiver<$return_ty>, Error>
 		where
-			FromJob: TryFrom<AllMessages>,
-			<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+			FromJob: From<AllMessages>,
 		{
 			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
@@ -308,8 +301,7 @@ impl Validator {
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
-		FromJob: TryFrom<AllMessages>,
-		<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+		FromJob: From<AllMessages>,
 	{
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
@@ -458,6 +450,22 @@ pub enum FromJobCommand {
 	SpawnBlocking(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
 }
 
+impl fmt::Debug for FromJobCommand {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			Self::SendMessage(msg) => write!(fmt, "FromJobCommand::SendMessage({:?})", msg),
+			Self::Spawn(name, _) => write!(fmt, "FromJobCommand::Spawn({})", name),
+			Self::SpawnBlocking(name, _) => write!(fmt, "FromJobCommand::SpawnBlocking({})", name),
+		}
+	}
+}
+
+impl From<AllMessages> for FromJobCommand {
+	fn from(msg: AllMessages) -> Self {
+		Self::SendMessage(msg)
+	}
+}
+
 /// This trait governs jobs.
 ///
 /// Jobs are instantiated and killed automatically on appropriate overseer messages.
@@ -465,8 +473,6 @@ pub enum FromJobCommand {
 pub trait JobTrait: Unpin {
 	/// Message type used to send messages to the job.
 	type ToJob: 'static + BoundToRelayParent + Send;
-	/// Message type from the job. Typically a subset of AllMessages.
-	type FromJob: 'static + Into<FromJobCommand> + Send;
 	/// Job runtime error.
 	type Error: 'static + std::error::Error + Send;
 	/// Extra arguments this job needs to run properly.
@@ -491,7 +497,7 @@ pub trait JobTrait: Unpin {
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
-		sender: mpsc::Sender<Self::FromJob>,
+		sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
 
@@ -519,7 +525,7 @@ pub enum JobsError<JobError: 'static + std::error::Error> {
 pub struct Jobs<Spawner, Job: JobTrait> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<Job::ToJob>>,
-	outgoing_msgs: StreamUnordered<mpsc::Receiver<Job::FromJob>>,
+	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJobCommand>>,
 	#[pin]
 	job: std::marker::PhantomData<Job>,
 	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
@@ -616,7 +622,7 @@ where
 	Spawner: SpawnNamed,
 	Job: JobTrait,
 {
-	type Item = Job::FromJob;
+	type Item = FromJobCommand;
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
 		loop {
@@ -819,11 +825,10 @@ where
 
 	// handle a command from a job.
 	async fn handle_from_job(
-		outgoing: Option<Job::FromJob>,
+		outgoing: Option<FromJobCommand>,
 		ctx: &mut Context,
 	) -> SubsystemResult<()> {
-		let cmd: FromJobCommand = outgoing.expect("the Jobs stream never ends; qed").into();
-		match cmd {
+		match outgoing.expect("the Jobs stream never ends; qed") {
 			FromJobCommand::SendMessage(msg) => ctx.send_message(msg).await,
 			FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await?,
 			FromJobCommand::SpawnBlocking(name, task) => ctx.spawn_blocking(name, task).await?,
@@ -997,15 +1002,10 @@ mod tests {
 		SpawnedSubsystem,
 	};
 	use assert_matches::assert_matches;
-	use futures::{
-		channel::mpsc,
-		executor,
-		stream::{self, StreamExt},
-		future, Future, FutureExt, SinkExt,
-	};
+	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-	use std::{collections::HashMap, pin::Pin, time::Duration};
+	use std::{pin::Pin, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 	// you can leave the subsystem itself to the job manager.
@@ -1019,27 +1019,6 @@ mod tests {
 		receiver: mpsc::Receiver<CandidateSelectionMessage>,
 	}
 
-	// FromJob must be infallibly convertable into FromJobCommand.
-	//
-	// It exists to be a type-safe subset of FromJobCommand that this job is specified to send.
-	//
-	// Note: the Clone impl here is not generally required; it's just ueful for this test context because
-	// we include it in the RunArgs
-	#[derive(Clone)]
-	enum FromJob {
-		Test,
-	}
-
-	impl From<FromJob> for FromJobCommand {
-		fn from(from_job: FromJob) -> FromJobCommand {
-			match from_job {
-				FromJob::Test => FromJobCommand::SendMessage(
-					AllMessages::CandidateSelection(CandidateSelectionMessage::default())
-				),
-			}
-		}
-	}
-
 	// Error will mostly be a wrapper to make the try operator more convenient;
 	// deriving From implementations for most variants is recommended.
 	// It must implement Debug for logging.
@@ -1051,16 +1030,8 @@ mod tests {
 
 	impl JobTrait for FakeCandidateSelectionJob {
 		type ToJob = CandidateSelectionMessage;
-		type FromJob = FromJob;
 		type Error = Error;
-		// RunArgs can be anything that a particular job needs supplied from its external context
-		// in order to create the Job. In this case, they're a hashmap of parents to the mock outputs
-		// expected from that job.
-		//
-		// Note that it's not recommended to use something as heavy as a hashmap in production: the
-		// RunArgs get cloned so that each job gets its own owned copy. If you need that, wrap it in
-		// an Arc. Within a testing context, that efficiency is less important.
-		type RunArgs = HashMap<Hash, Vec<FromJob>>;
+		type RunArgs = bool;
 		type Metrics = ();
 
 		const NAME: &'static str = "FakeCandidateSelectionJob";
@@ -1069,21 +1040,23 @@ mod tests {
 		//
 		// this function is in charge of creating and executing the job's main loop
 		fn run(
-			parent: Hash,
-			mut run_args: Self::RunArgs,
+			_: Hash,
+			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<CandidateSelectionMessage>,
-			mut sender: mpsc::Sender<FromJob>,
+			mut sender: mpsc::Sender<FromJobCommand>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 			async move {
 				let job = FakeCandidateSelectionJob { receiver };
 
-				// most jobs will have a request-response cycle at the heart of their run loop.
-				// however, in this case, we never receive valid messages, so we may as well
-				// just send all of our (mock) output messages now
-				let mock_output = run_args.remove(&parent).unwrap_or_default();
-				let mut stream = stream::iter(mock_output.into_iter().map(Ok));
-				sender.send_all(&mut stream).await?;
+				if run_args {
+					sender.send(FromJobCommand::SendMessage(
+						CandidateSelectionMessage::Invalid(
+							Default::default(),
+							Default::default(),
+						).into(),
+					)).await?;
+				}
 
 				// it isn't necessary to break run_loop into its own function,
 				// but it's convenient to separate the concerns in this way
@@ -1116,7 +1089,7 @@ mod tests {
 	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
 
 	fn test_harness<T: Future<Output = ()>>(
-		run_args: HashMap<Hash, Vec<FromJob>>,
+		run_args: bool,
 		test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T,
 	) {
 		let _ = env_logger::builder()
@@ -1147,13 +1120,8 @@ mod tests {
 	#[test]
 	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
-		let mut run_args = HashMap::new();
-		let _ = run_args.insert(
-			relay_parent.clone(),
-			vec![FromJob::Test],
-		);
 
-		test_harness(run_args, |mut overseer_handle, err_rx| async move {
+		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate::start_work(relay_parent),
@@ -1181,13 +1149,8 @@ mod tests {
 	#[test]
 	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 		let relay_parent = Hash::repeat_byte(0x01);
-		let mut run_args = HashMap::new();
-		let _ = run_args.insert(
-			relay_parent.clone(),
-			vec![FromJob::Test],
-		);
 
-		test_harness(run_args, |mut overseer_handle, err_rx| async move {
+		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate::start_work(relay_parent),
@@ -1222,7 +1185,7 @@ mod tests {
 		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
 
 		let SpawnedSubsystem { name, .. } =
-			FakeCandidateSelectionSubsystem::new(pool, HashMap::new(), ()).start(context);
+			FakeCandidateSelectionSubsystem::new(pool, false, ()).start(context);
 		assert_eq!(name, "FakeCandidateSelection");
 	}
 }
