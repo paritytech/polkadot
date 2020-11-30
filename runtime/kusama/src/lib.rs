@@ -903,7 +903,7 @@ impl frame_support::traits::OnRuntimeUpgrade for SchedulerRuntimeUpgrade {
 pub struct PhragmenElectionDepositRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for PhragmenElectionDepositRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_elections_phragmen::migrations::migrate_to_3_0_0::<Runtime>(5 * CENTS, DOLLARS)
+		pallet_elections_phragmen::migrations_3_0_0::apply::<Runtime>(5 * CENTS, DOLLARS)
 	}
 }
 
