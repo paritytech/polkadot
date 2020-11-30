@@ -273,8 +273,17 @@ impl<T: Config> Module<T> {
 
 			shuffled_indices.shuffle(&mut rng);
 
-			let group_base_size = validators.len() / n_cores as usize;
-			let n_larger_groups = validators.len() % n_cores as usize;
+			// trim to max per cores. do this after shuffling.
+			{
+				if let Some(max_per_core) = config.max_validators_per_core {
+					let max_total = max_per_core * n_cores;
+					shuffled_indices.truncate(max_total as usize);
+				}
+			}
+
+			let group_base_size = shuffled_indices.len() / n_cores as usize;
+			let n_larger_groups = shuffled_indices.len() % n_cores as usize;
+
 			let groups: Vec<Vec<_>> = (0..n_cores).map(|core_id| {
 				let n_members = if (core_id as usize) < n_larger_groups {
 					group_base_size + 1
@@ -1050,6 +1059,68 @@ mod tests {
 			}
 
 			for i in 2..5 {
+				assert_eq!(groups[i].len(), 1);
+			}
+		});
+	}
+
+	#[test]
+	fn session_change_takes_only_max_per_core() {
+		let config = {
+			let mut config = default_config();
+			config.parathread_cores = 0;
+			config.max_validators_per_core = Some(1);
+			config
+		};
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			let chain_a = ParaId::from(1);
+			let chain_b = ParaId::from(2);
+
+			// ensure that we have 5 groups by registering 2 parachains.
+			Paras::schedule_para_initialize(chain_a, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: true,
+			});
+			Paras::schedule_para_initialize(chain_b, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: true,
+			});
+
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+						ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+						ValidatorId::from(Sr25519Keyring::One.public()),
+					],
+					random_seed: [99; 32],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			let groups = ValidatorGroups::get();
+			assert_eq!(groups.len(), 2);
+
+			// Even though there are 7 validators, only 1 validator per group
+			// due to the max.
+			for i in 0..2 {
 				assert_eq!(groups[i].len(), 1);
 			}
 		});

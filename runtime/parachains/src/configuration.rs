@@ -61,6 +61,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
+	/// The maximum number of validators to have per core. `None` means no maximum.
+	pub max_validators_per_core: Option<u32>,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 	/// The amount of consensus slots that must pass between submitting an assignment and
@@ -267,6 +269,16 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.scheduling_lookahead, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the maximum number of validators to assign to any core.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_validators_per_core(origin, new: Option<u32>) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_validators_per_core, new) != new
 			});
 			Ok(())
 		}
@@ -582,6 +594,7 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
+				max_validators_per_core: None,
 				dispute_period: 239,
 				no_show_slots: 240,
 				n_delay_tranches: 241,
@@ -644,6 +657,9 @@ mod tests {
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
+			).unwrap();
+			Configuration::set_max_validators_per_core(
+				Origin::root(), new_config.max_validators_per_core,
 			).unwrap();
 			Configuration::set_dispute_period(
 				Origin::root(), new_config.dispute_period,
