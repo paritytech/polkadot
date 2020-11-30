@@ -23,6 +23,7 @@ use primitives::v1::{Balance, ValidatorId, SessionIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	ensure,
+	storage::migration,
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 };
@@ -135,7 +136,7 @@ pub trait Trait: frame_system::Trait { }
 decl_storage! {
 	trait Store for Module<T: Trait> as Configuration {
 		/// The active configuration for the current session.
-		Config get(fn config) config(): HostConfiguration<T::BlockNumber>;
+		ActiveConfig get(fn config) config(): HostConfiguration<T::BlockNumber>;
 		/// Pending configuration (if any) for the next session.
 		PendingConfig: Option<HostConfiguration<T::BlockNumber>>;
 	}
@@ -149,6 +150,20 @@ decl_module! {
 	/// The parachains configuration module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
+
+		fn on_runtime_upgrade() -> Weight {
+			let value = migration::take_storage_value::<HostConfiguration<T::BlockNumber>>(
+				b"Configuration",
+				b"Config",
+				b"",
+			);
+
+			if let Some(value) = value {
+				ActiveConfig::<T>::put(value)
+			}
+
+			0
+		}
 
 		/// Set the validation upgrade frequency.
 		#[weight = (1_000, DispatchClass::Operational)]
@@ -518,7 +533,7 @@ impl<T: Trait> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
 		if let Some(pending) = <Self as Store>::PendingConfig::take() {
-			<Self as Store>::Config::set(pending);
+			<Self as Store>::ActiveConfig::set(pending);
 		}
 	}
 
@@ -537,9 +552,9 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Initializer, Configuration, Origin};
+	use crate::mock::{new_test_ext, Initializer, Configuration, Origin, Test};
 
-	use frame_support::traits::{OnFinalize, OnInitialize};
+	use frame_support::traits::{OnFinalize, OnInitialize, OnRuntimeUpgrade};
 
 	#[test]
 	fn config_changes_on_session_boundary() {
@@ -742,6 +757,27 @@ mod tests {
 		new_test_ext(Default::default()).execute_with(|| {
 			Configuration::set_validation_upgrade_delay(Origin::root(), Default::default()).unwrap();
 			assert!(<Configuration as Store>::PendingConfig::get().is_none())
+		});
+	}
+
+	#[test]
+	fn test_migration_config_to_active_config() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let mut config: HostConfiguration<<Test as frame_system::Trait>::BlockNumber>
+				= Default::default();
+			config.max_code_size = 99;
+
+			migration::put_storage_value(b"Configuration", b"Config", b"", &config);
+
+			Configuration::on_runtime_upgrade();
+
+			assert_eq!(ActiveConfig::<Test>::get(), config);
+			assert_eq!(migration::have_storage_value(b"Configuration", b"Config", b""), false);
+
+			Configuration::on_runtime_upgrade();
+
+			assert_eq!(ActiveConfig::<Test>::get(), config);
+			assert_eq!(migration::have_storage_value(b"Configuration", b"Config", b""), false);
 		});
 	}
 }
