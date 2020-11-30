@@ -394,13 +394,10 @@ impl Validator {
 
 /// ToJob is expected to be an enum declaring the set of messages of interest to a particular job.
 ///
-/// Normally, this will be some subset of `Allmessages`, and a `Stop` variant.
+/// Normally, this will be some subset of `Allmessages`.
 pub trait ToJobTrait: TryFrom<AllMessages> {
-	/// The `Stop` variant of the ToJob enum.
-	const STOP: Self;
-
-	/// If the message variant contains its relay parent, return it here
-	fn relay_parent(&self) -> Option<Hash>;
+	/// Get the relay parent this message is assigned to.
+	fn relay_parent(&self) -> Hash;
 }
 
 struct AbortOnDrop(future::AbortHandle);
@@ -415,29 +412,12 @@ impl Drop for AbortOnDrop {
 struct JobHandle<ToJob> {
 	_abort_handle: AbortOnDrop,
 	to_job: mpsc::Sender<ToJob>,
-	finished: oneshot::Receiver<()>,
 }
 
 impl<ToJob> JobHandle<ToJob> {
 	/// Send a message to the job.
 	async fn send_msg(&mut self, msg: ToJob) -> Result<(), Error> {
 		self.to_job.send(msg).await.map_err(Into::into)
-	}
-}
-
-impl<ToJob: ToJobTrait> JobHandle<ToJob> {
-	/// Stop this job gracefully.
-	///
-	/// If it hasn't shut itself down after `JOB_GRACEFUL_STOP_DURATION`, abort it.
-	async fn stop(mut self) {
-		// we don't actually care if the message couldn't be sent
-		if self.to_job.send(ToJob::STOP).await.is_err() {
-			return;
-		}
-
-		let stop_timer = Delay::new(JOB_GRACEFUL_STOP_DURATION);
-
-		future::select(stop_timer, self.finished).await;
 	}
 }
 
@@ -512,7 +492,9 @@ pub trait JobTrait: Unpin {
 	/// Name of the job, i.e. `CandidateBackingJob`
 	const NAME: &'static str;
 
-	/// Run a job for the parent block indicated
+	/// Run a job for the given relay `parent`.
+	///
+	/// The job should be ended when `receiver` returns `None`.
 	fn run(
 		parent: Hash,
 		run_args: Self::RunArgs,
@@ -585,7 +567,6 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	fn spawn_job(&mut self, parent_hash: Hash, run_args: Job::RunArgs, metrics: Job::Metrics) -> Result<(), Error> {
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
-		let (finished_tx, finished) = oneshot::channel();
 
 		let err_tx = self.errors.clone();
 
@@ -609,23 +590,13 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 			}
 		});
 
-		let future = async move {
-			// job errors are already handled within the future, meaning
-			// that any errors here are due to the abortable mechanism.
-			// failure to abort isn't of interest.
-			let _ = future.await;
-			// transmission failure here is only possible if the receiver is closed,
-			// which means the handle is dropped, which means we don't care anymore
-			let _ = finished_tx.send(());
-		};
-		self.spawner.spawn(Job::NAME, future.boxed());
+		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
 
 		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle {
 			_abort_handle: AbortOnDrop(abort_handle),
 			to_job: to_job_tx,
-			finished,
 		};
 
 		self.running.insert(parent_hash, handle);
@@ -635,9 +606,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 
 	/// Stop the job associated with this `parent_hash`.
 	pub async fn stop_job(&mut self, parent_hash: Hash) {
-		if let Some(handle) = self.running.remove(&parent_hash) {
-			handle.stop().await;
-		}
+		self.running.remove(&parent_hash);
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
@@ -783,7 +752,7 @@ where
 		}
 	}
 
-	// if we have a channel on which to forward errors, do so
+	/// Forward a given error to the higher context using the given error channel.
 	async fn fwd_err(
 		hash: Option<Hash>,
 		err: JobsError<Job::Error>,
@@ -798,7 +767,9 @@ where
 		}
 	}
 
-	// handle an incoming message. return true if we should break afterwards.
+	/// Handle an incoming message.
+	///
+	/// Returns `true` when this job manager should shutdown.
 	async fn handle_incoming(
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		jobs: &mut Jobs<Spawner, Job>,
@@ -833,44 +804,12 @@ where
 				}
 			}
 			Ok(Signal(Conclude)) => {
-				// Breaking the loop ends fn run, which drops `jobs`, which immediately drops all ongoing work.
-				// We can afford to wait a little while to shut them all down properly before doing that.
-				//
-				// Forwarding the stream to a drain means we wait until all of the items in the stream
-				// have completed. Contrast with `into_future`, which turns it into a future of `(head, rest_stream)`.
-				use futures::sink::drain;
-				use futures::stream::FuturesUnordered;
-				use futures::stream::StreamExt;
-
-				if let Err(e) = jobs
-					.running
-					.drain()
-					.map(|(_, handle)| handle.stop())
-					.collect::<FuturesUnordered<_>>()
-					.map(Ok)
-					.forward(drain())
-					.await
-				{
-					tracing::error!(
-						job = Job::NAME,
-						err = ?e,
-						"failed to stop a job on conclude signal",
-					);
-					let e = Error::from(e);
-					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
-				}
-
+				jobs.running.clear();
 				return true;
 			}
 			Ok(Communication { msg }) => {
 				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
-					match to_job.relay_parent() {
-						Some(hash) => jobs.send_msg(hash, to_job).await,
-						None => tracing::debug!(
-							job = Job::NAME,
-							"trying to send a message to a job without specifying a relay parent",
-						),
-					}
+					jobs.send_msg(to_job.relay_parent(), to_job).await;
 				}
 			}
 			Ok(Signal(BlockFinalized(_))) => {}
@@ -1100,16 +1039,12 @@ mod tests {
 	// Mostly, they are just a type-safe subset of AllMessages that this job is prepared to receive
 	enum ToJob {
 		CandidateSelection(CandidateSelectionMessage),
-		Stop,
 	}
 
 	impl ToJobTrait for ToJob {
-		const STOP: Self = ToJob::Stop;
-
-		fn relay_parent(&self) -> Option<Hash> {
+		fn relay_parent(&self) -> Hash {
 			match self {
 				Self::CandidateSelection(csm) => csm.relay_parent(),
-				Self::Stop => None,
 			}
 		}
 	}
@@ -1207,12 +1142,12 @@ mod tests {
 
 	impl FakeCandidateSelectionJob {
 		async fn run_loop(mut self) -> Result<(), Error> {
-			while let Some(msg) = self.receiver.next().await {
-				match msg {
-					ToJob::CandidateSelection(_csm) => {
+			loop {
+				match self.receiver.next().await {
+					Some(ToJob::CandidateSelection(_csm)) => {
 						unimplemented!("we'd report the collator to the peer set manager here, but that's not implemented yet");
 					}
-					ToJob::Stop => break,
+					None => break,
 				}
 			}
 

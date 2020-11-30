@@ -57,11 +57,11 @@ pub enum CandidateSelectionMessage {
 }
 
 impl CandidateSelectionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
+	/// Returns the relay parent this message is assigned to.
+	pub fn relay_parent(&self) -> Hash {
 		match self {
-			Self::Collation(hash, ..) => Some(*hash),
-			Self::Invalid(hash, _) => Some(*hash),
+			Self::Collation(hash, ..) => *hash,
+			Self::Invalid(hash, _) => *hash,
 		}
 	}
 }
@@ -87,12 +87,12 @@ pub enum CandidateBackingMessage {
 }
 
 impl CandidateBackingMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
+	/// Retuns the relay parent this message is assigned to.
+	pub fn relay_parent(&self) -> Hash {
 		match self {
-			Self::GetBackedCandidates(hash, _) => Some(*hash),
-			Self::Second(hash, _, _) => Some(*hash),
-			Self::Statement(hash, _) => Some(*hash),
+			Self::GetBackedCandidates(hash, _) => *hash,
+			Self::Second(hash, _, _) => *hash,
+			Self::Statement(hash, _) => *hash,
 		}
 	}
 }
@@ -274,9 +274,9 @@ impl BitfieldDistributionMessage {
 pub enum BitfieldSigningMessage {}
 
 impl BitfieldSigningMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		None
+	/// Retuns the relay parent this message is assigned to.
+	pub fn relay_parent(&self) -> Hash {
+		match *self {}
 	}
 }
 
@@ -526,12 +526,12 @@ pub enum ProvisionerMessage {
 }
 
 impl ProvisionerMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
+	/// Returns the relay parent this message is assigned to.
+	pub fn relay_parent(&self) -> Hash {
 		match self {
-			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
-			Self::RequestInherentData(hash, _) => Some(*hash),
-			Self::ProvisionableData(hash, _) => Some(*hash),
+			Self::RequestBlockAuthorshipData(hash, _) => *hash,
+			Self::RequestInherentData(hash, _) => *hash,
+			Self::ProvisionableData(hash, _) => *hash,
 		}
 	}
 }

@@ -49,16 +49,12 @@ pub struct BitfieldSigningJob;
 #[allow(missing_docs)]
 pub enum ToJob {
 	BitfieldSigning(BitfieldSigningMessage),
-	Stop,
 }
 
 impl ToJobTrait for ToJob {
-	const STOP: Self = ToJob::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
+	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::BitfieldSigning(bsm) => bsm.relay_parent(),
-			Self::Stop => None,
 		}
 	}
 }

@@ -155,8 +155,6 @@ impl TableContextTrait for TableContext {
 pub enum ToJob {
 	/// A `CandidateBackingMessage`.
 	CandidateBacking(CandidateBackingMessage),
-	/// Stop working.
-	Stop,
 }
 
 impl TryFrom<AllMessages> for ToJob {
@@ -177,12 +175,9 @@ impl From<CandidateBackingMessage> for ToJob {
 }
 
 impl util::ToJobTrait for ToJob {
-	const STOP: Self = ToJob::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
+	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::CandidateBacking(cb) => cb.relay_parent(),
-			Self::Stop => None,
 		}
 	}
 }
@@ -301,12 +296,12 @@ fn table_attested_to_backed(
 impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(mut self) -> Result<(), Error> {
-		while let Some(msg) = self.rx_to.next().await {
-			match msg {
-				ToJob::CandidateBacking(msg) => {
+		loop {
+			match self.rx_to.next().await  {
+				Some(ToJob::CandidateBacking(msg)) => {
 					self.process_msg(msg).await?;
-				}
-				ToJob::Stop => break,
+				},
+				None => break,
 			}
 		}
 

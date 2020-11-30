@@ -61,17 +61,12 @@ struct ProvisioningJob {
 pub enum ToJob {
 	/// The provisioner message is the main input to the provisioner.
 	Provisioner(ProvisionerMessage),
-	/// This message indicates that the provisioner should shut itself down.
-	Stop,
 }
 
 impl ToJobTrait for ToJob {
-	const STOP: Self = Self::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
+	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::Provisioner(pm) => pm.relay_parent(),
-			Self::Stop => None,
 		}
 	}
 }
@@ -190,13 +185,13 @@ impl ProvisioningJob {
 	}
 
 	async fn run_loop(mut self) -> Result<(), Error> {
-		while let Some(msg) = self.receiver.next().await {
-			use ProvisionerMessage::{
-				ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
-			};
+		use ProvisionerMessage::{
+			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
+		};
 
-			match msg {
-				ToJob::Provisioner(RequestInherentData(_, return_sender)) => {
+		loop {
+			match self.receiver.next().await  {
+				Some(ToJob::Provisioner(RequestInherentData(_, return_sender))) => {
 					let _timer = self.metrics.time_request_inherent_data();
 
 					if let Err(err) = send_inherent_data(
@@ -214,10 +209,10 @@ impl ProvisioningJob {
 						self.metrics.on_inherent_data_request(Ok(()));
 					}
 				}
-				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
+				Some(ToJob::Provisioner(RequestBlockAuthorshipData(_, sender))) => {
 					self.provisionable_data_channels.push(sender)
 				}
-				ToJob::Provisioner(ProvisionableData(_, data)) => {
+				Some(ToJob::Provisioner(ProvisionableData(_, data))) => {
 					let _timer = self.metrics.time_provisionable_data();
 
 					let mut bad_indices = Vec::new();
@@ -252,7 +247,7 @@ impl ProvisioningJob {
 						.map(|(_, item)| item)
 						.collect();
 				}
-				ToJob::Stop => break,
+				None => break,
 			}
 		}
 

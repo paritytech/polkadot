@@ -51,17 +51,12 @@ struct CandidateSelectionJob {
 pub enum ToJob {
 	/// The provisioner message is the main input to the provisioner.
 	CandidateSelection(CandidateSelectionMessage),
-	/// This message indicates that the provisioner should shut itself down.
-	Stop,
 }
 
 impl ToJobTrait for ToJob {
-	const STOP: Self = Self::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
+	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::CandidateSelection(csm) => csm.relay_parent(),
-			Self::Stop => None,
 		}
 	}
 }
@@ -142,13 +137,9 @@ impl JobTrait for CandidateSelectionJob {
 		receiver: mpsc::Receiver<ToJob>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		Box::pin(async move {
-			let job = CandidateSelectionJob::new(metrics, sender, receiver);
-
-			// it isn't necessary to break run_loop into its own function,
-			// but it's convenient to separate the concerns in this way
-			job.run_loop().await
-		})
+		async move {
+			CandidateSelectionJob::new(metrics, sender, receiver).run_loop().await
+		}.boxed()
 	}
 }
 
@@ -166,28 +157,23 @@ impl CandidateSelectionJob {
 		}
 	}
 
-	async fn run_loop(mut self) -> Result<(), Error> {
-		self.run_loop_borrowed().await
-	}
-
-	/// this function exists for testing and should not generally be used; use `run_loop` instead.
-	async fn run_loop_borrowed(&mut self) -> Result<(), Error> {
-		while let Some(msg) = self.receiver.next().await {
-			match msg {
-				ToJob::CandidateSelection(CandidateSelectionMessage::Collation(
+	async fn run_loop(&mut self) -> Result<(), Error> {
+		loop {
+			match self.receiver.next().await  {
+				Some(ToJob::CandidateSelection(CandidateSelectionMessage::Collation(
 					relay_parent,
 					para_id,
 					collator_id,
-				)) => {
+				))) => {
 					self.handle_collation(relay_parent, para_id, collator_id).await;
 				}
-				ToJob::CandidateSelection(CandidateSelectionMessage::Invalid(
+				Some(ToJob::CandidateSelection(CandidateSelectionMessage::Invalid(
 					_,
 					candidate_receipt,
-				)) => {
+				))) => {
 					self.handle_invalid(candidate_receipt).await;
 				}
-				ToJob::Stop => break,
+				None => break,
 			}
 		}
 
@@ -453,7 +439,7 @@ mod tests {
 
 		let (_, job_result) = futures::executor::block_on(future::join(
 			test(to_job_tx, from_job_rx),
-			job.run_loop_borrowed(),
+			job.run_loop(),
 		));
 
 		postconditions(job, job_result);
