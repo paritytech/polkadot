@@ -82,6 +82,7 @@ std = [
 	"pallet-timestamp/std",
 	"pallet-vesting/std",
 	"pallet-transaction-payment/std",
+	"runtime-parachains/std",
 	"xcm/std",
 ]
 runtime-benchmarks = [
