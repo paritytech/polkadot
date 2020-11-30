@@ -40,7 +40,7 @@ use std::{pin::Pin, collections::BTreeMap};
 use thiserror::Error;
 use futures_timer::Delay;
 
-/// How long to wait before proposing,.
+/// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
 
 const LOG_TARGET: &str = "provisioner";
@@ -178,7 +178,6 @@ impl ProvisioningJob {
 						} else {
 							self.awaiting_inherent.push(return_sender);
 						}
-
 					}
 					Some(RequestBlockAuthorshipData(_, sender)) => {
 						self.provisionable_data_channels.push(sender)
@@ -309,8 +308,7 @@ async fn send_inherent_data(
 
 	let res = (bitfields, candidates);
 	for return_sender in return_senders {
-		let _ = return_sender.send(res.clone())
-			.map_err(|_data| Error::InherentDataReturnChannel)?;
+		let _ = return_sender.send(res.clone()).map_err(|_data| Error::InherentDataReturnChannel)?;
 	}
 
 	Ok(())
