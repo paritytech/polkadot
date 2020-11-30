@@ -135,7 +135,7 @@ pub trait Config: frame_system::Config { }
 decl_storage! {
 	trait Store for Module<T: Config> as Configuration {
 		/// The active configuration for the current session.
-		HostConfig get(fn config) config(): HostConfiguration<T::BlockNumber>;
+		ActiveConfig get(fn config) config(): HostConfiguration<T::BlockNumber>;
 		/// Pending configuration (if any) for the next session.
 		PendingConfig: Option<HostConfiguration<T::BlockNumber>>;
 	}
@@ -518,7 +518,7 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
 		if let Some(pending) = <Self as Store>::PendingConfig::take() {
-			<Self as Store>::HostConfig::set(pending);
+			<Self as Store>::ActiveConfig::set(pending);
 		}
 	}
 
