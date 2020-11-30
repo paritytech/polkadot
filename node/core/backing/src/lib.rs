@@ -824,6 +824,13 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
+			tracing::info!(
+				target: LOG_TARGET,
+				relay_parent = ?parent,
+				method = "<CandidateBackingJob as JobTrait>::run",
+				"started async block",
+			);
+
 			let (validators, groups, session_index, cores) = futures::try_join!(
 				request_validators(parent, &mut tx_from).await?,
 				request_validator_groups(parent, &mut tx_from).await?,
@@ -840,6 +847,13 @@ impl util::JobTrait for CandidateBackingJob {
 			let session_index = try_runtime_api!(session_index);
 			let cores = try_runtime_api!(cores);
 
+			tracing::info!(
+				target: LOG_TARGET,
+				relay_parent = ?parent,
+				method = "<CandidateBackingJob as JobTrait>::run",
+				"got runtime data",
+			);
+
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
 				&validators,
@@ -847,7 +861,13 @@ impl util::JobTrait for CandidateBackingJob {
 				keystore.clone(),
 			).await {
 				Ok(v) => v,
-				Err(util::Error::NotAValidator) => { return Ok(()) },
+				Err(util::Error::NotAValidator) => {
+					tracing::info!(
+						target: LOG_TARGET,
+						"not a validator",
+					);
+					return Ok(())
+				},
 				Err(e) => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -860,10 +880,9 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			let mut groups = HashMap::new();
-
 			let n_cores = cores.len();
-
 			let mut assignment = None;
+
 			for (idx, core) in cores.into_iter().enumerate() {
 				// Ignore prospective assignments on occupied cores for the time being.
 				if let CoreState::Scheduled(scheduled) = core {
@@ -878,6 +897,14 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
+			tracing::info!(
+				target: LOG_TARGET,
+				relay_parent = ?parent,
+				method = "<CandidateBackingJob as JobTrait>::run",
+				assignment = ?assignment,
+				"got assignment",
+			);
+
 			let table_context = TableContext {
 				groups,
 				validators,
@@ -889,6 +916,13 @@ impl util::JobTrait for CandidateBackingJob {
 				None => return Ok(()), // no need to work.
 				Some(r) => r,
 			};
+
+			tracing::info!(
+				target: LOG_TARGET,
+				relay_parent = ?parent,
+				method = "<CandidateBackingJob as JobTrait>::run",
+				"starting <CandidateBackingJob::run_loop",
+			);
 
 			let job = CandidateBackingJob {
 				parent,
