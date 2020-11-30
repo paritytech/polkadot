@@ -220,7 +220,7 @@ impl ProvisioningJob {
 					None => break,
 				},
 				_ = self.inherent_after.ready().fuse() => {
-					let return_senders = std::mem::replace(&mut self.awaiting_inherent, Vec::new());
+					let return_senders = std::mem::take(&mut self.awaiting_inherent);
 					if !return_senders.is_empty() {
 						self.send_inherent_data(return_senders).await;
 					}
