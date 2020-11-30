@@ -240,7 +240,7 @@ impl ProvisioningJob {
 			&self.signed_bitfields,
 			&self.backed_candidates,
 			return_senders,
-			self.sender.clone(),
+			&mut self.sender,
 		)
 		.await
 		{
@@ -290,9 +290,9 @@ async fn send_inherent_data(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
-	mut from_job: mpsc::Sender<FromJobCommand>,
+	from_job: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<(), Error> {
-	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
+	let availability_cores = request_availability_cores(relay_parent, from_job)
 		.await?
 		.await??;
 
@@ -302,13 +302,13 @@ async fn send_inherent_data(
 		&bitfields,
 		candidates,
 		relay_parent,
-		&mut from_job,
+		from_job,
 	)
 	.await?;
 
 	let res = (bitfields, candidates);
 	for return_sender in return_senders {
-		let _ = return_sender.send(res.clone()).map_err(|_data| Error::InherentDataReturnChannel)?;
+		return_sender.send(res.clone()).map_err(|_data| Error::InherentDataReturnChannel)?;
 	}
 
 	Ok(())
