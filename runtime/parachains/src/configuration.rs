@@ -151,20 +151,6 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
-		fn on_runtime_upgrade() -> Weight {
-			let value = migration::take_storage_value::<HostConfiguration<T::BlockNumber>>(
-				b"Configuration",
-				b"Config",
-				b"",
-			);
-
-			if let Some(value) = value {
-				ActiveConfig::<T>::put(value)
-			}
-
-			0
-		}
-
 		/// Set the validation upgrade frequency.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_validation_upgrade_frequency(origin, new: T::BlockNumber) -> DispatchResult {
