@@ -23,7 +23,6 @@ use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
-	stream::FuturesUnordered,
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
@@ -37,11 +36,43 @@ use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{pin::Pin, collections::BTreeMap, time::Instant};
+use std::{pin::Pin, collections::BTreeMap};
 use thiserror::Error;
 use futures_timer::Delay;
 
+/// How long to wait before proposing,.
+const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
+
 const LOG_TARGET: &str = "provisioner";
+
+
+enum InherentAfter {
+	Ready,
+	Wait(Delay),
+}
+
+impl InherentAfter {
+	fn new_from_now() -> Self {
+		InherentAfter::Wait(Delay::new(PRE_PROPOSE_TIMEOUT))
+	}
+
+	fn is_ready(&self) -> bool {
+		match *self {
+			InherentAfter::Ready => true,
+			InherentAfter::Wait(_) => false,
+		}
+	}
+
+	async fn ready(&mut self) {
+		match *self {
+			InherentAfter::Ready => {},
+			InherentAfter::Wait(ref mut d) => {
+				d.await;
+				*self = InherentAfter::Ready;
+			},
+		}
+	}
+}
 
 struct ProvisioningJob {
 	relay_parent: Hash,
@@ -51,9 +82,8 @@ struct ProvisioningJob {
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
-	awaiting_inherent: FuturesUnordered<
-		Pin<Box<dyn Future<Output = oneshot::Sender<ProvisionerInherentData>> + Send>>
-	>,
+	inherent_after: InherentAfter,
+	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>
 }
 
 #[derive(Debug, Error)]
@@ -127,7 +157,8 @@ impl ProvisioningJob {
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
 			metrics,
-			awaiting_inherent: FuturesUnordered::new(),
+			inherent_after: InherentAfter::new_from_now(),
+			awaiting_inherent: Vec::new(),
 		}
 	}
 
@@ -139,20 +170,15 @@ impl ProvisioningJob {
 		loop {
 			futures::select! {
 				msg = self.receiver.next().fuse() => match msg {
-					Some(RequestInherentData(_, propose_after, return_sender)) => {
+					Some(RequestInherentData(_, return_sender)) => {
 						let _timer = self.metrics.time_request_inherent_data();
 
-						let now = Instant::now();
-						if propose_after > now {
-							self.awaiting_inherent.push(Box::pin(async move {
-								Delay::new(now - propose_after).await;
-								return_sender
-							}));
-
-							continue
+						if self.inherent_after.is_ready() {
+							self.send_inherent_data(vec![return_sender]).await;
+						} else {
+							self.awaiting_inherent.push(return_sender);
 						}
 
-						self.send_inherent_data(return_sender).await;
 					}
 					Some(RequestBlockAuthorshipData(_, sender)) => {
 						self.provisionable_data_channels.push(sender)
@@ -194,9 +220,10 @@ impl ProvisioningJob {
 					}
 					None => break,
 				},
-				return_sender = self.awaiting_inherent.next() => {
-					if let Some(return_sender) = return_sender {
-						self.send_inherent_data(return_sender).await
+				_ = self.inherent_after.ready().fuse() => {
+					let return_senders = std::mem::replace(&mut self.awaiting_inherent, Vec::new());
+					if !return_senders.is_empty() {
+						self.send_inherent_data(return_senders).await;
 					}
 				}
 			}
@@ -205,12 +232,15 @@ impl ProvisioningJob {
 		Ok(())
 	}
 
-	async fn send_inherent_data(&mut self, return_sender: oneshot::Sender<ProvisionerInherentData>) {
+	async fn send_inherent_data(
+		&mut self,
+		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	) {
 		if let Err(err) = send_inherent_data(
 			self.relay_parent,
 			&self.signed_bitfields,
 			&self.backed_candidates,
-			return_sender,
+			return_senders,
 			self.sender.clone(),
 		)
 		.await
@@ -255,12 +285,12 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 /// When we're choosing bitfields to include, the rule should be simple:
 /// maximize availability. So basically, include all bitfields. And then
 /// choose a coherent set of candidates along with that.
-#[tracing::instrument(level = "trace", skip(return_sender, from_job), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(return_senders, from_job), fields(subsystem = LOG_TARGET))]
 async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
-	return_sender: oneshot::Sender<ProvisionerInherentData>,
+	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	mut from_job: mpsc::Sender<FromJobCommand>,
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
@@ -277,9 +307,12 @@ async fn send_inherent_data(
 	)
 	.await?;
 
-	return_sender
-		.send((bitfields, candidates))
-		.map_err(|_data| Error::InherentDataReturnChannel)?;
+	let res = (bitfields, candidates);
+	for return_sender in return_senders {
+		let _ = return_sender.send(res.clone())
+			.map_err(|_data| Error::InherentDataReturnChannel)?;
+	}
+
 	Ok(())
 }
 
