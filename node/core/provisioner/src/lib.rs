@@ -45,7 +45,6 @@ const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_mill
 
 const LOG_TARGET: &str = "provisioner";
 
-
 enum InherentAfter {
 	Ready,
 	Wait(Delay),
@@ -65,7 +64,11 @@ impl InherentAfter {
 
 	async fn ready(&mut self) {
 		match *self {
-			InherentAfter::Ready => {},
+			InherentAfter::Ready => {
+				// Make sure we never end the returned future.
+				// This is required because the `select!` that calls this future will end in a busy loop.
+				futures::pending!()
+			},
 			InherentAfter::Wait(ref mut d) => {
 				d.await;
 				*self = InherentAfter::Ready;
