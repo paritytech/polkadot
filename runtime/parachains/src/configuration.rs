@@ -23,7 +23,6 @@ use primitives::v1::{Balance, ValidatorId, SessionIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	ensure,
-	storage::migration,
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 };
@@ -538,9 +537,9 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Initializer, Configuration, Origin, Test};
+	use crate::mock::{new_test_ext, Initializer, Configuration, Origin};
 
-	use frame_support::traits::{OnFinalize, OnInitialize, OnRuntimeUpgrade};
+	use frame_support::traits::{OnFinalize, OnInitialize};
 
 	#[test]
 	fn config_changes_on_session_boundary() {
