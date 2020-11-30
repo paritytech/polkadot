@@ -36,6 +36,9 @@ use sp_transaction_pool::TransactionPool;
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
+/// How long to wait before proposing,.
+const PRE_PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(2000);
+
 /// How long proposal can take before we give up and err out
 const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(2500);
 

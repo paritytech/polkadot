@@ -404,7 +404,9 @@ enum ProvisionerMessage {
   ///
   /// This is expected to be used by a proposer, to inject that information into the InherentData
   /// where it can be assembled into the InclusionInherent.
-  RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
+  ///
+  /// The recipient should wait until at least the provided instant before responding.
+  RequestInherentData(Hash, Instant, oneshot::Sender<ProvisionerInherentData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),
 }

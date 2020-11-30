@@ -23,6 +23,7 @@ use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
+	stream::FuturesUnordered,
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
@@ -42,9 +43,6 @@ use futures_timer::Delay;
 
 const LOG_TARGET: &str = "provisioner";
 
-/// How long to wait for information to come in before proposing.
-const PRE_PROPOSE_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
-
 struct ProvisioningJob {
 	relay_parent: Hash,
 	sender: mpsc::Sender<FromJobCommand>,
@@ -53,7 +51,9 @@ struct ProvisioningJob {
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
-	propose_after: Instant,
+	awaiting_inherent: FuturesUnordered<
+		Pin<Box<dyn Future<Output = oneshot::Sender<ProvisionerInherentData>> + Send>>
+	>,
 }
 
 #[derive(Debug, Error)]
@@ -102,7 +102,6 @@ impl JobTrait for ProvisioningJob {
 				metrics,
 				sender,
 				receiver,
-				Instant::now() + PRE_PROPOSE_DELAY,
 			);
 
 			// it isn't necessary to break run_loop into its own function,
@@ -119,7 +118,6 @@ impl ProvisioningJob {
 		metrics: Metrics,
 		sender: mpsc::Sender<FromJobCommand>,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
-		propose_after: Instant,
 	) -> Self {
 		Self {
 			relay_parent,
@@ -128,8 +126,8 @@ impl ProvisioningJob {
 			provisionable_data_channels: Vec::new(),
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
-			propose_after,
 			metrics,
+			awaiting_inherent: FuturesUnordered::new(),
 		}
 	}
 
@@ -139,69 +137,89 @@ impl ProvisioningJob {
 		};
 
 		loop {
-			match self.receiver.next().await  {
-				Some(RequestInherentData(_, return_sender)) => {
-					let _timer = self.metrics.time_request_inherent_data();
+			futures::select! {
+				msg = self.receiver.next().fuse() => match msg {
+					Some(RequestInherentData(_, propose_after, return_sender)) => {
+						let _timer = self.metrics.time_request_inherent_data();
 
-					if let Err(err) = send_inherent_data(
-						self.relay_parent,
-						&self.signed_bitfields,
-						&self.backed_candidates,
-						return_sender,
-						self.propose_after,
-						self.sender.clone(),
-					)
-					.await
-					{
-						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
-						self.metrics.on_inherent_data_request(Err(()));
-					} else {
-						self.metrics.on_inherent_data_request(Ok(()));
-					}
-				}
-				Some(RequestBlockAuthorshipData(_, sender)) => {
-					self.provisionable_data_channels.push(sender)
-				}
-				Some(ProvisionableData(_, data)) => {
-					let _timer = self.metrics.time_provisionable_data();
+						let now = Instant::now();
+						if propose_after > now {
+							self.awaiting_inherent.push(Box::pin(async move {
+								Delay::new(now - propose_after).await;
+								return_sender
+							}));
 
-					let mut bad_indices = Vec::new();
-					for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
-						match channel.send(data.clone()).await {
-							Ok(_) => {}
-							Err(_) => bad_indices.push(idx),
+							continue
 						}
-					}
-					self.note_provisionable_data(data);
 
-					// clean up our list of channels by removing the bad indices
-					// start by reversing it for efficient pop
-					bad_indices.reverse();
-					// Vec::retain would be nicer here, but it doesn't provide
-					// an easy API for retaining by index, so we re-collect instead.
-					self.provisionable_data_channels = self
-						.provisionable_data_channels
-						.into_iter()
-						.enumerate()
-						.filter(|(idx, _)| {
-							if bad_indices.is_empty() {
-								return true;
+						self.send_inherent_data(return_sender).await;
+					}
+					Some(RequestBlockAuthorshipData(_, sender)) => {
+						self.provisionable_data_channels.push(sender)
+					}
+					Some(ProvisionableData(_, data)) => {
+						let _timer = self.metrics.time_provisionable_data();
+
+						let mut bad_indices = Vec::new();
+						for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
+							match channel.send(data.clone()).await {
+								Ok(_) => {}
+								Err(_) => bad_indices.push(idx),
 							}
-							let tail = bad_indices[bad_indices.len() - 1];
-							let retain = *idx != tail;
-							if *idx >= tail {
-								let _ = bad_indices.pop();
-							}
-							retain
-						})
-						.map(|(_, item)| item)
-						.collect();
+						}
+						self.note_provisionable_data(data);
+
+						// clean up our list of channels by removing the bad indices
+						// start by reversing it for efficient pop
+						bad_indices.reverse();
+						// Vec::retain would be nicer here, but it doesn't provide
+						// an easy API for retaining by index, so we re-collect instead.
+						self.provisionable_data_channels = self
+							.provisionable_data_channels
+							.into_iter()
+							.enumerate()
+							.filter(|(idx, _)| {
+								if bad_indices.is_empty() {
+									return true;
+								}
+								let tail = bad_indices[bad_indices.len() - 1];
+								let retain = *idx != tail;
+								if *idx >= tail {
+									let _ = bad_indices.pop();
+								}
+								retain
+							})
+							.map(|(_, item)| item)
+							.collect();
+					}
+					None => break,
+				},
+				return_sender = self.awaiting_inherent.next() => {
+					if let Some(return_sender) = return_sender {
+						self.send_inherent_data(return_sender).await
+					}
 				}
-				None => break,
 			}
 		}
 
 		Ok(())
+	}
+
+	async fn send_inherent_data(&mut self, return_sender: oneshot::Sender<ProvisionerInherentData>) {
+		if let Err(err) = send_inherent_data(
+			self.relay_parent,
+			&self.signed_bitfields,
+			&self.backed_candidates,
+			return_sender,
+			self.sender.clone(),
+		)
+		.await
+		{
+			tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+			self.metrics.on_inherent_data_request(Err(()));
+		} else {
+			self.metrics.on_inherent_data_request(Ok(()));
+		}
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -243,15 +261,8 @@ async fn send_inherent_data(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
-	propose_after: Instant,
 	mut from_job: mpsc::Sender<FromJobCommand>,
 ) -> Result<(), Error> {
-	let now = Instant::now();
-	if now < propose_after {
-		let diff = propose_after - now;
-		let _ = Delay::new(diff).await;
-	}
-
 	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
 		.await?
 		.await??;
