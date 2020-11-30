@@ -39,8 +39,13 @@ use polkadot_primitives::v1::{
 	ValidationCode, ValidatorId, ValidationData, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
-use std::sync::Arc;
-use std::collections::btree_map::BTreeMap;
+use std::{sync::Arc, collections::btree_map::BTreeMap};
+
+/// Subsystem messages where each message is always bound to a relay parent.
+pub trait BoundToRelayParent {
+	/// Returns the relay parent this message is bound to.
+	fn relay_parent(&self) -> Hash;
+}
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -56,9 +61,8 @@ pub enum CandidateSelectionMessage {
 	Invalid(Hash, CandidateReceipt),
 }
 
-impl CandidateSelectionMessage {
-	/// Returns the relay parent this message is assigned to.
-	pub fn relay_parent(&self) -> Hash {
+impl BoundToRelayParent for CandidateSelectionMessage {
+	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::Collation(hash, ..) => *hash,
 			Self::Invalid(hash, _) => *hash,
@@ -86,9 +90,8 @@ pub enum CandidateBackingMessage {
 	Statement(Hash, SignedFullStatement),
 }
 
-impl CandidateBackingMessage {
-	/// Retuns the relay parent this message is assigned to.
-	pub fn relay_parent(&self) -> Hash {
+impl BoundToRelayParent for CandidateBackingMessage {
+	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::GetBackedCandidates(hash, _) => *hash,
 			Self::Second(hash, _, _) => *hash,
@@ -273,9 +276,8 @@ impl BitfieldDistributionMessage {
 #[derive(Debug)]
 pub enum BitfieldSigningMessage {}
 
-impl BitfieldSigningMessage {
-	/// Retuns the relay parent this message is assigned to.
-	pub fn relay_parent(&self) -> Hash {
+impl BoundToRelayParent for BitfieldSigningMessage {
+	fn relay_parent(&self) -> Hash {
 		match *self {}
 	}
 }
@@ -525,9 +527,8 @@ pub enum ProvisionerMessage {
 	ProvisionableData(Hash, ProvisionableData),
 }
 
-impl ProvisionerMessage {
-	/// Returns the relay parent this message is assigned to.
-	pub fn relay_parent(&self) -> Hash {
+impl BoundToRelayParent for ProvisionerMessage {
+	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::RequestBlockAuthorshipData(hash, _) => *hash,
 			Self::RequestInherentData(hash, _) => *hash,

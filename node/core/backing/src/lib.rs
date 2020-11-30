@@ -93,7 +93,7 @@ struct CandidateBackingJob {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// Inbound message channel receiving part.
-	rx_to: mpsc::Receiver<ToJob>,
+	rx_to: mpsc::Receiver<CandidateBackingMessage>,
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
 	/// The `ParaId` assigned to this validator
@@ -148,37 +148,6 @@ impl TableContextTrait for TableContext {
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
 		self.groups.get(group).map_or(usize::max_value(), |g| group_quorum(g.len()))
-	}
-}
-
-/// A message type that is sent from `CandidateBackingSubsystem` to `CandidateBackingJob`.
-pub enum ToJob {
-	/// A `CandidateBackingMessage`.
-	CandidateBacking(CandidateBackingMessage),
-}
-
-impl TryFrom<AllMessages> for ToJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::CandidateBacking(msg) => Ok(ToJob::CandidateBacking(msg)),
-			_ => Err(()),
-		}
-	}
-}
-
-impl From<CandidateBackingMessage> for ToJob {
-	fn from(msg: CandidateBackingMessage) -> Self {
-		Self::CandidateBacking(msg)
-	}
-}
-
-impl util::ToJobTrait for ToJob {
-	fn relay_parent(&self) -> Hash {
-		match self {
-			Self::CandidateBacking(cb) => cb.relay_parent(),
-		}
 	}
 }
 
@@ -298,9 +267,7 @@ impl CandidateBackingJob {
 	async fn run_loop(mut self) -> Result<(), Error> {
 		loop {
 			match self.rx_to.next().await  {
-				Some(ToJob::CandidateBacking(msg)) => {
-					self.process_msg(msg).await?;
-				},
+				Some(msg) => self.process_msg(msg).await?,
 				None => break,
 			}
 		}
@@ -779,7 +746,7 @@ impl CandidateBackingJob {
 }
 
 impl util::JobTrait for CandidateBackingJob {
-	type ToJob = ToJob;
+	type ToJob = CandidateBackingMessage;
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = SyncCryptoStorePtr;
@@ -995,7 +962,7 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-delegated_subsystem!(CandidateBackingJob(SyncCryptoStorePtr, Metrics) <- ToJob as CandidateBackingSubsystem);
+delegated_subsystem!(CandidateBackingJob(SyncCryptoStorePtr, Metrics) <- CandidateBackingMessage as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {

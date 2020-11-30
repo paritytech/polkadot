@@ -32,10 +32,8 @@ use polkadot_node_subsystem::{
 	},
 };
 use polkadot_node_subsystem_util::{
-	self as util,
-	delegated_subsystem, FromJobCommand,
-	request_availability_cores, request_persisted_validation_data, JobTrait, ToJobTrait,
-	metrics::{self, prometheus},
+	self as util, delegated_subsystem, FromJobCommand,
+	request_availability_cores, request_persisted_validation_data, JobTrait, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
@@ -50,42 +48,11 @@ const LOG_TARGET: &str = "provisioner";
 struct ProvisioningJob {
 	relay_parent: Hash,
 	sender: mpsc::Sender<FromJob>,
-	receiver: mpsc::Receiver<ToJob>,
+	receiver: mpsc::Receiver<ProvisionerMessage>,
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
-}
-
-/// This enum defines the messages that the provisioner is prepared to receive.
-pub enum ToJob {
-	/// The provisioner message is the main input to the provisioner.
-	Provisioner(ProvisionerMessage),
-}
-
-impl ToJobTrait for ToJob {
-	fn relay_parent(&self) -> Hash {
-		match self {
-			Self::Provisioner(pm) => pm.relay_parent(),
-		}
-	}
-}
-
-impl TryFrom<AllMessages> for ToJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::Provisioner(pm) => Ok(Self::Provisioner(pm)),
-			_ => Err(()),
-		}
-	}
-}
-
-impl From<ProvisionerMessage> for ToJob {
-	fn from(pm: ProvisionerMessage) -> Self {
-		Self::Provisioner(pm)
-	}
 }
 
 enum FromJob {
@@ -136,7 +103,7 @@ enum Error {
 }
 
 impl JobTrait for ProvisioningJob {
-	type ToJob = ToJob;
+	type ToJob = ProvisionerMessage;
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = ();
@@ -152,7 +119,7 @@ impl JobTrait for ProvisioningJob {
 		relay_parent: Hash,
 		_run_args: Self::RunArgs,
 		metrics: Self::Metrics,
-		receiver: mpsc::Receiver<ToJob>,
+		receiver: mpsc::Receiver<ProvisionerMessage>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
@@ -171,7 +138,7 @@ impl ProvisioningJob {
 		relay_parent: Hash,
 		metrics: Metrics,
 		sender: mpsc::Sender<FromJob>,
-		receiver: mpsc::Receiver<ToJob>,
+		receiver: mpsc::Receiver<ProvisionerMessage>,
 	) -> Self {
 		Self {
 			relay_parent,
@@ -191,7 +158,7 @@ impl ProvisioningJob {
 
 		loop {
 			match self.receiver.next().await  {
-				Some(ToJob::Provisioner(RequestInherentData(_, return_sender))) => {
+				Some(RequestInherentData(_, return_sender)) => {
 					let _timer = self.metrics.time_request_inherent_data();
 
 					if let Err(err) = send_inherent_data(
@@ -209,10 +176,10 @@ impl ProvisioningJob {
 						self.metrics.on_inherent_data_request(Ok(()));
 					}
 				}
-				Some(ToJob::Provisioner(RequestBlockAuthorshipData(_, sender))) => {
+				Some(RequestBlockAuthorshipData(_, sender)) => {
 					self.provisionable_data_channels.push(sender)
 				}
-				Some(ToJob::Provisioner(ProvisionableData(_, data))) => {
+				Some(ProvisionableData(_, data)) => {
 					let _timer = self.metrics.time_provisionable_data();
 
 					let mut bad_indices = Vec::new();
@@ -553,7 +520,7 @@ impl metrics::Metrics for Metrics {
 }
 
 
-delegated_subsystem!(ProvisioningJob((), Metrics) <- ToJob as ProvisioningSubsystem);
+delegated_subsystem!(ProvisioningJob((), Metrics) <- ProvisionerMessage as ProvisioningSubsystem);
 
 #[cfg(test)]
 mod tests;

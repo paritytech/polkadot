@@ -26,7 +26,7 @@
 
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
+	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
@@ -392,14 +392,6 @@ impl Validator {
 	}
 }
 
-/// ToJob is expected to be an enum declaring the set of messages of interest to a particular job.
-///
-/// Normally, this will be some subset of `Allmessages`.
-pub trait ToJobTrait: TryFrom<AllMessages> {
-	/// Get the relay parent this message is assigned to.
-	fn relay_parent(&self) -> Hash;
-}
-
 struct AbortOnDrop(future::AbortHandle);
 
 impl Drop for AbortOnDrop {
@@ -469,11 +461,10 @@ pub enum FromJobCommand {
 /// This trait governs jobs.
 ///
 /// Jobs are instantiated and killed automatically on appropriate overseer messages.
-/// Other messages are passed along to and from the job via the overseer to other
-/// subsystems.
+/// Other messages are passed along to and from the job via the overseer to other subsystems.
 pub trait JobTrait: Unpin {
-	/// Message type to the job. Typically a subset of AllMessages.
-	type ToJob: 'static + ToJobTrait + Send;
+	/// Message type used to send messages to the job.
+	type ToJob: 'static + BoundToRelayParent + Send;
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<FromJobCommand> + Send;
 	/// Job runtime error.
@@ -675,7 +666,7 @@ where
 	Context: SubsystemContext,
 	Job: 'static + JobTrait,
 	Job::RunArgs: Clone,
-	Job::ToJob: TryFrom<AllMessages> + TryFrom<<Context as SubsystemContext>::Message> + Sync,
+	Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
 {
 	/// Creates a new `Subsystem`.
 	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics) -> Self {
@@ -846,10 +837,9 @@ impl<Spawner, Context, Job> Subsystem<Context> for JobManager<Spawner, Context, 
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
-	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
 	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
-	Job::ToJob: TryFrom<AllMessages> + Sync,
+	Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
 	Job::Metrics: Sync,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -924,7 +914,7 @@ macro_rules! delegated_subsystem {
 		where
 			Spawner: Clone + $crate::reexports::SpawnNamed + Send + Unpin,
 			Context: $crate::reexports::SubsystemContext,
-			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
+			$to_job: From<<Context as $crate::reexports::SubsystemContext>::Message>,
 		{
 			#[doc = "Creates a new "]
 			#[doc = $subsystem_name]
@@ -945,7 +935,7 @@ macro_rules! delegated_subsystem {
 		where
 			Spawner: $crate::reexports::SpawnNamed + Send + Clone + Unpin + 'static,
 			Context: $crate::reexports::SubsystemContext,
-			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
+			$to_job: From<<Context as $crate::reexports::SubsystemContext>::Message>,
 		{
 			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
 				self.manager.start(ctx)
@@ -1000,11 +990,11 @@ impl<F: Future> Future for Timeout<F> {
 
 #[cfg(test)]
 mod tests {
-	use super::{JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait, FromJobCommand};
+	use super::*;
 	use thiserror::Error;
 	use polkadot_node_subsystem::{
-		messages::{AllMessages, CandidateSelectionMessage},
-		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+		SpawnedSubsystem,
 	};
 	use assert_matches::assert_matches;
 	use futures::{
@@ -1015,7 +1005,7 @@ mod tests {
 	};
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-	use std::{collections::HashMap, convert::TryFrom, pin::Pin, time::Duration};
+	use std::{collections::HashMap, pin::Pin, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 	// you can leave the subsystem itself to the job manager.
@@ -1026,44 +1016,7 @@ mod tests {
 	// job structs are constructed within JobTrait::run
 	// most will want to retain the sender and receiver, as well as whatever other data they like
 	struct FakeCandidateSelectionJob {
-		receiver: mpsc::Receiver<ToJob>,
-	}
-
-	// ToJob implementations require the following properties:
-	//
-	// - have a Stop variant (to impl ToJobTrait)
-	// - impl ToJobTrait
-	// - impl TryFrom<AllMessages>
-	// - impl From<CandidateSelectionMessage> (from SubsystemContext::Message)
-	//
-	// Mostly, they are just a type-safe subset of AllMessages that this job is prepared to receive
-	enum ToJob {
-		CandidateSelection(CandidateSelectionMessage),
-	}
-
-	impl ToJobTrait for ToJob {
-		fn relay_parent(&self) -> Hash {
-			match self {
-				Self::CandidateSelection(csm) => csm.relay_parent(),
-			}
-		}
-	}
-
-	impl TryFrom<AllMessages> for ToJob {
-		type Error = ();
-
-		fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-			match msg {
-				AllMessages::CandidateSelection(csm) => Ok(ToJob::CandidateSelection(csm)),
-				_ => Err(()),
-			}
-		}
-	}
-
-	impl From<CandidateSelectionMessage> for ToJob {
-		fn from(csm: CandidateSelectionMessage) -> ToJob {
-			ToJob::CandidateSelection(csm)
-		}
+		receiver: mpsc::Receiver<CandidateSelectionMessage>,
 	}
 
 	// FromJob must be infallibly convertable into FromJobCommand.
@@ -1097,7 +1050,7 @@ mod tests {
 	}
 
 	impl JobTrait for FakeCandidateSelectionJob {
-		type ToJob = ToJob;
+		type ToJob = CandidateSelectionMessage;
 		type FromJob = FromJob;
 		type Error = Error;
 		// RunArgs can be anything that a particular job needs supplied from its external context
@@ -1119,7 +1072,7 @@ mod tests {
 			parent: Hash,
 			mut run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
-			receiver: mpsc::Receiver<ToJob>,
+			receiver: mpsc::Receiver<CandidateSelectionMessage>,
 			mut sender: mpsc::Sender<FromJob>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 			async move {
@@ -1144,7 +1097,7 @@ mod tests {
 		async fn run_loop(mut self) -> Result<(), Error> {
 			loop {
 				match self.receiver.next().await {
-					Some(ToJob::CandidateSelection(_csm)) => {
+					Some(_csm) => {
 						unimplemented!("we'd report the collator to the peer set manager here, but that's not implemented yet");
 					}
 					None => break,

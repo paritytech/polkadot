@@ -30,8 +30,7 @@ use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, JobManager, JobTrait, ToJobTrait, Validator, FromJobCommand,
-	metrics::{self, prometheus},
+	self as util, JobManager, JobTrait, Validator, FromJobCommand, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{convert::TryFrom, pin::Pin, time::Duration, iter::FromIterator};
@@ -44,37 +43,6 @@ const LOG_TARGET: &str = "bitfield_signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
-
-/// Messages which a `BitfieldSigningJob` is prepared to receive.
-#[allow(missing_docs)]
-pub enum ToJob {
-	BitfieldSigning(BitfieldSigningMessage),
-}
-
-impl ToJobTrait for ToJob {
-	fn relay_parent(&self) -> Hash {
-		match self {
-			Self::BitfieldSigning(bsm) => bsm.relay_parent(),
-		}
-	}
-}
-
-impl TryFrom<AllMessages> for ToJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::BitfieldSigning(bsm) => Ok(ToJob::BitfieldSigning(bsm)),
-			_ => Err(()),
-		}
-	}
-}
-
-impl From<BitfieldSigningMessage> for ToJob {
-	fn from(bsm: BitfieldSigningMessage) -> ToJob {
-		ToJob::BitfieldSigning(bsm)
-	}
-}
 
 /// Messages which may be sent from a `BitfieldSigningJob`.
 #[allow(missing_docs)]
@@ -271,7 +239,7 @@ impl metrics::Metrics for Metrics {
 }
 
 impl JobTrait for BitfieldSigningJob {
-	type ToJob = ToJob;
+	type ToJob = BitfieldSigningMessage;
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = SyncCryptoStorePtr;
@@ -285,7 +253,7 @@ impl JobTrait for BitfieldSigningJob {
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
-		_receiver: mpsc::Receiver<ToJob>,
+		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
