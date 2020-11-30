@@ -9,12 +9,9 @@ of sessions.
 ## Remarks
 
 Votes must be persisted. Disputes might happen long after
-there was a dispute, as such just keeping things in memory
+there was a vote, as such just keeping things in memory
 is thus insufficient, as every blip (OOM, bug, maintanance)
 could cause the node to forget the state.
-
-`UnsignedTransaction`s are OK to be used, since the inner
-element `CommittedCanddidateReceipt` is verifiable.
 
 ## ToDo
 
@@ -26,7 +23,7 @@ element `CommittedCanddidateReceipt` is verifiable.
 
 Inputs:
 
-* `VotesDbMessage::`
+* `VotesDbMessage::DisputeVote`
 
 Outputs:
 

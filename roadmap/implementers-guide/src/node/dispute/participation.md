@@ -9,11 +9,13 @@ element `CommittedCanddidateReceipt` is verifiable.
 
 ## ToDo
 
-> TODO
+1. Specify what is being gossiped, what messages and what they must contain.
 
 ## IO
 
-Inputs:
+Inputs:1. Receive `DisputeParticipationMessage::Resolution`
+1. Delete all relevant data associated with this dispute
+
 
 * `DisputeParticipationMessage::Detection`
 * `DisputeParticipationMessage::Resolution`
@@ -22,7 +24,6 @@ Outputs:
 
 * `AvailabilityRecoveryMessage::RecoverAvailableData`
 * `CandidateValidationMessage::ValidateFromChainState`
-* `ChainAPI::Blacklist`
 
 ## Messages
 
@@ -48,8 +49,23 @@ enum DisputeParticipationMessage {
 
 ## Storage
 
-> TODO
+Nothing to store
 
 ## Sequence
 
-> TODO
+### Resolution
+
+1. Receive `DisputeParticipationMessage::Detection`
+1. Request `AvailableData` via `RecoverAvailableData` to obtain the `PoV`.
+1. Call `ValidateFromChainState` to validate the `PoV` with the `CandidateDescriptor`.
+    1. Cast vote according to the `ValidationResult`.
+    1. Store our vote to the `VotesDB` via `VotesDBMessage::StoreVote`
+    1. Gossip our vote on the network.
+
+### Resolution
+
+1. Receive `DisputeParticipationMessage::Resolution`
+1. Craft an unsigned transaction with all votes cast
+  1. includes `CandidateReceipts`
+  1. includes `Vote`s
+1. Delete all relevant data associated with this dispute
