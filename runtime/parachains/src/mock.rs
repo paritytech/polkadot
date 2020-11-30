@@ -124,9 +124,9 @@ impl crate::inclusion::Config for Test {
 	type Event = TestEvent;
 }
 
-impl crate::session_info::Trait for Test { }
+impl crate::session_info::Config for Test { }
 
-impl crate::session_info::AuthorityDiscoveryTrait for Test {
+impl crate::session_info::AuthorityDiscoveryConfig for Test {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
 		Vec::new()
 	}

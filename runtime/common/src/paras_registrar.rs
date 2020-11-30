@@ -477,13 +477,13 @@ mod tests {
 		type Event = ();
 	}
 
-	impl session_info::AuthorityDiscoveryTrait for Test {
+	impl session_info::AuthorityDiscoveryConfig for Test {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
 			Vec::new()
 		}
 	}
 
-	impl session_info::Trait for Test { }
+	impl session_info::Config for Test { }
 
 	pub struct TestRandomness;
 

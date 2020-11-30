@@ -27,17 +27,17 @@ use frame_support::{
 use crate::{configuration, paras, scheduler};
 use sp_std::{cmp, vec::Vec};
 
-pub trait Trait:
-	frame_system::Trait
-	+ configuration::Trait
-	+ paras::Trait
-	+ scheduler::Trait
-	+ AuthorityDiscoveryTrait
+pub trait Config:
+	frame_system::Config
+	+ configuration::Config
+	+ paras::Config
+	+ scheduler::Config
+	+ AuthorityDiscoveryConfig
 {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as ParaSessionInfo {
+	trait Store for Module<T: Config> as ParaSessionInfo {
 		/// The earliest session for which previous session info is stored.
 		EarliestStoredSession get(fn earliest_stored_session): SessionIndex;
 		/// Session information in a rolling window.
@@ -48,30 +48,30 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The session info module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 	}
 }
 
 /// An abstraction for the authority discovery pallet
 /// to help with mock testing.
-pub trait AuthorityDiscoveryTrait {
+pub trait AuthorityDiscoveryConfig {
 	/// Retrieve authority identifiers of the current and next authority set.
 	fn authorities() -> Vec<AuthorityDiscoveryId>;
 }
 
-impl<T: pallet_authority_discovery::Trait> AuthorityDiscoveryTrait for T {
+impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
 		<pallet_authority_discovery::Module<T>>::authorities()
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
 		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>
@@ -82,7 +82,7 @@ impl<T: Trait> Module<T> {
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 
 		let validators = notification.validators.clone();
-		let discovery_keys = <T as AuthorityDiscoveryTrait>::authorities();
+		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
 		// FIXME: once we store these keys: https://github.com/paritytech/polkadot/issues/1975
 		let approval_keys = Default::default();
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
