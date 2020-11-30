@@ -59,7 +59,7 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 parking_lot = "0.11.1"
 serde = { version = "1.0.117", features = ["derive"] }
-slog = "2.5.2"
+slog = "2.7.0"
 
 # Polkadot
 polkadot-node-core-proposer = { path = "../core/proposer" }
