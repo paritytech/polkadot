@@ -28,7 +28,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate, CurrencyToVote,
@@ -88,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 46,
+	spec_version: 47,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -831,13 +831,17 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			_: Id,
-			_: primitives::v1::ValidationOutputs
+			_: primitives::v1::CandidateCommitments
 		) -> bool {
 			false
 		}
 
 		fn session_index_for_child() -> SessionIndex {
 			0
+		}
+
+		fn session_info(_: SessionIndex) -> Option<SessionInfo> {
+			None
 		}
 
 		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
@@ -849,10 +853,6 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			Vec::new()
-		}
-
-		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			Vec::new()
 		}
 

@@ -28,7 +28,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
+	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
@@ -72,6 +72,7 @@ use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
+use runtime_parachains::session_info as parachains_session_info;
 use runtime_parachains::paras as parachains_paras;
 use runtime_parachains::dmp as parachains_dmp;
 use runtime_parachains::ump as parachains_ump;
@@ -536,6 +537,8 @@ impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 }
 
+impl parachains_session_info::Config for Runtime {}
+
 impl parachains_ump::Config for Runtime {
 	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
 }
@@ -654,7 +657,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: Id,
-			outputs: primitives::v1::ValidationOutputs,
+			outputs: primitives::v1::CandidateCommitments,
 		) -> bool {
 			runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -688,8 +691,9 @@ sp_api::impl_runtime_apis! {
 				}
 			})
 		}
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-			runtime_api_impl::validator_discovery::<Runtime>(validators)
+
+		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+			runtime_api_impl::session_info::<Runtime>(index)
 		}
 
 		fn dmq_contents(recipient: Id) -> Vec<InboundDownwardMessage<BlockNumber>> {

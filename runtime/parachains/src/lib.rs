@@ -28,6 +28,7 @@ pub mod inclusion_inherent;
 pub mod initializer;
 pub mod paras;
 pub mod scheduler;
+pub mod session_info;
 pub mod validity;
 pub mod origin;
 pub mod dmp;
