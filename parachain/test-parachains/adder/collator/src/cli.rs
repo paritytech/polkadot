@@ -100,7 +100,10 @@ impl SubstrateCli for Cli {
 				Box::new(polkadot_service::chain_spec::rococo_local_testnet_config()?)
 			}
 			"rococo" => Box::new(polkadot_service::chain_spec::rococo_config()?),
-			_ => Err("adder collator only supports rococo")?,
+			path => {
+				let path = std::path::PathBuf::from(path);
+				Box::new(polkadot_service::RococoChainSpec::from_json_file(path)?)
+			}
 		})
 	}
 
