@@ -94,7 +94,7 @@ struct Interaction {
 
 ### Signal Handling
 
-On `ActiveLeavesUpdate`, if `activated` is non-emtpy, set `state.live_block_hash` to the first block in `Activated. Also, remove any items that have been in 
+On `ActiveLeavesUpdate`, if `activated` is non-empty, set `state.live_block_hash` to the first block in `Activated`.
 
 Ignore `BlockFinalized` signals.
 
