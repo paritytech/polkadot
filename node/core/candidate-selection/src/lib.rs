@@ -91,7 +91,7 @@ impl JobTrait for CandidateSelectionJob {
 
 	const NAME: &'static str = "CandidateSelectionJob";
 
-	#[tracing::instrument(skip(relay_parent, keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
