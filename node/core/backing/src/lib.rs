@@ -37,6 +37,7 @@ use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
+	jaeger,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
@@ -848,6 +849,9 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
+			let span = jaeger::hash_span(&parent, "run:backing");
+			let _span = span.child("runtime apis");
+
 			let (validators, groups, session_index, cores) = futures::try_join!(
 				request_validators(parent, &mut tx_from).await?,
 				request_validator_groups(parent, &mut tx_from).await?,
@@ -863,6 +867,9 @@ impl util::JobTrait for CandidateBackingJob {
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 			let session_index = try_runtime_api!(session_index);
 			let cores = try_runtime_api!(cores);
+			
+			drop(_span);
+			let _span = span.child("validator construction");
 
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
@@ -883,6 +890,9 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			};
 
+			drop(_span);
+			drop(span);
+			
 			let mut groups = HashMap::new();
 
 			let n_cores = cores.len();

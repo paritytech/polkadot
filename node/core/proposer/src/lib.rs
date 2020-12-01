@@ -20,7 +20,10 @@
 
 use futures::prelude::*;
 use futures::select;
-use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError,
+};
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
 	Block, Hash, Header,
@@ -193,6 +196,10 @@ where
 		record_proof: RecordProof,
 	) -> Self::Proposal {
 		async move {
+
+			let span = jaeger::hash_span(&self.parent_header_hash, "propose");
+			let _span = span.child("get provisioner");
+
 			let provisioner_data = match self.get_provisioner_data().await {
 				Ok(pd) => pd,
 				Err(err) => {
@@ -200,6 +207,9 @@ where
 					Default::default()
 				}
 			};
+
+			drop(_span);
+			let _span = span.child("inner");
 
 			inherent_data.put_data(
 				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,

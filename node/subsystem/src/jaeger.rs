@@ -95,18 +95,18 @@ impl JaegerConfigBuilder {
 
 
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
-pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &str) -> mick_jaeger::Span {
+pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> mick_jaeger::Span {
 	hash_span(&candidate_hash.0, span_name)
 }
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
-pub fn pov_span(pov: &PoV, span_name: &str) -> mick_jaeger::Span {
+pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> mick_jaeger::Span {
 	hash_span(&pov.hash(), span_name)
 }
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
-pub fn hash_span(hash: &Hash, span_name: &str) -> mick_jaeger::Span {
+pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> mick_jaeger::Span {
     INSTANCE.lock().unwrap().span(hash, span_name)
 }
 
@@ -180,7 +180,7 @@ impl Jaeger {
     }
     
     #[inline(always)]
-    fn span(&self, hash: &Hash, span_name: &str) -> mick_jaeger::Span {
+    fn span(&self, hash: &Hash, span_name: impl Into<String>) -> mick_jaeger::Span {
         let trace_id = {
             let mut buf = [0u8; 16];
             buf.copy_from_slice(&hash.as_ref()[0..16]);

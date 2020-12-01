@@ -27,6 +27,7 @@ use futures::{channel::oneshot, FutureExt};
 
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
+	jaeger,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
@@ -178,9 +179,13 @@ impl BitfieldDistribution {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
+					let span_basics = jaeger::span( "bitfield-dist:active_leaves");
+
 					for relay_parent in activated {
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
-						// query basic system parameters once
+						let _span_basics = span_basics.child( format!("basics of {}", &relay_parent));
+
+						// query validator set and signing context per relay_parent once only
 						match query_basics(&mut ctx, relay_parent).await {
 							Ok(Some((validator_set, signing_context))) => {
 								// If our runtime API fails, we don't take down the node,
@@ -232,6 +237,7 @@ where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "reputation change");
+
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
 	))
@@ -306,17 +312,21 @@ async fn relay_message<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	// notify the overseer about a new and valid signed bitfield
-	ctx.send_message(AllMessages::Provisioner(
-		ProvisionerMessage::ProvisionableData(
-			message.relay_parent,
-			ProvisionableData::Bitfield(
+	let span = jaeger::hash_span(&message.relay_parent, "relay_msg");
+	{
+		let _span = span.child("provisionable");
+		// notify the overseer about a new and valid signed bitfield
+		ctx.send_message(AllMessages::Provisioner(
+			ProvisionerMessage::ProvisionableData(
 				message.relay_parent,
-				message.signed_availability.clone(),
+				ProvisionableData::Bitfield(
+					message.relay_parent,
+					message.signed_availability.clone(),
+				),
 			),
-		),
-	))
-	.await;
+		))
+		.await;
+	}
 
 	// pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
@@ -349,6 +359,7 @@ where
 			"no peers are interested in gossip for relay parent",
 		);
 	} else {
+		let _span = span.child("gossip");
 		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendValidationMessage(
 				interested_peers,
@@ -483,7 +494,7 @@ where
 		NetworkBridgeEvent::PeerMessage(remote, message) => {
 			match message {
 				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
-					let mut _span = polkadot_subsystem::hash_span(&relay_parent, "bitfield-gossip-received");
+					let mut _span = jaeger::hash_span(&relay_parent, "bitfield-gossip-received");
 					_span.add_string_tag("peer-id", &remote.to_base58());
 					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "received bitfield gossip from peer");
 					let gossiped_bitfield = BitfieldGossipMessage {
@@ -582,6 +593,8 @@ where
 	} else {
 		return;
 	};
+
+	let _span = jaeger::hash_span(&message.relay_parent, "gossip");
 
 	job_data.message_sent_to_peer
 		.entry(dest.clone())
