@@ -41,6 +41,8 @@ use {
 	sc_client_api::ExecutorProvider,
 };
 
+use polkadot_subsystem::jaeger;
+
 use std::sync::Arc;
 
 use prometheus_endpoint::Registry;
@@ -174,7 +176,16 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		Executor: NativeExecutionDispatch + 'static,
 {
 	set_prometheus_registry(config)?;
-	polkadot_subsystem::init_jaeger(&config.network.node_name);
+
+	if let Some(dest) = std::env::var("POLKADOT_JAEGER").ok().filter(|v| !v.is_empty()) {
+		let cfg = jaeger::JaegerConfig::builder()
+			.destination(dest.parse::<url::Url>().unwrap())
+			.named(&config.network.node_name)
+			.build();
+
+		jaeger::Jaeger::new(cfg).launch();
+	}
+
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
