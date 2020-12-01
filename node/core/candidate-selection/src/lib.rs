@@ -204,6 +204,13 @@ impl CandidateSelectionJob {
 				collator_id,
 				para_id,
 			);
+			if let Err(err) = forward_invalidity_note(&collator_id, &mut self.sender).await {
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?err,
+					"failed to forward invalidity note",
+				);
+			}
 			return;
 		}
 
