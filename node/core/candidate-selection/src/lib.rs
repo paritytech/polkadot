@@ -132,6 +132,26 @@ enum Error {
 	ChainApi(#[from] ChainApiError),
 }
 
+macro_rules! try_runtime_api {
+	($x: expr) => {
+		match $x {
+			Ok(x) => x,
+			Err(e) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Failed to fetch runtime API data for job",
+				);
+
+				// We can't do candidate selection work if we don't have the
+				// requisite runtime API data. But these errors should not take
+				// down the node.
+				return Ok(());
+			}
+		}
+	}
+}
+
 impl JobTrait for CandidateSelectionJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
@@ -153,33 +173,13 @@ impl JobTrait for CandidateSelectionJob {
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		Box::pin(async move {
-			macro_rules! try_runtime_api {
-				($x: expr) => {
-					match $x {
-						Ok(x) => x,
-						Err(e) => {
-							tracing::warn!(
-								target: LOG_TARGET,
-								err = ?e,
-								"Failed to fetch runtime API data for job",
-							);
-
-							// We can't do candidate validation work if we don't have the
-							// requisite runtime API data. But these errors should not take
-							// down the node.
-							return Ok(());
-						}
-					}
-				}
-			}
-
 			let (groups, cores) = futures::try_join!(
-				request_validator_groups(relay_parent, &mut sender).await?,
-				request_from_runtime(
+				try_runtime_api!(request_validator_groups(relay_parent, &mut sender).await),
+				try_runtime_api!(request_from_runtime(
 					relay_parent,
 					&mut sender,
 					|tx| RuntimeApiRequest::AvailabilityCores(tx),
-				).await?,
+				).await),
 			)?;
 
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
@@ -193,9 +193,8 @@ impl JobTrait for CandidateSelectionJob {
 				Err(err) => return Err(Error::Util(err)),
 			};
 
-			let mut groups = HashMap::new();
-
 			let mut assignment = None;
+
 			for (idx, core) in cores.into_iter().enumerate() {
 				// Ignore prospective assignments on occupied cores for the time being.
 				if let CoreState::Scheduled(scheduled) = core {
@@ -206,7 +205,6 @@ impl JobTrait for CandidateSelectionJob {
 							assignment = Some(scheduled.para_id);
 							break;
 						}
-						let _ = groups.insert(scheduled.para_id, g.clone());
 					}
 				}
 			}
