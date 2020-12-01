@@ -19,7 +19,6 @@
 
 #![deny(missing_docs, unused_crate_dependencies, unused_results)]
 
-use std::collections::HashMap;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
@@ -44,7 +43,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
 };
-use std::{convert::TryFrom, pin::Pin};
+use std::{convert::TryFrom, pin::Pin, collections::HashMap};
 use thiserror::Error;
 
 const LOG_TARGET: &'static str = "candidate_selection";
@@ -145,7 +144,7 @@ impl JobTrait for CandidateSelectionJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	#[tracing::instrument(skip(relay_parent, keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
@@ -205,6 +204,7 @@ impl JobTrait for CandidateSelectionJob {
 					if let Some(g) = validator_groups.get(group_index.0 as usize) {
 						if g.contains(&validator.index()) {
 							assignment = Some(scheduled.para_id);
+							break;
 						}
 						let _ = groups.insert(scheduled.para_id, g.clone());
 					}
