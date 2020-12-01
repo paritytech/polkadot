@@ -76,8 +76,14 @@ enum Error {
 	InvalidSignature,
 	#[error("Failed to send candidates {0:?}")]
 	Send(Vec<BackedCandidate>),
-	#[error("Oneshot never resolved")]
-	Oneshot(#[from] #[source] oneshot::Canceled),
+	#[error("FetchPoV channel closed before receipt")]
+	FetchPoV(#[source] oneshot::Canceled),
+	#[error("ValidateFromChainState channel closed before receipt")]
+	ValidateFromChainState(#[source] oneshot::Canceled),
+	#[error("StoreAvailableData channel closed before receipt")]
+	StoreAvailableData(#[source] oneshot::Canceled),
+	#[error("a channel was closed before receipt in try_join!")]
+	JoinMultiple(#[source] oneshot::Canceled),
 	#[error("Obtaining erasure chunks failed")]
 	ObtainErasureChunks(#[from] #[source] erasure_coding::Error),
 	#[error(transparent)]
@@ -679,7 +685,7 @@ impl CandidateBackingJob {
 			PoVDistributionMessage::FetchPoV(self.parent, descriptor, tx)
 		)).await?;
 
-		Ok(rx.await?)
+		Ok(rx.await.map_err(Error::FetchPoV)?)
 	}
 
 	async fn request_candidate_validation(
@@ -698,7 +704,7 @@ impl CandidateBackingJob {
 			)
 		).await?;
 
-		Ok(rx.await??)
+		Ok(rx.await.map_err(Error::ValidateFromChainState)??)
 	}
 
 	async fn store_available_data(
@@ -720,7 +726,7 @@ impl CandidateBackingJob {
 			)
 		).await?;
 
-		let _ = rx.await?;
+		let _ = rx.await.map_err(Error::StoreAvailableData)?;
 
 		Ok(())
 	}
@@ -840,7 +846,7 @@ impl util::JobTrait for CandidateBackingJob {
 					&mut tx_from,
 					|tx| RuntimeApiRequest::AvailabilityCores(tx),
 				).await?,
-			)?;
+			).map_err(Error::JoinMultiple)?;
 
 			let validators = try_runtime_api!(validators);
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
