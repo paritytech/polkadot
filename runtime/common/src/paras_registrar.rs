@@ -39,15 +39,15 @@ use runtime_parachains::{
 };
 
 type BalanceOf<T> =
-	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-pub trait Trait: paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait {
+pub trait Config: paras::Config + dmp::Config + ump::Config + hrmp::Config {
 	/// The aggregated origin type must support the `parachains` origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
 	/// clause everywhere.
-	type Origin: From<<Self as frame_system::Trait>::Origin>
-		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
+	type Origin: From<<Self as frame_system::Config>::Origin>
+		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
 	/// The system's currency for parathread payment.
 	type Currency: ReservableCurrency<Self::AccountId>;
@@ -57,7 +57,7 @@ pub trait Trait: paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Registrar {
+	trait Store for Module<T: Config> as Registrar {
 		/// Whether parathreads are enabled or not.
 		ParathreadsRegistrationEnabled: bool;
 
@@ -73,7 +73,7 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Parachain already exists.
 		ParaAlreadyExists,
 		/// Invalid parachain ID.
@@ -92,7 +92,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		/// Register a parathread with given code for immediate use.
@@ -117,7 +117,7 @@ decl_module! {
 
 			ensure!(outgoing.binary_search(&id).is_err(), Error::<T>::ParaAlreadyExists);
 
-			<T as Trait>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
+			<T as Config>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
 			<Debtors<T>>::insert(id, who);
 
 			Paras::insert(id, false);
@@ -142,7 +142,7 @@ decl_module! {
 		/// governance intervention).
 		#[weight = 0]
 		fn deregister_parathread(origin) -> DispatchResult {
-			let id = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 
 			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
 
@@ -151,7 +151,7 @@ decl_module! {
 			ensure!(!is_parachain, Error::<T>::InvalidThreadId);
 
 			let debtor = <Debtors<T>>::take(id);
-			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+			let _ = <T as Config>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			runtime_parachains::schedule_para_cleanup::<T>(id);
 
@@ -187,7 +187,7 @@ decl_module! {
 		/// and the auction deposit are switched.
 		#[weight = 0]
 		fn swap(origin, other: ParaId) {
-			let id = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 
 			if PendingSwap::get(other) == Some(id) {
 				// Remove intention to swap.
@@ -211,7 +211,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Register a parachain with given code. Must be called by root.
 	/// Fails if given ID is already used.
 	pub fn register_parachain(
@@ -306,7 +306,7 @@ mod tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -345,7 +345,7 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 1;
 	}
 
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u128;
 		type DustRemoval = ();
 		type Event = ();
@@ -371,7 +371,7 @@ mod tests {
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
-	impl pallet_session::Trait for Test {
+	impl pallet_session::Config for Test {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
@@ -395,7 +395,7 @@ mod tests {
 		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
-	impl pallet_staking::Trait for Test {
+	impl pallet_staking::Config for Test {
 		type RewardRemainder = ();
 		type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
 		type Event = ();
@@ -420,24 +420,24 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl pallet_timestamp::Trait for Test {
+	impl pallet_timestamp::Config for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
 		type WeightInfo = ();
 	}
 
-	impl dmp::Trait for Test {}
+	impl dmp::Config for Test {}
 
-	impl ump::Trait for Test {
+	impl ump::Config for Test {
 		type UmpSink = ();
 	}
 
-	impl hrmp::Trait for Test {
+	impl hrmp::Config for Test {
 		type Origin = Origin;
 	}
 
-	impl pallet_session::historical::Trait for Test {
+	impl pallet_session::historical::Config for Test {
 		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
 		type FullIdentificationOf = pallet_staking::ExposureOf<Self>;
 	}
@@ -467,23 +467,23 @@ mod tests {
 		pub type ReporterId = app::Public;
 	}
 
-	impl paras::Trait for Test {
+	impl paras::Config for Test {
 		type Origin = Origin;
 	}
 
-	impl configuration::Trait for Test { }
+	impl configuration::Config for Test { }
 
-	impl inclusion::Trait for Test {
+	impl inclusion::Config for Test {
 		type Event = ();
 	}
 
-	impl session_info::AuthorityDiscoveryTrait for Test {
+	impl session_info::AuthorityDiscoveryConfig for Test {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
 			Vec::new()
 		}
 	}
 
-	impl session_info::Trait for Test { }
+	impl session_info::Config for Test { }
 
 	pub struct TestRandomness;
 
@@ -493,11 +493,11 @@ mod tests {
 		}
 	}
 
-	impl initializer::Trait for Test {
+	impl initializer::Config for Test {
 		type Randomness = TestRandomness;
 	}
 
-	impl scheduler::Trait for Test { }
+	impl scheduler::Config for Test { }
 
 	type Extrinsic = TestXt<Call, ()>;
 
@@ -507,8 +507,8 @@ mod tests {
 		fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 			call: Call,
 			_public: test_keys::ReporterId,
-			_account: <Test as frame_system::Trait>::AccountId,
-			nonce: <Test as frame_system::Trait>::Index,
+			_account: <Test as frame_system::Config>::AccountId,
+			nonce: <Test as frame_system::Config>::Index,
 		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
@@ -525,7 +525,7 @@ mod tests {
 		pub const MaxRetries: u32 = 3;
 	}
 
-	impl Trait for Test {
+	impl Config for Test {
 		type Origin = Origin;
 		type Currency = pallet_balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;

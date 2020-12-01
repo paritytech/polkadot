@@ -37,7 +37,7 @@ use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
 /// How long proposal can take before we give up and err out
-const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_secs(2);
+const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(2500);
 
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {

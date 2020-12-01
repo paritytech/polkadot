@@ -34,12 +34,12 @@ use primitives::v1::{
 use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The module's configuration trait.
-pub trait Trait: frame_system::Trait {
+pub trait Config: frame_system::Config {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// The currency type used for bidding.
 	type Currency: ReservableCurrency<Self::AccountId>;
@@ -161,18 +161,18 @@ pub enum IncomingParachain<AccountId, Hash> {
 	Deploy { code: ValidationCode, initial_head_data: HeadData },
 }
 
-type LeasePeriodOf<T> = <T as frame_system::Trait>::BlockNumber;
+type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
 // Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> =
-	[Option<(Bidder<<T as frame_system::Trait>::AccountId>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
+	[Option<(Bidder<<T as frame_system::Config>::AccountId>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> =
-	Vec<(Option<NewBidder<<T as frame_system::Trait>::AccountId>>, ParaId, BalanceOf<T>, SlotRange)>;
+	Vec<(Option<NewBidder<<T as frame_system::Config>::AccountId>>, ParaId, BalanceOf<T>, SlotRange)>;
 
 // This module's storage items.
 decl_storage! {
-	trait Store for Module<T: Trait> as Slots {
+	trait Store for Module<T: Config> as Slots {
 		/// The number of auctions that have been started so far.
 		pub AuctionCounter get(fn auction_counter): AuctionIndex;
 
@@ -245,7 +245,7 @@ fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, oth
 	ids.sort();
 }
 
-impl<T: Trait> SwapAux for Module<T> {
+impl<T: Config> SwapAux for Module<T> {
 	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
 		if <Onboarding<T>>::contains_key(one) || <Onboarding<T>>::contains_key(other) {
 			Err("can't swap an undeployed parachain")?
@@ -262,8 +262,8 @@ impl<T: Trait> SwapAux for Module<T> {
 
 decl_event!(
 	pub enum Event<T> where
-		AccountId = <T as frame_system::Trait>::AccountId,
-		BlockNumber = <T as frame_system::Trait>::BlockNumber,
+		AccountId = <T as frame_system::Config>::AccountId,
+		BlockNumber = <T as frame_system::Config>::BlockNumber,
 		LeasePeriod = LeasePeriodOf<T>,
 		ParaId = ParaId,
 		Balance = BalanceOf<T>,
@@ -292,7 +292,7 @@ decl_event!(
 );
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// This auction is already in progress.
 		AuctionInProgress,
 		/// The lease period is in the past.
@@ -323,7 +323,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		fn deposit_event() = default;
@@ -520,7 +520,7 @@ decl_module! {
 				.ok_or(Error::<T>::ParaNotOnboarding)?;
 			if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
 				ensure!(code.0.len() as u32 == code_size, Error::<T>::InvalidCode);
-				ensure!(<T as frame_system::Trait>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
+				ensure!(<T as frame_system::Config>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
 
 				if starts > Self::lease_period_index() {
 					// Hasn't yet begun. Replace the on-boarding entry with the new information.
@@ -542,7 +542,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Deposit currently held for a particular parachain that we administer.
 	fn deposit_held(para_id: &ParaId) -> BalanceOf<T> {
 		<Deposits<T>>::get(para_id).into_iter().max().unwrap_or_else(Zero::zero)
@@ -968,7 +968,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = ();
@@ -1000,7 +1000,7 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 1;
 	}
 
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -1074,7 +1074,7 @@ mod tests {
 		pub const EndingPeriod: BlockNumber = 3;
 	}
 
-	impl Trait for Test {
+	impl Config for Test {
 		type Event = ();
 		type Currency = Balances;
 		type Parachains = TestParachains;

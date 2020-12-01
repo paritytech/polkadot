@@ -26,97 +26,67 @@ use futures::{
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::{
-		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
-		ProvisionerMessage, RuntimeApiMessage,
-	},
+	messages::{ChainApiMessage, ProvisionableData, ProvisionerInherentData, ProvisionerMessage, AllMessages},
 };
 use polkadot_node_subsystem_util::{
-	self as util,
-	delegated_subsystem, FromJobCommand,
-	request_availability_cores, request_persisted_validation_data, JobTrait, ToJobTrait,
-	metrics::{self, prometheus},
+	self as util, delegated_subsystem, FromJobCommand,
+	request_availability_cores, request_persisted_validation_data, JobTrait, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{convert::TryFrom, pin::Pin};
-use std::collections::BTreeMap;
+use std::{pin::Pin, collections::BTreeMap};
 use thiserror::Error;
+use futures_timer::Delay;
+
+/// How long to wait before proposing.
+const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
 
 const LOG_TARGET: &str = "provisioner";
 
+enum InherentAfter {
+	Ready,
+	Wait(Delay),
+}
+
+impl InherentAfter {
+	fn new_from_now() -> Self {
+		InherentAfter::Wait(Delay::new(PRE_PROPOSE_TIMEOUT))
+	}
+
+	fn is_ready(&self) -> bool {
+		match *self {
+			InherentAfter::Ready => true,
+			InherentAfter::Wait(_) => false,
+		}
+	}
+
+	async fn ready(&mut self) {
+		match *self {
+			InherentAfter::Ready => {
+				// Make sure we never end the returned future.
+				// This is required because the `select!` that calls this future will end in a busy loop.
+				futures::pending!()
+			},
+			InherentAfter::Wait(ref mut d) => {
+				d.await;
+				*self = InherentAfter::Ready;
+			},
+		}
+	}
+}
+
 struct ProvisioningJob {
 	relay_parent: Hash,
-	sender: mpsc::Sender<FromJob>,
-	receiver: mpsc::Receiver<ToJob>,
+	sender: mpsc::Sender<FromJobCommand>,
+	receiver: mpsc::Receiver<ProvisionerMessage>,
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
-}
-
-/// This enum defines the messages that the provisioner is prepared to receive.
-pub enum ToJob {
-	/// The provisioner message is the main input to the provisioner.
-	Provisioner(ProvisionerMessage),
-	/// This message indicates that the provisioner should shut itself down.
-	Stop,
-}
-
-impl ToJobTrait for ToJob {
-	const STOP: Self = Self::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::Provisioner(pm) => pm.relay_parent(),
-			Self::Stop => None,
-		}
-	}
-}
-
-impl TryFrom<AllMessages> for ToJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::Provisioner(pm) => Ok(Self::Provisioner(pm)),
-			_ => Err(()),
-		}
-	}
-}
-
-impl From<ProvisionerMessage> for ToJob {
-	fn from(pm: ProvisionerMessage) -> Self {
-		Self::Provisioner(pm)
-	}
-}
-
-enum FromJob {
-	ChainApi(ChainApiMessage),
-	Runtime(RuntimeApiMessage),
-}
-
-impl From<FromJob> for FromJobCommand {
-	fn from(from_job: FromJob) -> FromJobCommand {
-		FromJobCommand::SendMessage(match from_job {
-			FromJob::ChainApi(cam) => AllMessages::ChainApi(cam),
-			FromJob::Runtime(ram) => AllMessages::RuntimeApi(ram),
-		})
-	}
-}
-
-impl TryFrom<AllMessages> for FromJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::ChainApi(chain) => Ok(FromJob::ChainApi(chain)),
-			AllMessages::RuntimeApi(runtime) => Ok(FromJob::Runtime(runtime)),
-			_ => Err(()),
-		}
-	}
+	inherent_after: InherentAfter,
+	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>
 }
 
 #[derive(Debug, Error)]
@@ -141,8 +111,7 @@ enum Error {
 }
 
 impl JobTrait for ProvisioningJob {
-	type ToJob = ToJob;
-	type FromJob = FromJob;
+	type ToJob = ProvisionerMessage;
 	type Error = Error;
 	type RunArgs = ();
 	type Metrics = Metrics;
@@ -157,11 +126,16 @@ impl JobTrait for ProvisioningJob {
 		relay_parent: Hash,
 		_run_args: Self::RunArgs,
 		metrics: Self::Metrics,
-		receiver: mpsc::Receiver<ToJob>,
-		sender: mpsc::Sender<FromJob>,
+		receiver: mpsc::Receiver<ProvisionerMessage>,
+		sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = ProvisioningJob::new(relay_parent, metrics, sender, receiver);
+			let job = ProvisioningJob::new(
+				relay_parent,
+				metrics,
+				sender,
+				receiver,
+			);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
@@ -175,8 +149,8 @@ impl ProvisioningJob {
 	pub fn new(
 		relay_parent: Hash,
 		metrics: Metrics,
-		sender: mpsc::Sender<FromJob>,
-		receiver: mpsc::Receiver<ToJob>,
+		sender: mpsc::Sender<FromJobCommand>,
+		receiver: mpsc::Receiver<ProvisionerMessage>,
 	) -> Self {
 		Self {
 			relay_parent,
@@ -186,77 +160,98 @@ impl ProvisioningJob {
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
 			metrics,
+			inherent_after: InherentAfter::new_from_now(),
+			awaiting_inherent: Vec::new(),
 		}
 	}
 
 	async fn run_loop(mut self) -> Result<(), Error> {
-		while let Some(msg) = self.receiver.next().await {
-			use ProvisionerMessage::{
-				ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
-			};
+		use ProvisionerMessage::{
+			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
+		};
 
-			match msg {
-				ToJob::Provisioner(RequestInherentData(_, return_sender)) => {
-					let _timer = self.metrics.time_request_inherent_data();
+		loop {
+			futures::select! {
+				msg = self.receiver.next().fuse() => match msg {
+					Some(RequestInherentData(_, return_sender)) => {
+						let _timer = self.metrics.time_request_inherent_data();
 
-					if let Err(err) = send_inherent_data(
-						self.relay_parent,
-						&self.signed_bitfields,
-						&self.backed_candidates,
-						return_sender,
-						self.sender.clone(),
-					)
-					.await
-					{
-						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
-						self.metrics.on_inherent_data_request(Err(()));
-					} else {
-						self.metrics.on_inherent_data_request(Ok(()));
-					}
-				}
-				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
-					self.provisionable_data_channels.push(sender)
-				}
-				ToJob::Provisioner(ProvisionableData(_, data)) => {
-					let _timer = self.metrics.time_provisionable_data();
-
-					let mut bad_indices = Vec::new();
-					for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
-						match channel.send(data.clone()).await {
-							Ok(_) => {}
-							Err(_) => bad_indices.push(idx),
+						if self.inherent_after.is_ready() {
+							self.send_inherent_data(vec![return_sender]).await;
+						} else {
+							self.awaiting_inherent.push(return_sender);
 						}
 					}
-					self.note_provisionable_data(data);
+					Some(RequestBlockAuthorshipData(_, sender)) => {
+						self.provisionable_data_channels.push(sender)
+					}
+					Some(ProvisionableData(_, data)) => {
+						let _timer = self.metrics.time_provisionable_data();
 
-					// clean up our list of channels by removing the bad indices
-					// start by reversing it for efficient pop
-					bad_indices.reverse();
-					// Vec::retain would be nicer here, but it doesn't provide
-					// an easy API for retaining by index, so we re-collect instead.
-					self.provisionable_data_channels = self
-						.provisionable_data_channels
-						.into_iter()
-						.enumerate()
-						.filter(|(idx, _)| {
-							if bad_indices.is_empty() {
-								return true;
+						let mut bad_indices = Vec::new();
+						for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
+							match channel.send(data.clone()).await {
+								Ok(_) => {}
+								Err(_) => bad_indices.push(idx),
 							}
-							let tail = bad_indices[bad_indices.len() - 1];
-							let retain = *idx != tail;
-							if *idx >= tail {
-								let _ = bad_indices.pop();
-							}
-							retain
-						})
-						.map(|(_, item)| item)
-						.collect();
+						}
+						self.note_provisionable_data(data);
+
+						// clean up our list of channels by removing the bad indices
+						// start by reversing it for efficient pop
+						bad_indices.reverse();
+						// Vec::retain would be nicer here, but it doesn't provide
+						// an easy API for retaining by index, so we re-collect instead.
+						self.provisionable_data_channels = self
+							.provisionable_data_channels
+							.into_iter()
+							.enumerate()
+							.filter(|(idx, _)| {
+								if bad_indices.is_empty() {
+									return true;
+								}
+								let tail = bad_indices[bad_indices.len() - 1];
+								let retain = *idx != tail;
+								if *idx >= tail {
+									let _ = bad_indices.pop();
+								}
+								retain
+							})
+							.map(|(_, item)| item)
+							.collect();
+					}
+					None => break,
+				},
+				_ = self.inherent_after.ready().fuse() => {
+					let return_senders = std::mem::take(&mut self.awaiting_inherent);
+					if !return_senders.is_empty() {
+						self.send_inherent_data(return_senders).await;
+					}
 				}
-				ToJob::Stop => break,
 			}
 		}
 
 		Ok(())
+	}
+
+	async fn send_inherent_data(
+		&mut self,
+		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	) {
+		if let Err(err) = send_inherent_data(
+			self.relay_parent,
+			&self.signed_bitfields,
+			&self.backed_candidates,
+			return_senders,
+			&mut self.sender,
+		)
+		.await
+		{
+			tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+			self.metrics.on_inherent_data_request(Err(()));
+		} else {
+			self.metrics.on_inherent_data_request(Ok(()));
+		}
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -292,15 +287,15 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 /// When we're choosing bitfields to include, the rule should be simple:
 /// maximize availability. So basically, include all bitfields. And then
 /// choose a coherent set of candidates along with that.
-#[tracing::instrument(level = "trace", skip(return_sender, from_job), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(return_senders, from_job), fields(subsystem = LOG_TARGET))]
 async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
-	return_sender: oneshot::Sender<ProvisionerInherentData>,
-	mut from_job: mpsc::Sender<FromJob>,
+	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	from_job: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<(), Error> {
-	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
+	let availability_cores = request_availability_cores(relay_parent, from_job)
 		.await?
 		.await??;
 
@@ -310,13 +305,15 @@ async fn send_inherent_data(
 		&bitfields,
 		candidates,
 		relay_parent,
-		&mut from_job,
+		from_job,
 	)
 	.await?;
 
-	return_sender
-		.send((bitfields, candidates))
-		.map_err(|_data| Error::InherentDataReturnChannel)?;
+	let res = (bitfields, candidates);
+	for return_sender in return_senders {
+		return_sender.send(res.clone()).map_err(|_data| Error::InherentDataReturnChannel)?;
+	}
+
 	Ok(())
 }
 
@@ -368,7 +365,7 @@ async fn select_candidates(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
 	relay_parent: Hash,
-	sender: &mut mpsc::Sender<FromJob>,
+	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
@@ -432,14 +429,14 @@ async fn select_candidates(
 #[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
-	sender: &mut mpsc::Sender<FromJob>,
+	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<BlockNumber, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send(FromJob::ChainApi(ChainApiMessage::BlockNumber(
+		.send(AllMessages::from(ChainApiMessage::BlockNumber(
 			relay_parent,
 			tx,
-		)))
+		)).into())
 		.await
 		.map_err(|e| Error::ChainApiMessageSend(e))?;
 	match rx.await? {
@@ -558,7 +555,7 @@ impl metrics::Metrics for Metrics {
 }
 
 
-delegated_subsystem!(ProvisioningJob((), Metrics) <- ToJob as ProvisioningSubsystem);
+delegated_subsystem!(ProvisioningJob((), Metrics) <- ProvisionerMessage as ProvisioningSubsystem);
 
 #[cfg(test)]
 mod tests;

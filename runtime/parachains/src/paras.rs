@@ -45,11 +45,11 @@ use serde::{Serialize, Deserialize};
 
 pub use crate::Origin;
 
-pub trait Trait: frame_system::Trait + configuration::Trait {
+pub trait Config: frame_system::Config + configuration::Config {
 	/// The outer origin type.
 	type Origin: From<Origin>
-		+ From<<Self as frame_system::Trait>::Origin>
-		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
+		+ From<<Self as frame_system::Config>::Origin>
+		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 }
 
 // the two key times necessary to track for every code replacement.
@@ -177,7 +177,7 @@ pub struct ParaGenesisArgs {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Paras {
+	trait Store for Module<T: Config> as Paras {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 		Parachains get(fn parachains): Vec<ParaId>;
 		/// All parathreads.
@@ -224,7 +224,7 @@ decl_storage! {
 }
 
 #[cfg(feature = "std")]
-fn build<T: Trait>(config: &GenesisConfig<T>) {
+fn build<T: Config>(config: &GenesisConfig<T>) {
 	let mut parachains: Vec<_> = config.paras
 		.iter()
 		.filter(|(_, args)| args.parachain)
@@ -244,17 +244,17 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		Self::prune_old_code(now)
