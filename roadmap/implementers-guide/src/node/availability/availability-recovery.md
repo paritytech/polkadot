@@ -122,7 +122,7 @@ On `Conclude`, shut down the subsystem.
 
 #### `FromInteraction::ReportPeer(peer, rep)`
 
-1. Issue a `NetworkBridgeMessage::ReportPeer(peer, rep).
+1. Issue a `NetworkBridgeMessage::ReportPeer(peer, rep)`.
 
 ### Responding to network events.
 
