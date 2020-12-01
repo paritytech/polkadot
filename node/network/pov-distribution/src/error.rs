@@ -27,8 +27,6 @@ pub enum Error {
 	#[error(transparent)]
 	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
 	#[error(transparent)]
-	ValidatorDiscovery(#[from] polkadot_node_subsystem_util::validator_discovery::Error),
-	#[error(transparent)]
 	Util(#[from] polkadot_node_subsystem_util::Error),
 }
 

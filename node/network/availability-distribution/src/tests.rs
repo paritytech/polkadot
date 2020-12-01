@@ -290,11 +290,11 @@ impl TestCandidateBuilder {
 				para_id: self.para_id,
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
+				erasure_root: self.erasure_root,
 				..Default::default()
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,
-				erasure_root: self.erasure_root,
 				..Default::default()
 			},
 		}
@@ -314,7 +314,7 @@ fn helper_integrity() {
 	let candidate = TestCandidateBuilder {
 		para_id: test_state.chain_ids[0],
 		relay_parent: test_state.relay_parent,
-		pov_hash: pov_hash,
+		pov_hash,
 		erasure_root: make_erasure_root(&test_state, pov_block.clone()),
 		..Default::default()
 	}
@@ -323,7 +323,7 @@ fn helper_integrity() {
 	let message =
 		make_valid_availability_gossip(&test_state, candidate.hash(), 2, pov_block.clone());
 
-	let root = dbg!(&candidate.commitments.erasure_root);
+	let root = dbg!(&candidate.descriptor.erasure_root);
 
 	let anticipated_hash = branch_hash(
 		root,
@@ -395,7 +395,7 @@ fn reputation_verification() {
 			}
 			.build(),
 			TestCandidateBuilder {
-				para_id: test_state.chain_ids[0],
+				para_id: test_state.chain_ids[1],
 				relay_parent: test_state.relay_parent,
 				pov_hash: pov_hash_b,
 				erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
@@ -643,10 +643,8 @@ fn reputation_verification() {
 					)
 				) => {
 					let index = candidates2.iter().enumerate().find(|x| { x.1.hash() == candidate_hash }).map(|x| x.0).unwrap();
-					expected = dbg!(candidates2.swap_remove(index).hash());
-					tx.send(
-						i == 0
-					).unwrap();
+					expected = candidates2.swap_remove(index).hash();
+					tx.send(i == 0).unwrap();
 				}
 			);
 
@@ -765,6 +763,23 @@ fn reputation_verification() {
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendValidationMessage(
+						peers,
+						protocol_v1::ValidationProtocol::AvailabilityDistribution(
+							protocol_v1::AvailabilityDistributionMessage::Chunk(hash, chunk),
+						),
+					)
+				) => {
+					assert_eq!(1, peers.len());
+					assert_eq!(peers[0], peer_a);
+					assert_eq!(candidates[0].hash(), hash);
+					assert_eq!(valid.erasure_chunk, chunk);
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ReportPeer(
 						peer,
 						rep
@@ -861,7 +876,7 @@ fn reputation_verification() {
 
 		{
 			// send another message
-			let valid2: AvailabilityGossipMessage = make_valid_availability_gossip(
+			let valid2 = make_valid_availability_gossip(
 				&test_state,
 				candidates[2].hash(),
 				1,
@@ -889,6 +904,102 @@ fn reputation_verification() {
 					assert_eq!(rep, COST_NOT_A_LIVE_CANDIDATE);
 				}
 			);
+		}
+
+		{
+			// send another message
+			let valid = make_valid_availability_gossip(
+				&test_state,
+				candidates[1].hash(),
+				2,
+				pov_block_b.clone(),
+			);
+
+			// Make peer a and b listen on `current`
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![current]),
+				),
+			)
+			.await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![current]),
+				),
+			)
+			.await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						chunk_protocol_message(valid.clone()),
+					),
+				),
+			)
+			.await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(
+						peer,
+						rep
+					)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendValidationMessage(
+						peers,
+						protocol_v1::ValidationProtocol::AvailabilityDistribution(
+							protocol_v1::AvailabilityDistributionMessage::Chunk(hash, chunk),
+						),
+					)
+				) => {
+					assert_eq!(1, peers.len());
+					assert_eq!(peers[0], peer_b);
+					assert_eq!(candidates[1].hash(), hash);
+					assert_eq!(valid.erasure_chunk, chunk);
+				}
+			);
+
+			// Let B send the same message
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						chunk_protocol_message(valid.clone()),
+					),
+				),
+			)
+			.await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(
+						peer,
+						rep
+					)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE);
+				}
+			);
+
+			// There shouldn't be any other message.
+			assert!(virtual_overseer.recv().timeout(TIMEOUT).await.is_none());
 		}
 	});
 }

@@ -39,10 +39,10 @@ use crate::{
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
-pub trait Trait: inclusion::Trait + scheduler::Trait {}
+pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
-	trait Store for Module<T: Trait> as ParaInclusionInherent {
+	trait Store for Module<T: Config> as ParaInclusionInherent {
 		/// Whether the inclusion inherent was included within this block.
 		///
 		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
@@ -54,7 +54,7 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Inclusion inherent called more than once per block.
 		TooManyInclusionInherents,
 	}
@@ -62,7 +62,7 @@ decl_error! {
 
 decl_module! {
 	/// The inclusion inherent module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		fn on_initialize() -> Weight {
@@ -127,7 +127,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> ProvideInherent for Module<T> {
+impl<T: Config> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
 	const INHERENT_IDENTIFIER: InherentIdentifier = INCLUSION_INHERENT_IDENTIFIER;

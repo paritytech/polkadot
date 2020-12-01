@@ -20,34 +20,20 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::mpsc,
 	task::{Poll, self},
 	stream,
 };
 use streamunordered::{StreamUnordered, StreamYield};
-use thiserror::Error;
 
 use polkadot_node_subsystem::{
-	errors::RuntimeApiError, SubsystemError,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeMessage},
+	errors::RuntimeApiError,
+	messages::{AllMessages, NetworkBridgeMessage},
 	SubsystemContext,
 };
-use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId};
+use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
 use sc_network::PeerId;
-
-/// Error when making a request to connect to validators.
-#[derive(Debug, Error)]
-pub enum Error {
-	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-	/// A subsystem error.
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-	/// An error in the Runtime API.
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-}
+use crate::Error;
 
 /// Utility function to make it easier to connect to validators.
 pub async fn connect_to_validators<Context: SubsystemContext>(
@@ -55,17 +41,42 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
 ) -> Result<ConnectionRequest, Error> {
-	// ValidatorId -> AuthorityDiscoveryId
-	let (tx, rx) = oneshot::channel();
+	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
+	connect_to_past_session_validators(ctx, relay_parent, validators, current_index).await
+}
 
-	ctx.send_message(AllMessages::RuntimeApi(
-		RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
-		)
-	)).await;
+/// Utility function to make it easier to connect to validators in the past sessions.
+pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	validators: Vec<ValidatorId>,
+	session_index: SessionIndex,
+) -> Result<ConnectionRequest, Error> {
+	let session_info = crate::request_session_info_ctx(
+		relay_parent,
+		session_index,
+		ctx,
+	).await?.await??;
 
-	let maybe_authorities = rx.await??;
+	let (session_validators, discovery_keys) = match session_info {
+		Some(info) => (info.validators, info.discovery_keys),
+		None => return Err(RuntimeApiError::from(
+			format!("No SessionInfo found for the index {}", session_index)
+		).into()),
+	};
+
+	let id_to_index = session_validators.iter()
+		.zip(0usize..)
+		.collect::<HashMap<_, _>>();
+
+	// We assume the same ordering in authorities as in validators so we can do an index search
+	let maybe_authorities: Vec<_> = validators.iter()
+		.map(|id| {
+			let validator_index = id_to_index.get(&id);
+			validator_index.and_then(|i| discovery_keys.get(*i).cloned())
+		})
+		.collect();
+
 	let authorities: Vec<_> = maybe_authorities.iter()
 		.cloned()
 		.filter_map(|id| id)
