@@ -127,7 +127,7 @@ async fn get_availability_cores(
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<Vec<CoreState>, Error> {
-	let _span = span.child("get availability cores");
+	let _span = jaeger::hash_span(&relay_parent, "get availability cores");
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send(AllMessages::from(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx))).into())

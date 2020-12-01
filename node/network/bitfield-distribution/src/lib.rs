@@ -179,11 +179,10 @@ impl BitfieldDistribution {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-					let span_basics = jaeger::span( "bitfield-dist:active_leaves");
 
 					for relay_parent in activated {
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
-						let _span_basics = span_basics.child( format!("basics of {}", &relay_parent));
+						let _span = jaeger::hash_span(&relay_parent, "bitfield-dist:active_leaves:basics");
 
 						// query validator set and signing context per relay_parent once only
 						match query_basics(&mut ctx, relay_parent).await {
