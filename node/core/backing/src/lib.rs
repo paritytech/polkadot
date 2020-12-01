@@ -97,7 +97,7 @@ struct CandidateBackingJob {
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
 	/// The `ParaId` assigned to this validator
-	assignment: ParaId,
+	assignment: Option<ParaId>,
 	/// The collator required to author the candidate, if any.
 	required_collator: Option<CollatorId>,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
@@ -491,7 +491,7 @@ impl CandidateBackingJob {
 				let _timer = self.metrics.time_process_second();
 
 				// Sanity check that candidate is from our assignment.
-				if candidate.descriptor().para_id != self.assignment {
+				if Some(candidate.descriptor().para_id) != self.assignment {
 					return Ok(());
 				}
 
@@ -616,7 +616,7 @@ impl CandidateBackingJob {
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement).await? {
 			if let Statement::Seconded(_) = statement.payload() {
-				if summary.group_id == self.assignment {
+				if Some(summary.group_id) == self.assignment {
 					self.kick_off_validation_work(summary).await?;
 				}
 			}
@@ -913,8 +913,8 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			let (assignment, required_collator) = match assignment {
-				None => return Ok(()), // no need to work.
-				Some(r) => r,
+				None => (None, None),
+				Some((assignment, required_collator)) => (Some(assignment), required_collator),
 			};
 
 			tracing::info!(
