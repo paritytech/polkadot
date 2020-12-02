@@ -850,14 +850,14 @@ impl util::JobTrait for CandidateBackingJob {
 			}
 
 			let (validators, groups, session_index, cores) = futures::try_join!(
-				request_validators(parent, &mut tx_from).await?,
-				request_validator_groups(parent, &mut tx_from).await?,
-				request_session_index_for_child(parent, &mut tx_from).await?,
-				request_from_runtime(
+				try_runtime_api!(request_validators(parent, &mut tx_from).await),
+				try_runtime_api!(request_validator_groups(parent, &mut tx_from).await),
+				try_runtime_api!(request_session_index_for_child(parent, &mut tx_from).await),
+				try_runtime_api!(request_from_runtime(
 					parent,
 					&mut tx_from,
 					|tx| RuntimeApiRequest::AvailabilityCores(tx),
-				).await?,
+				).await),
 			).map_err(Error::JoinMultiple)?;
 
 			let validators = try_runtime_api!(validators);
