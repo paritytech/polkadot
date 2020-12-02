@@ -25,9 +25,10 @@ use crate::{configuration, paras, dmp, hrmp};
 /// Make the persisted validation data for a particular parachain.
 ///
 /// This ties together the storage of several modules.
-pub fn make_persisted_validation_data<T: paras::Trait + hrmp::Trait>(
+pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
+	let config = <configuration::Module<T>>::config();
 	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
 
 	Some(PersistedValidationData {
@@ -35,13 +36,14 @@ pub fn make_persisted_validation_data<T: paras::Trait + hrmp::Trait>(
 		block_number: relay_parent_number,
 		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
 		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
+		max_pov_size: config.max_pov_size,
 	})
 }
 
 /// Make the transient validation data for a particular parachain.
 ///
 /// This ties together the storage of several modules.
-pub fn make_transient_validation_data<T: paras::Trait + dmp::Trait>(
+pub fn make_transient_validation_data<T: paras::Config + dmp::Config>(
 	para_id: ParaId,
 ) -> Option<TransientValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();

@@ -85,19 +85,19 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	}
 }
 
-pub trait Trait:
-	frame_system::Trait
-	+ paras::Trait
-	+ dmp::Trait
-	+ ump::Trait
-	+ hrmp::Trait
-	+ configuration::Trait
+pub trait Config:
+	frame_system::Config
+	+ paras::Config
+	+ dmp::Config
+	+ ump::Config
+	+ hrmp::Config
+	+ configuration::Config
 {
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as ParaInclusion {
+	trait Store for Module<T: Config> as ParaInclusion {
 		/// The latest bitfield for each validator, referred to by their index in the validator set.
 		AvailabilityBitfields: map hasher(twox_64_concat) ValidatorIndex
 			=> Option<AvailabilityBitfieldRecord<T::BlockNumber>>;
@@ -119,7 +119,7 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Availability bitfield has unexpected size.
 		WrongBitfieldSize,
 		/// Multiple bitfields submitted by same validator or validators out of order by index.
@@ -170,7 +170,7 @@ decl_error! {
 }
 
 decl_event! {
-	pub enum Event<T> where <T as frame_system::Trait>::Hash {
+	pub enum Event<T> where <T as frame_system::Config>::Hash {
 		/// A candidate was backed. [candidate, head_data]
 		CandidateBacked(CandidateReceipt<Hash>, HeadData),
 		/// A candidate was included. [candidate, head_data]
@@ -182,8 +182,8 @@ decl_event! {
 
 decl_module! {
 	/// The parachain-candidate inclusion module.
-	pub struct Module<T: Trait>
-		for enum Call where origin: <T as frame_system::Trait>::Origin
+	pub struct Module<T: Config>
+		for enum Call where origin: <T as frame_system::Config>::Origin
 	{
 		type Error = Error<T>;
 
@@ -193,7 +193,7 @@ decl_module! {
 
 const LOG_TARGET: &str = "parachains_runtime_inclusion";
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight { 0 }
 
@@ -562,7 +562,7 @@ impl<T: Trait> Module<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs(
 		para_id: ParaId,
-		validation_outputs: primitives::v1::ValidationOutputs,
+		validation_outputs: primitives::v1::CandidateCommitments,
 	) -> bool {
 		if let Err(err) = CandidateCheckContext::<T>::new().check_validation_outputs(
 			para_id,
@@ -733,7 +733,7 @@ enum AcceptanceCheckErr<BlockNumber> {
 impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 	/// Returns the same error so that it can be threaded through a needle of `DispatchError` and
 	/// ultimately returned from a `Dispatchable`.
-	fn strip_into_dispatch_err<T: Trait>(self) -> Error<T> {
+	fn strip_into_dispatch_err<T: Config>(self) -> Error<T> {
 		use AcceptanceCheckErr::*;
 		match self {
 			HeadDataTooLarge => Error::<T>::HeadDataTooLarge,
@@ -748,13 +748,13 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 }
 
 /// A collection of data required for checking a candidate.
-struct CandidateCheckContext<T: Trait> {
+struct CandidateCheckContext<T: Config> {
 	config: configuration::HostConfiguration<T::BlockNumber>,
 	now: T::BlockNumber,
 	relay_parent_number: T::BlockNumber,
 }
 
-impl<T: Trait> CandidateCheckContext<T> {
+impl<T: Config> CandidateCheckContext<T> {
 	fn new() -> Self {
 		let now = <frame_system::Module<T>>::block_number();
 		Self {

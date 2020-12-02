@@ -16,6 +16,7 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
+use crate::WASM_MAGIC;
 use sp_std::prelude::*;
 use frame_support::{
 	decl_error, decl_module, ensure,
@@ -29,24 +30,26 @@ use runtime_parachains::{
 use primitives::v1::Id as ParaId;
 
 /// The module's configuration trait.
-pub trait Trait:
-	configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait
+pub trait Config:
+	configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config
 {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// The specified parachain or parathread is not registered.
 		ParaDoesntExist,
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
 		/// message.
 		ExceedsMaxMessageSize,
+		/// The validation code provided doesn't start with the Wasm file magic string.
+		DefinitelyNotWasm,
 	}
 }
 
 decl_module! {
 	/// A sudo wrapper to call into v1 paras module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		/// Schedule a para to be initialized at the start of the next session.
@@ -57,6 +60,7 @@ decl_module! {
 			genesis: ParaGenesisArgs,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(genesis.validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 			Ok(())
 		}

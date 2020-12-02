@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_multisig.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_multisig::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_multisig::WeightInfo for WeightInfo<T> {
 	fn as_multi_threshold_1(z: u32, ) -> Weight {
 		(12_168_000 as Weight)
 			.saturating_add((1_000 as Weight).saturating_mul(z as Weight))

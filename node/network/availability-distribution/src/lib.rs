@@ -30,7 +30,6 @@ use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View,
@@ -53,65 +52,46 @@ use std::collections::{HashMap, HashSet};
 use std::iter;
 use thiserror::Error;
 
-const TARGET: &'static str = "avad";
+#[cfg(test)]
+mod tests;
+
+const LOG_TARGET: &'static str = "availability_distribution";
 
 #[derive(Debug, Error)]
 enum Error {
-	#[error("Sending PendingAvailability query failed")]
-	QueryPendingAvailabilitySendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain PendingAvailability failed")]
 	QueryPendingAvailabilityResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain PendingAvailability failed")]
 	QueryPendingAvailability(#[source] RuntimeApiError),
 
-	#[error("Sending StoreChunk query failed")]
-	StoreChunkSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain StoreChunk failed")]
 	StoreChunkResponseChannel(#[source] oneshot::Canceled),
 
-	#[error("Sending QueryChunk query failed")]
-	QueryChunkSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QueryChunk failed")]
 	QueryChunkResponseChannel(#[source] oneshot::Canceled),
 
-	#[error("Sending QueryAncestors query failed")]
-	QueryAncestorsSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QueryAncestors failed")]
 	QueryAncestorsResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain QueryAncestors failed")]
 	QueryAncestors(#[source] ChainApiError),
 
-	#[error("Sending QuerySession query failed")]
-	QuerySessionSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QuerySession failed")]
 	QuerySessionResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain QuerySession failed")]
 	QuerySession(#[source] RuntimeApiError),
 
-	#[error("Sending QueryValidators query failed")]
-	QueryValidatorsSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain QueryValidators failed")]
 	QueryValidatorsResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain QueryValidators failed")]
 	QueryValidators(#[source] RuntimeApiError),
 
-	#[error("Sending AvailabilityCores query failed")]
-	AvailabilityCoresSendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain AvailabilityCores failed")]
 	AvailabilityCoresResponseChannel(#[source] oneshot::Canceled),
 	#[error("RuntimeAPI to obtain AvailabilityCores failed")]
 	AvailabilityCores(#[source] RuntimeApiError),
 
-	#[error("Sending AvailabilityCores query failed")]
-	QueryAvailabilitySendQuery(#[source] SubsystemError),
 	#[error("Response channel to obtain AvailabilityCores failed")]
 	QueryAvailabilityResponseChannel(#[source] oneshot::Canceled),
-
-	#[error("Sending out a peer report message")]
-	ReportPeerMessageSend(#[source] SubsystemError),
-
-	#[error("Sending a gossip message")]
-	TrackedGossipMessage(#[source] SubsystemError),
 
 	#[error("Receive channel closed")]
 	IncomingMessageChannel(#[source] SubsystemError),
@@ -189,6 +169,14 @@ struct PerCandidate {
 	validator_index: Option<ValidatorIndex>,
 }
 
+impl PerCandidate {
+	/// Returns `true` iff the given `message` is required by the given `peer`.
+	fn message_required_by_peer(&self, peer: &PeerId, message: &(CandidateHash, ValidatorIndex)) -> bool {
+		self.received_messages.get(peer).map(|v| !v.contains(message)).unwrap_or(true)
+			&& self.sent_messages.get(peer).map(|v| !v.contains(message)).unwrap_or(true)
+	}
+}
+
 #[derive(Debug, Clone, Default)]
 struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
@@ -197,6 +185,7 @@ struct PerRelayParent {
 
 impl ProtocolState {
 	/// Collects the relay_parents ancestors including the relay parents themselfes.
+	#[tracing::instrument(level = "trace", skip(relay_parents), fields(subsystem = LOG_TARGET))]
 	fn extend_with_ancestors<'a>(
 		&'a self,
 		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
@@ -218,6 +207,7 @@ impl ProtocolState {
 	/// Unionize all cached entries for the given relay parents and its ancestors.
 	/// Ignores all non existent relay parents, so this can be used directly with a peers view.
 	/// Returns a map from candidate hash -> receipt
+	#[tracing::instrument(level = "trace", skip(relay_parents), fields(subsystem = LOG_TARGET))]
 	fn cached_live_candidates_unioned<'a>(
 		&'a self,
 		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
@@ -232,6 +222,7 @@ impl ProtocolState {
 			.collect()
 	}
 
+	#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 	async fn add_relay_parent<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -287,7 +278,8 @@ impl ProtocolState {
 		Ok(())
 	}
 
-	fn remove_relay_parent(&mut self, relay_parent: &Hash) -> Result<()> {
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	fn remove_relay_parent(&mut self, relay_parent: &Hash) {
 		// we might be ancestor of some other relay_parent
 		if let Some(ref mut descendants) = self.ancestry.get_mut(relay_parent) {
 			// if we were the last user, and it is
@@ -321,12 +313,12 @@ impl ProtocolState {
 				}
 			}
 		}
-		Ok(())
 	}
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
+#[tracing::instrument(level = "trace", skip(ctx, keystore, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	keystore: &SyncCryptoStorePtr,
@@ -347,7 +339,7 @@ where
 			state.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			handle_peer_view_change(ctx, state, peerid, view, metrics).await?;
+			handle_peer_view_change(ctx, state, peerid, view, metrics).await;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
 			handle_our_view_change(ctx, keystore, state, view, metrics).await?;
@@ -370,6 +362,7 @@ where
 }
 
 /// Handle the changes necessary when our view changes.
+#[tracing::instrument(level = "trace", skip(ctx, keystore, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
 	keystore: &SyncCryptoStorePtr,
@@ -380,24 +373,24 @@ async fn handle_our_view_change<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	let old_view = std::mem::replace(&mut (state.view), view);
+	let _timer = metrics.time_handle_our_view_change();
+
+	let old_view = std::mem::replace(&mut state.view, view);
 
 	// needed due to borrow rules
 	let view = state.view.clone();
-	let added = view.difference(&old_view).collect::<Vec<&'_ Hash>>();
 
 	// add all the relay parents and fill the cache
-	for added in added.iter() {
-		let added = **added;
-		let validators = query_validators(ctx, added).await?;
+	for added in view.difference(&old_view) {
+		let validators = query_validators(ctx, *added).await?;
 		let validator_index = obtain_our_validator_index(&validators, keystore.clone()).await;
 		state
-			.add_relay_parent(ctx, added, validators, validator_index)
+			.add_relay_parent(ctx, *added, validators, validator_index)
 			.await?;
 	}
 
 	// handle all candidates
-	for (candidate_hash, _receipt) in state.cached_live_candidates_unioned(added) {
+	for (candidate_hash, _receipt) in state.cached_live_candidates_unioned(view.difference(&old_view)) {
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		// assure the node has the validator role
@@ -434,12 +427,9 @@ where
 			// obtain the chunks from the cache, if not fallback
 			// and query the availability store
 			let message_id = (candidate_hash, chunk_index);
-			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index)
-			{
+			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
 				message.erasure_chunk.clone()
-			} else if let Some(erasure_chunk) =
-				query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await?
-			{
+			} else if let Some(erasure_chunk) = query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await? {
 				erasure_chunk
 			} else {
 				continue;
@@ -449,30 +439,22 @@ where
 
 			let peers = peers
 				.iter()
-				.filter(|peer| {
-					// only pick those which were not sent before
-					!per_candidate
-						.sent_messages
-						.get(*peer)
-						.filter(|set| set.contains(&message_id))
-						.is_some()
-				})
-				.map(|peer| peer.clone())
+				.filter(|peer| per_candidate.message_required_by_peer(peer, &message_id))
+				.cloned()
 				.collect::<Vec<_>>();
 			let message = AvailabilityGossipMessage {
 				candidate_hash,
 				erasure_chunk,
 			};
 
-			send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message)
-				.await?;
+			send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await;
 		}
 	}
 
 	// cleanup the removed relay parents and their states
 	let removed = old_view.difference(&view).collect::<Vec<_>>();
 	for removed in removed {
-		state.remove_relay_parent(&removed)?;
+		state.remove_relay_parent(&removed);
 	}
 	Ok(())
 }
@@ -484,12 +466,11 @@ async fn send_tracked_gossip_message_to_peers<Context>(
 	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message: AvailabilityGossipMessage,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message))
-		.await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await
 }
 
 #[inline(always)]
@@ -499,26 +480,26 @@ async fn send_tracked_gossip_messages_to_peer<Context>(
 	metrics: &Metrics,
 	peer: PeerId,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![peer], message_iter)
-		.await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![peer], message_iter).await
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, metrics, message_iter), fields(subsystem = LOG_TARGET))]
 async fn send_tracked_gossip_messages_to_peers<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
 	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	if peers.is_empty() {
-		return Ok(());
+		return;
 	}
 	for message in message_iter {
 		for peer in peers.iter() {
@@ -545,24 +526,22 @@ where
 				protocol_v1::ValidationProtocol::AvailabilityDistribution(wire_message),
 			),
 		))
-		.await
-		.map_err(|e| Error::TrackedGossipMessage(e))?;
+		.await;
 
 		metrics.on_chunk_distributed();
 	}
-
-	Ok(())
 }
 
 // Send the difference between two views which were not sent
 // to that particular peer.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	origin: PeerId,
 	view: View,
 	metrics: &Metrics,
-) -> Result<()>
+)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -593,23 +572,13 @@ where
 				per_candidate
 					.message_vault
 					.get(&erasure_chunk_index)
-					.filter(|_| {
-						// check if that erasure chunk was already sent before
-						if let Some(sent_set) = per_candidate.sent_messages.get(&origin) {
-							if sent_set.contains(&message_id) {
-								return false;
-							}
-						}
-						true
-					})
+					.filter(|_| per_candidate.message_required_by_peer(&origin, &message_id))
 			})
 			.cloned()
 			.collect::<HashSet<_>>();
 
-		send_tracked_gossip_messages_to_peer(ctx, per_candidate, metrics, origin.clone(), messages)
-			.await?;
+		send_tracked_gossip_messages_to_peer(ctx, per_candidate, metrics, origin.clone(), messages).await;
 	}
-	Ok(())
 }
 
 /// Obtain the first key which has a signing key.
@@ -633,6 +602,7 @@ async fn obtain_our_validator_index(
 }
 
 /// Handle an incoming message from a peer.
+#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -643,6 +613,8 @@ async fn process_incoming_peer_message<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
+	let _timer = metrics.time_process_incoming_peer_message();
+
 	// obtain the set of candidates we are interested in based on our current view
 	let live_candidates = state.cached_live_candidates_unioned(state.view.0.iter());
 
@@ -650,11 +622,12 @@ where
 	let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash) {
 		live_candidate
 	} else {
-		return modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
+		modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
+		return Ok(());
 	};
 
 	// check the merkle proof
-	let root = &live_candidate.commitments.erasure_root;
+	let root = &live_candidate.descriptor.erasure_root;
 	let anticipated_hash = if let Ok(hash) = branch_hash(
 		root,
 		&message.erasure_chunk.proof,
@@ -662,12 +635,14 @@ where
 	) {
 		hash
 	} else {
-		return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		return Ok(());
 	};
 
 	let erasure_chunk_hash = BlakeTwo256::hash(&message.erasure_chunk.chunk);
 	if anticipated_hash != erasure_chunk_hash {
-		return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+		return Ok(());
 	}
 
 	// an internal unique identifier of this message
@@ -683,7 +658,8 @@ where
 				.entry(origin.clone())
 				.or_default();
 			if received_set.contains(&message_id) {
-				return modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+				modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+				return Ok(());
 			} else {
 				received_set.insert(message_id.clone());
 			}
@@ -695,9 +671,9 @@ where
 			.insert(message_id.1, message.clone())
 			.is_some()
 		{
-			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
 		} else {
-			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			// save the chunk for our index
 			if let Some(validator_index) = per_candidate.validator_index {
@@ -711,8 +687,8 @@ where
 					)
 					.await?
 					{
-						warn!(
-							target: TARGET,
+						tracing::warn!(
+							target: LOG_TARGET,
 							"Failed to store erasure chunk to availability store"
 						);
 					}
@@ -738,19 +714,12 @@ where
 
 	let peers = peers
 		.into_iter()
-		.filter(|peer| {
-			let peer: PeerId = peer.clone();
-			// avoid sending duplicate messages
-			per_candidate
-				.sent_messages
-				.entry(peer)
-				.or_default()
-				.contains(&message_id)
-		})
+		.filter(|peer| per_candidate.message_required_by_peer(peer, &message_id))
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
-	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await
+	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await;
+	Ok(())
 }
 
 /// The bitfield distribution subsystem.
@@ -771,6 +740,7 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, mut ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -795,9 +765,10 @@ impl AvailabilityDistributionSubsystem {
 					)
 					.await
 					{
-						warn!(
-							target: TARGET,
-							"Failed to handle incoming network messages: {:?}", e
+						tracing::warn!(
+							target: LOG_TARGET,
+							err = ?e,
+							"Failed to handle incoming network messages",
 						);
 					}
 				}
@@ -834,6 +805,7 @@ where
 }
 
 /// Obtain all live candidates based on an iterator of relay heads.
+#[tracing::instrument(level = "trace", skip(ctx, relay_parents), fields(subsystem = LOG_TARGET))]
 async fn query_live_candidates_without_ancestors<Context>(
 	ctx: &mut Context,
 	relay_parents: impl IntoIterator<Item = Hash>,
@@ -859,6 +831,7 @@ where
 /// Obtain all live candidates based on an iterator or relay heads including `k` ancestors.
 ///
 /// Relay parent.
+#[tracing::instrument(level = "trace", skip(ctx, relay_parents), fields(subsystem = LOG_TARGET))]
 async fn query_live_candidates<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -921,6 +894,7 @@ where
 }
 
 /// Query all para IDs.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_para_ids<Context>(ctx: &mut Context, relay_parent: Hash) -> Result<Vec<ParaId>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -930,8 +904,7 @@ where
 		relay_parent,
 		RuntimeApiRequest::AvailabilityCores(tx),
 	)))
-	.await
-	.map_err(|e| Error::AvailabilityCoresSendQuery(e))?;
+	.await;
 
 	let all_para_ids: Vec<_> = rx
 		.await
@@ -952,24 +925,24 @@ where
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	trace!(
-		target: TARGET,
-		"Reputation change of {:?} for peer {:?}",
-		rep,
-		peer
+	tracing::trace!(
+		target: LOG_TARGET,
+		rep = ?rep,
+		peer_id = ?peer,
+		"Reputation change for peer",
 	);
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
-	))
-	.await
-	.map_err(|e| Error::ReportPeerMessageSend(e))
+	)).await;
 }
 
 /// Query the proof of validity for a particular candidate hash.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_data_availability<Context>(ctx: &mut Context, candidate_hash: CandidateHash) -> Result<bool>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -977,13 +950,13 @@ where
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
 		AvailabilityStoreMessage::QueryDataAvailability(candidate_hash, tx),
-	))
-	.await
-	.map_err(|e| Error::QueryAvailabilitySendQuery(e))?;
+	)).await;
+
 	rx.await
 		.map_err(|e| Error::QueryAvailabilityResponseChannel(e))
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_chunk<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
@@ -995,12 +968,12 @@ where
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
 		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
-	))
-	.await
-	.map_err(|e| Error::QueryChunkSendQuery(e))?;
+	)).await;
+
 	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, erasure_chunk), fields(subsystem = LOG_TARGET))]
 async fn store_chunk<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
@@ -1012,22 +985,21 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(
-		AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreChunk {
-				candidate_hash,
-				relay_parent,
-				validator_index,
-				chunk: erasure_chunk,
-				tx,
-			}
-		)).await
-		.map_err(|e| Error::StoreChunkSendQuery(e))?;
+	ctx.send_message(AllMessages::AvailabilityStore(
+		AvailabilityStoreMessage::StoreChunk {
+			candidate_hash,
+			relay_parent,
+			validator_index,
+			chunk: erasure_chunk,
+			tx,
+		}
+	)).await;
 
 	rx.await.map_err(|e| Error::StoreChunkResponseChannel(e))
 }
 
 /// Request the head data for a particular para.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_pending_availability<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1040,9 +1012,7 @@ where
 	ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 		relay_parent,
 		RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-	)))
-	.await
-	.map_err(|e| Error::QueryPendingAvailabilitySendQuery(e))?;
+	))).await;
 
 	rx.await
 		.map_err(|e| Error::QueryPendingAvailabilityResponseChannel(e))?
@@ -1050,6 +1020,7 @@ where
 }
 
 /// Query the validator set.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_validators<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1064,14 +1035,14 @@ where
 	));
 
 	ctx.send_message(query_validators)
-		.await
-		.map_err(|e| Error::QueryValidatorsSendQuery(e))?;
+		.await;
 	rx.await
 		.map_err(|e| Error::QueryValidatorsResponseChannel(e))?
 		.map_err(|e| Error::QueryValidators(e))
 }
 
 /// Query the hash of the `K` ancestors
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_k_ancestors<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1088,14 +1059,14 @@ where
 	});
 
 	ctx.send_message(query_ancestors)
-		.await
-		.map_err(|e| Error::QueryAncestorsSendQuery(e))?;
+		.await;
 	rx.await
 		.map_err(|e| Error::QueryAncestorsResponseChannel(e))?
 		.map_err(|e| Error::QueryAncestors(e))
 }
 
 /// Query the session index of a relay parent
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_session_index_for_child<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1110,14 +1081,14 @@ where
 	));
 
 	ctx.send_message(query_session_idx_for_child)
-		.await
-		.map_err(|e| Error::QuerySessionSendQuery(e))?;
+		.await;
 	rx.await
 		.map_err(|e| Error::QuerySessionResponseChannel(e))?
 		.map_err(|e| Error::QuerySession(e))
 }
 
 /// Queries up to k ancestors with the constraints of equiv session
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_up_to_k_ancestors_in_same_session<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1158,6 +1129,8 @@ where
 #[derive(Clone)]
 struct MetricsInner {
 	gossipped_availability_chunks: prometheus::Counter<prometheus::U64>,
+	handle_our_view_change: prometheus::Histogram,
+	process_incoming_peer_message: prometheus::Histogram,
 }
 
 /// Availability Distribution metrics.
@@ -1169,6 +1142,16 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.gossipped_availability_chunks.inc();
 		}
+	}
+
+	/// Provide a timer for `handle_our_view_change` which observes on drop.
+	fn time_handle_our_view_change(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_our_view_change.start_timer())
+	}
+
+	/// Provide a timer for `process_incoming_peer_message` which observes on drop.
+	fn time_process_incoming_peer_message(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.process_incoming_peer_message.start_timer())
 	}
 }
 
@@ -1184,10 +1167,25 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			handle_our_view_change: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_availability_distribution_handle_our_view_change",
+						"Time spent within `availability_distribution::handle_our_view_change`",
+					)
+				)?,
+				registry,
+			)?,
+			process_incoming_peer_message: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_availability_distribution_process_incoming_peer_message",
+						"Time spent within `availability_distribution::process_incoming_peer_message`",
+					)
+				)?,
+				registry,
+			)?,
 		};
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
-#[cfg(test)]
-mod tests;

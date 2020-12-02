@@ -28,9 +28,9 @@ use sp_core::sr25519;
 use sp_std::prelude::*;
 
 /// Configuration trait.
-pub trait Trait: frame_system::Trait {
+pub trait Config: frame_system::Config {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	/// Balances Pallet
 	type Currency: Currency<Self::AccountId>;
 	/// Vesting Pallet
@@ -47,7 +47,7 @@ pub trait Trait: frame_system::Trait {
 	type MaxUnlocked: Get<BalanceOf<Self>>;
 }
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The kind of a statement an account needs to make for a claim to be valid.
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
@@ -103,9 +103,9 @@ pub struct AccountStatus<Balance> {
 
 decl_event!(
 	pub enum Event<T> where
-		AccountId = <T as frame_system::Trait>::AccountId,
+		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
-		BlockNumber = <T as frame_system::Trait>::BlockNumber,
+		BlockNumber = <T as frame_system::Config>::BlockNumber,
 	{
 		/// A [new] account was created.
 		AccountCreated(AccountId),
@@ -125,7 +125,7 @@ decl_event!(
 );
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Account is not currently valid to use.
 		InvalidAccount,
 		/// Account used in the purchase already exists.
@@ -146,7 +146,7 @@ decl_error! {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Purchase {
+	trait Store for Module<T: Config> as Purchase {
 		// A map of all participants in the DOT purchase process.
 		Accounts: map hasher(blake2_128_concat) T::AccountId => AccountStatus<BalanceOf<T>>;
 		// The account that will be used to payout participants of the DOT purchase process.
@@ -159,7 +159,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		/// The maximum statement length for the statement users to sign when creating an account.
@@ -340,7 +340,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	fn verify_signature(who: &T::AccountId, signature: &[u8]) -> Result<(), DispatchError> {
 		// sr25519 always expects a 64 byte signature.
 		ensure!(signature.len() == 64, Error::<T>::InvalidSignature);
@@ -374,7 +374,7 @@ fn account_to_bytes<AccountId>(account: &AccountId) -> Result<[u8; 32], Dispatch
 /// WARNING: Executing this function will clear all storage used by this pallet.
 /// Be sure this is what you want...
 pub fn remove_pallet<T>() -> frame_support::weights::Weight
-	where T: frame_system::Trait
+	where T: frame_system::Config
 {
 	use frame_support::migration::remove_storage_prefix;
 	remove_storage_prefix(b"Purchase", b"Accounts", b"");
@@ -428,7 +428,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -460,7 +460,7 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 1;
 	}
 
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -474,7 +474,7 @@ mod tests {
 		pub const MinVestedTransfer: u64 = 0;
 	}
 
-	impl pallet_vesting::Trait for Test {
+	impl pallet_vesting::Config for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
@@ -494,7 +494,7 @@ mod tests {
 		pub const ConfigurationOrigin: AccountId = AccountId32::from([2u8; 32]);
 	}
 
-	impl Trait for Test {
+	impl Config for Test {
 		type Event = ();
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
@@ -692,7 +692,7 @@ mod tests {
 			);
 
 			// Account with vesting
-			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(
+			assert_ok!(<Test as Config>::VestingSchedule::add_vesting_schedule(
 				&alice(),
 				100,
 				1,
@@ -933,13 +933,13 @@ mod tests {
 				bob(),
 			));
 			// Payment is made.
-			assert_eq!(<Test as Trait>::Currency::free_balance(&payment_account()), 99_650);
-			assert_eq!(<Test as Trait>::Currency::free_balance(&alice()), 100);
+			assert_eq!(<Test as Config>::Currency::free_balance(&payment_account()), 99_650);
+			assert_eq!(<Test as Config>::Currency::free_balance(&alice()), 100);
 			// 10% of the 50 units is unlocked automatically for Alice
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(45));
-			assert_eq!(<Test as Trait>::Currency::free_balance(&bob()), 250);
+			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&alice()), Some(45));
+			assert_eq!(<Test as Config>::Currency::free_balance(&bob()), 250);
 			// A max of 10 units is unlocked automatically for Bob
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(140));
+			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&bob()), Some(140));
 			// Status is completed.
 			assert_eq!(
 				Accounts::<Test>::get(alice()),
@@ -966,13 +966,13 @@ mod tests {
 			let vest_call = Call::Vesting(pallet_vesting::Call::<Test>::vest());
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(45));
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(140));
+			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&alice()), Some(45));
+			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&bob()), Some(140));
 			System::set_block_number(101);
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), None);
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), None);
+			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&alice()), None);
+			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&bob()), None);
 		});
 	}
 
@@ -985,7 +985,7 @@ mod tests {
 				alice(),
 			), BadOrigin);
 			// Account with Existing Vesting Schedule
-			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(
+			assert_ok!(<Test as Config>::VestingSchedule::add_vesting_schedule(
 				&bob(), 100, 1, 50,
 			));
 			assert_noop!(Purchase::payout(

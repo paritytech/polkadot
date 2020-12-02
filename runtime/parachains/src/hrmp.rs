@@ -207,14 +207,14 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 	}
 }
 
-pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait + dmp::Trait {
+pub trait Config: frame_system::Config + configuration::Config + paras::Config + dmp::Config {
 	type Origin: From<crate::Origin>
-		+ From<<Self as frame_system::Trait>::Origin>
-		+ Into<Result<crate::Origin, <Self as Trait>::Origin>>;
+		+ From<<Self as frame_system::Config>::Origin>
+		+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Hrmp {
+	trait Store for Module<T: Config> as Hrmp {
 		/// Paras that are to be cleaned up at the end of the session.
 		/// The entries are sorted ascending by the para id.
 		OutgoingParas: Vec<ParaId>;
@@ -286,7 +286,7 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// The sender tried to open a channel to themselves.
 		OpenHrmpChannelToSelf,
 		/// The recipient is not a valid para.
@@ -322,7 +322,7 @@ decl_error! {
 
 decl_module! {
 	/// The HRMP module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		#[weight = 0]
@@ -332,7 +332,7 @@ decl_module! {
 			proposed_max_capacity: u32,
 			proposed_max_message_size: u32,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::init_open_channel(
 				origin,
 				recipient,
@@ -344,14 +344,14 @@ decl_module! {
 
 		#[weight = 0]
 		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
-			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
 			Ok(())
 		}
 
 		#[weight = 0]
 		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
-			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::close_channel(origin, channel_id)?;
 			Ok(())
 		}
@@ -359,7 +359,7 @@ decl_module! {
 }
 
 /// Routines and getters related to HRMP.
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0

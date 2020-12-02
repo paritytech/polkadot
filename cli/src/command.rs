@@ -148,7 +148,6 @@ pub fn run() -> Result<()> {
 						config,
 						service::IsCollator::No,
 						grandpa_pause,
-						None,
 					).map(|full| full.task_manager),
 				}
 			})
