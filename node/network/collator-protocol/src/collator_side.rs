@@ -691,7 +691,7 @@ pub(crate) async fn run(
 
 	loop {
 		select! {
-			res = state.connection_requests.next().fuse() => {
+			res = state.connection_requests.next() => {
 				let (relay_parent, validator_id, peer_id) = match res {
 					Some(res) => res,
 					// Will never happen, but better to be safe.

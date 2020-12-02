@@ -87,7 +87,7 @@ pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
 		.filter_map(|(k, v)| v.map(|v| (v, k)))
 		.collect::<HashMap<AuthorityDiscoveryId, ValidatorId>>();
 
-	let connections = connect_to_authorities(ctx, authorities).await?;
+	let connections = connect_to_authorities(ctx, authorities).await;
 
 	Ok(ConnectionRequest {
 		validator_map,
@@ -98,7 +98,7 @@ pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
 async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
-) -> Result<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, Error> {
+) -> mpsc::Receiver<(AuthorityDiscoveryId, PeerId)> {
 	const PEERS_CAPACITY: usize = 8;
 
 	let (connected, connected_rx) = mpsc::channel(PEERS_CAPACITY);
@@ -110,7 +110,7 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 		}
 	)).await;
 
-	Ok(connected_rx)
+	connected_rx
 }
 
 /// A struct that assists performing multiple concurrent connection requests.
