@@ -33,7 +33,7 @@ use test_parachain_adder::{execute, hash_state, BlockData, HeadData};
 /// This is a constant to make tests easily reproducible.
 const ADD: u64 = 2;
 
-/// Calculates the head and state for the given `number`.
+/// Calculates the head and state for the block with the given `number`.
 fn calculate_head_and_state_for_number(number: u64) -> (HeadData, u64) {
 	let mut head = HeadData {
 		number: 0,
