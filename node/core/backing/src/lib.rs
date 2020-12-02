@@ -84,7 +84,7 @@ enum Error {
 	#[error("a channel was closed before receipt in try_join!")]
 	JoinMultiple(#[source] oneshot::Canceled),
 	#[error("Obtaining erasure chunks failed")]
-	ObtainErasureChunks(#[from] #[source] erasure_coding::Error),
+	ObtainErasureChunks(#[from] erasure_coding::Error),
 	#[error(transparent)]
 	ValidationFailed(#[from] ValidationFailed),
 	#[error(transparent)]
