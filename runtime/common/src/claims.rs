@@ -37,13 +37,13 @@ use sp_runtime::{
 };
 use primitives::v1::ValidityError;
 
-type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as frame_system::Trait>::AccountId>>::Currency;
-type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type CurrencyOf<T> = <<T as Config>::VestingSchedule as VestingSchedule<<T as frame_system::Config>::AccountId>>::Currency;
+type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Configuration trait.
-pub trait Trait: frame_system::Trait {
+pub trait Config: frame_system::Config {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
 	type MoveClaimOrigin: EnsureOrigin<Self::Origin>;
@@ -130,7 +130,7 @@ impl sp_std::fmt::Debug for EcdsaSignature {
 decl_event!(
 	pub enum Event<T> where
 		Balance = BalanceOf<T>,
-		AccountId = <T as frame_system::Trait>::AccountId
+		AccountId = <T as frame_system::Config>::AccountId
 	{
 		/// Someone claimed some DOTs. [who, ethereum_address, amount]
 		Claimed(AccountId, EthereumAddress, Balance),
@@ -138,7 +138,7 @@ decl_event!(
 );
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Invalid Ethereum signature.
 		InvalidEthereumSignature,
 		/// Ethereum address has no claim.
@@ -159,7 +159,7 @@ decl_storage! {
 	// A macro for the Storage trait, and its implementation, for this module.
 	// This allows for type-safe usage of the Substrate storage database, so you can
 	// keep things around between blocks.
-	trait Store for Module<T: Trait> as Claims {
+	trait Store for Module<T: Config> as Claims {
 		Claims get(fn claims) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().map(|(a, b, _, _)| (a.clone(), b.clone())).collect::<Vec<_>>()
 		}): map hasher(identity) EthereumAddress => Option<BalanceOf<T>>;
@@ -194,7 +194,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		/// The Prefix that is used in signed Ethereum messages for this network
@@ -426,7 +426,7 @@ fn to_ascii_hex(data: &[u8]) -> Vec<u8> {
 	r
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
 	fn ethereum_signable_message(what: &[u8], extra: &[u8]) -> Vec<u8> {
 		let prefix = T::Prefix::get();
@@ -487,7 +487,7 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
+impl<T: Config> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
@@ -538,11 +538,11 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 /// Validate `attest` calls prior to execution. Needed to avoid a DoS attack since they are
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>;
+pub struct PrevalidateAttests<T: Config + Send + Sync>(sp_std::marker::PhantomData<T>) where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>;
 
-impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+impl<T: Config + Send + Sync> Debug for PrevalidateAttests<T> where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	#[cfg(feature = "std")]
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
@@ -555,8 +555,8 @@ impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
 	}
 }
 
-impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+impl<T: Config + Send + Sync> PrevalidateAttests<T> where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	/// Create new `SignedExtension` to check runtime version.
 	pub fn new() -> Self {
@@ -564,11 +564,11 @@ impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
 	}
 }
 
-impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+impl<T: Config + Send + Sync> SignedExtension for PrevalidateAttests<T> where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	type AccountId = T::AccountId;
-	type Call = <T as frame_system::Trait>::Call;
+	type Call = <T as frame_system::Config>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
 	const IDENTIFIER: &'static str = "PrevalidateAttests";
@@ -615,7 +615,7 @@ mod secp_utils {
 		res.0.copy_from_slice(&keccak_256(&public(secret).serialize()[1..65])[12..]);
 		res
 	}
-	pub fn sig<T: Trait>(secret: &secp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
+	pub fn sig<T: Config>(secret: &secp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
 		let msg = keccak_256(&<super::Module<T>>::ethereum_signable_message(&to_ascii_hex(what)[..], extra));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
 		let mut r = [0u8; 65];
@@ -665,7 +665,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -697,7 +697,7 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 1;
 	}
 
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -711,7 +711,7 @@ mod tests {
 		pub const MinVestedTransfer: u64 = 0;
 	}
 
-	impl pallet_vesting::Trait for Test {
+	impl pallet_vesting::Config for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
@@ -726,7 +726,7 @@ mod tests {
 		pub const Six: u64 = 6;
 	}
 
-	impl Trait for Test {
+	impl Config for Test {
 		type Event = ();
 		type VestingSchedule = Vesting;
 		type Prefix = Prefix;
@@ -1048,7 +1048,7 @@ mod tests {
 	fn claiming_while_vested_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			// A user is already vested
-			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(&69, total_claims(), 100, 10));
+			assert_ok!(<Test as Config>::VestingSchedule::add_vesting_schedule(&69, total_claims(), 100, 10));
 			CurrencyOf::<Test>::make_free_balance_be(&69, total_claims());
 			assert_eq!(Balances::free_balance(69), total_claims());
 			assert_ok!(Claims::mint_claim(Origin::root(), eth(&bob()), 200, Some((50, 10, 1)), None));
@@ -1181,7 +1181,7 @@ mod benchmarking {
 	const MAX_CLAIMS: u32 = 10_000;
 	const VALUE: u32 = 1_000_000;
 
-	fn create_claim<T: Trait>(input: u32) -> DispatchResult {
+	fn create_claim<T: Config>(input: u32) -> DispatchResult {
 		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
 		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
@@ -1189,7 +1189,7 @@ mod benchmarking {
 		Ok(())
 	}
 
-	fn create_claim_attest<T: Trait>(input: u32) -> DispatchResult {
+	fn create_claim_attest<T: Config>(input: u32) -> DispatchResult {
 		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
 		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));

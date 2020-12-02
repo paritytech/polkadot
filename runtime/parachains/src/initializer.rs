@@ -57,23 +57,23 @@ struct BufferedSessionChange<N> {
 	session_index: sp_staking::SessionIndex,
 }
 
-pub trait Trait:
-	frame_system::Trait
-	+ configuration::Trait
-	+ paras::Trait
-	+ scheduler::Trait
-	+ inclusion::Trait
-	+ session_info::Trait
-	+ dmp::Trait
-	+ ump::Trait
-	+ hrmp::Trait
+pub trait Config:
+	frame_system::Config
+	+ configuration::Config
+	+ paras::Config
+	+ scheduler::Config
+	+ inclusion::Config
+	+ session_info::Config
+	+ dmp::Config
+	+ ump::Config
+	+ hrmp::Config
 {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash>;
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Initializer {
+	trait Store for Module<T: Config> as Initializer {
 		/// Whether the parachains modules have been initialized within this block.
 		///
 		/// Semantically a bool, but this guarantees it should never hit the trie,
@@ -95,12 +95,12 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The initializer module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
@@ -159,7 +159,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	fn apply_new_session(
 		session_index: sp_staking::SessionIndex,
 		validators: Vec<ValidatorId>,
@@ -225,11 +225,11 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)

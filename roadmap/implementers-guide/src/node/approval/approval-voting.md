@@ -267,7 +267,7 @@ enum RequiredTranches {
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
 
-#### `launch_approval(SessionIndex, CandidateDescriptor, ValidatorIndex, block_hash, candidate_index)`:
+#### `launch_approval(SessionIndex, CandidateReceipt, ValidatorIndex, block_hash, candidate_index)`:
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, response_sender)`
   * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::HistoricalValidationCode(`descriptor.para_id`, `descriptor.relay_parent`)` against the state of `block_hash`.

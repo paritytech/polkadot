@@ -14,7 +14,7 @@ parity-scale-codec = { version = "1.3.5", default-features = false, features = [
 futures = "0.3.8"
 futures-timer = "3.0.2"
 log = "0.4.11"
-structopt = "0.3.20"
+structopt = "0.3.21"
 
 test-parachain-adder = { path = ".." }
 polkadot-primitives = { path = "../../../../primitives" }

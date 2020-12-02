@@ -367,7 +367,7 @@ where
 		),
 		candidate_selection: CandidateSelectionSubsystem::new(
 			spawner.clone(),
-			(),
+			keystore.clone(),
 			Metrics::register(registry)?,
 		),
 		candidate_validation: CandidateValidationSubsystem::new(
@@ -406,6 +406,7 @@ where
 		runtime_api: RuntimeApiSubsystem::new(
 			runtime_client,
 			Metrics::register(registry)?,
+			spawner.clone(),
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
 			Metrics::register(registry)?,
