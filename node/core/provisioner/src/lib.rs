@@ -123,6 +123,9 @@ enum Error {
 
 	#[error("failed to send return message with Inherents")]
 	InherentDataReturnChannel,
+
+	#[error("backed candidate does not correspond to selected candidate; check logic in provisioner")]
+	BackedCandidateOrderingProblem,
 }
 
 impl JobTrait for ProvisioningJob {
@@ -440,10 +443,26 @@ async fn select_candidates(
 	let (tx, rx) = oneshot::channel();
 	sender.send(AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(
 		relay_parent,
-		selected_candidates,
+		selected_candidates.clone(),
 		tx,
 	)).into()).await.map_err(|err| Error::GetBackedCandidatesSend(err))?;
 	let candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+
+	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
+	// _should_ preserve that property, but let's just make sure.
+	//
+	// We can't easily map from `BackedCandidate` to `core_idx`, but we know that every selected candidate
+	// maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by checking them
+	// in order, we can ensure that the backed candidates are also in order.
+	let mut backed_idx = 0;
+	for selected in selected_candidates.iter() {
+		if *selected == candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash() {
+			backed_idx += 1;
+		}
+	}
+	if candidates.len() != backed_idx {
+		Err(Error::BackedCandidateOrderingProblem)?;
+	}
 
 	Ok(candidates)
 }
