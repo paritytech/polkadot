@@ -193,12 +193,19 @@ where
 		record_proof: RecordProof,
 	) -> Self::Proposal {
 		async move {
-			let provisioner_data = match self.get_provisioner_data().await {
-				Ok(pd) => pd,
-				Err(err) => {
-					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
-					Default::default()
+			// TODO: how can we tell, here, if we expect a heavy block?
+			let expect_heavy_block = false;
+
+			let provisioner_data = if !expect_heavy_block {
+				match self.get_provisioner_data().await {
+					Ok(pd) => pd,
+					Err(err) => {
+						tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
+						Default::default()
+					}
 				}
+			} else {
+				Default::default()
 			};
 
 			inherent_data.put_data(
