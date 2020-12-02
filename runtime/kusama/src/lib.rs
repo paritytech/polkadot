@@ -895,10 +895,14 @@ impl frame_support::traits::OnRuntimeUpgrade for FixCouncilHistoricalVotes {
 		use frame_support::traits::ReservableCurrency;
 		let mut failure: Balance = 0;
 		// https://github.com/paritytech/polkadot/pull/1252/files#diff-cba4e599a9fdd88fe8d33b5ed913958d63f844186b53c5cbe9bc73a2e2944857R22
-		let old_bond = DOTS / 100 * 5;
-		let current_bond = 5 * CENTS;
-		let to_unreserve = old_bond - current_bond;
-		// source: https://github.com/paritytech/substrate/issues/7223
+
+		// https://polkascan.io/kusama/runtime-module/2007-electionsphragmen
+		let old_bond = 50_000_000_000;
+		// https://polkascan.io/kusama/runtime-module/2008-electionsphragmen
+		let current_bond = 8_333_333_330;
+		let to_unreserve = old_bond - current_bond;   // 41666666670
+
+		// source of accounts: https://github.com/paritytech/substrate/issues/7223
 		vec![
 			[52u8, 227, 117, 17, 229, 245, 8, 66, 43, 10, 142, 216, 196, 102, 119, 154, 34, 41, 53, 183, 37, 186, 250, 70, 247, 129, 207, 56, 2, 96, 181, 69],
 			[87, 71, 87, 4, 112, 230, 183, 229, 153, 158, 195, 253, 122, 165, 32, 37, 212, 105, 167, 124, 20, 165, 83, 106, 177, 214, 223, 18, 146, 184, 186, 42],
@@ -1097,10 +1101,11 @@ impl frame_support::traits::OnRuntimeUpgrade for FixCouncilHistoricalVotes {
 			.map(|acc|
 				AccountId::from(acc)
 			).for_each(|acc| {
-				failure += Balances::unreserve(&acc, to_unreserve);
+				if !Balances::unreserve(&acc, to_unreserve).is_zero() {
+					failure += 1;
+				};
 			});
-
-		frame_support::debug::info!("Migration to fix voters happened with errors: {}", failure);
+		frame_support::debug::info!("Migration to fix voters happened. Accounts with inaccurate reserved amount: {}", failure);
 		<Runtime as frame_system::Trait>::MaximumBlockWeight::get()
 	}
 }
