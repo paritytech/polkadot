@@ -54,7 +54,7 @@ pub struct JaegerConfig {
 }
 
 impl std::default::Default for JaegerConfig {
-    fn default() -> Self {       
+    fn default() -> Self {
         Self {
             node_name: "unknown_".to_owned(),
             destination: "127.0.0.1:6831".parse().unwrap(),
@@ -120,7 +120,7 @@ pub enum Jaeger {
     /// Preparation state with the necessary config to launch an instance.
     Prep(JaegerConfig),
     /// Uninitialized, suggests wrong API usage if encountered.
-    Uninitialized,
+    None,
 }
 
 impl Jaeger {
@@ -128,28 +128,28 @@ impl Jaeger {
     pub fn new(cfg: JaegerConfig) -> Self {
         Jaeger::Prep(cfg)
     }
-    
+
     /// Spawn the background task in order to send the tracing information out via udp
     pub fn launch(self) {
         let cfg = match self {
             Self::Prep(cfg) => cfg,
             _ => { panic!("Must be a jaeger instance that was not launched yet, but has pending stuff") }
         };
-        
+
         let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
             service_name: format!("polkadot-{}", cfg.node_name),
         });
-    
+
         let resolved = cfg.destination.socket_addrs(|| None).unwrap();
         if resolved.is_empty() {
             panic!("Resolving of jaeger address always succeeds.");
         }
         let jaeger_agent: std::net::SocketAddr = resolved[0];
-    
+
         // Spawn a background task that pulls span information and sends them on the network.
         let _handle = async_std::task::spawn(async move {
             let udp_socket = async_std::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
-    
+
             loop {
                 let buf = traces_out.next().await;
                 // UDP sending errors happen only either if the API is misused (in which case
@@ -158,42 +158,43 @@ impl Jaeger {
                 udp_socket.send_to(&buf, jaeger_agent).await.unwrap();
             }
         });
-        
+
         let jaeger = Self::Launched {
             traces_in,
         };
-    
+
         *INSTANCE.lock().unwrap() = jaeger;
     }
 
     #[inline(always)]
-    fn traces_in(&self) -> &Arc<mick_jaeger::TracesIn> {
+    fn traces_in(&self) -> Option<&Arc<mick_jaeger::TracesIn>> {
         match self {
             Self::Launched {
                 traces_in,
                 ..
-            } => {
-                &traces_in
-            }
-            _ => { panic!("You must initialize `Jaeger` and `launch` it!") }
+            } => Some(&traces_in),
+            _ => None,
         }
     }
-    
+
     #[inline(always)]
-    fn span(&self, hash: &Hash, span_name: impl Into<String>) -> mick_jaeger::Span {
-        let trace_id = {
-            let mut buf = [0u8; 16];
-            buf.copy_from_slice(&hash.as_ref()[0..16]);
-            std::num::NonZeroU128::new(u128::from_be_bytes(buf)).unwrap()
-        };
-    
-        self.traces_in().span(trace_id, span_name)
+    fn span(&self, hash: &Hash, span_name: impl Into<String>) -> Option<mick_jaeger::Span> {
+        if let Some(traces_in) = self.traces_in() {
+            let trace_id = {
+                let mut buf = [0u8; 16];
+                buf.copy_from_slice(&hash.as_ref()[0..16]);
+                std::num::NonZeroU128::new(u128::from_be_bytes(buf)).unwrap()
+            };
+            Some(traces_in.span(trace_id, span_name))
+        } else {
+            None
+        }
     }
-    
+
 }
 
 lazy_static::lazy_static! {
-    static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::Uninitialized);
+    static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::None);
 }
 
 

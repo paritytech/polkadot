@@ -867,7 +867,7 @@ impl util::JobTrait for CandidateBackingJob {
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 			let session_index = try_runtime_api!(session_index);
 			let cores = try_runtime_api!(cores);
-			
+
 			drop(_span);
 			let _span = span.child("validator construction");
 
@@ -892,7 +892,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 			drop(_span);
 			drop(span);
-			
+
 			let mut groups = HashMap::new();
 
 			let n_cores = cores.len();
