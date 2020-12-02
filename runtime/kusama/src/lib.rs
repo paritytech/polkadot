@@ -893,6 +893,7 @@ pub struct FixCouncilHistoricalVotes;
 impl frame_support::traits::OnRuntimeUpgrade for FixCouncilHistoricalVotes {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		use frame_support::traits::ReservableCurrency;
+		use sp_runtime::traits::Zero;
 		let mut failure: Balance = 0;
 		// https://github.com/paritytech/polkadot/pull/1252/files#diff-cba4e599a9fdd88fe8d33b5ed913958d63f844186b53c5cbe9bc73a2e2944857R22
 
