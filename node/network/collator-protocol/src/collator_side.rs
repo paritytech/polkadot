@@ -695,7 +695,7 @@ pub(crate) async fn run(
 				let (relay_parent, validator_id, peer_id) = match res {
 					Some(res) => res,
 					// Will never happen, but better to be safe.
-					None => continue,
+					None => return Ok(()),
 				};
 
 				let _timer = state.metrics.time_handle_connection_request();

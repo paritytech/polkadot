@@ -121,8 +121,6 @@ impl ValidatedCandidateCommand {
 struct CandidateBackingJob {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
-	/// Inbound message channel receiving part.
-	rx_to: mpsc::Receiver<CandidateBackingMessage>,
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJobCommand>,
 	/// The `ParaId` assigned to this validator
@@ -426,7 +424,10 @@ async fn validate_and_make_available(
 
 impl CandidateBackingJob {
 	/// Run asynchronously.
-	async fn run_loop(mut self) -> Result<(), Error> {
+	async fn run_loop(
+		mut self,
+		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
+	) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
@@ -436,7 +437,7 @@ impl CandidateBackingJob {
 						panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
 					}
 				}
-				to_job = self.rx_to.next() => match to_job {
+				to_job = rx_to.next() => match to_job {
 					None => break,
 					Some(msg) => {
 						self.process_msg(msg).await?;
@@ -917,7 +918,6 @@ impl util::JobTrait for CandidateBackingJob {
 			let (background_tx, background_rx) = mpsc::channel(16);
 			let job = CandidateBackingJob {
 				parent,
-				rx_to,
 				tx_from,
 				assignment,
 				required_collator,
@@ -934,7 +934,7 @@ impl util::JobTrait for CandidateBackingJob {
 				metrics,
 			};
 
-			job.run_loop().await
+			job.run_loop(rx_to).await
 		}
 		.boxed()
 	}
