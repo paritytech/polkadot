@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_vesting.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_vesting::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	fn vest_locked(l: u32, ) -> Weight {
 		(54_477_000 as Weight)
 			.saturating_add((129_000 as Weight).saturating_mul(l as Weight))

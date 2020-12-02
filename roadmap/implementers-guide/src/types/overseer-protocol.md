@@ -145,12 +145,16 @@ enum AvailabilityDistributionMessage {
 Messages received by the availability recovery subsystem.
 
 ```rust
+enum RecoveryError {
+	Invalid,
+	Unavailable,
+}
 enum AvailabilityRecoveryMessage {
 	/// Recover available data from validators on the network.
 	RecoverAvailableData(
-		CandidateDescriptor,
+		CandidateReceipt,
 		SessionIndex,
-		ResponseChannel<Option<AvailableData>>,
+		ResponseChannel<Result<AvailableData, RecoveryError>>,
 	),
 }
 ```

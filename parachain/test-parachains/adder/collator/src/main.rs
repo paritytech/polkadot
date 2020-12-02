@@ -23,7 +23,8 @@ use sc_cli::{Result, Role, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_adder_collator::Collator;
 
-const PARA_ID: ParaId = ParaId::new(100);
+/// The parachain ID to collate for in case it wasn't set explicitly through CLI.
+const DEFAULT_PARA_ID: ParaId = ParaId::new(100);
 
 mod cli;
 use cli::Cli;
@@ -69,21 +70,23 @@ fn main() -> Result<()> {
 						let validation_code_hex =
 							format!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
-						log::info!("Running adder collator for parachain id: {}", PARA_ID);
+						let para_id = cli.run.parachain_id.map(ParaId::from).unwrap_or(DEFAULT_PARA_ID);
+
+						log::info!("Running adder collator for parachain id: {}", para_id);
 						log::info!("Genesis state: {}", genesis_head_hex);
 						log::info!("Validation code: {}", validation_code_hex);
 
 						let config = CollationGenerationConfig {
 							key: collator.collator_key(),
 							collator: collator.create_collation_function(),
-							para_id: PARA_ID,
+							para_id,
 						};
 						overseer_handler
 							.send_msg(CollationGenerationMessage::Initialize(config))
 							.await;
 
 						overseer_handler
-							.send_msg(CollatorProtocolMessage::CollateOn(PARA_ID))
+							.send_msg(CollatorProtocolMessage::CollateOn(para_id))
 							.await;
 
 						Ok(full_node.task_manager)

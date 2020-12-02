@@ -42,7 +42,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_collective.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_collective::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	fn set_members(m: u32, n: u32, p: u32, ) -> Weight {
 		(0 as Weight)
 			.saturating_add((20_942_000 as Weight).saturating_mul(m as Weight))
