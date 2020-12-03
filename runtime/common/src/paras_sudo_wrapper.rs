@@ -99,7 +99,7 @@ decl_module! {
 			sender: ParaId,
 			recipient: ParaId,
 			max_capacity: u32,
-			max_message_size: u32
+			max_message_size: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 
