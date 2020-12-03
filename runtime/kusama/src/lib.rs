@@ -1107,7 +1107,7 @@ impl frame_support::traits::OnRuntimeUpgrade for FixCouncilHistoricalVotes {
 				};
 			});
 		frame_support::debug::info!("Migration to fix voters happened. Accounts with inaccurate reserved amount: {}", failure);
-		<Runtime as frame_system::Trait>::MaximumBlockWeight::get()
+		<Runtime as frame_system::Config>::MaximumBlockWeight::get()
 	}
 }
 
