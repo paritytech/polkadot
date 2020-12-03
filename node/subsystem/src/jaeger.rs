@@ -57,7 +57,7 @@ impl std::default::Default for JaegerConfig {
     fn default() -> Self {
         Self {
             node_name: "unknown_".to_owned(),
-            destination: "127.0.0.1:6831".parse().unwrap(),
+            destination: "http://127.0.0.1:6831".parse().unwrap(),
         }
     }
 }
@@ -82,32 +82,79 @@ impl JaegerConfigBuilder {
         self.inner.node_name = name.as_ref().to_owned();
         self
     }
+
     /// Set the recording destination url.
     pub fn destination<U>(mut self, url: U) -> Self where U: Into<url::Url> {
         self.inner.destination = url.into();
         self
     }
+
     /// Construct the configuration.
     pub fn build(self) -> JaegerConfig {
         self.inner
     }
 }
 
+/// A wrapper type for a span.
+///
+/// Handles running with and without jaeger.
+pub enum JaegerSpan {
+    /// Running with jaeger being enabled.
+    Enabled(mick_jaeger::Span),
+    /// Running with jaeger disabled.
+    Disabled,
+}
+
+impl JaegerSpan {
+    /// Derive a child span from `self`.
+    pub fn child(&self, name: impl Into<String>) -> Self {
+        match self {
+            Self::Enabled(inner) => Self::Enabled(inner.child(name)),
+            Self::Disabled => Self::Disabled,
+        }
+    }
+    /// Add an additional tag to the span.
+    pub fn add_string_tag(&mut self, tag: &str, value: &str) {
+        match self {
+            Self::Enabled(ref mut inner) => inner.add_string_tag(tag, value),
+            Self::Disabled => {},
+        }
+    }
+}
+
+impl From<Option<mick_jaeger::Span>> for JaegerSpan {
+    fn from(src: Option<mick_jaeger::Span>) -> Self {
+        if let Some(span) = src {
+            Self::Enabled(span)
+        } else {
+            Self::Disabled
+        }
+    }
+}
+
+impl From<mick_jaeger::Span> for JaegerSpan {
+    fn from(src: mick_jaeger::Span) -> Self {
+        Self::Enabled(src)
+    }
+}
 
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
-pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> mick_jaeger::Span {
+#[inline(always)]
+pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> JaegerSpan {
 	hash_span(&candidate_hash.0, span_name)
 }
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
-pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> mick_jaeger::Span {
+#[inline(always)]
+pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 	hash_span(&pov.hash(), span_name)
 }
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
-pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> mick_jaeger::Span {
-    INSTANCE.lock().unwrap().span(hash, span_name)
+#[inline(always)]
+pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
+    INSTANCE.lock().unwrap().span(hash, span_name).into()
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
@@ -177,7 +224,6 @@ impl Jaeger {
         }
     }
 
-    #[inline(always)]
     fn span(&self, hash: &Hash, span_name: impl Into<String>) -> Option<mick_jaeger::Span> {
         if let Some(traces_in) = self.traces_in() {
             let trace_id = {
@@ -196,5 +242,3 @@ impl Jaeger {
 lazy_static::lazy_static! {
     static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::None);
 }
-
-
