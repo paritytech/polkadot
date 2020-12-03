@@ -382,7 +382,7 @@ pub fn remove_pallet<T>() -> frame_support::weights::Weight
 	remove_storage_prefix(b"Purchase", b"Statement", b"");
 	remove_storage_prefix(b"Purchase", b"UnlockBlock", b"");
 
-	T::block_weights().max_block
+	<T as frame_system::Config>::BlockWeights::get().max_block
 }
 
 #[cfg(test)]
