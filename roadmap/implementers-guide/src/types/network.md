@@ -46,6 +46,18 @@ enum AvailabilityDistributionV1Message {
 }
 ```
 
+### Availability Recovery V1
+
+```rust
+enum AvailabilityRecoveryV1Message {
+	/// Request a chunk for a given candidate hash and validator index.
+	RequestChunk(RequestId, CandidateHash, ValidatorIndex),
+	/// Respond with chunk for a given candidate hash and validator index.
+	/// The response may be `None` if the requestee does not have the chunk.
+	Chunk(RequestId, Option<ErasureChunk>),
+}
+```
+
 ### Bitfield Distribution V1
 
 ```rust
@@ -103,6 +115,7 @@ These are the messages for the protocol on the validation peer-set.
 enum ValidationProtocolV1 {
 	ApprovalDistribution(ApprovalDistributionV1Message),
 	AvailabilityDistribution(AvailabilityDistributionV1Message),
+	AvailabilityRecovery(AvailabilityRecoveryV1Message),
 	BitfieldDistribution(BitfieldDistributionV1Message),
 	PoVDistribution(PoVDistributionV1Message),
 	StatementDistribution(StatementDistributionV1Message),

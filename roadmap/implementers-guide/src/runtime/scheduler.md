@@ -175,11 +175,12 @@ Actions:
 1. Set `SessionStartBlock` to current block number.
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../types/runtime.md#host-configuration))
-1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all`None` entries.
+1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
    - We need a total of `N = Paras::parachains().len() + configuration.parathread_cores` validator groups.
-   - The total number of validators `V` in the `SessionChangeNotification`'s `validators` may not be evenly divided by `V`.
    - First, we obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
+   - Then, we truncate `SV` to have at most `configuration.max_validators_per_core * N` members, if `configuration.max_validators_per_core` is `Some`.
+   - Note that the total number of validators `V` in `SV` may not be evenly divided by `N`.
    - The groups are selected by partitioning `SV`. The first V % N groups will have (V / N) + 1 members, while the remaining groups will have (V / N) members each.
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
    - Also prune all parathread claims corresponding to de-registered parathreads.

@@ -82,13 +82,13 @@ use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 
 pub type BalanceOf<T> =
-	<<T as slots::Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+	<<T as slots::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 #[allow(dead_code)]
 pub type NegativeImbalanceOf<T> =
-	<<T as slots::Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
+	<<T as slots::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-pub trait Trait: slots::Trait {
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+pub trait Config: slots::Config {
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// ModuleID for the crowdfund module. An appropriate value could be ```ModuleId(*b"py/cfund")```
 	type ModuleId: Get<ModuleId>;
@@ -164,7 +164,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Crowdfund {
+	trait Store for Module<T: Config> as Crowdfund {
 		/// Info on all of the funds.
 		Funds get(fn funds):
 			map hasher(twox_64_concat) FundIndex
@@ -184,7 +184,7 @@ decl_storage! {
 
 decl_event! {
 	pub enum Event<T> where
-		<T as frame_system::Trait>::AccountId,
+		<T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
 		/// Create a new crowdfunding campaign. [fund_index]
@@ -205,7 +205,7 @@ decl_event! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Last slot must be greater than first slot.
 		LastSlotBeforeFirstSlot,
 		/// The last slot cannot be more then 3 slots after the first slot.
@@ -251,7 +251,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		const ModuleId: ModuleId = T::ModuleId::get();
@@ -528,7 +528,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// The account ID of the fund pot.
 	///
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
@@ -597,7 +597,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type BlockWeights = ();
 		type BlockLength = ();
@@ -623,7 +623,7 @@ mod tests {
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 	}
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -661,7 +661,7 @@ mod tests {
 		fn min_len() -> usize { 0 }
 		fn max_len() -> usize { 0 }
 	}
-	impl pallet_treasury::Trait for Test {
+	impl pallet_treasury::Config for Test {
 		type Currency = pallet_balances::Module<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<u64>;
 		type RejectOrigin = frame_system::EnsureRoot<u64>;
@@ -743,7 +743,7 @@ mod tests {
 		pub const LeasePeriod: u64 = 10;
 		pub const EndingPeriod: u64 = 3;
 	}
-	impl slots::Trait for Test {
+	impl slots::Config for Test {
 		type Event = ();
 		type Currency = Balances;
 		type Parachains = TestParachains;
@@ -757,7 +757,7 @@ mod tests {
 		pub const RetirementPeriod: u64 = 5;
 		pub const CrowdfundModuleId: ModuleId = ModuleId(*b"py/cfund");
 	}
-	impl Trait for Test {
+	impl Config for Test {
 		type Event = ();
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
@@ -930,7 +930,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into()
 			));
@@ -941,7 +941,7 @@ mod tests {
 			assert_eq!(
 				fund.deploy_data,
 				Some(DeployData {
-					code_hash: <Test as frame_system::Trait>::Hash::default(),
+					code_hash: <Test as frame_system::Config>::Hash::default(),
 					code_size: 0,
 					initial_head_data: vec![0].into(),
 				}),
@@ -960,7 +960,7 @@ mod tests {
 			assert_noop!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into()),
 				Error::<Test>::InvalidOrigin
@@ -970,7 +970,7 @@ mod tests {
 			assert_noop!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				1,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into()),
 				Error::<Test>::InvalidFundIndex
@@ -980,7 +980,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -988,7 +988,7 @@ mod tests {
 			assert_noop!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![1].into()),
 				Error::<Test>::ExistingDeployData
@@ -1008,7 +1008,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1054,7 +1054,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1082,7 +1082,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1125,7 +1125,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1267,7 +1267,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1296,7 +1296,7 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
@@ -1335,14 +1335,14 @@ mod tests {
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
 				0,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(2),
 				1,
-				<Test as frame_system::Trait>::Hash::default(),
+				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));

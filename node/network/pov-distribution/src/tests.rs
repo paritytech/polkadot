@@ -11,7 +11,7 @@ use sp_keyring::Sr25519Keyring;
 
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId,
-	ScheduledCore, ValidatorIndex,
+	ScheduledCore, ValidatorIndex, SessionIndex, SessionInfo,
 };
 use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -37,8 +37,10 @@ fn validator_authority_id(val_ids: &[Sr25519Keyring]) -> Vec<AuthorityDiscoveryI
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
 
+type VirtualOverseer = test_helpers::TestSubsystemContextHandle<PoVDistributionMessage>;
+
 struct TestHarness {
-	virtual_overseer: test_helpers::TestSubsystemContextHandle<PoVDistributionMessage>,
+	virtual_overseer: VirtualOverseer,
 }
 
 fn test_harness<T: Future<Output = ()>>(
@@ -75,7 +77,7 @@ fn test_harness<T: Future<Output = ()>>(
 const TIMEOUT: Duration = Duration::from_millis(100);
 
 async fn overseer_send(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<PoVDistributionMessage>,
+	overseer: &mut VirtualOverseer,
 	msg: PoVDistributionMessage,
 ) {
 	trace!("Sending message:\n{:?}", &msg);
@@ -87,7 +89,7 @@ async fn overseer_send(
 }
 
 async fn overseer_recv(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<PoVDistributionMessage>,
+	overseer: &mut VirtualOverseer,
 ) -> AllMessages {
 	let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 		.await
@@ -99,7 +101,7 @@ async fn overseer_recv(
 }
 
 async fn overseer_recv_with_timeout(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<PoVDistributionMessage>,
+	overseer: &mut VirtualOverseer,
 	timeout: Duration,
 ) -> Option<AllMessages> {
 	trace!("Waiting for message...");
@@ -110,7 +112,7 @@ async fn overseer_recv_with_timeout(
 }
 
 async fn overseer_signal(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<PoVDistributionMessage>,
+	overseer: &mut VirtualOverseer,
 	signal: OverseerSignal,
 ) {
 	overseer
@@ -130,6 +132,7 @@ struct TestState {
 	validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 	relay_parent: Hash,
 	availability_cores: Vec<CoreState>,
+	session_index: SessionIndex,
 }
 
 impl Default for TestState {
@@ -184,8 +187,54 @@ impl Default for TestState {
 			validator_groups,
 			relay_parent,
 			availability_cores,
+			session_index: 1,
 		}
 	}
+}
+
+async fn test_validator_discovery(
+	virtual_overseer: &mut VirtualOverseer,
+	expected_relay_parent: Hash,
+	session_index: SessionIndex,
+	validator_ids: &[ValidatorId],
+	discovery_ids: &[AuthorityDiscoveryId],
+	validator_group: &[ValidatorIndex],
+) {
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::SessionIndexForChild(tx),
+		)) => {
+			assert_eq!(relay_parent, expected_relay_parent);
+			tx.send(Ok(session_index)).unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::SessionInfo(index, tx),
+		)) => {
+			assert_eq!(relay_parent, expected_relay_parent);
+			assert_eq!(index, session_index);
+
+			let validators = validator_group.iter()
+				.map(|idx| validator_ids[*idx as usize].clone())
+				.collect();
+
+			let discovery_keys = validator_group.iter()
+				.map(|idx| discovery_ids[*idx as usize].clone())
+				.collect();
+
+			tx.send(Ok(Some(SessionInfo {
+				validators,
+				discovery_keys,
+				..Default::default()
+			}))).unwrap();
+		}
+	);
 }
 
 #[test]
@@ -271,25 +320,14 @@ fn ask_validators_for_povs() {
 			}
 		);
 
-		// obtain the validator_id to authority_id mapping
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::ValidatorDiscovery(validators, tx),
-			)) => {
-				assert_eq!(relay_parent, current);
-				assert_eq!(validators.len(), 3);
-				assert!(validators.iter().all(|v| test_state.validator_public.contains(&v)));
-
-				let result = vec![
-					Some(test_state.validator_authority_id[2].clone()),
-					Some(test_state.validator_authority_id[0].clone()),
-					Some(test_state.validator_authority_id[4].clone()),
-				];
-				tx.send(Ok(result)).unwrap();
-			}
-		);
+		test_validator_discovery(
+			&mut virtual_overseer,
+			current,
+			test_state.session_index,
+			&test_state.validator_public,
+			&test_state.validator_authority_id,
+			&test_state.validator_groups.0[0],
+		).await;
 
 		// We now should connect to our validator group.
 		assert_matches!(
@@ -448,24 +486,14 @@ fn ask_validators_for_povs() {
 		);
 
 		// obtain the validator_id to authority_id mapping
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::ValidatorDiscovery(validators, tx),
-			)) => {
-				assert_eq!(relay_parent, next_leaf);
-				assert_eq!(validators.len(), 3);
-				assert!(validators.iter().all(|v| test_state.validator_public.contains(&v)));
-
-				let result = vec![
-					Some(test_state.validator_authority_id[2].clone()),
-					Some(test_state.validator_authority_id[0].clone()),
-					Some(test_state.validator_authority_id[4].clone()),
-				];
-				tx.send(Ok(result)).unwrap();
-			}
-		);
+		test_validator_discovery(
+			&mut virtual_overseer,
+			next_leaf,
+			test_state.session_index,
+			&test_state.validator_public,
+			&test_state.validator_authority_id,
+			&test_state.validator_groups.0[0],
+		).await;
 
 		// We now should connect to our validator group.
 		assert_matches!(
@@ -716,7 +744,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 					RuntimeApiRequest::ValidatorGroups(tx)
 				)) => {
 					assert_eq!(relay_parent, hash_a);
-					tx.send(Ok(validator_groups)).unwrap();
+					tx.send(Ok(validator_groups.clone())).unwrap();
 				}
 			);
 
@@ -731,25 +759,14 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 				}
 			);
 
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::ValidatorDiscovery(validators_res, tx),
-				)) => {
-					assert_eq!(relay_parent, hash_a);
-					assert_eq!(validators_res.len(), 3);
-					assert!(validators_res.iter().all(|v| validators.contains(&v)));
-
-					let result = vec![
-						Some(validator_authority_id[2].clone()),
-						Some(validator_authority_id[0].clone()),
-						Some(validator_authority_id[4].clone()),
-					];
-
-					tx.send(Ok(result)).unwrap();
-				}
-			);
+			test_validator_discovery(
+				&mut handle,
+				hash_a,
+				1,
+				&validators,
+				&validator_authority_id,
+				&validator_groups.0[0],
+			).await;
 
 			assert_matches!(
 				handle.recv().await,

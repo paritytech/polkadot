@@ -105,13 +105,13 @@ impl fmt::Debug for AcceptanceCheckErr {
 	}
 }
 
-pub trait Trait: frame_system::Trait + configuration::Trait {
+pub trait Config: frame_system::Config + configuration::Config {
 	/// A place where all received upward messages are funneled.
 	type UmpSink: UmpSink;
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Ump {
+	trait Store for Module<T: Config> as Ump {
 		/// Paras that are to be cleaned up at the end of the session.
 		/// The entries are sorted ascending by the para id.
 		OutgoingParas: Vec<ParaId>;
@@ -152,12 +152,12 @@ decl_storage! {
 
 decl_module! {
 	/// The UMP module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 	}
 }
 
 /// Routines related to the upward message passing.
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
@@ -365,7 +365,7 @@ impl QueueCache {
 	///
 	/// - `upward_message` a dequeued message or `None` if the queue _was_ empty.
 	/// - `became_empty` is true if the queue _became_ empty.
-	fn dequeue<T: Trait>(&mut self, para: ParaId) -> (Option<UpwardMessage>, bool) {
+	fn dequeue<T: Config>(&mut self, para: ParaId) -> (Option<UpwardMessage>, bool) {
 		let cache_entry = self.0.entry(para).or_insert_with(|| {
 			let queue = <Module<T> as Store>::RelayDispatchQueues::get(&para);
 			let (count, total_size) = <Module<T> as Store>::RelayDispatchQueueSize::get(&para);
@@ -386,7 +386,7 @@ impl QueueCache {
 	}
 
 	/// Flushes the updated queues into the storage.
-	fn flush<T: Trait>(self) {
+	fn flush<T: Config>(self) {
 		// NOTE we use an explicit method here instead of Drop impl because it has unwanted semantics
 		// within runtime. It is dangerous to use because of double-panics and flushing on a panic
 		// is not necessary as well.
@@ -427,7 +427,7 @@ struct NeedsDispatchCursor {
 }
 
 impl NeedsDispatchCursor {
-	fn new<T: Trait>() -> Self {
+	fn new<T: Config>() -> Self {
 		let needs_dispatch: Vec<ParaId> = <Module<T> as Store>::NeedsDispatch::get();
 		let start_with = <Module<T> as Store>::NextDispatchRoundStartWith::get();
 
@@ -481,7 +481,7 @@ impl NeedsDispatchCursor {
 	}
 
 	/// Flushes the dispatcher state into the persistent storage.
-	fn flush<T: Trait>(self) {
+	fn flush<T: Config>(self) {
 		let next_one = self.peek();
 		<Module<T> as Store>::NextDispatchRoundStartWith::set(next_one);
 		<Module<T> as Store>::NeedsDispatch::put(self.needs_dispatch);
