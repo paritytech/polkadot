@@ -430,8 +430,8 @@ async fn process_msg(
 			state.collating_on = Some(id);
 		}
 		DistributeCollation(receipt, pov) => {
-			let _span1 = polkadot_subsystem::hash_span(&receipt.descriptor.relay_parent, "distributing-collation");
-			let _span2 = polkadot_subsystem::pov_span(&pov, "distributing-collation");
+			let _span1 = jaeger::hash_span(&receipt.descriptor.relay_parent, "distributing-collation");
+			let _span2 = jaeger::pov_span(&pov, "distributing-collation");
 			match state.collating_on {
 				Some(id) if receipt.descriptor.para_id != id => {
 					// If the ParaId of a collation requested to be distributed does not match
@@ -541,7 +541,7 @@ async fn handle_incoming_peer_message(
 			);
 		}
 		RequestCollation(request_id, relay_parent, para_id) => {
-			let _span = polkadot_subsystem::hash_span(&relay_parent, "rx-collation-request");
+			let _span = jaeger::hash_span(&relay_parent, "rx-collation-request");
 			match state.collating_on {
 				Some(our_para_id) => {
 					if our_para_id == para_id {
@@ -744,7 +744,7 @@ mod tests {
 		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
 		SessionIndex, SessionInfo,
 	};
-	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
+	use polkadot_subsystem::{jaeger, ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
 

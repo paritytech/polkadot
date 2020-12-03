@@ -236,7 +236,6 @@ impl Jaeger {
             None
         }
     }
-
 }
 
 lazy_static::lazy_static! {
