@@ -209,13 +209,13 @@ where
 			};
 
 			drop(_span);
-			let _span = span.child("inner");
 
 			inherent_data.put_data(
 				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
 				&provisioner_data,
 			)?;
 
+			let _span = span.child("authorship propose");
 			self.inner
 				.propose(inherent_data, inherent_digests, max_duration, record_proof)
 				.await
