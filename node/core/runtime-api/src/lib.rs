@@ -126,7 +126,7 @@ impl<Client> RuntimeApiSubsystem<Client> where
 	async fn poll_requests(&mut self) {
 		// If there are no active requests, this future should be pending forever.
 		if self.active_requests.len() == 0 {
-			futures::pending!()
+			return futures::pending!()
 		}
 
 		// If there are active requests, this will always resolve to `Some(_)` when a request is finished.
