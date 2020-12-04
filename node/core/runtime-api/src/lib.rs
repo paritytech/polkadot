@@ -108,6 +108,14 @@ impl<Client> RuntimeApiSubsystem<Client> where
 
 		if self.active_requests.len() >= MAX_PARALLEL_REQUESTS {
 			self.waiting_requests.push_back((request, receiver));
+
+			if self.waiting_requests.len() > MAX_PARALLEL_REQUESTS * 10 {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"{} runtime api requests waiting to be executed.",
+					self.waiting_requests.len(),
+				)
+			}
 		} else {
 			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, request);
 			self.active_requests.push(receiver);
