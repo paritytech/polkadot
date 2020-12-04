@@ -182,6 +182,7 @@ impl Jaeger {
             Self::Prep(cfg) => cfg,
             _ => { panic!("Must be a jaeger instance that was not launched yet, but has pending stuff") }
         };
+        log::info!("🐹 Collecting jaeger spans for {}", cfg.destination);
 
         let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
             service_name: format!("polkadot-{}", cfg.node_name),

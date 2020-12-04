@@ -28,6 +28,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.22"
 url = "2.2"
+log = "0.4.11"
 
 [dev-dependencies]
 assert_matches = "1.4.0"
