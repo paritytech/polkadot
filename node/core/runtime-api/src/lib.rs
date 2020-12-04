@@ -41,7 +41,7 @@ use std::{sync::Arc, collections::VecDeque, pin::Pin};
 
 const LOG_TARGET: &str = "runtime_api";
 
-/// The number of maximum parallel runtime api requests.
+/// The number of maximum runtime api requests can be executed in parallel. Further requests will be buffered.
 const MAX_PARALLEL_REQUESTS: usize = 2;
 
 /// The name of the blocking task that executes a runtime api request.
