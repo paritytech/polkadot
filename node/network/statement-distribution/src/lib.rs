@@ -23,6 +23,7 @@
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{
+	jaeger,
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	messages::{

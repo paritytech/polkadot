@@ -24,6 +24,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
 };
 use polkadot_subsystem::{
+	jaeger,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CollatorProtocolMessage,
