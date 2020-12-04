@@ -26,14 +26,17 @@ use futures::{
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::{ChainApiMessage, ProvisionableData, ProvisionerInherentData, ProvisionerMessage, AllMessages},
+	messages::{
+		AllMessages, CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
+		ProvisionerMessage,
+	},
 };
 use polkadot_node_subsystem_util::{
 	self as util, delegated_subsystem, FromJobCommand,
 	request_availability_cores, request_persisted_validation_data, JobTrait, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
-	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
+	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
 use std::{pin::Pin, collections::BTreeMap};
@@ -82,7 +85,7 @@ struct ProvisioningJob {
 	sender: mpsc::Sender<FromJobCommand>,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
-	backed_candidates: Vec<BackedCandidate>,
+	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
 	inherent_after: InherentAfter,
@@ -94,8 +97,17 @@ enum Error {
 	#[error(transparent)]
 	Util(#[from] util::Error),
 
-	#[error(transparent)]
-	OneshotRecv(#[from] oneshot::Canceled),
+	#[error("failed to get availability cores")]
+	CanceledAvailabilityCores(#[source] oneshot::Canceled),
+
+	#[error("failed to get persisted validation data")]
+	CanceledPersistedValidationData(#[source] oneshot::Canceled),
+
+	#[error("failed to get block number")]
+	CanceledBlockNumber(#[source] oneshot::Canceled),
+
+	#[error("failed to get backed candidates")]
+	CanceledBackedCandidates(#[source] oneshot::Canceled),
 
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
@@ -103,11 +115,17 @@ enum Error {
 	#[error(transparent)]
 	Runtime(#[from] RuntimeApiError),
 
-	#[error("Failed to send message to ChainAPI")]
+	#[error("failed to send message to ChainAPI")]
 	ChainApiMessageSend(#[source] mpsc::SendError),
 
-	#[error("Failed to send return message with Inherents")]
+	#[error("failed to send message to CandidateBacking to get backed candidates")]
+	GetBackedCandidatesSend(#[source] mpsc::SendError),
+
+	#[error("failed to send return message with Inherents")]
 	InherentDataReturnChannel,
+
+	#[error("backed candidate does not correspond to selected candidate; check logic in provisioner")]
+	BackedCandidateOrderingProblem,
 }
 
 impl JobTrait for ProvisioningJob {
@@ -291,13 +309,13 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
-	candidates: &[BackedCandidate],
+	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	from_job: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(relay_parent, from_job)
 		.await?
-		.await??;
+		.await.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
 	let bitfields = select_availability_bitfields(&availability_cores, bitfields);
 	let candidates = select_candidates(
@@ -363,7 +381,7 @@ fn select_availability_bitfields(
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
-	candidates: &[BackedCandidate],
+	candidates: &[CandidateReceipt],
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<Vec<BackedCandidate>, Error> {
@@ -403,7 +421,7 @@ async fn select_candidates(
 			sender,
 		)
 		.await?
-		.await??
+		.await.map_err(|err| Error::CanceledPersistedValidationData(err))??
 		{
 			Some(v) => v,
 			None => continue,
@@ -413,15 +431,40 @@ async fn select_candidates(
 
 		// we arbitrarily pick the first of the backed candidates which match the appropriate selection criteria
 		if let Some(candidate) = candidates.iter().find(|backed_candidate| {
-			let descriptor = &backed_candidate.candidate.descriptor;
+			let descriptor = &backed_candidate.descriptor;
 			descriptor.para_id == scheduled_core.para_id
 				&& descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
-			selected_candidates.push(candidate.clone());
+			selected_candidates.push(candidate.hash());
 		}
 	}
 
-	Ok(selected_candidates)
+	// now get the backed candidates corresponding to these candidate receipts
+	let (tx, rx) = oneshot::channel();
+	sender.send(AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(
+		relay_parent,
+		selected_candidates.clone(),
+		tx,
+	)).into()).await.map_err(|err| Error::GetBackedCandidatesSend(err))?;
+	let candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+
+	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
+	// _should_ preserve that property, but let's just make sure.
+	//
+	// We can't easily map from `BackedCandidate` to `core_idx`, but we know that every selected candidate
+	// maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by checking them
+	// in order, we can ensure that the backed candidates are also in order.
+	let mut backed_idx = 0;
+	for selected in selected_candidates.iter() {
+		if *selected == candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash() {
+			backed_idx += 1;
+		}
+	}
+	if candidates.len() != backed_idx {
+		Err(Error::BackedCandidateOrderingProblem)?;
+	}
+
+	Ok(candidates)
 }
 
 /// Produces a block number 1 higher than that of the relay parent
@@ -439,7 +482,7 @@ async fn get_block_number_under_construction(
 		)).into())
 		.await
 		.map_err(|e| Error::ChainApiMessageSend(e))?;
-	match rx.await? {
+	match rx.await.map_err(|err| Error::CanceledBlockNumber(err))? {
 		Ok(Some(n)) => Ok(n + 1),
 		Ok(None) => Ok(0),
 		Err(err) => Err(err.into()),
