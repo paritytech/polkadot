@@ -119,9 +119,10 @@ impl<Client> RuntimeApiSubsystem<Client> where
 		// If there are no active requests, this future should be pending forever.
 		if self.active_requests.len() == 0 {
 			futures::pending!()
-		} if self.active_requests.next().await.is_none() {
-			return
 		}
+
+		// If there are active requests, this will always resolve to `Some(_)` when a request is finished.
+		let _ = self.active_requests.next().await;
 
 		if let Some((req, recv)) = self.waiting_requests.pop_front() {
 			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, req);
@@ -985,6 +986,7 @@ mod tests {
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
+			// Make all requests block until we release this mutex.
 			let lock = mutex.lock().unwrap();
 
 			let mut receivers = Vec::new();
@@ -1003,7 +1005,9 @@ mod tests {
 
 			drop(lock);
 
-			join.await.into_iter().for_each(|r| assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores));
+			join.await
+				.into_iter()
+				.for_each(|r| assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores));
 
 			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};
