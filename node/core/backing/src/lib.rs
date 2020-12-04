@@ -404,6 +404,12 @@ async fn validate_and_make_available(
 		ValidationResult::Valid(commitments, validation_data) => {
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
+				tracing::trace!(
+					target: LOG_TARGET,
+					candidate_receipt = ?candidate,
+					actual_commitments = ?commitments,
+					"Commitments obtained with validation don't match the announced by the candidate receipt",
+				);
 				Err(candidate)
 			} else {
 				let erasure_valid = make_pov_available(
@@ -418,11 +424,25 @@ async fn validate_and_make_available(
 
 				match erasure_valid {
 					Ok(()) => Ok((candidate, commitments, pov.clone())),
-					Err(InvalidErasureRoot) => Err(candidate),
+					Err(InvalidErasureRoot) => {
+						tracing::trace!(
+							target: LOG_TARGET,
+							candidate_receipt = ?candidate,
+							actual_commitments = ?commitments,
+							"Erasure root doesn't match the announced by the candidate receipt",
+						);
+						Err(candidate)
+					},
 				}
 			}
 		}
-		ValidationResult::Invalid(_reason) => {
+		ValidationResult::Invalid(reason) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				candidate_receipt = ?candidate,
+				reason = ?reason,
+				"Validation yielded an invalid candidate",
+			);
 			Err(candidate)
 		}
 	};
