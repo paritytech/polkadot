@@ -84,8 +84,9 @@ impl CollationGenerationSubsystem {
 		// at any point waiting for them all, so instead, we create a channel on which they can
 		// send those messages. We can then just monitor the channel and forward messages on it
 		// to the overseer here, via the context.
-		let (sender, mut receiver) = mpsc::channel(0);
+		let (sender, receiver) = mpsc::channel(0);
 
+		let mut receiver = receiver.fuse();
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => {
@@ -93,7 +94,7 @@ impl CollationGenerationSubsystem {
 						break;
 					}
 				},
-				msg = receiver.next().fuse() => {
+				msg = receiver.next() => {
 					if let Some(msg) = msg {
 						ctx.send_message(msg).await;
 					}

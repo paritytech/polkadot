@@ -42,7 +42,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_balances.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_balances::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_balances::WeightInfo for WeightInfo<T> {
 	fn transfer() -> Weight {
 		(90_334_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))

@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_democracy.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_democracy::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 	fn propose() -> Weight {
 		(73_769_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))

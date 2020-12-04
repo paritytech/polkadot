@@ -70,7 +70,7 @@ parameter_types! {
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 }
 
-impl frame_system::Trait for Test {
+impl frame_system::Config for Test {
 	type BaseCallFilter = ();
 	type Origin = Origin;
 	type Call = Call;
@@ -98,35 +98,35 @@ impl frame_system::Trait for Test {
 	type SystemWeightInfo = ();
 }
 
-impl crate::initializer::Trait for Test {
+impl crate::initializer::Config for Test {
 	type Randomness = TestRandomness;
 }
 
-impl crate::configuration::Trait for Test { }
+impl crate::configuration::Config for Test { }
 
-impl crate::paras::Trait for Test {
+impl crate::paras::Config for Test {
 	type Origin = Origin;
 }
 
-impl crate::dmp::Trait for Test { }
+impl crate::dmp::Config for Test { }
 
-impl crate::ump::Trait for Test {
+impl crate::ump::Config for Test {
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
 }
 
-impl crate::hrmp::Trait for Test {
+impl crate::hrmp::Config for Test {
 	type Origin = Origin;
 }
 
-impl crate::scheduler::Trait for Test { }
+impl crate::scheduler::Config for Test { }
 
-impl crate::inclusion::Trait for Test {
+impl crate::inclusion::Config for Test {
 	type Event = TestEvent;
 }
 
-impl crate::session_info::Trait for Test { }
+impl crate::session_info::Config for Test { }
 
-impl crate::session_info::AuthorityDiscoveryTrait for Test {
+impl crate::session_info::AuthorityDiscoveryConfig for Test {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
 		Vec::new()
 	}

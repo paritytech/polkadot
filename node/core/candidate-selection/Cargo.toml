@@ -9,6 +9,9 @@ futures = "0.3.8"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 thiserror = "1.0.22"
+
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }

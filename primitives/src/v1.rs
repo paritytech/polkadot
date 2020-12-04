@@ -416,6 +416,16 @@ impl<H> BackedCandidate<H> {
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.candidate.descriptor
 	}
+
+	/// Compute this candidate's hash.
+	pub fn hash(&self) -> CandidateHash where H: Clone + Encode {
+		self.candidate.hash()
+	}
+
+	/// Get this candidate's receipt.
+	pub fn receipt(&self) -> CandidateReceipt<H> where H: Clone {
+		self.candidate.to_plain()
+	}
 }
 
 /// Verify the backing of the given candidate.

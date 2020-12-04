@@ -33,6 +33,25 @@ use test_parachain_adder::{execute, hash_state, BlockData, HeadData};
 /// This is a constant to make tests easily reproducible.
 const ADD: u64 = 2;
 
+/// Calculates the head and state for the block with the given `number`.
+fn calculate_head_and_state_for_number(number: u64) -> (HeadData, u64) {
+	let mut head = HeadData {
+		number: 0,
+		parent_hash: Default::default(),
+		post_state: hash_state(0),
+	};
+
+	let mut state = 0u64;
+
+	while head.number < number {
+		let block = BlockData { state, add: ADD };
+		head = execute(head.hash(), head.clone(), &block).expect("Produces valid block");
+		state = state.wrapping_add(ADD);
+	}
+
+	(head, state)
+}
+
 /// The state of the adder parachain.
 struct State {
 	head_to_state: HashMap<Arc<HeadData>, u64>,
@@ -44,11 +63,7 @@ struct State {
 impl State {
 	/// Init the genesis state.
 	fn genesis() -> Self {
-		let genesis_state = Arc::new(HeadData {
-			number: 0,
-			parent_hash: Default::default(),
-			post_state: hash_state(0),
-		});
+		let genesis_state = Arc::new(calculate_head_and_state_for_number(0).0);
 
 		Self {
 			head_to_state: vec![(genesis_state.clone(), 0)].into_iter().collect(),
@@ -64,15 +79,15 @@ impl State {
 		self.best_block = parent_head.number;
 
 		let block = BlockData {
-			state: *self
+			state: self
 				.head_to_state
 				.get(&parent_head)
-				.expect("Getting state using parent head"),
+				.copied()
+				.unwrap_or_else(|| calculate_head_and_state_for_number(parent_head.number).1),
 			add: ADD,
 		};
 
-		let new_head =
-			execute(parent_head.hash(), parent_head, &block).expect("Produces valid block");
+		let new_head = execute(parent_head.hash(), parent_head, &block).expect("Produces valid block");
 
 		let new_head_arc = Arc::new(new_head.clone());
 		self.head_to_state
@@ -238,5 +253,26 @@ mod tests {
 				.unwrap(),
 			new_head
 		);
+	}
+
+	#[test]
+	fn advance_to_state_when_parent_head_is_missing() {
+		let collator = Collator::new();
+
+		let mut head = calculate_head_and_state_for_number(10).0;
+
+		for i in 1..10 {
+			head = collator.state.lock().unwrap().advance(head).1;
+			assert_eq!(10 + i, head.number);
+		}
+
+		let collator = Collator::new();
+		let mut second_head = collator.state.lock().unwrap().number_to_head.get(&0).cloned().unwrap().as_ref().clone();
+
+		for _ in 1..20 {
+			second_head = collator.state.lock().unwrap().advance(second_head.clone()).1;
+		}
+
+		assert_eq!(second_head, head);
 	}
 }

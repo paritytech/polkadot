@@ -42,7 +42,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_treasury.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_treasury::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
 	fn propose_spend() -> Weight {
 		(52_150_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))

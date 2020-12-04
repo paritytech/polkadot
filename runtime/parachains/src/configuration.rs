@@ -44,7 +44,7 @@ pub struct HostConfiguration<BlockNumber> {
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
 	pub max_head_data_size: u32,
-	/// THe maximum POV block size, in bytes.
+	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The amount of execution cores to dedicate to parathread execution.
 	pub parathread_cores: u32,
@@ -61,6 +61,8 @@ pub struct HostConfiguration<BlockNumber> {
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
+	/// The maximum number of validators to have per core. `None` means no maximum.
+	pub max_validators_per_core: Option<u32>,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 	/// The amount of consensus slots that must pass between submitting an assignment and
@@ -130,24 +132,24 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 }
 
-pub trait Trait: frame_system::Trait { }
+pub trait Config: frame_system::Config { }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Configuration {
+	trait Store for Module<T: Config> as Configuration {
 		/// The active configuration for the current session.
-		Config get(fn config) config(): HostConfiguration<T::BlockNumber>;
+		ActiveConfig get(fn config) config(): HostConfiguration<T::BlockNumber>;
 		/// Pending configuration (if any) for the next session.
 		PendingConfig: Option<HostConfiguration<T::BlockNumber>>;
 	}
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		/// Set the validation upgrade frequency.
@@ -267,6 +269,16 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.scheduling_lookahead, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the maximum number of validators to assign to any core.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_validators_per_core(origin, new: Option<u32>) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_validators_per_core, new) != new
 			});
 			Ok(())
 		}
@@ -506,7 +518,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
@@ -518,7 +530,7 @@ impl<T: Trait> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
 		if let Some(pending) = <Self as Store>::PendingConfig::take() {
-			<Self as Store>::Config::set(pending);
+			<Self as Store>::ActiveConfig::set(pending);
 		}
 	}
 
@@ -582,6 +594,7 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
+				max_validators_per_core: None,
 				dispute_period: 239,
 				no_show_slots: 240,
 				n_delay_tranches: 241,
@@ -644,6 +657,9 @@ mod tests {
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
+			).unwrap();
+			Configuration::set_max_validators_per_core(
+				Origin::root(), new_config.max_validators_per_core,
 			).unwrap();
 			Configuration::set_dispute_period(
 				Origin::root(), new_config.dispute_period,

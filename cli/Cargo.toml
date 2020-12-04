@@ -16,9 +16,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 log = "0.4.11"
 thiserror = "1.0.22"
-structopt = { version = "0.3.20", optional = true }
-wasm-bindgen = { version = "0.2.68", optional = true }
-wasm-bindgen-futures = { version = "0.4.18", optional = true }
+structopt = { version = "0.3.21", optional = true }
+wasm-bindgen = { version = "0.2.69", optional = true }
+wasm-bindgen-futures = { version = "0.4.19", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-parachain = { path = "../parachain", optional = true }
