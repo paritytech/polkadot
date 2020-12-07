@@ -1,6 +1,6 @@
-# Router Module
+# HRMP Module
 
-The Router module is responsible for all messaging mechanisms supported between paras and the relay chain, specifically: UMP, DMP, HRMP and later XCMP.
+A module responsible for Horizontally Relay-routed Message Passing (HRMP). See [Messaging Overview](../messaging.md) for more details.
 
 ## Storage
 
@@ -11,61 +11,6 @@ General storage entries
 /// The entries are sorted ascending by the para id.
 OutgoingParas: Vec<ParaId>;
 ```
-
-### Upward Message Passing (UMP)
-
-```rust
-/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
-///
-/// Note that some upward messages might have been already processed by the inclusion logic. E.g.
-/// channel management messages.
-///
-/// The messages are processed in FIFO order.
-RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
-/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
-///
-/// First item in the tuple is the count of messages and second
-/// is the total length (in bytes) of the message payloads.
-///
-/// Note that this is an auxilary mapping: it's possible to tell the byte size and the number of
-/// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
-/// loading the whole message queue if only the total size and count are required.
-///
-/// Invariant:
-/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
-RelayDispatchQueueSize: map ParaId => (u32, u32); // (num_messages, total_bytes)
-/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
-///
-/// Invariant:
-/// - The set of items from this vector should be exactly the set of the keys in
-///   `RelayDispatchQueues` and `RelayDispatchQueueSize`.
-NeedsDispatch: Vec<ParaId>;
-/// This is the para that gets dispatched first during the next upward dispatchable queue
-/// execution round.
-///
-/// Invariant:
-/// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
-NextDispatchRoundStartWith: Option<ParaId>;
-```
-
-### Downward Message Passing (DMP)
-
-Storage layout required for implementation of DMP.
-
-```rust
-/// The downward messages addressed for a certain para.
-DownwardMessageQueues: map ParaId => Vec<InboundDownwardMessage>;
-/// A mapping that stores the downward message queue MQC head for each para.
-///
-/// Each link in this chain has a form:
-/// `(prev_head, B, H(M))`, where
-/// - `prev_head`: is the previous head hash or zero if none.
-/// - `B`: is the relay-chain block number in which a message was appended.
-/// - `H(M)`: is the hash of the message being appended.
-DownwardMessageQueueHeads: map ParaId => Hash;
-```
-
-### HRMP
 
 HRMP related structs:
 
@@ -189,13 +134,6 @@ No initialization routine runs for this module.
 
 Candidate Acceptance Function:
 
-* `check_upward_messages(P: ParaId, Vec<UpwardMessage>`):
-    1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
-    1. Checks that no message exceeds `config.max_upward_message_size`.
-    1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the messages
-* `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
-    1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
-    1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
 * `check_hrmp_watermark(P: ParaId, new_hrmp_watermark)`:
     1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
     1. `new_hrmp_watermark` must not be greater than the context's block number.
@@ -232,41 +170,11 @@ Candidate Enactment:
     > parametrization this shouldn't be a big of a deal.
     > If that becomes a problem consider introducing an extra dictionary which says at what block the given sender
     > sent a message to the recipient.
-* `prune_dmq(P: ParaId, processed_downward_messages)`:
-    1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
-* `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
-    1. Process each upward message `M` in order:
-        1. Append the message to `RelayDispatchQueues` for `P`
-        1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
-        1. Ensure that `P` is present in `NeedsDispatch`.
 
 The following routine is intended to be called in the same time when `Paras::schedule_para_cleanup` is called.
 
 `schedule_para_cleanup(ParaId)`:
     1. Add the para into the `OutgoingParas` vector maintaining the sorted order.
-
-The following routine is meant to execute pending entries in upward message queues. This function doesn't fail, even if
-dispatcing any of individual upward messages returns an error.
-
-`process_pending_upward_messages()`:
-    1. Initialize a cumulative weight counter `T` to 0
-    1. Iterate over items in `NeedsDispatch` cyclically, starting with `NextDispatchRoundStartWith`. If the item specified is `None` start from the beginning. For each `P` encountered:
-        1. Dequeue the first upward message `D` from `RelayDispatchQueues` for `P`
-        1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
-        1. Delegate processing of the message to the runtime. The weight consumed is added to `T`.
-        1. If `T >= config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
-        1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
-        1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
-        > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
-        > that could take place on the course of handling these upward messages.
-
-Utility routines.
-
-`queue_downward_message(P: ParaId, M: DownwardMessage)`:
-    1. Check if the size of `M` exceeds the `config.max_downward_message_size`. If so, return an error.
-    1. Wrap `M` into `InboundDownwardMessage` using the current block number for `sent_at`.
-    1. Obtain a new MQC link for the resulting `InboundDownwardMessage` and replace `DownwardMessageQueueHeads` for `P` with the resulting hash.
-    1. Add the resulting `InboundDownwardMessage` into `DownwardMessageQueues` for `P`.
 
 ## Entry-points
 
@@ -336,15 +244,8 @@ the parachain executed the message.
 1. Drain `OutgoingParas`. For each `P` happened to be in the list:
     1. Remove all inbound channels of `P`, i.e. `(_, P)`,
     1. Remove all outbound channels of `P`, i.e. `(P, _)`,
-    1. Remove all `DownwardMessageQueues` of `P`.
-    1. Remove `DownwardMessageQueueHeads` for `P`.
-    1. Remove `RelayDispatchQueueSize` of `P`.
-    1. Remove `RelayDispatchQueues` of `P`.
     1. Remove `HrmpOpenChannelRequestCount` for `P`
     1. Remove `HrmpAcceptedChannelRequestCount` for `P`.
-    1. Remove `P` if it exists in `NeedsDispatch`.
-    1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
-    - Note that if we don't remove the open/close requests since they are going to die out naturally at the end of the session.
 1. For each channel designator `D` in `HrmpOpenChannelRequestsList` we query the request `R` from `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.

@@ -25,16 +25,15 @@ use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
-		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage, RuntimeApiRequest,
+		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	errors::RuntimeApiError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, JobManager, JobTrait, ToJobTrait, Validator,
-	metrics::{self, prometheus},
+	self as util, JobManager, JobTrait, Validator, FromJobCommand, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
-use std::{convert::TryFrom, pin::Pin, time::Duration, iter::FromIterator};
+use std::{pin::Pin, time::Duration, iter::FromIterator};
 use wasm_timer::{Delay, Instant};
 use thiserror::Error;
 
@@ -44,76 +43,6 @@ const LOG_TARGET: &str = "bitfield_signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
-
-/// Messages which a `BitfieldSigningJob` is prepared to receive.
-#[allow(missing_docs)]
-pub enum ToJob {
-	BitfieldSigning(BitfieldSigningMessage),
-	Stop,
-}
-
-impl ToJobTrait for ToJob {
-	const STOP: Self = ToJob::Stop;
-
-	fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::BitfieldSigning(bsm) => bsm.relay_parent(),
-			Self::Stop => None,
-		}
-	}
-}
-
-impl TryFrom<AllMessages> for ToJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::BitfieldSigning(bsm) => Ok(ToJob::BitfieldSigning(bsm)),
-			_ => Err(()),
-		}
-	}
-}
-
-impl From<BitfieldSigningMessage> for ToJob {
-	fn from(bsm: BitfieldSigningMessage) -> ToJob {
-		ToJob::BitfieldSigning(bsm)
-	}
-}
-
-/// Messages which may be sent from a `BitfieldSigningJob`.
-#[allow(missing_docs)]
-#[derive(Debug, derive_more::From)]
-pub enum FromJob {
-	AvailabilityStore(AvailabilityStoreMessage),
-	BitfieldDistribution(BitfieldDistributionMessage),
-	CandidateBacking(CandidateBackingMessage),
-	RuntimeApi(RuntimeApiMessage),
-}
-
-impl From<FromJob> for AllMessages {
-	fn from(from_job: FromJob) -> AllMessages {
-		match from_job {
-			FromJob::AvailabilityStore(asm) => AllMessages::AvailabilityStore(asm),
-			FromJob::BitfieldDistribution(bdm) => AllMessages::BitfieldDistribution(bdm),
-			FromJob::CandidateBacking(cbm) => AllMessages::CandidateBacking(cbm),
-			FromJob::RuntimeApi(ram) => AllMessages::RuntimeApi(ram),
-		}
-	}
-}
-
-impl TryFrom<AllMessages> for FromJob {
-	type Error = ();
-
-	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
-		match msg {
-			AllMessages::AvailabilityStore(asm) => Ok(Self::AvailabilityStore(asm)),
-			AllMessages::BitfieldDistribution(bdm) => Ok(Self::BitfieldDistribution(bdm)),
-			AllMessages::CandidateBacking(cbm) => Ok(Self::CandidateBacking(cbm)),
-			AllMessages::RuntimeApi(ram) => Ok(Self::RuntimeApi(ram)),
-			_ => Err(()),
-		}
-	}
-}
 
 /// Errors we may encounter in the course of executing the `BitfieldSigningSubsystem`.
 #[derive(Debug, Error)]
@@ -140,11 +69,12 @@ pub enum Error {
 
 /// If there is a candidate pending availability, query the Availability Store
 /// for whether we have the availability chunk for our validator index.
+#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
 	relay_parent: Hash,
 	core: CoreState,
 	validator_idx: ValidatorIndex,
-	sender: &Mutex<&mut mpsc::Sender<FromJob>>,
+	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
 ) -> Result<bool, Error> {
 	if let CoreState::Occupied(core) = core {
 		let (tx, rx) = oneshot::channel();
@@ -152,10 +82,10 @@ async fn get_core_availability(
 			.lock()
 			.await
 			.send(
-				RuntimeApiMessage::Request(
+				AllMessages::from(RuntimeApiMessage::Request(
 					relay_parent,
 					RuntimeApiRequest::CandidatePendingAvailability(core.para_id, tx),
-				).into(),
+				)).into(),
 			)
 			.await?;
 
@@ -164,7 +94,7 @@ async fn get_core_availability(
 			Ok(None) => return Ok(false),
 			Err(e) => {
 				// Don't take down the node on runtime API errors.
-				log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", e);
+				tracing::warn!(target: LOG_TARGET, err = ?e, "Encountered a runtime API error");
 				return Ok(false);
 			}
 		};
@@ -173,11 +103,11 @@ async fn get_core_availability(
 			.lock()
 			.await
 			.send(
-				AvailabilityStoreMessage::QueryChunkAvailability(
+				AllMessages::from(AvailabilityStoreMessage::QueryChunkAvailability(
 					committed_candidate_receipt.hash(),
 					validator_idx,
 					tx,
-				).into(),
+				)).into(),
 			)
 			.await?;
 		return rx.await.map_err(Into::into);
@@ -187,9 +117,14 @@ async fn get_core_availability(
 }
 
 /// delegates to the v1 runtime API
-async fn get_availability_cores(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<Vec<CoreState>, Error> {
+async fn get_availability_cores(
+	relay_parent: Hash,
+	sender: &mut mpsc::Sender<FromJobCommand>,
+) -> Result<Vec<CoreState>, Error> {
 	let (tx, rx) = oneshot::channel();
-	sender.send(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx)).into()).await?;
+	sender
+		.send(AllMessages::from(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx))).into())
+		.await?;
 	match rx.await {
 		Ok(Ok(out)) => Ok(out),
 		Ok(Err(runtime_err)) => Err(runtime_err.into()),
@@ -201,10 +136,11 @@ async fn get_availability_cores(relay_parent: Hash, sender: &mut mpsc::Sender<Fr
 /// - for each core, concurrently determine chunk availability (see `get_core_availability`)
 /// - return the bitfield if there were no errors at any point in this process
 ///   (otherwise, it's prone to false negatives)
+#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	validator_idx: ValidatorIndex,
-	sender: &mut mpsc::Sender<FromJob>,
+	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<AvailabilityBitfield, Error> {
 	// get the set of availability cores from the runtime
 	let availability_cores = get_availability_cores(relay_parent, sender).await?;
@@ -228,6 +164,7 @@ async fn construct_availability_bitfield(
 #[derive(Clone)]
 struct MetricsInner {
 	bitfields_signed_total: prometheus::Counter<prometheus::U64>,
+	run: prometheus::Histogram,
 }
 
 /// Bitfield signing metrics.
@@ -239,6 +176,11 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.bitfields_signed_total.inc();
 		}
+	}
+
+	/// Provide a timer for `prune_povs` which observes on drop.
+	fn time_run(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.run.start_timer())
 	}
 }
 
@@ -252,14 +194,22 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			run: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_bitfield_signing_run",
+						"Time spent within `bitfield_signing::run`",
+					)
+				)?,
+				registry,
+			)?,
 		};
 		Ok(Metrics(Some(metrics)))
 	}
 }
 
 impl JobTrait for BitfieldSigningJob {
-	type ToJob = ToJob;
-	type FromJob = FromJob;
+	type ToJob = BitfieldSigningMessage;
 	type Error = Error;
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
@@ -267,13 +217,15 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "BitfieldSigningJob";
 
 	/// Run a job for the parent block indicated
+	#[tracing::instrument(skip(keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
-		_receiver: mpsc::Receiver<ToJob>,
-		mut sender: mpsc::Sender<FromJob>,
+		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
+		mut sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let metrics = metrics.clone();
 		async move {
 			let wait_until = Instant::now() + JOB_DELAY;
 
@@ -288,12 +240,16 @@ impl JobTrait for BitfieldSigningJob {
 			// wait a bit before doing anything else
 			Delay::new_at(wait_until).await?;
 
+			// this timer does not appear at the head of the function because we don't want to include
+			// JOB_DELAY each time.
+			let _timer = metrics.time_run();
+
 			let bitfield =
 				match construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
-					log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", runtime_err);
+					tracing::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
 					return Ok(());
 				}
 				Err(err) => return Err(err),
@@ -307,7 +263,11 @@ impl JobTrait for BitfieldSigningJob {
 			metrics.on_bitfield_signed();
 
 			sender
-				.send(BitfieldDistributionMessage::DistributeBitfield(relay_parent, signed_bitfield).into())
+				.send(
+					AllMessages::from(
+						BitfieldDistributionMessage::DistributeBitfield(relay_parent, signed_bitfield),
+					).into(),
+				)
 				.await
 				.map_err(Into::into)
 		}
@@ -322,8 +282,7 @@ pub type BitfieldSigningSubsystem<Spawner, Context> = JobManager<Spawner, Contex
 mod tests {
 	use super::*;
 	use futures::{pin_mut, executor::block_on};
-	use polkadot_primitives::v1::{OccupiedCore};
-	use FromJob::*;
+	use polkadot_primitives::v1::OccupiedCore;
 
 	fn occupied_core(para_id: u32) -> CoreState {
 		CoreState::Occupied(OccupiedCore {
@@ -350,12 +309,18 @@ mod tests {
 			loop {
 				futures::select! {
 					m = receiver.next() => match m.unwrap() {
-						RuntimeApi(RuntimeApiMessage::Request(rp, RuntimeApiRequest::AvailabilityCores(tx))) => {
+						FromJobCommand::SendMessage(
+							AllMessages::RuntimeApi(
+								RuntimeApiMessage::Request(rp, RuntimeApiRequest::AvailabilityCores(tx)),
+							),
+						) => {
 							assert_eq!(relay_parent, rp);
 							tx.send(Ok(vec![CoreState::Free, occupied_core(1), occupied_core(2)])).unwrap();
 						},
-						RuntimeApi(
-							RuntimeApiMessage::Request(rp, RuntimeApiRequest::CandidatePendingAvailability(para_id, tx))
+						FromJobCommand::SendMessage(
+							AllMessages::RuntimeApi(
+								RuntimeApiMessage::Request(rp, RuntimeApiRequest::CandidatePendingAvailability(para_id, tx)),
+							),
 						) => {
 							assert_eq!(relay_parent, rp);
 
@@ -365,7 +330,11 @@ mod tests {
 								tx.send(Ok(None)).unwrap();
 							}
 						},
-						AvailabilityStore(AvailabilityStoreMessage::QueryChunkAvailability(_, vidx, tx)) => {
+						FromJobCommand::SendMessage(
+							AllMessages::AvailabilityStore(
+								AvailabilityStoreMessage::QueryChunkAvailability(_, vidx, tx),
+							),
+						) => {
 							assert_eq!(validator_index, vidx);
 
 							tx.send(true).unwrap();

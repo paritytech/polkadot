@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_staking.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_staking::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn bond() -> Weight {
 		(91_974_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))

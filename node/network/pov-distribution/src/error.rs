@@ -13,3 +13,21 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! The `Error` and `Result` types used by the subsystem.
+
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+	#[error(transparent)]
+	Subsystem(#[from] polkadot_subsystem::SubsystemError),
+	#[error(transparent)]
+	OneshotRecv(#[from] futures::channel::oneshot::Canceled),
+	#[error(transparent)]
+	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
+	#[error(transparent)]
+	Util(#[from] polkadot_node_subsystem_util::Error),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;

@@ -35,14 +35,14 @@ use frame_system::ensure_none;
 use crate::{
 	inclusion,
 	scheduler::{self, FreedReason},
-	router,
+	ump,
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
-pub trait Trait: inclusion::Trait + scheduler::Trait {}
+pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
-	trait Store for Module<T: Trait> as ParaInclusionInherent {
+	trait Store for Module<T: Config> as ParaInclusionInherent {
 		/// Whether the inclusion inherent was included within this block.
 		///
 		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
@@ -54,7 +54,7 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Inclusion inherent called more than once per block.
 		TooManyInclusionInherents,
 	}
@@ -62,7 +62,7 @@ decl_error! {
 
 decl_module! {
 	/// The inclusion inherent module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		fn on_initialize() -> Weight {
@@ -117,7 +117,7 @@ decl_module! {
 			<scheduler::Module<T>>::occupied(&occupied);
 
 			// Give some time slice to dispatch pending upward messages.
-			<router::Module<T>>::process_pending_upward_messages();
+			<ump::Module<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
 			Included::set(Some(()));
@@ -127,7 +127,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> ProvideInherent for Module<T> {
+impl<T: Config> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
 	const INHERENT_IDENTIFIER: InherentIdentifier = INCLUSION_INHERENT_IDENTIFIER;

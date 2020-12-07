@@ -21,7 +21,7 @@ use sp_runtime::generic::BlockId;
 use sp_api::ProvideRuntimeApi;
 use sc_block_builder::{BlockBuilderProvider, BlockBuilder};
 use sp_state_machine::BasicExternalities;
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 /// An extension for the test client to init a Polkadot specific block builder.
 pub trait InitPolkadotBlockBuilder {

@@ -115,7 +115,7 @@ pub trait ExecuteWithClient {
 	fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
 		where
 			<Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-			Backend: sc_client_api::Backend<Block>,
+			Backend: sc_client_api::Backend<Block> + 'static,
 			Backend::State: sp_api::StateBackend<BlakeTwo256>,
 			Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
 			Client: AbstractClient<Block, Backend, Api = Api> + 'static;

@@ -19,7 +19,7 @@
 
 use sp_std::vec::Vec;
 
-use codec::{Encode, Decode, CompactAs};
+use parity_scale_codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
 
 #[cfg(feature = "std")]
@@ -135,6 +135,45 @@ impl sp_std::ops::Add<u32> for Id {
 	}
 }
 
+#[derive(Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+pub struct Sibling(pub Id);
+
+impl From<Id> for Sibling {
+	fn from(i: Id) -> Self {
+		Self(i)
+	}
+}
+
+impl From<Sibling> for Id {
+	fn from(i: Sibling) -> Self {
+		i.0
+	}
+}
+
+impl AsRef<Id> for Sibling {
+	fn as_ref(&self) -> &Id {
+		&self.0
+	}
+}
+
+impl TypeId for Sibling {
+	const TYPE_ID: [u8; 4] = *b"sibl";
+}
+
+impl From<Sibling> for u32 {
+	fn from(x: Sibling) -> Self { x.0.into() }
+}
+
+impl From<u32> for Sibling {
+	fn from(x: u32) -> Self { Sibling(x.into()) }
+}
+
+impl IsSystem for Sibling {
+	fn is_system(&self) -> bool {
+		IsSystem::is_system(&self.0)
+	}
+}
+
 /// This type can be converted into and possibly from an AccountId (which itself is generic).
 pub trait AccountIdConversion<AccountId>: Sized {
 	/// Convert into an account ID. This is infallible.
@@ -147,12 +186,12 @@ pub trait AccountIdConversion<AccountId>: Sized {
 // TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
 // #360
 struct TrailingZeroInput<'a>(&'a [u8]);
-impl<'a> codec::Input for TrailingZeroInput<'a> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
 		Ok(None)
 	}
 
-	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
+	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
 		let len = into.len().min(self.0.len());
 		into[..len].copy_from_slice(&self.0[..len]);
 		for i in &mut into[len..] {
