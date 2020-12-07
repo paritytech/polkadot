@@ -93,7 +93,8 @@ impl CandidateSelectionJob {
 		}
 	}
 
-	async fn run_loop(&mut self) -> Result<(), Error> {
+	async fn run_loop(&mut self, span: &jaeger::Span) -> Result<(), Error> {
+		let span = span.child("run loop");
 		loop {
 			match self.receiver.next().await  {
 				Some(CandidateSelectionMessage::Collation(
@@ -101,12 +102,14 @@ impl CandidateSelectionJob {
 					para_id,
 					collator_id,
 				)) => {
+					let _span = span.child("handle collation");
 					self.handle_collation(relay_parent, para_id, collator_id).await;
 				}
 				Some(CandidateSelectionMessage::Invalid(
 					_,
 					candidate_receipt,
 				)) => {
+					let _span = span.child("handle invalid");
 					self.handle_invalid(candidate_receipt).await;
 				}
 				None => break,

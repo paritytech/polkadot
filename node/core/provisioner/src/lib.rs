@@ -136,10 +136,12 @@ impl JobTrait for ProvisioningJob {
 				sender,
 				receiver,
 			);
+			
+			let span = jaeger::hash_span(&self.relay_parent, "provisioner");
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
-			job.run_loop().await
+			job.run_loop(&span).await
 		}
 		.boxed()
 	}
@@ -165,15 +167,16 @@ impl ProvisioningJob {
 		}
 	}
 
-	async fn run_loop(mut self) -> Result<(), Error> {
+	async fn run_loop(mut self, span: &jaeger::JaegerSpan) -> Result<(), Error> {
 		use ProvisionerMessage::{
 			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
 		};
-
+		let span = span.child("run loop");
 		loop {
 			futures::select! {
 				msg = self.receiver.next().fuse() => match msg {
 					Some(RequestInherentData(_, return_sender)) => {
+						let _span = span.child("req inherent data");
 						let _timer = self.metrics.time_request_inherent_data();
 
 						if self.inherent_after.is_ready() {
@@ -183,9 +186,11 @@ impl ProvisioningJob {
 						}
 					}
 					Some(RequestBlockAuthorshipData(_, sender)) => {
+						let _span = span.child("req block authorship");
 						self.provisionable_data_channels.push(sender)
 					}
 					Some(ProvisionableData(_, data)) => {
+						let _span = span.child("provisionable data");
 						let _timer = self.metrics.time_provisionable_data();
 
 						let mut bad_indices = Vec::new();
@@ -223,6 +228,7 @@ impl ProvisioningJob {
 					None => break,
 				},
 				_ = self.inherent_after.ready().fuse() => {
+					let _span = span.child("send inherent data");
 					let return_senders = std::mem::take(&mut self.awaiting_inherent);
 					if !return_senders.is_empty() {
 						self.send_inherent_data(return_senders).await;

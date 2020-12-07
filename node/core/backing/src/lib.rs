@@ -427,10 +427,12 @@ async fn validate_and_make_available(
 
 impl CandidateBackingJob {
 	/// Run asynchronously.
-	async fn run_loop(mut self) -> Result<(), Error> {
+	async fn run_loop(mut self, span: &jaeger::Span) -> Result<(), Error> {
+		let span = span.child("run loop");
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
+					let _span = span.child("background validation");
 					if let Some(c) = validated_command {
 						self.handle_validated_candidate_command(c).await?;
 					} else {
@@ -440,6 +442,7 @@ impl CandidateBackingJob {
 				to_job = self.rx_to.next() => match to_job {
 					None => break,
 					Some(msg) => {
+						let _span = span.child("process message");
 						self.process_msg(msg).await?;
 					}
 				}
@@ -891,7 +894,8 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			drop(_span);
-			drop(span);
+			let _span = span.child("calc validator groups");
+
 
 			let mut groups = HashMap::new();
 
@@ -923,6 +927,9 @@ impl util::JobTrait for CandidateBackingJob {
 				None => return Ok(()), // no need to work.
 				Some(r) => r,
 			};
+			
+			drop(_span);
+			let _span = span.child("wait for candidate backing job");
 
 			let (background_tx, background_rx) = mpsc::channel(16);
 			let job = CandidateBackingJob {
@@ -943,8 +950,9 @@ impl util::JobTrait for CandidateBackingJob {
 				background_validation_tx: background_tx,
 				metrics,
 			};
+			drop(_span);
 
-			job.run_loop().await
+			job.run_loop(&span).await
 		}
 		.boxed()
 	}
