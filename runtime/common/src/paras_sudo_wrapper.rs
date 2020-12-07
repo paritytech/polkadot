@@ -88,5 +88,29 @@ decl_module! {
 						Error::<T>::ExceedsMaxMessageSize.into(),
 				})
 		}
+
+		/// Forcefully establish a channel from the sender to the recipient.
+		///
+		/// This is equivalent to sending an `Hrmp::hrmp_init_open_channel` extrinsic followed by
+		/// `Hrmp::hrmp_accept_open_channel`.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn sudo_establish_hrmp_channel(
+			origin,
+			sender: ParaId,
+			recipient: ParaId,
+			max_capacity: u32,
+			max_message_size: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			<hrmp::Module<T>>::init_open_channel(
+				sender,
+				recipient,
+				max_capacity,
+				max_message_size,
+			)?;
+			<hrmp::Module<T>>::accept_open_channel(recipient, sender)?;
+			Ok(())
+		}
 	}
 }

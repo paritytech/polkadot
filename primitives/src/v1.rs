@@ -231,6 +231,11 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	pub fn hash(&self) -> CandidateHash where H: Encode {
 		self.to_plain().hash()
 	}
+
+	/// Does this committed candidate receipt corrensponds to the given [`CandidateReceipt`]?
+	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool where H: PartialEq {
+		receipt.descriptor == self.descriptor && receipt.commitments_hash == self.commitments.hash()
+	}
 }
 
 impl PartialOrd for CommittedCandidateReceipt {
@@ -415,6 +420,16 @@ impl<H> BackedCandidate<H> {
 	/// Get a reference to the descriptor of the para.
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.candidate.descriptor
+	}
+
+	/// Compute this candidate's hash.
+	pub fn hash(&self) -> CandidateHash where H: Clone + Encode {
+		self.candidate.hash()
+	}
+
+	/// Get this candidate's receipt.
+	pub fn receipt(&self) -> CandidateReceipt<H> where H: Clone {
+		self.candidate.to_plain()
 	}
 }
 

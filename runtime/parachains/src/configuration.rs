@@ -44,7 +44,7 @@ pub struct HostConfiguration<BlockNumber> {
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
 	pub max_head_data_size: u32,
-	/// THe maximum POV block size, in bytes.
+	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The amount of execution cores to dedicate to parathread execution.
 	pub parathread_cores: u32,
