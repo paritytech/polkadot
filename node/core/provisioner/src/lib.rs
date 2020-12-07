@@ -17,7 +17,7 @@
 //! The provisioner is responsible for assembling a relay chain block
 //! from a set of available parachain candidates of its choice.
 
-#![deny(missing_docs, unused_crate_dependencies, unused_results)]
+#![deny(missing_docs, unused_crate_dependencies)]
 
 use bitvec::vec::BitVec;
 use futures::{
@@ -455,8 +455,8 @@ async fn select_candidates(
 	// maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by checking them
 	// in order, we can ensure that the backed candidates are also in order.
 	let mut backed_idx = 0;
-	for selected in selected_candidates.iter() {
-		if *selected == candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash() {
+	for selected in selected_candidates {
+		if selected == candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash() {
 			backed_idx += 1;
 		}
 	}

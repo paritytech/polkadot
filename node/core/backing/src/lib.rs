@@ -754,7 +754,7 @@ impl CandidateBackingJob {
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
 			tx_command: self.background_validation_tx.clone(),
-			candidate: candidate,
+			candidate,
 			relay_parent: self.parent,
 			pov: None,
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
@@ -1644,27 +1644,37 @@ mod tests {
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
 						_,
-						ProvisionableData::BackedCandidate(BackedCandidate {
-							candidate,
-							validity_votes,
-							validator_indices,
+						ProvisionableData::BackedCandidate(CandidateReceipt {
+							descriptor,
+							..
 						})
 					)
-				) if candidate == candidate_a => {
-					assert_eq!(validity_votes.len(), 3);
-
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Implicit(signed_a.signature().clone())
-					));
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Explicit(signed_b.signature().clone())
-					));
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Explicit(signed_c.signature().clone())
-					));
-					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
-				}
+				) if descriptor == candidate_a.descriptor
 			);
+
+			let (tx, rx) = oneshot::channel();
+			let msg = CandidateBackingMessage::GetBackedCandidates(
+				test_state.relay_parent,
+				vec![candidate_a.hash()],
+				tx,
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg }).await;
+
+			let candidates = rx.await.unwrap();
+			assert_eq!(1, candidates.len());
+			assert_eq!(candidates[0].validity_votes.len(), 3);
+
+			assert!(candidates[0].validity_votes.contains(
+				&ValidityAttestation::Implicit(signed_a.signature().clone())
+			));
+			assert!(candidates[0].validity_votes.contains(
+				&ValidityAttestation::Explicit(signed_b.signature().clone())
+			));
+			assert!(candidates[0].validity_votes.contains(
+				&ValidityAttestation::Explicit(signed_c.signature().clone())
+			));
+			assert_eq!(candidates[0].validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
 
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
