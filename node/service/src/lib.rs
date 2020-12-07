@@ -132,6 +132,20 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Initialize the `Jeager` collector. The destination must listen
+/// on the given address and port for `UDP` packets.
+fn set_jaeger_collector(dest: Option<String>) -> Result<(), Error> {
+	if let Some(dest) = dest {
+		let cfg = jaeger::JaegerConfig::builder()
+			.destination(dest.parse::<url::Url>()?)
+			.named(&config.network.node_name)
+			.build();
+
+		jaeger::Jaeger::new(cfg).launch();
+	}
+	Ok(())
+}
+
 pub type FullBackend = service::TFullBackend<Block>;
 #[cfg(feature = "full-node")]
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
@@ -176,15 +190,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		Executor: NativeExecutionDispatch + 'static,
 {
 	set_prometheus_registry(config)?;
-
-	if let Some(dest) = std::env::var("POLKADOT_JAEGER").ok().filter(|v| !v.is_empty()) {
-		let cfg = jaeger::JaegerConfig::builder()
-			.destination(dest.parse::<url::Url>().unwrap())
-			.named(&config.network.node_name)
-			.build();
-
-		jaeger::Jaeger::new(cfg).launch();
-	}
+	set_jaeger_collector(std::env::var("POLKADOT_JAEGER").ok().filter(|v| !v.is_empty()))?;
 
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();

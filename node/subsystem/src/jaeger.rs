@@ -49,93 +49,93 @@ use polkadot_primitives::v1::{Hash, PoV, CandidateHash};
 /// Configuration for the jaeger tracing.
 #[derive(Clone)]
 pub struct JaegerConfig {
-    node_name: String,
-    destination: url::Url,
+	node_name: String,
+	destination: url::Url,
 }
 
 impl std::default::Default for JaegerConfig {
-    fn default() -> Self {
-        Self {
-            node_name: "unknown_".to_owned(),
-            destination: "http://127.0.0.1:6831".parse().unwrap(),
-        }
-    }
+	fn default() -> Self {
+		Self {
+			node_name: "unknown_".to_owned(),
+			destination: "http://127.0.0.1:6831".parse().unwrap(),
+		}
+	}
 }
 
 impl JaegerConfig {
-    /// Use the builder pattern to construct a configuration.
-    pub fn builder() -> JaegerConfigBuilder {
-        JaegerConfigBuilder::default()
-    }
+	/// Use the builder pattern to construct a configuration.
+	pub fn builder() -> JaegerConfigBuilder {
+		JaegerConfigBuilder::default()
+	}
 }
 
 
 /// Jaeger configuration builder.
 #[derive(Default)]
 pub struct JaegerConfigBuilder {
-    inner: JaegerConfig
+	inner: JaegerConfig
 }
 
 impl JaegerConfigBuilder {
-    /// Set the name for this node.
-    pub fn named<S>(mut self, name: S) -> Self where S: AsRef<str> {
-        self.inner.node_name = name.as_ref().to_owned();
-        self
-    }
+	/// Set the name for this node.
+	pub fn named<S>(mut self, name: S) -> Self where S: AsRef<str> {
+		self.inner.node_name = name.as_ref().to_owned();
+		self
+	}
 
-    /// Set the recording destination url.
-    pub fn destination<U>(mut self, url: U) -> Self where U: Into<url::Url> {
-        self.inner.destination = url.into();
-        self
-    }
+	/// Set the recording destination url.
+	pub fn destination<U>(mut self, url: U) -> Self where U: Into<url::Url> {
+		self.inner.destination = url.into();
+		self
+	}
 
-    /// Construct the configuration.
-    pub fn build(self) -> JaegerConfig {
-        self.inner
-    }
+	/// Construct the configuration.
+	pub fn build(self) -> JaegerConfig {
+		self.inner
+	}
 }
 
 /// A wrapper type for a span.
 ///
 /// Handles running with and without jaeger.
 pub enum JaegerSpan {
-    /// Running with jaeger being enabled.
-    Enabled(mick_jaeger::Span),
-    /// Running with jaeger disabled.
-    Disabled,
+	/// Running with jaeger being enabled.
+	Enabled(mick_jaeger::Span),
+	/// Running with jaeger disabled.
+	Disabled,
 }
 
 impl JaegerSpan {
-    /// Derive a child span from `self`.
-    pub fn child(&self, name: impl Into<String>) -> Self {
-        match self {
-            Self::Enabled(inner) => Self::Enabled(inner.child(name)),
-            Self::Disabled => Self::Disabled,
-        }
-    }
-    /// Add an additional tag to the span.
-    pub fn add_string_tag(&mut self, tag: &str, value: &str) {
-        match self {
-            Self::Enabled(ref mut inner) => inner.add_string_tag(tag, value),
-            Self::Disabled => {},
-        }
-    }
+	/// Derive a child span from `self`.
+	pub fn child(&self, name: impl Into<String>) -> Self {
+		match self {
+			Self::Enabled(inner) => Self::Enabled(inner.child(name)),
+			Self::Disabled => Self::Disabled,
+		}
+	}
+	/// Add an additional tag to the span.
+	pub fn add_string_tag(&mut self, tag: &str, value: &str) {
+		match self {
+			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, value),
+			Self::Disabled => {},
+		}
+	}
 }
 
 impl From<Option<mick_jaeger::Span>> for JaegerSpan {
-    fn from(src: Option<mick_jaeger::Span>) -> Self {
-        if let Some(span) = src {
-            Self::Enabled(span)
-        } else {
-            Self::Disabled
-        }
-    }
+	fn from(src: Option<mick_jaeger::Span>) -> Self {
+		if let Some(span) = src {
+			Self::Enabled(span)
+		} else {
+			Self::Disabled
+		}
+	}
 }
 
 impl From<mick_jaeger::Span> for JaegerSpan {
-    fn from(src: mick_jaeger::Span) -> Self {
-        Self::Enabled(src)
-    }
+	fn from(src: mick_jaeger::Span) -> Self {
+		Self::Enabled(src)
+	}
 }
 
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
@@ -154,91 +154,98 @@ pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
 #[inline(always)]
 pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-    INSTANCE.lock().unwrap().span(hash, span_name).into()
+	INSTANCE.lock().unwrap().span(hash, span_name).into()
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
 pub enum Jaeger {
-    /// Launched and operational state.
-    Launched {
-        /// [`mick_jaeger`] provided API to record spans to.
-        traces_in: Arc<mick_jaeger::TracesIn>,
-    },
-    /// Preparation state with the necessary config to launch an instance.
-    Prep(JaegerConfig),
-    /// Uninitialized, suggests wrong API usage if encountered.
-    None,
+	/// Launched and operational state.
+	Launched {
+		/// [`mick_jaeger`] provided API to record spans to.
+		traces_in: Arc<mick_jaeger::TracesIn>,
+	},
+	/// Preparation state with the necessary config to launch an instance.
+	Prep(JaegerConfig),
+	/// Uninitialized, suggests wrong API usage if encountered.
+	None,
 }
 
 impl Jaeger {
-    /// Spawn the jaeger instance.
-    pub fn new(cfg: JaegerConfig) -> Self {
-        Jaeger::Prep(cfg)
-    }
+	/// Spawn the jaeger instance.
+	pub fn new(cfg: JaegerConfig) -> Self {
+		Jaeger::Prep(cfg)
+	}
 
-    /// Spawn the background task in order to send the tracing information out via udp
-    pub fn launch(self) {
-        let cfg = match self {
-            Self::Prep(cfg) => cfg,
-            _ => { panic!("Must be a jaeger instance that was not launched yet, but has pending stuff") }
-        };
-        log::info!("🐹 Collecting jaeger spans for {}", cfg.destination);
+	/// Spawn the background task in order to send the tracing information out via udp
+	pub fn launch(self) {
+		let cfg = match self {
+			Self::Prep(cfg) => cfg,
+			_ => { panic!("Must be a jaeger instance that was not launched yet, but has pending stuff") }
+		};
+		log::info!("🐹 Collecting jaeger spans for {}", cfg.destination);
 
-        let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
-            service_name: format!("polkadot-{}", cfg.node_name),
-        });
+		let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
+			service_name: format!("polkadot-{}", cfg.node_name),
+		});
 
-        let resolved = cfg.destination.socket_addrs(|| None).unwrap();
-        if resolved.is_empty() {
-            panic!("Resolving of jaeger address always succeeds.");
-        }
-        let jaeger_agent: std::net::SocketAddr = resolved[0];
+		let resolved = cfg.destination.socket_addrs(|| None).unwrap();
+		if resolved.is_empty() {
+			panic!("Resolving of jaeger address always succeeds.");
+		}
+		let jaeger_agent: std::net::SocketAddr = resolved[0];
 
-        // Spawn a background task that pulls span information and sends them on the network.
-        let _handle = async_std::task::spawn(async move {
-            let udp_socket = async_std::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
+		// Spawn a background task that pulls span information and sends them on the network.
+		let _handle = async_std::task::spawn(async move {
+			let mut udp_socket = async_std::net::UdpSocket::bind("127.0.0.1:34254").await;
 
-            loop {
-                let buf = traces_out.next().await;
-                // UDP sending errors happen only either if the API is misused (in which case
-                // panicking is desirable) or in case of missing priviledge, in which case a
-                // panic is preferable in order to inform the user.
-                udp_socket.send_to(&buf, jaeger_agent).await.unwrap();
-            }
-        });
+			let mut port = 10000u16;
+			while udp_socket.is_err() {
+				udp_socket = async_std::net::UdpSocket::bind(format!("127.0.0.1:{}", port)).await;
+				port += 1;
+			}
+			let udp_socket = udp_socket.unwrap();
 
-        let jaeger = Self::Launched {
-            traces_in,
-        };
+			loop {
+				let buf = traces_out.next().await;
+				// UDP sending errors happen only either if the API is misused (in which case
+				// panicking is desirable) or in case of missing priviledge, in which case a
+				// panic is preferable in order to inform the user.
+				udp_socket.send_to(&buf, jaeger_agent).await.unwrap();
+			}
+		});
 
-        *INSTANCE.lock().unwrap() = jaeger;
-    }
+		let jaeger = Self::Launched {
+			traces_in,
+		};
 
-    #[inline(always)]
-    fn traces_in(&self) -> Option<&Arc<mick_jaeger::TracesIn>> {
-        match self {
-            Self::Launched {
-                traces_in,
-                ..
-            } => Some(&traces_in),
-            _ => None,
-        }
-    }
+		*INSTANCE.lock().unwrap() = jaeger;
+	}
 
-    fn span(&self, hash: &Hash, span_name: impl Into<String>) -> Option<mick_jaeger::Span> {
-        if let Some(traces_in) = self.traces_in() {
-            let trace_id = {
-                let mut buf = [0u8; 16];
-                buf.copy_from_slice(&hash.as_ref()[0..16]);
-                std::num::NonZeroU128::new(u128::from_be_bytes(buf)).unwrap()
-            };
-            Some(traces_in.span(trace_id, span_name))
-        } else {
-            None
-        }
-    }
+	#[inline(always)]
+	fn traces_in(&self) -> Option<&Arc<mick_jaeger::TracesIn>> {
+		match self {
+			Self::Launched {
+				traces_in,
+				..
+			} => Some(&traces_in),
+			_ => None,
+		}
+	}
+
+	fn span(&self, hash: &Hash, span_name: impl Into<String>) -> Option<mick_jaeger::Span> {
+		if let Some(traces_in) = self.traces_in() {
+			let trace_id = {
+				let mut buf = [0u8; 16];
+				buf.copy_from_slice(&hash.as_ref()[0..16]);
+				std::num::NonZeroU128::new(u128::from_be_bytes(buf)).unwrap()
+			};
+			Some(traces_in.span(trace_id, span_name))
+		} else {
+			None
+		}
+	}
 }
 
 lazy_static::lazy_static! {
-    static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::None);
+	static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::None);
 }
