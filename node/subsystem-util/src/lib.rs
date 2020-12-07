@@ -50,7 +50,7 @@ use sp_keystore::{
 	Error as KeystoreError,
 };
 use std::{
-	collections::HashMap,
+	collections::{HashMap, hash_map::Entry},
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
@@ -608,8 +608,10 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 
 	/// Send a message to the appropriate job for this `parent_hash`.
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
-		if let Some(job) = self.running.get_mut(&parent_hash) {
-			let _ = job.send_msg(msg).await;
+		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
+			if job.get_mut().send_msg(msg).await.is_err() {
+				job.remove();
+			}
 		}
 	}
 }
