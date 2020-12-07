@@ -99,6 +99,9 @@ pub struct Cli {
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
+	#[structopt(long)]
+	pub jaeger: Option<String>,
+	
 	#[structopt(flatten)]
 	pub run: RunCmd,
 }
