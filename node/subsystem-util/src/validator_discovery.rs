@@ -114,9 +114,11 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 	connected_rx
 }
 
+/// Represents a discovered validator.
+///
 /// Result of [`ConnectionRequests::next`].
 #[derive(Debug, PartialEq)]
-pub struct ConnectionRequestsNext {
+pub struct DiscoveredValidator {
 	/// The relay parent associated with the connection request that returned a result.
 	pub relay_parent: Hash,
 	/// The [`ValidatorId`] that was resolved.
@@ -125,19 +127,19 @@ pub struct ConnectionRequestsNext {
 	pub peer_id: PeerId,
 }
 
-/// Used by [`ConnectionRequests::requests`] to map a [`ConnectionRequest`] item to a [`ConnectionRequestsNext`].
+/// Used by [`ConnectionRequests::requests`] to map a [`ConnectionRequest`] item to a [`DiscoveredValidator`].
 struct ConnectionRequestForRelayParent {
 	request: ConnectionRequest,
 	relay_parent: Hash,
 }
 
 impl stream::Stream for ConnectionRequestForRelayParent {
-	type Item = ConnectionRequestsNext;
+	type Item = DiscoveredValidator;
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
 		self.request
 			.poll_next_unpin(cx)
-			.map(|r| r.map(|(validator_id, peer_id)| ConnectionRequestsNext {
+			.map(|r| r.map(|(validator_id, peer_id)| DiscoveredValidator {
 				validator_id,
 				peer_id,
 				relay_parent: self.relay_parent,
@@ -187,7 +189,7 @@ impl ConnectionRequests {
 	/// # Note
 	///
 	/// When there are no active requests this will wait indefinitely, like an always pending future.
-	pub async fn next(&mut self) -> ConnectionRequestsNext {
+	pub async fn next(&mut self) -> DiscoveredValidator {
 		loop {
 			match self.requests.next().await {
 				Some((StreamYield::Item(item), _)) => {
@@ -286,13 +288,13 @@ mod tests {
 			let res = connection_requests.next().await;
 			assert_eq!(
 				res,
-				ConnectionRequestsNext { relay_parent: relay_parent_1, validator_id: validator_1, peer_id: peer_id_1 },
+				DiscoveredValidator { relay_parent: relay_parent_1, validator_id: validator_1, peer_id: peer_id_1 },
 			);
 
 			let res = connection_requests.next().await;
 			assert_eq!(
 				res,
-				ConnectionRequestsNext { relay_parent: relay_parent_1, validator_id: validator_2, peer_id: peer_id_2 },
+				DiscoveredValidator { relay_parent: relay_parent_1, validator_id: validator_2, peer_id: peer_id_2 },
 			);
 
 			check_next_is_pending(&mut connection_requests).await;
@@ -347,13 +349,13 @@ mod tests {
 			let res = connection_requests.next().await;
 			assert_eq!(
 				res,
-				ConnectionRequestsNext { relay_parent: relay_parent_1, validator_id: validator_1, peer_id: peer_id_1 },
+				DiscoveredValidator { relay_parent: relay_parent_1, validator_id: validator_1, peer_id: peer_id_1 },
 			);
 
 			let res = connection_requests.next().await;
 			assert_eq!(
 				res,
-				ConnectionRequestsNext { relay_parent: relay_parent_2, validator_id: validator_2, peer_id: peer_id_2 },
+				DiscoveredValidator { relay_parent: relay_parent_2, validator_id: validator_2, peer_id: peer_id_2 },
 			);
 
 			check_next_is_pending(&mut connection_requests).await;
@@ -403,7 +405,7 @@ mod tests {
 			rq1_tx.send((auth_1.clone(), peer_id_1.clone())).await.unwrap();
 
 			let res = connection_requests.next().await;
-			assert_eq!(res, ConnectionRequestsNext { relay_parent, validator_id: validator_1, peer_id: peer_id_1.clone() });
+			assert_eq!(res, DiscoveredValidator { relay_parent, validator_id: validator_1, peer_id: peer_id_1.clone() });
 
 			connection_requests.put(relay_parent.clone(), connection_request_2);
 
@@ -412,7 +414,7 @@ mod tests {
 			rq2_tx.send((auth_2, peer_id_2.clone())).await.unwrap();
 
 			let res = connection_requests.next().await;
-			assert_eq!(res, ConnectionRequestsNext { relay_parent, validator_id: validator_2, peer_id: peer_id_2 });
+			assert_eq!(res, DiscoveredValidator { relay_parent, validator_id: validator_2, peer_id: peer_id_2 });
 
 			check_next_is_pending(&mut connection_requests).await;
 		});
