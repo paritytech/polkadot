@@ -28,6 +28,7 @@ use frame_support::{
 };
 use parity_scale_codec::{Encode, Decode};
 use frame_system::ensure_root;
+use sp_runtime::traits::Zero;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, Default, sp_core::RuntimeDebug)]
@@ -50,23 +51,32 @@ pub struct HostConfiguration<BlockNumber> {
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
 	pub parathread_retries: u32,
-	/// How often parachain groups should be rotated across parachains. Must be non-zero.
+	/// How often parachain groups should be rotated across parachains.
+	///
+	/// Must be non-zero.
 	pub group_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for parachains. This is the amount of blocks
 	/// after inclusion that validators have to make the block available and signal its availability to
-	/// the chain. Must be at least 1.
+	/// the chain.
+	///
+	/// Must be at least 1.
 	pub chain_availability_period: BlockNumber,
 	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
-	/// but a differing timeout due to differing requirements. Must be at least 1.
+	/// but a differing timeout due to differing requirements.
+	///
+	/// Must be at least 1.
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
-	/// The maximum number of validators to have per core. `None` means no maximum.
+	/// The maximum number of validators to have per core.
+	///
+	/// `None` means no maximum.
 	pub max_validators_per_core: Option<u32>,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
+	///
 	/// Must be at least 1.
 	pub no_show_slots: u32,
 	/// The number of delay tranches in total.
@@ -132,6 +142,31 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 }
 
+impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
+	/// Checks that this instance is consistent with the requirements on each individual member.
+	///
+	/// # Panic
+	///
+	/// This function panicks if any member is not set properly.
+	fn check_consistency(&self) {
+		if self.group_rotation_frequency.is_zero() {
+			panic!("`group_rotation_frequency` must be non-zero!")
+		}
+
+		if self.chain_availability_period.is_zero() {
+			panic!("`chain_availability_period` must be at least 1!")
+		}
+
+		if self.thread_availability_period.is_zero() {
+			panic!("`thread_availability_period` must be at least 1!")
+		}
+
+		if self.no_show_slots.is_zero() {
+			panic!("`no_show_slots` must be at least 1!")
+		}
+	}
+}
+
 pub trait Config: frame_system::Config { }
 
 decl_storage! {
@@ -140,6 +175,11 @@ decl_storage! {
 		ActiveConfig get(fn config) config(): HostConfiguration<T::BlockNumber>;
 		/// Pending configuration (if any) for the next session.
 		PendingConfig: Option<HostConfiguration<T::BlockNumber>>;
+	}
+	add_extra_genesis {
+		build(|config: &Self| {
+			config.config.check_consistency();
+		})
 	}
 }
 
