@@ -147,7 +147,7 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 	///
 	/// # Panic
 	///
-	/// This function panicks if any member is not set properly.
+	/// This function panics if any member is not set properly.
 	fn check_consistency(&self) {
 		if self.group_rotation_frequency.is_zero() {
 			panic!("`group_rotation_frequency` must be non-zero!")
