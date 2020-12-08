@@ -31,7 +31,7 @@ use frame_system::ensure_root;
 use sp_runtime::traits::Zero;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, Default, sp_core::RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	/// The minimum frequency at which parachains can update their validation code.
@@ -142,6 +142,49 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 }
 
+impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
+	fn default() -> Self {
+		Self {
+			group_rotation_frequency: 1u32.into(),
+			chain_availability_period: 1u32.into(),
+			thread_availability_period: 1u32.into(),
+			no_show_slots: 1u32.into(),
+			validation_upgrade_frequency: Default::default(),
+			validation_upgrade_delay: Default::default(),
+			acceptance_period: Default::default(),
+			max_code_size: Default::default(),
+			max_pov_size: Default::default(),
+			max_head_data_size: Default::default(),
+			parathread_cores: Default::default(),
+			parathread_retries: Default::default(),
+			scheduling_lookahead: Default::default(),
+			max_validators_per_core: Default::default(),
+			dispute_period: Default::default(),
+			n_delay_tranches: Default::default(),
+			zeroth_delay_tranche_width: Default::default(),
+			needed_approvals: Default::default(),
+			relay_vrf_modulo_samples: Default::default(),
+			max_upward_queue_count: Default::default(),
+			max_upward_queue_size: Default::default(),
+			max_downward_message_size: Default::default(),
+			preferred_dispatchable_upward_messages_step_weight: Default::default(),
+			max_upward_message_size: Default::default(),
+			max_upward_message_num_per_candidate: Default::default(),
+			hrmp_open_request_ttl: Default::default(),
+			hrmp_sender_deposit: Default::default(),
+			hrmp_recipient_deposit: Default::default(),
+			hrmp_channel_max_capacity: Default::default(),
+			hrmp_channel_max_total_size: Default::default(),
+			hrmp_max_parachain_inbound_channels: Default::default(),
+			hrmp_max_parathread_inbound_channels: Default::default(),
+			hrmp_channel_max_message_size: Default::default(),
+			hrmp_max_parachain_outbound_channels: Default::default(),
+			hrmp_max_parathread_outbound_channels: Default::default(),
+			hrmp_max_message_num_per_candidate: Default::default(),
+		}
+	}
+}
+
 impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 	/// Checks that this instance is consistent with the requirements on each individual member.
 	///
@@ -184,7 +227,10 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Config> { }
+	pub enum Error for Module<T: Config> {
+		/// The new value for a configuration parameter is invalid.
+		InvalidNewValue,
+	}
 }
 
 decl_module! {
@@ -277,6 +323,11 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_group_rotation_frequency(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
+
+			if new.is_zero() {
+				return Err(Error::<T>::InvalidNewValue.into())
+			}
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.group_rotation_frequency, new) != new
 			});
@@ -287,6 +338,11 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_chain_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
+
+			if new.is_zero() {
+				return Err(Error::<T>::InvalidNewValue.into())
+			}
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.chain_availability_period, new) != new
 			});
@@ -297,6 +353,11 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_thread_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
+
+			if new.is_zero() {
+				return Err(Error::<T>::InvalidNewValue.into())
+			}
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.thread_availability_period, new) != new
 			});

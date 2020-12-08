@@ -33,7 +33,7 @@ use crate::{
 };
 
 /// Information about a session change that has just occurred.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
@@ -47,6 +47,19 @@ pub struct SessionChangeNotification<BlockNumber> {
 	pub random_seed: [u8; 32],
 	/// New session index.
 	pub session_index: sp_staking::SessionIndex,
+}
+
+impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
+	fn default() -> Self {
+		Self {
+			validators: Vec::new(),
+			queued: Vec::new(),
+			prev_config: HostConfiguration::default(),
+			new_config: HostConfiguration::default(),
+			random_seed: Default::default(),
+			session_index: Default::default(),
+		}
+	}
 }
 
 #[derive(Encode, Decode)]
