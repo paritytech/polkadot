@@ -16,6 +16,11 @@
 
 //! An implementation of the `RewardValidators` trait used by `inclusion` that employs
 //! `pallet-staking` to compute the rewards.
+//!
+//! Based on https://w3f-research.readthedocs.io/en/latest/polkadot/Token%20Economics.html
+//! which doesn't currently mention availability bitfields. Since those are not a huge amount
+//! of work and every validator will be doing a lot of availability networking, we set the
+//! availability rewards to be very small relative to backing.
 
 use primitives::v1::ValidatorIndex;
 use pallet_staking::SessionInterface;
