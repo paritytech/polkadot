@@ -182,16 +182,16 @@ impl Jaeger {
 			Self::Prep(cfg) => cfg,
 			_ => { panic!("Must be a jaeger instance that was not launched yet, but has pending stuff") }
 		};
-		
+
 		let jaeger_agent = cfg.agent_addr;
-		
+
 		log::info!("🐹 Collecting jaeger spans for {:?}", &jaeger_agent);
 
 		let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
 			service_name: format!("{}-{}", cfg.node_name, cfg.node_name),
 		});
-		
-		
+
+
 		// Spawn a background task that pulls span information and sends them on the network.
 		let _handle = async_std::task::spawn(async move {
 			let mut udp_socket = async_std::net::UdpSocket::bind("127.0.0.1:34254").await;
