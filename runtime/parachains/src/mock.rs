@@ -24,7 +24,7 @@ use sp_runtime::{
 		BlakeTwo256, IdentityLookup,
 	},
 };
-use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header};
+use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header, ValidatorIndex};
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
 	weights::Weight, traits::Randomness as RandomnessT,
@@ -122,6 +122,7 @@ impl crate::scheduler::Config for Test { }
 
 impl crate::inclusion::Config for Test {
 	type Event = TestEvent;
+	type RewardValidators = TestRewardValidators;
 }
 
 impl crate::session_info::Config for Test { }
@@ -130,6 +131,13 @@ impl crate::session_info::AuthorityDiscoveryConfig for Test {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
 		Vec::new()
 	}
+}
+
+pub struct TestRewardValidators;
+
+impl inclusion::RewardValidators for TestRewardValidators {
+	fn reward_backing(_: impl IntoIterator<Item = ValidatorIndex>) { }
+	fn reward_bitfields(_: impl IntoIterator<Item = ValidatorIndex>) { }
 }
 
 pub type System = frame_system::Module<Test>;

@@ -1093,6 +1093,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
+				backers: default_availability_votes(),
 			});
 			PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments.clone());
 
@@ -1102,6 +1103,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
+				backers: default_availability_votes(),
 			});
 			PendingAvailabilityCommitments::insert(chain_b, default_candidate.commitments);
 
@@ -1265,6 +1267,7 @@ mod tests {
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
 					backed_in_number: 0,
+					backers: default_availability_votes(),
 				});
 				PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments);
 
@@ -1299,6 +1302,7 @@ mod tests {
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
 					backed_in_number: 0,
+					backers: default_availability_votes(),
 				});
 
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
@@ -1370,6 +1374,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
+				backers: default_availability_votes(),
 			});
 			PendingAvailabilityCommitments::insert(chain_a, candidate_a.commitments);
 
@@ -1385,6 +1390,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
+				backers: default_availability_votes(),
 			});
 			PendingAvailabilityCommitments::insert(chain_b, candidate_b.commitments);
 
@@ -1795,6 +1801,7 @@ mod tests {
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 3,
 					backed_in_number: 4,
+					backers: default_availability_votes(),
 				});
 				<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments);
 
@@ -2082,6 +2089,7 @@ mod tests {
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
+					backers: default_availability_votes(),
 				})
 			);
 			assert_eq!(
@@ -2097,6 +2105,7 @@ mod tests {
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
+					backers: default_availability_votes(),
 				})
 			);
 			assert_eq!(
@@ -2112,6 +2121,7 @@ mod tests {
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
+					backers: default_availability_votes(),
 				})
 			);
 			assert_eq!(
@@ -2206,6 +2216,7 @@ mod tests {
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
+					backers: default_availability_votes(),
 				})
 			);
 			assert_eq!(
@@ -2280,6 +2291,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 5,
 				backed_in_number: 6,
+				backers: default_availability_votes(),
 			});
 			<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments.clone());
 
@@ -2289,6 +2301,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 6,
 				backed_in_number: 7,
+				backers: default_availability_votes(),
 			});
 			<PendingAvailabilityCommitments>::insert(&chain_b, candidate.commitments);
 
