@@ -44,11 +44,21 @@ mod columns {
 	pub const NUM_COLUMNS: u32 = 1;
 }
 
+/// The number of sessions to store the information on
+/// a particular dispute, this includes open or shut
+/// remote or local disputes.
+pub const SESSION_COUNT_BEFORE_DROP: u32 = 100;
+
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-	Io(#[from] io::Error),	
+	#[error(transparent)]
+	Io(#[from] io::Error),
+
+	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
+
+	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 }
 
@@ -61,8 +71,167 @@ struct ProtocolState {
 }
 
 
-const TARGET: &'static str = "vodb";
+const TARGET: &'static str = "votesdb";
 
+
+// /// Get a value by key.
+// fn get(&self, col: u32, key: &[u8]) -> io::Result<Option<DBValue>>;
+
+// /// Get the first value matching the given prefix.
+// fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>>;
+
+// /// Write a transaction of changes to the backing store.
+// fn write(&self, transaction: DBTransaction) -> io::Result<()>;
+
+// /// Iterate over the data for a given column.
+// fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
+
+// /// Iterate over the data for a given column, returning all key/value pairs
+// /// where the key starts with the given prefix.
+// fn iter_with_prefix<'a>(
+// 	&'a self,
+// 	col: u32,
+// 	prefix: &'a [u8],
+// ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
+
+// /// Attempt to replace this database with a new one located at the given path.
+// fn restore(&self, new_db: &str) -> io::Result<()>;
+
+// /// Query statistics.
+// ///
+// /// Not all kvdb implementations are able or expected to implement this, so by
+// /// default, empty statistics is returned. Also, not all kvdb implementation
+// /// can return every statistic or configured to do so (some statistics gathering
+// /// may impede the performance and might be off by default).
+// fn io_stats(&self, _kind: IoStatsKind) -> IoStats {
+// 	IoStats::empty()
+// }
+
+
+
+fn write_db<D: Encode>(
+	db: &Arc<dyn KeyValueDB>,
+	column: u32,
+	key: &[u8],
+	value: D,
+) {
+	let v = value.encode();
+	match db.write(column, v.as_slice()) {
+		Ok(None) => None,
+		Err(e) => {
+			tracing::warn!(target: TARGET, err = ?e, "Error writing to the votes db store");
+			None
+		}
+	}
+}
+
+fn read_db<D: Decode>(
+	db: &Arc<dyn KeyValueDB>,
+	column: u32,
+	key: &[u8],
+) -> Option<D> {
+	match db.get(column, key) {
+		Ok(Some(raw)) => {
+			let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
+			Some(res)
+		}
+		Ok(None) => None,
+		Err(e) => {
+			tracing::warn!(target: TARGET, err = ?e, "Error reading from the votes db store");
+			None
+		}
+	}
+}
+
+
+// Storage format prefix: "vote/s_{session_index}/v_{validator_index}"
+
+/// Track up to which point all data was pruned.
+const PIVOT_KEY: &[u8] = b"prune/pivot";
+
+#[inline(always)]
+fn derive_key(prefix: &str, session: SessionIndex, validator: ValidatorIndex) -> String {
+	format!("vote/s_{session_index}/v_{validator_index}", session_index, validator_index=validator)
+}
+#[inline(always)]
+fn derive_prefix(prefix: &str, session: SessionIndex) -> String {
+	format!("vote/s_{session_index}", session_index)
+}
+
+fn get_pivot(db: &Arc<dyn KeyValueDB>) -> SessionIndex {
+	read_db(db, columns::DATA, PIVOT_KEY).unwrap_or_default()
+}
+
+fn prune_votes_before_session(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -> Result<()> {
+	let pruned_up_to_session_index: SessionIndex = get_pivot(db);
+
+	let mut cleanup_transaction = db.transaction();
+	let mut n = 0;
+	const MAX_ITEMS_PER_TRANSACTION: u16 = 128_u16;
+	for cursor_session in pruned_up_to_session_index..session {
+		let prefix = derive_prefix(cursor_session);
+		for (key, value) in db.iter_with_prefix(DATA, prefix.as_bytes()) {
+			log::trace!("Pruning {}", cursor_session);
+			cleanup_transaction.erase(key);
+
+			// use checkpoint submits
+			n += 1u16;
+			if n > MAX_ITEMS_PRE_TRANSACTION {
+				db.write_transaction(cleanup_transaction);
+
+				write_db(db, columns::DATA, PIVOT_KEY, pruned_up_to_session.max(cursor_session - 1));
+
+				cleanup_transaction = db.transaction();
+				n = 0;
+			}
+		}
+		// always track our state so we don't ever have to start over
+	}
+
+	db.write_transaction(cleanup_transaction);
+	write_db(db, columns::DATA, PIVOT_KEY, session - 1);
+
+	Ok(())
+}
+
+fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) -> Result<()> {
+	if session < get_pivot() {
+		log::warn!("Dropping request to store ancient votes.");
+		Err(TODO)
+	}
+	let mut transaction = DBTransaction::with_capacity(votes.len());
+	for vote in votes {
+		let k = derive_key(session, vote.validator());
+		let v = vote.encode();
+		transaction.put(columns::DATA, k ,v);
+
+		// TODO detect double votes
+	}
+
+	db.write_transaction(transaction)?;
+
+	Ok(())
+}
+
+
+pub async fn on_session_change(current_session: SessionIndex) -> Result<()> {
+
+	// TODO lookup all stored session indices that are less than the curren
+	// and drop all associated data
+	Ok(())
+}
+
+
+
+
+pub async fn store_(current_session: SessionIndex) -> Result<()> {
+
+	Ok(())
+}
+
+pub async fn query() -> Result<()> {
+
+}
 /// The bitfield distribution subsystem.
 pub struct VotesDB {
 	metrics: Metrics,
@@ -110,7 +279,7 @@ impl VotesDB {
                     trace!(target: TARGET, "Query ");
 						// .await?;
 				}
-				
+
 				FromOverseer::Communication {
 					msg: VotesDBMessage::RegisterVote{ gossip_msg },
 				} => {
