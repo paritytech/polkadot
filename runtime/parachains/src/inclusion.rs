@@ -352,6 +352,7 @@ impl<T: Config> Module<T> {
 					pending_availability.relay_parent_number,
 					receipt,
 					pending_availability.backers,
+					pending_availability.availability_votes,
 				);
 
 				freed_cores.push(pending_availability.core);
@@ -614,6 +615,7 @@ impl<T: Config> Module<T> {
 		relay_parent_number: T::BlockNumber,
 		receipt: CommittedCandidateReceipt<T::Hash>,
 		backers: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<BitOrderLsb0, u8>,
 	) -> Weight {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
@@ -621,6 +623,11 @@ impl<T: Config> Module<T> {
 
 		T::RewardValidators::reward_backing(backers.iter().enumerate()
 			.filter(|(_, backed)| **backed)
+			.map(|(i, _)| i as _)
+		);
+
+		T::RewardValidators::reward_bitfields(availability_votes.iter().enumerate()
+			.filter(|(_, voted)| **voted)
 			.map(|(i, _)| i as _)
 		);
 
@@ -721,6 +728,7 @@ impl<T: Config> Module<T> {
 				pending.relay_parent_number,
 				candidate,
 				pending.backers,
+				pending.availability_votes,
 			);
 		}
 	}
