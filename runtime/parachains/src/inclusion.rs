@@ -62,6 +62,8 @@ pub struct CandidatePendingAvailability<H, N> {
 	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
 	availability_votes: BitVec<BitOrderLsb0, u8>,
+	/// The backers of the candidate pending availability.
+	backers: BitVec<BitOrderLsb0, u8>,
 	/// The block number of the relay-parent of the receipt.
 	relay_parent_number: N,
 	/// The block number of the relay-chain block this was backed in.
@@ -85,6 +87,13 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	}
 }
 
+pub trait RewardValidators {
+	// Reward the validators with the given indices for issuing backing statements.
+	fn reward_backing(validators: impl IntoIterator<Item=ValidatorIndex>);
+	// Reward the validators with the given indices for issuing availability bitfields.
+	fn reward_bitfields(validators: impl IntoIterator<Item=ValidatorIndex>);
+}
+
 pub trait Config:
 	frame_system::Config
 	+ paras::Config
@@ -94,6 +103,7 @@ pub trait Config:
 	+ configuration::Config
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+	type RewardValidators: RewardValidators;
 }
 
 decl_storage! {
@@ -341,6 +351,7 @@ impl<T: Config> Module<T> {
 				Self::enact_candidate(
 					pending_availability.relay_parent_number,
 					receipt,
+					pending_availability.backers,
 				);
 
 				freed_cores.push(pending_availability.core);
@@ -375,9 +386,9 @@ impl<T: Config> Module<T> {
 		let check_cx = CandidateCheckContext::<T>::new();
 
 		// do all checks before writing storage.
-		let core_indices = {
+		let core_indices_and_backers = {
 			let mut skip = 0;
-			let mut core_indices = Vec::with_capacity(candidates.len());
+			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
 
 			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
@@ -408,6 +419,7 @@ impl<T: Config> Module<T> {
 			'a:
 			for (candidate_idx, candidate) in candidates.iter().enumerate() {
 				let para_id = candidate.descriptor().para_id;
+				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
 
 				// we require that the candidate is in the context of the parent block.
 				ensure!(
@@ -504,9 +516,19 @@ impl<T: Config> Module<T> {
 								),
 								Err(()) => { Err(Error::<T>::InvalidBacking)?; }
 							}
+
+							for (bit_idx, _) in candidate
+								.validator_indices.iter()
+								.enumerate().filter(|(_, signed)| **signed)
+							{
+								let val_idx = group_vals.get(bit_idx)
+									.expect("this query done above; qed");
+
+								backers.set(*val_idx as _, true);
+							}
 						}
 
-						core_indices.push(assignment.core);
+						core_indices_and_backers.push((assignment.core, backers));
 						continue 'a;
 					}
 				}
@@ -525,11 +547,12 @@ impl<T: Config> Module<T> {
 				check_assignment_in_order(assignment)?;
 			}
 
-			core_indices
+			core_indices_and_backers
 		};
 
 		// one more sweep for actually writing to storage.
-		for (candidate, core) in candidates.into_iter().zip(core_indices.iter().cloned()) {
+		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _)| c.clone()).collect();
+		for (candidate, (core, backers)) in candidates.into_iter().zip(core_indices_and_backers) {
 			let para_id = candidate.descriptor().para_id;
 
 			// initialize all availability votes to 0.
@@ -551,6 +574,7 @@ impl<T: Config> Module<T> {
 				descriptor,
 				availability_votes,
 				relay_parent_number: check_cx.relay_parent_number,
+				backers,
 				backed_in_number: check_cx.now,
 			});
 			<PendingAvailabilityCommitments>::insert(&para_id, commitments);
@@ -589,10 +613,16 @@ impl<T: Config> Module<T> {
 	fn enact_candidate(
 		relay_parent_number: T::BlockNumber,
 		receipt: CommittedCandidateReceipt<T::Hash>,
+		backers: BitVec<BitOrderLsb0, u8>,
 	) -> Weight {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
 		let config = <configuration::Module<T>>::config();
+
+		T::RewardValidators::reward_backing(backers.iter().enumerate()
+			.filter(|(_, backed)| **backed)
+			.map(|(i, _)| i as _)
+		);
 
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
@@ -690,6 +720,7 @@ impl<T: Config> Module<T> {
 			Self::enact_candidate(
 				pending.relay_parent_number,
 				candidate,
+				pending.backers,
 			);
 		}
 	}
