@@ -830,15 +830,6 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 20);
 		assert_eq!(info.last_rotation_at(), 15);
-
-		let info = GroupRotationInfo {
-			session_start_block: 10u32,
-			now: 11,
-			group_rotation_frequency: 0,
-		};
-
-		assert_eq!(info.next_rotation_at(), 0);
-		assert_eq!(info.last_rotation_at(), 0);
 	}
 
 	#[test]
