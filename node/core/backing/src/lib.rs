@@ -973,9 +973,8 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 			drop(_span);
 
-		}
 			job.run_loop(rx_to, &span).await
-		.boxed()
+		}.boxed()
 	}
 }
 
