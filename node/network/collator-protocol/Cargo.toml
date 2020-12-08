@@ -23,7 +23,7 @@ assert_matches = "1.4.0"
 smallvec = "1.5.1"
 futures-timer = "3.0.2"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "td-mmr" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
