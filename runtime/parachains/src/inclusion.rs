@@ -1394,7 +1394,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
-				backers: default_backing_bitfield(),
+				backers: backing_bitfield(&[3, 4]),
 			});
 			PendingAvailabilityCommitments::insert(chain_a, candidate_a.commitments);
 
@@ -1410,7 +1410,7 @@ mod tests {
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
-				backers: default_backing_bitfield(),
+				backers: backing_bitfield(&[0, 2]),
 			});
 			PendingAvailabilityCommitments::insert(chain_b, candidate_b.commitments);
 
@@ -1481,6 +1481,25 @@ mod tests {
 
 			// and check that chain head was enacted.
 			assert_eq!(Paras::para_head(&chain_a), Some(vec![1, 2, 3, 4].into()));
+
+			// Check that rewards are applied.
+			{
+				let rewards = crate::mock::availability_rewards();
+
+				assert_eq!(rewards.len(), 4);
+				assert_eq!(rewards.get(&0).unwrap(), &1);
+				assert_eq!(rewards.get(&1).unwrap(), &1);
+				assert_eq!(rewards.get(&2).unwrap(), &1);
+				assert_eq!(rewards.get(&3).unwrap(), &1);
+			}
+
+			{
+				let rewards = crate::mock::backing_rewards();
+
+				assert_eq!(rewards.len(), 2);
+				assert_eq!(rewards.get(&3).unwrap(), &1);
+				assert_eq!(rewards.get(&4).unwrap(), &1);
+			}
 		});
 	}
 

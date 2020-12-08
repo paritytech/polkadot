@@ -148,7 +148,7 @@ pub fn backing_rewards() -> HashMap<ValidatorIndex, usize> {
 }
 
 pub fn availability_rewards() -> HashMap<ValidatorIndex, usize> {
-	BACKING_REWARDS.with(|r| r.borrow().clone())
+	AVAILABILITY_REWARDS.with(|r| r.borrow().clone())
 }
 
 pub struct TestRewardValidators;
