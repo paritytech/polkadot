@@ -21,7 +21,7 @@ use sp_keyring::Sr25519Keyring;
 
 #[substrate_test_utils::test]
 async fn ensure_test_service_build_blocks(task_executor: TaskExecutor) {
-	sc_cli::init_logger("", Default::default(), None).expect("Sets up logger");
+	sc_cli::init_logger("", Default::default(), None, false).expect("Sets up logger");
 
 	let mut alice = run_validator_node(
 		task_executor.clone(),

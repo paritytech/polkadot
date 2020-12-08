@@ -20,7 +20,7 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-smallvec = "1.5.0"
+smallvec = "1.5.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.22"
