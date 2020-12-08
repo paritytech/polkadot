@@ -5180,7 +5180,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-futures",
- "url 2.2.0",
 ]
 
 [[package]]
@@ -5593,9 +5592,9 @@ dependencies = [
  "sp-transaction-pool",
  "sp-trie",
  "substrate-prometheus-endpoint",
+ "thiserror",
  "tracing",
  "tracing-futures",
- "url 2.2.0",
  "westend-runtime",
 ]
 

@@ -153,13 +153,13 @@ pub enum SubsystemError {
 		/// An additional anotation tag for the origin of `source`.
 		origin: &'static str,
 		/// The wrapped error. Marked as source for tracking the error chain.
-		#[source] source: Box<dyn std::error::Error + Send>
+		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
 	},
 }
 
 impl SubsystemError {
 	/// Adds a `str` as `origin` to the given error `err`.
-	pub fn with_origin<E: 'static + Send + std::error::Error>(origin: &'static str, err: E) -> Self {
+	pub fn with_origin<E: 'static + Send + Sync + std::error::Error>(origin: &'static str, err: E) -> Self {
 		Self::FromOrigin { origin, source: Box::new(err) }
 	}
 }
