@@ -39,6 +39,8 @@ use crate::{
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
+const BLOCK_WEIGHT_MARGIN: u64 = 1000;
+
 pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
@@ -127,10 +129,21 @@ decl_module! {
 	}
 }
 
+// At the point that this is run, the provisioner has already chosen a set of extrinsics,
+// so we can rely on calculations like block weight.
+fn inclusion_inherents_would_overload_block<T: 'static + frame_system::Config>() -> bool {
+	frame_system::Module::<T>::block_weight().total() > <T as frame_system::Config>::MaximumBlockWeight::get() - BLOCK_WEIGHT_MARGIN
+}
+
+/// We should only include the inherent under certain circumstances.
+///
+/// 1. The inherent is itself valid. It may not be, for example, in the event of a session change.
+/// 2. It would not overload the block, which might already be heavy.
 fn should_include_inherent<T: Config>(
 	signed_bitfields: &SignedAvailabilityBitfields,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 ) -> bool {
+	!inclusion_inherents_would_overload_block::<T>() &&
 	// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 	// See github.com/paritytech/polkadot/issues/1327
 	Module::<T>::inclusion(
