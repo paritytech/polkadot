@@ -11,6 +11,7 @@ element `CommittedCanddidateReceipt` is verifiable.
 
 1. Specify what is being gossiped, what messages and what they must contain.
 
+
 ## IO
 
 Inputs:1. Receive `DisputeParticipationMessage::Resolution`
@@ -24,24 +25,35 @@ Outputs:
 
 * `AvailabilityRecoveryMessage::RecoverAvailableData`
 * `CandidateValidationMessage::ValidateFromChainState`
+* `...::Blacklist`
 
 ## Messages
 
 ```rust
 enum DisputeParticipationMessage {
     Detection {
-        // TODO
+        candidate: CandidateHash,
+        votes: HashMap<ValidatorId, Vote>,
     },
 
     Resolution{
-        // TODO
+        resolution: Resolution,
+        votes: HashMap<ValidatorId, Vote>,
     },
 }
 ```
 
 ## Helper Structs
 
-> TODO
+```rust
+/// Resolution of a vote:
+enum Resolution {
+    /// The block is valid
+    Valid,
+    /// The block is valid
+    Invalid,
+}
+```
 
 ## Session Change
 
@@ -49,7 +61,7 @@ enum DisputeParticipationMessage {
 
 ## Storage
 
-Nothing to store
+Nothing to store, everything lives in `VotesDB`.
 
 ## Sequence
 
@@ -69,3 +81,14 @@ Nothing to store
   1. includes `CandidateReceipts`
   1. includes `Vote`s
 1. Delete all relevant data associated with this dispute
+
+### Blacklisting bad block and invalid decendants
+
+In case a block was disputed successfully, and is now deemed invalid.
+
+1. Query `ChainApiMessage::Descendants` for all descendants of the disputed `Hash`.
+1. Blacklist all descendants of the disputed block `ChainApiMessage::Blacklist`.
+1. Check if the dispute block was finalized
+1. iff:
+    1. put the chain into governance mode
+1. Craft and enqueue an unsigned transaction to reward/slash the validator of the proof, that is part of the incoming message, directly.

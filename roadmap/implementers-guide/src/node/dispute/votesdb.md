@@ -118,16 +118,6 @@ To fulfill the required query features.
         1. Enqueue unsigned transaction to reward/slash all validators that voted.
         1. >> Dispute Effects
 
-### Dispute Effects
-
-In case a block was disputed successfully, and is now deemed invalid.
-
-1. Query `ChainApiMessage::Descendants` for all descendants of the disputed `Hash`.
-1. Blacklist all descendants of the disputed block `ChainApiMessage::Blacklist`.
-1. Check if the dispute block was finalized
-1. iff:
-    1. put the chain into governance mode
-
 ### Query
 
 1. Incoming query request
@@ -135,3 +125,13 @@ In case a block was disputed successfully, and is now deemed invalid.
     1. For each `(SessionIndex, ValidatorIndex)`:
         1. Accumulate `Hash`es.
     1. Lookup all `PoV`s.
+
+### Incoming dispute vote
+
+1. Check if the dispute already has a supermajority.
+1. iff:
+    1. store the resolution and keep the resolution
+    1. send `DisputeMessage::Resolution` to the overseer
+    1. TODO when to delete stuff from the DB?
+1. else:
+    1. Store the new vote including its proof to the DB.
