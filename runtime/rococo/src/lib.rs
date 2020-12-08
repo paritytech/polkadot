@@ -532,7 +532,7 @@ impl parachains_configuration::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
-	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>,
+	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_paras::Config for Runtime {
