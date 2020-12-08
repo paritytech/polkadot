@@ -399,7 +399,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_no_show_slots(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(new >= 1, "no_show_slots must be at least 1");
+			ensure!(new >= 1, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.no_show_slots, new) != new
 			});
