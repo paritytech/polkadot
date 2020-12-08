@@ -29,6 +29,8 @@ use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
 	weights::Weight, traits::Randomness as RandomnessT,
 };
+use std::cell::RefCell;
+use std::collections::HashMap;
 use crate::inclusion;
 use crate as parachains;
 
@@ -133,11 +135,41 @@ impl crate::session_info::AuthorityDiscoveryConfig for Test {
 	}
 }
 
+thread_local! {
+	pub static BACKING_REWARDS: RefCell<HashMap<ValidatorIndex, usize>>
+		= RefCell::new(HashMap::new());
+
+	pub static AVAILABILITY_REWARDS: RefCell<HashMap<ValidatorIndex, usize>>
+		= RefCell::new(HashMap::new());
+}
+
+pub fn backing_rewards() -> HashMap<ValidatorIndex, usize> {
+	BACKING_REWARDS.with(|r| r.borrow().clone())
+}
+
+pub fn availability_rewards() -> HashMap<ValidatorIndex, usize> {
+	BACKING_REWARDS.with(|r| r.borrow().clone())
+}
+
 pub struct TestRewardValidators;
 
 impl inclusion::RewardValidators for TestRewardValidators {
-	fn reward_backing(_: impl IntoIterator<Item = ValidatorIndex>) { }
-	fn reward_bitfields(_: impl IntoIterator<Item = ValidatorIndex>) { }
+	fn reward_backing(v: impl IntoIterator<Item = ValidatorIndex>) {
+		BACKING_REWARDS.with(|r| {
+			let mut r = r.borrow_mut();
+			for i in v {
+				*r.entry(i).or_insert(0) += 1;
+			}
+		})
+	}
+	fn reward_bitfields(v: impl IntoIterator<Item = ValidatorIndex>) {
+		AVAILABILITY_REWARDS.with(|r| {
+			let mut r = r.borrow_mut();
+			for i in v {
+				*r.entry(i).or_insert(0) += 1;
+			}
+		})
+	}
 }
 
 pub type System = frame_system::Module<Test>;
@@ -171,6 +203,9 @@ pub type SessionInfo = crate::session_info::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
+	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
+	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
+
 	let mut t = state.system.build_storage::<Test>().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
 	state.paras.assimilate_storage(&mut t).unwrap();
