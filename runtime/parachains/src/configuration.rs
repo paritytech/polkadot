@@ -324,9 +324,7 @@ decl_module! {
 		pub fn set_group_rotation_frequency(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
 
-			if new.is_zero() {
-				return Err(Error::<T>::InvalidNewValue.into())
-			}
+			ensure!(new >= 1, Error::<T>::InvalidNewValue);
 
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.group_rotation_frequency, new) != new
@@ -339,9 +337,7 @@ decl_module! {
 		pub fn set_chain_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
 
-			if new.is_zero() {
-				return Err(Error::<T>::InvalidNewValue.into())
-			}
+			ensure!(new >= 1, Error::<T>::InvalidNewValue);
 
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.chain_availability_period, new) != new
@@ -354,9 +350,7 @@ decl_module! {
 		pub fn set_thread_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
 
-			if new.is_zero() {
-				return Err(Error::<T>::InvalidNewValue.into())
-			}
+			ensure!(new >= 1, Error::<T>::InvalidNewValue);
 
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.thread_availability_period, new) != new
@@ -399,7 +393,9 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_no_show_slots(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
+
 			ensure!(new >= 1, Error::<T>::InvalidNewValue);
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.no_show_slots, new) != new
 			});
