@@ -134,10 +134,10 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
-fn set_jaeger_collector(dest: Option<String>) -> Result<(), Error> {
-	if let Some(dest) = dest {
+fn set_jaeger_agent(config: &Configuration, agent: Option<String>) -> Result<(), Error> {
+	if let Some(agent) = agent {
 		let cfg = jaeger::JaegerConfig::builder()
-			.destination(dest.parse::<url::Url>()?)
+			.agent(agent.parse::<std::net::SocketAddr>()?)
 			.named(&config.network.node_name)
 			.build();
 
@@ -161,7 +161,7 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
+fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: Option<String>) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
@@ -190,7 +190,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		Executor: NativeExecutionDispatch + 'static,
 {
 	set_prometheus_registry(config)?;
-	set_jaeger_collector(std::env::var("POLKADOT_JAEGER").ok().filter(|v| !v.is_empty()))?;
+	set_jaeger_agent(&*config, jaeger_agent)?;
 
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
@@ -913,12 +913,14 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
@@ -926,6 +928,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
@@ -933,6 +936,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Westend))
 	} else {
@@ -940,6 +944,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Polkadot))
 	}

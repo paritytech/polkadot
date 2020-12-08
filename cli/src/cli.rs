@@ -91,6 +91,9 @@ pub struct RunCmd {
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
+
+	#[structopt(long)]
+	pub jaeger_agent: Option<String>,
 }
 
 #[allow(missing_docs)]
@@ -98,9 +101,6 @@ pub struct RunCmd {
 pub struct Cli {
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
-
-	#[structopt(long)]
-	pub jaeger: Option<String>,
 	
 	#[structopt(flatten)]
 	pub run: RunCmd,

@@ -50,14 +50,14 @@ use polkadot_primitives::v1::{Hash, PoV, CandidateHash};
 #[derive(Clone)]
 pub struct JaegerConfig {
 	node_name: String,
-	destination: url::Url,
+	agent_addr: std::net::SocketAddr,
 }
 
 impl std::default::Default for JaegerConfig {
 	fn default() -> Self {
 		Self {
 			node_name: "unknown_".to_owned(),
-			destination: "http://127.0.0.1:6831".parse().unwrap(),
+			agent_addr: "127.0.0.1:6831".parse().unwrap(),
 		}
 	}
 }
@@ -83,9 +83,9 @@ impl JaegerConfigBuilder {
 		self
 	}
 
-	/// Set the recording destination url.
-	pub fn destination<U>(mut self, url: U) -> Self where U: Into<url::Url> {
-		self.inner.destination = url.into();
+	/// Set the agent address to send the collected spans to.
+	pub fn agent<U>(mut self, addr: U) -> Self where U: Into<std::net::SocketAddr> {
+		self.inner.agent_addr = addr.into();
 		self
 	}
 
@@ -182,18 +182,16 @@ impl Jaeger {
 			Self::Prep(cfg) => cfg,
 			_ => { panic!("Must be a jaeger instance that was not launched yet, but has pending stuff") }
 		};
-		log::info!("🐹 Collecting jaeger spans for {}", cfg.destination);
+		
+		let jaeger_agent = cfg.agent_addr;
+		
+		log::info!("🐹 Collecting jaeger spans for {:?}", &jaeger_agent);
 
 		let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
-			service_name: format!("polkadot-{}", cfg.node_name),
+			service_name: format!("{}-{}", cfg.node_name, cfg.node_name),
 		});
-
-		let resolved = cfg.destination.socket_addrs(|| None).unwrap();
-		if resolved.is_empty() {
-			panic!("Resolving of jaeger address always succeeds.");
-		}
-		let jaeger_agent: std::net::SocketAddr = resolved[0];
-
+		
+		
 		// Spawn a background task that pulls span information and sends them on the network.
 		let _handle = async_std::task::spawn(async move {
 			let mut udp_socket = async_std::net::UdpSocket::bind("127.0.0.1:34254").await;

@@ -949,7 +949,7 @@ impl util::JobTrait for CandidateBackingJob {
 				None => (None, None),
 				Some((assignment, required_collator)) => (Some(assignment), required_collator),
 			};
-			
+
 			drop(_span);
 			let _span = span.child("wait for candidate backing job");
 
@@ -973,8 +973,8 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 			drop(_span);
 
-			job.run_loop(rx_to, &span).await
 		}
+			job.run_loop(rx_to, &span).await
 		.boxed()
 	}
 }
