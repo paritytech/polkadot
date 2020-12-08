@@ -26,6 +26,7 @@ use futures::{
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
+	jaeger,
 	messages::{
 		AllMessages, CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage,
