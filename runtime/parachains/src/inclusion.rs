@@ -87,10 +87,13 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	}
 }
 
+/// A hook for applying validator rewards
 pub trait RewardValidators {
 	// Reward the validators with the given indices for issuing backing statements.
 	fn reward_backing(validators: impl IntoIterator<Item=ValidatorIndex>);
 	// Reward the validators with the given indices for issuing availability bitfields.
+	// Validators are sent to this hook when they have contributed to the availability
+	// of a candidate by setting a bit in their bitfield.
 	fn reward_bitfields(validators: impl IntoIterator<Item=ValidatorIndex>);
 }
 
