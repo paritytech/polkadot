@@ -122,6 +122,9 @@ pub enum Error {
 	Prometheus(#[from] prometheus_endpoint::PrometheusError),
 
 	#[error(transparent)]
+	Jaeger(#[from] polkadot_subsystem::jaeger::JaegerError),
+
+	#[error(transparent)]
 	Availability(#[from] AvailabilityError),
 	
 	#[error("Authorities require the real overseer implementation")]
@@ -163,14 +166,14 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
-fn set_jaeger_agent(config: &Configuration, agent: Option<String>) -> Result<(), Error> {
+fn jaeger_launch_collector_with_agent(config: &Configuration, agent: Option<String>) -> Result<(), Error> {
 	if let Some(agent) = agent {
 		let cfg = jaeger::JaegerConfig::builder()
 			.agent(agent.parse::<std::net::SocketAddr>()?)
 			.named(&config.network.node_name)
 			.build();
 
-		jaeger::Jaeger::new(cfg).launch();
+		jaeger::Jaeger::new(cfg).launch()?;
 	}
 	Ok(())
 }
@@ -219,7 +222,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		Executor: NativeExecutionDispatch + 'static,
 {
 	set_prometheus_registry(config)?;
-	set_jaeger_agent(&*config, jaeger_agent)?;
+	jaeger_launch_collector_with_agent(&*config, jaeger_agent)?;
 
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();

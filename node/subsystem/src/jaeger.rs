@@ -41,10 +41,11 @@
 //! ```
 //!
 
-use std::sync::Arc;
-use std::sync::Mutex;
-
 use polkadot_primitives::v1::{Hash, PoV, CandidateHash};
+use parking_lot::Mutex;
+use std::sync::Arc;
+use std::result;
+pub use crate::errors::JaegerError;
 
 /// Configuration for the jaeger tracing.
 #[derive(Clone)]
@@ -154,7 +155,7 @@ pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
 #[inline(always)]
 pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.lock().unwrap().span(hash, span_name).into()
+	INSTANCE.lock().span(hash, span_name).into()
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
@@ -164,7 +165,7 @@ pub enum Jaeger {
 		/// [`mick_jaeger`] provided API to record spans to.
 		traces_in: Arc<mick_jaeger::TracesIn>,
 	},
-	/// Preparation state with the necessary config to launch an instance.
+	/// Preparation state with the necessary config to launch the collector.
 	Prep(JaegerConfig),
 	/// Uninitialized, suggests wrong API usage if encountered.
 	None,
@@ -177,11 +178,14 @@ impl Jaeger {
 	}
 
 	/// Spawn the background task in order to send the tracing information out via udp
-	pub fn launch(self) {
+	pub fn launch(self) -> result::Result<(), JaegerError> {
 		let cfg = match self {
-			Self::Prep(cfg) => cfg,
-			_ => { panic!("Must be a jaeger instance that was not launched yet, but has pending stuff") }
-		};
+			Self::Prep(cfg) => Ok(cfg),
+			Self::Launched{ .. } => {
+				return Err(JaegerError::AlreadyLaunched)
+			}
+			Self::None => Err(JaegerError::MissingConfiguration),
+		}?;
 
 		let jaeger_agent = cfg.agent_addr;
 
@@ -193,30 +197,33 @@ impl Jaeger {
 
 
 		// Spawn a background task that pulls span information and sends them on the network.
-		let _handle = async_std::task::spawn(async move {
+		let _handle = async_std::task::spawn::<_, result::Result<(), JaegerError>>(async move {
 			let mut udp_socket = async_std::net::UdpSocket::bind("127.0.0.1:34254").await;
 
-			let mut port = 10000u16;
-			while udp_socket.is_err() {
+			let mut port = 49000_u16;
+			while udp_socket.is_err() && port < std::primitive::u16::MAX {
 				udp_socket = async_std::net::UdpSocket::bind(format!("127.0.0.1:{}", port)).await;
 				port += 1;
 			}
-			let udp_socket = udp_socket.unwrap();
+			let udp_socket = udp_socket.map_err(|e| JaegerError::PortAllocationError(e))?;
 
 			loop {
 				let buf = traces_out.next().await;
 				// UDP sending errors happen only either if the API is misused (in which case
-				// panicking is desirable) or in case of missing priviledge, in which case a
-				// panic is preferable in order to inform the user.
-				udp_socket.send_to(&buf, jaeger_agent).await.unwrap();
+				// panicking is desirable) or in case of missing privilege.
+				if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await
+					.map_err(|e| JaegerError::SendError(e))
+				{
+					log::trace!("Failed to send jaeger span: {:?}", e);
+				}
 			}
 		});
 
-		let jaeger = Self::Launched {
+		
+		*INSTANCE.lock() =Self::Launched {
 			traces_in,
 		};
-
-		*INSTANCE.lock().unwrap() = jaeger;
+		Ok(())
 	}
 
 	#[inline(always)]
@@ -235,8 +242,8 @@ impl Jaeger {
 			let trace_id = {
 				let mut buf = [0u8; 16];
 				buf.copy_from_slice(&hash.as_ref()[0..16]);
-				std::num::NonZeroU128::new(u128::from_be_bytes(buf)).unwrap()
-			};
+				std::num::NonZeroU128::new(u128::from_be_bytes(buf))
+			}.expect("16 bytes make a u128; qed");
 			Some(traces_in.span(trace_id, span_name))
 		} else {
 			None
