@@ -155,7 +155,7 @@ impl JobTrait for ProvisioningJob {
 				receiver,
 			);
 			
-			let span = jaeger::hash_span(&self.relay_parent, "provisioner");
+			let span = jaeger::hash_span(&relay_parent, "provisioner");
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
