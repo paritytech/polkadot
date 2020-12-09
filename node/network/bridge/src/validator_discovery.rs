@@ -17,6 +17,7 @@
 //! A validator discovery service for the Network Bridge.
 
 use core::marker::PhantomData;
+use std::borrow::Cow;
 use std::collections::{HashSet, HashMap, hash_map};
 use std::sync::Arc;
 
@@ -28,16 +29,15 @@ use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 
-const PRIORITY_GROUP: &'static str = "parachain_validators";
 const LOG_TARGET: &str = "validator_discovery";
 
 /// An abstraction over networking for the purposes of validator discovery service.
 #[async_trait]
 pub trait Network: Send + 'static {
 	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
-	async fn add_to_priority_group(&mut self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	async fn add_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 	/// Remove the peers from the priority group.
-	async fn remove_from_priority_group(&mut self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	async fn remove_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 }
 
 /// An abstraction over the authority discovery service.
@@ -51,12 +51,12 @@ pub trait AuthorityDiscovery: Send + 'static {
 
 #[async_trait]
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
-	async fn add_to_priority_group(&mut self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::add_to_priority_group(&**self, group_id, multiaddresses).await
+	async fn add_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::add_peers_set_reserved(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_from_priority_group(&mut self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::remove_from_priority_group(&**self, group_id, multiaddresses).await
+	async fn remove_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::remove_peers_set_reserved(&**self, protocol, multiaddresses)
 	}
 }
 
@@ -274,15 +274,28 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		}
 
 		// ask the network to connect to these nodes and not disconnect
-		// from them until removed from the priority group
-		if let Err(e) = network_service.add_to_priority_group(
-			PRIORITY_GROUP.to_owned(),
+		// from them until removed from the set
+		if let Err(e) = network_service.add_peers_set_reserved(
+			super::COLLATION_PROTOCOL_NAME.into(),
+			multiaddr_to_add.clone(),
+		).await {
+			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
+		}
+		if let Err(e) = network_service.add_peers_set_reserved(
+			super::VALIDATION_PROTOCOL_NAME.into(),
 			multiaddr_to_add,
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
-		let _ = network_service.remove_from_priority_group(PRIORITY_GROUP.to_owned(), multiaddr_to_remove).await;
+		let _ = network_service.remove_peers_set_reserved(
+			super::COLLATION_PROTOCOL_NAME.into(),
+			multiaddr_to_remove.clone()
+		).await;
+		let _ = network_service.remove_peers_set_reserved(
+			super::VALIDATION_PROTOCOL_NAME.into(),
+			multiaddr_to_remove
+		).await;
 
 		let pending = validator_ids.iter()
 			.cloned()

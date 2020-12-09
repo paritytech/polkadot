@@ -507,8 +507,8 @@ pub fn new_full<RuntimeApi, Executor>(
 	let shared_voter_state = rpc_setup;
 
 	#[cfg(feature = "real-overseer")]
-	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
-	config.network.notifications_protocols.push(grandpa::GRANDPA_PROTOCOL_NAME.into());
+	config.network.extra_sets.extend(polkadot_network_bridge::peers_sets_info());
+	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
