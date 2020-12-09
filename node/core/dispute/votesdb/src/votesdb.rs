@@ -18,7 +18,29 @@
 //!
 //! A private storage to track votes, from backing or secondary checking or explicit dispute
 //! votes and derive `VoteEvent`s from it.
-
+//!
+//! Storage layout within the kv db is as follows:
+//!
+//! Tracks the waterlevel up to which session index pruning was already completed.
+//! ```text
+//! vote/prune/waterlevel
+//! ```
+//!
+//! Tracks all validators that voted for a particular candidate.
+//! The actual `Vote` is stored there.
+//! ```text
+//! vote/s_{session_index}/c_{candidate_hash}/v_{validator_index}
+//! ```
+//!
+//! If the path exists the validator voted for that particular candidate.
+//! Stores an `Option<()>` as a marker, should never have a `Some(())` value.
+//! ```text
+//! vote/s_{session_index}/v_{validator_index}/c_{candidate_hash}
+//! ```
+//!
+//! Common prefixes based on the session allows for fast and pain free deletion.
+//!
+//!
 use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
@@ -116,25 +138,44 @@ fn read_db<D: Decode>(
 // Storage format prefix: "vote/s_{session_index}/v_{validator_index}"
 
 /// Track up to which point all data was pruned.
-const OLDEST_SESSION_SLOT_ENTRY: &[u8] = b"prune/pivot";
+const OLDEST_SESSION_SLOT_ENTRY: &[u8] = b"vote/prune/waterlevel";
 
+///
 #[inline(always)]
-fn derive_key(prefix: &str, session: SessionIndex, validator: ValidatorIndex) -> String {
-	format!("vote/s_{session_index}/v_{validator_index}", session_index, validator_index=validator)
+fn derive_key_per_hash(prefix: &str, session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
+	format!(
+		"vote/s_{session_index}/c_{candidate_hash}/v_{validator_index}",
+		session_index = session,
+		candidate_hash = candidate_hash,
+		validator_index = validator
+	)
 }
+
+/// A prefix with keys per validator.
 #[inline(always)]
-fn derive_prefix(prefix: &str, session: SessionIndex) -> String {
+fn derive_key_per_val(prefix: &str, session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
+	format!(
+		"vote/s_{session_index}/v_{validator_index}/c_{candidate_hash}",
+		session_index = session,
+		candidate_hash = candidate_hash,
+		validator_index = validator
+	)
+}
+
+/// Derive the prefix key for pruning.
+#[inline(always)]
+fn derive_prune_prefix(prefix: &str, session: SessionIndex) -> String {
 	format!("vote/s_{session_index}", session_index)
 }
 
 
 /// Returns the oldest session index for which entries are not pruned yet.
-fn get_oldest_session(db: &Arc<dyn KeyValueDB>) -> SessionIndex {
+fn oldest_session_waterlevel(db: &Arc<dyn KeyValueDB>) -> SessionIndex {
 	read_db(db, columns::DATA, OLDEST_SESSION_SLOT_ENTRY).unwrap_or_default()
 }
 
 /// Update the oldest stored session index index entry.
-fn update_oldest_session(db: &Arc<dyn KeyValueDB>, current_oldest: SessionIndex, new_oldest: SessionIndex) -> SessionIndex {
+fn update_oldest_session_waterlevel(db: &Arc<dyn KeyValueDB>, current_oldest: SessionIndex, new_oldest: SessionIndex) -> SessionIndex {
 	let new_oldest = current_oldest.max(new_oldest.saturating_sub(1));
 	write_db(db, columns::DATA, OLDEST_SESSION_SLOT_ENTRY, new_oldest);
 	new_oldest
@@ -143,7 +184,7 @@ fn update_oldest_session(db: &Arc<dyn KeyValueDB>, current_oldest: SessionIndex,
 /// Remove all votes that we stored in the db that are related to any
 /// session index before the provided `session`.
 fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -> Result<()> {
-	let mut oldest_session: SessionIndex = oldest_session(db);
+	let mut oldest_session: SessionIndex = oldest_session_waterlevel(db);
 	if oldest_session >= session {
 		return Ok(())
 	}
@@ -153,7 +194,7 @@ fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionInde
 
 	for cursor_session in oldest_session..session {
 
-		let prefix = derive_prefix(cursor_session);
+		let prefix = derive_prune_prefix(cursor_session);
 		for (key, value) in db.iter_with_prefix(DATA, prefix.as_bytes()) {
 			log::trace!("Pruning {}", cursor_session);
 			cleanup_transaction.erase(key);
@@ -163,7 +204,7 @@ fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionInde
 			if n > MAX_ITEMS_PER_DB_TRANSACTION {
 				db.write_transaction(cleanup_transaction);
 
-				oldest_session = update_oldest_session(db, oldest_session, session_cursor);
+				oldest_session = update_oldest_session_waterlevel(db, oldest_session, session_cursor);
 
 				cleanup_transaction = db.transaction();
 				n = 0_u16;
@@ -172,16 +213,44 @@ fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionInde
 	}
 
 	db.write_transaction(cleanup_transaction);
-	let _ = update_oldest_session(db, oldest_session, session);
+	let _ = update_oldest_session_waterlevel(db, oldest_session, session);
 
 	Ok(())
 }
 
 
+/// Extract fragments from an incoming backend candidate into multiple votes.
+impl From<BackedCandidate> for Vec<Vote> {
+	fn from(backed_candidate: BackedCandidate) -> Vec<Vote> {
+		let candidate_hash = backend_candidate.candidate.hash();
+		backed_candidate
+			.validator_indices
+			.into_iter()
+			.zip(
+				backed_candidate
+					.validity_votes
+					.into_iter()
+			)
+			.map(|(validator_index,attestation)| {
+				Vote::Backing {
+					attestation,
+					validator_index,
+					candidate_hash,
+				}
+			})
+			.collect()
+	}
+}
+
 /// A vote cast by another validator.
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 enum Vote {
-	Backing { candidate: BackedCandidate },
+	/// Fragment of a `BackedCandidate`
+	Backing {
+		attestation: ValidityAttestation,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	},
 	ApprovalCheck { sfs: SignedFullStatement },
 	DisputePositive { sfs: SignedFullStatement },
 	DisputeNegative { sfs: SignedFullStatement },
@@ -204,24 +273,23 @@ impl Vote {
 		!self.positive()
 	}
 
-	pub fn backed_candidate(&self) -> &BackedCandidate {
+	/// Obtain the vote's validator indices.
+	pub fn validator(&self) -> ValidatorIndex {
 		match self {
-			Self::Backing { backed_candidate } => backed_candidate,
+			Self::Backing { validator_index, .. } => validator_index,
 			Self::ApprovalCheck { sfs } => sfs.validator_index,
 			Self::DisputePositive { sfs } => sfs.validator_index,
 			Self::DisputeNegative { sfs } => sfs.validator_index,
 		}
 	}
-
-	/// Obtain the vote's validator indices.
-	pub fn validators(&self) -> Vec<ValidatorIndex> {
-		self.backed_candidate().validator_indices.iter().map(|validator_index| {
-			*validator_index as ValidatorIndex
-		}).collect()
-	}
 	
 	pub fn candidate_hash(&self) -> CandidateHash {
-		
+		match self {
+			Self::Backing { candidate_hash, .. } => candidate_hash,
+			Self::ApprovalCheck { sfs } => sfs.candidate_hash(),
+			Self::DisputePositive { sfs } => sfs.candidate_hash(),
+			Self::DisputeNegative { sfs } => sfs.candidate_hash(),
+		}
 	}
 }
 
@@ -257,8 +325,8 @@ enum VoteEvent {
 	},
 }
 
-fn check_for_supermajority(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -> Option<CandidateQuorum> {
-	
+fn check_for_supermajority(db: &Arc<dyn KeyValueDB>, session: SessionIndex, validator_count: usize) -> Result<Option<CandidateQuorum>> {
+	debug_assert!(session >= oldest_session_waterlevel());
 	
 }
 
@@ -268,37 +336,37 @@ fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) 
 		return Err(Error::ObsoleteVote)
 	}
 	let mut transaction = DBTransaction::with_capacity(votes.len());
-	let events: Vec<VoteEvent> = votes.into_iter().map(|vote| {
-		for vote in votes {
-		}
-		let k = derive_key(session, vote.validator());
+	let events: Vec<VoteEvent> = votes.into_iter()
+		.map(|vote| {
+			let k = derive_key(session, vote.validator());
 
-		if let Some(previous_vote) = read_db(db, columns::DATA, k) {
-			let previous_vote: Vote = previous_vote.decode()
-				.expect("Database entries are all created from this module and thus must decode. qed");
+			if let Some(previous_vote) = read_db(db, columns::DATA, k) {
+				let previous_vote: Vote = previous_vote.decode()
+					.expect("Database entries are all created from this module and thus must decode. qed");
 
-			if previous_vote != vote {
-				unimplemented!("Derive a set of votes")
-				// VoteEvent::DoubleVote {
-				// 	validator: vote.validator(),
-				// 	votes: vec![previous_vote, vote],
-				// }
-				
-				// TODO clarify if a double vote means two opposing votes (pro and con)
-				// TODO or also two different vote kinds where both are positive
+				if previous_vote != vote {
+					unimplemented!("Derive a set of vote events
+					")
+					VoteEvent::DoubleVote {
+						validator: vote.validator(),
+						votes: vec![previous_vote, vote],
+					}
+					
+					// TODO clarify if a double vote means two opposing votes (pro and con)
+					// TODO or also two different vote kinds where both are positive
+				} else {
+					// if the votes are equivalent, just avoid the transaction element
+					VoteEvent::Success
+				}
 			} else {
-				// if the votes are equivalent, just avoid the transaction element
-				VoteEvent::Success
+				let v = vote.encode();
+				transaction.put(columns::DATA, k ,v);
+				if supermajority_reached {
+					VoteEvent::SupermajorityReached
+				} else {
+					VoteEvent::Stored
+				}
 			}
-		} else {
-			let v = vote.encode();
-			transaction.put(columns::DATA, k ,v);
-			if supermajority_reached {
-				VoteEvent::SupermajorityReached
-			} else {
-				VoteEvent::Stored
-			}
-		}
 	}).collect();
 
 	db.write_transaction(transaction)?;
@@ -308,23 +376,24 @@ fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) 
 
 
 pub async fn on_session_change(current_session: SessionIndex) -> Result<()> {
-
-	// TODO lookup all stored session indices that are less than the curren
-	// and drop all associated data
+	
 	Ok(())
 }
 
 
 
 
-pub async fn store_(current_session: SessionIndex) -> Result<()> {
+pub async fn store_vote(current_session: SessionIndex, vote: Vote) -> Result<()> {
 
 	Ok(())
 }
 
-pub async fn query() -> Result<()> {
-
+pub async fn query(validator: ValidatorId) -> Result<()> {
+	// lookup all sessions this validator had duty
+	// 
+	Ok(())
 }
+
 /// The bitfield distribution subsystem.
 pub struct VotesDB {
 	metrics: Metrics,
@@ -369,15 +438,17 @@ impl VotesDB {
 				FromOverseer::Communication {
 					msg: VotesDBMessage::Query (session, validator),
 				} => {
-                    trace!(target: TARGET, "Query ");
-						// .await?;
+					if let Err() = query(validator).await {
+						log::warn!(target: TARGET, "Failed to query disputes validator {} pariticpated", validator)
+					}
 				}
 
 				FromOverseer::Communication {
-					msg: VotesDBMessage::RegisterVote{ gossip_msg },
+					msg: VotesDBMessage::StoreVote { vote },
 				} => {
-                    trace!(target: TARGET, "Query v2");
-                    // .await?;
+					if let Err() = store_vote(vote).await {
+						log::warn!(target: TARGET, "Failed to store disputes vote pariticpated")
+					}
 				}
 				FromOverseer::Signal(
 					OverseerSignal::ActiveLeaves(

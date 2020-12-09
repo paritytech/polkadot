@@ -72,7 +72,7 @@ impl Statement {
 	}
 
 	/// Obtain the candidate hash this statement relates to.
-	pub fn candidate_hash() -> CandidateHash {
+	pub fn candidate_hash(&self) -> CandidateHash {
 		match *self {
 			Statement::Seconded(ref c) => c.hash(),
 			Statement::Valid(hash) => hash,
