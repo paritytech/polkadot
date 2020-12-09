@@ -57,13 +57,13 @@ type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
 
 // TODO [ToDr] add Beefy pallet here.
 /// The module's configuration trait.
-pub trait Config: pallet_mmr::Config + paras::Config
+pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config
 {}
 
 /// Blanket-impl the trait for every runtime that has both MMR pallet and parachains configuration.
 ///
 /// NOTE Remember that you still need to register the [Module] in `construct_runtime` macro.
-impl<R: pallet_mmr::Config + paras::Config> Config for R {}
+impl<R: pallet_mmr::Config + paras::Config + pallet_beefy::Config> Config for R {}
 
 decl_error! {
 	pub enum Error for Module<T: Config> {
@@ -109,8 +109,10 @@ impl<T: Config> Module<T> where
 	/// callback, cause we know it will only change every session - in future it should be optimized
 	/// to change every era instead.
 	fn beefy_authority_set_merkle_root() -> MerkleRootOf<T> {
-		// TODO [ToDr] Fetch from beefy pallet.
-		let beefy_public_keys = vec![];
+		let beefy_public_keys = pallet_beefy::Module::<T>::authorities()
+			.into_iter()
+			.map(|authority_id| authority_id.encode())
+			.collect::<Vec<_>>();
 		sp_io::trie::keccak_256_ordered_root(beefy_public_keys).into()
 	}
 }
