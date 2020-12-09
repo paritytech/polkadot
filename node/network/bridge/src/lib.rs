@@ -761,6 +761,7 @@ mod tests {
 	use futures::channel::mpsc;
 	use futures::executor;
 
+	use std::borrow::Cow;
 	use std::sync::Arc;
 	use std::collections::HashSet;
 	use async_trait::async_trait;
