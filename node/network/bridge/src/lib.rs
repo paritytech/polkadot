@@ -100,7 +100,7 @@ pub fn peers_sets_info() -> Vec<sc_network::config::NonDefaultSetConfig> {
 				in_peers: 25,
 				out_peers: 0,
 				reserved_nodes: Vec::new(),
-				non_reserved_mode: sc_network::config::NonReservedPeerMode::Allow,
+				non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 			},
 		}
 	]
