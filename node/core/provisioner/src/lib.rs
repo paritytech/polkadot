@@ -190,7 +190,6 @@ impl ProvisioningJob {
 		use ProvisionerMessage::{
 			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
 		};
-		let span = span.child("run loop");
 		loop {
 			futures::select! {
 				msg = self.receiver.next().fuse() => match msg {

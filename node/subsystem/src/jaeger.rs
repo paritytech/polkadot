@@ -231,7 +231,7 @@ impl Jaeger {
 		});
 
 
-		*INSTANCE.lock() =Self::Launched {
+		*INSTANCE.lock() = Self::Launched {
 			traces_in,
 		};
 		Ok(())

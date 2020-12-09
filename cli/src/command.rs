@@ -169,7 +169,7 @@ pub fn run() -> Result<()> {
 
 				let task_manager = match role {
 					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager)
-					.map_err(|e| sc_service::Error::Other(e.to_string()) ),
+					.map_err(|e| sc_service::Error::Other(e.to_string())),
 					_ => service::build_full(
 						config,
 						service::IsCollator::No,

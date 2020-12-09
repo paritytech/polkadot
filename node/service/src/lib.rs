@@ -695,7 +695,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool,
-			overseer_handler.as_ref().ok_or_else(|| Error::AuthoritiesRequireRealOverseer)?.clone(),
+			overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone(),
 			prometheus_registry.as_ref(),
 		);
 

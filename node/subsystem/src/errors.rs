@@ -65,7 +65,6 @@ impl std::error::Error for ChainApiError {}
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum JaegerError {
-
 	#[error("Already launched the collector thread")]
 	AlreadyLaunched,
 

@@ -101,7 +101,6 @@ pub struct RunCmd {
 pub struct Cli {
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
-	
 	#[structopt(flatten)]
 	pub run: RunCmd,
 }
