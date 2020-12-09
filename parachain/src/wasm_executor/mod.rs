@@ -245,7 +245,7 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("child_storage: unsupported feature for parachain validation")
 	}
 
-	fn kill_child_storage(&mut self, _: &ChildInfo) {
+	fn kill_child_storage(&mut self, _: &ChildInfo, _: Option<u32>) -> bool {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
