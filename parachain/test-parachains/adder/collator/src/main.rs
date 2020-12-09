@@ -60,6 +60,7 @@ fn main() -> Result<()> {
 							config,
 							polkadot_service::IsCollator::Yes(collator.collator_id()),
 							None,
+							None,
 						)?;
 						let mut overseer_handler = full_node
 							.overseer_handler
