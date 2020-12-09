@@ -14,18 +14,18 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

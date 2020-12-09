@@ -21,11 +21,11 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-primitives = { path = "../../primitives" }
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "td-mmr" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
