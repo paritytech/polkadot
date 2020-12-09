@@ -835,11 +835,11 @@ mod tests {
 
 	#[async_trait]
 	impl validator_discovery::Network for TestNetwork {
-		async fn add_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 
-		async fn remove_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 	}
