@@ -464,7 +464,7 @@ impl VotesDB {
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					trace!(target: TARGET, "Block finalized {:?}", hash);
+					// TODO Finalization is not relevent afaik
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: TARGET, "Conclude");
