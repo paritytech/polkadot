@@ -77,6 +77,8 @@ async fn get_core_availability(
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
 ) -> Result<bool, Error> {
 	if let CoreState::Occupied(core) = core {
+		tracing::trace!(target: LOG_TARGET, para_id = %core.para_id, "Getting core availability");
+
 		let (tx, rx) = oneshot::channel();
 		sender
 			.lock()
@@ -91,26 +93,43 @@ async fn get_core_availability(
 
 		let committed_candidate_receipt = match rx.await? {
 			Ok(Some(ccr)) => ccr,
-			Ok(None) => return Ok(false),
+			Ok(None) => {
+				tracing::trace!(target: LOG_TARGET, para_id = %core.para_id, "No committed candidate");
+				return Ok(false)
+			},
 			Err(e) => {
 				// Don't take down the node on runtime API errors.
 				tracing::warn!(target: LOG_TARGET, err = ?e, "Encountered a runtime API error");
 				return Ok(false);
 			}
 		};
+
+		let candidate_hash = committed_candidate_receipt.hash();
+
 		let (tx, rx) = oneshot::channel();
 		sender
 			.lock()
 			.await
 			.send(
 				AllMessages::from(AvailabilityStoreMessage::QueryChunkAvailability(
-					committed_candidate_receipt.hash(),
+					candidate_hash,
 					validator_idx,
 					tx,
 				)).into(),
 			)
 			.await?;
-		return rx.await.map_err(Into::into);
+
+		let res = rx.await.map_err(Into::into);
+
+		tracing::trace!(
+			target: LOG_TARGET,
+			para_id = %core.para_id,
+			availability = ?res,
+			?candidate_hash,
+			"Candidate availability",
+		);
+
+		return res
 	}
 
 	Ok(false)
@@ -265,7 +284,7 @@ impl JobTrait for BitfieldSigningJob {
 			sender
 				.send(
 					AllMessages::from(
-						BitfieldDistributionMessage::DistributeBitfield(relay_parent, signed_bitfield),
+						BitfieldDistributionMessage::DistributeBitfield(relay_parent, dbg!(signed_bitfield)),
 					).into(),
 				)
 				.await

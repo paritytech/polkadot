@@ -156,11 +156,11 @@ struct PerCandidate {
 	/// candidate hash + erasure chunk index -> gossip message
 	message_vault: HashMap<u32, AvailabilityGossipMessage>,
 
-	/// Track received candidate hashes and validator indices from peers.
-	received_messages: HashMap<PeerId, HashSet<(CandidateHash, ValidatorIndex)>>,
+	/// Track received erasure chunk indices per peer.
+	received_messages: HashMap<PeerId, HashSet<ValidatorIndex>>,
 
-	/// Track already sent candidate hashes and the erasure chunk index to the peers.
-	sent_messages: HashMap<PeerId, HashSet<(CandidateHash, ValidatorIndex)>>,
+	/// Track sent erasure chunk indices per peer.
+	sent_messages: HashMap<PeerId, HashSet<ValidatorIndex>>,
 
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
@@ -170,10 +170,10 @@ struct PerCandidate {
 }
 
 impl PerCandidate {
-	/// Returns `true` iff the given `message` is required by the given `peer`.
-	fn message_required_by_peer(&self, peer: &PeerId, message: &(CandidateHash, ValidatorIndex)) -> bool {
-		self.received_messages.get(peer).map(|v| !v.contains(message)).unwrap_or(true)
-			&& self.sent_messages.get(peer).map(|v| !v.contains(message)).unwrap_or(true)
+	/// Returns `true` iff the given `validator_index` is required by the given `peer`.
+	fn message_required_by_peer(&self, peer: &PeerId, validator_index: &ValidatorIndex) -> bool {
+		self.received_messages.get(peer).map(|v| !v.contains(validator_index)).unwrap_or(true)
+			&& self.sent_messages.get(peer).map(|v| !v.contains(validator_index)).unwrap_or(true)
 	}
 }
 
@@ -213,12 +213,13 @@ impl ProtocolState {
 		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
 	) -> HashMap<CandidateHash, CommittedCandidateReceipt> {
 		let relay_parents_and_ancestors = self.extend_with_ancestors(relay_parents);
+
 		relay_parents_and_ancestors
 			.into_iter()
 			.filter_map(|relay_parent_or_ancestor| self.receipts.get(&relay_parent_or_ancestor))
 			.map(|receipt_set| receipt_set.into_iter())
 			.flatten()
-			.map(|(receipt_hash, receipt)| (receipt_hash.clone(), receipt.clone()))
+			.map(|(receipt_hash, receipt)| (*receipt_hash, receipt.clone()))
 			.collect()
 	}
 
@@ -237,10 +238,9 @@ impl ProtocolState {
 
 		// register the relation of relay_parent to candidate..
 		// ..and the reverse association.
-		for (relay_parent_or_ancestor, (receipt_hash, receipt)) in candidates.clone() {
-			self.reverse
-				.insert(receipt_hash.clone(), relay_parent_or_ancestor.clone());
-			let per_candidate = self.per_candidate.entry(receipt_hash.clone()).or_default();
+		for ((relay_parent_or_ancestor, receipt_hash), receipt) in candidates.clone() {
+			self.reverse.insert(receipt_hash, relay_parent_or_ancestor);
+			let per_candidate = self.per_candidate.entry(receipt_hash).or_default();
 			per_candidate.validator_index = validator_index.clone();
 			per_candidate.validators = validators.clone();
 
@@ -253,7 +253,7 @@ impl ProtocolState {
 		// collect the ancestors again from the hash map
 		let ancestors = candidates
 			.iter()
-			.filter_map(|(ancestor_or_relay_parent, _receipt)| {
+			.filter_map(|((ancestor_or_relay_parent, _), _)| {
 				if ancestor_or_relay_parent == &relay_parent {
 					None
 				} else {
@@ -264,16 +264,10 @@ impl ProtocolState {
 
 		// mark all the ancestors as "needed" by this newly added relay parent
 		for ancestor in ancestors.iter() {
-			self.ancestry
-				.entry(ancestor.clone())
-				.or_default()
-				.insert(relay_parent);
+			self.ancestry.entry(*ancestor).or_default().insert(relay_parent);
 		}
 
-		self.per_relay_parent
-			.entry(relay_parent)
-			.or_default()
-			.ancestors = ancestors;
+		self.per_relay_parent.entry(relay_parent).or_default().ancestors = ancestors;
 
 		Ok(())
 	}
@@ -384,26 +378,15 @@ where
 	for added in view.difference(&old_view) {
 		let validators = query_validators(ctx, *added).await?;
 		let validator_index = obtain_our_validator_index(&validators, keystore.clone()).await;
-		state
-			.add_relay_parent(ctx, *added, validators, validator_index)
-			.await?;
+		state.add_relay_parent(ctx, *added, validators, validator_index).await?;
 	}
 
 	// handle all candidates
 	for (candidate_hash, _receipt) in state.cached_live_candidates_unioned(view.difference(&old_view)) {
-		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
-
-		// assure the node has the validator role
-		if per_candidate.validator_index.is_none() {
-			continue;
-		};
-
 		// check if the availability is present in the store exists
 		if !query_data_availability(ctx, candidate_hash).await? {
 			continue;
 		}
-
-		let validator_count = per_candidate.validators.len();
 
 		// obtain interested peers in the candidate hash
 		let peers: Vec<PeerId> = state
@@ -419,14 +402,12 @@ where
 			.map(|(peer, _view)| peer.clone())
 			.collect();
 
+		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
+
+		let validator_count = per_candidate.validators.len();
+
 		// distribute all erasure messages to interested peers
 		for chunk_index in 0u32..(validator_count as u32) {
-			// only the peers which did not receive this particular erasure chunk
-			let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
-
-			// obtain the chunks from the cache, if not fallback
-			// and query the availability store
-			let message_id = (candidate_hash, chunk_index);
 			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
 				message.erasure_chunk.clone()
 			} else if let Some(erasure_chunk) = query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await? {
@@ -439,7 +420,7 @@ where
 
 			let peers = peers
 				.iter()
-				.filter(|peer| per_candidate.message_required_by_peer(peer, &message_id))
+				.filter(|peer| per_candidate.message_required_by_peer(peer, &chunk_index))
 				.cloned()
 				.collect::<Vec<_>>();
 			let message = AvailabilityGossipMessage {
@@ -452,10 +433,8 @@ where
 	}
 
 	// cleanup the removed relay parents and their states
-	let removed = old_view.difference(&view).collect::<Vec<_>>();
-	for removed in removed {
-		state.remove_relay_parent(&removed);
-	}
+	old_view.difference(&view).for_each(|r| state.remove_relay_parent(r));
+
 	Ok(())
 }
 
@@ -503,12 +482,11 @@ where
 	}
 	for message in message_iter {
 		for peer in peers.iter() {
-			let message_id = (message.candidate_hash, message.erasure_chunk.index);
 			per_candidate
 				.sent_messages
 				.entry(peer.clone())
 				.or_default()
-				.insert(message_id);
+				.insert(message.erasure_chunk.index);
 		}
 
 		per_candidate
@@ -555,24 +533,20 @@ where
 	// the union of all relay parent's candidates.
 	let added_candidates = state.cached_live_candidates_unioned(added.iter());
 
-	// Send all messages we've seen before and the peer is now interested
-	// in to that peer.
-
-	for (candidate_hash, _receipt) in added_candidates {
+	// Send all messages we've seen before and the peer is now interested in.
+	for (candidate_hash, _) in added_candidates {
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		// obtain the relevant chunk indices not sent yet
 		let messages = ((0 as ValidatorIndex)..(per_candidate.validators.len() as ValidatorIndex))
 			.into_iter()
 			.filter_map(|erasure_chunk_index: ValidatorIndex| {
-				let message_id = (candidate_hash, erasure_chunk_index);
-
 				// try to pick up the message from the message vault
 				// so we send as much as we have
 				per_candidate
 					.message_vault
 					.get(&erasure_chunk_index)
-					.filter(|_| per_candidate.message_required_by_peer(&origin, &message_id))
+					.filter(|_| per_candidate.message_required_by_peer(&origin, &erasure_chunk_index))
 			})
 			.cloned()
 			.collect::<HashSet<_>>();
@@ -622,34 +596,49 @@ where
 	let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash) {
 		live_candidate
 	} else {
+		tracing::trace!(
+			target: LOG_TARGET,
+			candidate_hash = ?message.candidate_hash,
+			peer = %origin,
+			"Peer send not live candidate",
+		);
 		modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
-		return Ok(());
+		return Ok(())
 	};
 
 	// check the merkle proof
 	let root = &live_candidate.descriptor.erasure_root;
-	let anticipated_hash = if let Ok(hash) = branch_hash(
-		root,
-		&message.erasure_chunk.proof,
-		message.erasure_chunk.index as usize,
-	) {
-		hash
-	} else {
-		modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
-		return Ok(());
+	let anticipated_hash = match branch_hash(root, &message.erasure_chunk.proof, message.erasure_chunk.index as usize) {
+		Ok(hash) => hash,
+		Err(e) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				candidate_hash = ?message.candidate_hash,
+				peer = %origin,
+				error = ?e,
+				"Failed to calculate chunk merkle proof",
+			);
+			modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+			return Ok(());
+		},
 	};
 
 	let erasure_chunk_hash = BlakeTwo256::hash(&message.erasure_chunk.chunk);
 	if anticipated_hash != erasure_chunk_hash {
+		tracing::trace!(
+			target: LOG_TARGET,
+			candidate_hash = ?message.candidate_hash,
+			peer = %origin,
+			"Peer send chunk with invalid merkle proof",
+		);
 		modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
 		return Ok(());
 	}
 
-	// an internal unique identifier of this message
-	let message_id = (message.candidate_hash, message.erasure_chunk.index);
+	let erasure_chunk_index = &message.erasure_chunk.index;
 
 	{
-		let per_candidate = state.per_candidate.entry(message_id.0.clone()).or_default();
+		let per_candidate = state.per_candidate.entry(message.candidate_hash).or_default();
 
 		// check if this particular erasure chunk was already sent by that peer before
 		{
@@ -657,18 +646,16 @@ where
 				.received_messages
 				.entry(origin.clone())
 				.or_default();
-			if received_set.contains(&message_id) {
+			if !received_set.insert(*erasure_chunk_index) {
 				modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
 				return Ok(());
-			} else {
-				received_set.insert(message_id.clone());
 			}
 		}
 
 		// insert into known messages and change reputation
 		if per_candidate
 			.message_vault
-			.insert(message_id.1, message.clone())
+			.insert(*erasure_chunk_index, message.clone())
 			.is_some()
 		{
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
@@ -676,22 +663,18 @@ where
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			// save the chunk for our index
-			if let Some(validator_index) = per_candidate.validator_index {
-				if message.erasure_chunk.index == validator_index {
-					if let Err(_e) = store_chunk(
-						ctx,
-						message.candidate_hash.clone(),
-						live_candidate.descriptor.relay_parent.clone(),
-						message.erasure_chunk.index,
-						message.erasure_chunk.clone(),
-					)
-					.await?
-					{
-						tracing::warn!(
-							target: LOG_TARGET,
-							"Failed to store erasure chunk to availability store"
-						);
-					}
+			if Some(*erasure_chunk_index) == per_candidate.validator_index {
+				if store_chunk(
+					ctx,
+					message.candidate_hash,
+					live_candidate.descriptor.relay_parent,
+					message.erasure_chunk.index,
+					message.erasure_chunk.clone(),
+				).await?.is_err() {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Failed to store erasure chunk to availability store"
+					);
 				}
 			}
 		};
@@ -701,20 +684,20 @@ where
 		.peer_views
 		.clone()
 		.into_iter()
-		.filter(|(_peer, view)| {
+		.filter(|(_, view)| {
 			// peers view must contain the candidate hash too
 			state
 				.cached_live_candidates_unioned(view.0.iter())
-				.contains_key(&message_id.0)
+				.contains_key(&message.candidate_hash)
 		})
 		.map(|(peer, _)| -> PeerId { peer.clone() })
 		.collect::<Vec<_>>();
 
-	let per_candidate = state.per_candidate.entry(message_id.0.clone()).or_default();
+	let per_candidate = state.per_candidate.entry(message.candidate_hash).or_default();
 
 	let peers = peers
 		.into_iter()
-		.filter(|peer| per_candidate.message_required_by_peer(peer, &message_id))
+		.filter(|peer| per_candidate.message_required_by_peer(peer, erasure_chunk_index))
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
@@ -804,27 +787,25 @@ where
 	}
 }
 
-/// Obtain all live candidates based on an iterator of relay heads.
-#[tracing::instrument(level = "trace", skip(ctx, relay_parents), fields(subsystem = LOG_TARGET))]
-async fn query_live_candidates_without_ancestors<Context>(
+/// Obtain all live candidates for all given `relay_blocks`.
+#[tracing::instrument(level = "trace", skip(ctx, relay_blocks), fields(subsystem = LOG_TARGET))]
+async fn query_live_candidates_for_relay_blocks<Context>(
 	ctx: &mut Context,
-	relay_parents: impl IntoIterator<Item = Hash>,
-) -> Result<HashSet<CommittedCandidateReceipt>>
+	relay_blocks: impl IntoIterator<Item = Hash>,
+) -> Result<HashMap<(Hash, CandidateHash), CommittedCandidateReceipt>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	let iter = relay_parents.into_iter();
-	let hint = iter.size_hint();
+	let mut live_candidates = HashMap::new();
 
-	let mut live_candidates = HashSet::with_capacity(hint.1.unwrap_or(hint.0));
-	for relay_parent in iter {
-		let paras = query_para_ids(ctx, relay_parent).await?;
-		for para in paras {
+	for relay_parent in relay_blocks {
+		for para in query_para_ids(ctx, relay_parent).await? {
 			if let Some(ccr) = query_pending_availability(ctx, relay_parent, para).await? {
-				live_candidates.insert(ccr);
+				live_candidates.insert((relay_parent, ccr.hash()), ccr);
 			}
 		}
 	}
+
 	Ok(live_candidates)
 }
 
@@ -836,7 +817,7 @@ async fn query_live_candidates<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	relay_parents: impl IntoIterator<Item = Hash>,
-) -> Result<HashMap<Hash, (CandidateHash, CommittedCandidateReceipt)>>
+) -> Result<HashMap<(Hash, CandidateHash), CommittedCandidateReceipt>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -845,7 +826,7 @@ where
 
 	let capacity = hint.1.unwrap_or(hint.0) * (1 + AvailabilityDistributionSubsystem::K);
 	let mut live_candidates =
-		HashMap::<Hash, (CandidateHash, CommittedCandidateReceipt)>::with_capacity(capacity);
+		HashMap::<(Hash, CandidateHash), CommittedCandidateReceipt>::with_capacity(capacity);
 
 	for relay_parent in iter {
 		// register one of relay parents (not the ancestors)
@@ -867,28 +848,21 @@ where
 				state
 					.receipts
 					.get(relay_parent_or_ancestor)
-					.and_then(|receipts| {
+					.map(|receipts| {
 						// directly extend the live_candidates with the cached value
-						live_candidates.extend(receipts.into_iter().map(
-							|(receipt_hash, receipt)| {
-								(relay_parent, (receipt_hash.clone(), receipt.clone()))
-							},
-						));
-						Some(())
+						live_candidates.extend(
+							receipts.into_iter().map(|(receipt_hash, receipt)|
+								((relay_parent, *receipt_hash), receipt.clone())
+							)
+						);
+						false
 					})
-					.is_none()
+					.unwrap_or(true)
 			})
 			.collect::<Vec<_>>();
 
 		// query the ones that were not present in the receipts cache
-		let receipts = query_live_candidates_without_ancestors(ctx, unknown.clone()).await?;
-		live_candidates.extend(
-			unknown.into_iter().zip(
-				receipts
-					.into_iter()
-					.map(|receipt| (receipt.hash(), receipt)),
-			),
-		);
+		live_candidates.extend(query_live_candidates_for_relay_blocks(ctx, unknown).await?);
 	}
 	Ok(live_candidates)
 }
@@ -906,7 +880,7 @@ where
 	)))
 	.await;
 
-	let all_para_ids: Vec<_> = rx
+	let all_para_ids = rx
 		.await
 		.map_err(|e| Error::AvailabilityCoresResponseChannel(e))?
 		.map_err(|e| Error::AvailabilityCores(e))?;
@@ -952,8 +926,7 @@ where
 		AvailabilityStoreMessage::QueryDataAvailability(candidate_hash, tx),
 	)).await;
 
-	rx.await
-		.map_err(|e| Error::QueryAvailabilityResponseChannel(e))
+	rx.await.map_err(|e| Error::QueryAvailabilityResponseChannel(e))
 }
 
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
