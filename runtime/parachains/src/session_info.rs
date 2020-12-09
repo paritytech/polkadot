@@ -39,7 +39,9 @@ pub trait Config:
 decl_storage! {
 	trait Store for Module<T: Config> as ParaSessionInfo {
 		/// Assignment keys for the current session.
-		AssignmentKeys: Vec<AssignmentId>;
+		/// Note that this API is private due to it being prone to 'off-by-one' at session boundaries.
+		/// When in doubt, use `Sessions` API instead.
+		AssignmentKeysUnsafe: Vec<AssignmentId>;
 		/// The earliest session for which previous session info is stored.
 		EarliestStoredSession get(fn earliest_stored_session): SessionIndex;
 		/// Session information in a rolling window.
@@ -85,7 +87,7 @@ impl<T: Config> Module<T> {
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
-		let _assignment_keys = AssignmentKeys::get();
+		let _assignment_keys = AssignmentKeysUnsafe::get();
 		// FIXME: remove this once https://github.com/paritytech/polkadot/pull/2092 is merged
 		let approval_keys = Default::default();
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
@@ -152,7 +154,7 @@ impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::Ac
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		let assignment_keys: Vec<_> = validators.map(|(_, v)| v).collect();
-		AssignmentKeys::set(assignment_keys);
+		AssignmentKeysUnsafe::set(assignment_keys);
 	}
 
 	fn on_disabled(_i: usize) { }
