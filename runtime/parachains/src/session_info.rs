@@ -260,7 +260,7 @@ mod tests {
 	#[test]
 	fn session_pruning_avoids_heavy_loop() {
 		new_test_ext(genesis_config()).execute_with(|| {
-			let start = 1_000_000;
+			let start = 1_000_000_000;
 			System::on_initialize(start);
 			System::set_block_number(start);
 
