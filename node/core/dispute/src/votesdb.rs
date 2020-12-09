@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The bitfield distribution
+//! The VotesDB
 //!
-//! In case this node is a validator, gossips its own signed availability bitfield
-//! for a particular relay parent.
-//! Independently of that, gossips on received messages from peers to other interested peers.
+//! A private storage to track votes, from backing or secondary checking or explicit dispute
+//! votes and derive `VoteEvent`s from it.
 
 use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
@@ -53,6 +52,7 @@ const SESSION_COUNT_BEFORE_DROP: u32 = 100;
 const MAX_ITEMS_PER_DB_TRANSACTION: u16 = 1024_u16;
 
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 enum Error {
 	#[error(transparent)]
 	Io(#[from] io::Error),
@@ -77,42 +77,6 @@ struct ProtocolState {
 
 
 const TARGET: &'static str = "votesdb";
-
-
-// /// Get a value by key.
-// fn get(&self, col: u32, key: &[u8]) -> io::Result<Option<DBValue>>;
-
-// /// Get the first value matching the given prefix.
-// fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>>;
-
-// /// Write a transaction of changes to the backing store.
-// fn write(&self, transaction: DBTransaction) -> io::Result<()>;
-
-// /// Iterate over the data for a given column.
-// fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
-
-// /// Iterate over the data for a given column, returning all key/value pairs
-// /// where the key starts with the given prefix.
-// fn iter_with_prefix<'a>(
-// 	&'a self,
-// 	col: u32,
-// 	prefix: &'a [u8],
-// ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
-
-// /// Attempt to replace this database with a new one located at the given path.
-// fn restore(&self, new_db: &str) -> io::Result<()>;
-
-// /// Query statistics.
-// ///
-// /// Not all kvdb implementations are able or expected to implement this, so by
-// /// default, empty statistics is returned. Also, not all kvdb implementation
-// /// can return every statistic or configured to do so (some statistics gathering
-// /// may impede the performance and might be off by default).
-// fn io_stats(&self, _kind: IoStatsKind) -> IoStats {
-// 	IoStats::empty()
-// }
-
-
 
 fn write_db<D: Encode>(
 	db: &Arc<dyn KeyValueDB>,
@@ -178,13 +142,16 @@ fn update_oldest_session(db: &Arc<dyn KeyValueDB>, current_oldest: SessionIndex,
 
 /// Remove all votes that we stored in the db that are related to any
 /// session index before the provided `session`.
-fn prune_votes_before_session(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -> Result<()> {
+fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -> Result<()> {
 	let mut oldest_session: SessionIndex = oldest_session(db);
+	if oldest_session >= session {
+		return Ok(())
+	}
 
 	let mut cleanup_transaction = db.transaction();
 	let mut n = 0;
 
-	for cursor_session in pruned_up_to_session_index..session {
+	for cursor_session in oldest_session..session {
 
 		let prefix = derive_prefix(cursor_session);
 		for (key, value) in db.iter_with_prefix(DATA, prefix.as_bytes()) {
@@ -205,8 +172,7 @@ fn prune_votes_before_session(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -
 	}
 
 	db.write_transaction(cleanup_transaction);
-	oldest_session = update_oldest_session(db, oldest_session, session);
-	set_oldest_session(db, ,);
+	let _ = update_oldest_session(db, oldest_session, session);
 
 	Ok(())
 }
@@ -216,9 +182,9 @@ fn prune_votes_before_session(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 enum Vote {
 	Backing { candidate: BackedCandidate },
-	ApprovalCheck { candidate: BackedCandidate },
-	DisputePositive { candidate: BackedCandidate },
-	DisputeNegative { candidate: BackedCandidate },
+	ApprovalCheck { sfs: SignedFullStatement },
+	DisputePositive { sfs: SignedFullStatement },
+	DisputeNegative { sfs: SignedFullStatement },
 }
 
 impl Vote {
@@ -241,22 +207,29 @@ impl Vote {
 	pub fn backed_candidate(&self) -> &BackedCandidate {
 		match self {
 			Self::Backing { backed_candidate } => backed_candidate,
-			Self::ApprovalCheck { backed_candidate } => backed_candidate,
-			Self::DisputePositive { backed_candidate } => backed_candidate,
-			Self::DisputeNegative { backed_candidate } => backed_candidate,
+			Self::ApprovalCheck { sfs } => sfs.validator_index,
+			Self::DisputePositive { sfs } => sfs.validator_index,
+			Self::DisputeNegative { sfs } => sfs.validator_index,
 		}
 	}
-	/// Obtain the vote's validator index.
-	pub fn validator(&self) -> Vec<ValidatorIndex> {
+
+	/// Obtain the vote's validator indices.
+	pub fn validators(&self) -> Vec<ValidatorIndex> {
 		self.backed_candidate().validator_indices.iter().map(|validator_index| {
 			*validator_index as ValidatorIndex
 		}).collect()
 	}
+	
+	pub fn candidate_hash(&self) -> CandidateHash {
+		
+	}
 }
 
 #[derive(Debug, Clone, Copy)]
-enum CandidateQuorumResult {
+enum CandidateQuorum {
+	/// The backed candidate is deemed valid.
 	Valid,
+	/// Invalid candidate block.
 	Invalid,
 }
 
@@ -284,6 +257,11 @@ enum VoteEvent {
 	},
 }
 
+fn check_for_supermajority(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -> Option<CandidateQuorum> {
+	
+	
+}
+
 fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) -> Result<Vec<VoteEvent>>> {
 	if session < get_pivot() {
 		log::warn!("Dropping request to store ancient votes.");
@@ -291,17 +269,21 @@ fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) 
 	}
 	let mut transaction = DBTransaction::with_capacity(votes.len());
 	let events: Vec<VoteEvent> = votes.into_iter().map(|vote| {
+		for vote in votes {
+		}
 		let k = derive_key(session, vote.validator());
 
-		if let Some(previous_vote) = db.get(columns::DATA, k) {
+		if let Some(previous_vote) = read_db(db, columns::DATA, k) {
 			let previous_vote: Vote = previous_vote.decode()
 				.expect("Database entries are all created from this module and thus must decode. qed");
 
 			if previous_vote != vote {
-				VoteEvent::DoubleVote {
-					validator: vote.validator(),
-					votes: vec![previous_vote, vote],
-				}
+				unimplemented!("Derive a set of votes")
+				// VoteEvent::DoubleVote {
+				// 	validator: vote.validator(),
+				// 	votes: vec![previous_vote, vote],
+				// }
+				
 				// TODO clarify if a double vote means two opposing votes (pro and con)
 				// TODO or also two different vote kinds where both are positive
 			} else {

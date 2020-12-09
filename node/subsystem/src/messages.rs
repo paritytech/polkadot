@@ -597,21 +597,15 @@ impl CollationGenerationMessage {
 enum VotesDbMessage {
     /// Allow querying all `Hash`es that are voted on by a particular validator.
     QueryValidatorVotes {
-        /// Validator indentification.
-        session: SessionIndex,
-        validator: ValidatorIndex,
-        response: ResponseChannel<Vec<(Hash, Vote)>>,
+        /// Validator identification.
+        validator: SessionId,
+        response: ResponseChannel<Vec<Vote>>,
     },
 
     /// Store a vote for a particular dispute
     StoreVote{
-        /// Unique validator indentification
-        session: SessionIndex,
-        validator: ValidatorIndex,
         /// Vote.
         vote: Vote,
-        /// Attestation.
-        attestation: Signed<Statement>,
     },
 }
 

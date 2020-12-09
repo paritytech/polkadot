@@ -70,6 +70,15 @@ impl Statement {
 			Statement::Invalid(hash) => CompactStatement::Invalid(hash),
 		}
 	}
+
+	/// Obtain the candidate hash this statement relates to.
+	pub fn candidate_hash() -> CandidateHash {
+		match *self {
+			Statement::Seconded(ref c) => c.hash(),
+			Statement::Valid(hash) => hash,
+			Statement::Invalid(hash) => hash,
+		}
+	}
 }
 
 impl EncodeAs<CompactStatement> for Statement {
