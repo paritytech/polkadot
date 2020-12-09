@@ -28,10 +28,11 @@ pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
 
 use primitives::v1::{BlockNumber, ValidatorId};
-use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
+use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
+use frame_system::limits;
 use frame_support::{
 	parameter_types, traits::{Currency},
-	weights::{Weight, constants::WEIGHT_PER_SECOND},
+	weights::{Weight, constants::WEIGHT_PER_SECOND, DispatchClass},
 };
 use pallet_transaction_payment::{TargetedFeeAdjustment, Multiplier};
 use static_assertions::const_assert;
@@ -55,22 +56,19 @@ const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
 /// We assume that an on-initialize consumes 2.5% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 2.5%`.
-pub const AVERAGE_ON_INITIALIZE_WEIGHT: Perbill = Perbill::from_perthousand(25);
+pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_perthousand(25);
+/// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
+/// by  Operational  extrinsics.
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+/// We allow for 2 seconds of compute with a 6 second average block time.
+pub const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
+
+const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
 // Common constants used in all runtimes.
 parameter_types! {
 	pub const BlockHashCount: BlockNumber = 2400;
-	/// Block time that can be used by weights.
-	pub const MaximumBlockWeight: Weight = 2 * WEIGHT_PER_SECOND;
-	/// Portion of the block available to normal class of dispatches.
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
-	/// Maximum weight that a _single_ extrinsic can take.
-	pub MaximumExtrinsicWeight: Weight =
-		AvailableBlockRatio::get().saturating_sub(AVERAGE_ON_INITIALIZE_WEIGHT)
-		* MaximumBlockWeight::get();
-	/// Maximum length of block. 5MB.
-	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
-	/// The portion of the `AvailableBlockRatio` that we adjust the fees with. Blocks filled less
+	/// The portion of the `NORMAL_DISPATCH_RATIO` that we adjust the fees with. Blocks filled less
 	/// than this will decrease the weight and more will increase.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 	/// The adjustment variable of the runtime. Higher values will cause `TargetBlockFullness` to
@@ -80,9 +78,41 @@ parameter_types! {
 	/// that combined with `AdjustmentVariable`, we can recover from the minimum.
 	/// See `multiplier_can_grow_from_zero`.
 	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
+	/// Maximum length of block. Up to 5MB.
+	pub BlockLength: limits::BlockLength =
+		limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+	/// Block weights base values and limits.
+	pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
+		.base_block(BlockExecutionWeight::get())
+		.for_class(DispatchClass::all(), |weights| {
+			weights.base_extrinsic = ExtrinsicBaseWeight::get();
+		})
+		.for_class(DispatchClass::Normal, |weights| {
+			weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+		})
+		.for_class(DispatchClass::Operational, |weights| {
+			weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+			// Operational transactions have an extra reserved space, so that they
+			// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+			weights.reserved = Some(
+				MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
+			);
+		})
+		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+		.build_or_panic();
 }
 
-const_assert!(AvailableBlockRatio::get().deconstruct() >= AVERAGE_ON_INITIALIZE_WEIGHT.deconstruct());
+parameter_types! {
+	/// A limit for off-chain phragmen unsigned solution submission.
+	///
+	/// We want to keep it as high as possible, but can't risk having it reject,
+	/// so we always subtract the base block execution weight.
+	pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
+		.get(DispatchClass::Normal)
+		.max_extrinsic
+		.expect("Normal extrinsics have weight limit configured by default; qed")
+		.saturating_sub(BlockExecutionWeight::get());
+}
 
 /// Parameterized slow adjusting fee updated based on
 /// https://w3f-research.readthedocs.io/en/latest/polkadot/Token%20Economics.html#-2.-slow-adjusting-mechanism
@@ -148,14 +178,18 @@ mod multiplier_tests {
 
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
-		pub const ExtrinsicBaseWeight: u64 = 100;
-		pub const MaximumBlockWeight: Weight = 1024;
-		pub const MaximumBlockLength: u32 = 2 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
+		pub BlockLength: frame_system::limits::BlockLength =
+			frame_system::limits::BlockLength::max(2 * 1024);
+		pub BlockWeights: frame_system::limits::BlockWeights =
+			frame_system::limits::BlockWeights::simple_max(1024);
 	}
 
 	impl frame_system::Config for Runtime {
 		type BaseCallFilter = ();
+		type BlockWeights = BlockWeights;
+		type BlockLength = ();
+		type DbWeight = ();
 		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;
@@ -167,13 +201,6 @@ mod multiplier_tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
-		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type PalletInfo = ();
 		type AccountData = ();
@@ -188,7 +215,7 @@ mod multiplier_tests {
 		let mut t: sp_io::TestExternalities =
 			frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap().into();
 		t.execute_with(|| {
-			System::set_block_limits(w, 0);
+			System::set_block_consumed_resources(w, 0);
 			assertions()
 		});
 	}
@@ -196,7 +223,8 @@ mod multiplier_tests {
 	#[test]
 	fn multiplier_can_grow_from_zero() {
 		let minimum_multiplier = MinimumMultiplier::get();
-		let target = TargetBlockFullness::get() * (AvailableBlockRatio::get() * MaximumBlockWeight::get());
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
 		// if the min is too small, then this will not change, and we are doomed forever.
 		// the weight is 1/10th bigger than target.
 		run_with_system_weight(target * 101 / 100, || {

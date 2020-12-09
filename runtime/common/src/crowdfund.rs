@@ -579,7 +579,7 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
-		Perbill, Permill, Percent, testing::Header, DispatchResult,
+		Permill, Percent, testing::Header, DispatchResult,
 		traits::{BlakeTwo256, IdentityLookup},
 	};
 	use crate::slots::Registrar;
@@ -595,12 +595,13 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
-		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
-		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
+
 	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
+		type BlockWeights = ();
+		type BlockLength = ();
+		type DbWeight = ();
 		type Origin = Origin;
 		type Call = ();
 		type Index = u64;
@@ -612,13 +613,6 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
-		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ();
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u64>;
