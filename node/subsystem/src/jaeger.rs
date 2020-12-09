@@ -220,8 +220,7 @@ impl Jaeger {
 
 			loop {
 				let buf = traces_out.next().await;
-				// UDP sending errors happen only either if the API is misused (in which case
-				// panicking is desirable) or in case of missing privilege.
+				// UDP sending errors happen only either if the API is misused or in case of missing privilege.
 				if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await
 					.map_err(|e| JaegerError::SendError(e))
 				{
