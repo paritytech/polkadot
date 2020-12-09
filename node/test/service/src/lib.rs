@@ -156,6 +156,7 @@ pub fn node_config(
 		transaction_pool: Default::default(),
 		network: network_config,
 		keystore: KeystoreConfig::InMemory,
+		keystore_remote: Default::default(),
 		database: DatabaseConfig::RocksDb {
 			path: root.join("db"),
 			cache_size: 128,
