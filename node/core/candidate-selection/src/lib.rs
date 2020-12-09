@@ -163,7 +163,7 @@ impl CandidateSelectionJob {
 		}
 	}
 
-	async fn run_loop(&mut self, span: &jaeger::Span) -> Result<(), Error> {
+	async fn run_loop(&mut self, span: &jaeger::JaegerSpan) -> Result<(), Error> {
 		let span = span.child("run loop");
 		loop {
 			match self.receiver.next().await  {
