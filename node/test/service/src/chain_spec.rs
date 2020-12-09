@@ -169,7 +169,10 @@ fn polkadot_testnet_genesis(
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: 50 * 1024 * 1024,
 				max_head_data_size: 32 * 1024,
-				group_rotation_frequency: 10,
+				group_rotation_frequency: 20,
+				chain_availability_period: 4,
+				thread_availability_period: 4,
+				no_show_slots: 10,
 				..Default::default()
 			},
 		}),

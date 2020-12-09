@@ -33,8 +33,7 @@ use primitives::v1::{
 use runtime_common::{
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
-	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
 	ParachainSessionKeyPlaceholder,
 };
 use sp_runtime::{
@@ -120,6 +119,8 @@ parameter_types! {
 
 impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
+	type BlockWeights = BlockWeights;
+	type BlockLength = BlockLength;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -131,13 +132,7 @@ impl frame_system::Config for Runtime {
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
 	type DbWeight = RocksDbWeight;
-	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
@@ -147,6 +142,8 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 }
 
@@ -155,7 +152,7 @@ impl pallet_scheduler::Config for Runtime {
 	type Origin = Origin;
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
-	type MaximumWeight = MaximumBlockWeight;
+	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
@@ -312,9 +309,6 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
-	pub OffchainSolutionWeightLimit: Weight = MaximumExtrinsicWeight::get()
-		.saturating_sub(BlockExecutionWeight::get())
-		.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 impl pallet_staking::Config for Runtime {
@@ -356,7 +350,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 }
 
 impl pallet_offences::Config for Runtime {

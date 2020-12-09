@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::{LOG_TARGET,  Result};
 
-use futures::{StreamExt, select, FutureExt};
+use futures::{select, FutureExt};
 
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
@@ -691,21 +691,15 @@ pub(crate) async fn run(
 
 	loop {
 		select! {
-			res = state.connection_requests.next() => {
-				let (relay_parent, validator_id, peer_id) = match res {
-					Some(res) => res,
-					// Will never happen, but better to be safe.
-					None => return Ok(()),
-				};
-
+			res = state.connection_requests.next().fuse() => {
 				let _timer = state.metrics.time_handle_connection_request();
 
 				handle_validator_connected(
 					&mut ctx,
 					&mut state,
-					peer_id,
-					validator_id,
-					relay_parent,
+					res.peer_id,
+					res.validator_id,
+					res.relay_parent,
 				).await;
 			},
 			msg = ctx.recv().fuse() => match msg? {

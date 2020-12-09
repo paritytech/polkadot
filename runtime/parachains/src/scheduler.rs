@@ -46,7 +46,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use sp_runtime::traits::{Saturating, Zero};
+use sp_runtime::traits::Saturating;
 
 use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
@@ -568,11 +568,6 @@ impl<T: Config> Module<T> {
 
 		if at < session_start_block { return None }
 
-		if config.group_rotation_frequency.is_zero() {
-			// interpret this as "no rotations"
-			return Some(GroupIndex(core.0));
-		}
-
 		let validator_groups = ValidatorGroups::get();
 
 		if core.0 as usize >= validator_groups.len() { return None }
@@ -599,9 +594,6 @@ impl<T: Config> Module<T> {
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`, unless there are no rotations.
 	///
-	/// If there are no rotations (config.group_rotation_frequency == 0),
-	/// availability timeouts can occur at any block.
-	///
 	/// This really should not be a box, but is working around a compiler limitation filed here:
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
@@ -611,12 +603,7 @@ impl<T: Config> Module<T> {
 
 		let session_start = <SessionStartBlock<T>>::get();
 		let blocks_since_session_start = now.saturating_sub(session_start);
-		let no_rotation = config.group_rotation_frequency.is_zero();
-		let blocks_since_last_rotation = if no_rotation {
-			<T::BlockNumber>::zero()
-		} else {
-			blocks_since_session_start % config.group_rotation_frequency
-		};
+		let blocks_since_last_rotation = blocks_since_session_start % config.group_rotation_frequency;
 
 		let absolute_cutoff = sp_std::cmp::max(
 			config.chain_availability_period,
@@ -1658,8 +1645,10 @@ mod tests {
 		} = default_config();
 		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
-		assert!(chain_availability_period < thread_availability_period &&
-			thread_availability_period < group_rotation_frequency);
+		assert!(
+			chain_availability_period < thread_availability_period
+				&& thread_availability_period < group_rotation_frequency
+		);
 
 		let chain_a = ParaId::from(1);
 		let thread_a = ParaId::from(2);
@@ -1746,92 +1735,6 @@ mod tests {
 			run_to_block(1 + group_rotation_frequency + thread_availability_period, |_| None);
 
 			assert!(Scheduler::availability_timeout_predicate().is_none());
-		});
-	}
-
-	#[test]
-	fn availability_predicate_no_rotation() {
-		let genesis_config = MockGenesisConfig {
-			configuration: crate::configuration::GenesisConfig {
-				config: HostConfiguration {
-					group_rotation_frequency: 0, // no rotation
-					..default_config()
-				},
-				..Default::default()
-			},
-			..Default::default()
-		};
-		let HostConfiguration {
-			chain_availability_period,
-			thread_availability_period,
-			..
-		} = default_config();
-		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-
-		let chain_a = ParaId::from(1);
-		let thread_a = ParaId::from(2);
-
-		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
-			genesis_head: Vec::new().into(),
-			validation_code: Vec::new().into(),
-			parachain: is_chain,
-		});
-
-		new_test_ext(genesis_config).execute_with(|| {
-			schedule_blank_para(chain_a, true);
-			schedule_blank_para(thread_a, false);
-
-			// start a new session with our chain & thread registered.
-			run_to_block(1, |number| match number {
-				1 => Some(SessionChangeNotification {
-					new_config: HostConfiguration{
-						// Note: the `group_rotation_frequency` config change
-						// is not accounted for on session change
-						// group_rotation_frequency: 0,
-						..default_config()
-					},
-					validators: vec![
-						ValidatorId::from(Sr25519Keyring::Alice.public()),
-						ValidatorId::from(Sr25519Keyring::Bob.public()),
-						ValidatorId::from(Sr25519Keyring::Charlie.public()),
-						ValidatorId::from(Sr25519Keyring::Dave.public()),
-						ValidatorId::from(Sr25519Keyring::Eve.public()),
-					],
-					..Default::default()
-				}),
-				_ => None,
-			});
-
-			// assign some availability cores.
-			{
-				AvailabilityCores::mutate(|cores| {
-					cores[0] = Some(CoreOccupied::Parachain);
-					cores[1] = Some(CoreOccupied::Parathread(ParathreadEntry {
-						claim: ParathreadClaim(thread_a, collator),
-						retries: 0,
-					}))
-				});
-			}
-			run_to_block(1 + 1, |_| None);
-			run_to_block(1 + 1 + 100500, |_| None);
-			{
-				let pred = Scheduler::availability_timeout_predicate()
-					.expect("predicate exists with no rotation");
-
-				let now = System::block_number();
-
-				assert!(!pred(CoreIndex(0), now)); // assigned: chain
-				assert!(!pred(CoreIndex(1), now)); // assigned: thread
-				assert!(pred(CoreIndex(2), now));
-
-				// check the tighter bound on chains vs threads.
-				assert!(pred(CoreIndex(0), now - chain_availability_period));
-				assert!(pred(CoreIndex(1), now - thread_availability_period));
-
-				// check the threshold is exact.
-				assert!(!pred(CoreIndex(0), now - chain_availability_period + 1));
-				assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
-			}
 		});
 	}
 
