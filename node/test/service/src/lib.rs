@@ -30,11 +30,7 @@ use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
 	Error, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
 };
-use polkadot_node_subsystem::messages::{
-	jaeger,
-	CollatorProtocolMessage,
-	CollationGenerationMessage,
-};
+use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
 use polkadot_test_runtime::{
 	Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, SudoCall, UncheckedExtrinsic,
 };
@@ -49,7 +45,6 @@ use sc_network::{
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	error::SubstrateServiceError as ServiceError,
 	RpcHandlers, TaskExecutor, TaskManager,
 };
 use service::{BasePath, Configuration, Role};
@@ -80,13 +75,13 @@ pub fn new_full(
 	is_collator: IsCollator,
 ) -> Result<
 	NewFull<Arc<Client>>,
-	ServiceError,
+	Error,
 > {
 	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
 		is_collator,
 		None,
-		&jaeger::JaegerSpan::Default,
+		None,
 		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
 	)
 }
