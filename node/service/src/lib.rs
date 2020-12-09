@@ -104,14 +104,17 @@ native_executor_instance!(
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
 	#[error(transparent)]
+	Io(#[from] std::io::Error),
+
+	#[error(transparent)]
 	AddrFormatInvalid(#[from] std::net::AddrParseError),
-	
+
 	#[error(transparent)]
 	Sub(#[from] SubstrateServiceError),
-	
+
 	#[error(transparent)]
 	Blockchain(#[from] sp_blockchain::Error),
-	
+
 	#[error(transparent)]
 	Consensus(#[from] consensus_common::Error),
 
@@ -126,9 +129,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	Availability(#[from] AvailabilityError),
-	
+
 	#[error("Authorities require the real overseer implementation")]
-	AuthoritiesRequireRealOverseer,	
+	AuthoritiesRequireRealOverseer,
 }
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
