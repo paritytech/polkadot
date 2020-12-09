@@ -84,7 +84,7 @@ impl<T: Config> Module<T> {
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
 		// FIXME: once we store these keys: https://github.com/paritytech/polkadot/issues/1975
-		let approval_keys = Default::default();
+		let assignment_keys = Default::default();
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
@@ -108,7 +108,7 @@ impl<T: Config> Module<T> {
 		let new_session_info = SessionInfo {
 			validators,
 			discovery_keys,
-			approval_keys,
+			assignment_keys,
 			validator_groups,
 			n_cores,
 			zeroth_delay_tranche_width,
