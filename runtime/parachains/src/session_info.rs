@@ -216,7 +216,7 @@ mod tests {
 	}
 
 	#[test]
-	fn session_pruning_is_based_on_dispute_deriod() {
+	fn session_pruning_is_based_on_dispute_period() {
 		new_test_ext(genesis_config()).execute_with(|| {
 			run_to_block(100, session_changes);
 			assert_eq!(EarliestStoredSession::get(), 9);
