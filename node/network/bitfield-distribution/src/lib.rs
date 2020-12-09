@@ -312,21 +312,23 @@ where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let span = jaeger::hash_span(&message.relay_parent, "relay_msg");
-	{
-		let _span = span.child("provisionable");
-		// notify the overseer about a new and valid signed bitfield
-		ctx.send_message(AllMessages::Provisioner(
-			ProvisionerMessage::ProvisionableData(
-				message.relay_parent,
-				ProvisionableData::Bitfield(
-					message.relay_parent,
-					message.signed_availability.clone(),
-				),
-			),
-		))
-		.await;
-	}
 
+	let _span = span.child("provisionable");
+	// notify the overseer about a new and valid signed bitfield
+	ctx.send_message(AllMessages::Provisioner(
+		ProvisionerMessage::ProvisionableData(
+			message.relay_parent,
+			ProvisionableData::Bitfield(
+				message.relay_parent,
+				message.signed_availability.clone(),
+			),
+		),
+	))
+	.await;
+
+	drop(_span);
+
+	let _span = span.child("interested peers");
 	// pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
 		.iter()
@@ -350,6 +352,7 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
+	drop(_span);
 
 	if interested_peers.is_empty() {
 		tracing::trace!(
