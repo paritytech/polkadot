@@ -100,7 +100,9 @@ impl JobTrait for CandidateSelectionJob {
 		receiver: mpsc::Receiver<CandidateSelectionMessage>,
 		mut sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let span = jaeger::hash_span(&relay_parent, "candidate-selection:run");
 		async move {
+			let _span = span.child("query runtime");
 			let (groups, cores) = futures::try_join!(
 				try_runtime_api!(request_validator_groups(relay_parent, &mut sender).await),
 				try_runtime_api!(request_from_runtime(
@@ -112,6 +114,9 @@ impl JobTrait for CandidateSelectionJob {
 
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 			let cores = try_runtime_api!(cores);
+
+			drop(_span);
+			let _span = span.child("find assignment");
 
 			let n_cores = cores.len();
 
@@ -142,7 +147,9 @@ impl JobTrait for CandidateSelectionJob {
 				None => return Ok(()),
 			};
 
-			CandidateSelectionJob::new(assignment, metrics, sender, receiver).run_loop().await
+			drop(_span);
+
+			CandidateSelectionJob::new(assignment, metrics, sender, receiver).run_loop(&span).await
 		}.boxed()
 	}
 }
@@ -463,10 +470,10 @@ mod tests {
 		};
 
 		preconditions(&mut job);
-
+		let span = jaeger::JaegerSpan::Disabled;
 		let (_, job_result) = futures::executor::block_on(future::join(
 			test(to_job_tx, from_job_rx),
-			job.run_loop(),
+			job.run_loop(&span),
 		));
 
 		postconditions(job, job_result);
