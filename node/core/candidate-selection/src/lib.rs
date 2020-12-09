@@ -25,6 +25,7 @@ use futures::{
 };
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_subsystem::{
+	jaeger,
 	errors::ChainApiError,
 	messages::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage,
