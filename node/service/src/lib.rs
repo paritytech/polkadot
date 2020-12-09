@@ -127,6 +127,7 @@ pub enum Error {
 	#[error(transparent)]
 	Jaeger(#[from] polkadot_subsystem::jaeger::JaegerError),
 
+	#[cfg(feature = "full-node")]
 	#[error(transparent)]
 	Availability(#[from] AvailabilityError),
 
