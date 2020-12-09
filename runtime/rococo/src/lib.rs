@@ -31,6 +31,7 @@ use primitives::v1::{
 	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
+	mmr,
 	SlowAdjustingFeeUpdate,
 	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
@@ -50,7 +51,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
-		BlakeTwo256, Block as BlockT, OpaqueKeys, IdentityLookup,
+		self, BlakeTwo256, Keccak256, Block as BlockT, OpaqueKeys, IdentityLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
@@ -196,6 +197,10 @@ construct_runtime! {
 
 		// Sudo
 		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
+
+		// Bridges support.
+		Mmr: pallet_mmr::{Module, Call, Storage},
+		MmrLeaf: mmr::{Module},
 	}
 }
 
@@ -568,6 +573,15 @@ impl paras_registrar::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+}
+
+impl pallet_mmr::Config for Runtime {
+	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	type Hashing = Keccak256;
+	type Hash = <Keccak256 as traits::Hash>::Output;
+	type OnNewRoot = ();
+	type WeightInfo = ();
+	type LeafData = mmr::Module<Runtime>;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]

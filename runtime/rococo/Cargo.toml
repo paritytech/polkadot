@@ -35,6 +35,7 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", default-fea
 pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
@@ -70,6 +71,7 @@ std = [
 	"frame-executive/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
+  "pallet-mmr/std",
 	"pallet-indices/std",
 	"pallet-im-online/std",
 	"inherents/std",

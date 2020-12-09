@@ -33,6 +33,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", default-feat
 pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "td-mmr" }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }

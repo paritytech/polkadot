@@ -45,7 +45,7 @@ use sp_runtime::{
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
-		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify
 	},
 };
 #[cfg(feature = "runtime-benchmarks")]

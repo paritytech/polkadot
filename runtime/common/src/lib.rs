@@ -19,13 +19,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod claims;
+pub mod crowdfund;
+pub mod impls;
+pub mod mmr;
+pub mod paras_registrar;
+pub mod paras_sudo_wrapper;
+pub mod purchase;
 pub mod slot_range;
 pub mod slots;
-pub mod crowdfund;
-pub mod purchase;
-pub mod impls;
-pub mod paras_sudo_wrapper;
-pub mod paras_registrar;
 
 use primitives::v1::{BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
