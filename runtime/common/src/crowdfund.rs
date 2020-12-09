@@ -560,7 +560,7 @@ impl<T: Config> Module<T> {
 	}
 
 	pub fn crowdfund_kill(index: FundIndex) {
-		child::kill_storage(&Self::id_from_index(index));
+		child::kill_storage(&Self::id_from_index(index), None);
 	}
 }
 
