@@ -47,8 +47,10 @@ mod columns {
 /// The number of sessions to store the information on
 /// a particular dispute, this includes open or shut
 /// remote or local disputes.
-pub const SESSION_COUNT_BEFORE_DROP: u32 = 100;
+const SESSION_COUNT_BEFORE_DROP: u32 = 100;
 
+/// Number of transactions to batch up.
+const MAX_ITEMS_PER_DB_TRANSACTION: u16 = 1024_u16;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -60,6 +62,9 @@ enum Error {
 
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
+
+	#[error("Attempted to store an obsolete vote")]
+	ObsoleteVote,
 }
 
 
@@ -147,7 +152,7 @@ fn read_db<D: Decode>(
 // Storage format prefix: "vote/s_{session_index}/v_{validator_index}"
 
 /// Track up to which point all data was pruned.
-const PIVOT_KEY: &[u8] = b"prune/pivot";
+const OLDEST_SESSION_SLOT_ENTRY: &[u8] = b"prune/pivot";
 
 #[inline(always)]
 fn derive_key(prefix: &str, session: SessionIndex, validator: ValidatorIndex) -> String {
@@ -158,59 +163,165 @@ fn derive_prefix(prefix: &str, session: SessionIndex) -> String {
 	format!("vote/s_{session_index}", session_index)
 }
 
-fn get_pivot(db: &Arc<dyn KeyValueDB>) -> SessionIndex {
-	read_db(db, columns::DATA, PIVOT_KEY).unwrap_or_default()
+
+/// Returns the oldest session index for which entries are not pruned yet.
+fn get_oldest_session(db: &Arc<dyn KeyValueDB>) -> SessionIndex {
+	read_db(db, columns::DATA, OLDEST_SESSION_SLOT_ENTRY).unwrap_or_default()
 }
 
+/// Update the oldest stored session index index entry.
+fn update_oldest_session(db: &Arc<dyn KeyValueDB>, current_oldest: SessionIndex, new_oldest: SessionIndex) -> SessionIndex {
+	let new_oldest = current_oldest.max(new_oldest.saturating_sub(1));
+	write_db(db, columns::DATA, OLDEST_SESSION_SLOT_ENTRY, new_oldest);
+	new_oldest
+}
+
+/// Remove all votes that we stored in the db that are related to any
+/// session index before the provided `session`.
 fn prune_votes_before_session(db: &Arc<dyn KeyValueDB>, session: SessionIndex) -> Result<()> {
-	let pruned_up_to_session_index: SessionIndex = get_pivot(db);
+	let mut oldest_session: SessionIndex = oldest_session(db);
 
 	let mut cleanup_transaction = db.transaction();
 	let mut n = 0;
-	const MAX_ITEMS_PER_TRANSACTION: u16 = 128_u16;
+
 	for cursor_session in pruned_up_to_session_index..session {
+
 		let prefix = derive_prefix(cursor_session);
 		for (key, value) in db.iter_with_prefix(DATA, prefix.as_bytes()) {
 			log::trace!("Pruning {}", cursor_session);
 			cleanup_transaction.erase(key);
 
 			// use checkpoint submits
-			n += 1u16;
-			if n > MAX_ITEMS_PRE_TRANSACTION {
+			n += 1_u16;
+			if n > MAX_ITEMS_PER_DB_TRANSACTION {
 				db.write_transaction(cleanup_transaction);
 
-				write_db(db, columns::DATA, PIVOT_KEY, pruned_up_to_session.max(cursor_session - 1));
+				oldest_session = update_oldest_session(db, oldest_session, session_cursor);
 
 				cleanup_transaction = db.transaction();
-				n = 0;
+				n = 0_u16;
 			}
 		}
-		// always track our state so we don't ever have to start over
 	}
 
 	db.write_transaction(cleanup_transaction);
-	write_db(db, columns::DATA, PIVOT_KEY, session - 1);
+	oldest_session = update_oldest_session(db, oldest_session, session);
+	set_oldest_session(db, ,);
 
 	Ok(())
 }
 
-fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) -> Result<()> {
+
+/// A vote cast by another validator.
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
+enum Vote {
+	Backing { candidate: BackedCandidate },
+	ApprovalCheck { candidate: BackedCandidate },
+	DisputePositive { candidate: BackedCandidate },
+	DisputeNegative { candidate: BackedCandidate },
+}
+
+impl Vote {
+	/// Determines if the vote is a vote that supports the validity of this block.
+	pub fn positive(&self) -> bool {
+		match self {
+			Self::Backing { .. } => true,
+			Self::ApprovalCheck { .. } => true,
+			Self::DisputePositive { .. } => true,
+			Self::DisputeNegative { .. } => false,
+		}
+	}
+
+	/// A vote that challenges the validity of a candidate.
+	#[inline(always)]
+	pub fn negative(&self) -> bool {
+		!self.positive()
+	}
+
+	pub fn backed_candidate(&self) -> &BackedCandidate {
+		match self {
+			Self::Backing { backed_candidate } => backed_candidate,
+			Self::ApprovalCheck { backed_candidate } => backed_candidate,
+			Self::DisputePositive { backed_candidate } => backed_candidate,
+			Self::DisputeNegative { backed_candidate } => backed_candidate,
+		}
+	}
+	/// Obtain the vote's validator index.
+	pub fn validator(&self) -> Vec<ValidatorIndex> {
+		self.backed_candidate().validator_indices.iter().map(|validator_index| {
+			*validator_index as ValidatorIndex
+		}).collect()
+	}
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CandidateQuorumResult {
+	Valid,
+	Invalid,
+}
+
+/// Output of the vote store action.
+#[derive(Debug, Clone)]
+enum VoteEvent {
+	Stored,
+	/// This is the first set of votes that was stored for this dispute
+	DisputeDetected {
+		candidate: CandidateHash,
+		votes: Vec<Vote>,
+	},
+	/// A validator tried to vote twice
+	DoubleVote {
+		candidate: CandidateHash,
+		validator: ValidatorId,
+	},
+	/// Either side of the votes has reached a super majority
+	SupermajorityReached{
+		quorum: CandidateQuorumResult,
+	},
+	/// Discard an obsolete vote
+	ObsoleteVoteDiscarded {
+		candidate: CandidateHash,
+	},
+}
+
+fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) -> Result<Vec<VoteEvent>>> {
 	if session < get_pivot() {
 		log::warn!("Dropping request to store ancient votes.");
-		Err(TODO)
+		return Err(Error::ObsoleteVote)
 	}
 	let mut transaction = DBTransaction::with_capacity(votes.len());
-	for vote in votes {
+	let events: Vec<VoteEvent> = votes.into_iter().map(|vote| {
 		let k = derive_key(session, vote.validator());
-		let v = vote.encode();
-		transaction.put(columns::DATA, k ,v);
 
-		// TODO detect double votes
-	}
+		if let Some(previous_vote) = db.get(columns::DATA, k) {
+			let previous_vote: Vote = previous_vote.decode()
+				.expect("Database entries are all created from this module and thus must decode. qed");
+
+			if previous_vote != vote {
+				VoteEvent::DoubleVote {
+					validator: vote.validator(),
+					votes: vec![previous_vote, vote],
+				}
+				// TODO clarify if a double vote means two opposing votes (pro and con)
+				// TODO or also two different vote kinds where both are positive
+			} else {
+				// if the votes are equivalent, just avoid the transaction element
+				VoteEvent::Success
+			}
+		} else {
+			let v = vote.encode();
+			transaction.put(columns::DATA, k ,v);
+			if supermajority_reached {
+				VoteEvent::SupermajorityReached
+			} else {
+				VoteEvent::Stored
+			}
+		}
+	}).collect();
 
 	db.write_transaction(transaction)?;
 
-	Ok(())
+	Ok(events)
 }
 
 
