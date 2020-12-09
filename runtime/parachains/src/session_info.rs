@@ -101,8 +101,11 @@ impl<T: Config> Module<T> {
 		// update `EarliestStoredSession` based on `config.dispute_period`
 		EarliestStoredSession::set(new_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
-		for idx in old_earliest_stored_session..new_earliest_stored_session {
-			Sessions::remove(&idx);
+		// avoid a potentially heavy loop when introduced on a live chain
+		if old_earliest_stored_session != 0 || Sessions::get(0).is_some() {
+			for idx in old_earliest_stored_session..new_earliest_stored_session {
+				Sessions::remove(&idx);
+			}
 		}
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
