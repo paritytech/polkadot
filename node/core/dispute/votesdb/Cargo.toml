@@ -10,9 +10,9 @@ futures-timer = "3.0.2"
 log = "0.4.11"
 thiserror = "1.0.22"
 parity-scale-codec = "1.3.5"
-polkadot-node-subsystem = { path = "../../subsystem" }
-polkadot-overseer = { path = "../../overseer" }
-polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-subsystem = { path = "../../../subsystem" }
+polkadot-overseer = { path = "../../../overseer" }
+polkadot-primitives = { path = "../../../../primitives" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
