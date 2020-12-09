@@ -253,4 +253,26 @@ mod tests {
 			assert_eq!(session.needed_approvals, 42);
 		})
 	}
+
+	#[test]
+	fn session_pruning_avoids_heavy_loop() {
+		new_test_ext(genesis_config()).execute_with(|| {
+			let start = 1_000_000;
+			System::on_initialize(start);
+			System::set_block_number(start);
+
+			if let Some(notification) = new_session_every_block(start) {
+				Configuration::initializer_on_new_session(&notification.validators, &notification.queued);
+				SessionInfo::initializer_on_new_session(&notification);
+			}
+
+			Configuration::initializer_initialize(start);
+			SessionInfo::initializer_initialize(start);
+
+			assert_eq!(EarliestStoredSession::get(), start - 1);
+
+			run_to_block(start + 1, new_session_every_block);
+			assert_eq!(EarliestStoredSession::get(), start);
+		})
+	}
 }
