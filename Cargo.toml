@@ -84,6 +84,7 @@ opt-level = 3
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
+debug-assertions = true
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
