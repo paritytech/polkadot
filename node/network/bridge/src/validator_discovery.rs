@@ -352,7 +352,7 @@ mod tests {
 
 	#[derive(Default)]
 	struct TestNetwork {
-		priority_group: HashSet<Multiaddr>,
+		peers_set: HashSet<Multiaddr>,
 	}
 
 	#[derive(Default)]
@@ -380,13 +380,13 @@ mod tests {
 
 	#[async_trait]
 	impl Network for TestNetwork {
-		async fn add_to_priority_group(&mut self, _group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-			self.priority_group.extend(multiaddresses.into_iter());
+		async fn add_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			self.peers_set.extend(multiaddresses.into_iter());
 			Ok(())
 		}
 
-		async fn remove_from_priority_group(&mut self, _group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-			self.priority_group.retain(|elem| !multiaddresses.contains(elem));
+		async fn remove_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			self.peers_set.retain(|elem| !multiaddresses.contains(elem));
 			Ok(())
 		}
 	}
@@ -583,7 +583,7 @@ mod tests {
 
 			let _ = receiver.next().await.unwrap();
 			assert_eq!(service.non_revoked_discovery_requests.len(), 1);
-			assert_eq!(ns.priority_group.len(), 2);
+			assert_eq!(ns.peers_set.len(), 2);
 
 			// revoke the second request
 			drop(receiver);
@@ -599,7 +599,7 @@ mod tests {
 
 			let _ = receiver.next().await.unwrap();
 			assert_eq!(service.non_revoked_discovery_requests.len(), 1);
-			assert_eq!(ns.priority_group.len(), 1);
+			assert_eq!(ns.peers_set.len(), 1);
 		});
 	}
 

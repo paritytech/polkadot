@@ -834,11 +834,11 @@ mod tests {
 
 	#[async_trait]
 	impl validator_discovery::Network for TestNetwork {
-		async fn add_to_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 
-		async fn remove_from_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 	}
