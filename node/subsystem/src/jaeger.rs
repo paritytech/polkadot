@@ -47,6 +47,11 @@ use std::sync::Arc;
 use std::result;
 pub use crate::errors::JaegerError;
 
+
+lazy_static::lazy_static! {
+	static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::None);
+}
+
 /// Configuration for the jaeger tracing.
 #[derive(Clone)]
 pub struct JaegerConfig {
@@ -198,12 +203,18 @@ impl Jaeger {
 
 		// Spawn a background task that pulls span information and sends them on the network.
 		let _handle = async_std::task::spawn::<_, result::Result<(), JaegerError>>(async move {
-			let mut udp_socket = async_std::net::UdpSocket::bind("127.0.0.1:34254").await;
-
 			let mut port = 49000_u16;
-			while udp_socket.is_err() && port < std::primitive::u16::MAX {
+			let mut udp_socket;
+
+			loop {
 				udp_socket = async_std::net::UdpSocket::bind(format!("127.0.0.1:{}", port)).await;
+				if udp_socket.is_ok() {
+					break;
+				}
 				port += 1;
+				if port == std::primitive::u16::MAX {
+					break;
+				}
 			}
 			let udp_socket = udp_socket.map_err(|e| JaegerError::PortAllocationError(e))?;
 
@@ -219,7 +230,7 @@ impl Jaeger {
 			}
 		});
 
-		
+
 		*INSTANCE.lock() =Self::Launched {
 			traces_in,
 		};
@@ -249,8 +260,4 @@ impl Jaeger {
 			None
 		}
 	}
-}
-
-lazy_static::lazy_static! {
-	static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::None);
 }
