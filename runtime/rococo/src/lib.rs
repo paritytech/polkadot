@@ -49,6 +49,7 @@ use frame_support::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
+	generic::DigestItem,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		self, BlakeTwo256, Keccak256, Block as BlockT, OpaqueKeys, IdentityLookup,
@@ -67,6 +68,7 @@ use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
 use runtime_common::{paras_sudo_wrapper, paras_registrar};
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -151,6 +153,7 @@ impl_opaque_keys! {
 		pub im_online: ImOnline,
 		pub parachain_validator: Initializer,
 		pub authority_discovery: AuthorityDiscovery,
+		pub beefy: Beefy,
 	}
 }
 
@@ -201,6 +204,7 @@ construct_runtime! {
 		// Bridges support.
 		Mmr: pallet_mmr::{Module, Call, Storage},
 		MmrLeaf: mmr::{Module},
+		Beefy: pallet_beefy::{Module, Config<T>},
 	}
 }
 
@@ -575,13 +579,31 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+impl pallet_beefy::Config for Runtime {
+	type AuthorityId = BeefyId;
+}
+
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
 	type Hash = <Keccak256 as traits::Hash>::Output;
-	type OnNewRoot = ();
+	type OnNewRoot = DepositLog;
 	type WeightInfo = ();
 	type LeafData = mmr::Module<Runtime>;
+}
+
+/// A BEEFY consensus digest item with MMR root hash.
+pub struct DepositLog;
+impl pallet_mmr::primitives::OnNewRoot<
+	<Runtime as pallet_mmr::Config>::Hash
+> for DepositLog {
+	fn on_new_root(root: &Hash) {
+		let digest = DigestItem::Consensus(
+			beefy_primitives::BEEFY_ENGINE_ID,
+			parity_scale_codec::Encode::encode(&beefy_primitives::ConsensusLog::<BeefyId>::MmrRoot(*root)),
+		);
+		<frame_system::Module<Runtime>>::deposit_log(digest);
+	}
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
@@ -813,6 +835,12 @@ sp_api::impl_runtime_apis! {
 			encoded: Vec<u8>,
 		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
 			SessionKeys::decode_into_raw_public_keys(&encoded)
+		}
+	}
+
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+		fn authorities() -> Vec<BeefyId> {
+			Beefy::authorities()
 		}
 	}
 

@@ -18,6 +18,7 @@
 
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use babe_primitives::AuthorityId as BabeId;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 use hex_literal::hex;
 use kusama::constants::currency::DOTS as KSM;
@@ -137,7 +138,8 @@ fn rococo_session_keys(
 	grandpa: GrandpaId,
 	im_online: ImOnlineId,
 	parachain_validator: ValidatorId,
-	authority_discovery: AuthorityDiscoveryId
+	authority_discovery: AuthorityDiscoveryId,
+	beefy: BeefyId,
 ) -> rococo_runtime::SessionKeys {
 	rococo_runtime::SessionKeys {
 		babe,
@@ -145,6 +147,7 @@ fn rococo_session_keys(
 		im_online,
 		parachain_validator,
 		authority_discovery,
+		beefy,
 	}
 }
 
@@ -607,7 +610,9 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
-		AuthorityDiscoveryId
+		AuthorityDiscoveryId,
+		// TODO [ToDr] Generate BEEFY keys
+		// BeefyId,
 	)> = vec![(
 		//5EHZkbp22djdbuMFH9qt1DVzSCvqi3zWpj6DAYfANa828oei
 		hex!["62475fe5406a7cb6a64c51d0af9d3ab5c2151bcae982fb812f7a76b706914d6a"].into(),
@@ -751,6 +756,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
+		pallet_beefy: Some(rococo_runtime::BeefyConfig {
+			// TODO [ToDr] Beefy authorities
+			authorities: vec![],
+		}),
 		pallet_indices: Some(rococo_runtime::IndicesConfig {
 			indices: vec![],
 		}),
@@ -758,7 +767,15 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
-				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+				rococo_session_keys(
+					x.2.clone(),
+					x.3.clone(),
+					x.4.clone(),
+					x.5.clone(),
+					x.6.clone(),
+					// TODO [ToDr] Beefy authorities
+					Default::default(),
+				),
 			)).collect::<Vec<_>>(),
 		}),
 		pallet_babe: Some(Default::default()),
@@ -883,6 +900,25 @@ where
 	AccountPublic: From<<TPublic::Pair as Pair>::Public>,
 {
 	AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
+}
+
+/// Helper function to generate stash, controller and session key from seed
+pub fn get_rococo_authority_keys_from_seed(
+	seed: &str,
+) -> (
+	AccountId,
+	AccountId,
+	BabeId,
+	GrandpaId,
+	ImOnlineId,
+	ValidatorId,
+	AuthorityDiscoveryId,
+	BeefyId,
+) {
+	let keys = get_authority_keys_from_seed(seed);
+	(
+		keys.0, keys.1, keys.2, keys.3, keys.4, keys.5, keys.6, get_from_seed::<BeefyId>(seed)
+	)
 }
 
 /// Helper function to generate stash, controller and session key from seed
@@ -1190,7 +1226,16 @@ pub fn westend_testnet_genesis(
 /// Helper function to create rococo GenesisConfig for testing
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],
-	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AuthorityDiscoveryId,
+		BeefyId,
+	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> rococo_runtime::GenesisConfig {
@@ -1203,6 +1248,10 @@ pub fn rococo_testnet_genesis(
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
+		pallet_beefy: Some(rococo_runtime::BeefyConfig {
+			// TODO [ToDr] Beefy authorities
+			authorities: vec![],
+		}),
 		pallet_indices: Some(rococo_runtime::IndicesConfig {
 			indices: vec![],
 		}),
@@ -1213,7 +1262,14 @@ pub fn rococo_testnet_genesis(
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
-				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+				rococo_session_keys(
+					x.2.clone(),
+					x.3.clone(),
+					x.4.clone(),
+					x.5.clone(),
+					x.6.clone(),
+					x.7.clone(),
+				),
 			)).collect::<Vec<_>>(),
 		}),
 		pallet_babe: Some(Default::default()),
@@ -1430,8 +1486,8 @@ fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![
-			get_authority_keys_from_seed("Alice"),
-			get_authority_keys_from_seed("Bob"),
+			get_rococo_authority_keys_from_seed("Alice"),
+			get_rococo_authority_keys_from_seed("Bob"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
