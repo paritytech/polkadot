@@ -34,6 +34,7 @@ use runtime_common::{
 	SlowAdjustingFeeUpdate,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
+	AssignmentSessionKeyPlaceholder,
 };
 use runtime_parachains::{
 	self,
@@ -147,7 +148,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub parachain_validator: Initializer,
+		pub para_validator: Initializer,
+		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }

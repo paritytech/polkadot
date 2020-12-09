@@ -45,7 +45,7 @@ use primitives::v1::{
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
-	BlockHashCount, BlockWeights, BlockLength,
+	BlockHashCount, BlockWeights, BlockLength, AssignmentSessionKeyPlaceholder,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -252,7 +252,8 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
-		pub parachain_validator: Initializer,
+		pub para_validator: Initializer,
+		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
