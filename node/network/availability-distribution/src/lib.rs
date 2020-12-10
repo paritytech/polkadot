@@ -131,12 +131,6 @@ struct ProtocolState {
 	/// Maps relay parent / ancestor -> live candidate receipts + its hash.
 	receipts: HashMap<Hash, HashSet<(CandidateHash, CommittedCandidateReceipt)>>,
 
-	/// Allow reverse caching of view checks.
-	/// Maps candidate hash -> relay parent for extracting meta information from `PerRelayParent`.
-	/// Note that the presence of this is not sufficient to determine if deletion is OK, i.e.
-	/// two histories could cover this.
-	reverse: HashMap<CandidateHash, Hash>,
-
 	/// Keeps track of which candidate receipts are required due to ancestors of which relay parents
 	/// of our view.
 	/// Maps ancestor -> relay parents in view
@@ -237,9 +231,7 @@ impl ProtocolState {
 		let candidates = query_live_candidates(ctx, self, std::iter::once(relay_parent)).await?;
 
 		// register the relation of relay_parent to candidate..
-		// ..and the reverse association.
 		for ((relay_parent_or_ancestor, receipt_hash), receipt) in candidates.clone() {
-			self.reverse.insert(receipt_hash, relay_parent_or_ancestor);
 			let per_candidate = self.per_candidate.entry(receipt_hash).or_default();
 			per_candidate.validator_index = validator_index.clone();
 			per_candidate.validators = validators.clone();
