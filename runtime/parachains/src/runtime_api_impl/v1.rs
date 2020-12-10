@@ -26,7 +26,6 @@ use primitives::v1::{
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
 	InboundDownwardMessage, InboundHrmpMessage,
 };
-use sp_runtime::traits::Zero;
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
 
@@ -56,10 +55,6 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 
 	let time_out_at = |backed_in_number, availability_period| {
 		let time_out_at = backed_in_number + availability_period;
-
-		if rotation_info.group_rotation_frequency == Zero::zero() {
-			return time_out_at;
-		}
 
 		let current_window = rotation_info.last_rotation_at() + availability_period;
 		let next_rotation = rotation_info.next_rotation_at();

@@ -264,6 +264,7 @@ mod tests {
 	use primitives::v1::{
 		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId,
 	};
+	use frame_system::limits;
 	use frame_support::{
 		traits::{Randomness, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
@@ -299,11 +300,13 @@ mod tests {
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
-		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
-		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+		pub BlockWeights: limits::BlockWeights =
+			limits::BlockWeights::with_sensible_defaults(4 * 1024 * 1024, NORMAL_RATIO);
+		pub BlockLength: limits::BlockLength =
+			limits::BlockLength::max_with_normal_ratio(4 * 1024 * 1024, NORMAL_RATIO);
 	}
 
 	impl frame_system::Config for Test {
@@ -319,13 +322,9 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
 		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ();
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
+		type BlockWeights = BlockWeights;
+		type BlockLength = BlockLength;
 		type Version = ();
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u128>;
@@ -416,7 +415,7 @@ mod tests {
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
-		type OffchainSolutionWeightLimit = MaximumBlockWeight;
+		type OffchainSolutionWeightLimit = ();
 		type WeightInfo = ();
 	}
 

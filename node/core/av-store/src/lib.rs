@@ -58,25 +58,25 @@ mod columns {
 pub enum Error {
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
-	
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
-	
+
 	#[error(transparent)]
 	Erasure(#[from] erasure::Error),
-	
+
 	#[error(transparent)]
 	Io(#[from] io::Error),
-	
+
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
-	
+
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
-	
+
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
-	
+
 	#[error("Custom databases are not supported")]
 	CustomDatabase,
 }

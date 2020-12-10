@@ -101,8 +101,11 @@ impl<T: Config> Module<T> {
 		// update `EarliestStoredSession` based on `config.dispute_period`
 		EarliestStoredSession::set(new_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
-		for idx in old_earliest_stored_session..new_earliest_stored_session {
-			Sessions::remove(&idx);
+		// avoid a potentially heavy loop when introduced on a live chain
+		if old_earliest_stored_session != 0 || Sessions::get(0).is_some() {
+			for idx in old_earliest_stored_session..new_earliest_stored_session {
+				Sessions::remove(&idx);
+			}
 		}
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
@@ -216,7 +219,7 @@ mod tests {
 	}
 
 	#[test]
-	fn session_pruning_is_based_on_dispute_deriod() {
+	fn session_pruning_is_based_on_dispute_period() {
 		new_test_ext(genesis_config()).execute_with(|| {
 			run_to_block(100, session_changes);
 			assert_eq!(EarliestStoredSession::get(), 9);
@@ -251,6 +254,28 @@ mod tests {
 			run_to_block(2, new_session_every_block);
 			let session = Sessions::get(&2).unwrap();
 			assert_eq!(session.needed_approvals, 42);
+		})
+	}
+
+	#[test]
+	fn session_pruning_avoids_heavy_loop() {
+		new_test_ext(genesis_config()).execute_with(|| {
+			let start = 1_000_000_000;
+			System::on_initialize(start);
+			System::set_block_number(start);
+
+			if let Some(notification) = new_session_every_block(start) {
+				Configuration::initializer_on_new_session(&notification.validators, &notification.queued);
+				SessionInfo::initializer_on_new_session(&notification);
+			}
+
+			Configuration::initializer_initialize(start);
+			SessionInfo::initializer_initialize(start);
+
+			assert_eq!(EarliestStoredSession::get(), start - 1);
+
+			run_to_block(start + 1, new_session_every_block);
+			assert_eq!(EarliestStoredSession::get(), start);
 		})
 	}
 }

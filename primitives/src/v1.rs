@@ -24,7 +24,7 @@ use bitvec::vec::BitVec;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
-use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
@@ -573,11 +573,7 @@ impl GroupRotationInfo {
 impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 	/// Returns the block number of the next rotation after the current block. If the current block
 	/// is 10 and the rotation frequency is 5, this should return 15.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn next_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
-
 		let cycle_once = self.now + self.group_rotation_frequency;
 		cycle_once - (
 			cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency
@@ -586,10 +582,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 
 	/// Returns the block number of the last rotation before or including the current block. If the
 	/// current block is 10 and the rotation frequency is 5, this should return 10.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn last_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
 		self.now - (
 			self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency
 		)
@@ -837,15 +830,6 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 20);
 		assert_eq!(info.last_rotation_at(), 15);
-
-		let info = GroupRotationInfo {
-			session_start_block: 10u32,
-			now: 11,
-			group_rotation_frequency: 0,
-		};
-
-		assert_eq!(info.next_rotation_at(), 0);
-		assert_eq!(info.last_rotation_at(), 0);
 	}
 
 	#[test]
