@@ -230,6 +230,20 @@ impl ProtocolState {
 	{
 		let candidates = query_live_candidates(ctx, self, std::iter::once(relay_parent)).await?;
 
+		self.add_relay_parent_inner(
+			relay_parent,
+			candidates,
+			validators,
+			validator_index)
+	}
+
+	fn add_relay_parent_inner(
+		&mut self,
+		relay_parent: Hash,
+		candidates: HashMap<(Hash, CandidateHash), CommittedCandidateReceipt>,
+		validators: Vec<ValidatorId>,
+		validator_index: Option<ValidatorIndex>,
+	) -> Result<()> {
 		// register the relation of relay_parent to candidate..
 		for ((relay_parent_or_ancestor, receipt_hash), receipt) in candidates.clone() {
 			let per_candidate = self.per_candidate.entry(receipt_hash).or_default();

@@ -4790,6 +4790,7 @@ dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
+ "maplit",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
