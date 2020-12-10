@@ -16,8 +16,31 @@
 
 use log::info;
 use service::{IdentifyVariant, self};
-use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
+use sc_cli::{SubstrateCli, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+	#[error(transparent)]
+	PolkadotService(#[from] service::Error),
+
+	#[error(transparent)]
+	SubstrateCli(#[from] sc_cli::Error),
+
+	#[error(transparent)]
+	SubstrateService(#[from] sc_service::Error),
+
+	#[error("Other: {0}")]
+	Other(String),
+}
+
+impl std::convert::From<String> for Error {
+	fn from(s: String) -> Self {
+		Self::Other(s)
+	}
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 fn get_exec_name() -> Option<String> {
 	std::env::current_exe()
@@ -139,22 +162,27 @@ pub fn run() -> Result<()> {
 				info!("----------------------------");
 			}
 
-			runner.run_node_until_exit(|config| async move {
+
+			Ok(runner.run_node_until_exit(move |config| async move {
 				let role = config.role.clone();
 
-				match role {
-					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+				let task_manager = match role {
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager)
+					.map_err(|e| sc_service::Error::Other(e.to_string()) ),
 					_ => service::build_full(
 						config,
 						service::IsCollator::No,
 						grandpa_pause,
-					).map(|full| full.task_manager),
-				}
-			})
+					).map(|full| full.task_manager)
+					.map_err(|e| sc_service::Error::Other(e.to_string()) )
+				};
+				task_manager
+			}).map_err(|e| -> sc_cli::Error { e.into() })?)
+
 		},
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
+			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
 		},
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -163,7 +191,8 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -174,7 +203,8 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
@@ -185,7 +215,8 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
@@ -196,13 +227,15 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
 		Some(Subcommand::PurgeChain(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.sync_run(|config| cmd.run(config.database))
+			Ok(runner.sync_run(|config| cmd.run(config.database))
+				.map_err(|e| sc_service::Error::Other(e.to_string()))?)
 		},
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -211,7 +244,8 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, backend), task_manager))
 			})
 		},
@@ -237,5 +271,6 @@ pub fn run() -> Result<()> {
 			})
 		},
 		Some(Subcommand::Key(cmd)) => cmd.run(),
-	}
+	}?;
+	Ok(())
 }
