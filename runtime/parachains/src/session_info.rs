@@ -25,7 +25,7 @@ use frame_support::{
 	weights::Weight,
 };
 use crate::{configuration, paras, scheduler};
-use sp_std::{cmp, vec::Vec};
+use sp_std::vec::Vec;
 
 pub trait Config:
 	frame_system::Config
@@ -100,17 +100,19 @@ impl<T: Config> Module<T> {
 
 		let new_session_index = notification.session_index;
 		let old_earliest_stored_session = EarliestStoredSession::get();
-		let dispute_period = cmp::max(1, dispute_period);
-		let new_earliest_stored_session = new_session_index.checked_sub(dispute_period - 1).unwrap_or(0);
-		let new_earliest_stored_session = cmp::max(new_earliest_stored_session, old_earliest_stored_session);
-		// update `EarliestStoredSession` based on `config.dispute_period`
-		EarliestStoredSession::set(new_earliest_stored_session);
+		let new_earliest_stored_session = new_session_index.saturating_sub(dispute_period);
+		let new_earliest_stored_session = core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
 		// avoid a potentially heavy loop when introduced on a live chain
 		if old_earliest_stored_session != 0 || Sessions::get(0).is_some() {
 			for idx in old_earliest_stored_session..new_earliest_stored_session {
 				Sessions::remove(&idx);
 			}
+			// update `EarliestStoredSession` based on `config.dispute_period`
+			EarliestStoredSession::set(new_earliest_stored_session);
+		} else {
+			// just introduced on a live chain
+			EarliestStoredSession::set(new_session_index);
 		}
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
@@ -249,24 +251,29 @@ mod tests {
 	#[test]
 	fn session_pruning_is_based_on_dispute_period() {
 		new_test_ext(genesis_config()).execute_with(|| {
+			let default_info = primitives::v1::SessionInfo::default();
+			Sessions::insert(9, default_info);
 			run_to_block(100, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 9);
+			// but the first session change is not based on dispute_period
+			assert_eq!(EarliestStoredSession::get(), 10);
+			// and we didn't prune the last changes
+			assert!(Sessions::get(9).is_some());
 
 			// changing dispute_period works
 			let dispute_period = 5;
 			Configuration::set_dispute_period(Origin::root(), dispute_period).unwrap();
 			run_to_block(200, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period + 1);
+			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
 
 			// we don't have that many sessions stored
 			let new_dispute_period = 16;
 			Configuration::set_dispute_period(Origin::root(), new_dispute_period).unwrap();
 			run_to_block(300, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period + 1);
+			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
 
 			// now we do
 			run_to_block(400, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 40 - new_dispute_period + 1);
+			assert_eq!(EarliestStoredSession::get(), 40 - new_dispute_period);
 		})
 	}
 
@@ -282,28 +289,6 @@ mod tests {
 			run_to_block(2, new_session_every_block);
 			let session = Sessions::get(&2).unwrap();
 			assert_eq!(session.needed_approvals, 42);
-		})
-	}
-
-	#[test]
-	fn session_pruning_avoids_heavy_loop() {
-		new_test_ext(genesis_config()).execute_with(|| {
-			let start = 1_000_000_000;
-			System::on_initialize(start);
-			System::set_block_number(start);
-
-			if let Some(notification) = new_session_every_block(start) {
-				Configuration::initializer_on_new_session(&notification.validators, &notification.queued);
-				SessionInfo::initializer_on_new_session(&notification);
-			}
-
-			Configuration::initializer_initialize(start);
-			SessionInfo::initializer_initialize(start);
-
-			assert_eq!(EarliestStoredSession::get(), start - 1);
-
-			run_to_block(start + 1, new_session_every_block);
-			assert_eq!(EarliestStoredSession::get(), start);
 		})
 	}
 }
