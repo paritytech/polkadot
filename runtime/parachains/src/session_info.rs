@@ -223,10 +223,13 @@ mod tests {
 	#[test]
 	fn session_pruning_is_based_on_dispute_period() {
 		new_test_ext(genesis_config()).execute_with(|| {
+			let default_info = primitives::v1::SessionInfo::default();
+			Sessions::insert(9, default_info);
 			run_to_block(100, session_changes);
 			// but the first session change is not based on dispute_period
 			assert_eq!(EarliestStoredSession::get(), 10);
-			assert!(Sessions::get(10 - 1).is_none());
+			// and we didn't prune the last changes
+			assert!(Sessions::get(9).is_some());
 
 			// changing dispute_period works
 			let dispute_period = 5;
