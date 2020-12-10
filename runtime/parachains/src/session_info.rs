@@ -97,14 +97,17 @@ impl<T: Config> Module<T> {
 		let old_earliest_stored_session = EarliestStoredSession::get();
 		let new_earliest_stored_session = new_session_index.checked_sub(dispute_period).unwrap_or(0);
 		let new_earliest_stored_session = core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
-		// update `EarliestStoredSession` based on `config.dispute_period`
-		EarliestStoredSession::set(new_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
 		// avoid a potentially heavy loop when introduced on a live chain
 		if old_earliest_stored_session != 0 || Sessions::get(0).is_some() {
 			for idx in old_earliest_stored_session..new_earliest_stored_session {
 				Sessions::remove(&idx);
 			}
+			// update `EarliestStoredSession` based on `config.dispute_period`
+			EarliestStoredSession::set(new_earliest_stored_session);
+		} else {
+			// just introduced on a live chain
+			EarliestStoredSession::set(new_session_index);
 		}
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
@@ -223,7 +226,7 @@ mod tests {
 	fn session_pruning_is_based_on_dispute_period() {
 		new_test_ext(genesis_config()).execute_with(|| {
 			run_to_block(100, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 10 - 2);
+			assert_eq!(EarliestStoredSession::get(), 10);
 
 			// changing dispute_period works
 			let dispute_period = 5;
@@ -275,10 +278,10 @@ mod tests {
 					Configuration::initializer_initialize(start);
 					SessionInfo::initializer_initialize(start);
 
-					assert_eq!(EarliestStoredSession::get(), start - 2);
+					assert_eq!(EarliestStoredSession::get(), start);
 
 					run_to_block(start + 1, new_session_every_block);
-					assert_eq!(EarliestStoredSession::get(), start - 1);
+					assert_eq!(EarliestStoredSession::get(), start);
 				})
 			}.timeout(Duration::from_secs(5))
 			.await
