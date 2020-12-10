@@ -28,7 +28,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
+	Error, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
 };
 use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
 use polkadot_test_runtime::{
@@ -45,7 +45,7 @@ use sc_network::{
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	error::Error as ServiceError,
+	error::SubstrateServiceError as ServiceError,
 	RpcHandlers, TaskExecutor, TaskManager,
 };
 use service::{BasePath, Configuration, Role};
@@ -83,7 +83,7 @@ pub fn new_full(
 		is_collator,
 		None,
 		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
-	).map_err(Into::into)
+	)
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.
