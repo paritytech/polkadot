@@ -1081,3 +1081,222 @@ fn k_ancestors_in_session() {
 
 	executor::block_on(future::join(test_fut, sut).timeout(Duration::from_millis(1000)));
 }
+
+#[test]
+fn clean_up_receipts_cache_unions_ancestors_and_view() {
+	let mut state = ProtocolState::default();
+
+	let hash_a = [0u8; 32].into();
+	let hash_b = [1u8; 32].into();
+	let hash_c = [2u8; 32].into();
+	let hash_d = [3u8; 32].into();
+
+	state.receipts.insert(hash_a, HashSet::new());
+	state.receipts.insert(hash_b, HashSet::new());
+	state.receipts.insert(hash_c, HashSet::new());
+	state.receipts.insert(hash_d, HashSet::new());
+
+	state.per_relay_parent.insert(hash_a, PerRelayParent {
+		ancestors: vec![hash_b],
+		live_candidates: HashSet::new(),
+	});
+
+	state.per_relay_parent.insert(hash_c, PerRelayParent::default());
+
+	state.clean_up_receipts_cache();
+
+	assert_eq!(state.receipts.len(), 3);
+	assert!(state.receipts.contains_key(&hash_a));
+	assert!(state.receipts.contains_key(&hash_b));
+	assert!(state.receipts.contains_key(&hash_c));
+	assert!(!state.receipts.contains_key(&hash_d));
+}
+
+#[test]
+fn remove_relay_parent_only_removes_per_candidate_if_final() {
+	let mut state = ProtocolState::default();
+
+	let hash_a = [0u8; 32].into();
+	let hash_b = [1u8; 32].into();
+
+	let candidate_hash_a = CandidateHash([46u8; 32].into());
+
+	state.per_relay_parent.insert(hash_a, PerRelayParent {
+		ancestors: vec![],
+		live_candidates: std::iter::once(candidate_hash_a).collect(),
+	});
+
+	state.per_relay_parent.insert(hash_b, PerRelayParent {
+		ancestors: vec![],
+		live_candidates: std::iter::once(candidate_hash_a).collect(),
+	});
+
+	state.per_candidate.insert(candidate_hash_a, PerCandidate {
+		live_in: vec![hash_a, hash_b].into_iter().collect(),
+		..Default::default()
+	});
+
+	state.remove_relay_parent(&hash_a);
+
+	assert!(!state.per_relay_parent.contains_key(&hash_a));
+	assert!(!state.per_candidate.get(&candidate_hash_a).unwrap().live_in.contains(&hash_a));
+	assert!(state.per_candidate.get(&candidate_hash_a).unwrap().live_in.contains(&hash_b));
+
+	state.remove_relay_parent(&hash_b);
+
+	assert!(!state.per_relay_parent.contains_key(&hash_b));
+	assert!(!state.per_candidate.contains_key(&candidate_hash_a));
+}
+
+#[test]
+fn add_relay_parent_includes_all_live_candidates() {
+	let relay_parent = [0u8; 32].into();
+
+	let mut state = ProtocolState::default();
+
+	let ancestor_a = [1u8; 32].into();
+
+	let candidate_hash_a = CandidateHash([10u8; 32].into());
+	let candidate_hash_b = CandidateHash([11u8; 32].into());
+
+	let candidates = vec![
+		(candidate_hash_a, FetchedLiveCandidate::Fresh(Default::default())),
+		(candidate_hash_b, FetchedLiveCandidate::Cached),
+	].into_iter().collect();
+
+	state.add_relay_parent(
+		relay_parent,
+		Vec::new(),
+		None,
+		candidates,
+		vec![ancestor_a],
+	);
+
+	assert!(
+		state.per_candidate.get(&candidate_hash_a).unwrap().live_in.contains(&relay_parent)
+	);
+	assert!(
+		state.per_candidate.get(&candidate_hash_b).unwrap().live_in.contains(&relay_parent)
+	);
+
+	let per_relay_parent = state.per_relay_parent.get(&relay_parent).unwrap();
+
+	assert!(per_relay_parent.live_candidates.contains(&candidate_hash_a));
+	assert!(per_relay_parent.live_candidates.contains(&candidate_hash_b));
+}
+
+#[test]
+fn query_pending_availability_at_pulls_from_and_updates_receipts() {
+	let hash_a = [0u8; 32].into();
+	let hash_b = [1u8; 32].into();
+
+	let para_a = ParaId::from(1);
+	let para_b = ParaId::from(2);
+	let para_c = ParaId::from(3);
+
+	let make_candidate = |para_id| {
+		let mut candidate = CommittedCandidateReceipt::default();
+		candidate.descriptor.para_id = para_id;
+		candidate.descriptor.relay_parent = [69u8; 32].into();
+		candidate
+	};
+
+	let candidate_a = make_candidate(para_a);
+	let candidate_b = make_candidate(para_b);
+	let candidate_c = make_candidate(para_c);
+
+	let candidate_hash_a = candidate_a.hash();
+	let candidate_hash_b = candidate_b.hash();
+	let candidate_hash_c = candidate_c.hash();
+
+	// receipts has an initial entry for hash_a but not hash_b.
+	let mut receipts = HashMap::new();
+	receipts.insert(hash_a, vec![candidate_hash_a, candidate_hash_b].into_iter().collect());
+
+	let pool = sp_core::testing::TaskExecutor::new();
+
+	let (mut ctx, mut virtual_overseer) =
+		test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, _>(pool);
+
+	let test_fut = async move {
+		let live_candidates = query_pending_availability_at(
+			&mut ctx,
+			vec![hash_a, hash_b],
+			&mut receipts,
+		).await.unwrap();
+
+		// although 'b' is cached from the perspective of hash_a, it gets overwritten when we query what's happening in
+		//
+		assert_eq!(live_candidates.len(), 3);
+		assert_matches!(live_candidates.get(&candidate_hash_a).unwrap(), FetchedLiveCandidate::Cached);
+		assert_matches!(live_candidates.get(&candidate_hash_b).unwrap(), FetchedLiveCandidate::Cached);
+		assert_matches!(live_candidates.get(&candidate_hash_c).unwrap(), FetchedLiveCandidate::Fresh(_));
+
+		assert!(receipts.get(&hash_b).unwrap().contains(&candidate_hash_b));
+		assert!(receipts.get(&hash_b).unwrap().contains(&candidate_hash_c));
+	};
+
+	let answer = async move {
+		// hash_a should be answered out of cache, so we should just have
+		// queried for hash_b.
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					r,
+					RuntimeApiRequest::AvailabilityCores(tx),
+				)
+			) if r == hash_b => {
+				let _ = tx.send(Ok(vec![
+					CoreState::Occupied(OccupiedCore {
+						para_id: para_b,
+						next_up_on_available: None,
+						occupied_since: 0,
+						time_out_at: 0,
+						next_up_on_time_out: None,
+						availability: Default::default(),
+						group_responsible: GroupIndex::from(0),
+					}),
+					CoreState::Occupied(OccupiedCore {
+						para_id: para_c,
+						next_up_on_available: None,
+						occupied_since: 0,
+						time_out_at: 0,
+						next_up_on_time_out: None,
+						availability: Default::default(),
+						group_responsible: GroupIndex::from(0),
+					}),
+				]));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					r,
+					RuntimeApiRequest::CandidatePendingAvailability(p, tx),
+				)
+			) if r == hash_b && p == para_b => {
+				let _ = tx.send(Ok(Some(candidate_b)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					r,
+					RuntimeApiRequest::CandidatePendingAvailability(p, tx),
+				)
+			) if r == hash_b && p == para_c => {
+				let _ = tx.send(Ok(Some(candidate_c)));
+			}
+		);
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(answer);
+
+	executor::block_on(future::join(test_fut, answer));
+}
