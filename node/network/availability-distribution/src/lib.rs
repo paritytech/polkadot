@@ -129,7 +129,7 @@ struct ProtocolState {
 	/// Caches a mapping of relay parents or ancestor to live candidate receipts.
 	/// Allows fast intersection of live candidates with views and consecutive unioning.
 	/// Maps relay parent / ancestor -> live candidate receipts + its hash.
-	receipts: HashMap<Hash, HashSet<(CandidateHash, CommittedCandidateReceipt)>>,
+	receipts: HashMap<Hash, HashSet<CandidateHash>>,
 
 	/// Keeps track of which candidate receipts are required due to ancestors of which relay parents
 	/// of our view.
@@ -161,6 +161,9 @@ struct PerCandidate {
 
 	/// If this node is a validator, note the index in the validator set.
 	validator_index: Option<ValidatorIndex>,
+
+	/// The set of relay chain blocks this appears to be live in.
+	live_in: HashSet<Hash>,
 }
 
 impl PerCandidate {
@@ -174,7 +177,10 @@ impl PerCandidate {
 #[derive(Debug, Clone, Default)]
 struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
+	// TODO [now]: if we need this, amend return type of query_live_candidates.
 	ancestors: Vec<Hash>,
+	/// Live candidates, according to this relay parent.
+	live_candidates: HashSet<CandidateHash>,
 }
 
 impl ProtocolState {
@@ -231,15 +237,11 @@ impl ProtocolState {
 		let candidates = query_live_candidates(ctx, self, std::iter::once(relay_parent)).await?;
 
 		// register the relation of relay_parent to candidate..
-		for ((relay_parent_or_ancestor, receipt_hash), receipt) in candidates.clone() {
+		for receipt_hash in candidates {
 			let per_candidate = self.per_candidate.entry(receipt_hash).or_default();
 			per_candidate.validator_index = validator_index.clone();
 			per_candidate.validators = validators.clone();
-
-			self.receipts
-				.entry(relay_parent_or_ancestor)
-				.or_default()
-				.insert((receipt_hash, receipt));
+			per_candidate.live_in.insert(relay_parent);
 		}
 
 		// collect the ancestors again from the hash map
@@ -282,7 +284,7 @@ impl ProtocolState {
 		if let Some(per_relay_parent) = self.per_relay_parent.remove(relay_parent) {
 			// remove all "references" from the hash maps and sets for all ancestors
 			for ancestor in per_relay_parent.ancestors {
-				// one of our decendants might be ancestor of some other relay_parent
+				// one of our descendants might be ancestor of some other relay_parent
 				if let Some(ref mut descendants) = self.ancestry.get_mut(&ancestor) {
 					// we do not need this descendant anymore
 					descendants.remove(&relay_parent);
@@ -780,20 +782,40 @@ where
 }
 
 /// Obtain all live candidates for all given `relay_blocks`.
+///
+/// This returns a set of all candidate hashes pending availability within the state
+/// of the explicitly referenced relay heads.
+///
+/// This also queries the provided `receipts` cache before reaching into the
+/// runtime and updates it with the information learned.
 #[tracing::instrument(level = "trace", skip(ctx, relay_blocks), fields(subsystem = LOG_TARGET))]
 async fn query_live_candidates_for_relay_blocks<Context>(
 	ctx: &mut Context,
 	relay_blocks: impl IntoIterator<Item = Hash>,
-) -> Result<HashMap<(Hash, CandidateHash), CommittedCandidateReceipt>>
+	receipts: &mut HashMap<Hash, HashSet<CandidateHash>>,
+) -> Result<HashSet<CandidateHash>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
+	use std::collections::hash_map::Entry;
+
 	let mut live_candidates = HashMap::new();
 
 	for relay_parent in relay_blocks {
+		let mut receipts_for = match receipts.entry(relay_parent) {
+			Entry::Occupied(occupied) => {
+				live_candidates.extend(occupied.get().iter().cloned());
+				continue
+			}
+			Entry::vacant(mut vacant) => vacant.insert(Default::default()),
+		};
+
 		for para in query_para_ids(ctx, relay_parent).await? {
 			if let Some(ccr) = query_pending_availability(ctx, relay_parent, para).await? {
-				live_candidates.insert((relay_parent, ccr.hash()), ccr);
+				let receipt_hash = ccr.hash();
+
+				live_candidates.entry(receipt_hash).or_default().0.push(relay_parent);
+				receipts_for.insert(receipt_hash);
 			}
 		}
 	}
@@ -801,65 +823,41 @@ where
 	Ok(live_candidates)
 }
 
-/// Obtain all live candidates based on an iterator or relay heads including `k` ancestors.
+/// Obtain all live candidates under a particular relay head. This implicitly includes
+/// `K` ancestors of the head, such that the candidates pending availability in all of
+/// the states of the head and the ancestors are unioned together to produce the
+/// return type of this function.
 ///
-/// Relay parent.
+/// This also updates all `receipts` cached by the protocol state.
 #[tracing::instrument(level = "trace", skip(ctx, relay_parents), fields(subsystem = LOG_TARGET))]
 async fn query_live_candidates<Context>(
 	ctx: &mut Context,
-	state: &mut ProtocolState,
-	relay_parents: impl IntoIterator<Item = Hash>,
-) -> Result<HashMap<(Hash, CandidateHash), CommittedCandidateReceipt>>
+	receipts: &mut HashMap<Hash, HashSet<CandidateHash>>,
+	relay_parent: Hash,
+) -> Result<HashSet<CandidateHash>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	let iter = relay_parents.into_iter();
-	let hint = iter.size_hint();
+	// register one of relay parents (not the ancestors)
+	let mut ancestors = query_up_to_k_ancestors_in_same_session(
+		ctx,
+		relay_parent,
+		AvailabilityDistributionSubsystem::K,
+	)
+	.await?;
 
-	let capacity = hint.1.unwrap_or(hint.0) * (1 + AvailabilityDistributionSubsystem::K);
-	let mut live_candidates =
-		HashMap::<(Hash, CandidateHash), CommittedCandidateReceipt>::with_capacity(capacity);
+	ancestors.push(relay_parent);
 
-	for relay_parent in iter {
-		// register one of relay parents (not the ancestors)
-		let mut ancestors = query_up_to_k_ancestors_in_same_session(
-			ctx,
-			relay_parent,
-			AvailabilityDistributionSubsystem::K,
-		)
-		.await?;
-
-		ancestors.push(relay_parent);
-
-		// ancestors might overlap, so check the cache too
-		let unknown = ancestors
-			.into_iter()
-			.filter(|relay_parent_or_ancestor| {
-				// use the ones which we pulled before
-				// but keep the unknown relay parents
-				state
-					.receipts
-					.get(relay_parent_or_ancestor)
-					.map(|receipts| {
-						// directly extend the live_candidates with the cached value
-						live_candidates.extend(
-							receipts.into_iter().map(|(receipt_hash, receipt)|
-								((relay_parent, *receipt_hash), receipt.clone())
-							)
-						);
-						false
-					})
-					.unwrap_or(true)
-			})
-			.collect::<Vec<_>>();
-
-		// query the ones that were not present in the receipts cache
-		live_candidates.extend(query_live_candidates_for_relay_blocks(ctx, unknown).await?);
-	}
-	Ok(live_candidates)
+	// query the ones that were not present in the receipts cache and add them
+	// to it.
+	query_live_candidates_for_relay_blocks(
+		ctx,
+		ancestors,
+		receipts,
+	).await?
 }
 
-/// Query all para IDs.
+/// Query all para IDs that are occupied under a given relay-parent.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_para_ids<Context>(ctx: &mut Context, relay_parent: Hash) -> Result<Vec<ParaId>>
 where
