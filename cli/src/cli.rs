@@ -97,7 +97,7 @@ pub struct RunCmd {
 	/// Must be valid socket address, of format `IP:Port`
 	/// commonly `127.0.0.1:6831`.
 	#[structopt(long)]
-	pub jaeger_agent: Option<String>,
+	pub jaeger_agent: Option<std::net::SocketAddr>,
 }
 
 #[allow(missing_docs)]

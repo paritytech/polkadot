@@ -169,10 +169,10 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
-fn jaeger_launch_collector_with_agent(config: &Configuration, agent: Option<String>) -> Result<(), Error> {
+fn jaeger_launch_collector_with_agent(config: &Configuration, agent: Option<std::net::SocketAddr>) -> Result<(), Error> {
 	if let Some(agent) = agent {
 		let cfg = jaeger::JaegerConfig::builder()
-			.agent(agent.parse::<std::net::SocketAddr>()?)
+			.agent(agent)
 			.named(&config.network.node_name)
 			.build();
 
@@ -196,7 +196,7 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: Option<String>) -> Result<
+fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: Option<std::net::SocketAddr>) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
@@ -528,7 +528,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	jaeger_agent: Option<String>,
+	jaeger_agent: Option<std::net::SocketAddr>,
 	isolation_strategy: IsolationStrategy,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
@@ -901,7 +901,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops(mut config: &mut Configuration, jaeger_agent: Option<String>) -> Result<
+pub fn new_chain_ops(mut config: &mut Configuration, jaeger_agent: Option<std::net::SocketAddr>) -> Result<
 	(
 		Arc<Client>,
 		Arc<FullBackend>,
@@ -949,7 +949,7 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	jaeger_agent: Option<String>,
+	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
