@@ -27,7 +27,6 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use {
 	std::convert::TryInto,
 	std::time::Duration,
-
 	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
@@ -36,11 +35,13 @@ use {
 	polkadot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
-	sp_core::traits::SpawnNamed,
 	sp_keystore::SyncCryptoStorePtr,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
 };
+
+use sp_core::traits::SpawnNamed;
+
 
 use polkadot_subsystem::jaeger;
 
