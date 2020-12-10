@@ -45,7 +45,6 @@ use sc_network::{
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	error::SubstrateServiceError as ServiceError,
 	RpcHandlers, TaskExecutor, TaskManager,
 };
 use service::{BasePath, Configuration, Role};
@@ -76,7 +75,7 @@ pub fn new_full(
 	is_collator: IsCollator,
 ) -> Result<
 	NewFull<Arc<Client>>,
-	ServiceError,
+	Error,
 > {
 	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
