@@ -284,7 +284,7 @@ impl JobTrait for BitfieldSigningJob {
 			sender
 				.send(
 					AllMessages::from(
-						BitfieldDistributionMessage::DistributeBitfield(relay_parent, dbg!(signed_bitfield)),
+						BitfieldDistributionMessage::DistributeBitfield(relay_parent, signed_bitfield),
 					).into(),
 				)
 				.await
