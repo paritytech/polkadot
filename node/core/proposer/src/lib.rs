@@ -196,7 +196,6 @@ where
 		record_proof: RecordProof,
 	) -> Self::Proposal {
 		async move {
-
 			let span = jaeger::hash_span(&self.parent_header_hash, "propose");
 			let _span = span.child("get provisioner");
 
