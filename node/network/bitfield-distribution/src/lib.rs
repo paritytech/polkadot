@@ -179,7 +179,6 @@ impl BitfieldDistribution {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-
 					for relay_parent in activated {
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
 						let _span = jaeger::hash_span(&relay_parent, "bitfield-dist:active_leaves:basics");
