@@ -18,18 +18,14 @@
 //! `pallet-staking` to compute the rewards.
 //!
 //! Based on https://w3f-research.readthedocs.io/en/latest/polkadot/Token%20Economics.html
-//! which doesn't currently mention availability bitfields. Since those are not a huge amount
-//! of work and every validator will be doing a lot of availability networking, we set the
-//! availability rewards to be very small relative to backing.
+//! which doesn't currently mention availability bitfields. As such, we don't reward them
+//! for the time being, although we will build schemes to do so in the future.
 
 use primitives::v1::ValidatorIndex;
 use pallet_staking::SessionInterface;
 
 /// The amount of era points given by backing a candidate that is included.
 pub const BACKING_POINTS: u32 = 20;
-
-/// The amount of era points given by contributing to the availability of a candidate.
-pub const AVAILABILITY_POINTS: u32 = 1;
 
 /// Rewards validators for participating in parachains with era points in pallet-staking.
 pub struct RewardValidatorsWithEraPoints<C>(sp_std::marker::PhantomData<C>);
@@ -55,7 +51,5 @@ impl<C> crate::inclusion::RewardValidators for RewardValidatorsWithEraPoints<C>
 		reward_by_indices::<C, _>(BACKING_POINTS, validators);
 	}
 
-	fn reward_bitfields(validators: impl IntoIterator<Item=ValidatorIndex>) {
-		reward_by_indices::<C, _>(AVAILABILITY_POINTS, validators);
-	}
+	fn reward_bitfields(_validators: impl IntoIterator<Item=ValidatorIndex>) { }
 }
