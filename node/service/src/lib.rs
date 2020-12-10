@@ -100,7 +100,6 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
 	#[error(transparent)]
