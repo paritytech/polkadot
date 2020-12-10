@@ -41,6 +41,7 @@
 //! ```
 //!
 
+use polkadot_node_primitives::SpawnNamed;
 use polkadot_primitives::v1::{Hash, PoV, CandidateHash};
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -63,7 +64,7 @@ impl std::default::Default for JaegerConfig {
 	fn default() -> Self {
 		Self {
 			node_name: "unknown_".to_owned(),
-			agent_addr: "127.0.0.1:6831".expect(r#"Static "127.0.0.1:6831" is a valid socket address string. qed"#),
+			agent_addr: "127.0.0.1:6831".parse().expect(r#"Static "127.0.0.1:6831" is a valid socket address string. qed"#),
 		}
 	}
 }
@@ -209,11 +210,11 @@ impl Jaeger {
 
 
 		// Spawn a background task that pulls span information and sends them on the network.
-		spawner.spawn("jaeger-collector", async move {
+		spawner.spawn("jaeger-collector", Box::pin(async move {
 			let res = async_std::net::UdpSocket::bind("127.0.0.1:0").await
 				.map_err(JaegerError::PortAllocationError);
-			if let Ok(udp_socket) = res {
-				loop {
+			match res {
+				Ok(udp_socket) => loop {
 					let buf = traces_out.next().await;
 					// UDP sending errors happen only either if the API is misused or in case of missing privilege.
 					if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await
@@ -222,10 +223,11 @@ impl Jaeger {
 						log::trace!("Jaeger: {:?}", e);
 					}
 				}
-			} else {
-				log::warn!("Jaeger: {:?}", e);
+				Err(e) => {
+					log::warn!("Jaeger: {:?}", e);
+				}
 			}
-		});
+		}));
 
 		*INSTANCE.write() = Self::Launched {
 			traces_in,
@@ -248,7 +250,7 @@ impl Jaeger {
 		let traces_in = self.traces_in()?;
 		let mut buf = [0u8; 16];
 		buf.copy_from_slice(&hash.as_ref()[0..16]);
-		let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?
+		let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?;
 		Some(traces_in.span(trace_id, span_name))
 	}
 }

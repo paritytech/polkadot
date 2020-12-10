@@ -169,14 +169,14 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
-fn jaeger_launch_collector_with_agent(config: &Configuration, agent: Option<std::net::SocketAddr>) -> Result<(), Error> {
+fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configuration, agent: Option<std::net::SocketAddr>) -> Result<(), Error> {
 	if let Some(agent) = agent {
 		let cfg = jaeger::JaegerConfig::builder()
 			.agent(agent)
 			.named(&config.network.node_name)
 			.build();
 
-		jaeger::Jaeger::new(cfg).launch()?;
+		jaeger::Jaeger::new(cfg).launch(spawner)?;
 	}
 	Ok(())
 }
@@ -225,7 +225,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		Executor: NativeExecutionDispatch + 'static,
 {
 	set_prometheus_registry(config)?;
-	jaeger_launch_collector_with_agent(&*config, jaeger_agent)?;
 
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
@@ -233,6 +232,8 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
+
+	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
