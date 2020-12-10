@@ -184,13 +184,13 @@ impl Jaeger {
 
 	/// Spawn the background task in order to send the tracing information out via udp
 	#[cfg(target_os = "unknown")]
-	pub fn launch(self) -> result::Result<(), JaegerError> {
+	pub fn launch<S: SpawnNamed>(self, _spawner: S) -> result::Result<(), JaegerError> {
 		Ok(())
 	}
 
 	/// Spawn the background task in order to send the tracing information out via udp
 	#[cfg(not(target_os = "unknown"))]
-	pub fn launch(self) -> result::Result<(), JaegerError> {
+	pub fn launch<S: SpawnNamed>(self, spawner: S) -> result::Result<(), JaegerError> {
 		let cfg = match self {
 			Self::Prep(cfg) => Ok(cfg),
 			Self::Launched{ .. } => {
@@ -209,18 +209,21 @@ impl Jaeger {
 
 
 		// Spawn a background task that pulls span information and sends them on the network.
-		let _handle = async_std::task::spawn::<_, result::Result<(), JaegerError>>(async move {
-			let udp_socket = async_std::net::UdpSocket::bind("127.0.0.1:0").await
-				.map_err(|e| JaegerError::PortAllocationError(e))?;
-
-			loop {
-				let buf = traces_out.next().await;
-				// UDP sending errors happen only either if the API is misused or in case of missing privilege.
-				if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await
-					.map_err(|e| JaegerError::SendError(e))
-				{
-					log::trace!("Failed to send jaeger span: {:?}", e);
+		spawner.spawn("jaeger-collector", async move {
+			let res = async_std::net::UdpSocket::bind("127.0.0.1:0").await
+				.map_err(|e| JaegerError::PortAllocationError(e));
+			if let Ok(udp_socket) = res {
+				loop {
+					let buf = traces_out.next().await;
+					// UDP sending errors happen only either if the API is misused or in case of missing privilege.
+					if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await
+						.map_err(|e| JaegerError::SendError(e))
+					{
+						log::trace!("Jaeger: {:?}", e);
+					}
 				}
+			} else {
+				log::warn!("Jaeger: {:?}", e);
 			}
 		});
 
