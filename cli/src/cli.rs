@@ -92,6 +92,10 @@ pub struct RunCmd {
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
 
+	/// Add the destination address to the jaeger agent.
+	///
+	/// Must be valid socket address, of format `IP:Port`
+	/// commonly `127.0.0.1:6831`.
 	#[structopt(long)]
 	pub jaeger_agent: Option<String>,
 }
