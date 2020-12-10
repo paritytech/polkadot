@@ -255,12 +255,18 @@ impl Jaeger {
 
 	fn span(&self, hash: &Hash, span_name: impl Into<String>) -> Option<mick_jaeger::Span> {
 		if let Some(traces_in) = self.traces_in() {
-			let trace_id = {
+			if let Some(trace_id) = {
 				let mut buf = [0u8; 16];
 				buf.copy_from_slice(&hash.as_ref()[0..16]);
 				std::num::NonZeroU128::new(u128::from_be_bytes(buf))
-			}.expect("The provided Hash is not all zero bytes; qed");
-			Some(traces_in.span(trace_id, span_name))
+			} {
+				Some(traces_in.span(trace_id, span_name))
+			} else {
+				// in the odd case of the higher 16 bytes being all zeros
+				// very unilikely given an appropriate hash algorithm
+				// but we don't want to bring a node down due to that
+				None
+			}
 		} else {
 			None
 		}
