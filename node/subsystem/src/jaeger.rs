@@ -210,20 +210,8 @@ impl Jaeger {
 
 		// Spawn a background task that pulls span information and sends them on the network.
 		let _handle = async_std::task::spawn::<_, result::Result<(), JaegerError>>(async move {
-			let mut port = 49000_u16;
-			let mut udp_socket;
-
-			loop {
-				udp_socket = async_std::net::UdpSocket::bind(format!("127.0.0.1:{}", port)).await;
-				if udp_socket.is_ok() {
-					break;
-				}
-				port += 1;
-				if port == std::primitive::u16::MAX {
-					break;
-				}
-			}
-			let udp_socket = udp_socket.map_err(|e| JaegerError::PortAllocationError(e))?;
+			let udp_socket = async_std::net::UdpSocket::bind("127.0.0.1:0").await
+				.map_err(|e| JaegerError::PortAllocationError(e))?;
 
 			loop {
 				let buf = traces_out.next().await;
