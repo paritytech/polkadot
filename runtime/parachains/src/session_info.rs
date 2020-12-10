@@ -144,6 +144,8 @@ mod tests {
 	use crate::configuration::HostConfiguration;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use primitives::v1::BlockNumber;
+	use polkadot_node_subsystem_util::TimeoutExt as _;
+	use std::time::Duration;
 
 	fn run_to_block(
 		to: BlockNumber,
@@ -259,23 +261,29 @@ mod tests {
 
 	#[test]
 	fn session_pruning_avoids_heavy_loop() {
-		new_test_ext(genesis_config()).execute_with(|| {
-			let start = 1_000_000_000;
-			System::on_initialize(start);
-			System::set_block_number(start);
+		futures::executor::block_on(async {
+			async {
+				new_test_ext(genesis_config()).execute_with(|| {
+					let start = 1_000_000_000;
+					System::on_initialize(start);
+					System::set_block_number(start);
 
-			if let Some(notification) = new_session_every_block(start) {
-				Configuration::initializer_on_new_session(&notification.validators, &notification.queued);
-				SessionInfo::initializer_on_new_session(&notification);
-			}
+					if let Some(notification) = new_session_every_block(start) {
+						Configuration::initializer_on_new_session(&notification.validators, &notification.queued);
+						SessionInfo::initializer_on_new_session(&notification);
+					}
 
-			Configuration::initializer_initialize(start);
-			SessionInfo::initializer_initialize(start);
+					Configuration::initializer_initialize(start);
+					SessionInfo::initializer_initialize(start);
 
-			assert_eq!(EarliestStoredSession::get(), start - 1);
+					assert_eq!(EarliestStoredSession::get(), start - 1);
 
-			run_to_block(start + 1, new_session_every_block);
-			assert_eq!(EarliestStoredSession::get(), start);
+					run_to_block(start + 1, new_session_every_block);
+					assert_eq!(EarliestStoredSession::get(), start);
+				})
+			}.timeout(Duration::from_secs(5))
+			.await
+			.expect("session info pruning should avoid the heavy loop")
 		})
 	}
 }
