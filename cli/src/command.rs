@@ -227,7 +227,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)
 					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
