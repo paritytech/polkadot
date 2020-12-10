@@ -19,7 +19,7 @@
 //!
 //! See https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html.
 
-use primitives::v1::{AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	weights::Weight,
@@ -38,6 +38,10 @@ pub trait Config:
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParaSessionInfo {
+		/// Assignment keys for the current session.
+		/// Note that this API is private due to it being prone to 'off-by-one' at session boundaries.
+		/// When in doubt, use `Sessions` API instead.
+		AssignmentKeysUnsafe: Vec<AssignmentId>;
 		/// The earliest session for which previous session info is stored.
 		EarliestStoredSession get(fn earliest_stored_session): SessionIndex;
 		/// Session information in a rolling window.
@@ -83,7 +87,8 @@ impl<T: Config> Module<T> {
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
-		// FIXME: once we store these keys: https://github.com/paritytech/polkadot/issues/1975
+		let _assignment_keys = AssignmentKeysUnsafe::get();
+		// FIXME: remove this once https://github.com/paritytech/polkadot/pull/2092 is merged
 		let approval_keys = Default::default();
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
@@ -130,6 +135,29 @@ impl<T: Config> Module<T> {
 
 	/// Called by the initializer to finalize the session info module.
 	pub(crate) fn initializer_finalize() {}
+}
+
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
+	type Public = AssignmentId;
+}
+
+impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
+	type Key = AssignmentId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, _queued: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		let assignment_keys: Vec<_> = validators.map(|(_, v)| v).collect();
+		AssignmentKeysUnsafe::set(assignment_keys);
+	}
+
+	fn on_disabled(_i: usize) { }
 }
 
 
