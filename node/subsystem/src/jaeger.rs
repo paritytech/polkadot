@@ -63,7 +63,7 @@ impl std::default::Default for JaegerConfig {
 	fn default() -> Self {
 		Self {
 			node_name: "unknown_".to_owned(),
-			agent_addr: "127.0.0.1:6831".parse().unwrap(),
+			agent_addr: "127.0.0.1:6831".expect(r#"Static "127.0.0.1:6831" is a valid socket address string. qed"#),
 		}
 	}
 }
