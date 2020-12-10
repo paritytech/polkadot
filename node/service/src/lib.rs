@@ -121,6 +121,7 @@ pub enum Error {
 	#[error(transparent)]
 	Prometheus(#[from] prometheus_endpoint::PrometheusError),
 
+	#[cfg(feature = "full-node")]
 	#[error(transparent)]
 	Availability(#[from] AvailabilityError),
 
