@@ -42,14 +42,14 @@
 //!
 
 use polkadot_primitives::v1::{Hash, PoV, CandidateHash};
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use std::sync::Arc;
 use std::result;
 pub use crate::errors::JaegerError;
 
 
 lazy_static::lazy_static! {
-	static ref INSTANCE: Mutex<Jaeger> = Mutex::new(Jaeger::None);
+	static ref INSTANCE: RwLock<Jaeger> = RwLock::new(Jaeger::None);
 }
 
 /// Configuration for the jaeger tracing.
@@ -160,7 +160,7 @@ pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
 #[inline(always)]
 pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.lock().span(hash, span_name).into()
+	INSTANCE.read_recursive().span(hash, span_name).into()
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
@@ -236,8 +236,7 @@ impl Jaeger {
 			}
 		});
 
-
-		*INSTANCE.lock() = Self::Launched {
+		*INSTANCE.write() = Self::Launched {
 			traces_in,
 		};
 		Ok(())
@@ -260,7 +259,7 @@ impl Jaeger {
 				let mut buf = [0u8; 16];
 				buf.copy_from_slice(&hash.as_ref()[0..16]);
 				std::num::NonZeroU128::new(u128::from_be_bytes(buf))
-			}.expect("16 bytes make a u128; qed");
+			}.expect("NonZeroU128::new returns `Some(_)` for 16 bytes long slice; qed");
 			Some(traces_in.span(trace_id, span_name))
 		} else {
 			None
