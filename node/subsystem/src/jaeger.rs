@@ -259,7 +259,7 @@ impl Jaeger {
 				let mut buf = [0u8; 16];
 				buf.copy_from_slice(&hash.as_ref()[0..16]);
 				std::num::NonZeroU128::new(u128::from_be_bytes(buf))
-			}.expect("NonZeroU128::new returns `Some(_)` for 16 bytes long slice; qed");
+			}.expect("The provided Hash is not all zero bytes; qed");
 			Some(traces_in.span(trace_id, span_name))
 		} else {
 			None
