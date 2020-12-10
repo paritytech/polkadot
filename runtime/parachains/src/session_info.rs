@@ -95,7 +95,7 @@ impl<T: Config> Module<T> {
 
 		let new_session_index = notification.session_index;
 		let old_earliest_stored_session = EarliestStoredSession::get();
-		let new_earliest_stored_session = new_session_index.checked_sub(dispute_period).unwrap_or(0);
+		let new_earliest_stored_session = new_session_index.saturating_sub(dispute_period);
 		let new_earliest_stored_session = core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
 		// avoid a potentially heavy loop when introduced on a live chain
