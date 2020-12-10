@@ -201,20 +201,15 @@ impl ProtocolState {
 			.collect()
 	}
 
-	#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-	async fn add_relay_parent<Context>(
+	#[tracing::instrument(level = "trace", skip(candidates), fields(subsystem = LOG_TARGET))]
+	fn add_relay_parent(
 		&mut self,
-		ctx: &mut Context,
 		relay_parent: Hash,
 		validators: Vec<ValidatorId>,
 		validator_index: Option<ValidatorIndex>,
-	) -> Result<()>
-	where
-		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-	{
-		let (candidates, ancestors)
-			= query_live_candidates(ctx, &mut self.receipts, relay_parent).await?;
-
+		candidates: HashMap<CandidateHash, FetchedLiveCandidate>,
+		ancestors: Vec<Hash>,
+	) {
 		let candidate_hashes: Vec<_> = candidates.keys().cloned().collect();
 
 		// register the relation of relay_parent to candidate..
@@ -234,8 +229,6 @@ impl ProtocolState {
 		let per_relay_parent = self.per_relay_parent.entry(relay_parent).or_default();
 		per_relay_parent.ancestors = ancestors;
 		per_relay_parent.live_candidates.extend(candidate_hashes);
-
-		Ok(())
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -334,7 +327,16 @@ where
 	for added in view.difference(&old_view) {
 		let validators = query_validators(ctx, *added).await?;
 		let validator_index = obtain_our_validator_index(&validators, keystore.clone()).await;
-		state.add_relay_parent(ctx, *added, validators, validator_index).await?;
+		let (candidates, ancestors)
+			= query_live_candidates(ctx, &mut state.receipts, *added).await?;
+
+		state.add_relay_parent(
+			*added,
+			validators,
+			validator_index,
+			candidates,
+			ancestors,
+		);
 	}
 
 	// handle all candidates
@@ -751,6 +753,7 @@ where
 	}
 }
 
+#[derive(Debug)]
 enum FetchedLiveCandidate {
 	Cached,
 	Fresh(CandidateDescriptor),
@@ -764,7 +767,7 @@ enum FetchedLiveCandidate {
 /// This also queries the provided `receipts` cache before reaching into the
 /// runtime and updates it with the information learned.
 #[tracing::instrument(level = "trace", skip(ctx, relay_blocks, receipts), fields(subsystem = LOG_TARGET))]
-async fn query_live_candidates_for_relay_blocks<Context>(
+async fn query_pending_availability_at<Context>(
 	ctx: &mut Context,
 	relay_blocks: impl IntoIterator<Item = Hash>,
 	receipts: &mut HashMap<Hash, HashSet<CandidateHash>>,
@@ -774,26 +777,33 @@ where
 {
 	let mut live_candidates = HashMap::new();
 
-	for relay_parent in relay_blocks {
-		let receipts_for = match receipts.entry(relay_parent) {
-			Entry::Occupied(occupied) => {
-				for c in occupied.get() {
-					// In our usage pattern, this shouldn't happen, but guard against
-					// accidentally clobbering a `Fresh` entry in the case that
-					// the same relay-block appears twice in `relay_blocks`.
-					live_candidates.entry(*c).or_insert(FetchedLiveCandidate::Cached);
-				}
-				continue
-			}
-			Entry::Vacant(vacant) => vacant.insert(Default::default()),
-		};
+	let uncached = relay_blocks
+		.into_iter()
+		.filter(|r|  {
+			receipts.get(&r).map_or(true, |c| {
+				live_candidates.extend(
+					c.iter().cloned().map(|c| (c, FetchedLiveCandidate::Cached))
+				);
+				false
+			})
+		})
+		.collect::<Vec<_>>();
+
+	// fetch and fill out cache for each of these
+	for relay_parent in uncached {
+		let receipts_for = receipts.entry(relay_parent).or_default();
 
 		for para in query_para_ids(ctx, relay_parent).await? {
 			if let Some(ccr) = query_pending_availability(ctx, relay_parent, para).await? {
 				let receipt_hash = ccr.hash();
 				let descriptor = ccr.descriptor().clone();
 
-				live_candidates.insert(receipt_hash, FetchedLiveCandidate::Fresh(descriptor));
+				// unfortunately we have no good way of telling the candidate was
+				// cached until now. But we don't clobber a `Cached` entry if there
+				// is one already.
+				live_candidates.entry(receipt_hash)
+					.or_insert(FetchedLiveCandidate::Fresh(descriptor));
+
 				receipts_for.insert(receipt_hash);
 			}
 		}
@@ -834,7 +844,7 @@ where
 
 	// query the ones that were not present in the receipts cache and add them
 	// to it.
-	let live_candidates = query_live_candidates_for_relay_blocks(
+	let live_candidates = query_pending_availability_at(
 		ctx,
 		ancestors_and_head,
 		receipts,
