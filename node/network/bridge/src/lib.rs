@@ -136,6 +136,7 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		sc_network::NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn action_sink<'a>(&'a mut self)
 		-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
 	{
@@ -153,10 +154,13 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 
 			fn start_send(self: Pin<&mut Self>, action: NetworkAction) -> SubsystemResult<()> {
 				match action {
-					NetworkAction::ReputationChange(peer, cost_benefit) => self.0.report_peer(
-						peer,
-						cost_benefit,
-					),
+					NetworkAction::ReputationChange(peer, cost_benefit) => {
+						tracing::debug!(target: LOG_TARGET, "Changing reputation: {:?} for {}", cost_benefit, peer);
+						self.0.report_peer(
+							peer,
+							cost_benefit,
+						)
+					}
 					NetworkAction::WriteNotification(peer, peer_set, message) => {
 						match peer_set {
 							PeerSet::Validation => self.0.write_notification(

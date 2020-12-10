@@ -20,34 +20,21 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::mpsc,
 	task::{Poll, self},
 	stream,
+	StreamExt,
 };
 use streamunordered::{StreamUnordered, StreamYield};
-use thiserror::Error;
 
 use polkadot_node_subsystem::{
-	errors::RuntimeApiError, SubsystemError,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeMessage},
+	errors::RuntimeApiError,
+	messages::{AllMessages, NetworkBridgeMessage},
 	SubsystemContext,
 };
-use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId};
+use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
 use sc_network::PeerId;
-
-/// Error when making a request to connect to validators.
-#[derive(Debug, Error)]
-pub enum Error {
-	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-	/// A subsystem error.
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-	/// An error in the Runtime API.
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-}
+use crate::Error;
 
 /// Utility function to make it easier to connect to validators.
 pub async fn connect_to_validators<Context: SubsystemContext>(
@@ -55,17 +42,42 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
 ) -> Result<ConnectionRequest, Error> {
-	// ValidatorId -> AuthorityDiscoveryId
-	let (tx, rx) = oneshot::channel();
+	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
+	connect_to_past_session_validators(ctx, relay_parent, validators, current_index).await
+}
 
-	ctx.send_message(AllMessages::RuntimeApi(
-		RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
-		)
-	)).await;
+/// Utility function to make it easier to connect to validators in the past sessions.
+pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	validators: Vec<ValidatorId>,
+	session_index: SessionIndex,
+) -> Result<ConnectionRequest, Error> {
+	let session_info = crate::request_session_info_ctx(
+		relay_parent,
+		session_index,
+		ctx,
+	).await?.await??;
 
-	let maybe_authorities = rx.await??;
+	let (session_validators, discovery_keys) = match session_info {
+		Some(info) => (info.validators, info.discovery_keys),
+		None => return Err(RuntimeApiError::from(
+			format!("No SessionInfo found for the index {}", session_index)
+		).into()),
+	};
+
+	let id_to_index = session_validators.iter()
+		.zip(0usize..)
+		.collect::<HashMap<_, _>>();
+
+	// We assume the same ordering in authorities as in validators so we can do an index search
+	let maybe_authorities: Vec<_> = validators.iter()
+		.map(|id| {
+			let validator_index = id_to_index.get(&id);
+			validator_index.and_then(|i| discovery_keys.get(*i).cloned())
+		})
+		.collect();
+
 	let authorities: Vec<_> = maybe_authorities.iter()
 		.cloned()
 		.filter_map(|id| id)
@@ -76,7 +88,7 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 		.filter_map(|(k, v)| v.map(|v| (v, k)))
 		.collect::<HashMap<AuthorityDiscoveryId, ValidatorId>>();
 
-	let connections = connect_to_authorities(ctx, authorities).await?;
+	let connections = connect_to_authorities(ctx, authorities).await;
 
 	Ok(ConnectionRequest {
 		validator_map,
@@ -87,7 +99,7 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
-) -> Result<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, Error> {
+) -> mpsc::Receiver<(AuthorityDiscoveryId, PeerId)> {
 	const PEERS_CAPACITY: usize = 8;
 
 	let (connected, connected_rx) = mpsc::channel(PEERS_CAPACITY);
@@ -99,36 +111,63 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 		}
 	)).await;
 
-	Ok(connected_rx)
+	connected_rx
+}
+
+/// Represents a discovered validator.
+///
+/// Result of [`ConnectionRequests::next`].
+#[derive(Debug, PartialEq)]
+pub struct DiscoveredValidator {
+	/// The relay parent associated with the connection request that returned a result.
+	pub relay_parent: Hash,
+	/// The [`ValidatorId`] that was resolved.
+	pub validator_id: ValidatorId,
+	/// The [`PeerId`] associated to the validator id.
+	pub peer_id: PeerId,
+}
+
+/// Used by [`ConnectionRequests::requests`] to map a [`ConnectionRequest`] item to a [`DiscoveredValidator`].
+struct ConnectionRequestForRelayParent {
+	request: ConnectionRequest,
+	relay_parent: Hash,
+}
+
+impl stream::Stream for ConnectionRequestForRelayParent {
+	type Item = DiscoveredValidator;
+
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
+		self.request
+			.poll_next_unpin(cx)
+			.map(|r| r.map(|(validator_id, peer_id)| DiscoveredValidator {
+				validator_id,
+				peer_id,
+				relay_parent: self.relay_parent,
+			}))
+	}
 }
 
 /// A struct that assists performing multiple concurrent connection requests.
 ///
-/// This allows concurrent connections to validator sets at different `relay_parents`
-/// and multiplexes their results into a single `Stream`.
+/// This allows concurrent connections to validator sets at different `relay_parents`.
+/// Use [`ConnectionRequests::next`] to wait for results of the added connection requests.
 #[derive(Default)]
 pub struct ConnectionRequests {
-	// added connection requests relay_parent -> StreamUnordered token
+	/// Connection requests relay_parent -> StreamUnordered token
 	id_map: HashMap<Hash, usize>,
 
-	// Connection requests themselves.
-	requests: StreamUnordered<ConnectionRequest>,
-}
-
-impl stream::FusedStream for ConnectionRequests {
-	fn is_terminated(&self) -> bool {
-		false
-	}
+	/// Connection requests themselves.
+	requests: StreamUnordered<ConnectionRequestForRelayParent>,
 }
 
 impl ConnectionRequests {
 	/// Insert a new connection request.
 	///
 	/// If a `ConnectionRequest` under a given `relay_parent` already exists it will
-	/// be revoked and substituted with a new one.
+	/// be revoked and substituted with the given one.
 	pub fn put(&mut self, relay_parent: Hash, request: ConnectionRequest) {
 		self.remove(&relay_parent);
-		let token = self.requests.push(request);
+		let token = self.requests.push(ConnectionRequestForRelayParent { relay_parent, request });
 
 		self.id_map.insert(relay_parent, token);
 	}
@@ -144,39 +183,23 @@ impl ConnectionRequests {
 	pub fn contains_request(&self, relay_parent: &Hash) -> bool {
 		self.id_map.contains_key(relay_parent)
 	}
-}
 
-impl stream::Stream for ConnectionRequests {
-	/// (relay_parent, validator_id, peer_id).
-	type Item = (Hash, ValidatorId, PeerId);
-
-	fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
-		// If there are currently no requests going on, pend instead of
-		// polling `StreamUnordered` which would lead to it terminating
-		// and returning `Poll::Ready(None)`.
-		if self.requests.is_empty() {
-			return Poll::Pending;
+	/// Returns the next available connection request result.
+	///
+	/// # Note
+	///
+	/// When there are no active requests this will wait indefinitely, like an always pending future.
+	pub async fn next(&mut self) -> DiscoveredValidator {
+		loop {
+			match self.requests.next().await {
+				Some((StreamYield::Item(item), _)) => {
+					return item
+				},
+				// Ignore finished requests, they are required to be removed.
+				Some((StreamYield::Finished(_), _)) => (),
+				None => futures::pending!(),
+			}
 		}
-
-		match Pin::new(&mut self.requests).poll_next(cx) {
-			Poll::Ready(Some((yielded, token))) => {
-				match yielded {
-					StreamYield::Item(item) => {
-						if let Some((relay_parent, _)) = self.id_map.iter()
-							.find(|(_, &val)| val == token)
-						{
-							return Poll::Ready(Some((*relay_parent, item.0, item.1)));
-						}
-					}
-					StreamYield::Finished(_) => {
-						// `ConnectionRequest` is fullfilled, but not revoked
-					}
-				}
-			},
-			_ => {},
-		}
-
-		Poll::Pending
 	}
 }
 
@@ -220,14 +243,20 @@ mod tests {
 	use polkadot_primitives::v1::ValidatorPair;
 	use sp_core::{Pair, Public};
 
-	use futures::{executor, poll, StreamExt, SinkExt};
+	use futures::{executor, poll, SinkExt};
+
+	async fn check_next_is_pending(connection_requests: &mut ConnectionRequests) {
+		let next = connection_requests.next();
+		futures::pin_mut!(next);
+		assert_eq!(poll!(next), Poll::Pending);
+	}
 
 	#[test]
 	fn adding_a_connection_request_works() {
 		let mut connection_requests = ConnectionRequests::default();
 
 		executor::block_on(async move {
-			assert_eq!(poll!(Pin::new(&mut connection_requests).next()), Poll::Pending);
+			check_next_is_pending(&mut connection_requests).await;
 
 			let validator_1 = ValidatorPair::generate().0.public();
 			let validator_2 = ValidatorPair::generate().0.public();
@@ -256,16 +285,19 @@ mod tests {
 			rq1_tx.send((auth_1, peer_id_1.clone())).await.unwrap();
 			rq1_tx.send((auth_2, peer_id_2.clone())).await.unwrap();
 
-			let res = Pin::new(&mut connection_requests).next().await.unwrap();
-			assert_eq!(res, (relay_parent_1, validator_1, peer_id_1));
-
-			let res = Pin::new(&mut connection_requests).next().await.unwrap();
-			assert_eq!(res, (relay_parent_1, validator_2, peer_id_2));
-
+			let res = connection_requests.next().await;
 			assert_eq!(
-				poll!(Pin::new(&mut connection_requests).next()),
-				Poll::Pending,
+				res,
+				DiscoveredValidator { relay_parent: relay_parent_1, validator_id: validator_1, peer_id: peer_id_1 },
 			);
+
+			let res = connection_requests.next().await;
+			assert_eq!(
+				res,
+				DiscoveredValidator { relay_parent: relay_parent_1, validator_id: validator_2, peer_id: peer_id_2 },
+			);
+
+			check_next_is_pending(&mut connection_requests).await;
 		});
 	}
 
@@ -274,7 +306,7 @@ mod tests {
 		let mut connection_requests = ConnectionRequests::default();
 
 		executor::block_on(async move {
-			assert_eq!(poll!(Pin::new(&mut connection_requests).next()), Poll::Pending);
+			check_next_is_pending(&mut connection_requests).await;
 
 			let validator_1 = ValidatorPair::generate().0.public();
 			let validator_2 = ValidatorPair::generate().0.public();
@@ -314,16 +346,19 @@ mod tests {
 			rq1_tx.send((auth_1, peer_id_1.clone())).await.unwrap();
 			rq2_tx.send((auth_2, peer_id_2.clone())).await.unwrap();
 
-			let res = Pin::new(&mut connection_requests).next().await.unwrap();
-			assert_eq!(res, (relay_parent_1, validator_1, peer_id_1));
-
-			let res = Pin::new(&mut connection_requests).next().await.unwrap();
-			assert_eq!(res, (relay_parent_2, validator_2, peer_id_2));
-
+			let res = connection_requests.next().await;
 			assert_eq!(
-				poll!(Pin::new(&mut connection_requests).next()),
-				Poll::Pending,
+				res,
+				DiscoveredValidator { relay_parent: relay_parent_1, validator_id: validator_1, peer_id: peer_id_1 },
 			);
+
+			let res = connection_requests.next().await;
+			assert_eq!(
+				res,
+				DiscoveredValidator { relay_parent: relay_parent_2, validator_id: validator_2, peer_id: peer_id_2 },
+			);
+
+			check_next_is_pending(&mut connection_requests).await;
 		});
 	}
 
@@ -332,7 +367,7 @@ mod tests {
 		let mut connection_requests = ConnectionRequests::default();
 
 		executor::block_on(async move {
-			assert_eq!(poll!(Pin::new(&mut connection_requests).next()), Poll::Pending);
+			check_next_is_pending(&mut connection_requests).await;
 
 			let validator_1 = ValidatorPair::generate().0.public();
 			let validator_2 = ValidatorPair::generate().0.public();
@@ -369,8 +404,8 @@ mod tests {
 
 			rq1_tx.send((auth_1.clone(), peer_id_1.clone())).await.unwrap();
 
-			let res = Pin::new(&mut connection_requests).next().await.unwrap();
-			assert_eq!(res, (relay_parent, validator_1, peer_id_1.clone()));
+			let res = connection_requests.next().await;
+			assert_eq!(res, DiscoveredValidator { relay_parent, validator_id: validator_1, peer_id: peer_id_1.clone() });
 
 			connection_requests.put(relay_parent.clone(), connection_request_2);
 
@@ -378,13 +413,10 @@ mod tests {
 
 			rq2_tx.send((auth_2, peer_id_2.clone())).await.unwrap();
 
-			let res = Pin::new(&mut connection_requests).next().await.unwrap();
-			assert_eq!(res, (relay_parent, validator_2, peer_id_2));
+			let res = connection_requests.next().await;
+			assert_eq!(res, DiscoveredValidator { relay_parent, validator_id: validator_2, peer_id: peer_id_2 });
 
-			assert_eq!(
-				poll!(Pin::new(&mut connection_requests).next()),
-				Poll::Pending,
-			);
+			check_next_is_pending(&mut connection_requests).await;
 		});
 	}
 }

@@ -17,17 +17,14 @@
 //! Mocks for all the traits.
 
 use sp_io::TestExternalities;
-use sp_core::{H256};
-use sp_runtime::{
-	Perbill,
-	traits::{
-		BlakeTwo256, IdentityLookup,
-	},
+use sp_core::H256;
+use sp_runtime::traits::{
+	BlakeTwo256, IdentityLookup,
 };
-use primitives::v1::{BlockNumber, Header};
+use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header};
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
-	weights::Weight, traits::Randomness as RandomnessT,
+	traits::Randomness as RandomnessT,
 };
 use crate::inclusion;
 use crate as parachains;
@@ -65,13 +62,15 @@ impl RandomnessT<H256> for TestRandomness {
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
-	pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	pub BlockWeights: frame_system::limits::BlockWeights =
+		frame_system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
 }
 
-impl frame_system::Trait for Test {
+impl frame_system::Config for Test {
 	type BaseCallFilter = ();
+	type BlockWeights = BlockWeights;
+	type BlockLength = ();
+	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;
 	type Index = u64;
@@ -83,13 +82,6 @@ impl frame_system::Trait for Test {
 	type Header = Header;
 	type Event = TestEvent;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = ();
-	type BlockExecutionWeight = ();
-	type ExtrinsicBaseWeight = ();
-	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<u128>;
@@ -98,30 +90,38 @@ impl frame_system::Trait for Test {
 	type SystemWeightInfo = ();
 }
 
-impl crate::initializer::Trait for Test {
+impl crate::initializer::Config for Test {
 	type Randomness = TestRandomness;
 }
 
-impl crate::configuration::Trait for Test { }
+impl crate::configuration::Config for Test { }
 
-impl crate::paras::Trait for Test {
+impl crate::paras::Config for Test {
 	type Origin = Origin;
 }
 
-impl crate::dmp::Trait for Test { }
+impl crate::dmp::Config for Test { }
 
-impl crate::ump::Trait for Test {
+impl crate::ump::Config for Test {
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
 }
 
-impl crate::hrmp::Trait for Test {
+impl crate::hrmp::Config for Test {
 	type Origin = Origin;
 }
 
-impl crate::scheduler::Trait for Test { }
+impl crate::scheduler::Config for Test { }
 
-impl crate::inclusion::Trait for Test {
+impl crate::inclusion::Config for Test {
 	type Event = TestEvent;
+}
+
+impl crate::session_info::Config for Test { }
+
+impl crate::session_info::AuthorityDiscoveryConfig for Test {
+	fn authorities() -> Vec<AuthorityDiscoveryId> {
+		Vec::new()
+	}
 }
 
 pub type System = frame_system::Module<Test>;
@@ -149,6 +149,9 @@ pub type Scheduler = crate::scheduler::Module<Test>;
 
 /// Mocked inclusion module.
 pub type Inclusion = crate::inclusion::Module<Test>;
+
+/// Mocked session info module.
+pub type SessionInfo = crate::session_info::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {

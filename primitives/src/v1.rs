@@ -24,7 +24,8 @@ use bitvec::vec::BitVec;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
-use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating};
+use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
@@ -56,6 +57,34 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+
+
+/// The key type ID for a parachain approval voting key.
+pub const APPROVAL_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"aprv");
+
+mod approval_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::APPROVAL_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for approval voting
+/// on included parachain candidates.
+pub type ApprovalId = approval_app::Public;
+
+/// The key type ID for parachain assignment key.
+pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
+
+// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+mod assigment_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::ASSIGNMENT_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+pub type AssignmentId = assigment_app::Public;
+
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
@@ -113,6 +142,8 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov.
 	pub pov_hash: Hash,
+	/// The root of a block's erasure encoding Merkle tree.
+	pub erasure_root: Hash,
 	/// Signature on blake2-256 of components of this receipt:
 	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
 	pub signature: CollatorSignature,
@@ -199,6 +230,11 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	/// Thus this is a shortcut for `candidate.to_plain().hash()`.
 	pub fn hash(&self) -> CandidateHash where H: Encode {
 		self.to_plain().hash()
+	}
+
+	/// Does this committed candidate receipt corrensponds to the given [`CandidateReceipt`]?
+	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool where H: PartialEq {
+		receipt.descriptor == self.descriptor && receipt.commitments_hash == self.commitments.hash()
 	}
 }
 
@@ -312,24 +348,6 @@ pub struct TransientValidationData<N = BlockNumber> {
 	pub dmq_length: u32,
 }
 
-/// Outputs of validating a candidate.
-#[derive(Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
-pub struct ValidationOutputs {
-	/// The head-data produced by validation.
-	pub head_data: HeadData,
-	/// Upward messages to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// The horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
-	/// The new validation code submitted by the execution, if any.
-	pub new_validation_code: Option<ValidationCode>,
-	/// The number of messages processed from the DMQ.
-	pub processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
-	pub hrmp_watermark: BlockNumber,
-}
-
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
@@ -338,8 +356,6 @@ pub struct CandidateCommitments<N = BlockNumber> {
 	pub upward_messages: Vec<UpwardMessage>,
 	/// Horizontal messages sent by the parachain.
 	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
-	/// The root of a block's erasure encoding Merkle tree.
-	pub erasure_root: Hash,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
@@ -404,6 +420,16 @@ impl<H> BackedCandidate<H> {
 	/// Get a reference to the descriptor of the para.
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.candidate.descriptor
+	}
+
+	/// Compute this candidate's hash.
+	pub fn hash(&self) -> CandidateHash where H: Clone + Encode {
+		self.candidate.hash()
+	}
+
+	/// Get this candidate's receipt.
+	pub fn receipt(&self) -> CandidateReceipt<H> where H: Clone {
+		self.candidate.to_plain()
 	}
 }
 
@@ -547,11 +573,7 @@ impl GroupRotationInfo {
 impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 	/// Returns the block number of the next rotation after the current block. If the current block
 	/// is 10 and the rotation frequency is 5, this should return 15.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn next_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
-
 		let cycle_once = self.now + self.group_rotation_frequency;
 		cycle_once - (
 			cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency
@@ -560,10 +582,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 
 	/// Returns the block number of the last rotation before or including the current block. If the
 	/// current block is 10 and the rotation frequency is 5, this should return 10.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn last_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
 		self.now - (
 			self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency
 		)
@@ -671,6 +690,35 @@ pub enum CandidateEvent<H = Hash> {
 	CandidateTimedOut(CandidateReceipt<H>, HeadData),
 }
 
+/// Information about validator sets of a session.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default))]
+pub struct SessionInfo {
+	/// Validators in canonical ordering.
+	pub validators: Vec<ValidatorId>,
+	/// Validators' authority discovery keys for the session in canonical ordering.
+	pub discovery_keys: Vec<AuthorityDiscoveryId>,
+	/// The assignment and approval keys for validators.
+	pub approval_keys: Vec<(ApprovalId, AssignmentId)>,
+	/// Validators in shuffled ordering - these are the validator groups as produced
+	/// by the `Scheduler` module for the session and are typically referred to by
+	/// `GroupIndex`.
+	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// The number of availability cores used by the protocol during this session.
+	pub n_cores: u32,
+	/// The zeroth delay tranche width.
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of samples we do of relay_vrf_modulo.
+	pub relay_vrf_modulo_samples: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
+	/// How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
+	/// no-show.
+	pub no_show_slots: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
@@ -703,12 +751,15 @@ sp_api::decl_runtime_apis! {
 			-> Option<PersistedValidationData<N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
-		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
+		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
+
+		/// Get the session info for the given session, if stored.
+		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
@@ -734,13 +785,6 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
-
-		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-		/// Currently this request is limited to validators in the current session.
-		///
-		/// We assume that every validator runs authority discovery,
-		/// which would allow us to establish point-to-point connection to given validators.
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 
 		/// Get all the pending inbound messages in the downward message queue for a para.
 		fn dmq_contents(
@@ -786,15 +830,6 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 20);
 		assert_eq!(info.last_rotation_at(), 15);
-
-		let info = GroupRotationInfo {
-			session_start_block: 10u32,
-			now: 11,
-			group_rotation_frequency: 0,
-		};
-
-		assert_eq!(info.next_rotation_at(), 0);
-		assert_eq!(info.last_rotation_at(), 0);
 	}
 
 	#[test]

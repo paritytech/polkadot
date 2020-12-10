@@ -207,14 +207,14 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 	}
 }
 
-pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait + dmp::Trait {
+pub trait Config: frame_system::Config + configuration::Config + paras::Config + dmp::Config {
 	type Origin: From<crate::Origin>
-		+ From<<Self as frame_system::Trait>::Origin>
-		+ Into<Result<crate::Origin, <Self as Trait>::Origin>>;
+		+ From<<Self as frame_system::Config>::Origin>
+		+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Hrmp {
+	trait Store for Module<T: Config> as Hrmp {
 		/// Paras that are to be cleaned up at the end of the session.
 		/// The entries are sorted ascending by the para id.
 		OutgoingParas: Vec<ParaId>;
@@ -286,7 +286,7 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// The sender tried to open a channel to themselves.
 		OpenHrmpChannelToSelf,
 		/// The recipient is not a valid para.
@@ -322,17 +322,27 @@ decl_error! {
 
 decl_module! {
 	/// The HRMP module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
+		/// Initiate opening a channel from a parachain to a given recipient with given channel
+		/// parameters.
+		///
+		/// - `proposed_max_capacity` - specifies how many messages can be in the channel at once.
+		/// - `proposed_max_message_size` - specifies the maximum size of any of the messages.
+		///
+		/// These numbers are a subject to the relay-chain configuration limits.
+		///
+		/// The channel can be opened only after the recipient confirms it and only on a session
+		/// change.
 		#[weight = 0]
-		fn hrmp_init_open_channel(
+		pub fn hrmp_init_open_channel(
 			origin,
 			recipient: ParaId,
 			proposed_max_capacity: u32,
 			proposed_max_message_size: u32,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::init_open_channel(
 				origin,
 				recipient,
@@ -342,16 +352,23 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Accept a pending open channel request from the given sender.
+		///
+		/// The channel will be opened only on the next session boundary.
 		#[weight = 0]
-		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
-			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+		pub fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
 			Ok(())
 		}
 
+		/// Initiate unilateral closing of a channel. The origin must be either the sender or the
+		/// recipient in the channel being closed.
+		///
+		/// The closure can only happen on a session change.
 		#[weight = 0]
-		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
-			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+		pub fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::close_channel(origin, channel_id)?;
 			Ok(())
 		}
@@ -359,7 +376,7 @@ decl_module! {
 }
 
 /// Routines and getters related to HRMP.
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
@@ -808,7 +825,12 @@ impl<T: Trait> Module<T> {
 		weight
 	}
 
-	pub(super) fn init_open_channel(
+	/// Initiate opening a channel from a parachain to a given recipient with given channel
+	/// parameters.
+	///
+	/// Basically the same as [`hrmp_init_open_channel`](Module::hrmp_init_open_channel) but intendend for calling directly from
+	/// other pallets rather than dispatched.
+	pub fn init_open_channel(
 		origin: ParaId,
 		recipient: ParaId,
 		proposed_max_capacity: u32,
@@ -902,7 +924,11 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	pub(super) fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
+	/// Accept a pending open channel request from the given sender.
+	///
+	/// Basically the same as [`hrmp_accept_open_channel`](Module::hrmp_accept_open_channel) but intendend for calling directly from
+	/// other pallets rather than dispatched.
+	pub fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
 		let channel_id = HrmpChannelId {
 			sender,
 			recipient: origin,
@@ -958,7 +984,7 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	pub(super) fn close_channel(origin: ParaId, channel_id: HrmpChannelId) -> Result<(), Error<T>> {
+	fn close_channel(origin: ParaId, channel_id: HrmpChannelId) -> Result<(), Error<T>> {
 		// check if the origin is allowed to close the channel.
 		ensure!(
 			origin == channel_id.sender || origin == channel_id.recipient,

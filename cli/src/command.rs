@@ -216,7 +216,7 @@ pub fn run() -> Result<()> {
 			})
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-			let _ = sc_cli::init_logger("", sc_tracing::TracingReceiver::Log, None);
+			let _ = sc_cli::init_logger("", sc_tracing::TracingReceiver::Log, None, false);
 
 			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))

@@ -30,13 +30,13 @@ use runtime_parachains::{
 use primitives::v1::Id as ParaId;
 
 /// The module's configuration trait.
-pub trait Trait:
-	configuration::Trait + paras::Trait + dmp::Trait + ump::Trait + hrmp::Trait
+pub trait Config:
+	configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config
 {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// The specified parachain or parathread is not registered.
 		ParaDoesntExist,
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
@@ -49,7 +49,7 @@ decl_error! {
 
 decl_module! {
 	/// A sudo wrapper to call into v1 paras module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		/// Schedule a para to be initialized at the start of the next session.
@@ -87,6 +87,30 @@ decl_module! {
 					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
 						Error::<T>::ExceedsMaxMessageSize.into(),
 				})
+		}
+
+		/// Forcefully establish a channel from the sender to the recipient.
+		///
+		/// This is equivalent to sending an `Hrmp::hrmp_init_open_channel` extrinsic followed by
+		/// `Hrmp::hrmp_accept_open_channel`.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn sudo_establish_hrmp_channel(
+			origin,
+			sender: ParaId,
+			recipient: ParaId,
+			max_capacity: u32,
+			max_message_size: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			<hrmp::Module<T>>::init_open_channel(
+				sender,
+				recipient,
+				max_capacity,
+				max_message_size,
+			)?;
+			<hrmp::Module<T>>::accept_open_channel(recipient, sender)?;
+			Ok(())
 		}
 	}
 }

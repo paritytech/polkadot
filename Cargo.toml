@@ -6,14 +6,14 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.8.26"
+version = "0.8.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-color-eyre = "0.5.8"
+color-eyre = "0.5.10"
 thiserror = "1.0.22"
 futures = "0.3.8"
 service = { package = "polkadot-service", path = "node/service" }
@@ -21,7 +21,7 @@ parity-util-mem = { version = "*", default-features = false, features = ["jemall
 
 [dev-dependencies]
 assert_cmd = "1.0.2"
-nix = "0.19.0"
+nix = "0.19.1"
 tempfile = "3.1.0"
 
 [workspace]

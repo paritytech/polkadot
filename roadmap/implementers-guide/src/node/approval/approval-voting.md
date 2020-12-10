@@ -201,6 +201,9 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 ### Utility
 
+#### `tranche_now(slot_number, time) -> DelayTranche`
+  * Convert `time.saturating_sub(slot_number.to_time())` to a delay tranches value
+
 #### `import_checked_assignment`
   * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
   * Ignore if we already observe the validator as having been assigned.
@@ -208,40 +211,63 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
+  * Schedule a wakeup with `next_wakeup`.
 
 #### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
   * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
-    * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
+    * If so, set `n_tranches = tranches_to_approve(approval_entry, tranche_now(block.slot, now()))`.
     * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
 
-#### `tranches_to_approve(approval_entry) -> tranches`
-  * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
+#### `tranches_to_approve(approval_entry, tranche_now) -> RequiredTranches`
+
+```rust
+enum RequiredTranches {
+  // All validators appear to be required, based on tranches already taken and remaining no-shows. 
+  All,
+  // More tranches required - We're awaiting more assignments. The given `DelayTranche` indicates the
+  // upper bound of tranches that should broadcast based on the last no-show.
+  Pending(DelayTranche),
+  // An exact number of required tranches and a number of no-shows. This indicates that the amount of `needed_approvals` are assigned and additionally all no-shows are covered.
+  Exact(DelayTranche, usize),
+}
+```
+
+  * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry.
+  * Ignore all tranches beyond `tranche_now`.
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
-    * Then, count no-shows in tranches `0..k`. For each no-show, we require another checker. Take new tranches until each no-show is covered, so now we've taken `l` tranches. e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each.
-    * Count no-shows in tranches `k..l` and for each of those, take tranches until all no-shows are covered. Repeat so on until either
-      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `ALL` which indicates that new assignments are needed.
-      * All no-shows are covered. Set `n_tranches` to the number of tranches taken
+    * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take another non-empty tranche for each no-show, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
+    * Count no-shows in tranches `k..l` and for each of those, take another non-empty tranche for each no-show. Repeat so on until either
+      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `RequiredTranches::Pending(last_taken_tranche + uncovered_no_shows)` which indicates that new assignments are needed. `uncovered_no_shows` is the number of no-shows we have not yet covered with `last_taken_tranche`.
+      * All no-shows are covered by at least one non-empty tranche. Set `n_tranches` to the number of tranches taken and return `RequiredTranches::Exact(n_tranches)`.
+      * The amount of assignments in non-empty & taken tranches plus the amount of needed extras equals or exceeds the total number of validators for the approval entry, which can be obtained by measuring the bitfield. In this case we return a special value `RequiredTranches::All` indicating that all validators have effectively been assigned to check.
     * return `n_tranches`
 
 #### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
-  * If `n_tranches` is ALL, return false
-  * Otherwise, if all validators in `n_tranches` have approved, return `true`. If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
+  * If `n_tranches` is `RequiredTranches::Pending`, return false
+  * If `n_tranches` is `RequiredTranches::All`,  then we return `3 * n_approvals > 2 * n_validators`.
+  * If `n_tranches` is `RequiredTranches::Exact(tranche, no_shows), then we return whether all assigned validators up to `tranche` less `no_shows` have approved. e.g. if we had 5 tranches and 1 no-show, we would accept all validators in tranches 0..=5 except for 1 approving. In that example, we also accept all validators in tranches 0..=5 approving, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. If there are more missing approvals than there are no-shows, that indicates that there are some assignments which are not yet no-shows, but may become no-shows.
 
 #### `process_wakeup(relay_block, candidate_hash)`
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
-  * Set `n_tranches = tranches_to_approve(approval_entry)`
-  * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
-    * Import to `ApprovalEntry`
+  * Set `required = tranches_to_approve(approval_entry, tranche_now(block.slot, now()))`
+  * Determine if we should trigger our assignment.
+    * If we've already triggered or `OurAssignment` is `None`, we do not trigger.
+    * If `required` is `RequiredTranches::All`, then we trigger if `check_approval(block_entry, approval_entry, All)` is false.
+    * If `required` is `RequiredTranches::Pending(max), then we trigger if our assignment's tranche is less than or equal to `max`.
+    * If `required` is `RequiredTranches::Exact(tranche)` then we do not trigger, because this value indicates that no new assignments are needed at the moment.
+  * If we should trigger our assignment
+    * Import the assignment to the `ApprovalEntry`
     * Broadcast on network with an `ApprovalDistributionMessage::DistributeAssignment`.
-    * Kick off approval work with `launch_approval`. Note that if the candidate appears in multiple current blocks, we will launch approval for each block it appears in. It may make sense to shortcut around this with caching either at this level or on the level of the other subsystems invoked by that function.
+    * Kick off approval work with `launch_approval`
   * Schedule another wakeup based on `next_wakeup`
 
 #### `next_wakeup(approval_entry, candidate_entry)`:
+  * If the `approval_entry` is approved, this doesn't need to be woken up again.
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
 
-#### `launch_approval(SessionIndex, CandidateDescriptor, ValidatorIndex, block_hash, candidate_index)`:
+#### `launch_approval(SessionIndex, CandidateReceipt, ValidatorIndex, block_hash, candidate_index)`:
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, response_sender)`
   * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::HistoricalValidationCode(`descriptor.para_id`, `descriptor.relay_parent`)` against the state of `block_hash`.

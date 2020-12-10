@@ -23,12 +23,12 @@ use crate::NegativeImbalance;
 pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
-	R: pallet_balances::Trait + pallet_authorship::Trait,
-	<R as frame_system::Trait>::AccountId: From<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::AccountId: Into<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::Event: From<pallet_balances::RawEvent<
-		<R as frame_system::Trait>::AccountId,
-		<R as pallet_balances::Trait>::Balance,
+	R: pallet_balances::Config + pallet_authorship::Config,
+	<R as frame_system::Config>::AccountId: From<primitives::v1::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::v1::AccountId>,
+	<R as frame_system::Config>::Event: From<pallet_balances::RawEvent<
+		<R as frame_system::Config>::AccountId,
+		<R as pallet_balances::Config>::Balance,
 		pallet_balances::DefaultInstance>
 	>,
 {
@@ -43,13 +43,13 @@ where
 pub struct DealWithFees<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
 where
-	R: pallet_balances::Trait + pallet_treasury::Trait + pallet_authorship::Trait,
+	R: pallet_balances::Config + pallet_treasury::Config + pallet_authorship::Config,
 	pallet_treasury::Module<R>: OnUnbalanced<NegativeImbalance<R>>,
-	<R as frame_system::Trait>::AccountId: From<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::AccountId: Into<primitives::v1::AccountId>,
-	<R as frame_system::Trait>::Event: From<pallet_balances::RawEvent<
-		<R as frame_system::Trait>::AccountId,
-		<R as pallet_balances::Trait>::Balance,
+	<R as frame_system::Config>::AccountId: From<primitives::v1::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::v1::AccountId>,
+	<R as frame_system::Config>::Event: From<pallet_balances::RawEvent<
+		<R as frame_system::Config>::AccountId,
+		<R as pallet_balances::Config>::Balance,
 		pallet_balances::DefaultInstance>
 	>,
 {
@@ -72,7 +72,8 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::{impl_outer_origin, parameter_types, weights::Weight};
+	use frame_system::limits;
+	use frame_support::{impl_outer_origin, parameter_types, weights::DispatchClass};
 	use frame_support::traits::FindAuthor;
 	use sp_core::H256;
 	use sp_runtime::{
@@ -91,13 +92,19 @@ mod tests {
 
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
-		pub const ExtrinsicBaseWeight: u64 = 100;
-		pub const MaximumBlockWeight: Weight = 1024;
-		pub const MaximumBlockLength: u32 = 2 * 1024;
+		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
+			.for_class(DispatchClass::all(), |weight| {
+				weight.base_extrinsic = 100;
+			})
+			.for_class(DispatchClass::non_mandatory(), |weight| {
+				weight.max_total = Some(1024);
+			})
+			.build_or_panic();
+		pub BlockLength: limits::BlockLength = limits::BlockLength::max(2 * 1024);
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
 	}
 
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Index = u64;
@@ -110,13 +117,9 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
+		type BlockLength = BlockLength;
+		type BlockWeights = BlockWeights;
 		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u64>;
@@ -125,7 +128,7 @@ mod tests {
 		type SystemWeightInfo = ();
 	}
 
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -151,7 +154,7 @@ mod tests {
 		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 	}
 
-	impl pallet_treasury::Trait for Test {
+	impl pallet_treasury::Config for Test {
 		type Currency = pallet_balances::Module<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
@@ -185,7 +188,7 @@ mod tests {
 			Some(Default::default())
 		}
 	}
-	impl pallet_authorship::Trait for Test {
+	impl pallet_authorship::Config for Test {
 		type FindAuthor = OneAuthor;
 		type UncleGenerations = ();
 		type FilterUncle = ();

@@ -145,12 +145,16 @@ enum AvailabilityDistributionMessage {
 Messages received by the availability recovery subsystem.
 
 ```rust
+enum RecoveryError {
+	Invalid,
+	Unavailable,
+}
 enum AvailabilityRecoveryMessage {
 	/// Recover available data from validators on the network.
 	RecoverAvailableData(
-		CandidateDescriptor,
+		CandidateReceipt,
 		SessionIndex,
-		ResponseChannel<Option<AvailableData>>,
+		ResponseChannel<Result<AvailableData, RecoveryError>>,
 	),
 }
 ```
@@ -207,7 +211,7 @@ enum BitfieldSigningMessage { }
 enum CandidateBackingMessage {
   /// Requests a set of backable candidates that could be backed in a child of the given
   /// relay-parent, referenced by its hash.
-  GetBackedCandidates(Hash, ResponseChannel<Vec<NewBackedCandidate>>),
+  GetBackedCandidates(Hash, Vec<CandidateHash>, ResponseChannel<Vec<BackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
   /// The PoV is expected to match the `pov_hash` in the descriptor.
@@ -380,7 +384,7 @@ enum ProvisionableData {
   /// This bitfield indicates the availability of various candidate blocks.
   Bitfield(Hash, SignedAvailabilityBitfield),
   /// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
-  BackedCandidate(BackedCandidate),
+  BackedCandidate(CandidateReceipt),
   /// Misbehavior reports are self-contained proofs of validator misbehavior.
   MisbehaviorReport(Hash, MisbehaviorReport),
   /// Disputes trigger a broad dispute resolution process.
@@ -424,14 +428,8 @@ enum RuntimeApiRequest {
 	Validators(ResponseChannel<Vec<ValidatorId>>),
 	/// Get the validator groups and rotation info.
 	ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
-	/// Get the session index for children of the block. This can be used to construct a signing
-	/// context.
-	SessionIndex(ResponseChannel<SessionIndex>),
-	/// Get the validation code for a specific para, using the given occupied core assumption.
-	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Fetch the historical validation code used by a para for candidates executed in
-	/// the context of a given block height in the current chain.
-	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
+	/// Get information about all availability cores.
+	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
 	/// with the given occupied core assumption.
 	PersistedValidationData(
 		ParaId,
@@ -450,12 +448,25 @@ enum RuntimeApiRequest {
 		CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
-	/// Get information about all availability cores.
-	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
+	/// Get the session index for children of the block. This can be used to construct a signing
+	/// context.
+	SessionIndexForChild(ResponseChannel<SessionIndex>),
+	/// Get the validation code for a specific para, using the given occupied core assumption.
+	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
+	/// Fetch the historical validation code used by a para for candidates executed in
+	/// the context of a given block height in the current chain.
+	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
 	/// Get a committed candidate receipt for all candidates pending availability.
 	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates in the last block.
 	CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
+	/// Get the session info for the given session, if stored.
+	SessionInfo(SessionIndex, ResponseChannel<Option<SessionInfo>>),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(ParaId, ResponseChannel<Vec<InboundDownwardMessage<BlockNumber>>>),
+	/// Get the contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
 }
 
 enum RuntimeApiMessage {
@@ -496,7 +507,7 @@ Various modules request that the [Candidate Validation subsystem](../node/utilit
 enum ValidationResult {
 	/// Candidate is valid, and here are the outputs and the validation data used to form inputs.
 	/// In practice, this should be a shared type so that validation caching can be done.
-	Valid(ValidationOutputs, PersistedValidationData),
+	Valid(CandidateCommitments, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid,
 }

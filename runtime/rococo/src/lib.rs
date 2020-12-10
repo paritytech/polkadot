@@ -28,13 +28,12 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
+	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
 	impls::ToAuthor,
-	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
 };
 use runtime_parachains::{
 	self,
@@ -72,6 +71,7 @@ use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
+use runtime_parachains::session_info as parachains_session_info;
 use runtime_parachains::paras as parachains_paras;
 use runtime_parachains::dmp as parachains_dmp;
 use runtime_parachains::ump as parachains_ump;
@@ -209,8 +209,11 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
-impl frame_system::Trait for Runtime {
+impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
+	type BlockWeights = BlockWeights;
+	type BlockLength = BlockLength;
+	type DbWeight = RocksDbWeight;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -222,13 +225,6 @@ impl frame_system::Trait for Runtime {
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = RocksDbWeight;
-	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
@@ -254,7 +250,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 		call: Call,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as frame_system::Trait>::Index,
+		nonce: <Runtime as frame_system::Config>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		// take the biggest period possible.
 		let period = BlockHashCount::get()
@@ -293,7 +289,7 @@ impl frame_system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
-impl pallet_session::historical::Trait for Runtime {
+impl pallet_session::historical::Config for Runtime {
 	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
@@ -333,7 +329,7 @@ parameter_types! {
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
 
-impl pallet_im_online::Trait for Runtime {
+impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type ReportUnresponsiveness = Offences;
@@ -342,7 +338,7 @@ impl pallet_im_online::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl pallet_staking::Trait for Runtime {
+impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
@@ -363,7 +359,7 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = MaximumBlockWeight;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 }
@@ -373,7 +369,7 @@ parameter_types! {
 	pub const MaxLocks: u32 = 50;
 }
 
-impl pallet_balances::Trait for Runtime {
+impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = Event;
@@ -397,22 +393,22 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 }
 
-impl pallet_offences::Trait for Runtime {
+impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
-impl pallet_authority_discovery::Trait for Runtime {}
+impl pallet_authority_discovery::Config for Runtime {}
 
 parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
-impl pallet_timestamp::Trait for Runtime {
+impl pallet_timestamp::Config for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
@@ -423,7 +419,7 @@ parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 }
 
-impl pallet_transaction_payment::Trait for Runtime {
+impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
@@ -434,7 +430,7 @@ parameter_types! {
 	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
-impl pallet_session::Trait for Runtime {
+impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
@@ -452,7 +448,7 @@ parameter_types! {
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
-impl pallet_babe::Trait for Runtime {
+impl pallet_babe::Config for Runtime {
 	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
 
@@ -481,7 +477,7 @@ parameter_types! {
 	pub const IndexDeposit: Balance = 1 * DOLLARS;
 }
 
-impl pallet_indices::Trait for Runtime {
+impl pallet_indices::Config for Runtime {
 	type AccountIndex = AccountIndex;
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
@@ -493,7 +489,7 @@ parameter_types! {
 	pub const AttestationPeriod: BlockNumber = 50;
 }
 
-impl pallet_grandpa::Trait for Runtime {
+impl pallet_grandpa::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 
@@ -517,52 +513,54 @@ parameter_types! {
 }
 
 // TODO: substrate#2986 implement this properly
-impl pallet_authorship::Trait for Runtime {
+impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = (Staking, ImOnline);
 }
 
-impl parachains_origin::Trait for Runtime {}
+impl parachains_origin::Config for Runtime {}
 
-impl parachains_configuration::Trait for Runtime {}
+impl parachains_configuration::Config for Runtime {}
 
-impl parachains_inclusion::Trait for Runtime {
+impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
 }
 
-impl parachains_paras::Trait for Runtime {
+impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_ump::Trait for Runtime {
+impl parachains_session_info::Config for Runtime {}
+
+impl parachains_ump::Config for Runtime {
 	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
 }
 
-impl parachains_dmp::Trait for Runtime {}
+impl parachains_dmp::Config for Runtime {}
 
-impl parachains_hrmp::Trait for Runtime {
+impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_inclusion_inherent::Trait for Runtime {}
+impl parachains_inclusion_inherent::Config for Runtime {}
 
-impl parachains_scheduler::Trait for Runtime {}
+impl parachains_scheduler::Config for Runtime {}
 
-impl parachains_initializer::Trait for Runtime {
+impl parachains_initializer::Config for Runtime {
 	type Randomness = Babe;
 }
 
-impl paras_sudo_wrapper::Trait for Runtime {}
+impl paras_sudo_wrapper::Config for Runtime {}
 
-impl paras_registrar::Trait for Runtime {
+impl paras_registrar::Config for Runtime {
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
 	type Origin = Origin;
 }
 
-impl pallet_sudo::Trait for Runtime {
+impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 }
@@ -654,7 +652,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: Id,
-			outputs: primitives::v1::ValidationOutputs,
+			outputs: primitives::v1::CandidateCommitments,
 		) -> bool {
 			runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -688,8 +686,9 @@ sp_api::impl_runtime_apis! {
 				}
 			})
 		}
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-			runtime_api_impl::validator_discovery::<Runtime>(validators)
+
+		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+			runtime_api_impl::session_info::<Runtime>(index)
 		}
 
 		fn dmq_contents(recipient: Id) -> Vec<InboundDownwardMessage<BlockNumber>> {
