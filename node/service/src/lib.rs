@@ -27,9 +27,9 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use {
 	std::convert::TryInto,
 	std::time::Duration,
-
 	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
+	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
@@ -56,7 +56,7 @@ pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
 pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
-	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
+	Role, PruningMode, TransactionPoolOptions, Error as SubstrateServiceError, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 	Configuration, ChainSpec, TaskManager,
 };
@@ -96,6 +96,38 @@ native_executor_instance!(
 	rococo_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
+
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
+
+	#[error(transparent)]
+	AddrFormatInvalid(#[from] std::net::AddrParseError),
+
+	#[error(transparent)]
+	Sub(#[from] SubstrateServiceError),
+
+	#[error(transparent)]
+	Blockchain(#[from] sp_blockchain::Error),
+
+	#[error(transparent)]
+	Consensus(#[from] consensus_common::Error),
+
+	#[error("Failed to create an overseer")]
+	Overseer(#[from] polkadot_overseer::SubsystemError),
+
+	#[error(transparent)]
+	Prometheus(#[from] prometheus_endpoint::PrometheusError),
+
+	#[cfg(feature = "full-node")]
+	#[error(transparent)]
+	Availability(#[from] AvailabilityError),
+
+	#[error("Authorities require the real overseer implementation")]
+	AuthoritiesRequireRealOverseer,
+}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
@@ -304,7 +336,7 @@ where
 		AllSubsystems::<()>::dummy(),
 		registry,
 		spawner,
-	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))
+	).map_err(|e| e.into())
 }
 
 #[cfg(all(feature = "full-node", feature = "real-overseer"))]
@@ -418,7 +450,7 @@ where
 		all_subsystems,
 		registry,
 		spawner,
-	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))
+	).map_err(|e| e.into())
 }
 
 #[cfg(feature = "full-node")]
@@ -529,7 +561,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
 
-	let availability_config = config.database.clone().try_into();
+	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
@@ -605,7 +637,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			leaves,
 			keystore_container.sync_keystore(),
 			overseer_client.clone(),
-			availability_config?,
+			availability_config,
 			network.clone(),
 			authority_discovery_service,
 			prometheus_registry.as_ref(),
@@ -644,7 +676,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool,
-			overseer_handler.as_ref().ok_or("authorities require real overseer handlers")?.clone(),
+			overseer_handler.as_ref().ok_or_else(|| Error::AuthoritiesRequireRealOverseer)?.clone(),
 			prometheus_registry.as_ref(),
 		);
 

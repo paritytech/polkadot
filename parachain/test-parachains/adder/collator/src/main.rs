@@ -19,7 +19,7 @@
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::v1::Id as ParaId;
-use sc_cli::{Result, Role, SubstrateCli};
+use sc_cli::{Result, Error as SubstrateCliError, Role, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_adder_collator::Collator;
 
@@ -46,7 +46,8 @@ fn main() -> Result<()> {
 			Ok(())
 		}
 		None => {
-			let runner = cli.create_runner(&cli.run.base)?;
+			let runner = cli.create_runner(&cli.run.base)
+				.map_err(|e| SubstrateCliError::Application(Box::new(e) as Box::<(dyn 'static + Send + Sync + std::error::Error)>))?;
 
 			runner.run_node_until_exit(|config| async move {
 				let role = config.role.clone();
@@ -60,7 +61,7 @@ fn main() -> Result<()> {
 							config,
 							polkadot_service::IsCollator::Yes(collator.collator_id()),
 							None,
-						)?;
+						).map_err(|e| e.to_string())?;
 						let mut overseer_handler = full_node
 							.overseer_handler
 							.expect("Overseer handler should be initialized for collators");
@@ -94,5 +95,6 @@ fn main() -> Result<()> {
 				}
 			})
 		}
-	}
+	}?;
+	Ok(())
 }
