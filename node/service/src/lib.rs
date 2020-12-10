@@ -27,7 +27,6 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use {
 	std::convert::TryInto,
 	std::time::Duration,
-
 	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
@@ -637,7 +636,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			leaves,
 			keystore_container.sync_keystore(),
 			overseer_client.clone(),
-			availability_config?,
+			availability_config,
 			network.clone(),
 			authority_discovery_service,
 			prometheus_registry.as_ref(),
