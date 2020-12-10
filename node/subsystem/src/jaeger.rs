@@ -211,7 +211,7 @@ impl Jaeger {
 		// Spawn a background task that pulls span information and sends them on the network.
 		spawner.spawn("jaeger-collector", async move {
 			let res = async_std::net::UdpSocket::bind("127.0.0.1:0").await
-				.map_err(|e| JaegerError::PortAllocationError(e));
+				.map_err(JaegerError::PortAllocationError);
 			if let Ok(udp_socket) = res {
 				loop {
 					let buf = traces_out.next().await;
