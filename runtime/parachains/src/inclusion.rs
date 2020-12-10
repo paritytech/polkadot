@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData, CandidateHash,
+	CandidateReceipt, HeadData, CandidateHash, Hash,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
@@ -382,11 +382,13 @@ impl<T: Config> Module<T> {
 		Ok(freed_cores)
 	}
 
-	/// Process candidates that have been backed. Provide a set of candidates and scheduled cores.
+	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
+	/// and scheduled cores.
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates(
+		parent_storage_root: Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -491,6 +493,7 @@ impl<T: Config> Module<T> {
 								match crate::util::make_persisted_validation_data::<T>(
 									para_id,
 									relay_parent_number,
+									parent_storage_root,
 								) {
 									Some(l) => l,
 									None => {

@@ -18,22 +18,25 @@
 //! on all modules.
 
 use sp_runtime::traits::Saturating;
-use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData};
+use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData, Hash};
 
 use crate::{configuration, paras, dmp, hrmp};
 
-/// Make the persisted validation data for a particular parachain and a specified relay-parent.
+/// Make the persisted validation data for a particular parachain, a specified relay-parent and it's
+/// storage root.
 ///
 /// This ties together the storage of several modules.
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
 	relay_parent_number: T::BlockNumber,
+	relay_storage_root: Hash,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
 
 	Some(PersistedValidationData {
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
 		block_number: relay_parent_number,
+		relay_storage_root,
 		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
 		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
 		max_pov_size: config.max_pov_size,
