@@ -21,7 +21,8 @@ pub use schnorrkel::vrf::{VRFOutput, VRFProof};
 
 use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature};
 
-/// We split
+/// Validators assigning to check a particular candidate are split up into tranches.
+/// Earlier tranches of validators check first, with later tranches serving as backup.
 pub type DelayTranche = u32;
 
 /// Different kinds of input data or criteria that can prove a validator's assignment
