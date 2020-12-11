@@ -111,11 +111,32 @@ pub(crate) fn clear(_: &impl AuxStore) {
 	// TODO: [now]
 }
 
-pub(crate) fn load_block_entry(_: &impl AuxStore)
+/// Load a block entry from the aux store.
+pub(crate) fn load_block_entry(store: &impl AuxStore, block_hash: &Hash)
 	-> sp_blockchain::Result<Option<BlockEntry>>
 {
-	// TODO: [now]
-	Ok(None)
+	match store.get_aux(&block_entry_key(block_hash))? {
+		None => Ok(None),
+		Some(raw) => BlockEntry::decode(&mut &raw[..])
+			.map(Some)
+			.map_err(|e| sp_blockchain::Error::Storage(
+				format!("Failed to decode block entry in approvals: {:?}", e)
+			)),
+	}
+}
+
+/// Load a candidate entry from the aux store.
+pub(crate) fn load_candidate_entry(store: &impl AuxStore, candidate_hash: &CandidateHash)
+	-> sp_blockchain::Result<Option<CandidateEntry>>
+{
+	match store.get_aux(&candidate_entry_key(candidate_hash))? {
+		None => Ok(None),
+		Some(raw) => CandidateEntry::decode(&mut &raw[..])
+			.map(Some)
+			.map_err(|e| sp_blockchain::Error::Storage(
+				format!("Failed to decode block entry in approvals: {:?}", e)
+			)),
+	}
 }
 
 fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
@@ -128,12 +149,12 @@ fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
 	key
 }
 
-fn candidate_entry_key(block_hash: &Hash) -> [u8; 46] {
+fn candidate_entry_key(candidate_hash: &CandidateHash) -> [u8; 46] {
 	const CANDIDATE_ENTRY_PREFIX: [u8; 14] = *b"Approvals_cand";
 
 	let mut key = [0u8; 14 + 32];
 	key[0..14].copy_from_slice(&CANDIDATE_ENTRY_PREFIX);
-	key[14..][..32].copy_from_slice(block_hash.as_ref());
+	key[14..][..32].copy_from_slice(candidate_hash.0.as_ref());
 
 	key
 }
