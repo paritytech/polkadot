@@ -341,6 +341,11 @@ where
 
 	// handle all candidates
 	for candidate_hash in state.cached_live_candidates_unioned(view.difference(&old_view)) {
+		// If we are not a validator for this candidate, let's skip it.
+		if state.per_candidate.entry(candidate_hash).or_default().validator_index.is_none() {
+			continue
+		}
+
 		// check if the availability is present in the store exists
 		if !query_data_availability(ctx, candidate_hash).await? {
 			continue;
@@ -360,18 +365,28 @@ where
 			.map(|(peer, _view)| peer.clone())
 			.collect();
 
+		// If we have no peers that are interested, skip the rest.
+		if peers.is_empty() {
+			continue;
+		}
+
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		let validator_count = per_candidate.validators.len();
 
 		// distribute all erasure messages to interested peers
 		for chunk_index in 0u32..(validator_count as u32) {
-			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
-				message.erasure_chunk.clone()
-			} else if let Some(erasure_chunk) = query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await? {
+			let erasure_chunk = if let Some(erasure_chunk) =
+				query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await? {
 				erasure_chunk
 			} else {
-				continue;
+				tracing::error!(
+					target: LOG_TARGET,
+					%chunk_index,
+					?candidate_hash,
+					"Availability store reported that we have the availability data, but we could not retrieve a chunk of it!",
+				);
+				break;
 			};
 
 			debug_assert_eq!(erasure_chunk.index, chunk_index);

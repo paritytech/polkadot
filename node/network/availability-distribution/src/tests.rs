@@ -624,7 +624,6 @@ fn reputation_verification() {
 			);
 		}
 
-		let mut candidates2 = candidates.clone();
 		// check if the availability store can provide the desired erasure chunks
 		for i in 0usize..2 {
 			tracing::trace!("0000");
@@ -632,7 +631,6 @@ fn reputation_verification() {
 			let chunks =
 				derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
 
-			let expected;
 			// store the chunk to the av store
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -642,40 +640,12 @@ fn reputation_verification() {
 						tx,
 					)
 				) => {
-					let index = candidates2.iter().enumerate().find(|x| { x.1.hash() == candidate_hash }).map(|x| x.0).unwrap();
-					expected = candidates2.swap_remove(index).hash();
+					assert_eq!(candidates[i].hash(), candidate_hash);
 					tx.send(i == 0).unwrap();
 				}
 			);
 
 			assert_eq!(chunks.len(), test_state.validators.len());
-
-			tracing::trace!("xxxx");
-			// retrieve a stored chunk
-			for (j, chunk) in chunks.into_iter().enumerate() {
-				tracing::trace!("yyyy i={}, j={}", i, j);
-				if i != 0 {
-					// not a validator, so this never happens
-					break;
-				}
-				assert_matches!(
-					overseer_recv(&mut virtual_overseer).await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::QueryChunk(
-							candidate_hash,
-							idx,
-							tx,
-						)
-					) => {
-						assert_eq!(candidate_hash, expected);
-						assert_eq!(j as u32, chunk.index);
-						assert_eq!(idx, j as u32);
-						tx.send(
-							Some(chunk.clone())
-						).unwrap();
-					}
-				);
-			}
 		}
 		// setup peer a with interest in current
 		overseer_send(
