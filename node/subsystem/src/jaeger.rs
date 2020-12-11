@@ -238,17 +238,14 @@ impl Jaeger {
 	where
 		F: Fn() -> Hash,
 	{
-		match self {
-			Self::Launched { traces_in , .. } => {
-				let hash = lazy_hash();
-				let mut buf = [0u8; 16];
-				buf.copy_from_slice(&hash.as_ref()[0..16]);
-				let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?;
-				Some(traces_in.span(trace_id, span_name))
-			},
-			_ => {
-				None
-			}
+		if let Self::Launched { traces_in , .. } = self {
+			let hash = lazy_hash();
+			let mut buf = [0u8; 16];
+			buf.copy_from_slice(&hash.as_ref()[0..16]);
+			let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?;
+			Some(traces_in.span(trace_id, span_name))
+		} else {
+			None
 		}
 	}
 }
