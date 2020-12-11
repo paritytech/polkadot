@@ -22,3 +22,6 @@
 //! been sufficiently approved to finalize.
 
 mod aux_schema;
+
+/// A base unit of time, starting from the unix epoch, split into half-second intervals.
+type Tick = u64;

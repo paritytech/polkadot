@@ -31,7 +31,75 @@
 //! time being we share the same DB with the rest of Substrate.
 
 use sc_client_api::backend::AuxStore;
+use polkadot_node_primitives::approval::{DelayTranche, RelayVRF};
+use polkadot_primitives::v1::{
+	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
+	BlockNumber, Hash,
+};
+use sp_consensus_slots::SlotNumber;
 
-pub(crate) clear(&impl AuxStore) {
+use std::collections::HashMap;
+use bitvec::vec::BitVec;
+
+use super::Tick;
+
+const STORED_BLOCKS_KEY: &[u8] = b"StoredBlock";
+
+/// Metadata regarding a specific tranche of assignments for a specific candidate.
+pub(crate) struct TrancheEntry {
+	tranche: DelayTranche,
+	// Assigned validators, and the instant we received their assignment, rounded
+	// to the nearest tick.
+	assignments: Vec<(ValidatorIndex, Tick)>,
+}
+
+/// Metadata regarding approval of a particular candidate within the context of some
+/// particular block.
+pub(crate) struct ApprovalEntry {
+	tranches: Vec<TrancheEntry>,
+	backing_group: GroupIndex,
+	// When the next wakeup for this entry should occur. This is either to
+	// check a no-show or to check if we need to broadcast an assignment.
+	next_wakeup: Tick,
+	our_assignment: Option<OurAssignment>,
+	// `n_validators` bits.
+	assignments: BitVec<bitvec::order::Lsb0, u8>,
+	approved: bool,
+}
+
+/// Metadata regarding approval of a particular candidate.
+pub(crate) struct CandidateEntry {
+	candidate: CandidateReceipt,
+	session: SessionIndex,
+	// Assignments are based on blocks, so we need to track assignments separately
+	// based on the block we are looking at.
+	block_assignments: HashMap<Hash, ApprovalEntry>,
+	approvals: BitVec<bitvec::order::Lsb0, u8>,
+}
+
+/// Metadata regarding approval of a particular block, by way of approval of the
+/// candidates contained within it.
+pub(crate) struct BlockEntry {
+	block_hash: Hash,
+	session: SessionIndex,
+	slot: SlotNumber,
+	relay_vrf_story: RelayVRF,
+	// The candidates included as-of this block and the index of the core they are
+	// leaving. Sorted ascending by core index.
+	candidates: Vec<(CoreIndex, Hash)>,
+	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
+	// The i'th bit is `tru` iff the candidate has been approved in the context of this
+	// block. The block can be considered approved if the bitfield has all bits set to `true`.
+	approved_bitfield: BitVec<bitvec::order::Lsb0, u8>,
+	children: Vec<Hash>,
+}
+
+/// A range from earliest..last block number stored within the DB.
+pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
+
+// TODO [now]: probably in lib.rs
+pub(crate) struct OurAssignment { }
+
+pub(crate) fn clear(_: &impl AuxStore) {
 	// TODO: [now]
 }

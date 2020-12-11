@@ -31,6 +31,10 @@ pub const RELAY_VRF_MODULO_CONTEXT: &str = "A&V MOD";
 /// A static context used for all relay-vrf-delay VRFs.
 pub const RELAY_VRF_DELAY_CONTEXT: &str = "A&V TRANCHE";
 
+/// random bytes derived from the VRF submitted within the block by the
+/// block author as a credential and used as input to approval assignment criteria.
+pub struct RelayVRF(pub [u8; 32]);
+
 /// Different kinds of input data or criteria that can prove a validator's assignment
 /// to check a particular parachain.
 pub enum AssignmentCertKind {
