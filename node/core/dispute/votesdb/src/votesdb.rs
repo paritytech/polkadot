@@ -145,9 +145,9 @@ const OLDEST_SESSION_SLOT_ENTRY: &[u8] = b"vote/prune/waterlevel";
 
 ///
 #[inline(always)]
-fn derive_key_per_hash(session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
+fn derive_key_per_hash(session: SessionIndex, candidate_hash: CandidateHash) -> String {
 	format!(
-		"vote/s_{session_index}/c_{candidate_hash}/v_{validator_index}",
+		"vote/s_{session_index}/c_{candidate_hash}",
 		session_index = session,
 		candidate_hash = candidate_hash,
 		validator_index = validator
@@ -156,9 +156,9 @@ fn derive_key_per_hash(session: SessionIndex, validator: ValidatorIndex, candida
 
 /// A prefix with keys per validator.
 #[inline(always)]
-fn derive_key_per_val(session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
+fn derive_key_per_validator(session: SessionIndex, validator: ValidatorIndex) -> String {
 	format!(
-		"vote/s_{session_index}/v_{validator_index}/c_{candidate_hash}",
+		"vote/s_{session_index}/v_{validator_index}",
 		session_index = session,
 		candidate_hash = candidate_hash,
 		validator_index = validator
@@ -174,15 +174,14 @@ fn derive_prune_prefix(session: SessionIndex) -> String {
 	)
 }
 
-// FIXME this does not work just yet, currently this would only yield
-// the results for the provided session index
 /// Derive the prefix key for collecting all votes of a particular
 #[inline(always)]
 fn derive_disputes_per_validator_prefix(validator: ValidatorId) -> String {
 	format!(
-		"vote/per_validator/v_{validator}",
+		"validator/{validator}/votes",
 		validator = validator
 	)
+	// TODO also store the validator under this message
 }
 
 /// Returns the oldest session index for which entries are not pruned yet.
@@ -246,6 +245,7 @@ enum CandidateQuorum {
 /// Output of the vote store action.
 #[derive(Debug, Clone)]
 enum VoteEvent {
+	/// No particularly interesting event, successfully stored the vote.
 	Stored,
 	/// This is the first set of votes that was stored for this dispute
 	DisputeDetected {
@@ -254,9 +254,14 @@ enum VoteEvent {
 	},
 	/// A validator tried to vote twice
 	DoubleVote {
+		/// The candidate in question.
 		candidate: CandidateHash,
+		/// In which session the candidate was included.
 		session: SessionIndex,
+		/// The validator that created the inconsistent votes.
 		validator: ValidatorIndex,
+		/// All votes cast by this validator.
+		votes: Vec<Vote>,
 	},
 	/// Either side of the votes has reached a super majority
 	SupermajorityReached {
@@ -309,7 +314,7 @@ fn check_supermajority(validator_count: usize, pro: usize, con: usize) -> Option
 	let con_wins = con_votes >= threshold;
 
 	if pro_wins && con_wins {
-		unreachable!(target: TARGET, "In no circumstance can opposing parties achieve a supermajority");
+		unreachable!("In no circumstance can opposing parties achieve a supermajority");
 	} else if pro_wins {
 		Some(CandidateQuorum::Valid)
 	} else if con_wins {
@@ -317,6 +322,22 @@ fn check_supermajority(validator_count: usize, pro: usize, con: usize) -> Option
 	} else {
 		None
 	}
+}
+
+/// Obtain all votes for a particular dispute indentified
+/// by session and candidate hash.
+fn lookup_all_votes_for_dispute(
+	db: &Arc<dyn KeyValueDB>,
+	session: SessionIndex,
+	candidate_hash: CandidateHash,
+) -> Result<Vec<Vote>> {
+	let prefix = derive_key_per_hash(sesssion, candidate_hash);
+	let cast_votes = db.iter_with_prefix(columns::DATA, prefix.as_bytes())
+		.filter_map(|(_key, value)| {
+			let v: Vote = v.decode().ok()?;
+			Some(v)
+		}).collect::<Vec<Vote>>();
+	Ok(cast_votes)
 }
 
 /// Check if for a particular candidate a supermajority was reached.
@@ -336,7 +357,7 @@ where
 
 	let n = validators.len();
 
-	let votes: Vec<Vote> = unimplemented!("obtain all votes for this candidate");
+	let votes: Vec<Vote> = lookup_all_votes_for_dispute(db, session, candidate_hash)?;
 
 	let mut pro = 0_u64;
 	let mut con = 0_u64;
@@ -378,6 +399,7 @@ where
 
 				if previous_vote != vote {
 					VoteEvent::DoubleVote {
+						candidate: vote.candidate_hash(),
 						session: vote.session(),
 						validator: vote.validator(),
 						votes: vec![previous_vote, vote],
@@ -433,7 +455,8 @@ pub fn find_all_disputes_validator_participated(
 where
 	Context: SubsystemContext<Message = VotesDBMessage>,
 {
-	let prefix = derive_disputes_per_validator_prefix(session, validator);
+	let validator_pub = unimplemented!("lookup ValidatorId by session and validator index");
+	let prefix = derive_disputes_per_validator_prefix(validator_pub);
 	let participated_disputes = db.iter_with_prefix(columns::DATA, prefix.as_bytes())
 		.filter_map(|(_key, value)| {
 			let v: Vote = v.decode().ok()?;
@@ -442,7 +465,7 @@ where
 	Ok(participated_disputes)
 }
 
-/// The bitfield distribution subsystem.
+/// The votes db subsystem.
 pub struct VotesDB {
 	metrics: Metrics,
 	inner: Arc<dyn KeyValueDB>,
