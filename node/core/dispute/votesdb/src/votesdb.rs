@@ -137,15 +137,12 @@ fn read_db<D: Decode>(
 	}
 }
 
-
-// Storage format prefix: "vote/s_{session_index}/v_{validator_index}"
-
 /// Track up to which point all data was pruned.
 const OLDEST_SESSION_SLOT_ENTRY: &[u8] = b"vote/prune/waterlevel";
 
 ///
 #[inline(always)]
-fn derive_key_per_hash(prefix: &str, session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
+fn derive_key_per_hash(session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
 	format!(
 		"vote/s_{session_index}/c_{candidate_hash}/v_{validator_index}",
 		session_index = session,
@@ -156,7 +153,7 @@ fn derive_key_per_hash(prefix: &str, session: SessionIndex, validator: Validator
 
 /// A prefix with keys per validator.
 #[inline(always)]
-fn derive_key_per_val(prefix: &str, session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
+fn derive_key_per_val(session: SessionIndex, validator: ValidatorIndex, candidate_hash: CandidateHash) -> String {
 	format!(
 		"vote/s_{session_index}/v_{validator_index}/c_{candidate_hash}",
 		session_index = session,
@@ -170,10 +167,20 @@ fn derive_key_per_val(prefix: &str, session: SessionIndex, validator: ValidatorI
 fn derive_prune_prefix(session: SessionIndex) -> String {
 	format!(
 		"vote/s_{session_index}",
-		session_index
+		session_index = session,
 	)
 }
 
+// FIXME this does not work just yet, currently this would only yield
+// the results for the provided session index
+/// Derive the prefix key for collecting all votes of a particular
+#[inline(always)]
+fn derive_disputes_per_validator_prefix(validator: ValidatorId) -> String {
+	format!(
+		"vote/per_validator/v_{validator}",
+		validator = validator
+	)
+}
 
 /// Returns the oldest session index for which entries are not pruned yet.
 fn oldest_session_waterlevel(db: &Arc<dyn KeyValueDB>) -> SessionIndex {
@@ -248,6 +255,7 @@ impl From<BackedCandidate> for Vec<Vote> {
 	}
 }
 
+// TODO move this to messages or v1 eventually
 /// A vote cast by another validator.
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 enum Vote {
@@ -346,10 +354,9 @@ enum VoteEvent {
 	},
 }
 
-
-
-/// Query the validator set.
-async fn query_session_info<Context>(
+/// Query the runtime for the validator set for a particular relay parent.
+// TODO make this based on the session index.
+async fn query_validator_set<Context>(
 	ctx: &mut Context,
 	hash: Hash,
 ) -> Result<Vec<ValidatorId>>
@@ -406,6 +413,7 @@ async fn supermajority_reached<Context>(
 	candidate_hash: CandidateHash
 ) -> Result<Option<CandidateQuorum>>
 where
+	Context: SubsystemContext<Message = VotesDBMessage>,
 {
 	debug_assert!(session >= oldest_session_waterlevel(session));
 
@@ -433,18 +441,24 @@ fn store_votes_inner<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
 	votes: &[Vote],
-) -> Result<HashMap<(CandidateHash, SessionIndex, ValidatorIndex), VoteEvent>> {
-	if session < get_pivot() {
-		log::warn!("Dropping request to store ancient votes.");
-		return Err(Error::ObsoleteVote)
-	}
+) -> Result<HashMap<(CandidateHash, SessionIndex, ValidatorIndex), VoteEvent>>
+where
+	Context: SubsystemContext<Message = VotesDBMessage>,
+{
+	let oldest_allowed = get_pivot();
+
 	let mut transaction = DBTransaction::with_capacity(votes.len());
 	// events per input vote
 	let events: Vec<VoteEvent> = votes.into_iter()
-		.map(|vote| {
+		.filter_map(|vote| {
+			if vote.session() < oldest_allowed {
+				log::warn!("Dropping request to store ancient votes.");
+				return Err(Error::ObsoleteVote)
+			}
+
 			let k = derive_key(session, vote.validator());
 
-			if let Some(previous_vote) = read_db(db, columns::DATA, k) {
+			let event = if let Some(previous_vote) = read_db(db, columns::DATA, k) {
 				let previous_vote: Vote = previous_vote.decode()
 					.expect("Database entries are all created from this module and thus must decode. qed");
 
@@ -465,7 +479,8 @@ fn store_votes_inner<Context>(
 				let v = vote.encode();
 				transaction.put(columns::DATA, k ,v);
 				Vote::Stored
-			}
+			};
+			Some(event)
 	}).collect();
 
 	db.write_transaction(transaction)?;
@@ -479,7 +494,10 @@ pub async fn check_for_supermajority<Context>(
 	ctx: Context,
 	db: &Arc<dyn KeyValueDB>,
 	votes: &[Vote],
-) -> Result<HashSet<(SessionIndex, CandidateHash)>> {
+) -> Result<HashSet<(SessionIndex, CandidateHash)>>
+where
+	Context: SubsystemContext<Message = VotesDBMessage>,
+{
 	let mut acc = Default::default();
 	for (session, candidate_hash) in votes.map(|vote| (vote.session(), vote.candidate_hash())) {
 		if supermajority_reached(ctx, db, session, candidate_hash).await {
@@ -490,12 +508,24 @@ pub async fn check_for_supermajority<Context>(
 }
 
 
-/// Obtain a list of disputed candidates in which the validator participated.
+/// Obtain a list of disput votes cast in which the validator participated.
 ///
 /// Note: Due to the storage limitation this limited to `SESSION_COUNT_BEFORE_DROP` sessions.
-pub async fn query_all_disputes_participated(db: &Arc<dyn KeyValueDB>, validator: ValidatorId) -> Result<Vec<CandidateHash>> {
-
-	Ok(vec![])
+pub fn find_all_disputes_validator_participated(
+	db: &Arc<dyn KeyValueDB>,
+	session: SessionIndex,
+	validator: ValidatorIndex
+) -> Result<Vec<Vote>>
+where
+	Context: SubsystemContext<Message = VotesDBMessage>,
+{
+	let prefix = derive_disputes_per_validator_prefix(session, validator);
+	let participated_disputes = db.iter_with_prefix(columns::DATA, prefix.as_bytes())
+		.filter_map(|(_key, value)| {
+			let v: Vote = v.decode().ok()?;
+			Some(v)
+		}).collect::<Vec<Vote>>();
+	Ok(participated_disputes)
 }
 
 /// The bitfield distribution subsystem.
@@ -547,6 +577,10 @@ impl VotesDB {
 		match store_votes_inner(&self.inner, votes.as_slice())? {
 			VoteEvent::DoubleVote { .. } => {},
 			_ => unimplemented!("TODO send out messages")
+		}
+
+		let x = check_for_supermajority(ctx, ).await {
+
 		}
 
 		Ok(())
