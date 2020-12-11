@@ -44,7 +44,7 @@ use bitvec::vec::BitVec;
 
 use super::Tick;
 
-const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlock";
+const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -111,35 +111,41 @@ pub(crate) fn clear(_: &impl AuxStore) {
 	// TODO: [now]
 }
 
+fn load_decode<D: Decode>(store: &impl AuxStore, key: &[u8])
+	-> sp_blockchain::Result<Option<D>>
+{
+	match store.get_aux(key)? {
+		None => Ok(None),
+		Some(raw) => D::decode(&mut &raw[..])
+			.map(Some)
+			.map_err(|e| sp_blockchain::Error::Storage(
+				format!("Failed to decode item in approvals DB: {:?}", e)
+			)),
+	}
+}
+
+/// Load the stored-blocks key from the state.
+pub(crate) fn load_stored_blocks(store: &impl AuxStore)
+	-> sp_blockchain::Result<Option<StoredBlockRange>>
+{
+	load_decode(store, STORED_BLOCKS_KEY)
+}
+
 /// Load a block entry from the aux store.
 pub(crate) fn load_block_entry(store: &impl AuxStore, block_hash: &Hash)
 	-> sp_blockchain::Result<Option<BlockEntry>>
 {
-	match store.get_aux(&block_entry_key(block_hash))? {
-		None => Ok(None),
-		Some(raw) => BlockEntry::decode(&mut &raw[..])
-			.map(Some)
-			.map_err(|e| sp_blockchain::Error::Storage(
-				format!("Failed to decode block entry in approvals: {:?}", e)
-			)),
-	}
+	load_decode(store, &block_entry_key(block_hash))
 }
 
 /// Load a candidate entry from the aux store.
 pub(crate) fn load_candidate_entry(store: &impl AuxStore, candidate_hash: &CandidateHash)
 	-> sp_blockchain::Result<Option<CandidateEntry>>
 {
-	match store.get_aux(&candidate_entry_key(candidate_hash))? {
-		None => Ok(None),
-		Some(raw) => CandidateEntry::decode(&mut &raw[..])
-			.map(Some)
-			.map_err(|e| sp_blockchain::Error::Storage(
-				format!("Failed to decode block entry in approvals: {:?}", e)
-			)),
-	}
+	load_decode(store, &candidate_entry_key(candidate_hash))
 }
 
-/// Load a
+/// The key a given block entry is stored under.
 fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
 	const BLOCK_ENTRY_PREFIX: [u8; 14] = *b"Approvals_blck";
 
@@ -150,6 +156,7 @@ fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
 	key
 }
 
+/// The key a given candidate entry is stored under.
 fn candidate_entry_key(candidate_hash: &CandidateHash) -> [u8; 46] {
 	const CANDIDATE_ENTRY_PREFIX: [u8; 14] = *b"Approvals_cand";
 
