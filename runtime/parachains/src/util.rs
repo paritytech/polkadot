@@ -47,7 +47,7 @@ pub fn make_transient_validation_data<T: paras::Config + dmp::Config>(
 	para_id: ParaId,
 ) -> Option<TransientValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
-	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
+	let relay_parent_number = <frame_system::Module<T>>::block_number();
 
 	let freq = config.validation_upgrade_frequency;
 	let delay = config.validation_upgrade_delay;
