@@ -139,6 +139,7 @@ pub(crate) fn load_candidate_entry(store: &impl AuxStore, candidate_hash: &Candi
 	}
 }
 
+/// Load a
 fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
 	const BLOCK_ENTRY_PREFIX: [u8; 14] = *b"Approvals_blck";
 

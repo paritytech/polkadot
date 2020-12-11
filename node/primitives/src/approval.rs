@@ -16,10 +16,11 @@
 
 //! Types relevant for approval.
 
-pub use polkadot_primitives::v1::{AssignmentId, CoreIndex};
 pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
 
-use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature};
+use polkadot_primitives::v1::{
+	CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature, CoreIndex,
+};
 use parity_scale_codec::{Encode, Decode};
 
 /// Validators assigning to check a particular candidate are split up into tranches.
