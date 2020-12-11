@@ -41,7 +41,7 @@ use std::pin::Pin;
 
 pub use sp_core::traits::SpawnNamed;
 
-mod approval;
+pub mod approval;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
