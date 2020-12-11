@@ -4936,17 +4936,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-approval-voting"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.8",
- "polkadot-node-subsystem",
- "polkadot-overseer",
- "polkadot-primitives",
- "sc-client-api",
-]
-
-[[package]]
 name = "polkadot-node-core-av-store"
 version = "0.1.0"
 dependencies = [
@@ -5135,7 +5124,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
- "schnorrkel",
+ "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
 ]
