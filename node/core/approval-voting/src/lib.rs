@@ -20,3 +20,5 @@
 //! on, performing those approval checks, and tracking the assignments and approvals
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
+
+mod aux_schema;
