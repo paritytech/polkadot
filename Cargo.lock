@@ -4918,11 +4918,13 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "futures 0.3.8",
+ "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-client-api",
+ "sp-blockchain",
  "sp-consensus-slots",
 ]
 
@@ -5115,7 +5117,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
- "schnorrkel",
+ "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
 ]

@@ -34,18 +34,20 @@ use sc_client_api::backend::AuxStore;
 use polkadot_node_primitives::approval::{DelayTranche, RelayVRF};
 use polkadot_primitives::v1::{
 	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
-	BlockNumber, Hash,
+	BlockNumber, Hash, CandidateHash,
 };
 use sp_consensus_slots::SlotNumber;
+use parity_scale_codec::{Encode, Decode};
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use bitvec::vec::BitVec;
 
 use super::Tick;
 
-const STORED_BLOCKS_KEY: &[u8] = b"StoredBlock";
+const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlock";
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
+#[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct TrancheEntry {
 	tranche: DelayTranche,
 	// Assigned validators, and the instant we received their assignment, rounded
@@ -55,6 +57,7 @@ pub(crate) struct TrancheEntry {
 
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
+#[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct ApprovalEntry {
 	tranches: Vec<TrancheEntry>,
 	backing_group: GroupIndex,
@@ -68,17 +71,19 @@ pub(crate) struct ApprovalEntry {
 }
 
 /// Metadata regarding approval of a particular candidate.
+#[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct CandidateEntry {
 	candidate: CandidateReceipt,
 	session: SessionIndex,
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
-	block_assignments: HashMap<Hash, ApprovalEntry>,
+	block_assignments: BTreeMap<Hash, ApprovalEntry>,
 	approvals: BitVec<bitvec::order::Lsb0, u8>,
 }
 
 /// Metadata regarding approval of a particular block, by way of approval of the
 /// candidates contained within it.
+#[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct BlockEntry {
 	block_hash: Hash,
 	session: SessionIndex,
@@ -86,7 +91,7 @@ pub(crate) struct BlockEntry {
 	relay_vrf_story: RelayVRF,
 	// The candidates included as-of this block and the index of the core they are
 	// leaving. Sorted ascending by core index.
-	candidates: Vec<(CoreIndex, Hash)>,
+	candidates: Vec<(CoreIndex, CandidateHash)>,
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `tru` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
@@ -95,11 +100,40 @@ pub(crate) struct BlockEntry {
 }
 
 /// A range from earliest..last block number stored within the DB.
+#[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
 
 // TODO [now]: probably in lib.rs
+#[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct OurAssignment { }
 
 pub(crate) fn clear(_: &impl AuxStore) {
 	// TODO: [now]
+}
+
+pub(crate) fn load_block_entry(_: &impl AuxStore)
+	-> sp_blockchain::Result<Option<BlockEntry>>
+{
+	// TODO: [now]
+	Ok(None)
+}
+
+fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
+	const BLOCK_ENTRY_PREFIX: [u8; 14] = *b"Approvals_blck";
+
+	let mut key = [0u8; 14 + 32];
+	key[0..14].copy_from_slice(&BLOCK_ENTRY_PREFIX);
+	key[14..][..32].copy_from_slice(block_hash.as_ref());
+
+	key
+}
+
+fn candidate_entry_key(block_hash: &Hash) -> [u8; 46] {
+	const CANDIDATE_ENTRY_PREFIX: [u8; 14] = *b"Approvals_cand";
+
+	let mut key = [0u8; 14 + 32];
+	key[0..14].copy_from_slice(&CANDIDATE_ENTRY_PREFIX);
+	key[14..][..32].copy_from_slice(block_hash.as_ref());
+
+	key
 }
