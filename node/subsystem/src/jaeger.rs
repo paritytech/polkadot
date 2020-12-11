@@ -148,20 +148,20 @@ impl From<mick_jaeger::Span> for JaegerSpan {
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
 #[inline(always)]
 pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> JaegerSpan {
-	hash_span(&candidate_hash.0, span_name)
+	INSTANCE.read_recursive().span(|| { candidate_hash.0 }, span_name).into()
 }
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
 #[inline(always)]
 pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
-	hash_span(&pov.hash(), span_name)
+	INSTANCE.read_recursive().span(|| { pov.hash() }, span_name).into()
 }
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
 #[inline(always)]
 pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.read_recursive().span(hash, span_name).into()
+	INSTANCE.read_recursive().span(|| { *hash }, span_name).into()
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
@@ -208,7 +208,6 @@ impl Jaeger {
 			service_name: format!("{}-{}", cfg.node_name, cfg.node_name),
 		});
 
-
 		// Spawn a background task that pulls span information and sends them on the network.
 		spawner.spawn("jaeger-collector", Box::pin(async move {
 			let res = async_std::net::UdpSocket::bind("127.0.0.1:0").await
@@ -235,22 +234,21 @@ impl Jaeger {
 		Ok(())
 	}
 
-	#[inline(always)]
-	fn traces_in(&self) -> Option<&Arc<mick_jaeger::TracesIn>> {
+	fn span<F>(&self, lazy_hash: F, span_name: impl Into<String>) -> Option<mick_jaeger::Span>
+	where
+		F: Fn() -> Hash,
+	{
 		match self {
-			Self::Launched {
-				traces_in,
-				..
-			} => Some(&traces_in),
-			_ => None,
+			Self::Launched { traces_in , .. } => {
+				let hash = lazy_hash();
+				let mut buf = [0u8; 16];
+				buf.copy_from_slice(&hash.as_ref()[0..16]);
+				let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?;
+				Some(traces_in.span(trace_id, span_name))
+			},
+			_ => {
+				None
+			}
 		}
-	}
-
-	fn span(&self, hash: &Hash, span_name: impl Into<String>) -> Option<mick_jaeger::Span> {
-		let traces_in = self.traces_in()?;
-		let mut buf = [0u8; 16];
-		buf.copy_from_slice(&hash.as_ref()[0..16]);
-		let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?;
-		Some(traces_in.span(trace_id, span_name))
 	}
 }
