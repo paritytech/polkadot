@@ -162,17 +162,19 @@ pub fn run() -> Result<()> {
 				info!("----------------------------");
 			}
 
+			let jaeger_agent = cli.run.jaeger_agent;
 
 			Ok(runner.run_node_until_exit(move |config| async move {
 				let role = config.role.clone();
 
 				let task_manager = match role {
 					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager)
-					.map_err(|e| sc_service::Error::Other(e.to_string()) ),
+					.map_err(|e| sc_service::Error::Other(e.to_string())),
 					_ => service::build_full(
 						config,
 						service::IsCollator::No,
 						grandpa_pause,
+						jaeger_agent,
 					).map(|full| full.task_manager)
 					.map_err(|e| sc_service::Error::Other(e.to_string()) )
 				};
@@ -191,7 +193,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)
 					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
@@ -203,7 +205,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)
 					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
@@ -215,7 +217,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)
 					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
@@ -227,7 +229,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)
 					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
@@ -244,7 +246,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config)
+				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)
 					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, backend), task_manager))
 			})

@@ -24,6 +24,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
 };
 use polkadot_subsystem::{
+	jaeger,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CollatorProtocolMessage,
@@ -430,6 +431,8 @@ async fn process_msg(
 			state.collating_on = Some(id);
 		}
 		DistributeCollation(receipt, pov) => {
+			let _span1 = jaeger::hash_span(&receipt.descriptor.relay_parent, "distributing-collation");
+			let _span2 = jaeger::pov_span(&pov, "distributing-collation");
 			match state.collating_on {
 				Some(id) if receipt.descriptor.para_id != id => {
 					// If the ParaId of a collation requested to be distributed does not match
@@ -539,10 +542,12 @@ async fn handle_incoming_peer_message(
 			);
 		}
 		RequestCollation(request_id, relay_parent, para_id) => {
+			let _span = jaeger::hash_span(&relay_parent, "rx-collation-request");
 			match state.collating_on {
 				Some(our_para_id) => {
 					if our_para_id == para_id {
 						if let Some(collation) = state.collations.get(&relay_parent).cloned() {
+							let _span = _span.child("sending");
 							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await;
 						}
 					} else {

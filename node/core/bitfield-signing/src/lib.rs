@@ -23,6 +23,7 @@
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
+	jaeger,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
 		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -75,7 +76,9 @@ async fn get_core_availability(
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
 ) -> Result<bool, Error> {
+	let span = jaeger::hash_span(&relay_parent, "core_availability");
 	if let CoreState::Occupied(core) = core {
+		let _span = span.child("occupied");
 		let (tx, rx) = oneshot::channel();
 		sender
 			.lock()
@@ -97,6 +100,10 @@ async fn get_core_availability(
 				return Ok(false);
 			}
 		};
+
+		drop(_span);
+		let _span = span.child("query chunk");
+
 		let (tx, rx) = oneshot::channel();
 		sender
 			.lock()
@@ -120,6 +127,7 @@ async fn get_availability_cores(
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<Vec<CoreState>, Error> {
+	let _span = jaeger::hash_span(&relay_parent, "get availability cores");
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send(AllMessages::from(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx))).into())
@@ -226,6 +234,8 @@ impl JobTrait for BitfieldSigningJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
 		async move {
+			let span = jaeger::hash_span(&relay_parent, "run:bitfield-signing");
+			let _span = span.child("delay");
 			let wait_until = Instant::now() + JOB_DELAY;
 
 			// now do all the work we can before we need to wait for the availability store
@@ -243,6 +253,9 @@ impl JobTrait for BitfieldSigningJob {
 			// JOB_DELAY each time.
 			let _timer = metrics.time_run();
 
+			drop(_span);
+			let _span = span.child("availablity");
+
 			let bitfield =
 				match construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await
 			{
@@ -255,11 +268,17 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
+			drop(_span);
+			let _span = span.child("signing");
+
 			let signed_bitfield = validator
 				.sign(keystore.clone(), bitfield)
 				.await
 				.map_err(|e| Error::Keystore(e))?;
 			metrics.on_bitfield_signed();
+
+			drop(_span);
+			let _span = span.child("gossip");
 
 			sender
 				.send(

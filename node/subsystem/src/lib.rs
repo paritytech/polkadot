@@ -31,12 +31,13 @@ use futures::future::BoxFuture;
 use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 use smallvec::SmallVec;
-use thiserror::Error;
 
 use crate::messages::AllMessages;
 
 pub mod errors;
 pub mod messages;
+pub mod jaeger;
+pub use crate::jaeger::*;
 
 /// How many slots are stack-reserved for active leaves updates
 ///
@@ -119,29 +120,27 @@ pub enum FromOverseer<M> {
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
+#[allow(missing_docs)]
 pub enum SubsystemError {
-	/// A notification connection is no longer valid.
 	#[error(transparent)]
 	NotifyCancellation(#[from] oneshot::Canceled),
 
-	/// Queue does not accept another item.
 	#[error(transparent)]
 	QueueError(#[from] mpsc::SendError),
 
-	/// An attempt to spawn a futures task did not succeed.
 	#[error(transparent)]
 	TaskSpawn(#[from] futures::task::SpawnError),
 
-	/// An infallable error.
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
 
-	/// Prometheus had a problem
 	#[error(transparent)]
 	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
 
-	/// An other error lacking particular type information.
+	#[error(transparent)]
+	Jaeger(#[from] errors::JaegerError),
+
 	#[error("Failed to {0}")]
 	Context(String),
 

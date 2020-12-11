@@ -37,6 +37,7 @@ use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
+	jaeger,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
@@ -457,10 +458,12 @@ impl CandidateBackingJob {
 	async fn run_loop(
 		mut self,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
+		span: &jaeger::JaegerSpan
 	) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
+					let _span = span.child("background validation");
 					if let Some(c) = validated_command {
 						self.handle_validated_candidate_command(c).await?;
 					} else {
@@ -470,6 +473,7 @@ impl CandidateBackingJob {
 				to_job = rx_to.next() => match to_job {
 					None => break,
 					Some(msg) => {
+						let _span = span.child("process message");
 						self.process_msg(msg).await?;
 					}
 				}
@@ -870,6 +874,9 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
+			let span = jaeger::hash_span(&parent, "run:backing");
+			let _span = span.child("runtime apis");
+
 			let (validators, groups, session_index, cores) = futures::try_join!(
 				try_runtime_api!(request_validators(parent, &mut tx_from).await),
 				try_runtime_api!(request_validator_groups(parent, &mut tx_from).await),
@@ -885,6 +892,9 @@ impl util::JobTrait for CandidateBackingJob {
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 			let session_index = try_runtime_api!(session_index);
 			let cores = try_runtime_api!(cores);
+
+			drop(_span);
+			let _span = span.child("validator construction");
 
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
@@ -904,6 +914,10 @@ impl util::JobTrait for CandidateBackingJob {
 					return Ok(())
 				}
 			};
+
+			drop(_span);
+			let _span = span.child("calc validator groups");
+
 
 			let mut groups = HashMap::new();
 
@@ -936,6 +950,9 @@ impl util::JobTrait for CandidateBackingJob {
 				Some((assignment, required_collator)) => (Some(assignment), required_collator),
 			};
 
+			drop(_span);
+			let _span = span.child("wait for candidate backing job");
+
 			let (background_tx, background_rx) = mpsc::channel(16);
 			let job = CandidateBackingJob {
 				parent,
@@ -954,10 +971,10 @@ impl util::JobTrait for CandidateBackingJob {
 				background_validation_tx: background_tx,
 				metrics,
 			};
+			drop(_span);
 
-			job.run_loop(rx_to).await
-		}
-		.boxed()
+			job.run_loop(rx_to, &span).await
+		}.boxed()
 	}
 }
 

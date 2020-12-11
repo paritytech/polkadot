@@ -44,6 +44,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_subsystem::{
+	jaeger,
 	errors::{ChainApiError, RuntimeApiError},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError,
@@ -353,6 +354,8 @@ where
 					}
 				}
 			};
+
+			let mut _span = jaeger::hash_span(&gossiped_availability.candidate_hash.0, "availability-message-received");
 
 			process_incoming_peer_message(ctx, state, remote, gossiped_availability, metrics)
 				.await?;
