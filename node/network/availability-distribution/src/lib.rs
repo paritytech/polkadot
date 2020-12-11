@@ -704,13 +704,21 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
+	async fn run<Context>(self, ctx: Context) -> Result<()>
+	where
+		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+	{
+		let mut state = ProtocolState::default();
+		self.run_inner(ctx, &mut state).await
+	}
+
+	/// Start processing work.
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
-	async fn run<Context>(self, mut ctx: Context) -> Result<()>
+	async fn run_inner<Context>(self, mut ctx: Context, state: &mut ProtocolState) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
 		// work: process incoming messages from the overseer.
-		let mut state = ProtocolState::default();
 		loop {
 			let message = ctx
 				.recv()
@@ -723,7 +731,7 @@ impl AvailabilityDistributionSubsystem {
 					if let Err(e) = handle_network_msg(
 						&mut ctx,
 						&self.keystore.clone(),
-						&mut state,
+						state,
 						&self.metrics,
 						event,
 					)
