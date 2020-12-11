@@ -445,7 +445,7 @@ pub struct Overseer<S> {
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
 pub struct AllSubsystems<
 	CV = (), CB = (), CS = (), SD = (), AD = (), BS = (), BD = (), P = (),
-	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = ()
+	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = (),
 > {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
@@ -477,6 +477,10 @@ pub struct AllSubsystems<
 	pub collation_generation: CG,
 	/// A Collator Protocol subsystem.
 	pub collator_protocol: CP,
+	// A Dispute VotesDB subsystem.
+	// pub votes_db: DiVo,
+	// A DisputeParticipation subsystem.
+	// pub votes_db: DiPa,
 }
 
 impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
@@ -509,6 +513,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
+		// DummySubsystem,
 		DummySubsystem
 	> {
 		AllSubsystems {
@@ -1551,6 +1556,18 @@ where
 				if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
+			}
+			AllMessages::VotesDb(msg) => {
+				todo!("VotesDb {:?}", msg);
+				// if let Some(ref mut s) = self.dispute_participation_subsystem.instance {
+				// 	let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				// }
+			}
+			AllMessages::DisputeParticipation(msg) => {
+				todo!("DisputeParticipation {:?}", msg);
+				// if let Some(ref mut s) = self.votes_db_subsystem.instance {
+				// 	let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				// }
 			}
 		}
 	}

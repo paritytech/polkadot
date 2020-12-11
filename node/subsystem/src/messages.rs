@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
 use polkadot_node_primitives::{
-	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
+	CollationGenerationConfig, MisbehaviorReport, ValidationResult,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber,
@@ -38,6 +38,7 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, ValidationData, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
+	SignedFullStatement, ValidityAttestation, Vote,
 };
 use std::sync::Arc;
 use std::collections::btree_map::BTreeMap;
@@ -589,16 +590,17 @@ impl CollationGenerationMessage {
 	}
 }
 
-
-
-
+/// A helper type.
+pub type ResponseChannel<T> = oneshot::Receiver<T>;
 
 /// Message to the VotesDB subsystem.
-enum VotesDbMessage {
+#[derive(Debug)]
+pub enum VotesDbMessage {
     /// Allow querying all `Hash`es that are voted on by a particular validator.
     QueryValidatorVotes {
         /// Validator identification.
-        validator: ValidatorId,
+		validator: ValidatorId,
+		/// The response channel providing the answer to the request.
         response: ResponseChannel<Vec<Vote>>,
     },
 
@@ -609,12 +611,14 @@ enum VotesDbMessage {
     },
 }
 
-/// Resolution of a votes, emitted by VotesDB
-enum DisputeMessage {
+/// Messages handled by the `DisputeParticipation` sub-module.
+#[derive(Debug)]
+pub enum DisputeParticipationMessage {
     /// A dispute is detected
     Detection {
-        /// unique validator indentification
-        session: SessionIndex,
+        /// Unique validator indentification by session.
+		session: SessionIndex,
+		/// Unique validator indentification by session and validator index.
         validator: ValidatorIndex,
         /// The attestation.
         attestation: ValidityAttestation,
@@ -628,9 +632,6 @@ enum DisputeMessage {
         valid: bool,
     }
 }
-
-
-
 
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug, derive_more::From)]
@@ -666,5 +667,7 @@ pub enum AllMessages {
 	/// Message for the Collation Generation subsystem
 	CollationGeneration(CollationGenerationMessage),
 	/// Message to interact with votes stored.
-	DisputeVotesDB()
+	VotesDb(VotesDbMessage),
+	/// Message to interact with votes stored.
+	DisputeParticipation(DisputeParticipationMessage),
 }

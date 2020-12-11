@@ -42,6 +42,8 @@
 //!
 //!
 
+// TODO prevent repeated sending of dispute detections or resolutions
+
 use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
@@ -232,95 +234,6 @@ fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionInde
 	Ok(())
 }
 
-
-/// Extract fragments from an incoming backend candidate into multiple votes.
-impl From<BackedCandidate> for Vec<Vote> {
-	fn from(backed_candidate: BackedCandidate) -> Vec<Vote> {
-		let candidate_receipt = backend_candidate.candidate;
-		backed_candidate
-			.validator_indices
-			.into_iter()
-			.zip(
-				backed_candidate
-					.validity_votes
-					.into_iter()
-			)
-			.map(|(validator_index, attestation)| {
-				Vote::Backing {
-					attestation,
-					validator_index,
-					candidate_receipt,
-				}
-			})
-			.collect()
-	}
-}
-
-// TODO move this to messages or v1 eventually
-/// A vote cast by another validator.
-#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
-enum Vote {
-	/// Fragment of a `BackedCandidate`
-	Backing {
-		attestation: ValidityAttestation,
-		validator_index: ValidatorIndex,
-		candidate_receipt: CommittedCandidateReceipt,
-	},
-	ApprovalCheck { sfs: SignedFullStatement },
-	DisputePositive { sfs: SignedFullStatement },
-	DisputeNegative { sfs: SignedFullStatement },
-}
-
-impl Vote {
-	/// Determines if the vote is a vote that supports the validity of this block.
-	pub fn is_positive(&self) -> bool {
-		match self {
-			Self::Backing { .. } => true,
-			Self::ApprovalCheck { .. } => true,
-			Self::DisputePositive { .. } => true,
-			Self::DisputeNegative { .. } => false,
-		}
-	}
-
-	/// A vote that challenges the validity of a candidate.
-	#[inline(always)]
-	pub fn is_negative(&self) -> bool {
-		!self.positive()
-	}
-
-	/// Obtain the vote's validator indices.
-	pub fn validator(&self) -> ValidatorIndex {
-		match self {
-			Self::Backing { validator_index, .. } => validator_index,
-			Self::ApprovalCheck { sfs } => sfs.validator_index,
-			Self::DisputePositive { sfs } => sfs.validator_index,
-			Self::DisputeNegative { sfs } => sfs.validator_index,
-		}
-	}
-
-	pub fn candidate_hash(&self) -> CandidateHash {
-		match self {
-			Self::Backing { candidate_receipt, .. } => candidate_receipt.hash(),
-			Self::ApprovalCheck { sfs } => sfs.candidate_hash(),
-			Self::DisputePositive { sfs } => sfs.candidate_hash(),
-			Self::DisputeNegative { sfs } => sfs.candidate_hash(),
-		}
-	}
-
-	// TODO if we have a session, this can be removed
-	pub fn relay_parent(&self) -> Hash {
-		match self {
-			Self::Backing { candidate_receipt, .. } => candidate_receipt,
-			Self::ApprovalCheck { .. } => unimplemented!(),
-			Self::DisputePositive { .. } => unimplemented!(),
-			Self::DisputeNegative { .. } => unimplemented!(),
-		}.descriptor.relay_parent
-	}
-
-	pub fn session(&self) -> SessionIndex {
-		unimplemented!("Include the session in each vote.")
-	}
-}
 
 #[derive(Debug, Clone, Copy)]
 enum CandidateQuorum {

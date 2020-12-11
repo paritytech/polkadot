@@ -29,71 +29,21 @@ use polkadot_primitives::v1::{
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
 	HeadData, PoV, CollatorPair, Id as ParaId, OutboundHrmpMessage, ValidationOutputs, CandidateHash,
+	Vote,
+};
+pub use polkadot_primitives::v1::{
+	Statement, SignedFullStatement,
 };
 use polkadot_statement_table::{
 	generic::{
 		ValidityDoubleVote as TableValidityDoubleVote,
 		MultipleCandidates as TableMultipleCandidates,
 	},
-	v1::Misbehavior as TableMisbehavior,
+	v1::Misbehavior as TableMisbehavior
 };
 use std::pin::Pin;
 
 pub use sp_core::traits::SpawnNamed;
-
-/// A statement, where the candidate receipt is included in the `Seconded` variant.
-///
-/// This is the committed candidate receipt instead of the bare candidate receipt. As such,
-/// it gives access to the commitments to validators who have not executed the candidate. This
-/// is necessary to allow a block-producing validator to include candidates from outside of the para
-/// it is assigned to.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub enum Statement {
-	/// A statement that a validator seconds a candidate.
-	#[codec(index = "1")]
-	Seconded(CommittedCandidateReceipt),
-	/// A statement that a validator has deemed a candidate valid.
-	#[codec(index = "2")]
-	Valid(CandidateHash),
-	/// A statement that a validator has deemed a candidate invalid.
-	#[codec(index = "3")]
-	Invalid(CandidateHash),
-}
-
-impl Statement {
-	/// Transform this statement into its compact version, which references only the hash
-	/// of the candidate.
-	pub fn to_compact(&self) -> CompactStatement {
-		match *self {
-			Statement::Seconded(ref c) => CompactStatement::Candidate(c.hash()),
-			Statement::Valid(hash) => CompactStatement::Valid(hash),
-			Statement::Invalid(hash) => CompactStatement::Invalid(hash),
-		}
-	}
-
-	/// Obtain the candidate hash this statement relates to.
-	pub fn candidate_hash(&self) -> CandidateHash {
-		match *self {
-			Statement::Seconded(ref c) => c.hash(),
-			Statement::Valid(hash) => hash,
-			Statement::Invalid(hash) => hash,
-		}
-	}
-}
-
-impl EncodeAs<CompactStatement> for Statement {
-	fn encode_as(&self) -> Vec<u8> {
-		self.to_compact().encode()
-	}
-}
-
-/// A statement, the corresponding signature, and the index of the sender.
-///
-/// Signing context and validator set should be apparent from context.
-///
-/// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
-/// Only the compact `SignedStatement` is suitable for submission to the chain.
-pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
 /// A misbehaviour report.
 #[derive(Debug, Clone)]

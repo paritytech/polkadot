@@ -57,6 +57,61 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 
+
+/// A statement, where the candidate receipt is included in the `Seconded` variant.
+///
+/// This is the committed candidate receipt instead of the bare candidate receipt. As such,
+/// it gives access to the commitments to validators who have not executed the candidate. This
+/// is necessary to allow a block-producing validator to include candidates from outside of the para
+/// it is assigned to.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub enum Statement {
+	/// A statement that a validator seconds a candidate.
+	#[codec(index = "1")]
+	Seconded(CommittedCandidateReceipt),
+	/// A statement that a validator has deemed a candidate valid.
+	#[codec(index = "2")]
+	Valid(CandidateHash),
+	/// A statement that a validator has deemed a candidate invalid.
+	#[codec(index = "3")]
+	Invalid(CandidateHash),
+}
+
+impl Statement {
+	/// Transform this statement into its compact version, which references only the hash
+	/// of the candidate.
+	pub fn to_compact(&self) -> CompactStatement {
+		match *self {
+			Statement::Seconded(ref c) => CompactStatement::Candidate(c.hash()),
+			Statement::Valid(hash) => CompactStatement::Valid(hash),
+			Statement::Invalid(hash) => CompactStatement::Invalid(hash),
+		}
+	}
+
+	/// Obtain the candidate hash this statement relates to.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			Statement::Seconded(ref c) => c.hash(),
+			Statement::Valid(hash) => hash,
+			Statement::Invalid(hash) => hash,
+		}
+	}
+}
+
+impl EncodeAs<CompactStatement> for Statement {
+	fn encode_as(&self) -> Vec<u8> {
+		self.to_compact().encode()
+	}
+}
+
+/// A statement, the corresponding signature, and the index of the sender.
+///
+/// Signing context and validator set should be apparent from context.
+///
+/// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
+/// Only the compact `SignedStatement` is suitable for submission to the chain.
+pub type SignedFullStatement = Signed<Statement, CompactStatement>;
+
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	relay_parent: &H,
@@ -406,6 +461,110 @@ impl<H> BackedCandidate<H> {
 		&self.candidate.descriptor
 	}
 }
+
+/// Extract fragments from an incoming backend candidate
+/// and craft into one vote per validator.
+impl From<BackedCandidate> for Vec<Vote> {
+	fn from(backed_candidate: BackedCandidate) -> Vec<Vote> {
+		let candidate_receipt = backed_candidate.candidate;
+		backed_candidate
+			.validator_indices
+			.into_iter()
+			.enumerate()
+			.filter_map(|(idx, bit)| if bit {
+				Some(idx as ValidatorIndex)
+			} else {
+				None
+			})
+			.zip(
+				backed_candidate
+					.validity_votes
+					.into_iter()
+			)
+			.map(|(validator_index, attestation)| {
+				Vote::Backing {
+					attestation,
+					validator_index,
+					candidate_receipt: candidate_receipt.clone(),
+				}
+			})
+			.collect()
+	}
+}
+
+/// A dispute vote cast by a validator.
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
+pub enum Vote {
+	/// Fragment information of a `BackedCandidate`.
+	Backing {
+		/// The required checkable signature for the statement.
+		attestation: ValidityAttestation,
+		/// Validator index of the backing validator in the validator set
+		/// back then in that session.
+		validator_index: ValidatorIndex,
+		/// Committed candidate receipt for the candidate.
+		candidate_receipt: CommittedCandidateReceipt,
+	},
+	/// Result of secondary checking the dispute block.
+	ApprovalCheck {
+		/// Signed full statement to back the vote.
+		sfs: SignedFullStatement
+	},
+	/// An explicit vote on the disputed candidate.
+	DisputePositive {
+		/// Signed full statement to back the vote.
+		sfs: SignedFullStatement
+	},
+	/// An explicit vote on the disputed candidate.
+	DisputeNegative {
+		/// Signed full statement to back the vote.
+		sfs: SignedFullStatement
+	},
+}
+
+impl Vote {
+	/// Determines if the vote is a vote that supports the validity of this block.
+	pub fn is_positive(&self) -> bool {
+		match self {
+			Self::Backing { .. } => true,
+			Self::ApprovalCheck { .. } => true,
+			Self::DisputePositive { .. } => true,
+			Self::DisputeNegative { .. } => false,
+		}
+	}
+
+	/// A vote that challenges the validity of a candidate.
+	#[inline(always)]
+	pub fn is_negative(&self) -> bool {
+		!self.is_positive()
+	}
+
+	/// Obtain the vote's validator indices.
+	pub fn validator(&self) -> ValidatorIndex {
+		match self {
+			Self::Backing { validator_index, .. } => *validator_index,
+			Self::ApprovalCheck { sfs } => sfs.validator_index(),
+			Self::DisputePositive { sfs } => sfs.validator_index(),
+			Self::DisputeNegative { sfs } => sfs.validator_index(),
+		}
+	}
+
+	/// Obtains the candidate hash the vote relates to.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match self {
+			Self::Backing { candidate_receipt, .. } => candidate_receipt.hash(),
+			Self::ApprovalCheck { sfs } => sfs.payload().candidate_hash(),
+			Self::DisputePositive { sfs } => sfs.payload().candidate_hash(),
+			Self::DisputeNegative { sfs } => sfs.payload().candidate_hash(),
+		}
+	}
+
+	/// Obtains the session in which the candidate was included.
+	pub fn session(&self) -> SessionIndex {
+		unimplemented!("Include the session in each vote.")
+	}
+}
+
 
 /// Verify the backing of the given candidate.
 ///
