@@ -11,6 +11,6 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]

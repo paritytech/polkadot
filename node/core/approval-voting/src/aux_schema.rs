@@ -29,3 +29,9 @@
 //! As such, we provide a function from this module to clear the database on start-up.
 //! In the future, we may use a temporary DB which doesn't need to be wiped, but for the
 //! time being we share the same DB with the rest of Substrate.
+
+use sc_client_api::backend::AuxStore;
+
+pub(crate) clear(&impl AuxStore) {
+	// TODO: [now]
+}
