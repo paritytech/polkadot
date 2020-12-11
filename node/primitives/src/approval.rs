@@ -17,9 +17,10 @@
 //! Types relevant for approval.
 
 pub use polkadot_primitives::v1::{AssignmentId, CoreIndex};
-pub use schnorrkel::vrf::{VRFOutput, VRFProof};
+pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
 
 use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature};
+use parity_scale_codec::{Encode, Decode};
 
 /// Validators assigning to check a particular candidate are split up into tranches.
 /// Earlier tranches of validators check first, with later tranches serving as backup.
@@ -33,10 +34,12 @@ pub const RELAY_VRF_DELAY_CONTEXT: &str = "A&V TRANCHE";
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct RelayVRF(pub [u8; 32]);
 
 /// Different kinds of input data or criteria that can prove a validator's assignment
 /// to check a particular parachain.
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum AssignmentCertKind {
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with a sample number.
@@ -57,6 +60,7 @@ pub enum AssignmentCertKind {
 }
 
 /// A certification of assignment.
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct AssignmentCert {
 	/// The criterion which is claimed to be met by this cert.
 	pub kind: AssignmentCertKind,
@@ -66,6 +70,7 @@ pub struct AssignmentCert {
 
 /// An assignment crt which refers to the candidate under which the assignment is
 /// relevant by block hash.
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct IndirectAssignmentCert {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
@@ -76,6 +81,7 @@ pub struct IndirectAssignmentCert {
 }
 
 /// A vote of approval on a candidate.
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct ApprovalVote(pub CandidateHash);
 
 /// An approval vote signed by some validator.
@@ -85,6 +91,7 @@ pub type SignedApprovalVote = Signed<ApprovalVote>;
 ///
 /// In practice, we have a look-up from block hash and candidate index to candidate hash,
 /// so this can be transformed into a `SignedApprovalVote`.
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct IndirectSignedApprovalVote {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
