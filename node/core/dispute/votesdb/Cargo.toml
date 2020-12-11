@@ -28,6 +28,7 @@ tokio-executor = { version = "0.2.0-alpha.6", features = ["blocking"] }
 wasm-timer = "0.2.5"
 kvdb = "0.7.0"
 kvdb-rocksdb = "0.9.1"
+tracing = "0.1"
 
 [dev-dependencies]
 env_logger = "0.8.2"

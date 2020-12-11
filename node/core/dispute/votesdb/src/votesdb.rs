@@ -82,6 +82,12 @@ enum Error {
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
 
+	#[error("Sending QueryValidators query failed")]
+	QueryValidatorsSendQuery(#[source] SubsystemError),
+
+	#[error("Response channel to obtain QueryValidators failed")]
+	QueryValidatorsResponseChannel(#[source] oneshot::Canceled),
+
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 
@@ -107,12 +113,9 @@ fn write_db<D: Encode>(
 	value: D,
 ) {
 	let v = value.encode();
-	match db.write(column, v.as_slice()) {
-		Ok(None) => None,
-		Err(e) => {
-			tracing::warn!(target: TARGET, err = ?e, "Error writing to the votes db store");
-			None
-		}
+	if let Err(e) = db.write(column, v.as_slice()) {
+		tracing::warn!(target: TARGET, err = ?e, "Error writing to the votes db store");
+		None
 	}
 }
 
@@ -164,8 +167,11 @@ fn derive_key_per_val(prefix: &str, session: SessionIndex, validator: ValidatorI
 
 /// Derive the prefix key for pruning.
 #[inline(always)]
-fn derive_prune_prefix(prefix: &str, session: SessionIndex) -> String {
-	format!("vote/s_{session_index}", session_index)
+fn derive_prune_prefix(session: SessionIndex) -> String {
+	format!(
+		"vote/s_{session_index}",
+		session_index
+	)
 }
 
 
@@ -222,7 +228,7 @@ fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionInde
 /// Extract fragments from an incoming backend candidate into multiple votes.
 impl From<BackedCandidate> for Vec<Vote> {
 	fn from(backed_candidate: BackedCandidate) -> Vec<Vote> {
-		let candidate_hash = backend_candidate.candidate.hash();
+		let candidate_receipt = backend_candidate.candidate;
 		backed_candidate
 			.validator_indices
 			.into_iter()
@@ -231,11 +237,11 @@ impl From<BackedCandidate> for Vec<Vote> {
 					.validity_votes
 					.into_iter()
 			)
-			.map(|(validator_index,attestation)| {
+			.map(|(validator_index, attestation)| {
 				Vote::Backing {
 					attestation,
 					validator_index,
-					candidate_hash,
+					candidate_receipt,
 				}
 			})
 			.collect()
@@ -249,7 +255,7 @@ enum Vote {
 	Backing {
 		attestation: ValidityAttestation,
 		validator_index: ValidatorIndex,
-		candidate_hash: CandidateHash,
+		candidate_receipt: CommittedCandidateReceipt,
 	},
 	ApprovalCheck { sfs: SignedFullStatement },
 	DisputePositive { sfs: SignedFullStatement },
@@ -258,7 +264,7 @@ enum Vote {
 
 impl Vote {
 	/// Determines if the vote is a vote that supports the validity of this block.
-	pub fn positive(&self) -> bool {
+	pub fn is_positive(&self) -> bool {
 		match self {
 			Self::Backing { .. } => true,
 			Self::ApprovalCheck { .. } => true,
@@ -269,7 +275,7 @@ impl Vote {
 
 	/// A vote that challenges the validity of a candidate.
 	#[inline(always)]
-	pub fn negative(&self) -> bool {
+	pub fn is_negative(&self) -> bool {
 		!self.positive()
 	}
 
@@ -282,14 +288,28 @@ impl Vote {
 			Self::DisputeNegative { sfs } => sfs.validator_index,
 		}
 	}
-	
+
 	pub fn candidate_hash(&self) -> CandidateHash {
 		match self {
-			Self::Backing { candidate_hash, .. } => candidate_hash,
+			Self::Backing { candidate_receipt, .. } => candidate_receipt.hash(),
 			Self::ApprovalCheck { sfs } => sfs.candidate_hash(),
 			Self::DisputePositive { sfs } => sfs.candidate_hash(),
 			Self::DisputeNegative { sfs } => sfs.candidate_hash(),
 		}
+	}
+
+	// TODO if we have a session, this can be removed
+	pub fn relay_parent(&self) -> Hash {
+		match self {
+			Self::Backing { candidate_receipt, .. } => candidate_receipt,
+			Self::ApprovalCheck { .. } => unimplemented!(),
+			Self::DisputePositive { .. } => unimplemented!(),
+			Self::DisputeNegative { .. } => unimplemented!(),
+		}.descriptor.relay_parent
+	}
+
+	pub fn session(&self) -> SessionIndex {
+		unimplemented!("Include the session in each vote.")
 	}
 }
 
@@ -313,11 +333,12 @@ enum VoteEvent {
 	/// A validator tried to vote twice
 	DoubleVote {
 		candidate: CandidateHash,
-		validator: ValidatorId,
+		session: SessionIndex,
+		validator: ValidatorIndex,
 	},
 	/// Either side of the votes has reached a super majority
-	SupermajorityReached{
-		quorum: CandidateQuorumResult,
+	SupermajorityReached {
+		quorum: CandidateQuorum,
 	},
 	/// Discard an obsolete vote
 	ObsoleteVoteDiscarded {
@@ -325,17 +346,100 @@ enum VoteEvent {
 	},
 }
 
-fn check_for_supermajority(db: &Arc<dyn KeyValueDB>, session: SessionIndex, validator_count: usize) -> Result<Option<CandidateQuorum>> {
-	debug_assert!(session >= oldest_session_waterlevel());
-	
+
+
+/// Query the validator set.
+async fn query_session_info<Context>(
+	ctx: &mut Context,
+	hash: Hash,
+) -> Result<Vec<ValidatorId>>
+where
+	Context: SubsystemContext<Message = VotesDbMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+		hash,
+		RuntimeApiRequest::Session (tx),
+	));
+
+	ctx.send_message(query_validators)
+		.await
+		.map_err(|e| Error::QueryValidatorsSendQuery(e))?;
+	rx.await
+		.map_err(|e| Error::QueryValidatorsResponseChannel(e))?
+		.map_err(|e| Error::QueryValidators(e))
 }
 
-fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) -> Result<Vec<VoteEvent>>> {
+/// Assumes double votes are already accounted for and are NOT present in the
+/// count of `pro` and `con`.
+fn check_supermajority(validator_count: usize, pro: usize, con: usize) -> Option<CandidateQuorum> {
+	if validator_count == 0 {
+		log::warn!(target: TARGET, "Encountered a validator set with 0 validators");
+		return None
+	}
+	if validator_count < pro + con {
+		log::warn!(target: TARGET, "More votes cast than validators in validator set");
+		return None
+	}
+
+	let threshold = validator_count - validator_count / 3;
+
+	let pro_wins = pro_votes >= threshold;
+	let con_wins = con_votes >= threshold;
+
+	if pro_wins && con_wins {
+		unreachable!(target: TARGET, "In no circumstance can opposing parties achieve a supermajority");
+	} else if pro_wins {
+		Some(CandidateQuorum::Valid)
+	} else if con_wins {
+		Some(CandidateQuorum::Invalid)
+	} else {
+		None
+	}
+}
+
+/// Check if for a particular candidate a supermajority was reached.
+async fn supermajority_reached<Context>(
+	ctx: &mut Context,
+	db: &Arc<dyn KeyValueDB>,
+	session: SessionIndex,
+	candidate_hash: CandidateHash
+) -> Result<Option<CandidateQuorum>>
+where
+{
+	debug_assert!(session >= oldest_session_waterlevel(session));
+
+	// TODO consider lazily cashing the validator set
+	let validators = query_validator_set(ctx, session).await?;
+
+	let n = validators.len();
+
+	let votes: Vec<Vote> = unimplemented!("obtain all votes for this candidate");
+
+	let mut pro = 0_u64;
+	let mut con = 0_u64;
+	for vote in votes {
+		if vote.is_negative() {
+			con += 1_u64;
+		} else {
+			pro += 1_u64;
+		}
+	}
+
+	Ok(check_supermajority(n, pro, con))
+}
+
+fn store_votes_inner<Context>(
+	ctx: &mut Context,
+	db: &Arc<dyn KeyValueDB>,
+	votes: &[Vote],
+) -> Result<HashMap<(CandidateHash, SessionIndex, ValidatorIndex), VoteEvent>> {
 	if session < get_pivot() {
 		log::warn!("Dropping request to store ancient votes.");
 		return Err(Error::ObsoleteVote)
 	}
 	let mut transaction = DBTransaction::with_capacity(votes.len());
+	// events per input vote
 	let events: Vec<VoteEvent> = votes.into_iter()
 		.map(|vote| {
 			let k = derive_key(session, vote.validator());
@@ -345,13 +449,12 @@ fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) 
 					.expect("Database entries are all created from this module and thus must decode. qed");
 
 				if previous_vote != vote {
-					unimplemented!("Derive a set of vote events
-					")
 					VoteEvent::DoubleVote {
+						session: vote.session(),
 						validator: vote.validator(),
 						votes: vec![previous_vote, vote],
 					}
-					
+
 					// TODO clarify if a double vote means two opposing votes (pro and con)
 					// TODO or also two different vote kinds where both are positive
 				} else {
@@ -361,11 +464,7 @@ fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) 
 			} else {
 				let v = vote.encode();
 				transaction.put(columns::DATA, k ,v);
-				if supermajority_reached {
-					VoteEvent::SupermajorityReached
-				} else {
-					VoteEvent::Stored
-				}
+				Vote::Stored
 			}
 	}).collect();
 
@@ -375,28 +474,34 @@ fn store_votes(db: &Arc<dyn KeyValueDB>, session: SessionIndex, votes: &[Vote]) 
 }
 
 
-pub async fn on_session_change(current_session: SessionIndex) -> Result<()> {
-	
-	Ok(())
+/// Checks a set of given candidats whether the dispute
+pub async fn check_for_supermajority<Context>(
+	ctx: Context,
+	db: &Arc<dyn KeyValueDB>,
+	votes: &[Vote],
+) -> Result<HashSet<(SessionIndex, CandidateHash)>> {
+	let mut acc = Default::default();
+	for (session, candidate_hash) in votes.map(|vote| (vote.session(), vote.candidate_hash())) {
+		if supermajority_reached(ctx, db, session, candidate_hash).await {
+			let _ = acc.insert((session, candidate_hash));
+		}
+	}
+	Ok(acc)
 }
 
 
+/// Obtain a list of disputed candidates in which the validator participated.
+///
+/// Note: Due to the storage limitation this limited to `SESSION_COUNT_BEFORE_DROP` sessions.
+pub async fn query_all_disputes_participated(db: &Arc<dyn KeyValueDB>, validator: ValidatorId) -> Result<Vec<CandidateHash>> {
 
-
-pub async fn store_vote(current_session: SessionIndex, vote: Vote) -> Result<()> {
-
-	Ok(())
-}
-
-pub async fn query(validator: ValidatorId) -> Result<()> {
-	// lookup all sessions this validator had duty
-	// 
-	Ok(())
+	Ok(vec![])
 }
 
 /// The bitfield distribution subsystem.
 pub struct VotesDB {
 	metrics: Metrics,
+	inner: Arc<dyn KeyValueDB>,
 }
 
 impl VotesDB {
@@ -425,6 +530,28 @@ impl VotesDB {
 		}
 	}
 
+	pub async fn on_session_change(&mut self) -> Result<()>
+		let current_session = unimplemented!("current session index")
+			.saturating_sub(SESSION_COUNT_BEFORE_DROP);
+
+		prune_votes_older_than_session(&self.inner, current_session);
+		Ok(())
+	}
+
+	pub async fn store_vote<Context>(ctx: Context, vote: impl Into<Vec<Vote>>) -> Result<()>
+	where
+		Context: SubsystemContext<Message = VotesDBMessage>,
+	{
+		let votes: Vec<Vote> = votes.into();
+
+		match store_votes_inner(&self.inner, votes.as_slice())? {
+			VoteEvent::DoubleVote { .. } => {},
+			_ => unimplemented!("TODO send out messages")
+		}
+
+		Ok(())
+	}
+
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()>
 	where
@@ -438,7 +565,7 @@ impl VotesDB {
 				FromOverseer::Communication {
 					msg: VotesDBMessage::Query (session, validator),
 				} => {
-					if let Err() = query(validator).await {
+					if let Err(e) = query(db, validator).await {
 						log::warn!(target: TARGET, "Failed to query disputes validator {} pariticpated", validator)
 					}
 				}
@@ -446,21 +573,8 @@ impl VotesDB {
 				FromOverseer::Communication {
 					msg: VotesDBMessage::StoreVote { vote },
 				} => {
-					if let Err() = store_vote(vote).await {
+					if let Err(e) = store_vote(ctx, db, vote).await {
 						log::warn!(target: TARGET, "Failed to store disputes vote pariticpated")
-					}
-				}
-				FromOverseer::Signal(
-					OverseerSignal::ActiveLeaves(
-						ActiveLeavesUpdate { activated, deactivated })) => {
-					for relay_parent in deactivated {
-						trace!(target: TARGET, "Stop {:?}", relay_parent);
-						state.active_leaves_set.remove(relay_parent)
-					}
-					for relay_parent in activated {
-						trace!(target: TARGET, "Start {:?}", relay_parent);
-
-						state.active_leaves_set.insert(relay_parent)
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
@@ -470,6 +584,7 @@ impl VotesDB {
 					trace!(target: TARGET, "Conclude");
 					return Ok(());
 				}
+				FromOverseer::Signal(_) => {}
 			}
 		}
 	}

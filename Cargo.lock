@@ -5304,6 +5304,7 @@ dependencies = [
  "sp-transaction-pool",
  "thiserror",
  "tokio-executor 0.2.0-alpha.6",
+ "tracing",
  "wasm-timer",
 ]
 

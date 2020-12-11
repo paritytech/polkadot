@@ -598,7 +598,7 @@ enum VotesDbMessage {
     /// Allow querying all `Hash`es that are voted on by a particular validator.
     QueryValidatorVotes {
         /// Validator identification.
-        validator: SessionId,
+        validator: ValidatorId,
         response: ResponseChannel<Vec<Vote>>,
     },
 
