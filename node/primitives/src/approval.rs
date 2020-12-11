@@ -25,13 +25,29 @@ use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex, Signed, Valid
 /// Earlier tranches of validators check first, with later tranches serving as backup.
 pub type DelayTranche = u32;
 
+/// A static context used for all relay-vrf-modulo VRFs.
+pub const RELAY_VRF_MODULO_CONTEXT: &str = "A&V MOD";
+
+/// A static context used for all relay-vrf-delay VRFs.
+pub const RELAY_VRF_DELAY_CONTEXT: &str = "A&V TRANCHE";
+
 /// Different kinds of input data or criteria that can prove a validator's assignment
 /// to check a particular parachain.
 pub enum AssignmentCertKind {
+	/// An assignment story based on the VRF that authorized the relay-chain block where the
+	/// candidate was included combined with a sample number.
+	///
+	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
 	RelayVRFModulo {
+		/// The sample number used in this cert.
 		sample: u32,
 	},
+	/// An assignment story based on the VRF that authorized the relay-chain block where the
+	/// candidate was included combined with the index of a particular core.
+	///
+	/// The context is [`RELAY_VRF_DELAY_CONTEXT`]
 	RelayVRFDelay {
+		/// The core index chosen in this cert.
 		core_index: CoreIndex,
 	},
 }
@@ -58,7 +74,7 @@ pub struct IndirectAssignmentCert {
 /// A vote of approval on a candidate.
 pub struct ApprovalVote(pub CandidateHash);
 
-// An approval vote signed by some validator.
+/// An approval vote signed by some validator.
 pub type SignedApprovalVote = Signed<ApprovalVote>;
 
 /// A signed approval vote which references the candidate indirectly via the block.
@@ -66,7 +82,7 @@ pub type SignedApprovalVote = Signed<ApprovalVote>;
 /// In practice, we have a look-up from block hash and candidate index to candidate hash,
 /// so this can be transformed into a `SignedApprovalVote`.
 pub struct IndirectSignedApprovalVote {
-	// A block hash where the candidate appears.
+	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
 	/// The index of the candidate in the list of candidates fully included as-of the block.
 	pub candidate_index: u32,
