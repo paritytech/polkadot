@@ -35,7 +35,6 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{pin::Pin, time::Duration, iter::FromIterator};
 use wasm_timer::{Delay, Instant};
-use thiserror::Error;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
@@ -45,24 +44,24 @@ const LOG_TARGET: &str = "bitfield_signing";
 pub struct BitfieldSigningJob;
 
 /// Errors we may encounter in the course of executing the `BitfieldSigningSubsystem`.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum Error {
-	/// error propagated from the utility subsystem
 	#[error(transparent)]
 	Util(#[from] util::Error),
-	/// io error
+
 	#[error(transparent)]
 	Io(#[from] std::io::Error),
-	/// a one shot channel was canceled
+
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
-	/// a mspc channel failed to send
+
 	#[error(transparent)]
 	MpscSend(#[from] mpsc::SendError),
-	/// the runtime API failed to return what we wanted
+
 	#[error(transparent)]
 	Runtime(#[from] RuntimeApiError),
-	/// the keystore failed to process signing request
+
 	#[error("Keystore failed: {0:?}")]
 	Keystore(KeystoreError),
 }
