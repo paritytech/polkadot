@@ -87,9 +87,7 @@ impl<T: Config> Module<T> {
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
-		let _assignment_keys = AssignmentKeysUnsafe::get();
-		// FIXME: remove this once https://github.com/paritytech/polkadot/pull/2092 is merged
-		let approval_keys = Default::default();
+		let assignment_keys = AssignmentKeysUnsafe::get();
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
@@ -118,7 +116,7 @@ impl<T: Config> Module<T> {
 		let new_session_info = SessionInfo {
 			validators,
 			discovery_keys,
-			approval_keys,
+			assignment_keys,
 			validator_groups,
 			n_cores,
 			zeroth_delay_tranche_width,

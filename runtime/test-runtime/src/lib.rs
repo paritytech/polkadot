@@ -41,7 +41,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
@@ -252,7 +252,8 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
-		pub parachain_validator: Initializer,
+		pub para_validator: Initializer,
+		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -514,6 +515,7 @@ construct_runtime! {
 		Paras: parachains_paras::{Module, Call, Storage, Origin},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
+		SessionInfo: parachains_session_info::{Module, Call, Storage},
 
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
@@ -676,7 +678,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 
-		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+		fn session_info(index: SessionIndex) -> Option<SessionInfoData> {
 			runtime_impl::session_info::<Runtime>(index)
 		}
 
