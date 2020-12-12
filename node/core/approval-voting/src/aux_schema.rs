@@ -40,7 +40,7 @@ use sp_consensus_slots::SlotNumber;
 use parity_scale_codec::{Encode, Decode};
 
 use std::collections::BTreeMap;
-use bitvec::vec::BitVec;
+use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 use super::Tick;
 
@@ -66,7 +66,7 @@ pub(crate) struct ApprovalEntry {
 	next_wakeup: Tick,
 	our_assignment: Option<OurAssignment>,
 	// `n_validators` bits.
-	assignments: BitVec<bitvec::order::Lsb0, u8>,
+	assignments: BitVec<BitOrderLsb0, u8>,
 	approved: bool,
 }
 
@@ -78,7 +78,7 @@ pub(crate) struct CandidateEntry {
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
 	block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	approvals: BitVec<bitvec::order::Lsb0, u8>,
+	approvals: BitVec<BitOrderLsb0, u8>,
 }
 
 /// Metadata regarding approval of a particular block, by way of approval of the
@@ -93,9 +93,9 @@ pub(crate) struct BlockEntry {
 	// leaving. Sorted ascending by core index.
 	candidates: Vec<(CoreIndex, CandidateHash)>,
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
-	// The i'th bit is `tru` iff the candidate has been approved in the context of this
+	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	approved_bitfield: BitVec<bitvec::order::Lsb0, u8>,
+	approved_bitfield: BitVec<BitOrderLsb0, u8>,
 	children: Vec<Hash>,
 }
 
@@ -121,10 +121,7 @@ pub(crate) fn clear(store: &impl AuxStore)
 	let mut visited_candidate_keys = Vec::new();
 
 	for i in range.0..range.1 {
-		let at_height = match load_blocks_at_height(store, i)? {
-			None => continue, // sanity, shouldn't happen.
-			Some(a) => a,
-		};
+		let at_height = load_blocks_at_height(store, i)?;
 
 		visited_height_keys.push(blocks_at_height_key(i));
 
@@ -148,7 +145,7 @@ pub(crate) fn clear(store: &impl AuxStore)
 		.chain(visited_candidate_keys.iter().map(|x| &x[..]))
 		.collect::<Vec<_>>();
 
-	store.insert_aux(&[], &visited_keys_borrowed);
+	store.insert_aux(&[], &visited_keys_borrowed)?;
 
 	Ok(())
 }
@@ -166,6 +163,127 @@ fn load_decode<D: Decode>(store: &impl AuxStore, key: &[u8])
 	}
 }
 
+/// Information about a new candidate necessary to instantiate the requisite
+/// candidate and approval entries.
+pub(crate) struct NewCandidateInfo {
+	candidate: CandidateReceipt,
+	backing_group: GroupIndex,
+	our_assignment: Option<OurAssignment>,
+}
+
+/// Record a new block entry.
+///
+/// This will update the blocks-at-height mapping, the stored block range, if necessary,
+/// and add block and candidate entries. It will also add approval entries to existing
+/// candidate entries and add this as a child of any block entry corresponding to the
+/// parent hash.
+///
+/// Has no effect if there is already an entry for the block or `candidate_info` returns
+/// `None` for any of the candidates referenced by the block entry.
+pub(crate) fn add_block_entry(
+	store: &impl AuxStore,
+	parent_hash: Hash,
+	number: BlockNumber,
+	entry: BlockEntry,
+	n_validators: usize,
+	candidate_info: impl Fn(&CandidateHash) -> Option<NewCandidateInfo>,
+) -> sp_blockchain::Result<()> {
+	let session = entry.session;
+
+	let new_block_range = {
+		let new_range = match load_stored_blocks(store)? {
+			None => Some(StoredBlockRange(number, number + 1)),
+			Some(range) => if range.1 <= number {
+				Some(StoredBlockRange(range.0, number + 1))
+			} else {
+				None
+			}
+		};
+
+		new_range.map(|n| (STORED_BLOCKS_KEY, n.encode()))
+	};
+
+	let updated_blocks_at = {
+		let mut blocks_at_height = load_blocks_at_height(store, number)?;
+		if blocks_at_height.contains(&entry.block_hash) {
+			// seems we already have a block entry for this block. nothing to do here.
+			return Ok(())
+		}
+
+		blocks_at_height.push(entry.block_hash);
+		(blocks_at_height_key(number), blocks_at_height.encode())
+	};
+
+	let candidate_entry_updates = {
+		let mut updated_entries = Vec::with_capacity(entry.candidates.len());
+		for &(_, ref candidate_hash) in &entry.candidates {
+			let NewCandidateInfo {
+				candidate,
+				backing_group,
+				our_assignment,
+			} = match candidate_info(candidate_hash) {
+				None => return Ok(()),
+				Some(info) => info,
+			};
+
+			let mut candidate_entry = load_candidate_entry(store, &candidate_hash)?
+				.unwrap_or_else(move || CandidateEntry {
+					candidate,
+					session,
+					block_assignments: BTreeMap::new(),
+					approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+				});
+
+			candidate_entry.block_assignments.insert(
+				entry.block_hash,
+				ApprovalEntry {
+					tranches: Vec::new(),
+					backing_group,
+					next_wakeup: 0,
+					our_assignment,
+					assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+					approved: false,
+				}
+			);
+
+			updated_entries.push(
+				(candidate_entry_key(&candidate_hash), candidate_entry.encode())
+			);
+		}
+
+		updated_entries
+	};
+
+	let updated_parent = {
+		load_block_entry(store, &parent_hash)?.map(|mut e| {
+			e.children.push(entry.block_hash);
+			(block_entry_key(&parent_hash), e.encode())
+		})
+	};
+
+	let write_block_entry = (block_entry_key(&entry.block_hash), entry.encode());
+
+	// write:
+	//   - new block range
+	//   - updated blocks-at item
+	//   - fresh and updated candidate entries
+	//   - the parent block entry.
+	//   - the block entry itself
+
+	// Unfortunately have to collect because aux-store demands &(&[u8], &[u8]).
+	let all_keys_and_values: Vec<_> = new_block_range.as_ref().into_iter()
+		.map(|&(ref k, ref v)| (&k[..], &v[..]))
+		.chain(std::iter::once((&updated_blocks_at.0[..], &updated_blocks_at.1[..])))
+		.chain(candidate_entry_updates.iter().map(|&(ref k, ref v)| (&k[..], &v[..])))
+		.chain(std::iter::once((&write_block_entry.0[..], &write_block_entry.1[..])))
+		.chain(updated_parent.as_ref().into_iter().map(|&(ref k, ref v)| (&k[..], &v[..])))
+		.collect();
+
+	store.insert_aux(&all_keys_and_values, &[])?;
+
+	Ok(())
+}
+
 /// Load the stored-blocks key from the state.
 pub(crate) fn load_stored_blocks(store: &impl AuxStore)
 	-> sp_blockchain::Result<Option<StoredBlockRange>>
@@ -175,9 +293,9 @@ pub(crate) fn load_stored_blocks(store: &impl AuxStore)
 
 /// Load a blocks-at-height entry for a given block number.
 pub(crate) fn load_blocks_at_height(store: &impl AuxStore, block_number: BlockNumber)
-	-> sp_blockchain::Result<Option<Vec<Hash>>>
-{
+	-> sp_blockchain::Result<Vec<Hash>> {
 	load_decode(store, &blocks_at_height_key(block_number))
+		.map(|x| x.unwrap_or_default())
 }
 
 /// Load a block entry from the aux store.
