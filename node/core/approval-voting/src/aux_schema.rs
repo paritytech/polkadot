@@ -107,8 +107,50 @@ pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
 #[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct OurAssignment { }
 
-pub(crate) fn clear(_: &impl AuxStore) {
-	// TODO: [now]
+/// Clear the aux store of everything related to
+pub(crate) fn clear(store: &impl AuxStore)
+	-> sp_blockchain::Result<()>
+{
+	let range = match load_stored_blocks(store)? {
+		None => return Ok(()),
+		Some(range) => range,
+	};
+
+	let mut visited_height_keys = Vec::new();
+	let mut visited_block_keys = Vec::new();
+	let mut visited_candidate_keys = Vec::new();
+
+	for i in range.0..range.1 {
+		let at_height = match load_blocks_at_height(store, i)? {
+			None => continue, // sanity, shouldn't happen.
+			Some(a) => a,
+		};
+
+		visited_height_keys.push(blocks_at_height_key(i));
+
+		for block_hash in at_height {
+			let block_entry = match load_block_entry(store, &block_hash)? {
+				None => continue,
+				Some(e) => e,
+			};
+
+			visited_block_keys.push(block_entry_key(&block_hash));
+
+			for &(_, candidate_hash) in &block_entry.candidates {
+				visited_candidate_keys.push(candidate_entry_key(&candidate_hash));
+			}
+		}
+	}
+
+	// unfortunately demands a `collect` because aux store wants `&&[u8]` for some reason.
+	let visited_keys_borrowed = visited_height_keys.iter().map(|x| &x[..])
+		.chain(visited_block_keys.iter().map(|x| &x[..]))
+		.chain(visited_candidate_keys.iter().map(|x| &x[..]))
+		.collect::<Vec<_>>();
+
+	store.insert_aux(&[], &visited_keys_borrowed);
+
+	Ok(())
 }
 
 fn load_decode<D: Decode>(store: &impl AuxStore, key: &[u8])
@@ -129,6 +171,13 @@ pub(crate) fn load_stored_blocks(store: &impl AuxStore)
 	-> sp_blockchain::Result<Option<StoredBlockRange>>
 {
 	load_decode(store, STORED_BLOCKS_KEY)
+}
+
+/// Load a blocks-at-height entry for a given block number.
+pub(crate) fn load_blocks_at_height(store: &impl AuxStore, block_number: BlockNumber)
+	-> sp_blockchain::Result<Option<Vec<Hash>>>
+{
+	load_decode(store, &blocks_at_height_key(block_number))
 }
 
 /// Load a block entry from the aux store.
@@ -163,6 +212,17 @@ fn candidate_entry_key(candidate_hash: &CandidateHash) -> [u8; 46] {
 	let mut key = [0u8; 14 + 32];
 	key[0..14].copy_from_slice(&CANDIDATE_ENTRY_PREFIX);
 	key[14..][..32].copy_from_slice(candidate_hash.0.as_ref());
+
+	key
+}
+
+/// The key a set of block hashes corresponding to a block number is stored under.
+fn blocks_at_height_key(block_number: BlockNumber) -> [u8; 16] {
+	const BLOCKS_AT_HEIGHT_PREFIX: [u8; 12] = *b"Approvals_at";
+
+	let mut key = [0u8; 12 + 4];
+	key[0..12].copy_from_slice(&BLOCKS_AT_HEIGHT_PREFIX);
+	block_number.using_encoded(|s| key[12..16].copy_from_slice(s));
 
 	key
 }
