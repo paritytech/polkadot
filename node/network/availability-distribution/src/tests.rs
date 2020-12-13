@@ -59,8 +59,9 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
+	mut keystore: SyncCryptoStorePtr,
 	mut state: ProtocolState,
-	test: impl FnOnce(TestHarness) -> T,
+	test_fx: impl FnOnce(TestHarness) -> T,
 ) -> ProtocolState {
 	let _ = env_logger::builder()
 		.is_test(true)
@@ -71,13 +72,12 @@ fn test_harness<T: Future<Output = ()>>(
 		.try_init();
 
 	let pool = sp_core::testing::TaskExecutor::new();
-
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let subsystem = AvailabilityDistributionSubsystem::new(keystore, Default::default());
 	let subsystem = subsystem.run_inner(context, &mut state);
 
-	let test_fut = test(TestHarness { virtual_overseer });
+	let test_fut = test_fx(TestHarness { virtual_overseer });
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
@@ -359,14 +359,12 @@ fn derive_erasure_chunks_with_proofs(
 	erasure_chunks
 }
 
-use maplit::hashmap;
+use maplit::{hashset, hashmap};
 
 #[test]
 fn check_views() {
 
-	let TestHarness {
-		mut virtual_overseer,
-	} = test_harness;
+	let test_state = TestState::default();
 
 	let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
@@ -419,35 +417,26 @@ fn check_views() {
 		.build(),
 	];
 
-	let TestState {
-		chain_ids,
-		keystore: _,
-		validators: _,
-		validator_public,
-		validator_groups,
-		availability_cores,
-		head_data: _,
-		persisted_validation_data: _,
-		relay_parent: current,
-		ancestors,
-		validator_index: _,
-	} = test_state.clone();
-
-	let _ = validator_groups;
-	let _ = availability_cores;
-
 	let peer_a = PeerId::random();
 	let peer_b = PeerId::random();
 	assert_ne!(&peer_a, &peer_b);
 
-	let state = test_harness(ProtocolState::default(),
+	let keystore = test_state.keystore.clone();
+
+	let state = test_harness(keystore, ProtocolState::default(),
 	 move |test_harness| async move {
+		let TestHarness {
+			virtual_overseer,
+		} = test_harness;
 
-		tracing::trace!("peer A: {:?}", peer_a);
-		tracing::trace!("peer B: {:?}", peer_b);
+		let TestState {
+			chain_ids,
+			validator_public,
+			relay_parent: current,
+			ancestors,
+			..
+		} = test_state.clone();
 
-		tracing::trace!("candidate A: {:?}", candidates[0].hash());
-		tracing::trace!("candidate B: {:?}", candidates[1].hash());
 
 		overseer_signal(
 			&mut virtual_overseer,
@@ -709,7 +698,11 @@ fn check_views() {
 #[test]
 fn reputation_verification() {
 
+	let test_state = TestState::default();
 
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	assert_ne!(&peer_a, &peer_b);
 
 	let pov_block_a = PoV {
 		block_data: BlockData(vec![42, 43, 44]),
@@ -727,8 +720,7 @@ fn reputation_verification() {
 	let pov_hash_b = pov_block_b.hash();
 	let pov_hash_c = pov_block_c.hash();
 
-
-
+	let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 	let candidates = vec![
 		TestCandidateBuilder {
@@ -763,8 +755,16 @@ fn reputation_verification() {
 		.build(),
 	];
 
+	let valid: AvailabilityGossipMessage = make_valid_availability_gossip(
+		&test_state,
+		candidates[0].hash(),
+		2,
+		pov_block_a.clone(),
+	);
+
 	let rp0 = Hash::repeat_byte(0xFA);
 	let rp1 = Hash::repeat_byte(0x55);
+
 	let state = ProtocolState {
 		peer_views: hashmap!{
 			peer_a => view![ rp0 ],
@@ -776,39 +776,24 @@ fn reputation_verification() {
 		.. Default::default()
 	};
 
-	let _ = validator_groups;
-	let _ = availability_cores;
-
-	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
-	assert_ne!(&peer_a, &peer_b);
-
 
 	test_harness(state, move |test_harness| async move {
 
-		let test_state = test_harness.state;
+		let TestHarness {
+			virtual_overseer
+		} = test_harness;
+
 		let TestState {
 			chain_ids,
-			keystore: _,
-			validators: _,
 			validator_public,
 			validator_groups,
 			availability_cores,
-			head_data: _,
-			persisted_validation_data: _,
 			relay_parent: current,
 			ancestors,
-			validator_index: _,
+			..
 		} = test_state.clone();
 
 		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
-
-
-		tracing::trace!("peer A: {:?}", peer_a);
-		tracing::trace!("peer B: {:?}", peer_b);
-
-		tracing::trace!("candidate A: {:?}", candidates[0].hash());
-		tracing::trace!("candidate B: {:?}", candidates[1].hash());
 
 		let valid: AvailabilityGossipMessage = make_valid_availability_gossip(
 			&test_state,
@@ -887,7 +872,7 @@ fn reputation_verification() {
 				}
 			);
 		}
-		
+
 		{
 			// valid (second, from a)
 			overseer_send(

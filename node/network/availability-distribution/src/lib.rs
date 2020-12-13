@@ -704,12 +704,12 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, mut ctx: Context) -> Result<()>
+	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
 		let mut state = ProtocolState::default();
-		run_inner(ctx, &mut state).await
+		self.run_inner(ctx, &mut state).await
 	}
 
 	/// Start processing work.
