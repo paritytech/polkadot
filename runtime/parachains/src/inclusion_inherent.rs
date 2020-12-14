@@ -39,6 +39,8 @@ use crate::{
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
+const BLOCK_WEIGHT_MARGIN: u64 = 1000;
+
 pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
@@ -47,6 +49,8 @@ decl_storage! {
 		///
 		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
 		/// due to the guarantees of FRAME's storage APIs.
+		///
+		/// If this is `None` at the end of the block, we panic and render the block invalid.
 		Included: Option<()>;
 	}
 }
@@ -68,11 +72,13 @@ decl_module! {
 		}
 
 		fn on_finalize() {
-			Included::take();
+			if Included::take().is_none() {
+				panic!("Bitfields and heads must be included every block");
+			}
 		}
 
 		/// Include backed candidates and bitfields.
-		#[weight = (1_000_000_000, DispatchClass::Operational)]
+		#[weight = (1_000_000_000, DispatchClass::Mandatory)]
 		pub fn inclusion(
 			origin,
 			signed_bitfields: SignedAvailabilityBitfields,
@@ -123,16 +129,22 @@ decl_module! {
 	}
 }
 
+// At the point that this is run, the provisioner has already chosen a set of extrinsics,
+// so we can rely on calculations like block weight.
+fn inclusion_inherents_would_overload_block<T: 'static + frame_system::Config>() -> bool {
+	frame_system::Module::<T>::block_weight().total() > <T as frame_system::Config>::MaximumBlockWeight::get() - BLOCK_WEIGHT_MARGIN
+}
+
 /// We should only include the inherent under certain circumstances.
 ///
-/// Most importantly, we check that the inherent is itself valid. It may not be, for example, in the
-/// event of a session change.
+/// 1. The inherent is itself valid. It may not be, for example, in the event of a session change.
+/// 2. It would not overload the block, which might already be heavy.
 fn should_include_inherent<T: Config>(
 	signed_bitfields: &SignedAvailabilityBitfields,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 ) -> bool {
+	!inclusion_inherents_would_overload_block::<T>() &&
 	// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-	//
 	// See github.com/paritytech/polkadot/issues/1327
 	Module::<T>::inclusion(
 		frame_system::RawOrigin::None.into(),

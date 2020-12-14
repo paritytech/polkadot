@@ -193,12 +193,56 @@ where
 		record_proof: RecordProof,
 	) -> Self::Proposal {
 		async move {
-			let provisioner_data = match self.get_provisioner_data().await {
-				Ok(pd) => pd,
-				Err(err) => {
-					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
-					Default::default()
+			// TODO: how can we tell, here, if we expect a heavy block?
+			//
+			// The runtime exposes `frame_system::Module::block_weight`
+			// (https://substrate.dev/rustdocs/v2.0.0/frame_system/struct.Module.html?search=#method.block_weight)
+			// and the `MaximumBlockWeight`
+			// (https://substrate.dev/rustdocs/v2.0.0/frame_system/trait.Trait.html#associatedtype.MaximumBlockWeight),
+			// so fundamentally this is a question of propagating the necessary runtime information
+			// through the Runtime API. At that point, it's a simple inequality:
+			//
+			// ```rust
+			// let expect_heavy_block = block_weight > maximum_block_weight - MARGIN;
+			// ```
+			//
+			// Unfortunately, it's not quite that simple, because the whole point of this proposer
+			// is to inject the provisioner data before the substrate proposer runs. Before it runs,
+			// the `block_weight` function isn't going to give us any useful information, beacuse
+			// nothing has yet been proposed to be included in the block.
+			//
+			// The naive option is very simple: run the proposer, then weigh the block. Either add a
+			// dry-run mode to the internal proposer, or run the internal proposer and then revert
+			// all state changes that it's made. The downside of this approach is that it runs
+			// everything twice, cutting runtime performance literally in half. That would be
+			// suboptimal.
+			//
+			// A somewhat more sophisticated approach takes advantage of the fact that Substrate's
+			// proposer is greedy: if it is possible to include all proposed transactions, then it
+			// will do so. This means that we can just compute the weight of all the transactions in
+			// the pool, and use essentially the same inequality:
+			//
+			// ```rust
+			// let expect_heavy_block = sum_of_tx_weights > maximum_block_weight - MARGIN;
+			// ```
+			//
+			// This is complicated by the fact that transactions are code, not data: in principle,
+			// it would be possible for an attacker to craft a transaction which is heavy and looks
+			// valid to the transaction pool, but which aborts cheaply when it is executed,
+			// preventing its costs from being deducted from the attacker. Spamming the relay chain
+			// with sufficient of these transactions would prevent all parachain progress.
+			let expect_heavy_block = false;
+
+			let provisioner_data = if !expect_heavy_block {
+				match self.get_provisioner_data().await {
+					Ok(pd) => pd,
+					Err(err) => {
+						tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
+						Default::default()
+					}
 				}
+			} else {
+				Default::default()
 			};
 
 			inherent_data.put_data(
