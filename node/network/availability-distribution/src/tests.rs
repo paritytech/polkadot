@@ -59,13 +59,7 @@ fn test_harness<T: Future<Output = ()>>(
 	mut state: ProtocolState,
 	test_fx: impl FnOnce(TestHarness) -> T,
 ) -> ProtocolState {
-	let _ = env_logger::builder()
-		.is_test(true)
-		.filter(
-			Some("polkadot_availability_distribution"),
-			log::LevelFilter::Trace,
-		)
-		.try_init();
+	sp_tracing::try_init_simple();
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
@@ -755,7 +749,7 @@ fn reputation_verification() {
 		overseer_send(
 			&mut virtual_overseer,
 			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::OurViewChange(view![current,]),
+				NetworkBridgeEvent::OurViewChange(view![current]),
 			),
 		)
 		.await;

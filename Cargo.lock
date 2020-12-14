@@ -4786,9 +4786,7 @@ name = "polkadot-availability-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.2",
  "futures 0.3.8",
- "log",
  "maplit",
  "parity-scale-codec",
  "polkadot-erasure-coding",
@@ -4802,6 +4800,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-futures",
