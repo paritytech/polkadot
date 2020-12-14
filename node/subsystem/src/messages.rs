@@ -245,6 +245,8 @@ pub enum AvailabilityRecoveryMessage {
 		CandidateReceipt,
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
+	/// Event from the network bridge.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
 }
 
 impl AvailabilityDistributionMessage {

@@ -18,15 +18,251 @@
 
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	SubsystemContext, SubsystemResult, SubsystemError, Subsystem, SpawnedSubsystem,
-	messages::AvailabilityRecoveryMessage,
-};
+use std::collections::HashMap;
 
 use futures::prelude::*;
+use futures::stream::FuturesUnordered;
+use futures::channel::{oneshot, mpsc};
+
+use polkadot_primitives::v1::{
+	AvailableData, CandidateReceipt, CandidateHash,
+	Hash, ErasureChunk, ValidatorId, ValidatorIndex,
+	SessionInfo, SessionIndex, BlakeTwo256, HashT,
+};
+use polkadot_subsystem::{
+	SubsystemContext, SubsystemResult, SubsystemError, Subsystem, SpawnedSubsystem, FromOverseer,
+	OverseerSignal, ActiveLeavesUpdate,
+	errors::RecoveryError,
+	messages::{
+		AvailabilityStoreMessage, AvailabilityRecoveryMessage, AllMessages, NetworkBridgeMessage,
+	},
+};
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, RequestId,
+};
+use polkadot_node_subsystem_util::{
+	validator_discovery,
+	request_session_index_for_child_ctx,
+	request_session_info_ctx,
+};
+use polkadot_erasure_coding::branch_hash;
+
+mod error;
+
+const LOG_TARGET: &str = "availability_recovery";
+
+const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Merkle proof was invalid");
+const COST_UNEXPECTED_CHUNK: Rep = Rep::new(-100, "Peer has sent an unexpected chunk");
+
+/// Compute the threshold from the number of validators.
+///
+/// It should be f + 1, where n = 3f + k, where k in {1, 2, 3}, and n is the number of validators.
+const fn recovery_threshold(n_validators: usize) -> usize {
+	let k = n_validators % 4;
+	let f = (n_validators - k) / 3;
+	f + 1
+}
 
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem;
+
+type ChunkResponse = Result<(PeerId, ErasureChunk), ()>; // Unavailable.
+
+/// Data we keep around for every chunk that we are awaiting.
+struct AwaitedChunk {
+	/// Index of the validator we have requested this chunk from.
+	validator_index: ValidatorIndex,
+
+	/// The hash of the candidate the chunks belongs to.
+	candidate_hash: CandidateHash,
+
+	/// Result sender.
+	response: oneshot::Sender<ChunkResponse>,
+}
+
+/// Accumulate all awaiting sides for some particular `AvailableData`.
+struct InteractionHandle {
+	awaiting: Vec<oneshot::Sender<Result<AvailableData, RecoveryError>>>,
+}
+
+/// A message received by main code from an async `Interaction` task.
+#[derive(Debug)]
+enum FromInteraction {
+	/// An interaction concluded.
+	Concluded(CandidateHash, Result<AvailableData, RecoveryError>),
+
+	/// Make a request of a particular chunk from a particular validator.
+	MakeRequest(
+		ValidatorId,
+		CandidateHash,
+		ValidatorIndex,
+		oneshot::Sender<ChunkResponse>,
+	),
+
+	/// Report a peer.
+	ReportPeer(
+		PeerId,
+		Rep,
+	),
+}
+
+/// A state of a single interaction reconstructing an available data.
+struct Interaction {
+	/// A communication channel with the `State`.
+	to_state: mpsc::Sender<FromInteraction>,
+
+	/// Validators relevant to this `Interaction`.
+	validators: Vec<ValidatorId>,
+
+	/// A random shuffling of the validators which indicates the order in which we connect
+	/// to the validators and request the chunk from them.
+	shuffling: Vec<ValidatorIndex>,
+
+	/// The number of pieces needed.
+	threshold: usize,
+
+	/// A hash of the relevant candidate.
+	candidate_hash: CandidateHash,
+
+	/// The root of the erasure encoding of the para block.
+	erasure_root: Hash,
+
+	/// The chunks that we have received from peers.
+	received_chunks: HashMap<PeerId, ErasureChunk>,
+
+	/// The chunk requests that are waiting to complete.
+	requesting_chunks: FuturesUnordered<oneshot::Receiver<ChunkResponse>>,
+}
+
+impl Interaction {
+	async fn run(mut self) {
+		// How many parallel requests to have going at once.
+		const N_PARALLEL: usize = 50;
+
+		loop {
+			// If it's empty and requesting_chunks is empty,
+			// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
+			if self.requesting_chunks.is_empty() && self.shuffling.is_empty() {
+				let _ = self.to_state.send(FromInteraction::Concluded(
+					self.candidate_hash,
+					Err(RecoveryError::Unavailable),
+				)).await;
+				break;
+			}
+
+			while self.requesting_chunks.len() < N_PARALLEL {
+				if let Some(validator_index) = self.shuffling.pop() {
+					let (tx, rx) = oneshot::channel();
+
+					let _ = self.to_state.send(FromInteraction::MakeRequest(
+						self.validators[validator_index as usize].clone(),
+						self.candidate_hash.clone(),
+						validator_index,
+						tx,
+					)).await;
+
+					self.requesting_chunks.push(rx);
+				} else {
+					break;
+				}
+			}
+
+			// Poll for new updates from requesting_chunks.
+			if let Some(Ok(Ok((peer_id, chunk)))) = self.requesting_chunks.next().await {
+				// Check merkle proofs of any received chunks, and any failures should
+				// lead to issuance of a FromInteraction::ReportPeer message.
+				if let Ok(anticipated_hash) = branch_hash(
+					&self.erasure_root,
+					&chunk.proof,
+					chunk.index as usize,
+				) {
+					let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
+
+					if erasure_chunk_hash != anticipated_hash {
+						let _ = self.to_state.send(FromInteraction::ReportPeer(
+							peer_id,
+							COST_MERKLE_PROOF_INVALID,
+						)).await;
+					} else {
+						self.received_chunks.insert(peer_id, chunk);
+					}
+				} else {
+					let _ = self.to_state.send(FromInteraction::ReportPeer(
+						peer_id,
+						COST_MERKLE_PROOF_INVALID,
+					)).await;
+				}
+			}
+
+			// If received_chunks has more than threshold entries, attempt to recover the data.
+			// If that fails, or a re-encoding of it doesn't match the expected erasure root,
+			// break and issue a FromInteraction::Concluded(RecoveryError::Invalid).
+			// Otherwise, issue a FromInteraction::Concluded(Ok(())).
+			if self.received_chunks.len() >= self.threshold {
+				let concluded = match polkadot_erasure_coding::reconstruct_v1(
+					self.validators.len(),
+					self.received_chunks.values().map(|c| (&c.chunk[..], c.index as usize)),
+				) {
+				    Ok(data) => FromInteraction::Concluded(self.candidate_hash.clone(), Ok(data)),
+				    Err(_) => FromInteraction::Concluded(self.candidate_hash.clone(), Err(RecoveryError::Invalid)),
+				};
+
+				if let Err(e) = self.to_state.send(concluded).await {
+					tracing::warn!(
+						target: LOG_TARGET,
+						err = ?e,
+						"Failed to send Concluded result from interaction",
+					);
+				}
+				return;
+			}
+		}
+	}
+}
+
+struct State {
+    /// Each interaction is implemented as its own async task,
+	/// and these handles are for communicating with them.
+    interactions: HashMap<CandidateHash, InteractionHandle>,
+
+    /// A recent block hash for which state should be available.
+    live_block_hash: Hash,
+
+	/// We are waiting for these validators to connect and as soon as they
+	/// do to request the needed chunks we are awaitinf for.
+    discovering_validators: HashMap<ValidatorId, Vec<AwaitedChunk>>,
+
+	/// Requests that we have issued to the already connected validators
+	/// about the chunks we are interested in.
+    live_chunk_requests: HashMap<RequestId, (PeerId, AwaitedChunk)>,
+
+	/// Derive request ids from this.
+    next_request_id: RequestId,
+
+	/// Connect to relevant groups of validators at different relay parents.
+	connection_requests: validator_discovery::ConnectionRequests,
+
+    /// interaction communication. This is cloned and given to interactions that are spun up.
+    from_interaction_tx: mpsc::Sender<FromInteraction>,
+
+    /// receiver for messages from interactions.
+    from_interaction_rx: mpsc::Receiver<FromInteraction>,
+
+    /// An LRU cache of recently recovered data.
+    availability_lru: HashMap<CandidateHash, Result<AvailableData, RecoveryError>>,
+}
+
+impl Default for State {
+	fn default() -> State {
+		let (from_interation_tx, from_interation_rx) = mpsc::channel(256);
+
+		State {
+			from_interaction_tx: from_interation_tx,
+			from_interaction_rx: from_interation_rx,
+			..Default::default()
+		}
+	}
+}
 
 impl<C> Subsystem<C> for AvailabilityRecoverySubsystem
 	where C: SubsystemContext<Message = AvailabilityRecoveryMessage>
@@ -42,6 +278,318 @@ impl<C> Subsystem<C> for AvailabilityRecoverySubsystem
 	}
 }
 
+/// Handles a signal from the overseer.
+async fn handle_signal(
+	state: &mut State,
+	signal: OverseerSignal,
+) -> SubsystemResult<bool> {
+	match signal {
+		OverseerSignal::Conclude => Ok(true),
+		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
+			// if activated is non-empty, set state.live_block_hash to the first block in Activated.
+			if let Some(hash) = activated.get(0) {
+				state.live_block_hash = *hash;
+			}
+
+			Ok(false)
+		}
+		_ => Ok(false),
+	}
+}
+
+/// Report a reputation change for a peer.
+async fn report_peer(
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	peer: PeerId,
+	rep: Rep,
+) {
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await;
+}
+
+/// Machinery around launching interactions into the background.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+async fn launch_interaction(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	session_index: SessionIndex,
+	session_info: SessionInfo,
+	receipt: CandidateReceipt,
+) -> error::Result<()> {
+	use rand::seq::SliceRandom;
+	use rand::thread_rng;
+
+	let threshold = recovery_threshold(session_info.validators.len());
+	let to_state = state.from_interaction_tx.clone();
+	let candidate_hash = receipt.hash();
+	let erasure_root = receipt.descriptor.erasure_root;
+	let validators = session_info.validators.clone();
+	let mut shuffling: Vec<_> = (0..validators.len() as u32).collect();
+
+	{
+		// make borrow checker happy.
+		let mut rng = thread_rng();
+		shuffling.shuffle(&mut rng);
+	}
+
+	let interaction = Interaction {
+		to_state,
+		validators,
+		shuffling,
+		threshold,
+		candidate_hash,
+		erasure_root,
+		received_chunks: HashMap::new(),
+		requesting_chunks: FuturesUnordered::new(),
+	};
+
+	match ctx.spawn("recovery interaction", interaction.run().boxed()).await {
+	    Ok(_) => {}
+	    Err(_) => {}
+	}
+
+	Ok(())
+}
+
+/// Handles an availability recovery request.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+async fn handle_recover(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	receipt: CandidateReceipt,
+	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
+) -> error::Result<()> {
+	let candidate_hash = receipt.hash();
+
+	if let Some(result) = state.availability_lru.get(&candidate_hash) {
+		if let Err(e) = response_sender.send(result.clone()) {
+			tracing::warn!(
+				target: LOG_TARGET,
+				err = ?e,
+				"Error responding with an availability recovery result",
+			);
+		}
+		return Ok(());
+	}
+
+	if let Some(interaction) = state.interactions.get_mut(&candidate_hash) {
+		interaction.awaiting.push(response_sender);
+		return Ok(());
+	}
+
+	let session_index = request_session_index_for_child_ctx(state.live_block_hash, ctx).await?.await??;
+	let session_info = request_session_info_ctx(state.live_block_hash, session_index, ctx).await?.await??;
+
+	match session_info {
+		Some(session_info) => {
+			launch_interaction(
+				state,
+				ctx,
+				session_index,
+				session_info,
+				receipt,
+			).await
+		}
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"SessionInfo is `None` at {}", state.live_block_hash,
+			);
+			Ok(())
+		}
+	}
+}
+
+/// Queries a chunk from av-store.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+async fn query_chunk(
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	candidate_hash: CandidateHash,
+	validator_index: ValidatorIndex,
+) -> error::Result<Option<ErasureChunk>> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AllMessages::AvailabilityStore(
+		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
+	)).await;
+
+	Ok(rx.await?)
+}
+
+/// Handles message from interaction.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+async fn handle_from_interaction(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	from_interaction: FromInteraction,
+) -> error::Result<()> {
+	match from_interaction {
+	    FromInteraction::Concluded(candidate_hash, result) => {
+			// Load the entry from the interactions map.
+			// It should always exist, if not for logic errors.
+			if let Some(interaction) = state.interactions.remove(&candidate_hash) {
+				// Send the result to each member of awaiting.
+				for awaiting in interaction.awaiting {
+					awaiting.send(result.clone()).map_err(|_| oneshot::Canceled)?;
+				}
+			} else {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Interaction under candidate hash {} is missing",
+					candidate_hash,
+				);
+			}
+		}
+	    FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
+			let relay_parent = state.live_block_hash;
+
+    		// Issue a NetworkBridgeMessage::ConnectToValidators.
+    		// Add the stream of connected validator events to state.connecting_validators.
+			match validator_discovery::connect_to_validators(
+				ctx,
+				relay_parent,
+				vec![id.clone()],
+			).await {
+				Ok(new_connection_request) => {
+					state.connection_requests.put(relay_parent, new_connection_request);
+					// Add an AwaitedChunk to the discovering_validators map under discovery_pub.
+					let awaited_chunk = AwaitedChunk {
+						validator_index,
+						candidate_hash,
+						response,
+					};
+
+					state.discovering_validators.entry(id).or_default().push(awaited_chunk);
+				}
+				Err(e) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						err = ?e,
+						"Failed to create a validator connection request",
+					);
+				}
+			}
+		}
+	    FromInteraction::ReportPeer(peer_id, rep) => {
+			report_peer(ctx, peer_id, rep).await;
+		}
+	}
+	Ok(())
+}
+
+/// Handles a network bridge update.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+async fn handle_network_update(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	update: NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>,
+) -> error::Result<()> {
+	match update {
+	    NetworkBridgeEvent::PeerMessage(peer, message) => {
+			match message {
+			    protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
+					request_id,
+					candidate_hash,
+					validator_index,
+				) => {
+					// Issue a
+					// AvailabilityStore::QueryChunk(candidate-hash, validator_index, response)
+					// message.
+					let chunk = query_chunk(ctx, candidate_hash, validator_index).await?;
+
+					// Whatever the result, issue an
+					// AvailabilityRecoveryV1Message::Chunk(r_id, response) message.
+					let wire_message = protocol_v1::AvailabilityRecoveryMessage::Chunk(
+						request_id,
+						chunk,
+					);
+
+					ctx.send_message(AllMessages::NetworkBridge(
+						NetworkBridgeMessage::SendValidationMessage(
+							vec![peer],
+							protocol_v1::ValidationProtocol::AvailabilityRecovery(wire_message),
+						),
+					)).await;
+				}
+			    protocol_v1::AvailabilityRecoveryMessage::Chunk(request_id, chunk) => {
+					match state.live_chunk_requests.remove(&request_id) {
+						None => {
+							// If there doesn't exist one, report the peer and return.
+							report_peer(ctx, peer, COST_UNEXPECTED_CHUNK).await;
+						}
+						Some((peer_id, awaited_chunk)) if peer_id == peer => {
+							// If there exists an entry under r_id, remove it.
+							// Send the chunk response on the awaited_chunk for the interaction to handle.
+							if let Some(chunk) = chunk {
+								awaited_chunk.response
+									.send(Ok((peer_id, chunk)))
+									.map_err(|_| oneshot::Canceled)?;
+							}
+ 						}
+						Some(a) => {
+							// If the peer in the entry doesn't match the sending peer,
+							// reinstate the entry, report the peer, and return
+							state.live_chunk_requests.insert(request_id, a);
+						}
+					}
+				}
+			}
+		}
+		// We do not really need to track the peers' views in this subsystem
+		// since the peers are _required_ to have the data we are interested in.
+	    NetworkBridgeEvent::PeerViewChange(_, _) => {}
+	    NetworkBridgeEvent::OurViewChange(_) => {}
+		// All peer connections are handled via validator discovery API.
+	    NetworkBridgeEvent::PeerConnected(_, _) => {}
+	    NetworkBridgeEvent::PeerDisconnected(_) => {}
+	}
+
+	Ok(())
+}
+
+/// Issues a chunk request to the validator we've been waiting for to connect to us.
+async fn issue_chunk_request(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	peer_id: PeerId,
+	awaited_chunk: AwaitedChunk,
+) -> error::Result<()> {
+	let request_id = state.next_request_id;
+	state.next_request_id += 1;
+
+	let wire_message = protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
+		request_id,
+		awaited_chunk.candidate_hash,
+		awaited_chunk.validator_index,
+	);
+
+	ctx.send_message(AllMessages::NetworkBridge(
+		NetworkBridgeMessage::SendValidationMessage(
+			vec![peer_id.clone()],
+			protocol_v1::ValidationProtocol::AvailabilityRecovery(wire_message),
+		),
+	)).await;
+
+	state.live_chunk_requests.insert(request_id, (peer_id, awaited_chunk));
+
+	Ok(())
+}
+
+/// Handles a newly connected validator in the context of some relay leaf.
+async fn handle_validator_connected(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	validator_id: ValidatorId,
+	peer_id: PeerId,
+) -> error::Result<()> {
+	// The droids we've been looking for?
+	if let Some(discovering) = state.discovering_validators.remove(&validator_id) {
+		for chunk in discovering {
+			issue_chunk_request(state, ctx, peer_id.clone(), chunk).await?;
+		}
+	}
+
+	Ok(())
+}
+
 impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem`.
 	pub fn new() -> Self {
@@ -52,12 +600,84 @@ impl AvailabilityRecoverySubsystem {
 		self,
 		mut ctx: impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	) -> SubsystemResult<()> {
-		loop {
-			let msg = ctx.recv().await?;
-			match msg {
-				_ => {}
-			}
+		let mut state = State::default();
 
+		loop {
+			futures::select_biased! {
+				v = state.connection_requests.next().fuse() => {
+					if let Err(e) = handle_validator_connected(
+						&mut state,
+						&mut ctx,
+						v.validator_id,
+						v.peer_id,
+					).await {
+						tracing::warn!(
+							target: LOG_TARGET,
+							err = ?e,
+							"Failed to handle a newly connected validator",
+						);
+					}
+				}
+				v = ctx.recv().fuse() => {
+					match v? {
+						FromOverseer::Signal(signal) => if handle_signal(
+							&mut state,
+							signal,
+						).await? {
+							return Ok(());
+						}
+						FromOverseer::Communication { msg } => {
+							match msg {
+								AvailabilityRecoveryMessage::RecoverAvailableData(
+									receipt,
+									response_sender,
+								) => {
+									if let Err(e) = handle_recover(
+										&mut state,
+										&mut ctx,
+										receipt,
+										response_sender,
+									).await {
+										tracing::warn!(
+											target: LOG_TARGET,
+											err = ?e,
+											"Error handling a recovery request",
+										);
+									}
+								}
+								AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(event) => {
+									if let Err(e) = handle_network_update(
+										&mut state,
+										&mut ctx,
+										event,
+									).await {
+										tracing::warn!(
+											target: LOG_TARGET,
+											err = ?e,
+											"Error handling a network bridge update",
+										);
+									}
+								}
+							}
+						}
+					}
+				}
+				from_interaction = state.from_interaction_rx.next() => {
+					if let Some(from_interaction) = from_interaction {
+						if let Err(e) = handle_from_interaction(
+							&mut state,
+							&mut ctx,
+							from_interaction,
+						).await {
+							tracing::warn!(
+								target: LOG_TARGET,
+								err = ?e,
+								"Error handling message from interaction",
+							);
+						}
+					}
+				}
+			}
 		}
 	}
 }
