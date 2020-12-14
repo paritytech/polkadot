@@ -33,7 +33,6 @@ use frame_support::{
 };
 use frame_system::ensure_none;
 use crate::{
-	configuration,
 	inclusion,
 	scheduler::{self, FreedReason},
 	ump,
@@ -107,13 +106,7 @@ decl_module! {
 
 			<scheduler::Module<T>>::schedule(freed);
 
-			// Temporarily mutably borrow this list so it can be truncated, then restore immutability.
-			// This only works because we own the vector anyway.
-			let backed_candidates = {
-				let mut backed_candidates = backed_candidates;
-				limit_backed_candidates::<T>(&mut backed_candidates);
-				backed_candidates
-			};
+			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 
 			// Process backed candidates according to scheduled cores.
 			let occupied = <inclusion::Module<T>>::process_candidates(
@@ -143,17 +136,17 @@ decl_module! {
 /// the block with candidate processing.
 ///
 /// Retains the first N candidates which fit, with no attempt at sorting by priority.
-fn limit_backed_candidates<T: Config>(backed_candidates: &mut Vec<BackedCandidate<T::Hash>>) {
-	let config = <configuration::Module<T>>::config();
-	if config.backed_candidate_block_weight == 0 {
-		return;
-	}
+fn limit_backed_candidates<T: Config>(
+	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
+) -> Vec<BackedCandidate<T::Hash>> {
+	const BACKED_CANDIDATE_WEIGHT_ASSUMPTION: usize = 10_000;
 
 	let block_weight_remaining = <T as frame_system::Config>::MaximumBlockWeight::get()
 		- frame_system::Module::<T>::block_weight().total();
 
-	let n_candidates = block_weight_remaining as usize / config.backed_candidate_block_weight as usize;
+	let n_candidates = block_weight_remaining as usize / BACKED_CANDIDATE_WEIGHT_ASSUMPTION;
 	backed_candidates.truncate(n_candidates);
+	backed_candidates
 }
 
 /// We should only include the inherent under certain circumstances.

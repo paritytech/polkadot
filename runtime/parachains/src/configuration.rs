@@ -130,8 +130,6 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
-	/// The amount of block weight which we assume is consumed to process a single backed candidate.
-	pub backed_candidate_block_weight: u32,
 }
 
 pub trait Config: frame_system::Config { }
@@ -514,17 +512,6 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.hrmp_max_message_num_per_candidate, new) != new
-			});
-			Ok(())
-		}
-
-		/// Sets the amount of block weight which we assume is consumed to process a single backed candidate.
-		/// `BackedCandidate`.
-		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn set_backed_candidate_block_weight(origin, new: u32) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.backed_candidate_block_weight, new) != new
 			});
 			Ok(())
 		}
