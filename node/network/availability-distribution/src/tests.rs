@@ -1226,10 +1226,10 @@ fn k_ancestors_in_session() {
 fn clean_up_receipts_cache_unions_ancestors_and_view() {
 	let mut state = ProtocolState::default();
 
-	let hash_a = [0u8; 32].into();
-	let hash_b = [1u8; 32].into();
-	let hash_c = [2u8; 32].into();
-	let hash_d = [3u8; 32].into();
+	let hash_a = Hash::repeat_byte(0u8);
+	let hash_b = Hash::repeat_byte(1u8);
+	let hash_c = Hash::repeat_byte(2u8);
+	let hash_d = Hash::repeat_byte(3u8);
 
 	state.receipts.insert(hash_a, HashSet::new());
 	state.receipts.insert(hash_b, HashSet::new());
@@ -1256,8 +1256,8 @@ fn clean_up_receipts_cache_unions_ancestors_and_view() {
 fn remove_relay_parent_only_removes_per_candidate_if_final() {
 	let mut state = ProtocolState::default();
 
-	let hash_a = [0u8; 32].into();
-	let hash_b = [1u8; 32].into();
+	let hash_a = Hash::repeat_byte(0u8);
+	let hash_b = Hash::repeat_byte(1u8);
 
 	let candidate_hash_a = CandidateHash([46u8; 32].into());
 
@@ -1290,14 +1290,14 @@ fn remove_relay_parent_only_removes_per_candidate_if_final() {
 
 #[test]
 fn add_relay_parent_includes_all_live_candidates() {
-	let relay_parent = [0u8; 32].into();
+	let relay_parent = Hash::repeat_byte(0x00);
 
 	let mut state = ProtocolState::default();
 
-	let ancestor_a = [1u8; 32].into();
+	let ancestor_a = Hash::repeat_byte(1);
 
-	let candidate_hash_a = CandidateHash([10u8; 32].into());
-	let candidate_hash_b = CandidateHash([11u8; 32].into());
+	let candidate_hash_a = CandidateHash(Hash::repeat_byte(10));
+	let candidate_hash_b = CandidateHash(Hash::repeat_byte(11));
 
 	let candidates = vec![
 		(candidate_hash_a, FetchedLiveCandidate::Fresh(Default::default())),
