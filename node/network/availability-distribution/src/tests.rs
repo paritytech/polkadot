@@ -1529,7 +1529,7 @@ fn query_pending_availability_at_pulls_from_and_updates_receipts() {
 
 
 #[test]
-fn candidates_overlapping() -> std::result::Result<(), Box<dyn std::error::Error>> {
+fn candidates_overlapping() {
 	let test_state = TestState::default();
 
 	// use the same PoV, nobody cares for the test
@@ -1637,6 +1637,4 @@ fn candidates_overlapping() -> std::result::Result<(), Box<dyn std::error::Error
 
 	assert_matches!(state.per_candidate.get(&candidate_rp.hash()), None => {});
 	assert_matches!(state.per_candidate.get(&candidate_a0.hash()), None => {});
-
-	Ok(())
 }
