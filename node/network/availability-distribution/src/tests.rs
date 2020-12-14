@@ -26,9 +26,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem_testhelpers as test_helpers;
 
 use futures::{executor, future, Future};
-use futures_timer::Delay;
 use sc_keystore::LocalKeystore;
-use smallvec::smallvec;
 use sp_application_crypto::AppKey;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::{sync::Arc, time::Duration};
@@ -89,39 +87,20 @@ fn test_harness<T: Future<Output = ()>>(
 
 const TIMEOUT: Duration = Duration::from_millis(100);
 
-async fn overseer_signal(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
-	signal: OverseerSignal,
-) {
-	delay!(50);
-	overseer
-		.send(FromOverseer::Signal(signal))
-		.timeout(TIMEOUT)
-		.await
-		.expect("10ms is more than enough for sending signals.");
-}
-
 async fn overseer_send(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
-	msg: AvailabilityDistributionMessage,
+	msg: impl Into<AvailabilityDistributionMessage>,
 ) {
+	let msg = msg.into();
 	tracing::trace!(msg = ?msg, "sending message");
-	overseer
-		.send(FromOverseer::Communication { msg })
-		.timeout(TIMEOUT)
-		.await
-		.expect("10ms is more than enough for sending messages.");
+	overseer.send(FromOverseer::Communication { msg }).await
 }
 
 async fn overseer_recv(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 ) -> AllMessages {
 	tracing::trace!("waiting for message ...");
-	let msg = overseer
-		.recv()
-		.timeout(TIMEOUT)
-		.await
-		.expect("TIMEOUT is enough to recv.");
+	let msg = overseer.recv().await;
 	tracing::trace!(msg = ?msg, "received message");
 	msg
 }
@@ -420,9 +399,12 @@ fn check_views() {
 	let peer_a = PeerId::random();
 	let peer_a_2 = peer_a.clone();
 	let peer_b = PeerId::random();
+	let peer_b_2 = peer_b.clone();
 	assert_ne!(&peer_a, &peer_b);
 
 	let keystore = test_state.keystore.clone();
+	let current = test_state.relay_parent;
+	let ancestors = test_state.ancestors.clone();
 
 	let state = test_harness(keystore, ProtocolState::default(), move |test_harness| async move {
 		let mut virtual_overseer = test_harness.virtual_overseer;
@@ -541,78 +523,68 @@ fn check_views() {
 			}
 		);
 
-		for _ in 0usize..1 {
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_relay_parent,
-					RuntimeApiRequest::AvailabilityCores(tx),
-				)) => {
-					tx.send(Ok(vec![
-						CoreState::Occupied(OccupiedCore {
-							para_id: chain_ids[0].clone(),
-							next_up_on_available: None,
-							occupied_since: 0,
-							time_out_at: 10,
-							next_up_on_time_out: None,
-							availability: Default::default(),
-							group_responsible: GroupIndex::from(0),
-						}),
-						CoreState::Free,
-						CoreState::Free,
-						CoreState::Occupied(OccupiedCore {
-							para_id: chain_ids[1].clone(),
-							next_up_on_available: None,
-							occupied_since: 1,
-							time_out_at: 7,
-							next_up_on_time_out: None,
-							availability: Default::default(),
-							group_responsible: GroupIndex::from(0),
-						}),
-						CoreState::Free,
-						CoreState::Free,
-					])).unwrap();
-				}
-			);
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_relay_parent,
+				RuntimeApiRequest::AvailabilityCores(tx),
+			)) => {
+				tx.send(Ok(vec![
+					CoreState::Occupied(OccupiedCore {
+						para_id: chain_ids[0].clone(),
+						next_up_on_available: None,
+						occupied_since: 0,
+						time_out_at: 10,
+						next_up_on_time_out: None,
+						availability: Default::default(),
+						group_responsible: GroupIndex::from(0),
+					}),
+					CoreState::Free,
+					CoreState::Free,
+					CoreState::Occupied(OccupiedCore {
+						para_id: chain_ids[1].clone(),
+						next_up_on_available: None,
+						occupied_since: 1,
+						time_out_at: 7,
+						next_up_on_time_out: None,
+						availability: Default::default(),
+						group_responsible: GroupIndex::from(0),
+					}),
+					CoreState::Free,
+					CoreState::Free,
+				])).unwrap();
+			}
+		);
 
-			// query the availability cores for each of the paras (2)
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(
-						_relay_parent,
-						RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-					)
-				) => {
-					assert_eq!(para, chain_ids[0]);
-					tx.send(Ok(Some(
-						candidates[0].clone()
-					))).unwrap();
-				}
-			);
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+		// query the availability cores for each of the paras (2)
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
 					_relay_parent,
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-				)) => {
-					assert_eq!(para, chain_ids[1]);
-					tx.send(Ok(Some(
-						candidates[1].clone()
-					))).unwrap();
-				}
-			);
-		}
+				)
+			) => {
+				assert_eq!(para, chain_ids[0]);
+				tx.send(Ok(Some(candidates[0].clone()))).unwrap();
+			}
+		);
 
-		// check if the availability store can provide the desired erasure chunks
-		for i in 0usize..2 {
-			tracing::trace!("0000");
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_relay_parent,
+				RuntimeApiRequest::CandidatePendingAvailability(para, tx),
+			)) => {
+				assert_eq!(para, chain_ids[1]);
+				tx.send(Ok(Some(candidates[1].clone()))).unwrap();
+			}
+		);
+
+		for _ in 0usize..2 {
 			let avail_data = make_available_data(&test_state, pov_block_a.clone());
-			let chunks =
-				derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
+			let chunks = derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
 
-			// store the chunk to the av store
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::AvailabilityStore(
@@ -621,13 +593,14 @@ fn check_views() {
 						tx,
 					)
 				) => {
-					assert_eq!(candidates[i].hash(), candidate_hash);
-					tx.send(i == 0).unwrap();
+					let pos = candidates.iter().position(|c| c.hash() == candidate_hash).unwrap();
+					tx.send(pos == 0).unwrap();
 				}
 			);
 
 			assert_eq!(chunks.len(), test_state.validators.len());
 		}
+
 		// setup peer a with interest in current
 		overseer_send(
 			&mut virtual_overseer,
@@ -670,10 +643,14 @@ fn check_views() {
 			view,
 			..
 		} => {
-			assert_eq!(peer_views, hashmap!{
-				peer_a_2 => view![],
-			});
-			assert_eq!(view, view![]);
+			assert_eq!(
+				peer_views,
+				hashmap! {
+					peer_a_2 => view![current],
+					peer_b_2 => view![ancestors[0]],
+				},
+			);
+			assert_eq!(view, view![current]);
 		}
 	};
 }
@@ -764,16 +741,9 @@ fn reputation_verification() {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
-			chain_ids,
-			validator_public,
-			validator_groups,
-			availability_cores,
 			relay_parent: current,
-			ancestors,
 			..
 		} = test_state.clone();
-
-		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let valid: AvailabilityGossipMessage = make_valid_availability_gossip(
 			&test_state,
@@ -781,6 +751,14 @@ fn reputation_verification() {
 			2,
 			pov_block_a.clone(),
 		);
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+				NetworkBridgeEvent::OurViewChange(view![current,]),
+			),
+		)
+		.await;
 
 		{
 			// valid (first, from b)
