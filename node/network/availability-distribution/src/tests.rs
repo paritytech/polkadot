@@ -22,6 +22,7 @@ use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
 	GroupRotationInfo, HeadData, OccupiedCore, PersistedValidationData, PoV, ScheduledCore,
+	ValidatorId,
 };
 use polkadot_subsystem_testhelpers as test_helpers;
 
@@ -31,6 +32,7 @@ use sc_keystore::LocalKeystore;
 use smallvec::smallvec;
 use sp_application_crypto::AppKey;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keyring::Sr25519Keyring;
 use std::{sync::Arc, time::Duration};
 use maplit::{hashset, hashmap};
 
@@ -144,7 +146,6 @@ fn dummy_occupied_core(para: ParaId) -> CoreState {
 	})
 }
 
-use sp_keyring::Sr25519Keyring;
 
 #[derive(Clone)]
 struct TestState {
@@ -1524,4 +1525,118 @@ fn query_pending_availability_at_pulls_from_and_updates_receipts() {
 	futures::pin_mut!(answer);
 
 	executor::block_on(future::join(test_fut, answer));
+}
+
+
+#[test]
+fn candidates_overlapping() -> std::result::Result<(), Box<dyn std::error::Error>> {
+	let test_state = TestState::default();
+
+	// use the same PoV, nobody cares for the test
+	let pov_block = PoV {
+		block_data: BlockData(vec![48, 49, 50]),
+	};
+
+	let pov_hash = pov_block.hash();
+
+	// 4 ancestors, allows us to create two overlapping sets of ancestors
+	// of size 3
+	let ancestors = &[
+		Hash::repeat_byte(0xA0),
+		Hash::repeat_byte(0xA1),
+		Hash::repeat_byte(0xA2),
+		Hash::repeat_byte(0xA3),
+	];
+
+	let mut state = ProtocolState {
+		view: view![],
+		per_candidate: hashmap!{},
+		per_relay_parent: hashmap!{},
+		.. Default::default()
+	};
+
+	let validators = validator_pubkeys(&test_state.validators);
+	let validator_index = Some(0 as ValidatorIndex);
+	let relay_parent = test_state.relay_parent;
+
+	let create_candidate = |ancestor: Hash| {
+		TestCandidateBuilder {
+			para_id: test_state.chain_ids[1],
+			relay_parent: ancestor,
+			pov_hash,
+			erasure_root: make_erasure_root(&test_state, pov_block.clone()),
+			head_data: test_state
+				.head_data
+				.get(&test_state.chain_ids[1])
+				.unwrap()
+				.clone(),
+			..Default::default()
+		}
+		.build()
+	};
+
+	// create the same candidate for all ancestors
+	let candidate_rp = create_candidate(relay_parent);
+	let candidate_a0 = create_candidate(ancestors[0]);
+	let candidate_a1 = create_candidate(ancestors[1]);
+	let candidate_a2 = create_candidate(ancestors[2]);
+	let candidate_a3 = create_candidate(ancestors[3]);
+
+	let candidate_set_rp = hashmap!{
+		candidate_rp.hash() => FetchedLiveCandidate::Fresh(candidate_rp.descriptor.clone()),
+		candidate_a0.hash() => FetchedLiveCandidate::Fresh(candidate_a0.descriptor.clone()),
+		candidate_a1.hash() => FetchedLiveCandidate::Fresh(candidate_a1.descriptor.clone()),
+		candidate_a2.hash() => FetchedLiveCandidate::Fresh(candidate_a2.descriptor.clone()),
+	};
+	let candidate_set_a0 = hashmap!{
+		candidate_a0.hash() => FetchedLiveCandidate::Fresh(candidate_a0.descriptor.clone()),
+		candidate_a1.hash() => FetchedLiveCandidate::Fresh(candidate_a1.descriptor.clone()),
+		candidate_a2.hash() => FetchedLiveCandidate::Fresh(candidate_a2.descriptor.clone()),
+		candidate_a3.hash() => FetchedLiveCandidate::Fresh(candidate_a3.descriptor.clone()),
+	};
+
+	state.add_relay_parent(relay_parent, validators.clone(), validator_index, candidate_set_rp, ancestors.to_vec());
+
+	assert!(state.per_candidate.get(&candidate_rp.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a0.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a1.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a2.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a3.hash()).is_none());
+
+	state.add_relay_parent(ancestors[0], validators.clone(), validator_index, candidate_set_a0, ancestors.to_vec());
+
+
+	assert!(state.per_candidate.get(&candidate_rp.hash()).unwrap().live_in.contains(&relay_parent));
+	assert!(state.per_candidate.get(&candidate_a0.hash()).unwrap().live_in.contains(&relay_parent));
+
+	// replacing the view is part of `handle_our_view_change, so the view does not change
+	// here
+
+	assert!(state.per_candidate.get(&candidate_rp.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a0.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a1.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a2.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a3.hash()).is_some());
+
+	state.remove_relay_parent(&relay_parent);
+
+
+	assert!(state.per_candidate.get(&candidate_rp.hash()).is_none());
+	assert!(state.per_candidate.get(&candidate_a0.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a1.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a2.hash()).is_some());
+	assert!(state.per_candidate.get(&candidate_a3.hash()).is_some());
+
+	state.remove_relay_parent(&ancestors[0]);
+
+	assert!(state.per_candidate.get(&candidate_rp.hash()).is_none());
+	assert!(state.per_candidate.get(&candidate_a0.hash()).is_none());
+	assert!(state.per_candidate.get(&candidate_a1.hash()).is_none());
+	assert!(state.per_candidate.get(&candidate_a2.hash()).is_none());
+	assert!(state.per_candidate.get(&candidate_a3.hash()).is_none());
+
+	assert_matches!(state.per_candidate.get(&candidate_rp.hash()), None => {});
+	assert_matches!(state.per_candidate.get(&candidate_a0.hash()), None => {});
+
+	Ok(())
 }
