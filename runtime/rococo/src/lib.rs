@@ -82,6 +82,15 @@ use runtime_parachains::scheduler as parachains_scheduler;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_staking::StakerStatus;
 
+use polkadot_parachain::primitives::Id as ParaId;
+use xcm::v0::{MultiLocation, NetworkId};
+use xcm_executor::traits::IsConcrete;
+use xcm_builder::{
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
+	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
+	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+};
+
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
@@ -535,10 +544,51 @@ impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 }
 
+parameter_types! {
+	pub const RocLocation: MultiLocation = MultiLocation::Null;
+	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
+	pub const Ancestry: MultiLocation = MultiLocation::Null;
+}
+
+pub type LocationConverter = (
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<RococoNetwork, AccountId>,
+);
+
+pub type LocalAssetTransactor =
+	XcmCurrencyAdapter<
+		// Use this currency:
+		Balances,
+		// Use this currency when it is a fungible asset matching the given location or name:
+		IsConcrete<RocLocation>,
+		// We can convert the MultiLocations with our converter above:
+		LocationConverter,
+		// Our chain's account ID type (we can't get away without mentioning it explicitly):
+		AccountId,
+	>;
+
+type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+);
+
+pub struct XcmConfig;
+impl xcm_executor::Config for XcmConfig {
+	type Call = Call;
+	type XcmSender = ();
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	type IsReserve = ();
+	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
+}
+
 impl parachains_session_info::Config for Runtime {}
 
 impl parachains_ump::Config for Runtime {
-	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
+	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
 }
 
 impl parachains_dmp::Config for Runtime {}
