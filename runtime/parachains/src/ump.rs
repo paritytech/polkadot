@@ -65,7 +65,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 
 		let weight: Weight = 0;
 
-		if let Some(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]).ok() {
+		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
 			match versioned_xcm_message {
 				VersionedXcm::V0(xcm_message) => {
 					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
@@ -74,6 +74,11 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 					let _result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message);
 				}
 			}
+		} else {
+			frame_support::debug::error!(
+				target: "xcm",
+				"Failed to decode versioned XCM from upward message.",
+			);
 		}
 
 		// TODO: to be sound, this implementation must ensure that returned (and thus consumed)
