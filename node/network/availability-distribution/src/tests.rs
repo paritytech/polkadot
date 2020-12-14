@@ -611,9 +611,8 @@ fn check_views() {
 		}
 
 		// check if the availability store can provide the desired erasure chunks
-		const N:usize =2;
+		const N:usize = 2;
 		for i in 0usize..N {
-			tracing::trace!("0000");
 			let avail_data = make_available_data(&test_state, pov_block_a.clone());
 			let chunks =
 				derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
@@ -628,7 +627,11 @@ fn check_views() {
 					)
 				) => {
 					// the order is not deterministic
-					assert!(candidates.iter().map(|x|x.hash()).filter(|x| x == &candidate_hash).count() == 1);
+					assert!(
+						candidates.iter()
+							.map(|x|x.hash())
+							.find(|x| x == &candidate_hash)
+							.is_some());
 					tx.send(i == 0).unwrap();
 				}
 			);
@@ -701,9 +704,6 @@ fn check_views() {
 		}
 	};
 }
-
-
-
 
 #[test]
 fn reputation_verification() {
