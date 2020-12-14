@@ -33,13 +33,12 @@ use frame_support::{
 };
 use frame_system::ensure_none;
 use crate::{
+	configuration,
 	inclusion,
 	scheduler::{self, FreedReason},
 	ump,
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
-
-const BLOCK_WEIGHT_MARGIN: u64 = 1000;
 
 pub trait Config: inclusion::Config + scheduler::Config {}
 
@@ -108,6 +107,14 @@ decl_module! {
 
 			<scheduler::Module<T>>::schedule(freed);
 
+			// Temporarily mutably borrow this list so it can be truncated, then restore immutability.
+			// This only works because we own the vector anyway.
+			let backed_candidates = {
+				let mut backed_candidates = backed_candidates;
+				limit_backed_candidates::<T>(&mut backed_candidates);
+				backed_candidates
+			};
+
 			// Process backed candidates according to scheduled cores.
 			let occupied = <inclusion::Module<T>>::process_candidates(
 				backed_candidates,
@@ -129,21 +136,34 @@ decl_module! {
 	}
 }
 
-// At the point that this is run, the provisioner has already chosen a set of extrinsics,
-// so we can rely on calculations like block weight.
-fn inclusion_inherents_would_overload_block<T: 'static + frame_system::Config>() -> bool {
-	frame_system::Module::<T>::block_weight().total() > <T as frame_system::Config>::MaximumBlockWeight::get() - BLOCK_WEIGHT_MARGIN
+/// Limit the number of backed candidates processed in order to stay within block weight limits.
+///
+/// Use a configured assumption about the weight required to process a backed candidate and the
+/// current block weight as of the execution of this function to ensure that we don't overload
+/// the block with candidate processing.
+///
+/// Retains the first N candidates which fit, with no attempt at sorting by priority.
+fn limit_backed_candidates<T: Config>(backed_candidates: &mut Vec<BackedCandidate<T::Hash>>) {
+	let config = <configuration::Module<T>>::config();
+	if config.backed_candidate_block_weight == 0 {
+		return;
+	}
+
+	let block_weight_remaining = <T as frame_system::Config>::MaximumBlockWeight::get()
+		- frame_system::Module::<T>::block_weight().total();
+
+	let n_candidates = block_weight_remaining as usize / config.backed_candidate_block_weight as usize;
+	backed_candidates.truncate(n_candidates);
 }
 
 /// We should only include the inherent under certain circumstances.
 ///
-/// 1. The inherent is itself valid. It may not be, for example, in the event of a session change.
-/// 2. It would not overload the block, which might already be heavy.
+/// Most importantly, we check that the inherent is itself valid. It may not be, for example, in the
+/// event of a session change.
 fn should_include_inherent<T: Config>(
 	signed_bitfields: &SignedAvailabilityBitfields,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 ) -> bool {
-	!inclusion_inherents_would_overload_block::<T>() &&
 	// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 	// See github.com/paritytech/polkadot/issues/1327
 	Module::<T>::inclusion(
