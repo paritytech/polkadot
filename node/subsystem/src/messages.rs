@@ -237,6 +237,16 @@ pub enum AvailabilityDistributionMessage {
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
 }
 
+/// Availability Recovery Message.
+#[derive(Debug)]
+pub enum AvailabilityRecoveryMessage {
+	/// Recover available data from validators on the network.
+	RecoverAvailableData(
+		CandidateReceipt,
+		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
+	),
+}
+
 impl AvailabilityDistributionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
