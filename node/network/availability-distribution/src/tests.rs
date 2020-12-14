@@ -32,6 +32,7 @@ use smallvec::smallvec;
 use sp_application_crypto::AppKey;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::{sync::Arc, time::Duration};
+use maplit::{hashset, hashmap};
 
 macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => {
@@ -62,7 +63,7 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
-	mut keystore: SyncCryptoStorePtr,
+	keystore: SyncCryptoStorePtr,
 	mut state: ProtocolState,
 	test_fx: impl FnOnce(TestHarness) -> T,
 ) -> ProtocolState {
@@ -308,6 +309,7 @@ impl TestCandidateBuilder {
 	}
 }
 
+
 #[test]
 fn helper_integrity() {
 	let test_state = TestState::default();
@@ -344,6 +346,8 @@ fn helper_integrity() {
 	);
 }
 
+
+
 fn derive_erasure_chunks_with_proofs(
 	n_validators: usize,
 	available_data: &AvailableData,
@@ -364,8 +368,6 @@ fn derive_erasure_chunks_with_proofs(
 
 	erasure_chunks
 }
-
-use maplit::{hashset, hashmap};
 
 #[test]
 fn check_views() {
@@ -422,6 +424,9 @@ fn check_views() {
 		}
 		.build(),
 	];
+
+	let candidate_hash_a = candidates[0].hash();
+	let candidate_hash_b = candidates[1].hash();
 
 	let peer_a = PeerId::random();
 	let peer_b = PeerId::random();
@@ -624,7 +629,8 @@ fn check_views() {
 		}
 
 		// check if the availability store can provide the desired erasure chunks
-		for i in 0usize..2 {
+		const N:usize =2;
+		for i in 0usize..N {
 			tracing::trace!("0000");
 			let avail_data = make_available_data(&test_state, pov_block_a.clone());
 			let chunks =
@@ -639,7 +645,8 @@ fn check_views() {
 						tx,
 					)
 				) => {
-					assert_eq!(candidates[i].hash(), candidate_hash);
+					// the order is not deterministic
+					assert!(candidates.iter().map(|x|x.hash()).filter(|x| x == &candidate_hash).count() == 1);
 					tx.send(i == 0).unwrap();
 				}
 			);
@@ -691,9 +698,23 @@ fn check_views() {
 			..
 		} => {
 			assert_eq!(peer_views, hashmap!{
-				peer_a.clone() => view![],
+				peer_b.clone() => view![
+					test_state.ancestors[0],
+				],
+				peer_a.clone() => view![
+					test_state.relay_parent,
+				],
 			});
-			assert_eq!(view, view![]);
+			assert_eq!(view, view![test_state.relay_parent]);
+			assert_eq!(receipts, hashmap!{
+				test_state.ancestors[0] => hashset!{
+					candidate_hash_a,
+					candidate_hash_b,
+				},
+				test_state.relay_parent => hashset!{
+					candidate_hash_a,
+				},
+			});
 		}
 	};
 }
@@ -761,15 +782,7 @@ fn reputation_verification() {
 		.build(),
 	];
 
-	let valid: AvailabilityGossipMessage = make_valid_availability_gossip(
-		&test_state,
-		candidates[0].hash(),
-		2,
-		pov_block_a.clone(),
-	);
-
 	let rp0 = Hash::repeat_byte(0xFA);
-	let rp1 = Hash::repeat_byte(0x55);
 
 	let state = ProtocolState {
 		peer_views: hashmap!{
@@ -790,16 +803,9 @@ fn reputation_verification() {
 		} = test_harness;
 
 		let TestState {
-			chain_ids,
-			validator_public,
-			validator_groups,
-			availability_cores,
 			relay_parent: current,
-			ancestors,
 			..
 		} = test_state.clone();
-
-		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let valid: AvailabilityGossipMessage = make_valid_availability_gossip(
 			&test_state,
