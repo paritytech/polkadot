@@ -366,6 +366,7 @@ where
 			.collect();
 
 		// If we have no peers that are interested, skip the rest.
+		// TODO remove this
 		if peers.is_empty() {
 			continue;
 		}
@@ -451,6 +452,7 @@ async fn send_tracked_gossip_messages_to_peers<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
+	// TODO remove this to make the test pass
 	if peers.is_empty() {
 		return;
 	}
