@@ -34,10 +34,8 @@ use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::{sync::Arc, time::Duration};
 
 macro_rules! view {
-		( $( $hash:expr ),* $(,)? ) => [
-			View(vec![ $( $hash.clone() ),* ])
-		];
-	}
+	( $( $hash:expr ),* $(,)? ) => { View(vec![ $( $hash.clone() ),* ]) };
+}
 
 macro_rules! delay {
 	($delay:expr) => {
@@ -59,7 +57,7 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
-	mut keystore: SyncCryptoStorePtr,
+	keystore: SyncCryptoStorePtr,
 	mut state: ProtocolState,
 	test_fx: impl FnOnce(TestHarness) -> T,
 ) -> ProtocolState {
@@ -75,14 +73,17 @@ fn test_harness<T: Future<Output = ()>>(
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let subsystem = AvailabilityDistributionSubsystem::new(keystore, Default::default());
-	let subsystem = subsystem.run_inner(context, &mut state);
+	{
+		let subsystem = subsystem.run_inner(context, &mut state);
 
-	let test_fut = test_fx(TestHarness { virtual_overseer });
+		let test_fut = test_fx(TestHarness { virtual_overseer });
 
-	futures::pin_mut!(test_fut);
-	futures::pin_mut!(subsystem);
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(subsystem);
 
-	executor::block_on(future::select(test_fut, subsystem));
+		executor::block_on(future::select(test_fut, subsystem));
+	}
+
 	state
 }
 
@@ -363,7 +364,6 @@ use maplit::{hashset, hashmap};
 
 #[test]
 fn check_views() {
-
 	let test_state = TestState::default();
 
 	let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
@@ -418,16 +418,14 @@ fn check_views() {
 	];
 
 	let peer_a = PeerId::random();
+	let peer_a_2 = peer_a.clone();
 	let peer_b = PeerId::random();
 	assert_ne!(&peer_a, &peer_b);
 
 	let keystore = test_state.keystore.clone();
 
-	let state = test_harness(keystore, ProtocolState::default(),
-	 move |test_harness| async move {
-		let TestHarness {
-			virtual_overseer,
-		} = test_harness;
+	let state = test_harness(keystore, ProtocolState::default(), move |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
 			chain_ids,
@@ -436,16 +434,6 @@ fn check_views() {
 			ancestors,
 			..
 		} = test_state.clone();
-
-
-		overseer_signal(
-			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![current.clone()],
-				deactivated: smallvec![],
-			}),
-		)
-		.await;
 
 		overseer_send(
 			&mut virtual_overseer,
@@ -673,7 +661,6 @@ fn check_views() {
 			),
 		)
 		.await;
-
 	});
 
 	assert_matches! {
@@ -681,23 +668,18 @@ fn check_views() {
 		ProtocolState {
 			peer_views,
 			view,
-			receipts,
 			..
 		} => {
 			assert_eq!(peer_views, hashmap!{
-				peer_a => view![],
+				peer_a_2 => view![],
 			});
 			assert_eq!(view, view![]);
 		}
 	};
 }
 
-
-
-
 #[test]
 fn reputation_verification() {
-
 	let test_state = TestState::default();
 
 	let peer_a = PeerId::random();
@@ -767,21 +749,19 @@ fn reputation_verification() {
 
 	let state = ProtocolState {
 		peer_views: hashmap!{
-			peer_a => view![ rp0 ],
+			peer_a.clone() => view![ rp0 ],
 		},
 		view: view![Hash::repeat_byte(0xFA)],
 		receipts: hashmap!{
-			rp1 => hashset!{ candidates[0] },
+			rp1 => hashset!{ candidates[0].hash() },
 		},
 		.. Default::default()
 	};
 
+	let keystore = test_state.keystore.clone();
 
-	test_harness(state, move |test_harness| async move {
-
-		let TestHarness {
-			virtual_overseer
-		} = test_harness;
+	test_harness(keystore, state, move |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
 			chain_ids,
@@ -945,8 +925,6 @@ fn reputation_verification() {
 			),
 		)
 		.await;
-
-		delay!(10);
 
 		overseer_send(
 			&mut virtual_overseer,
