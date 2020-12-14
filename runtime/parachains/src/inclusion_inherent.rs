@@ -135,18 +135,22 @@ decl_module! {
 /// current block weight as of the execution of this function to ensure that we don't overload
 /// the block with candidate processing.
 ///
-/// Retains the first N candidates which fit, with no attempt at sorting by priority.
+/// If the backed candidates exceed the available block weight remaining, then skips all of them.
+/// This is somewhat less desirable than attempting to fit some of them, but is more fair in the
+/// even that we can't trust the provisioner to provide a fair / random ordering of candidates.
 fn limit_backed_candidates<T: Config>(
-	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
+	backed_candidates: Vec<BackedCandidate<T::Hash>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
 	const BACKED_CANDIDATE_WEIGHT_ASSUMPTION: usize = 10_000;
 
 	let block_weight_remaining = <T as frame_system::Config>::MaximumBlockWeight::get()
 		- frame_system::Module::<T>::block_weight().total();
 
-	let n_candidates = block_weight_remaining as usize / BACKED_CANDIDATE_WEIGHT_ASSUMPTION;
-	backed_candidates.truncate(n_candidates);
-	backed_candidates
+	if backed_candidates.len() * BACKED_CANDIDATE_WEIGHT_ASSUMPTION > block_weight_remaining as usize {
+		Vec::new()
+	} else {
+		backed_candidates
+	}
 }
 
 /// We should only include the inherent under certain circumstances.
