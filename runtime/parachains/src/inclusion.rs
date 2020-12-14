@@ -455,7 +455,10 @@ impl<T: Config> Module<T> {
 						{
 							// this should never fail because the para is registered
 							let persisted_validation_data =
-								match crate::util::make_persisted_validation_data::<T>(para_id) {
+								match crate::util::make_persisted_validation_data::<T>(
+									para_id,
+									check_cx.relay_parent_number,
+								) {
 									Some(l) => l,
 									None => {
 										// We don't want to error out here because it will
@@ -1042,8 +1045,12 @@ mod tests {
 	}
 
 	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
+		let relay_parent_number = <frame_system::Module<Test>>::block_number() - 1;
 		let persisted_validation_data
-			= crate::util::make_persisted_validation_data::<Test>(para_id)?;
+			= crate::util::make_persisted_validation_data::<Test>(
+				para_id,
+				relay_parent_number,
+			)?;
 		Some(persisted_validation_data.hash())
 	}
 

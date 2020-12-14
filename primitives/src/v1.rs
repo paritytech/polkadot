@@ -725,6 +725,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		#[skip_initialize_block]
 		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationData<N>>;
 
@@ -733,6 +734,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		#[skip_initialize_block]
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
