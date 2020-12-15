@@ -365,14 +365,7 @@ where
 			.map(|(peer, _view)| peer.clone())
 			.collect();
 
-		// If we have no peers that are interested, skip the rest.
-		// TODO remove this
-		if peers.is_empty() {
-			continue;
-		}
-
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
-
 		let validator_count = per_candidate.validators.len();
 
 		// distribute all erasure messages to interested peers
@@ -452,11 +445,11 @@ async fn send_tracked_gossip_messages_to_peers<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	// TODO remove this to make the test pass
-	if peers.is_empty() {
-		return;
-	}
 	for message in message_iter {
+		per_candidate
+			.message_vault
+			.insert(message.erasure_chunk.index, message.clone());
+
 		for peer in peers.iter() {
 			per_candidate
 				.sent_messages
@@ -465,22 +458,20 @@ where
 				.insert(message.erasure_chunk.index);
 		}
 
-		per_candidate
-			.message_vault
-			.insert(message.erasure_chunk.index, message.clone());
+		if !peers.is_empty() {
+			let wire_message = protocol_v1::AvailabilityDistributionMessage::Chunk(
+				message.candidate_hash,
+				message.erasure_chunk,
+			);
 
-		let wire_message = protocol_v1::AvailabilityDistributionMessage::Chunk(
-			message.candidate_hash,
-			message.erasure_chunk,
-		);
-
-		ctx.send_message(AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendValidationMessage(
-				peers.clone(),
-				protocol_v1::ValidationProtocol::AvailabilityDistribution(wire_message),
-			),
-		))
-		.await;
+			ctx.send_message(AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendValidationMessage(
+					peers.clone(),
+					protocol_v1::ValidationProtocol::AvailabilityDistribution(wire_message),
+				),
+			))
+			.await;
+		}
 
 		metrics.on_chunk_distributed();
 	}
