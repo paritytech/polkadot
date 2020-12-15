@@ -569,8 +569,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaximumReasonLength = MaximumReasonLength;
 	type BurnDestination = Society;
 	type SpendFunds = Bounties;
-	type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
-	// type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
 
 impl pallet_bounties::Config for Runtime {
@@ -580,8 +579,7 @@ impl pallet_bounties::Config for Runtime {
 	type BountyUpdatePeriod = BountyUpdatePeriod;
 	type BountyCuratorDeposit = BountyCuratorDeposit;
 	type BountyValueMinimum = BountyValueMinimum;
-	type WeightInfo = pallet_bounties::weights::SubstrateWeight<Runtime>;
-	// type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
 
 }
 
@@ -591,8 +589,7 @@ impl pallet_tips::Config for Runtime {
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
-	type WeightInfo = pallet_tips::weights::SubstrateWeight<Runtime>;
-	// type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
 }
 
 parameter_types! {
