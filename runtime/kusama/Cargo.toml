@@ -34,7 +34,7 @@ pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bounties = { git = "https://github.com/shamb0/substrate.git", branch = "issue-7143-pallet-treasury-refactor", default-features = false }
+pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -61,8 +61,8 @@ pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-tips = { git = "https://github.com/shamb0/substrate.git", branch = "issue-7143-pallet-treasury-refactor", default-features = false }
-pallet-treasury = { git = "https://github.com/shamb0/substrate.git", branch = "issue-7143-pallet-treasury-refactor", default-features = false }
+pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
