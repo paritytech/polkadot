@@ -2165,7 +2165,7 @@ mod tests {
 
 	fn test_candidate_backing_msg() -> CandidateBackingMessage {
 		let (sender, _) = oneshot::channel();
-		CandidateBackingMessage::GetBackedCandidates(Default::default(), sender)
+		CandidateBackingMessage::GetBackedCandidates(Default::default(), Vec::new(), sender)
 	}
 
 	fn test_candidate_selection_msg() -> CandidateSelectionMessage {

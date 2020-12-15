@@ -155,7 +155,7 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 			fn start_send(self: Pin<&mut Self>, action: NetworkAction) -> SubsystemResult<()> {
 				match action {
 					NetworkAction::ReputationChange(peer, cost_benefit) => {
-						tracing::debug!("reputation: {:?} for {}", cost_benefit, peer);
+						tracing::debug!(target: LOG_TARGET, "Changing reputation: {:?} for {}", cost_benefit, peer);
 						self.0.report_peer(
 							peer,
 							cost_benefit,

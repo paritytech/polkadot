@@ -17,17 +17,14 @@
 //! Mocks for all the traits.
 
 use sp_io::TestExternalities;
-use sp_core::{H256};
-use sp_runtime::{
-	Perbill,
-	traits::{
-		BlakeTwo256, IdentityLookup,
-	},
+use sp_core::H256;
+use sp_runtime::traits::{
+	BlakeTwo256, IdentityLookup,
 };
 use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header};
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
-	weights::Weight, traits::Randomness as RandomnessT,
+	traits::Randomness as RandomnessT,
 };
 use crate::inclusion;
 use crate as parachains;
@@ -65,13 +62,15 @@ impl RandomnessT<H256> for TestRandomness {
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
-	pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	pub BlockWeights: frame_system::limits::BlockWeights =
+		frame_system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
 }
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = ();
+	type BlockWeights = BlockWeights;
+	type BlockLength = ();
+	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;
 	type Index = u64;
@@ -83,13 +82,6 @@ impl frame_system::Config for Test {
 	type Header = Header;
 	type Event = TestEvent;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = ();
-	type BlockExecutionWeight = ();
-	type ExtrinsicBaseWeight = ();
-	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<u128>;

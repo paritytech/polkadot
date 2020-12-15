@@ -24,7 +24,7 @@ use bitvec::vec::BitVec;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
-use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
@@ -58,19 +58,6 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 
-
-/// The key type ID for a parachain approval voting key.
-pub const APPROVAL_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"aprv");
-
-mod approval_app {
-	use application_crypto::{app_crypto, sr25519};
-	app_crypto!(sr25519, super::APPROVAL_KEY_TYPE_ID);
-}
-
-/// The public key of a keypair used by a validator for approval voting
-/// on included parachain candidates.
-pub type ApprovalId = approval_app::Public;
-
 /// The key type ID for parachain assignment key.
 pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 
@@ -84,7 +71,6 @@ mod assigment_app {
 /// The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
 pub type AssignmentId = assigment_app::Public;
-
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
@@ -230,6 +216,11 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	/// Thus this is a shortcut for `candidate.to_plain().hash()`.
 	pub fn hash(&self) -> CandidateHash where H: Encode {
 		self.to_plain().hash()
+	}
+
+	/// Does this committed candidate receipt corrensponds to the given [`CandidateReceipt`]?
+	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool where H: PartialEq {
+		receipt.descriptor == self.descriptor && receipt.commitments_hash == self.commitments.hash()
 	}
 }
 
@@ -416,6 +407,16 @@ impl<H> BackedCandidate<H> {
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.candidate.descriptor
 	}
+
+	/// Compute this candidate's hash.
+	pub fn hash(&self) -> CandidateHash where H: Clone + Encode {
+		self.candidate.hash()
+	}
+
+	/// Get this candidate's receipt.
+	pub fn receipt(&self) -> CandidateReceipt<H> where H: Clone {
+		self.candidate.to_plain()
+	}
 }
 
 /// Verify the backing of the given candidate.
@@ -558,11 +559,7 @@ impl GroupRotationInfo {
 impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 	/// Returns the block number of the next rotation after the current block. If the current block
 	/// is 10 and the rotation frequency is 5, this should return 15.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn next_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
-
 		let cycle_once = self.now + self.group_rotation_frequency;
 		cycle_once - (
 			cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency
@@ -571,10 +568,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 
 	/// Returns the block number of the last rotation before or including the current block. If the
 	/// current block is 10 and the rotation frequency is 5, this should return 10.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn last_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
 		self.now - (
 			self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency
 		)
@@ -690,8 +684,8 @@ pub struct SessionInfo {
 	pub validators: Vec<ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
-	/// The assignment and approval keys for validators.
-	pub approval_keys: Vec<(ApprovalId, AssignmentId)>,
+	/// The assignment keys for validators.
+	pub assignment_keys: Vec<AssignmentId>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
@@ -822,15 +816,6 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 20);
 		assert_eq!(info.last_rotation_at(), 15);
-
-		let info = GroupRotationInfo {
-			session_start_block: 10u32,
-			now: 11,
-			group_rotation_frequency: 0,
-		};
-
-		assert_eq!(info.next_rotation_at(), 0);
-		assert_eq!(info.last_rotation_at(), 0);
 	}
 
 	#[test]

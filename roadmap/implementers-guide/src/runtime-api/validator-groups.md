@@ -17,14 +17,10 @@ impl GroupRotationInfo {
 
     /// Returns the block number of the next rotation after the current block. If the current block
     /// is 10 and the rotation frequency is 5, this should return 15.
-    ///
-    /// If the group rotation frequency is 0, returns 0.
     fn next_rotation_at(&self) -> BlockNumber;
 
     /// Returns the block number of the last rotation before or including the current block. If the
     /// current block is 10 and the rotation frequency is 5, this should return 10.
-    ///
-    /// If the group rotation frequency is 0, returns 0.
     fn last_rotation_at(&self) -> BlockNumber;
 }
 
