@@ -372,7 +372,12 @@ impl<T: Config> Module<T> {
 
 		let validators = Validators::get();
 		let parent_hash = <frame_system::Module<T>>::parent_hash();
-		let check_cx = CandidateCheckContext::<T>::new();
+
+		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
+		// before of the block where we include a candidate (i.e. this code path).
+		let now = <frame_system::Module<T>>::block_number();
+		let relay_parent_number = now - One::one();
+		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		// do all checks before writing storage.
 		let core_indices = {
@@ -457,7 +462,7 @@ impl<T: Config> Module<T> {
 							let persisted_validation_data =
 								match crate::util::make_persisted_validation_data::<T>(
 									para_id,
-									check_cx.relay_parent_number,
+									relay_parent_number,
 								) {
 									Some(l) => l,
 									None => {
@@ -553,7 +558,7 @@ impl<T: Config> Module<T> {
 				core,
 				descriptor,
 				availability_votes,
-				relay_parent_number: check_cx.relay_parent_number,
+				relay_parent_number,
 				backed_in_number: check_cx.now,
 			});
 			<PendingAvailabilityCommitments>::insert(&para_id, commitments);
@@ -567,7 +572,13 @@ impl<T: Config> Module<T> {
 		para_id: ParaId,
 		validation_outputs: primitives::v1::CandidateCommitments,
 	) -> bool {
-		if let Err(err) = CandidateCheckContext::<T>::new().check_validation_outputs(
+		// This function is meant to be called from the runtime APIs against the relay-parent, hence
+		// `relay_parent_number` is equal to `now`.
+		let now = <frame_system::Module<T>>::block_number();
+		let relay_parent_number = now;
+		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+
+		if let Err(err) = check_cx.check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
@@ -758,12 +769,11 @@ struct CandidateCheckContext<T: Config> {
 }
 
 impl<T: Config> CandidateCheckContext<T> {
-	fn new() -> Self {
-		let now = <frame_system::Module<T>>::block_number();
+	fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self {
 			config: <configuration::Module<T>>::config(),
 			now,
-			relay_parent_number: now - One::one(),
+			relay_parent_number,
 		}
 	}
 

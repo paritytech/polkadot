@@ -739,6 +739,7 @@ sp_api::decl_runtime_apis! {
 			-> Option<PersistedValidationData<N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
+		#[skip_initialize_block]
 		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 
 		/// Returns the session index expected at a child of the block.
