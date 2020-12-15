@@ -368,11 +368,6 @@ where
 			.map(|(peer, _view)| peer.clone())
 			.collect();
 
-		// If we have no peers that are interested, skip the rest.
-		if peers.is_empty() {
-			continue;
-		}
-
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		let validator_count = per_candidate.validators.len();
