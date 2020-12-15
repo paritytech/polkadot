@@ -673,6 +673,7 @@ mod tests {
 		type BurnDestination = ();
 		type DataDepositPerByte = DataDepositPerByte;
 		type ModuleId = TreasuryModuleId;
+		type SpendFunds = ();
 		type WeightInfo = ();
 	}
 
