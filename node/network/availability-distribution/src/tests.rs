@@ -616,28 +616,54 @@ fn check_views() {
 		}
 
 		// check if the availability store can provide the desired erasure chunks
+
+
+		// store the chunk to the av store
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::QueryDataAvailability(
+					candidate_hash,
+					tx,
+				)
+			) => {
+				// the order is not deterministic
+				assert!(
+					candidates.iter()
+						.map(|cr| cr.hash())
+						.find(|ch| ch == &candidate_hash)
+						.is_some());
+				tx.send(true).unwrap();
+			}
+		);
+
 		const N:usize = 2;
 		for i in 0usize..N {
 			let avail_data = make_available_data(&test_state, pov_block_a.clone());
 			let chunks =
 				derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
 
-			// store the chunk to the av store
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::QueryDataAvailability(
+					AvailabilityStoreMessage::QueryChunk(
 						candidate_hash,
+						validator_index,
 						tx,
 					)
 				) => {
 					// the order is not deterministic
 					assert!(
 						candidates.iter()
-							.map(|x|x.hash())
-							.find(|x| x == &candidate_hash)
+							.map(|cr| cr.hash())
+							.find(|ch| ch == &candidate_hash)
 							.is_some());
-					tx.send(i == 0).unwrap();
+					let response = if i == 0 {
+						Some(chunks[0].clone())
+					} else {
+						None
+					};
+					tx.send(response).unwrap();
 				}
 			);
 
@@ -1821,17 +1847,27 @@ fn normal_ops() {
 
 	let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
-	let make_candidate = |relay_parent| {
-		let mut candidate = CommittedCandidateReceipt::default();
-		candidate.descriptor.relay_parent = relay_parent;
-		candidate
+	let make_candidate = |relay_parent: Hash, pov: &PoV| {
+		TestCandidateBuilder {
+			para_id: test_state.chain_ids[0],
+			relay_parent,
+			pov_hash: pov.hash(),
+			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			head_data: test_state
+				.head_data
+				.get(&test_state.chain_ids[0])
+				.unwrap()
+				.clone(),
+			..Default::default()
+		}
+		.build()
 	};
 
-	let candidate_a = make_candidate(test_state.relay_parent);
-	let candidate_b = make_candidate(test_state.ancestors[0]);
-	let candidate_c = make_candidate(test_state.ancestors[1]);
-	let candidate_d = make_candidate(test_state.ancestors[2]);
-	let candidate_e = make_candidate(test_state.ancestors[3]);
+	let candidate_a = make_candidate(test_state.relay_parent, &pov_block_a);
+	let candidate_b = make_candidate(test_state.ancestors[0], &pov_block_b);
+	let candidate_c = make_candidate(test_state.ancestors[1], &pov_block_c);
+	let candidate_d = make_candidate(test_state.ancestors[2], &pov_block_d);
+	let candidate_e = make_candidate(test_state.ancestors[3], &pov_block_e);
 
 	let candidate_hash_a = candidate_a.hash();
 	let candidate_hash_b = candidate_b.hash();
@@ -1906,19 +1942,40 @@ fn normal_ops() {
 
 	let metrics = Metrics::default();
 
+	let ancestors = test_state.ancestors.clone();
 
-	let test_fut = async move {
-		// pretend we received an incomming message
-		// send a live candidate
-		let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, 1, pov_block_b.clone());
-		process_incoming_peer_message(&mut ctx, &mut state, peer_a,  gossip.clone(), &metrics).await.unwrap();
+	let test_fut = {
+		let peer_a = peer_a.clone();
+		let peer_b = peer_b.clone();
+		let test_state = test_state.clone();
+		async move {
+			// make sure to store the chunk
+			let erasure_chunk_index = test_state.validator_index.unwrap();
+			// pretend we received an incomming message
+			// send a live candidate
+			let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, erasure_chunk_index, pov_block_b.clone());
+			process_incoming_peer_message(&mut ctx, &mut state, peer_a.clone(),  gossip.clone(), &metrics).await.unwrap();
 
-		assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&1), Some(&gossip));
+			// no peer is interested, yet this has to appear in the vault
+			assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&erasure_chunk_index), Some(&gossip));
 
-		let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, 2, pov_block_b.clone());
-		process_incoming_peer_message(&mut ctx, &mut state, peer_b,  gossip.clone(), &metrics).await.unwrap();
 
-		assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&2), Some(&gossip));
+			let erasure_chunk_index = 1_u32;
+			let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, erasure_chunk_index, pov_block_b.clone());
+			process_incoming_peer_message(&mut ctx, &mut state, peer_b.clone(),  gossip.clone(), &metrics).await.unwrap();
+
+			// no peer is interested, yet this has to appear in the vault
+			assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&erasure_chunk_index), Some(&gossip));
+
+
+
+			let erasure_chunk_index = 1_u32;
+			let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, erasure_chunk_index, pov_block_b.clone());
+			process_incoming_peer_message(&mut ctx, &mut state, peer_a.clone(),  gossip.clone(), &metrics).await.unwrap();
+
+			// no peer is interested, yet this has to appear in the vault
+			assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&erasure_chunk_index), Some(&gossip));
+		}
 	};
 
 	let overseer = async move {
@@ -1926,48 +1983,50 @@ fn normal_ops() {
 		// queried for hash_b.
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					r,
-					RuntimeApiRequest::AvailabilityCores(tx),
-				)
+			AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
 			) => {
-
+				assert_eq!(peer, peer_a);
+				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
 			}
 		);
 
-		dbg!(overseer_recv(&mut virtual_overseer).await);
-		dbg!(overseer_recv(&mut virtual_overseer).await);
-		dbg!(overseer_recv(&mut virtual_overseer).await);
-		dbg!(overseer_recv(&mut virtual_overseer).await);
-		dbg!(overseer_recv(&mut virtual_overseer).await);
-		dbg!(overseer_recv(&mut virtual_overseer).await);
-		dbg!(overseer_recv(&mut virtual_overseer).await);
-		dbg!(overseer_recv(&mut virtual_overseer).await);
+		// only if the erasure chunk matches with our validator index
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::StoreChunk{
+					candidate_hash,
+					relay_parent,
+					tx,
+					..
+				}
+			) => {
+				assert_eq!(candidate_hash, candidate_hash_b);
+				assert_eq!(relay_parent, ancestors[0]);
+				tx.send(Ok(())).unwrap();
+			}
+		);
 
-		// assert_matches!(
-		// 	overseer_recv(&mut virtual_overseer).await,
-		// 	AllMessages::RuntimeApi(
-		// 		RuntimeApiMessage::Request(
-		// 			r,
-		// 			RuntimeApiRequest::CandidatePendingAvailability(p, tx),
-		// 		)
-		// 	) => {
-		// 		let _ = tx.send(Ok(Some(candidate_b)));
-		// 	}
-		// );
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+			) => {
+				assert_eq!(peer, peer_b.clone());
+				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
+			}
+		);
 
-		// assert_matches!(
-		// 	overseer_recv(&mut virtual_overseer).await,
-		// 	AllMessages::RuntimeApi(
-		// 		RuntimeApiMessage::Request(
-		// 			r,
-		// 			RuntimeApiRequest::CandidatePendingAvailability(p, tx),
-		// 		)
-		// 	) => {
-		// 		let _ = tx.send(Ok(Some(candidate_c)));
-		// 	}
-		// );
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+			) => {
+				assert_eq!(peer, peer_a.clone());
+				assert_eq!(rep, BENEFIT_VALID_MESSAGE);
+			}
+		);
 	};
 
 	futures::pin_mut!(test_fut);
