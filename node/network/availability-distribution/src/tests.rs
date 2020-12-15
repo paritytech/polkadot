@@ -221,6 +221,7 @@ impl Default for TestState {
 			Hash::repeat_byte(0x44),
 			Hash::repeat_byte(0x33),
 			Hash::repeat_byte(0x22),
+			Hash::repeat_byte(0x11),
 		];
 		let relay_parent = Hash::repeat_byte(0x05);
 
@@ -1641,7 +1642,7 @@ fn candidates_overlapping() {
 }
 
 #[test]
-fn view_teardown_w_overlapping_ancestors_teardown() {
+fn view_setup_w_overlapping_ancestors_teardown() {
 
 	let test_state = TestState::default();
 
@@ -1781,22 +1782,44 @@ fn view_teardown_w_overlapping_ancestors_teardown() {
 }
 
 
+
 #[test]
-fn view_setup_w_overlapping_ancestors_teardown() {
-	let hash_a = Hash::repeat_byte(0);
-	let hash_b = Hash::repeat_byte(1);
+fn normal_ops() {
 
-	let para_a = ParaId::from(41_u32);
-	let para_b = ParaId::from(42_u32);
-	let para_c = ParaId::from(43_u32);
+	let test_state = TestState::default();
 
-	let relay_parent = Hash::repeat_byte(69);
-	let ancestors = &[
-		Hash::repeat_byte(0xA0),
-		Hash::repeat_byte(0xA1),
-		Hash::repeat_byte(0xA2),
-		Hash::repeat_byte(0xA3),
-	];
+	// a has an empty view
+	let peer_a = PeerId::random();
+	// b does have an empty view
+	// so the `if peers.is_empty()` evals to true
+	// and triggers the issue
+	let peer_b = PeerId::random();
+	assert_ne!(&peer_a, &peer_b);
+
+	let pov_block_a = PoV {
+		block_data: BlockData(vec![42, 43, 44]),
+	};
+
+	let pov_block_b = PoV {
+		block_data: BlockData(vec![45, 46, 47]),
+	};
+
+	let pov_block_c = PoV {
+		block_data: BlockData(vec![48, 49, 50]),
+	};
+
+	let pov_block_d = PoV {
+		block_data: BlockData(vec![1, 1, 11]),
+	};
+	let pov_block_e = pov_block_d.clone();
+
+	let pov_hash_a = pov_block_a.hash();
+	let pov_hash_b = pov_block_b.hash();
+	let pov_hash_c = pov_block_c.hash();
+	let pov_hash_d = pov_block_d.hash();
+	let pov_hash_e = pov_hash_d;
+
+	let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 	let make_candidate = |relay_parent| {
 		let mut candidate = CommittedCandidateReceipt::default();
@@ -1804,43 +1827,98 @@ fn view_setup_w_overlapping_ancestors_teardown() {
 		candidate
 	};
 
-	// same candidate for 3 different parent blocks
-	let candidate_a = make_candidate(relay_parent);
-	let candidate_b = make_candidate(ancestors[0]);
-	let candidate_c = make_candidate(ancestors[1]);
+	let candidate_a = make_candidate(test_state.relay_parent);
+	let candidate_b = make_candidate(test_state.ancestors[0]);
+	let candidate_c = make_candidate(test_state.ancestors[1]);
+	let candidate_d = make_candidate(test_state.ancestors[2]);
+	let candidate_e = make_candidate(test_state.ancestors[3]);
 
 	let candidate_hash_a = candidate_a.hash();
 	let candidate_hash_b = candidate_b.hash();
 	let candidate_hash_c = candidate_c.hash();
+	let candidate_hash_e = candidate_d.hash();
+	let candidate_hash_d = candidate_e.hash();
 
-	// receipts has an initial entry for hash_a but not hash_b.
-	let mut receipts = HashMap::new();
-	receipts.insert(hash_a, vec![candidate_hash_a, candidate_hash_b].into_iter().collect());
+	let mut state = ProtocolState {
+		peer_views: hashmap!{
+				peer_b.clone() => view![
+					// test_state.ancestors[0],
+				],
+				peer_a.clone() => view![
+					// test_state.relay_parent,
+				],
+			},
+		view: view![test_state.relay_parent],
+		receipts: hashmap!{
+			test_state.ancestors[0] => hashset!{
+				candidate_hash_a,
+				candidate_hash_b,
+			},
+			test_state.relay_parent => hashset!{
+				candidate_hash_a,
+				candidate_hash_b,
+			},
+		},
+		per_candidate : hashmap!{
+			candidate_hash_a => PerCandidate {
+				descriptor: candidate_a.descriptor.clone(),
+				validators: test_state.validator_public.clone(),
+				validator_index: test_state.validator_index.clone(),
+				live_in: hashset!{test_state.relay_parent, test_state.ancestors[0]},
+				.. Default::default()
+			},
+			candidate_hash_b => PerCandidate {
+				descriptor: candidate_b.descriptor.clone(),
+				validators: test_state.validator_public.clone(),
+				validator_index: test_state.validator_index.clone(),
+				live_in: hashset!{test_state.relay_parent, test_state.ancestors[0]},
+				.. Default::default()
+			},
+		},
+		per_relay_parent: hashmap!{
+			test_state.relay_parent => PerRelayParent {
+				ancestors: vec![
+					test_state.ancestors[0],
+					test_state.ancestors[1],
+					test_state.ancestors[2],
+				],
+				live_candidates: hashset!{ candidate_hash_a, candidate_hash_b },
+			},
+			test_state.ancestors[0] => PerRelayParent {
+				ancestors: vec![
+					test_state.ancestors[1],
+					test_state.ancestors[2],
+					test_state.ancestors[3],
+				],
+				live_candidates: hashset!{ candidate_hash_a, candidate_hash_b },
+			},
+		}
+	};
 
-	let mut state = ProtocolState::default();
-	state.receipts = receipts.clone();
+	// receipts has an initial entry for `relay_parent`.
+	// let mut receipts = HashMap::new();
+	// receipts.insert(test_state.relay_parent, vec![candidate_hash_a, candidate_hash_b].into_iter().collect());
 
 	let pool = sp_core::testing::TaskExecutor::new();
 
 	let (mut ctx, mut virtual_overseer) =
 		test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, _>(pool);
 
+	let metrics = Metrics::default();
+
+
 	let test_fut = async move {
-		let live_candidates = query_pending_availability_at(
-			&mut ctx,
-			vec![hash_a, hash_b],
-			&mut receipts,
-		).await.unwrap();
+		// pretend we received an incomming message
+		// send a live candidate
+		let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, 1, pov_block_b.clone());
+		process_incoming_peer_message(&mut ctx, &mut state, peer_a,  gossip.clone(), &metrics).await.unwrap();
 
-		// although 'b' is cached from the perspective of hash_a, it gets overwritten when we query what's happening in
-		//
-		assert_eq!(live_candidates.len(), 3);
-		assert_matches!(live_candidates.get(&candidate_hash_a).unwrap(), FetchedLiveCandidate::Cached);
-		assert_matches!(live_candidates.get(&candidate_hash_b).unwrap(), FetchedLiveCandidate::Cached);
-		assert_matches!(live_candidates.get(&candidate_hash_c).unwrap(), FetchedLiveCandidate::Fresh(_));
+		assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&1), Some(&gossip));
 
-		assert!(receipts.get(&hash_b).unwrap().contains(&candidate_hash_b));
-		assert!(receipts.get(&hash_b).unwrap().contains(&candidate_hash_c));
+		let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, 2, pov_block_b.clone());
+		process_incoming_peer_message(&mut ctx, &mut state, peer_b,  gossip.clone(), &metrics).await.unwrap();
+
+		assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&2), Some(&gossip));
 	};
 
 	let overseer = async move {
@@ -1853,57 +1931,48 @@ fn view_setup_w_overlapping_ancestors_teardown() {
 					r,
 					RuntimeApiRequest::AvailabilityCores(tx),
 				)
-			) if r == hash_b => {
-				let _ = tx.send(Ok(vec![
-					CoreState::Occupied(OccupiedCore {
-						para_id: para_b,
-						next_up_on_available: None,
-						occupied_since: 0,
-						time_out_at: 0,
-						next_up_on_time_out: None,
-						availability: Default::default(),
-						group_responsible: GroupIndex::from(0),
-					}),
-					CoreState::Occupied(OccupiedCore {
-						para_id: para_c,
-						next_up_on_available: None,
-						occupied_since: 0,
-						time_out_at: 0,
-						next_up_on_time_out: None,
-						availability: Default::default(),
-						group_responsible: GroupIndex::from(0),
-					}),
-				]));
+			) => {
+
 			}
 		);
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					r,
-					RuntimeApiRequest::CandidatePendingAvailability(p, tx),
-				)
-			) if r == hash_b && p == para_b => {
-				let _ = tx.send(Ok(Some(candidate_b)));
-			}
-		);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
+		dbg!(overseer_recv(&mut virtual_overseer).await);
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					r,
-					RuntimeApiRequest::CandidatePendingAvailability(p, tx),
-				)
-			) if r == hash_b && p == para_c => {
-				let _ = tx.send(Ok(Some(candidate_c)));
-			}
-		);
+		// assert_matches!(
+		// 	overseer_recv(&mut virtual_overseer).await,
+		// 	AllMessages::RuntimeApi(
+		// 		RuntimeApiMessage::Request(
+		// 			r,
+		// 			RuntimeApiRequest::CandidatePendingAvailability(p, tx),
+		// 		)
+		// 	) => {
+		// 		let _ = tx.send(Ok(Some(candidate_b)));
+		// 	}
+		// );
+
+		// assert_matches!(
+		// 	overseer_recv(&mut virtual_overseer).await,
+		// 	AllMessages::RuntimeApi(
+		// 		RuntimeApiMessage::Request(
+		// 			r,
+		// 			RuntimeApiRequest::CandidatePendingAvailability(p, tx),
+		// 		)
+		// 	) => {
+		// 		let _ = tx.send(Ok(Some(candidate_c)));
+		// 	}
+		// );
 	};
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(overseer);
 
 	executor::block_on(future::join(test_fut, overseer));
+
 }
