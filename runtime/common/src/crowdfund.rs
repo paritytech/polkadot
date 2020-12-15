@@ -646,7 +646,6 @@ mod tests {
 		pub const BountyDepositBase: u64 = 1;
 		pub const BountyDepositPayoutDelay: u64 = 1;
 		pub const BountyUpdatePeriod: u64 = 1;
-		pub const MaximumReasonLength: u32 = 16384;
 		pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 		pub const BountyValueMinimum: u64 = 1;
 	}
@@ -672,17 +671,7 @@ mod tests {
 		type SpendPeriod = SpendPeriod;
 		type Burn = Burn;
 		type BurnDestination = ();
-		type Tippers = Nobody;
-		type TipCountdown = TipCountdown;
-		type TipFindersFee = TipFindersFee;
-		type TipReportDepositBase = TipReportDepositBase;
 		type DataDepositPerByte = DataDepositPerByte;
-		type BountyDepositBase = BountyDepositBase;
-		type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
-		type BountyUpdatePeriod = BountyUpdatePeriod;
-		type MaximumReasonLength = MaximumReasonLength;
-		type BountyCuratorDeposit = BountyCuratorDeposit;
-		type BountyValueMinimum = BountyValueMinimum;
 		type ModuleId = TreasuryModuleId;
 		type WeightInfo = ();
 	}

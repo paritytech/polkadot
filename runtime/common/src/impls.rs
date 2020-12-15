@@ -165,17 +165,7 @@ mod tests {
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
-		type Tippers = Nobody;
-		type TipCountdown = ();
-		type TipFindersFee = ();
-		type TipReportDepositBase = ();
 		type DataDepositPerByte = ();
-		type BountyDepositBase = ();
-		type BountyDepositPayoutDelay = ();
-		type BountyUpdatePeriod = ();
-		type MaximumReasonLength = ();
-		type BountyCuratorDeposit = ();
-		type BountyValueMinimum = ();
 		type ModuleId = TreasuryModuleId;
 		type WeightInfo = ();
 	}
