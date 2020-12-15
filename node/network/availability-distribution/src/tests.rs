@@ -420,7 +420,7 @@ fn check_views() {
 
 	let keystore = test_state.keystore.clone();
 
-	let state = test_harness(keystore, ProtocolState::default(),
+	let state = test_harness(keystore.clone(), ProtocolState::default(),
 	 |test_harness| async {
 		let TestHarness {
 			mut virtual_overseer,
@@ -615,60 +615,56 @@ fn check_views() {
 			);
 		}
 
-		// check if the availability store can provide the desired erasure chunks
+		let live_candidates = vec![candidate_hash_a,candidate_hash_b];
 
-
-		// store the chunk to the av store
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::QueryDataAvailability(
-					candidate_hash,
-					tx,
-				)
-			) => {
-				// the order is not deterministic
-				assert!(
-					candidates.iter()
-						.map(|cr| cr.hash())
-						.find(|ch| ch == &candidate_hash)
-						.is_some());
-				tx.send(true).unwrap();
-			}
-		);
-
-		const N:usize = 2;
-		for i in 0usize..N {
-			let avail_data = make_available_data(&test_state, pov_block_a.clone());
-			let chunks =
-				derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
-
+		for live_candidate in live_candidates {
+			// store the chunk to the av store
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::QueryChunk(
+					AvailabilityStoreMessage::QueryDataAvailability(
 						candidate_hash,
-						validator_index,
 						tx,
 					)
 				) => {
 					// the order is not deterministic
-					assert!(
-						candidates.iter()
-							.map(|cr| cr.hash())
-							.find(|ch| ch == &candidate_hash)
-							.is_some());
-					let response = if i == 0 {
-						Some(chunks[0].clone())
-					} else {
-						None
-					};
-					tx.send(response).unwrap();
+					assert_eq!(candidate_hash, live_candidate);
+					tx.send(true).unwrap();
 				}
 			);
 
-			assert_eq!(chunks.len(), test_state.validators.len());
+			const N:usize = 2;
+
+			for i in 0usize..N {
+				log::warn!(">>>>>>>> {}", i);
+				let avail_data = make_available_data(&test_state, pov_block_a.clone());
+				let chunks =
+					derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
+
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::AvailabilityStore(
+						AvailabilityStoreMessage::QueryChunk(
+							candidate_hash,
+							validator_index,
+							tx,
+						)
+					) => {
+						// the order is not deterministic
+						assert_eq!(live_candidate, candidate_hash);
+						let response = if i == 0 {
+							Some(chunks[0].clone())
+						} else {
+							None
+						};
+						tx.send(response).unwrap();
+					}
+				);
+
+				assert_eq!(chunks.len(), test_state.validators.len());
+			}
 		}
+
 		// setup peer a with interest in current
 		overseer_send(
 			&mut virtual_overseer,
