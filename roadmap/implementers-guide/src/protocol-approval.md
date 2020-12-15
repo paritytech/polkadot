@@ -38,7 +38,7 @@ We need two separate keys for the approval subsystem:
 
 - **Approval assignment keys** are sr25519/schnorrkel keys used only for the assignment criteria VRFs.  We implicitly sign assignment notices with approval assignment keys by including their relay chain context and additional data in the VRF's extra message, but exclude these from its VRF input.  
 
-- **Approval vote keys** would only sign off on candidate parablock validity and has no natural key type restrictions.  We could reuse the ed25519 grandpa keys for this purpose since these signatures control access to grandpa, although distant future node configurations might favor separate roles.
+- **Approval vote keys** would only sign off on candidate parablock validity and has no natural key type restrictions. There's no need for this to actualy embody a new session key type. We just want to make a distinction between assignments and approvals, although distant future node configurations might favor separate roles. We re-use the same keys as are used for parachain backing in practice.
 
 Approval vote keys could relatively easily be handled by some hardened signer tooling, perhaps even HSMs assuming we select ed25519 for approval vote keys.  Approval assignment keys might or might not support hardened signer tooling, but doing so sounds far more complex.  In fact, assignment keys determine only VRF outputs that determine approval checker assignments, for which they can only act or not act, so they cannot equivocate, lie, etc. and represent little if any slashing risk for validator operators. 
 
