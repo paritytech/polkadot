@@ -144,7 +144,7 @@ fn limit_backed_candidates<T: Config>(
 	const BACKED_CANDIDATE_WEIGHT_ASSUMPTION: usize = 10_000;
 
 	let block_weight_remaining = <T as frame_system::Config>::MaximumBlockWeight::get()
-		- frame_system::Module::<T>::block_weight().total();
+		.saturating_sub(frame_system::Module::<T>::block_weight().total());
 
 	if backed_candidates.len() * BACKED_CANDIDATE_WEIGHT_ASSUMPTION > block_weight_remaining as usize {
 		Vec::new()
