@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 
 /// Weights for pallet_tips using the Substrate node and recommended hardware.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	fn report_awesome(r: u32, ) -> Weight {
 		(70_338_000 as Weight)
 			.saturating_add((2_000 as Weight).saturating_mul(r as Weight))

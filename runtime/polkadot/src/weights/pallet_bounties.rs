@@ -44,7 +44,7 @@ use sp_std::marker::PhantomData;
 
 /// Weights for pallet_bounties using the Substrate node and recommended hardware.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 	fn propose_bounty(d: u32, ) -> Weight {
 		(59_931_000 as Weight)
 			.saturating_add((1_000 as Weight).saturating_mul(d as Weight))
