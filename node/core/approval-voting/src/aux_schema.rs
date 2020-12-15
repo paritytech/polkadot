@@ -39,7 +39,7 @@ use polkadot_primitives::v1::{
 use sp_consensus_slots::SlotNumber;
 use parity_scale_codec::{Encode, Decode};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 use super::Tick;
@@ -107,7 +107,39 @@ pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
 #[derive(Debug, Clone, Encode, Decode)]
 pub(crate) struct OurAssignment { }
 
-/// Clear the aux store of everything related to
+/// Canonicalize some particular block, pruning everything before it and
+/// pruning any competing branches at the same height.
+pub(crate) fn canonicalize(
+	store: &impl AuxStore,
+	canon_number: BlockNumber,
+	canon_hash: BlockNumber,
+)
+	-> sp_blockchain::Result<()>
+{
+	let range = match load_stored_blocks(store)? {
+		None => return Ok(()),
+		Some(range) if range.0 >= canon_number => return Ok(()).
+		Some(range) => range,
+	};
+
+	let mut visited_height_keys = Vec::new();
+	let mut visited_block_keys = Vec::new();
+	let mut visited_candidates = HashMap::new();
+
+	// TODO [now]: finish implementation
+	for i in range.0..canon_number {
+		let at_height = load_blocks_at_height(store, i)?;
+
+		visited_height_keys.push(blocks_at_height_key(i));
+	}
+
+	{
+		let at_height = load_blocks_at_height(store, canon_number)?;
+		visited_height_keys.push(blocks_at_height_key(canon_number));
+	}
+}
+
+/// Clear the aux store of everything.
 pub(crate) fn clear(store: &impl AuxStore)
 	-> sp_blockchain::Result<()>
 {
