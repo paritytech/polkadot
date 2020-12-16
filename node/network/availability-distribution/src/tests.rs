@@ -698,14 +698,13 @@ fn reputation_verification() {
 		).await;
 
 		// valid (first, from b)
-		peer_send_message(&mut virtual_overseer, peer_b.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+		peer_send_message(&mut virtual_overseer, peer_b.clone(), valid.clone(), BENEFIT_VALID_MESSAGE).await;
 
 		// valid (duplicate, from b)
 		peer_send_message(&mut virtual_overseer, peer_b.clone(), valid.clone(), COST_PEER_DUPLICATE_MESSAGE).await;
 
 		// valid (second, from a)
 		peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE).await;
-
 
 		// peer a is not interested in anything anymore
 		overseer_send(
@@ -721,46 +720,31 @@ fn reputation_verification() {
 
 		// peer b sends a message before we have the view
 		// setup peer a with interest in parent x
-		overseer_send(
-			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerDisconnected(peer_b.clone()),
-			),
-		)
-		.await;
+		overseer_send(&mut virtual_overseer, NetworkBridgeEvent::PeerDisconnected(peer_b.clone())).await;
 
-		overseer_send(
-			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
-			),
-		)
-		.await;
+		overseer_send(&mut virtual_overseer, NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full)).await;
 
 		{
 			// send another message
-			let valid = make_valid_availability_gossip(
-				&test_state,
-				1,
-				2,
-			);
+			let valid = make_valid_availability_gossip(&test_state, 1, 2);
 
 			// Make peer a and b listen on `current`
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![current]),
-				),
-			)
-			.await;
+			overseer_send(&mut virtual_overseer, NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![current])).await;
 
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![current]),
-				),
-			)
-			.await;
+			let mut chunks = make_erasure_chunks(
+				test_state.persisted_validation_data.clone(),
+				validator_public.len(),
+				pov_blocks[0].clone(),
+			);
+
+			// Both peers send us this chunk already
+			chunks.remove(2);
+
+			expect_chunks_network_message(&mut virtual_overseer, &[peer_a.clone()], candidates[0].hash(), &chunks).await;
+
+			overseer_send(&mut virtual_overseer, NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![current])).await;
+
+			expect_chunks_network_message(&mut virtual_overseer, &[peer_b.clone()], candidates[0].hash(), &chunks).await;
 
 			peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
