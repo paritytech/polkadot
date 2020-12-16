@@ -718,10 +718,10 @@ impl AvailabilityDistributionSubsystem {
 	{
 		// work: process incoming messages from the overseer.
 		loop {
-			let message = dbg!(ctx
+			let message = ctx
 				.recv()
 				.await
-				.map_err(|e| Error::IncomingMessageChannel(e))?);
+				.map_err(|e| Error::IncomingMessageChannel(e))?;
 			match message {
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::NetworkBridgeUpdateV1(event),
