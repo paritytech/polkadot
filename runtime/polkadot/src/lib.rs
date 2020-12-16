@@ -878,6 +878,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::ElectionsPhragmen(..) |
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
+				Call::Bounties(..) |
+				Call::Tips(..) |
 				Call::Claims(..) |
 				Call::Vesting(pallet_vesting::Call::vest(..)) |
 				Call::Vesting(pallet_vesting::Call::vest_other(..)) |
@@ -893,6 +895,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::TechnicalCommittee(..) |
 				Call::ElectionsPhragmen(..) |
 				Call::Treasury(..) |
+				Call::Bounties(..) |
+				Call::Tips(..) |
 				Call::Utility(..)
 			),
 			ProxyType::Staking => matches!(c,
