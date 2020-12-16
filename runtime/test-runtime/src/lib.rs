@@ -73,6 +73,7 @@ use frame_support::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
+use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -446,6 +447,7 @@ impl parachains_configuration::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_inclusion_inherent::Config for Runtime {}
