@@ -559,25 +559,39 @@ impl pallet_treasury::Config for Runtime {
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
-	type Tippers = ElectionsPhragmen;
-	type TipCountdown = TipCountdown;
-	type TipFindersFee = TipFindersFee;
-	type TipReportDepositBase = TipReportDepositBase;
-	type DataDepositPerByte = DataDepositPerByte;
 	type Event = Event;
 	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type BurnDestination = Society;
+	type SpendFunds = Bounties;
+	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
+}
+
+impl pallet_bounties::Config for Runtime {
+	type Event = Event;
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
 	type BountyUpdatePeriod = BountyUpdatePeriod;
-	type MaximumReasonLength = MaximumReasonLength;
 	type BountyCuratorDeposit = BountyCuratorDeposit;
 	type BountyValueMinimum = BountyValueMinimum;
-	type BurnDestination = Society;
-	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
+	type DataDepositPerByte = DataDepositPerByte;
+	type MaximumReasonLength = MaximumReasonLength;
+	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+
+}
+
+impl pallet_tips::Config for Runtime {
+	type Event = Event;
+	type DataDepositPerByte = DataDepositPerByte;
+	type MaximumReasonLength = MaximumReasonLength;
+	type Tippers = ElectionsPhragmen;
+	type TipCountdown = TipCountdown;
+	type TipFindersFee = TipFindersFee;
+	type TipReportDepositBase = TipReportDepositBase;
+	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -850,6 +864,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::ElectionsPhragmen(..) |
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
+				Call::Bounties(..) |
+				Call::Tips(..) |
 				Call::Claims(..) |
 				Call::Utility(..) |
 				Call::Identity(..) |
@@ -874,6 +890,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::TechnicalCommittee(..) |
 				Call::ElectionsPhragmen(..) |
 				Call::Treasury(..) |
+				Call::Bounties(..) |
+				Call::Tips(..) |
 				Call::Utility(..)
 			),
 			ProxyType::Staking => matches!(c,
@@ -1185,7 +1203,7 @@ construct_runtime! {
 		TechnicalCommittee: pallet_collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		ElectionsPhragmen: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>} = 16,
 		TechnicalMembership: pallet_membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>} = 17,
-		Treasury: pallet_treasury::{Module, Call, Storage, Event<T>} = 18,
+		Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>} = 18,
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
@@ -1213,6 +1231,12 @@ construct_runtime! {
 
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 31,
+
+		// Bounties module.
+		Bounties: pallet_bounties::{Module, Call, Storage, Event<T>} = 35,
+
+		// Tips module.
+		Tips: pallet_tips::{Module, Call, Storage, Event<T>} = 36,
 	}
 }
 
@@ -1528,6 +1552,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, claims, Claims);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
+			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
 			add_benchmark!(params, batches, pallet_democracy, Democracy);
 			add_benchmark!(params, batches, pallet_elections_phragmen, ElectionsPhragmen);
@@ -1542,6 +1567,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_staking, Staking);
 			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+			add_benchmark!(params, batches, pallet_tips, Tips);
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
