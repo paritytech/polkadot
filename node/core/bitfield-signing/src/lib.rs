@@ -23,6 +23,7 @@
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
+	jaeger,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
 		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -35,7 +36,6 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{pin::Pin, time::Duration, iter::FromIterator};
 use wasm_timer::{Delay, Instant};
-use thiserror::Error;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
@@ -45,24 +45,24 @@ const LOG_TARGET: &str = "bitfield_signing";
 pub struct BitfieldSigningJob;
 
 /// Errors we may encounter in the course of executing the `BitfieldSigningSubsystem`.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum Error {
-	/// error propagated from the utility subsystem
 	#[error(transparent)]
 	Util(#[from] util::Error),
-	/// io error
+
 	#[error(transparent)]
 	Io(#[from] std::io::Error),
-	/// a one shot channel was canceled
+
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
-	/// a mspc channel failed to send
+
 	#[error(transparent)]
 	MpscSend(#[from] mpsc::SendError),
-	/// the runtime API failed to return what we wanted
+
 	#[error(transparent)]
 	Runtime(#[from] RuntimeApiError),
-	/// the keystore failed to process signing request
+
 	#[error("Keystore failed: {0:?}")]
 	Keystore(KeystoreError),
 }
@@ -76,9 +76,11 @@ async fn get_core_availability(
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
 ) -> Result<bool, Error> {
+	let span = jaeger::hash_span(&relay_parent, "core_availability");
 	if let CoreState::Occupied(core) = core {
 		tracing::trace!(target: LOG_TARGET, para_id = %core.para_id, "Getting core availability");
 
+		let _span = span.child("occupied");
 		let (tx, rx) = oneshot::channel();
 		sender
 			.lock()
@@ -104,6 +106,8 @@ async fn get_core_availability(
 			}
 		};
 
+		drop(_span);
+		let _span = span.child("query chunk");
 		let candidate_hash = committed_candidate_receipt.hash();
 
 		let (tx, rx) = oneshot::channel();
@@ -140,6 +144,7 @@ async fn get_availability_cores(
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<Vec<CoreState>, Error> {
+	let _span = jaeger::hash_span(&relay_parent, "get availability cores");
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send(AllMessages::from(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx))).into())
@@ -246,6 +251,8 @@ impl JobTrait for BitfieldSigningJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
 		async move {
+			let span = jaeger::hash_span(&relay_parent, "run:bitfield-signing");
+			let _span = span.child("delay");
 			let wait_until = Instant::now() + JOB_DELAY;
 
 			// now do all the work we can before we need to wait for the availability store
@@ -263,6 +270,9 @@ impl JobTrait for BitfieldSigningJob {
 			// JOB_DELAY each time.
 			let _timer = metrics.time_run();
 
+			drop(_span);
+			let _span = span.child("availablity");
+
 			let bitfield =
 				match construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await
 			{
@@ -275,11 +285,17 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
+			drop(_span);
+			let _span = span.child("signing");
+
 			let signed_bitfield = validator
 				.sign(keystore.clone(), bitfield)
 				.await
 				.map_err(|e| Error::Keystore(e))?;
 			metrics.on_bitfield_signed();
+
+			drop(_span);
+			let _span = span.child("gossip");
 
 			sender
 				.send(

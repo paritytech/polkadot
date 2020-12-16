@@ -45,6 +45,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_subsystem::{
+	jaeger,
 	errors::{ChainApiError, RuntimeApiError},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError,
@@ -296,6 +297,8 @@ where
 					}
 				}
 			};
+
+			let mut _span = jaeger::hash_span(&gossiped_availability.candidate_hash.0, "availability-message-received");
 
 			process_incoming_peer_message(ctx, state, remote, gossiped_availability, metrics)
 				.await?;
@@ -793,21 +796,17 @@ where
 {
 	let mut live_candidates = HashMap::new();
 
-	let uncached = relay_blocks
-		.into_iter()
-		.filter(|r|  {
-			receipts.get(&r).map_or(true, |c| {
-				live_candidates.extend(
-					c.iter().cloned().map(|c| (c, FetchedLiveCandidate::Cached))
-				);
-				false
-			})
-		})
-		.collect::<Vec<_>>();
-
 	// fetch and fill out cache for each of these
-	for relay_parent in uncached {
-		let receipts_for = receipts.entry(relay_parent).or_default();
+	for relay_parent in relay_blocks {
+		let receipts_for = match receipts.entry(relay_parent) {
+			Entry::Occupied(e) => {
+				live_candidates.extend(
+					e.get().iter().cloned().map(|c| (c, FetchedLiveCandidate::Cached))
+				);
+				continue
+			},
+			e => e.or_default(),
+		};
 
 		for para in query_para_ids(ctx, relay_parent).await? {
 			if let Some(ccr) = query_pending_availability(ctx, relay_parent, para).await? {
@@ -852,17 +851,11 @@ where
 	)
 	.await?;
 
-	let ancestors_and_head = {
-		let mut a = ancestors.clone();
-		a.push(relay_parent);
-		a
-	};
-
 	// query the ones that were not present in the receipts cache and add them
 	// to it.
 	let live_candidates = query_pending_availability_at(
 		ctx,
-		ancestors_and_head,
+		ancestors.iter().cloned().chain(std::iter::once(relay_parent)),
 		receipts,
 	).await?;
 
@@ -1083,18 +1076,11 @@ where
 	// iterate from youngest to oldest
 	let mut iter = ancestors.into_iter().peekable();
 
-	while let Some(ancestor) = iter.next() {
-		if let Some(ancestor_parent) = iter.peek() {
-			let session = query_session_index_for_child(ctx, *ancestor_parent).await?;
-			if session != desired_session {
-				break;
-			}
-			acc.push(ancestor);
-		} else {
-			// either ended up at genesis or the blocks were
-			// already pruned
+	while let Some((ancestor, ancestor_parent)) = iter.next().and_then(|a| iter.peek().map(|ap| (a, ap))) {
+		if query_session_index_for_child(ctx, *ancestor_parent).await? != desired_session {
 			break;
 		}
+		acc.push(ancestor);
 	}
 
 	debug_assert!(acc.len() <= k);

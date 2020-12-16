@@ -44,7 +44,6 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
-use thiserror::Error;
 
 const LOG_TARGET: &str = "availability";
 
@@ -54,22 +53,32 @@ mod columns {
 	pub const NUM_COLUMNS: u32 = 2;
 }
 
-#[derive(Debug, Error)]
-enum Error {
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum Error {
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
+
 	#[error(transparent)]
 	Erasure(#[from] erasure::Error),
+
 	#[error(transparent)]
 	Io(#[from] io::Error),
+
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
+
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
+
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
+
+	#[error("Custom databases are not supported")]
+	CustomDatabase,
 }
 
 impl Error {
@@ -418,10 +427,10 @@ pub struct Config {
 }
 
 impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
-	type Error = &'static str;
+	type Error = Error;
 
 	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
-		let path = config.path().ok_or("custom databases are not supported")?;
+		let path = config.path().ok_or(Error::CustomDatabase)?;
 
 		Ok(Self {
 			// substrate cache size is improper here; just use the default

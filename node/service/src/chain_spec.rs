@@ -25,7 +25,7 @@ use kusama_runtime as kusama;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
 use polkadot::constants::currency::DOTS;
-use polkadot_primitives::v1::{AccountId, AccountPublic, ValidatorId};
+use polkadot_primitives::v1::{AccountId, AccountPublic, ValidatorId, AssignmentId};
 use polkadot_runtime as polkadot;
 use rococo_runtime as rococo;
 use rococo_runtime::constants::currency::DOTS as ROC;
@@ -88,14 +88,16 @@ fn polkadot_session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
 	im_online: ImOnlineId,
-	parachain_validator: ValidatorId,
+	para_validator: ValidatorId,
+	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId,
 ) -> polkadot::SessionKeys {
 	polkadot::SessionKeys {
 		babe,
 		grandpa,
 		im_online,
-		parachain_validator,
+		para_validator,
+		para_assignment,
 		authority_discovery,
 	}
 }
@@ -104,14 +106,16 @@ fn kusama_session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
 	im_online: ImOnlineId,
-	parachain_validator: ValidatorId,
+	para_validator: ValidatorId,
+	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId,
 ) -> kusama::SessionKeys {
 	kusama::SessionKeys {
 		babe,
 		grandpa,
 		im_online,
-		parachain_validator,
+		para_validator,
+		para_assignment,
 		authority_discovery,
 	}
 }
@@ -120,14 +124,16 @@ fn westend_session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
 	im_online: ImOnlineId,
-	parachain_validator: ValidatorId,
+	para_validator: ValidatorId,
+	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId,
 ) -> westend::SessionKeys {
 	westend::SessionKeys {
 		babe,
 		grandpa,
 		im_online,
-		parachain_validator,
+		para_validator,
+		para_assignment,
 		authority_discovery,
 	}
 }
@@ -136,14 +142,16 @@ fn rococo_session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
 	im_online: ImOnlineId,
-	parachain_validator: ValidatorId,
+	para_validator: ValidatorId,
+	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId
 ) -> rococo_runtime::SessionKeys {
 	rococo_runtime::SessionKeys {
 		babe,
 		grandpa,
 		im_online,
-		parachain_validator,
+		para_validator,
+		para_assignment,
 		authority_discovery,
 	}
 }
@@ -159,6 +167,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
+		AssignmentId,
 		AuthorityDiscoveryId,
 	)> = vec![];
 
@@ -191,6 +200,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 							x.4.clone(),
 							x.5.clone(),
 							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -249,7 +259,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 	// for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in parachains; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in para_validator para_assignment; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	let initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -257,6 +267,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
+		AssignmentId,
 		AuthorityDiscoveryId,
 	)> = vec![
 		(
@@ -269,6 +280,9 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 				.unchecked_into(),
 			// 5FSscBiPfaPaEhFbAt2qRhcYjryKBKf714X76F5nFfwtdXLa
 			hex!["959cebf18fecb305b96fd998c95f850145f52cbbb64b3ef937c0575cc7ebd652"]
+				.unchecked_into(),
+			// 5Ef8qY8LRV6RFd4bThrwxBhhWfLjzqmd4rK8nX3Xs7zJqqp7
+			hex!["72bae70a1398c0ba52f815cc5dfbc9ec5c013771e541ae28e05d1129243e3001"]
 				.unchecked_into(),
 			// 5Ef8qY8LRV6RFd4bThrwxBhhWfLjzqmd4rK8nX3Xs7zJqqp7
 			hex!["72bae70a1398c0ba52f815cc5dfbc9ec5c013771e541ae28e05d1129243e3001"]
@@ -300,6 +314,9 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			// 5Et8y49AyE7ncVKiSRgzN6zbqbYtMK6y7kKuUaS8YqvfLBD9
 			hex!["7ca58770eb41c1a68ef77e92255e4635fc11f665cb89aee469e920511c48343a"]
 				.unchecked_into(),
+			// 5Et8y49AyE7ncVKiSRgzN6zbqbYtMK6y7kKuUaS8YqvfLBD9
+			hex!["7ca58770eb41c1a68ef77e92255e4635fc11f665cb89aee469e920511c48343a"]
+				.unchecked_into(),
 		),
 		(
 			// 5HYYWyhyUQ7Ae11f8fCid58bhJ7ikLHM9bU8A6Ynwoc3dStR
@@ -321,6 +338,9 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			// 5EhnN1SumSv5KxwLAdwE8ugJaw1S8xARZb8V2BMYCKaD7ure
 			hex!["74bfb70627416e6e6c4785e928ced384c6c06e5c8dd173a094bc3118da7b673e"]
 				.unchecked_into(),
+			// 5EhnN1SumSv5KxwLAdwE8ugJaw1S8xARZb8V2BMYCKaD7ure
+			hex!["74bfb70627416e6e6c4785e928ced384c6c06e5c8dd173a094bc3118da7b673e"]
+				.unchecked_into(),
 		),
 		(
 			// 5CFPcUJgYgWryPaV1aYjSbTpbTLu42V32Ytw1L9rfoMAsfGh
@@ -332,6 +352,9 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 				.unchecked_into(),
 			// 5FgBijJLL6p7nDZgQed56L3BM7ovgwc4t4FYsv9apYtRGAGv
 			hex!["9fc415cce1d0b2eed702c9e05f476217d23b46a8723fd56f08cddad650be7c2d"]
+				.unchecked_into(),
+			// 5Ft7o2uqDq5pXCK4g5wR94BctmtLEzCBy5MvPqRa8753ZemD
+			hex!["a8ddd0891e14725841cd1b5581d23806a97f41c28a25436db6473c86e15dcd4f"]
 				.unchecked_into(),
 			// 5Ft7o2uqDq5pXCK4g5wR94BctmtLEzCBy5MvPqRa8753ZemD
 			hex!["a8ddd0891e14725841cd1b5581d23806a97f41c28a25436db6473c86e15dcd4f"]
@@ -374,6 +397,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 							x.4.clone(),
 							x.5.clone(),
 							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -420,7 +444,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 	// for i in 1 2 3 4; do for j in babe; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in parachains; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
+	// for i in 1 2 3 4; do for j in para_validator para_assignment; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	let initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -428,6 +452,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
+		AssignmentId,
 		AuthorityDiscoveryId,
 	)> = vec![
 		(
@@ -440,6 +465,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 				.unchecked_into(),
 			// 5EjvdwATjyFFikdZibVvx1q5uBHhphS2Mnsq5c7yfaYK25vm
 			hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"]
+				.unchecked_into(),
+			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
+			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
 				.unchecked_into(),
 			// 5FpewyS2VY8Cj3tKgSckq8ECkjd1HKHvBRnWhiHqRQsWfFC1
 			hex!["a639b507ee1585e0b6498ff141d6153960794523226866d1b44eba3f25f36356"]
@@ -471,6 +499,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
 			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
 				.unchecked_into(),
+			// 5GvuM53k1Z4nAB5zXJFgkRSHv4Bqo4BsvgbQWNWkiWZTMwWY
+			hex!["765e46067adac4d1fe6c783aa2070dfa64a19f84376659e12705d1734b3eae01"]
+				.unchecked_into(),
 		),
 		(
 			// 5FzwpgGvk2kk9agow6KsywLYcPzjYc8suKej2bne5G5b9YU3
@@ -492,6 +523,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
 			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
 				.unchecked_into(),
+			// 5CXNq1mSKJT4Sc2CbyBBdANeSkbUvdWvE4czJjKXfBHi9sX5
+			hex!["664eae1ca4713dd6abf8c15e6c041820cda3c60df97dc476c2cbf7cb82cb2d2e"]
+				.unchecked_into(),
 		),
 		(
 			// 5CFj6Kg9rmVn1vrqpyjau2ztyBzKeVdRKwNPiA3tqhB5HPqq
@@ -503,6 +537,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 				.unchecked_into(),
 			// 5HGLmrZsiTFTPp3QoS1W8w9NxByt8PVq79reqvdxNcQkByqK
 			hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"]
+				.unchecked_into(),
+			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
+			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
 				.unchecked_into(),
 			// 5FCd9Y7RLNyxz5wnCAErfsLbXGG34L2BaZRHzhiJcMUMd5zd
 			hex!["2adb17a5cafbddc7c3e00ec45b6951a8b12ce2264235b4def342513a767e5d3d"]
@@ -545,6 +582,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 							x.4.clone(),
 							x.5.clone(),
 							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -607,6 +645,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
+		AssignmentId,
 		AuthorityDiscoveryId
 	)> = vec![(
 		//5EHZkbp22djdbuMFH9qt1DVzSCvqi3zWpj6DAYfANa828oei
@@ -619,8 +658,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["0e6d7d1afbcc6547b92995a394ba0daed07a2420be08220a5a1336c6731f0bfa"].unchecked_into(),
 		//5F7BEa1LGFksUihyatf3dCDYneB8pWzVyavnByCsm5nBgezi
 		hex!["86975a37211f8704e947a365b720f7a3e2757988eaa7d0f197e83dba355ef743"].unchecked_into(),
-		//5CDS33qmzmrBHWxVx5Vcz2Wim5b4aVS5C9yh3HpxqwmkrFwt
-		hex!["06a7f34a2ae69cc0cca633c7a82b37cfba821707eb62ffe065b242e1230e4661"].unchecked_into(),
+		//5CP6oGfwqbEfML8efqm1tCZsUgRsJztp9L8ZkEUxA16W8PPz
+		hex!["0e07a51d3213842f8e9363ce8e444255990a225f87e80a3d651db7841e1a0205"].unchecked_into(),
+		//5HQdwiDh8Qtd5dSNWajNYpwDvoyNWWA16Y43aEkCNactFc2b
+		hex!["ec60e71fe4a567ef9fef99d4bbf37ffae70564b41aa6f94ef0317c13e0a5477b"].unchecked_into(),
 		//5HbSgM72xVuscsopsdeG3sCSCYdAeM1Tay9p79N6ky6vwDGq
 		hex!["f49eae66a0ac9f610316906ec8f1a0928e20d7059d76a5ca53cbcb5a9b50dd3c"].unchecked_into(),
 	),
@@ -635,8 +676,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["fcd5f87a6fd5707a25122a01b4dac0a8482259df7d42a9a096606df1320df08d"].unchecked_into(),
 		//5DhyXZiuB1LvqYKFgT5tRpgGsN3is2cM9QxgW7FikvakbAZP
 		hex!["48a910c0af90898f11bd57d37ceaea53c78994f8e1833a7ade483c9a84bde055"].unchecked_into(),
-		//5FxYBi73N4C9HQphtjCRDthxT2XLhd8e6BuYnxERQ7UJtAx6
-		hex!["ac3ce74c09d1bb387d3f79dc8df88d661da689d5364eb8131c83fcc8ecb2fc5b"].unchecked_into(),
+		//5EPEWRecy2ApL5n18n3aHyU1956zXTRqaJpzDa9DoqiggNwF
+		hex!["669a10892119453e9feb4e3f1ee8e028916cc3240022920ad643846fbdbee816"].unchecked_into(),
+		//5ES3fw5X4bndSgLNmtPfSbM2J1kLqApVB2CCLS4CBpM1UxUZ
+		hex!["68bf52c482630a8d1511f2edd14f34127a7d7082219cccf7fd4c6ecdb535f80d"].unchecked_into(),
 		//5HeXbwb5PxtcRoopPZTp5CQun38atn2UudQ8p2AxR5BzoaXw
 		hex!["f6f8fe475130d21165446a02fb1dbce3a7bf36412e5d98f4f0473aed9252f349"].unchecked_into(),
 	),
@@ -651,8 +694,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["e1b68fbd84333e31486c08e6153d9a1415b2e7e71b413702b7d64e9b631184a1"].unchecked_into(),
 		//5HTXBf36LXmkFWJLokNUK6fPxVpkr2ToUnB1pvaagdGu4c1T
 		hex!["ee93e26259decb89afcf17ef2aa0fa2db2e1042fb8f56ecfb24d19eae8629878"].unchecked_into(),
-		//5EXD52Bdz24J1N6i8hss7a5pfAARYmURgESatGXgjsV274Rk
-		hex!["6caf2fe2cf01fc3f07e113a2940a1d6c7bc1ab9d8974f152c2ee201d4f16f67a"].unchecked_into(),
+		//5FtAGDZYJKXkhVhAxCQrXmaP7EE2mGbBMfmKDHjfYDgq2BiU
+		hex!["a8e61ffacafaf546283dc92d14d7cc70ea0151a5dd81fdf73ff5a2951f2b6037"].unchecked_into(),
+		//5CtK7JHv3h6UQZ44y54skxdwSVBRtuxwPE1FYm7UZVhg8rJV
+		hex!["244f3421b310c68646e99cdbf4963e02067601f57756b072a4b19431448c186e"].unchecked_into(),
 		//5D4r6YaB6F7A7nvMRHNFNF6zrR9g39bqDJFenrcaFmTCRwfa
 		hex!["2c57f81fd311c1ab53813c6817fe67f8947f8d39258252663b3384ab4195494d"].unchecked_into(),
 	),
@@ -667,12 +712,14 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["36be9069cdb4a8a07ecd51f257875150f0a8a1be44a10d9d98dabf10a030aef4"].unchecked_into(),
 		//5FHf8kpK4fPjEJeYcYon2gAPwEBubRvtwpzkUbhMWSweKPUY
 		hex!["8e95b9b5b4dc69790b67b566567ca8bf8cdef3a3a8bb65393c0d1d1c87cd2d2c"].unchecked_into(),
-		//5HZ5hm2WTQEXaYAeH24h5kh2Q2rCbnJeiXNm9nhkxNXwwn8M
-		hex!["f2d19482d1da872af925e84478787e0719f637bd1f88c0c99316bdf2658d5478"].unchecked_into(),
+		//5F9FsRjpecP9GonktmtFL3kjqNAMKjHVFjyjRdTPa4hbQRZA
+		hex!["882d72965e642677583b333b2d173ac94b5fd6c405c76184bb14293be748a13b"].unchecked_into(),
+		//5F1FZWZSj3JyTLs8sRBxU6QWyGLSL9BMRtmSKDmVEoiKFxSP
+		hex!["821271c99c958b9220f1771d9f5e29af969edfa865631dba31e1ab7bc0582b75"].unchecked_into(),
 		//5CtgRR74VypK4h154s369abs78hDUxZSJqcbWsfXvsjcHJNA
 		hex!["2496f28d887d84705c6dae98aee8bf90fc5ad10bb5545eca1de6b68425b70f7c"].unchecked_into(),
-	),
-	(
+		),
+		(
 		//5C8AL1Zb4bVazgT3EgDxFgcow1L4SJjVu44XcLC9CrYqFN4N
 		hex!["02a2d8cfcf75dda85fafc04ace3bcb73160034ed1964c43098fb1fe831de1b16"].into(),
 		//5FLYy3YKsAnooqE4hCudttAsoGKbVG3hYYBtVzwMjJQrevPa
@@ -683,8 +730,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["6c878e33b83c20324238d22240f735457b6fba544b383e70bb62a27b57380c81"].unchecked_into(),
 		//5GqL8RbVAuNXpDhjQi1KrS1MyNuKhvus2AbmQwRGjpuGZmFu
 		hex!["d2f9d537ffa59919a4028afdb627c14c14c97a1547e13e8e82203d2049b15b1a"].unchecked_into(),
-		//5DfapfASpVBDsVxgM2FctoQXRX6oa9AbXY5uH7VxWu9esQFy
-		hex!["46d6245026e0e4f4a120cfdfbc9f36a37de202489c4c7ff05b6c54d1811aee2c"].unchecked_into(),
+		//5EUNaBpX9mJgcmLQHyG5Pkms6tbDiKuLbeTEJS924Js9cA1N
+		hex!["6a8570b9c6408e54bacf123cc2bb1b0f087f9c149147d0005badba63a5a4ac01"].unchecked_into(),
+		//5CaZuueRVpMATZG4hkcrgDoF4WGixuz7zu83jeBdY3bgWGaG
+		hex!["16c69ea8d595e80b6736f44be1eaeeef2ac9c04a803cc4fd944364cb0d617a33"].unchecked_into(),
 		//5DABsdQCDUGuhzVGWe5xXzYQ9rtrVxRygW7RXf9Tsjsw1aGJ
 		hex!["306ac5c772fe858942f92b6e28bd82fb7dd8cdd25f9a4626c1b0eee075fcb531"].unchecked_into(),
 	),
@@ -699,8 +748,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["d9c056c98ca0e6b4eb7f5c58c007c1db7be0fe1f3776108f797dd4990d1ccc33"].unchecked_into(),
 		//5GWZbVkJEfWZ7fRca39YAQeqri2Z7pkeHyd7rUctUHyQifLp
 		hex!["c4a980da30939d5bb9e4a734d12bf81259ae286aa21fa4b65405347fa40eff35"].unchecked_into(),
-		//5C5DAKUwKcxU2eT9fZU23HPEJcJLPQRt7YX5sAyifKKsnBNd
-		hex!["0062a5ab339962d84b6711b86fa67b457483fcd3d75dafb7bd15f182b7434227"].unchecked_into(),
+		//5CmLCFeSurRXXtwMmLcVo7sdJ9EqDguvJbuCYDcHkr3cpqyE
+		hex!["1efc23c0b51ad609ab670ecf45807e31acbd8e7e5cb7c07cf49ee42992d2867c"].unchecked_into(),
+		//5DnsSy8a8pfE2aFjKBDtKw7WM1V4nfE5sLzP15MNTka53GqS
+		hex!["4c64d3f06d28adeb36a892fdaccecace150bec891f04694448a60b74fa469c22"].unchecked_into(),
 		//5CZdFnyzZvKetZTeUwj5APAYskVJe4QFiTezo5dQNsrnehGd
 		hex!["160ea09c5717270e958a3da42673fa011613a9539b2e4ebcad8626bc117ca04a"].unchecked_into(),
 	),
@@ -715,8 +766,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["4bea0b37e0cce9bddd80835fa2bfd5606f5dcfb8388bbb10b10c483f0856cf14"].unchecked_into(),
 		//5E1Y1FJ7dVP7qtE3wm241pTm72rTMcDT5Jd8Czv7Pwp7N3AH
 		hex!["560d90ca51e9c9481b8a9810060e04d0708d246714960439f804e5c6f40ca651"].unchecked_into(),
-		//5Fs2mowfPb93ByRTKtzTE5evCh2SfVLJfpBBM5SmpYGdG6yK
-		hex!["a809aaaaebc04051536c99166c99f0cba19c7b5950cd8a37882dd56220f2e84f"].unchecked_into(),
+		//5CAC278tFCHAeHYqE51FTWYxHmeLcENSS1RG77EFRTvPZMJT
+		hex!["042f07fc5268f13c026bbe199d63e6ac77a0c2a780f71cda05cee5a6f1b3f11f"].unchecked_into(),
+		//5HjRTLWcQjZzN3JDvaj1UzjNSayg5ZD9ZGWMstaL7Ab2jjAa
+		hex!["fab485e87ed1537d089df521edf983a777c57065a702d7ed2b6a2926f31da74f"].unchecked_into(),
 		//5ELv74v7QcsS6FdzvG4vL2NnYDGWmRnJUSMKYwdyJD7Xcdi7
 		hex!["64d59feddb3d00316a55906953fb3db8985797472bd2e6c7ea1ab730cc339d7f"].unchecked_into(),
 	),
@@ -731,8 +784,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["4ee66173993dd0db5d628c4c9cb61a27b76611ad3c3925947f0d0011ee2c5dcc"].unchecked_into(),
 		//5FNFDUGNLUtqg5LgrwYLNmBiGoP8KRxsvQpBkc7GQP6qaBUG
 		hex!["92156f54a114ee191415898f2da013d9db6a5362d6b36330d5fc23e27360ab66"].unchecked_into(),
-		//5Ea4of4L3i5Nc8QcPE648cN8CL8iuo9v4xc2LpKAtr6oShFU
-		hex!["6edd19e3c5230998e533e165a26438afe663368d0eab37fabff734a36119ce0e"].unchecked_into(),
+		//5Gx6YeNhynqn8qkda9QKpc9S7oDr4sBrfAu516d3sPpEt26F
+		hex!["d822d4088b20dca29a580a577a97d6f024bb24c9550bebdfd7d2d18e946a1c7d"].unchecked_into(),
+		//5DhDcHqwxoes5s89AyudGMjtZXx1nEgrk5P45X88oSTR3iyx
+		hex!["481538f8c2c011a76d7d57db11c2789a5e83b0f9680dc6d26211d2f9c021ae4c"].unchecked_into(),
 		//5DqAvikdpfRdk5rR35ZobZhqaC5bJXZcEuvzGtexAZP1hU3T
 		hex!["4e262811acdfe94528bfc3c65036080426a0e1301b9ada8d687a70ffcae99c26"].unchecked_into(),
 	)];
@@ -758,7 +813,14 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
-				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+				rococo_session_keys(
+					x.2.clone(),
+					x.3.clone(),
+					x.4.clone(),
+					x.5.clone(),
+					x.6.clone(),
+					x.7.clone(),
+				),
 			)).collect::<Vec<_>>(),
 		}),
 		pallet_babe: Some(Default::default()),
@@ -898,6 +960,7 @@ pub fn get_authority_keys_from_seed(
 	GrandpaId,
 	ImOnlineId,
 	ValidatorId,
+	AssignmentId,
 	AuthorityDiscoveryId,
 ) {
 	(
@@ -907,6 +970,7 @@ pub fn get_authority_keys_from_seed(
 		get_from_seed::<GrandpaId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<ValidatorId>(seed),
+		get_from_seed::<AssignmentId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 	)
 }
@@ -938,6 +1002,7 @@ pub fn polkadot_testnet_genesis(
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
+		AssignmentId,
 		AuthorityDiscoveryId,
 	)>,
 	_root_key: AccountId,
@@ -973,6 +1038,7 @@ pub fn polkadot_testnet_genesis(
 							x.4.clone(),
 							x.5.clone(),
 							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -1030,6 +1096,7 @@ pub fn kusama_testnet_genesis(
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
+		AssignmentId,
 		AuthorityDiscoveryId,
 	)>,
 	_root_key: AccountId,
@@ -1065,6 +1132,7 @@ pub fn kusama_testnet_genesis(
 							x.4.clone(),
 							x.5.clone(),
 							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -1122,6 +1190,7 @@ pub fn westend_testnet_genesis(
 		GrandpaId,
 		ImOnlineId,
 		ValidatorId,
+		AssignmentId,
 		AuthorityDiscoveryId,
 	)>,
 	root_key: AccountId,
@@ -1157,6 +1226,7 @@ pub fn westend_testnet_genesis(
 							x.4.clone(),
 							x.5.clone(),
 							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -1193,7 +1263,16 @@ pub fn westend_testnet_genesis(
 /// Helper function to create rococo GenesisConfig for testing
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],
-	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AssignmentId,
+		AuthorityDiscoveryId,
+	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> rococo_runtime::GenesisConfig {
@@ -1216,7 +1295,14 @@ pub fn rococo_testnet_genesis(
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
-				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+				rococo_session_keys(
+					x.2.clone(),
+					x.3.clone(),
+					x.4.clone(),
+					x.5.clone(),
+					x.6.clone(),
+					x.7.clone(),
+				),
 			)).collect::<Vec<_>>(),
 		}),
 		pallet_babe: Some(Default::default()),

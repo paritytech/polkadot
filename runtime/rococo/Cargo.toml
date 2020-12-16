@@ -53,6 +53,10 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 polkadot-parachain = { path = "../../parachain", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
+xcm = { package = "xcm", path = "../../xcm", default-features = false }
+xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
+xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
+
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"
 
@@ -99,6 +103,9 @@ std = [
 	"sp-version/std",
 	"serde_derive",
 	"serde/std",
+	"xcm/std",
+	"xcm-executor/std",
+	"xcm-builder/std",
 ]
 # When enabled, the runtime api will not be build.
 #
