@@ -709,15 +709,18 @@ sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
+		#[skip_initialize_block]
 		fn validators() -> Vec<ValidatorId>;
 
 		/// Returns the validator groups and rotation info localized based on the block whose state
 		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
 		/// the number of the block.
+		#[skip_initialize_block]
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
 
 		/// Yields information on all availability cores. Cores are either free or occupied. Free
 		/// cores can have paras assigned to them.
+		#[skip_initialize_block]
 		fn availability_cores() -> Vec<CoreState<N>>;
 
 		/// Yields the full validation data for the given ParaId along with an assumption that
