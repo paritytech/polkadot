@@ -165,6 +165,8 @@ runtime-benchmarks = [
 	"pallet-staking/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-treasury/runtime-benchmarks",
+	"pallet-bounties/runtime-benchmarks",
+	"pallet-tips/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",
