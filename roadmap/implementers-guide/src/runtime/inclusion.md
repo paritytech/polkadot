@@ -17,6 +17,7 @@ struct CandidatePendingAvailability {
   descriptor: CandidateDescriptor,
   availability_votes: Bitfield, // one bit per validator.
   relay_parent_number: BlockNumber, // number of the relay-parent.
+  backers: Bitfield, // one bit per validator, set for those who backed the candidate.
   backed_in_number: BlockNumber,
 }
 ```
@@ -77,6 +78,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
 * `enact_candidate(relay_parent_number: BlockNumber, CommittedCandidateReceipt)`:
   1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`.
     > TODO: Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
+  1. Reward all backing validators of each candidate, contained within the `backers` field.
   1. call `Ump::enact_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../types/messages.md#upward-message) from the [`CandidateCommitments`](../types/candidate.md#candidate-commitments).
   1. call `Dmp::prune_dmq` with the para id of the candidate and the candidate's `processed_downward_messages`.
   1. call `Hrmp::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.

@@ -78,6 +78,7 @@ use runtime_parachains::dmp as parachains_dmp;
 use runtime_parachains::ump as parachains_ump;
 use runtime_parachains::hrmp as parachains_hrmp;
 use runtime_parachains::scheduler as parachains_scheduler;
+use runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_staking::StakerStatus;
@@ -538,6 +539,7 @@ impl parachains_configuration::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_paras::Config for Runtime {
