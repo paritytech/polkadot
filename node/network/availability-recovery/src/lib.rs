@@ -210,8 +210,8 @@ impl Interaction {
 					self.validators.len(),
 					self.received_chunks.values().map(|c| (&c.chunk[..], c.index as usize)),
 				) {
-				    Ok(data) => FromInteraction::Concluded(self.candidate_hash.clone(), Ok(data)),
-				    Err(_) => FromInteraction::Concluded(self.candidate_hash.clone(), Err(RecoveryError::Invalid)),
+					Ok(data) => FromInteraction::Concluded(self.candidate_hash.clone(), Ok(data)),
+					Err(_) => FromInteraction::Concluded(self.candidate_hash.clone(), Err(RecoveryError::Invalid)),
 				};
 
 				if let Err(e) = self.to_state.send(concluded).await {
@@ -228,35 +228,35 @@ impl Interaction {
 }
 
 struct State {
-    /// Each interaction is implemented as its own async task,
+	/// Each interaction is implemented as its own async task,
 	/// and these handles are for communicating with them.
-    interactions: HashMap<CandidateHash, InteractionHandle>,
+	interactions: HashMap<CandidateHash, InteractionHandle>,
 
-    /// A recent block hash for which state should be available.
-    live_block_hash: Hash,
+	/// A recent block hash for which state should be available.
+	live_block_hash: Hash,
 
 	/// We are waiting for these validators to connect and as soon as they
 	/// do to request the needed chunks we are awaitinf for.
-    discovering_validators: HashMap<ValidatorId, Vec<AwaitedChunk>>,
+	discovering_validators: HashMap<ValidatorId, Vec<AwaitedChunk>>,
 
 	/// Requests that we have issued to the already connected validators
 	/// about the chunks we are interested in.
-    live_chunk_requests: HashMap<RequestId, (PeerId, AwaitedChunk)>,
+	live_chunk_requests: HashMap<RequestId, (PeerId, AwaitedChunk)>,
 
 	/// Derive request ids from this.
-    next_request_id: RequestId,
+	next_request_id: RequestId,
 
 	/// Connect to relevant groups of validators at different relay parents.
 	connection_requests: validator_discovery::ConnectionRequests,
 
-    /// interaction communication. This is cloned and given to interactions that are spun up.
-    from_interaction_tx: mpsc::Sender<FromInteraction>,
+	/// interaction communication. This is cloned and given to interactions that are spun up.
+	from_interaction_tx: mpsc::Sender<FromInteraction>,
 
-    /// receiver for messages from interactions.
-    from_interaction_rx: mpsc::Receiver<FromInteraction>,
+	/// receiver for messages from interactions.
+	from_interaction_rx: mpsc::Receiver<FromInteraction>,
 
-    /// An LRU cache of recently recovered data.
-    availability_lru: LruCache<CandidateHash, Result<AvailableData, RecoveryError>>,
+	/// An LRU cache of recently recovered data.
+	availability_lru: LruCache<CandidateHash, Result<AvailableData, RecoveryError>>,
 }
 
 impl Default for State {
@@ -266,13 +266,13 @@ impl Default for State {
 		Self {
 			from_interaction_tx,
 			from_interaction_rx,
-		    interactions: HashMap::new(),
-		    live_block_hash: Hash::default(),
-		    discovering_validators: HashMap::new(),
-		    live_chunk_requests: HashMap::new(),
-		    next_request_id: 0,
-		    connection_requests: Default::default(),
-		    availability_lru: LruCache::new(LRU_SIZE),
+			interactions: HashMap::new(),
+			live_block_hash: Hash::default(),
+			discovering_validators: HashMap::new(),
+			live_chunk_requests: HashMap::new(),
+			next_request_id: 0,
+			connection_requests: Default::default(),
+			availability_lru: LruCache::new(LRU_SIZE),
 		}
 	}
 }
@@ -364,8 +364,8 @@ async fn launch_interaction(
 	};
 
 	match ctx.spawn("recovery interaction", interaction.run().boxed()).await {
-	    Ok(_) => {}
-	    Err(_) => {}
+		Ok(_) => {}
+		Err(_) => {}
 	}
 
 	Ok(())
@@ -444,7 +444,7 @@ async fn handle_from_interaction(
 	from_interaction: FromInteraction,
 ) -> error::Result<()> {
 	match from_interaction {
-	    FromInteraction::Concluded(candidate_hash, result) => {
+		FromInteraction::Concluded(candidate_hash, result) => {
 			// Load the entry from the interactions map.
 			// It should always exist, if not for logic errors.
 			if let Some(interaction) = state.interactions.remove(&candidate_hash) {
@@ -462,7 +462,7 @@ async fn handle_from_interaction(
 
 			state.availability_lru.put(candidate_hash, result);
 		}
-	    FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
+		FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
 			let relay_parent = state.live_block_hash;
 
 			// Take the validators we are already connecting to and merge them with the
@@ -472,8 +472,8 @@ async fn handle_from_interaction(
 				.chain(std::iter::once(id.clone()))
 				.collect();
 
-    		// Issue a NetworkBridgeMessage::ConnectToValidators.
-    		// Add the stream of connected validator events to state.connecting_validators.
+			// Issue a NetworkBridgeMessage::ConnectToValidators.
+			// Add the stream of connected validator events to state.connecting_validators.
 			match validator_discovery::connect_to_validators(
 				ctx,
 				relay_parent,
@@ -499,7 +499,7 @@ async fn handle_from_interaction(
 				}
 			}
 		}
-	    FromInteraction::ReportPeer(peer_id, rep) => {
+		FromInteraction::ReportPeer(peer_id, rep) => {
 			report_peer(ctx, peer_id, rep).await;
 		}
 	}
@@ -514,9 +514,9 @@ async fn handle_network_update(
 	update: NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>,
 ) -> error::Result<()> {
 	match update {
-	    NetworkBridgeEvent::PeerMessage(peer, message) => {
+		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			match message {
-			    protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
+				protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
 					request_id,
 					candidate_hash,
 					validator_index,
@@ -540,7 +540,7 @@ async fn handle_network_update(
 						),
 					)).await;
 				}
-			    protocol_v1::AvailabilityRecoveryMessage::Chunk(request_id, chunk) => {
+				protocol_v1::AvailabilityRecoveryMessage::Chunk(request_id, chunk) => {
 					match state.live_chunk_requests.remove(&request_id) {
 						None => {
 							// If there doesn't exist one, report the peer and return.
@@ -554,7 +554,7 @@ async fn handle_network_update(
 									.send(Ok((peer_id, chunk)))
 									.map_err(|_| oneshot::Canceled)?;
 							}
- 						}
+						}
 						Some(a) => {
 							// If the peer in the entry doesn't match the sending peer,
 							// reinstate the entry, report the peer, and return
@@ -566,11 +566,11 @@ async fn handle_network_update(
 		}
 		// We do not really need to track the peers' views in this subsystem
 		// since the peers are _required_ to have the data we are interested in.
-	    NetworkBridgeEvent::PeerViewChange(_, _) => {}
-	    NetworkBridgeEvent::OurViewChange(_) => {}
+		NetworkBridgeEvent::PeerViewChange(_, _) => {}
+		NetworkBridgeEvent::OurViewChange(_) => {}
 		// All peer connections are handled via validator discovery API.
-	    NetworkBridgeEvent::PeerConnected(_, _) => {}
-	    NetworkBridgeEvent::PeerDisconnected(_) => {}
+		NetworkBridgeEvent::PeerConnected(_, _) => {}
+		NetworkBridgeEvent::PeerDisconnected(_) => {}
 	}
 
 	Ok(())
