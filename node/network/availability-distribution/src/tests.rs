@@ -256,11 +256,10 @@ fn make_erasure_root(peristed: PersistedValidationData, validator_count: usize, 
 
 fn make_valid_availability_gossip(
 	test: &TestState,
-	candidate_hash: CandidateHash,
+	candidate: usize,
 	erasure_chunk_index: u32,
-	pov: PoV,
 ) -> AvailabilityGossipMessage {
-	let available_data = make_available_data(test.persisted_validation_data.clone(), pov);
+	let available_data = make_available_data(test.persisted_validation_data.clone(), test.pov_blocks[candidate].clone());
 
 	let erasure_chunks = derive_erasure_chunks_with_proofs(test.validators.len(), &available_data);
 
@@ -270,7 +269,7 @@ fn make_valid_availability_gossip(
 		.clone();
 
 	AvailabilityGossipMessage {
-		candidate_hash,
+		candidate_hash: test.candidates[candidate].hash(),
 		erasure_chunk,
 	}
 }
@@ -308,9 +307,8 @@ fn helper_integrity() {
 
 	let message = make_valid_availability_gossip(
 		&test_state,
-		test_state.candidates[0].hash(),
+		0,
 		2,
-		test_state.pov_blocks[0].clone(),
 	);
 
 	let root = &test_state.candidates[0].descriptor.erasure_root;
@@ -358,6 +356,7 @@ async fn change_our_view(
 	candidate_pending_availabilities_per_relay_parent: HashMap<Hash, Vec<CommittedCandidateReceipt>>,
 	data_availability: HashMap<CandidateHash, bool>,
 	chunk_data_per_candidate: HashMap<CandidateHash, (PoV, PersistedValidationData)>,
+	send_chunks_to: HashMap<CandidateHash, Vec<PeerId>>,
 ) {
 	overseer_send(virtual_overseer, NetworkBridgeEvent::OurViewChange(view.clone())).await;
 
@@ -464,7 +463,7 @@ async fn change_our_view(
 			let chunks = derive_erasure_chunks_with_proofs(validator_public.len(), &avail_data);
 
 			for _ in 0..chunks.len() {
-				assert_matches!(
+				let chunk = assert_matches!(
 					overseer_recv(virtual_overseer).await,
 					AllMessages::AvailabilityStore(
 						AvailabilityStoreMessage::QueryChunk(
@@ -474,9 +473,30 @@ async fn change_our_view(
 						)
 					) => {
 						tracing::trace!("Query chunk {} for candidate {:?}", index, candidate_hash);
-						tx.send(Some(chunks[index as usize].clone())).unwrap();
+						let chunk = chunks[index as usize].clone();
+						tx.send(Some(chunk.clone())).unwrap();
+						chunk
 					}
-				)
+				);
+
+				if let Some(peers) = send_chunks_to.get(&candidate_hash) {
+					assert_matches!(
+						overseer_recv(virtual_overseer).await,
+						AllMessages::NetworkBridge(
+							NetworkBridgeMessage::SendValidationMessage(
+								send_peers,
+								protocol_v1::ValidationProtocol::AvailabilityDistribution(
+									protocol_v1::AvailabilityDistributionMessage::Chunk(send_candidate, send_chunk),
+								),
+							)
+						) => {
+							assert_eq!(candidate_hash, send_candidate);
+							assert_eq!(chunk, send_chunk);
+							assert_eq!(peers.len(), send_peers.len());
+							assert!(peers.iter().all(|p| send_peers.contains(p)));
+						}
+					);
+				}
 			}
 		}
 	}
@@ -490,6 +510,28 @@ async fn setup_peer_with_view(
 	overseer_send(virtual_overseer, NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full)).await;
 
 	overseer_send(virtual_overseer, NetworkBridgeEvent::PeerViewChange(peer, view)).await;
+}
+
+async fn peer_send_message(
+	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+	peer: PeerId,
+	message: AvailabilityGossipMessage,
+	expected_reputation_change: Rep,
+) {
+	overseer_send(virtual_overseer, NetworkBridgeEvent::PeerMessage(peer.clone(), chunk_protocol_message(message))).await;
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::NetworkBridge(
+			NetworkBridgeMessage::ReportPeer(
+				rep_peer,
+				rep,
+			)
+		) => {
+			assert_eq!(peer, rep_peer);
+			assert_eq!(expected_reputation_change, rep);
+		}
+	);
 }
 
 #[test]
@@ -563,7 +605,8 @@ fn check_views() {
 			},
 			hashmap! {
 				candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone()),
-			}
+			},
+			hashmap! {},
 		).await;
 
 		// setup peer a with interest in current
@@ -614,11 +657,10 @@ fn reputation_verification() {
 			..
 		} = test_state.clone();
 
-		let valid: AvailabilityGossipMessage = make_valid_availability_gossip(
+		let valid = make_valid_availability_gossip(
 			&test_state,
-			candidates[0].hash(),
+			0,
 			2,
-			pov_blocks[0].clone(),
 		);
 
 		change_our_view(
@@ -636,88 +678,18 @@ fn reputation_verification() {
 			hashmap! { current => vec![candidates[0].clone(), candidates[1].clone()] },
 			hashmap! { candidates[0].hash() => true, candidates[1].hash() => false },
 			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
+			hashmap! {},
 		).await;
 
-		{
-			// valid (first, from b)
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer_b.clone(),
-						chunk_protocol_message(valid.clone()),
-					),
-				),
-			)
-			.await;
+		// valid (first, from b)
+		peer_send_message(&mut virtual_overseer, peer_b.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_b);
-					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
-				}
-			);
-		}
+		// valid (duplicate, from b)
+		peer_send_message(&mut virtual_overseer, peer_b.clone(), valid.clone(), COST_PEER_DUPLICATE_MESSAGE).await;
 
-		{
-			// valid (duplicate, from b)
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer_b.clone(),
-						chunk_protocol_message(valid.clone()),
-					),
-				),
-			)
-			.await;
+		// valid (second, from a)
+		peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE).await;
 
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_b);
-					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
-				}
-			);
-		}
-
-		{
-			// valid (second, from a)
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
-						chunk_protocol_message(valid.clone()),
-					),
-				),
-			)
-			.await;
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, BENEFIT_VALID_MESSAGE);
-				}
-			);
-		}
 
 		// peer a is not interested in anything anymore
 		overseer_send(
@@ -728,32 +700,8 @@ fn reputation_verification() {
 		)
 		.await;
 
-		{
-			// send the a message again, so we should detect the duplicate
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
-						chunk_protocol_message(valid.clone()),
-					),
-				),
-			)
-			.await;
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
-				}
-			);
-		}
+		// send the a message again, so we should detect the duplicate
+		peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), COST_PEER_DUPLICATE_MESSAGE).await;
 
 		// peer b sends a message before we have the view
 		// setup peer a with interest in parent x
@@ -777,9 +725,8 @@ fn reputation_verification() {
 			// send another message
 			let valid = make_valid_availability_gossip(
 				&test_state,
-				candidates[1].hash(),
+				1,
 				2,
-				pov_blocks[1].clone(),
 			);
 
 			// Make peer a and b listen on `current`
@@ -799,29 +746,7 @@ fn reputation_verification() {
 			)
 			.await;
 
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
-						chunk_protocol_message(valid.clone()),
-					),
-				),
-			)
-			.await;
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
-				}
-			);
+			peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -841,29 +766,7 @@ fn reputation_verification() {
 			);
 
 			// Let B send the same message
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer_b.clone(),
-						chunk_protocol_message(valid.clone()),
-					),
-				),
-			)
-			.await;
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_b);
-					assert_eq!(rep, BENEFIT_VALID_MESSAGE);
-				}
-			);
+			peer_send_message(&mut virtual_overseer, peer_b.clone(), valid.clone(), BENEFIT_VALID_MESSAGE).await;
 
 			// There shouldn't be any other message.
 			assert!(virtual_overseer.recv().timeout(TIMEOUT).await.is_none());
@@ -905,37 +808,66 @@ fn not_a_live_candidate_is_detected() {
 			hashmap! { current => vec![candidates[0].clone()] },
 			hashmap! { candidates[0].hash() => true },
 			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
+			hashmap! {},
 		).await;
 
-		{
-			let valid2 = make_valid_availability_gossip(
-				&test_state,
-				candidates[1].hash(),
-				1,
-				pov_blocks[1].clone(),
-			);
+		let valid = make_valid_availability_gossip(
+			&test_state,
+			1,
+			1,
+		);
 
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(peer_a.clone(), chunk_protocol_message(valid2)),
-				),
-			)
-			.await;
+		peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), COST_NOT_A_LIVE_CANDIDATE).await;
+	});
+}
 
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, COST_NOT_A_LIVE_CANDIDATE);
-				}
-			);
-		}
+#[test]
+fn peer_change_view_before_us() {
+	let test_state = TestState::default();
+
+	let peer_a = PeerId::random();
+
+	let keystore = test_state.keystore.clone();
+
+	test_harness(keystore, move |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+
+		let TestState {
+			relay_parent: current,
+			validator_public,
+			ancestors,
+			candidates,
+			pov_blocks,
+			..
+		} = test_state.clone();
+
+		setup_peer_with_view(&mut virtual_overseer, peer_a.clone(), view![current]).await;
+
+		change_our_view(
+			&mut virtual_overseer,
+			view![current],
+			&validator_public,
+			vec![ancestors[0]],
+			hashmap! { current => 1 },
+			hashmap! {
+				current => vec![
+					dummy_occupied_core(candidates[0].descriptor.para_id),
+				],
+			},
+			hashmap! { current => vec![candidates[0].clone()] },
+			hashmap! { candidates[0].hash() => true },
+			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
+			hashmap! { candidates[0].hash() => vec![peer_a.clone()] },
+		).await;
+
+		let valid = make_valid_availability_gossip(
+			&test_state,
+			0,
+			0,
+		);
+
+		// We send peer a all the chunks of candidate0, so we just benefit him for sending a valid message
+		peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE).await;
 	});
 }
 
