@@ -27,7 +27,7 @@ use primitives::v1::{
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
-	dispatch::DispatchResult,
+	dispatch::DispatchResultWithPostInfo,
 	weights::{DispatchClass, Weight},
 	traits::Get,
 };
@@ -38,6 +38,12 @@ use crate::{
 	ump,
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
+
+// In the future, we should benchmark these consts; these are all untested assumptions for now.
+const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
+const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
+// we assume that 75% of an inclusion inherent's weight is used processing backed candidates
+const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
 pub trait Config: inclusion::Config + scheduler::Config {}
 
@@ -76,12 +82,12 @@ decl_module! {
 		}
 
 		/// Include backed candidates and bitfields.
-		#[weight = (1_000_000_000, DispatchClass::Mandatory)]
+		#[weight = (INCLUSION_INHERENT_CLAIMED_WEIGHT, DispatchClass::Mandatory)]
 		pub fn inclusion(
 			origin,
 			signed_bitfields: SignedAvailabilityBitfields,
 			backed_candidates: Vec<BackedCandidate<T::Hash>>,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
 
@@ -107,6 +113,7 @@ decl_module! {
 			<scheduler::Module<T>>::schedule(freed);
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
+			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Process backed candidates according to scheduled cores.
 			let occupied = <inclusion::Module<T>>::process_candidates(
@@ -124,7 +131,10 @@ decl_module! {
 			// And track that we've finished processing the inherent for this block.
 			Included::set(Some(()));
 
-			Ok(())
+			Ok(Some(
+				MINIMAL_INCLUSION_INHERENT_WEIGHT +
+				(backed_candidates_len * BACKED_CANDIDATE_WEIGHT)
+			).into())
 		}
 	}
 }
@@ -141,12 +151,10 @@ decl_module! {
 fn limit_backed_candidates<T: Config>(
 	backed_candidates: Vec<BackedCandidate<T::Hash>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
-	const BACKED_CANDIDATE_WEIGHT_ASSUMPTION: usize = 10_000;
-
 	let block_weight_remaining = <T as frame_system::Config>::BlockWeights::get().max_block
 		.saturating_sub(frame_system::Module::<T>::block_weight().total());
 
-	if backed_candidates.len() * BACKED_CANDIDATE_WEIGHT_ASSUMPTION > block_weight_remaining as usize {
+	if backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT > block_weight_remaining  {
 		Vec::new()
 	} else {
 		backed_candidates
