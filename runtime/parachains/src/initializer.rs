@@ -25,7 +25,6 @@ use primitives::v1::ValidatorId;
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
-use sp_runtime::traits::One;
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
@@ -63,8 +62,7 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 }
 
 #[derive(Encode, Decode)]
-struct BufferedSessionChange<N> {
-	apply_at: N,
+struct BufferedSessionChange {
 	validators: Vec<ValidatorId>,
 	queued: Vec<ValidatorId>,
 	session_index: sp_staking::SessionIndex,
@@ -98,12 +96,12 @@ decl_storage! {
 		HasInitialized: Option<()>;
 		/// Buffered session changes along with the block number at which they should be applied.
 		///
-		/// Typically this will be empty or one element long, with the single element having a block
-		/// number of the next block.
+		/// Typically this will be empty or one element long. Apart from that this item never hits
+		/// the storage.
 		///
 		/// However this is a `Vec` regardless to handle various edge cases that may occur at runtime
 		/// upgrade boundaries or if governance intervenes.
-		BufferedSessionChanges: Vec<BufferedSessionChange<T::BlockNumber>>;
+		BufferedSessionChanges: Vec<BufferedSessionChange>;
 	}
 }
 
@@ -117,21 +115,6 @@ decl_module! {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
-			// Apply buffered session changes before initializing modules, so they
-			// can be initialized with respect to the current validator set.
-			<BufferedSessionChanges<T>>::mutate(|v| {
-				let drain_up_to = v.iter().take_while(|b| b.apply_at <= now).count();
-
-				// apply only the last session as all others lasted less than a block (weirdly).
-				if let Some(buffered) = v.drain(..drain_up_to).last() {
-					Self::apply_new_session(
-						buffered.session_index,
-						buffered.validators,
-						buffered.queued,
-					);
-				}
-			});
-
 			// The other modules are initialized in this order:
 			// - Configuration
 			// - Paras
@@ -158,7 +141,6 @@ decl_module! {
 
 		fn on_finalize() {
 			// reverse initialization order.
-
 			hrmp::Module::<T>::initializer_finalize();
 			ump::Module::<T>::initializer_finalize();
 			dmp::Module::<T>::initializer_finalize();
@@ -167,6 +149,20 @@ decl_module! {
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
+
+			// Apply buffered session changes as the last thing. This way the runtime APIs and the
+			// next block will observe the next session.
+			//
+			// Note that we only apply the last session as all others lasted less than a block (weirdly).
+			if let Some(BufferedSessionChange {
+				session_index,
+				validators,
+				queued,
+			}) = BufferedSessionChanges::take().pop()
+			{
+				Self::apply_new_session(session_index, validators, queued);
+			}
+
 			HasInitialized::take();
 		}
 	}
@@ -213,7 +209,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
-	/// at the next block. If `queued` is `None`, the `validators` are considered queued.
+	/// at the end of the block. If `queued` is `None`, the `validators` are considered queued.
 	fn on_new_session<'a, I: 'a>(
 		_changed: bool,
 		session_index: sp_staking::SessionIndex,
@@ -229,8 +225,7 @@ impl<T: Config> Module<T> {
 			validators.clone()
 		};
 
-		<BufferedSessionChanges<T>>::mutate(|v| v.push(BufferedSessionChange {
-			apply_at: <frame_system::Module<T>>::block_number() + One::one(),
+		BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
 			validators,
 			queued,
 			session_index,

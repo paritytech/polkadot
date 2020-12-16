@@ -766,13 +766,11 @@ sp_api::decl_runtime_apis! {
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
-		// NOTE: This runtime API specifically needs to operate on the next block and depends on the
-		// `on_initialize` ran.
+		#[skip_initialize_block]
 		fn session_index_for_child() -> SessionIndex;
 
 		/// Get the session info for the given session, if stored.
-		// NOTE: This operates on the next block so that this runtime API is callable with the result
-		// of `session_index_for_child`
+		#[skip_initialize_block]
 		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
