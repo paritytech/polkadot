@@ -573,7 +573,6 @@ mod tests {
 		impl_outer_origin, assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
 	};
-	use frame_support::traits::{Contains, ContainsLengthBound};
 	use sp_core::H256;
 	use primitives::v1::{Id as ParaId, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
