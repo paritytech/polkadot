@@ -244,14 +244,14 @@ publish-docker:
       ( echo "no docker credentials provided"; exit 1 )
     - cd ./artifacts
     - buildah bud
+      --squash
+      --format=docker
       --build-arg VCS_REF="${CI_COMMIT_SHA}"
       --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
       --tag "$IMAGE_NAME:$VERSION"
       --tag "$IMAGE_NAME:$EXTRATAG" .
-    - buildah login 
-      --username "$Docker_Hub_User_Parity" 
-      --password "$Docker_Hub_Pass_Parity"
-      "$IMAGE_NAME"
+    - echo "$Docker_Hub_Pass_Parity" |
+      buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
     - buildah info
     - buildah push
       --format=v2s2
