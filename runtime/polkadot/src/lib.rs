@@ -983,7 +983,6 @@ construct_runtime! {
 		TechnicalCommittee: pallet_collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
 		ElectionsPhragmen: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>} = 17,
 		TechnicalMembership: pallet_membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>} = 18,
-		// Treasury: pallet_treasury::{Module, Call, Storage, Event<T>} = 19,
 		Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>} = 19,
 
 		// Claims. Usable initially.
