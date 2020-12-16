@@ -30,7 +30,7 @@ use sc_keystore::LocalKeystore;
 use sp_application_crypto::AppKey;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::{sync::Arc, time::Duration};
-use maplit::{hashset, hashmap};
+use maplit::hashmap;
 
 macro_rules! view {
 	( $( $hash:expr ),* $(,)? ) => { View(vec![ $( $hash.clone() ),* ]) };
@@ -51,7 +51,6 @@ struct TestHarness {
 
 fn test_harness<T: Future<Output = ()>>(
 	keystore: SyncCryptoStorePtr,
-	mut state: ProtocolState,
 	test_fx: impl FnOnce(TestHarness) -> T,
 ) -> ProtocolState {
 	sp_tracing::try_init_simple();
@@ -60,6 +59,7 @@ fn test_harness<T: Future<Output = ()>>(
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let subsystem = AvailabilityDistributionSubsystem::new(keystore, Default::default());
+	let mut state = ProtocolState::default();
 	{
 		let subsystem = subsystem.run_inner(context, &mut state);
 
@@ -506,7 +506,7 @@ fn check_views() {
 	let current = test_state.relay_parent;
 	let ancestors = test_state.ancestors.clone();
 
-	let state = test_harness(keystore, ProtocolState::default(), move |test_harness| async move {
+	let state = test_harness(keystore, move |test_harness| async move {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
@@ -600,23 +600,9 @@ fn reputation_verification() {
 	let peer_b = PeerId::random();
 	assert_ne!(&peer_a, &peer_b);
 
-	let rp0 = Hash::repeat_byte(0xFA);
-	let rp1 = Hash::repeat_byte(0x55);
-
-	let state = ProtocolState {
-		peer_views: hashmap!{
-			peer_a.clone() => view![ rp0 ],
-		},
-		view: view![Hash::repeat_byte(0xFA)],
-		receipts: hashmap! {
-			rp1 => hashset! { test_state.candidates[0].hash() },
-		},
-		.. Default::default()
-	};
-
 	let keystore = test_state.keystore.clone();
 
-	test_harness(keystore, state, move |test_harness| async move {
+	test_harness(keystore, move |test_harness| async move {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
@@ -893,7 +879,7 @@ fn not_a_live_candidate_is_detected() {
 
 	let keystore = test_state.keystore.clone();
 
-	test_harness(keystore, Default::default(), move |test_harness| async move {
+	test_harness(keystore, move |test_harness| async move {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
