@@ -638,16 +638,7 @@ mod tests {
 		pub const ProposalBondMinimum: u64 = 1;
 		pub const SpendPeriod: u64 = 2;
 		pub const Burn: Permill = Permill::from_percent(50);
-		pub const TipCountdown: u64 = 1;
-		pub const TipFindersFee: Percent = Percent::from_percent(20);
-		pub const TipReportDepositBase: u64 = 1;
 		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
-		pub const DataDepositPerByte: u64 = 1;
-		pub const BountyDepositBase: u64 = 1;
-		pub const BountyDepositPayoutDelay: u64 = 1;
-		pub const BountyUpdatePeriod: u64 = 1;
-		pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-		pub const BountyValueMinimum: u64 = 1;
 	}
 	pub struct Nobody;
 	impl Contains<u64> for Nobody {
@@ -671,7 +662,6 @@ mod tests {
 		type SpendPeriod = SpendPeriod;
 		type Burn = Burn;
 		type BurnDestination = ();
-		type DataDepositPerByte = DataDepositPerByte;
 		type ModuleId = TreasuryModuleId;
 		type SpendFunds = ();
 		type WeightInfo = ();

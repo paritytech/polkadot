@@ -165,7 +165,6 @@ mod tests {
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
-		type DataDepositPerByte = ();
 		type ModuleId = TreasuryModuleId;
 		type SpendFunds = ();
 		type WeightInfo = ();
