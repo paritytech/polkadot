@@ -640,17 +640,6 @@ mod tests {
 		pub const Burn: Permill = Permill::from_percent(50);
 		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 	}
-	pub struct Nobody;
-	impl Contains<u64> for Nobody {
-		fn contains(_: &u64) -> bool { false }
-		fn sorted_members() -> Vec<u64> { vec![] }
-		#[cfg(feature = "runtime-benchmarks")]
-		fn add(_: &u64) { unimplemented!() }
-	}
-	impl ContainsLengthBound for Nobody {
-		fn min_len() -> usize { 0 }
-		fn max_len() -> usize { 0 }
-	}
 	impl pallet_treasury::Config for Test {
 		type Currency = pallet_balances::Module<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<u64>;
