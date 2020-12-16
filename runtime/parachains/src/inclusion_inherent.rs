@@ -27,7 +27,7 @@ use primitives::v1::{
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
-	dispatch::DispatchResultWithPostInfo,
+	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 	traits::Get,
 };
@@ -82,12 +82,15 @@ decl_module! {
 		}
 
 		/// Include backed candidates and bitfields.
-		#[weight = (INCLUSION_INHERENT_CLAIMED_WEIGHT, DispatchClass::Mandatory)]
+		#[weight = (
+			MINIMAL_INCLUSION_INHERENT_WEIGHT + backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
+			DispatchClass::Mandatory,
+		)]
 		pub fn inclusion(
 			origin,
 			signed_bitfields: SignedAvailabilityBitfields,
 			backed_candidates: Vec<BackedCandidate<T::Hash>>,
-		) -> DispatchResultWithPostInfo {
+		) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
 
@@ -113,7 +116,6 @@ decl_module! {
 			<scheduler::Module<T>>::schedule(freed);
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
-			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Process backed candidates according to scheduled cores.
 			let occupied = <inclusion::Module<T>>::process_candidates(
@@ -131,10 +133,7 @@ decl_module! {
 			// And track that we've finished processing the inherent for this block.
 			Included::set(Some(()));
 
-			Ok(Some(
-				MINIMAL_INCLUSION_INHERENT_WEIGHT +
-				(backed_candidates_len * BACKED_CANDIDATE_WEIGHT)
-			).into())
+			Ok(())
 		}
 	}
 }
