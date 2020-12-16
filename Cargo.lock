@@ -4884,6 +4884,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-approval-distribution"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.10",
+ "polkadot-node-network-protocol",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
 name = "polkadot-availability-bitfield-distribution"
 version = "0.1.0"
 dependencies = [
@@ -5286,6 +5300,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "sp-consensus-slots",
  "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
@@ -5680,6 +5695,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
+ "polkadot-approval-distribution",
  "polkadot-availability-bitfield-distribution",
  "polkadot-availability-distribution",
  "polkadot-availability-recovery",

@@ -95,6 +95,8 @@ struct BlockApprovalMeta {
 	hash: Hash,
 	/// The number of the block.
 	number: BlockNumber,
+	/// The hash of the parent block.
+	parent_hash: Hash,
 	/// The candidates included by the block. Note that these are not the same as the candidates that appear within the
 	/// block body.
 	candidates: Vec<CandidateHash>,

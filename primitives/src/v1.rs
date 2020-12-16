@@ -150,6 +150,9 @@ mod assigment_app {
 /// to approve included parachain candidates.
 pub type AssignmentId = assigment_app::Public;
 
+/// The index of the candidate in the list of candidates fully included as-of the block.
+pub type CandidateIndex = u32;
+
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	relay_parent: &H,
