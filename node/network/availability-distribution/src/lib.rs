@@ -418,7 +418,7 @@ where
 				.cloned()
 				.collect::<Vec<_>>();
 
-			send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await;
+			send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await;
 		}
 	}
 
@@ -427,34 +427,6 @@ where
 	state.clean_up_receipts_cache();
 
 	Ok(())
-}
-
-#[inline(always)]
-async fn send_tracked_gossip_message_to_peers<Context>(
-	ctx: &mut Context,
-	per_candidate: &mut PerCandidate,
-	metrics: &Metrics,
-	peers: Vec<PeerId>,
-	message: AvailabilityGossipMessage,
-)
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await
-}
-
-#[inline(always)]
-async fn send_tracked_gossip_messages_to_peer<Context>(
-	ctx: &mut Context,
-	per_candidate: &mut PerCandidate,
-	metrics: &Metrics,
-	peer: PeerId,
-	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
-)
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![peer], message_iter).await
 }
 
 #[tracing::instrument(level = "trace", skip(ctx, metrics, message_iter), fields(subsystem = LOG_TARGET))]
@@ -533,7 +505,7 @@ where
 			.cloned()
 			.collect::<HashSet<_>>();
 
-		send_tracked_gossip_messages_to_peer(ctx, per_candidate, metrics, origin.clone(), messages).await;
+		send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![origin.clone()], messages).await;
 	}
 }
 
@@ -690,7 +662,7 @@ where
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
-	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await;
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await;
 	Ok(())
 }
 
