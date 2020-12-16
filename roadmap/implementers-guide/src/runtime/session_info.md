@@ -8,12 +8,13 @@ Helper structs:
 
 ```rust
 struct SessionInfo {
-    // validators in canonical ordering.
+    // validators in canonical ordering. These are the public keys used for backing,
+    // dispute participation, and approvals.
     validators: Vec<ValidatorId>,
     // validators' authority discovery keys for the session in canonical ordering.
     discovery_keys: Vec<DiscoveryId>,
-    // The assignment and approval keys for validators.
-    approval_keys: Vec<(AssignmentId, ApprovalId)>,
+    // The assignment keys for validators.
+    assignment_keys: Vec<AssignmentId>,
     // validators in shuffled ordering - these are the validator groups as produced
     // by the `Scheduler` module for the session and are typically referred to by
     // `GroupIndex`.

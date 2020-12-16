@@ -28,13 +28,13 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
+	SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
 	impls::ToAuthor,
-	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
 };
 use runtime_parachains::{
 	self,
@@ -81,6 +81,15 @@ use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_staking::StakerStatus;
+
+use polkadot_parachain::primitives::Id as ParaId;
+use xcm::v0::{MultiLocation, NetworkId};
+use xcm_executor::traits::IsConcrete;
+use xcm_builder::{
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
+	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
+	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+};
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -148,7 +157,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub parachain_validator: Initializer,
+		pub para_validator: Initializer,
+		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -190,6 +200,7 @@ construct_runtime! {
 		Dmp: parachains_dmp::{Module, Call, Storage},
 		Ump: parachains_ump::{Module, Call, Storage},
 		Hrmp: parachains_hrmp::{Module, Call, Storage},
+		SessionInfo: parachains_session_info::{Module, Call, Storage},
 
 		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
@@ -212,6 +223,9 @@ parameter_types! {
 
 impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
+	type BlockWeights = BlockWeights;
+	type BlockLength = BlockLength;
+	type DbWeight = RocksDbWeight;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -223,13 +237,6 @@ impl frame_system::Config for Runtime {
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = RocksDbWeight;
-	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
@@ -364,7 +371,7 @@ impl pallet_staking::Config for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = MaximumBlockWeight;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 }
@@ -398,7 +405,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -537,10 +544,51 @@ impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 }
 
+parameter_types! {
+	pub const RocLocation: MultiLocation = MultiLocation::Null;
+	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
+	pub const Ancestry: MultiLocation = MultiLocation::Null;
+}
+
+pub type LocationConverter = (
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<RococoNetwork, AccountId>,
+);
+
+pub type LocalAssetTransactor =
+	XcmCurrencyAdapter<
+		// Use this currency:
+		Balances,
+		// Use this currency when it is a fungible asset matching the given location or name:
+		IsConcrete<RocLocation>,
+		// We can convert the MultiLocations with our converter above:
+		LocationConverter,
+		// Our chain's account ID type (we can't get away without mentioning it explicitly):
+		AccountId,
+	>;
+
+type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+);
+
+pub struct XcmConfig;
+impl xcm_executor::Config for XcmConfig {
+	type Call = Call;
+	type XcmSender = ();
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	type IsReserve = ();
+	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
+}
+
 impl parachains_session_info::Config for Runtime {}
 
 impl parachains_ump::Config for Runtime {
-	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
+	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -692,7 +740,7 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+		fn session_info(index: SessionIndex) -> Option<SessionInfoData> {
 			runtime_api_impl::session_info::<Runtime>(index)
 		}
 

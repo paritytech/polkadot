@@ -37,9 +37,10 @@ use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
+	jaeger,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
-		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
+		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
 		ProvisionerMessage, StatementDistributionMessage, ValidationFailed, RuntimeApiRequest,
 	},
 };
@@ -74,11 +75,17 @@ enum Error {
 	#[error("Signature is invalid")]
 	InvalidSignature,
 	#[error("Failed to send candidates {0:?}")]
-	Send(Vec<NewBackedCandidate>),
-	#[error("Oneshot never resolved")]
-	Oneshot(#[from] #[source] oneshot::Canceled),
+	Send(Vec<BackedCandidate>),
+	#[error("FetchPoV channel closed before receipt")]
+	FetchPoV(#[source] oneshot::Canceled),
+	#[error("ValidateFromChainState channel closed before receipt")]
+	ValidateFromChainState(#[source] oneshot::Canceled),
+	#[error("StoreAvailableData channel closed before receipt")]
+	StoreAvailableData(#[source] oneshot::Canceled),
+	#[error("a channel was closed before receipt in try_join!")]
+	JoinMultiple(#[source] oneshot::Canceled),
 	#[error("Obtaining erasure chunks failed")]
-	ObtainErasureChunks(#[from] #[source] erasure_coding::Error),
+	ObtainErasureChunks(#[from] erasure_coding::Error),
 	#[error(transparent)]
 	ValidationFailed(#[from] ValidationFailed),
 	#[error(transparent)]
@@ -124,7 +131,7 @@ struct CandidateBackingJob {
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJobCommand>,
 	/// The `ParaId` assigned to this validator
-	assignment: ParaId,
+	assignment: Option<ParaId>,
 	/// The collator required to author the candidate, if any.
 	required_collator: Option<CollatorId>,
 	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.
@@ -270,7 +277,7 @@ async fn store_available_data(
 		).into()
 	).await?;
 
-	let _ = rx.await?;
+	let _ = rx.await.map_err(Error::StoreAvailableData)?;
 
 	Ok(())
 }
@@ -328,7 +335,7 @@ async fn request_pov_from_distribution(
 		PoVDistributionMessage::FetchPoV(parent, descriptor, tx)
 	).into()).await?;
 
-	Ok(rx.await?)
+	rx.await.map_err(Error::FetchPoV)
 }
 
 async fn request_candidate_validation(
@@ -347,7 +354,11 @@ async fn request_candidate_validation(
 		).into()
 	).await?;
 
-	Ok(rx.await??)
+	match rx.await {
+		Ok(Ok(validation_result)) => Ok(validation_result),
+		Ok(Err(err)) => Err(Error::ValidationFailed(err)),
+		Err(err) => Err(Error::ValidateFromChainState(err)),
+	}
 }
 
 type BackgroundValidationResult = Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
@@ -394,6 +405,12 @@ async fn validate_and_make_available(
 		ValidationResult::Valid(commitments, validation_data) => {
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
+				tracing::trace!(
+					target: LOG_TARGET,
+					candidate_receipt = ?candidate,
+					actual_commitments = ?commitments,
+					"Commitments obtained with validation don't match the announced by the candidate receipt",
+				);
 				Err(candidate)
 			} else {
 				let erasure_valid = make_pov_available(
@@ -408,11 +425,25 @@ async fn validate_and_make_available(
 
 				match erasure_valid {
 					Ok(()) => Ok((candidate, commitments, pov.clone())),
-					Err(InvalidErasureRoot) => Err(candidate),
+					Err(InvalidErasureRoot) => {
+						tracing::trace!(
+							target: LOG_TARGET,
+							candidate_receipt = ?candidate,
+							actual_commitments = ?commitments,
+							"Erasure root doesn't match the announced by the candidate receipt",
+						);
+						Err(candidate)
+					},
 				}
 			}
 		}
-		ValidationResult::Invalid(_reason) => {
+		ValidationResult::Invalid(reason) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				candidate_receipt = ?candidate,
+				reason = ?reason,
+				"Validation yielded an invalid candidate",
+			);
 			Err(candidate)
 		}
 	};
@@ -427,10 +458,12 @@ impl CandidateBackingJob {
 	async fn run_loop(
 		mut self,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
+		span: &jaeger::JaegerSpan
 	) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
+					let _span = span.child("background validation");
 					if let Some(c) = validated_command {
 						self.handle_validated_candidate_command(c).await?;
 					} else {
@@ -440,6 +473,7 @@ impl CandidateBackingJob {
 				to_job = rx_to.next() => match to_job {
 					None => break,
 					Some(msg) => {
+						let _span = span.child("process message");
 						self.process_msg(msg).await?;
 					}
 				}
@@ -567,21 +601,6 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn get_backed(&self) -> Vec<NewBackedCandidate> {
-		let proposed = self.table.proposed_candidates(&self.table_context);
-		let mut res = Vec::with_capacity(proposed.len());
-
-		for p in proposed.into_iter() {
-			match table_attested_to_backed(p, &self.table_context) {
-				None => continue,
-				Some(backed) => res.push(NewBackedCandidate(backed)),
-			}
-		}
-
-		res
-	}
-
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
 	///
 	/// TODO: Report multiple misbehaviors (https://github.com/paritytech/polkadot/issues/1387)
@@ -641,7 +660,7 @@ impl CandidateBackingJob {
 					{
 						let message = ProvisionerMessage::ProvisionableData(
 							self.parent,
-							ProvisionableData::BackedCandidate(backed),
+							ProvisionableData::BackedCandidate(backed.receipt()),
 						);
 						self.send_to_provisioner(message).await?;
 					}
@@ -661,7 +680,7 @@ impl CandidateBackingJob {
 				let _timer = self.metrics.time_process_second();
 
 				// Sanity check that candidate is from our assignment.
-				if candidate.descriptor().para_id != self.assignment {
+				if Some(candidate.descriptor().para_id) != self.assignment {
 					return Ok(());
 				}
 
@@ -688,10 +707,16 @@ impl CandidateBackingJob {
 					Ok(()) => (),
 				}
 			}
-			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
+			CandidateBackingMessage::GetBackedCandidates(_, requested_candidates, tx) => {
 				let _timer = self.metrics.time_get_backed_candidates();
 
-				let backed = self.get_backed();
+				let backed = requested_candidates
+					.into_iter()
+					.filter_map(|hash| {
+						self.table.attested_candidate(&hash, &self.table_context)
+							.and_then(|attested| table_attested_to_backed(attested, &self.table_context))
+					})
+					.collect();
 
 				tx.send(backed).map_err(|data| Error::Send(data))?;
 			}
@@ -733,7 +758,7 @@ impl CandidateBackingJob {
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
 			tx_command: self.background_validation_tx.clone(),
-			candidate: candidate,
+			candidate,
 			relay_parent: self.parent,
 			pov: None,
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
@@ -750,7 +775,7 @@ impl CandidateBackingJob {
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement).await? {
 			if let Statement::Seconded(_) = statement.payload() {
-				if summary.group_id == self.assignment {
+				if Some(summary.group_id) == self.assignment {
 					self.kick_off_validation_work(summary).await?;
 				}
 			}
@@ -849,21 +874,27 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
+			let span = jaeger::hash_span(&parent, "run:backing");
+			let _span = span.child("runtime apis");
+
 			let (validators, groups, session_index, cores) = futures::try_join!(
-				request_validators(parent, &mut tx_from).await?,
-				request_validator_groups(parent, &mut tx_from).await?,
-				request_session_index_for_child(parent, &mut tx_from).await?,
-				request_from_runtime(
+				try_runtime_api!(request_validators(parent, &mut tx_from).await),
+				try_runtime_api!(request_validator_groups(parent, &mut tx_from).await),
+				try_runtime_api!(request_session_index_for_child(parent, &mut tx_from).await),
+				try_runtime_api!(request_from_runtime(
 					parent,
 					&mut tx_from,
 					|tx| RuntimeApiRequest::AvailabilityCores(tx),
-				).await?,
-			)?;
+				).await),
+			).map_err(Error::JoinMultiple)?;
 
 			let validators = try_runtime_api!(validators);
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 			let session_index = try_runtime_api!(session_index);
 			let cores = try_runtime_api!(cores);
+
+			drop(_span);
+			let _span = span.child("validator construction");
 
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
@@ -883,6 +914,10 @@ impl util::JobTrait for CandidateBackingJob {
 					return Ok(())
 				}
 			};
+
+			drop(_span);
+			let _span = span.child("calc validator groups");
+
 
 			let mut groups = HashMap::new();
 
@@ -911,9 +946,12 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			let (assignment, required_collator) = match assignment {
-				None => return Ok(()), // no need to work.
-				Some(r) => r,
+				None => (None, None),
+				Some((assignment, required_collator)) => (Some(assignment), required_collator),
 			};
+
+			drop(_span);
+			let _span = span.child("wait for candidate backing job");
 
 			let (background_tx, background_rx) = mpsc::channel(16);
 			let job = CandidateBackingJob {
@@ -933,10 +971,10 @@ impl util::JobTrait for CandidateBackingJob {
 				background_validation_tx: background_tx,
 				metrics,
 			};
+			drop(_span);
 
-			job.run_loop(rx_to).await
-		}
-		.boxed()
+			job.run_loop(rx_to, &span).await
+		}.boxed()
 	}
 }
 
@@ -1492,22 +1530,10 @@ mod tests {
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
 						_,
-						ProvisionableData::BackedCandidate(BackedCandidate {
-							candidate,
-							validity_votes,
-							validator_indices,
-						})
+						ProvisionableData::BackedCandidate(candidate_receipt)
 					)
-				) if candidate == candidate_a => {
-					assert_eq!(validity_votes.len(), 3);
-
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Explicit(signed_b.signature().clone())
-					));
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Implicit(signed_a.signature().clone())
-					));
-					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0, 1]);
+				) => {
+					assert_eq!(candidate_receipt, candidate_a.to_plain());
 				}
 			);
 
@@ -1635,27 +1661,37 @@ mod tests {
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
 						_,
-						ProvisionableData::BackedCandidate(BackedCandidate {
-							candidate,
-							validity_votes,
-							validator_indices,
+						ProvisionableData::BackedCandidate(CandidateReceipt {
+							descriptor,
+							..
 						})
 					)
-				) if candidate == candidate_a => {
-					assert_eq!(validity_votes.len(), 3);
-
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Implicit(signed_a.signature().clone())
-					));
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Explicit(signed_b.signature().clone())
-					));
-					assert!(validity_votes.contains(
-						&ValidityAttestation::Explicit(signed_c.signature().clone())
-					));
-					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
-				}
+				) if descriptor == candidate_a.descriptor
 			);
+
+			let (tx, rx) = oneshot::channel();
+			let msg = CandidateBackingMessage::GetBackedCandidates(
+				test_state.relay_parent,
+				vec![candidate_a.hash()],
+				tx,
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg }).await;
+
+			let candidates = rx.await.unwrap();
+			assert_eq!(1, candidates.len());
+			assert_eq!(candidates[0].validity_votes.len(), 3);
+
+			assert!(candidates[0].validity_votes.contains(
+				&ValidityAttestation::Implicit(signed_a.signature().clone())
+			));
+			assert!(candidates[0].validity_votes.contains(
+				&ValidityAttestation::Explicit(signed_b.signature().clone())
+			));
+			assert!(candidates[0].validity_votes.contains(
+				&ValidityAttestation::Explicit(signed_c.signature().clone())
+			));
+			assert_eq!(candidates[0].validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
 
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
@@ -2190,6 +2226,7 @@ mod tests {
 			let (tx, rx) = oneshot::channel();
 			let msg = CandidateBackingMessage::GetBackedCandidates(
 				test_state.relay_parent,
+				vec![candidate.hash()],
 				tx,
 			);
 

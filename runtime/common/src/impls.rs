@@ -72,7 +72,8 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::{impl_outer_origin, parameter_types, weights::Weight};
+	use frame_system::limits;
+	use frame_support::{impl_outer_origin, parameter_types, weights::DispatchClass};
 	use frame_support::traits::FindAuthor;
 	use sp_core::H256;
 	use sp_runtime::{
@@ -91,9 +92,15 @@ mod tests {
 
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
-		pub const ExtrinsicBaseWeight: u64 = 100;
-		pub const MaximumBlockWeight: Weight = 1024;
-		pub const MaximumBlockLength: u32 = 2 * 1024;
+		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
+			.for_class(DispatchClass::all(), |weight| {
+				weight.base_extrinsic = 100;
+			})
+			.for_class(DispatchClass::non_mandatory(), |weight| {
+				weight.max_total = Some(1024);
+			})
+			.build_or_panic();
+		pub BlockLength: limits::BlockLength = limits::BlockLength::max(2 * 1024);
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
 	}
 
@@ -110,13 +117,9 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
+		type BlockLength = BlockLength;
+		type BlockWeights = BlockWeights;
 		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u64>;

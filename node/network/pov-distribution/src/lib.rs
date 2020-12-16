@@ -700,14 +700,7 @@ impl PoVDistribution {
 			// peer view update messages may be racy and we want connection notifications
 			// first.
 			futures::select_biased! {
-				v = state.connection_requests.next() => {
-					match v {
-						Some((_relay_parent, _validator_id, peer_id)) => {
-							handle_validator_connected(&mut state, peer_id);
-						}
-						None => break,
-					}
-				}
+				v = state.connection_requests.next().fuse() => handle_validator_connected(&mut state, v.peer_id),
 				v = ctx.recv().fuse() => {
 					match v? {
 						FromOverseer::Signal(signal) => if handle_signal(
@@ -743,10 +736,8 @@ impl PoVDistribution {
 						}
 					}
 				}
-			};
+			}
 		}
-
-		Ok(())
 	}
 }
 

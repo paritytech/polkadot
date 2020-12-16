@@ -28,6 +28,7 @@ use runtime_parachains::{
 	configuration, dmp, ump, hrmp, paras::{self, ParaGenesisArgs},
 };
 use primitives::v1::Id as ParaId;
+use parity_scale_codec::Encode;
 
 /// The module's configuration trait.
 pub trait Config:
@@ -73,20 +74,44 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Send a downward message to the given para.
+		/// Send a downward XCM to the given para.
 		///
 		/// The given parachain should exist and the payload should not exceed the preconfigured size
 		/// `config.max_downward_message_size`.
 		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn sudo_queue_downward_message(origin, id: ParaId, payload: Vec<u8>) -> DispatchResult {
+		pub fn sudo_queue_downward_xcm(origin, id: ParaId, xcm: xcm::VersionedXcm) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Module<T>>::config();
-			<dmp::Module<T>>::queue_downward_message(&config, id, payload)
+			<dmp::Module<T>>::queue_downward_message(&config, id, xcm.encode())
 				.map_err(|e| match e {
 					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
 						Error::<T>::ExceedsMaxMessageSize.into(),
 				})
+		}
+
+		/// Forcefully establish a channel from the sender to the recipient.
+		///
+		/// This is equivalent to sending an `Hrmp::hrmp_init_open_channel` extrinsic followed by
+		/// `Hrmp::hrmp_accept_open_channel`.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn sudo_establish_hrmp_channel(
+			origin,
+			sender: ParaId,
+			recipient: ParaId,
+			max_capacity: u32,
+			max_message_size: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			<hrmp::Module<T>>::init_open_channel(
+				sender,
+				recipient,
+				max_capacity,
+				max_message_size,
+			)?;
+			<hrmp::Module<T>>::accept_open_channel(recipient, sender)?;
+			Ok(())
 		}
 	}
 }
