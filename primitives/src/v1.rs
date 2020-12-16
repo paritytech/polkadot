@@ -754,6 +754,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode>;
 
@@ -762,26 +763,28 @@ sp_api::decl_runtime_apis! {
 		///
 		/// `context_height` may be no greater than the height of the block in whose
 		/// state the runtime API is executed.
+		#[skip_initialize_block]
 		fn historical_validation_code(para_id: Id, context_height: N)
 			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
+		#[skip_initialize_block]
 		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
 
 		/// Get a vector of events concerning candidates that occurred within a block.
-		// NOTE: this needs to skip block initialization as events are wiped within block
-		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
 
 		/// Get all the pending inbound messages in the downward message queue for a para.
+		#[skip_initialize_block]
 		fn dmq_contents(
 			recipient: Id,
 		) -> Vec<InboundDownwardMessage<N>>;
 
 		/// Get the contents of all channels addressed to the given recipient. Channels that have no
 		/// messages in them are also included.
+		#[skip_initialize_block]
 		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
 	}
 }
