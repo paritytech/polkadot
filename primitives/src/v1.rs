@@ -721,9 +721,9 @@ sp_api::decl_runtime_apis! {
 		//
 		// We dont want (b) mainly because block initialization can be very heavy. Upgrade enactment,
 		// storage migration, and whatever other logic exists in `on_initialize` will be executed
-		// if not explicitly opted out with the `#[skip_initalize_block]` attribute.
+		// if not explicitly opted out with the `#[skip_initialize_block]` attribute.
 		//
-		// Additionally, some runtime APIs may depend on state that is pruned on the `on_initilize`.
+		// Additionally, some runtime APIs may depend on state that is pruned on the `on_initialize`.
 		// At the moment of writing, this is `candidate_events`.
 
 		/// Get the current validators.
