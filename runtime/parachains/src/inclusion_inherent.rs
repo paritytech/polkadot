@@ -154,10 +154,9 @@ decl_module! {
 fn limit_backed_candidates<T: Config>(
 	backed_candidates: Vec<BackedCandidate<T::Hash>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
-	let block_weight_remaining = <T as frame_system::Config>::BlockWeights::get().max_block
-		.saturating_sub(frame_system::Module::<T>::block_weight().total());
-
-	if backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT > block_weight_remaining  {
+	// the weight of the inclusion inherent is already included in the current block weight,
+	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
+	if frame_system::Module::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
 		Vec::new()
 	} else {
 		backed_candidates
