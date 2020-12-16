@@ -407,7 +407,7 @@ where
 					?candidate_hash,
 					"Availability store reported that we have the availability data, but we could not retrieve a chunk of it!",
 				);
-				break;
+				continue;
 			};
 
 			debug_assert_eq!(message.erasure_chunk.index, chunk_index);
