@@ -355,7 +355,7 @@ fn derive_erasure_chunks_with_proofs(
 async fn expect_chunks_network_message(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	peers: &[PeerId],
-	candidate_hash: CandidateHash,
+	candidates: &[CandidateHash],
 	chunks: &[ErasureChunk],
 ) {
 	for _ in 0..chunks.len() {
@@ -369,7 +369,7 @@ async fn expect_chunks_network_message(
 					),
 				)
 			) => {
-				assert_eq!(candidate_hash, send_candidate);
+				assert!(candidates.contains(&send_candidate), format!("Could not find candidate: {:?}", send_candidate));
 				assert!(chunks.iter().any(|c| c == &send_chunk), format!("Could not find chunk: {:?}", send_chunk));
 				assert_eq!(peers.len(), send_peers.len());
 				assert!(peers.iter().all(|p| send_peers.contains(p)));
@@ -511,7 +511,7 @@ async fn change_our_view(
 				);
 
 				if let Some(peers) = send_chunks_to.get(&candidate_hash) {
-					expect_chunks_network_message(virtual_overseer, &peers, candidate_hash, &[chunk]).await;
+					expect_chunks_network_message(virtual_overseer, &peers, &[candidate_hash], &[chunk]).await;
 				}
 			}
 		}
@@ -706,15 +706,6 @@ fn reputation_verification() {
 		// valid (second, from a)
 		peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE).await;
 
-		// peer a is not interested in anything anymore
-		overseer_send(
-			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![]),
-			),
-		)
-		.await;
-
 		// send the a message again, so we should detect the duplicate
 		peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), COST_PEER_DUPLICATE_MESSAGE).await;
 
@@ -740,18 +731,18 @@ fn reputation_verification() {
 			// Both peers send us this chunk already
 			chunks.remove(2);
 
-			expect_chunks_network_message(&mut virtual_overseer, &[peer_a.clone()], candidates[0].hash(), &chunks).await;
+			expect_chunks_network_message(&mut virtual_overseer, &[peer_a.clone()], &[candidates[0].hash()], &chunks).await;
 
 			overseer_send(&mut virtual_overseer, NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![current])).await;
 
-			expect_chunks_network_message(&mut virtual_overseer, &[peer_b.clone()], candidates[0].hash(), &chunks).await;
+			expect_chunks_network_message(&mut virtual_overseer, &[peer_b.clone()], &[candidates[0].hash()], &chunks).await;
 
 			peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			expect_chunks_network_message(
 				&mut virtual_overseer,
 				&[peer_b.clone()],
-				candidates[1].hash(),
+				&[candidates[1].hash()],
 				&[valid.erasure_chunk.clone()],
 			).await;
 
@@ -923,7 +914,7 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 		expect_chunks_network_message(
 			&mut virtual_overseer,
 			&[peer_a],
-			candidates[0].hash(),
+			&[candidates[0].hash()],
 			&chunks,
 		).await;
 	});
@@ -1224,4 +1215,71 @@ fn query_pending_availability_at_pulls_from_and_updates_receipts() {
 	futures::pin_mut!(answer);
 
 	executor::block_on(future::join(test_fut, answer));
+}
+
+#[test]
+fn new_peer_gets_all_chunks_send() {
+	let test_state = TestState::default();
+
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	assert_ne!(&peer_a, &peer_b);
+
+	let keystore = test_state.keystore.clone();
+
+	test_harness(keystore, move |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+
+		let TestState {
+			relay_parent: current,
+			validator_public,
+			ancestors,
+			candidates,
+			pov_blocks,
+			..
+		} = test_state.clone();
+
+		let valid = make_valid_availability_gossip(
+			&test_state,
+			1,
+			2,
+		);
+
+		change_our_view(
+			&mut virtual_overseer,
+			view![current],
+			&validator_public,
+			vec![ancestors[0]],
+			hashmap! { current => 1 },
+			hashmap! {
+				current => vec![
+					dummy_occupied_core(candidates[0].descriptor.para_id),
+					dummy_occupied_core(candidates[1].descriptor.para_id)
+				],
+			},
+			hashmap! { current => vec![candidates[0].clone(), candidates[1].clone()] },
+			hashmap! { candidates[0].hash() => true, candidates[1].hash() => false },
+			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
+			hashmap! {},
+		).await;
+
+		peer_send_message(&mut virtual_overseer, peer_b.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+
+		setup_peer_with_view(&mut virtual_overseer, peer_a.clone(), view![current]).await;
+
+		let mut chunks = make_erasure_chunks(
+			test_state.persisted_validation_data.clone(),
+			validator_public.len(),
+			pov_blocks[0].clone(),
+		);
+
+		chunks.push(valid.erasure_chunk);
+
+		expect_chunks_network_message(
+			&mut virtual_overseer,
+			&[peer_a],
+			&[candidates[0].hash(), candidates[1].hash()],
+			&chunks,
+		).await;
+	});
 }
