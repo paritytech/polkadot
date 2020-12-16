@@ -23,6 +23,7 @@ use std::collections::HashMap;
 use futures::prelude::*;
 use futures::stream::FuturesUnordered;
 use futures::channel::{oneshot, mpsc};
+use lru::LruCache;
 
 use polkadot_primitives::v1::{
 	AvailableData, CandidateReceipt, CandidateHash,
@@ -56,6 +57,12 @@ const LOG_TARGET: &str = "availability_recovery";
 
 const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Merkle proof was invalid");
 const COST_UNEXPECTED_CHUNK: Rep = Rep::new(-100, "Peer has sent an unexpected chunk");
+
+// How many parallel requests interaction should have going at once.
+const N_PARALLEL: usize = 50;
+
+// Size of the LRU cache where we keep recovered data.
+const LRU_SIZE: usize = 16;
 
 /// Compute the threshold from the number of validators.
 ///
@@ -139,9 +146,6 @@ struct Interaction {
 
 impl Interaction {
 	async fn run(mut self) {
-		// How many parallel requests to have going at once.
-		const N_PARALLEL: usize = 50;
-
 		loop {
 			// If it's empty and requesting_chunks is empty,
 			// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
@@ -252,7 +256,7 @@ struct State {
     from_interaction_rx: mpsc::Receiver<FromInteraction>,
 
     /// An LRU cache of recently recovered data.
-    availability_lru: HashMap<CandidateHash, Result<AvailableData, RecoveryError>>,
+    availability_lru: LruCache<CandidateHash, Result<AvailableData, RecoveryError>>,
 }
 
 impl Default for State {
@@ -268,7 +272,7 @@ impl Default for State {
 		    live_chunk_requests: HashMap::new(),
 		    next_request_id: 0,
 		    connection_requests: Default::default(),
-		    availability_lru: HashMap::default(),
+		    availability_lru: LruCache::new(LRU_SIZE),
 		}
 	}
 }
@@ -456,7 +460,7 @@ async fn handle_from_interaction(
 				);
 			}
 
-			state.availability_lru.insert(candidate_hash, result);
+			state.availability_lru.put(candidate_hash, result);
 		}
 	    FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
 			let relay_parent = state.live_block_hash;
