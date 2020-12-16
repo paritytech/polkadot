@@ -140,10 +140,12 @@ fn read_db<D: Decode>(
 	}
 }
 
+///////////
+
 /// Track up to which point all data was pruned.
 const OLDEST_SESSION_SLOT_ENTRY: &[u8] = b"vote/prune/waterlevel";
 
-///
+/// Obtain the vote for a particular validator for a particular session and candidate hash.
 #[inline(always)]
 fn derive_key_per_hash(session: SessionIndex, candidate_hash: CandidateHash) -> String {
 	format!(
@@ -174,15 +176,17 @@ fn derive_prune_prefix(session: SessionIndex) -> String {
 	)
 }
 
-/// Derive the prefix key for collecting all votes of a particular
+/// Derive the prefix key for collecting all votes of a particular validator
+/// Contains a `Vec<(SessionIndex, ValidatorIndex, Vote)>` as value.
 #[inline(always)]
 fn derive_disputes_per_validator_prefix(validator: ValidatorId) -> String {
 	format!(
-		"validator/{validator}/votes",
+		"validator/{validator}/participations",
 		validator = validator
 	)
-	// TODO also store the validator under this message
 }
+
+////////////////////////////////////////////////////////////////////////////////////////
 
 /// Returns the oldest session index for which entries are not pruned yet.
 fn oldest_session_waterlevel(db: &Arc<dyn KeyValueDB>) -> SessionIndex {
@@ -233,6 +237,24 @@ fn prune_votes_older_than_session(db: &Arc<dyn KeyValueDB>, session: SessionInde
 	Ok(())
 }
 
+
+/// Resolve validator to the set of indices and validator ids the validator was active
+async fn resolve_validator(db: &Arc<dyn KeyValueDB>, validator: ValidatorId) -> Option<Vec<(SessionIndex,ValidatorIndex)>> {
+	read_db(db, columns::DATA,derive_disputes_per_validator_prefix(validator)).map(|v| {
+		v.into_iter().map(|(session, validator, _vote)| { (session, validator)}).collect()
+	})
+}
+
+/// Resolve a validator from a defined set to it's public key.
+async fn resolve_validator_reverse(validator: (SessionIndex,ValidatorIndex)) -> Option<ValidatorId> {
+	unimplemented!("resolve (SessionIndex,ValidatorIndex) -> Option<ValidatorId>")
+}
+
+/// Helper.
+async fn resolve_resolve(validator: (SessionIndex,ValidatorIndex)) -> Option<Vec<(SessionIndex,ValidatorIndex)>> {
+	let validator_pub = resolve_validator_reverse(validator)?;
+	resolve_validator(validator_pub)
+}
 
 #[derive(Debug, Clone, Copy)]
 enum CandidateQuorum {
@@ -372,6 +394,7 @@ where
 	Ok(check_supermajority(n, pro, con))
 }
 
+/// returns a map of  `VoteEvents` which can either be `DoubleVote`, `Stored`,
 fn store_votes_inner<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
@@ -414,7 +437,7 @@ where
 			} else {
 				let v = vote.encode();
 				transaction.put(columns::DATA, k ,v);
-				Vote::Stored
+				VoteEvent::Success
 			};
 			Some(event)
 	}).collect();
@@ -426,18 +449,22 @@ where
 
 
 /// Checks a set of given candidats whether the dispute
+/// already reached the required votes for a supermajority.
+///
+/// All the disputes that reached the required quorum, will be
+/// represented in the returned `HashMap`.
 pub async fn check_for_supermajority<Context>(
 	ctx: Context,
 	db: &Arc<dyn KeyValueDB>,
 	votes: &[Vote],
-) -> Result<HashSet<(SessionIndex, CandidateHash)>>
+) -> Result<HashMap<(SessionIndex, CandidateHash), CandidateQuorum>>
 where
 	Context: SubsystemContext<Message = VotesDBMessage>,
 {
-	let mut acc = Default::default();
-	for (session, candidate_hash) in votes.map(|vote| (vote.session(), vote.candidate_hash())) {
-		if supermajority_reached(ctx, db, session, candidate_hash).await {
-			let _ = acc.insert((session, candidate_hash));
+	let mut acc = HashSet::with_capacity(votes.len());
+	for (session, candidate_hash) in votes.into_iter().map(|vote| (vote.session(), vote.candidate_hash())) {
+		if let Some(quorum) = supermajority_reached(ctx, db, session, candidate_hash).await {
+			let _ = acc.insert((session, candidate_hash), quorum);
 		}
 	}
 	Ok(acc)
@@ -505,20 +532,22 @@ impl VotesDB {
 		Ok(())
 	}
 
+	/// Store a vote into the persistent DB
 	pub async fn store_vote<Context>(ctx: Context, vote: impl Into<Vec<Vote>>) -> Result<()>
 	where
 		Context: SubsystemContext<Message = VotesDBMessage>,
 	{
 		let votes: Vec<Vote> = votes.into();
 
-		match store_votes_inner(&self.inner, votes.as_slice())? {
-			VoteEvent::DoubleVote { .. } => {},
-			_ => unimplemented!("TODO send out messages")
+		let votes = store_votes_inner(&self.inner, votes.as_slice())?;
 		}
 
-		let x = check_for_supermajority(ctx, ).await {
+		let reached_quorums = check_for_supermajority(ctx, db, votes.values() ).await?;
 
+		for reached_quorum in reached_quorums {
+			ctx.send
 		}
+
 
 		Ok(())
 	}
