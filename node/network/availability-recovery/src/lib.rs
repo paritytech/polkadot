@@ -49,6 +49,9 @@ use polkadot_erasure_coding::branch_hash;
 
 mod error;
 
+#[cfg(test)]
+mod tests;
+
 const LOG_TARGET: &str = "availability_recovery";
 
 const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Merkle proof was invalid");
@@ -253,13 +256,19 @@ struct State {
 }
 
 impl Default for State {
-	fn default() -> State {
-		let (from_interation_tx, from_interation_rx) = mpsc::channel(256);
+	fn default() -> Self {
+		let (from_interaction_tx, from_interaction_rx) = mpsc::channel(16);
 
-		State {
-			from_interaction_tx: from_interation_tx,
-			from_interaction_rx: from_interation_rx,
-			..Default::default()
+		Self {
+			from_interaction_tx,
+			from_interaction_rx,
+		    interactions: HashMap::new(),
+		    live_block_hash: Hash::default(),
+		    discovering_validators: HashMap::new(),
+		    live_chunk_requests: HashMap::new(),
+		    next_request_id: 0,
+		    connection_requests: Default::default(),
+		    availability_lru: HashMap::default(),
 		}
 	}
 }
@@ -314,6 +323,7 @@ async fn launch_interaction(
 	session_index: SessionIndex,
 	session_info: SessionInfo,
 	receipt: CandidateReceipt,
+	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 ) -> error::Result<()> {
 	use rand::seq::SliceRandom;
 	use rand::thread_rng;
@@ -324,6 +334,13 @@ async fn launch_interaction(
 	let erasure_root = receipt.descriptor.erasure_root;
 	let validators = session_info.validators.clone();
 	let mut shuffling: Vec<_> = (0..validators.len() as u32).collect();
+
+	state.interactions.insert(
+		candidate_hash.clone(),
+		InteractionHandle {
+			awaiting: vec![response_sender],
+		}
+	);
 
 	{
 		// make borrow checker happy.
@@ -387,6 +404,7 @@ async fn handle_recover(
 				session_index,
 				session_info,
 				receipt,
+				response_sender,
 			).await
 		}
 		None => {
@@ -441,12 +459,19 @@ async fn handle_from_interaction(
 	    FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
 			let relay_parent = state.live_block_hash;
 
+			// Take the validators we are already connecting to and merge them with the
+			// newly requested one to create a new connection request.
+			let new_discovering_validators_set = state.discovering_validators.keys()
+				.cloned()
+				.chain(std::iter::once(id.clone()))
+				.collect();
+
     		// Issue a NetworkBridgeMessage::ConnectToValidators.
     		// Add the stream of connected validator events to state.connecting_validators.
 			match validator_discovery::connect_to_validators(
 				ctx,
 				relay_parent,
-				vec![id.clone()],
+				new_discovering_validators_set,
 			).await {
 				Ok(new_connection_request) => {
 					state.connection_requests.put(relay_parent, new_connection_request);
