@@ -150,10 +150,12 @@ impl Interaction {
 			// If it's empty and requesting_chunks is empty,
 			// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
 			if self.requesting_chunks.is_empty() && self.shuffling.is_empty() {
-				let _ = self.to_state.send(FromInteraction::Concluded(
+				if self.to_state.send(FromInteraction::Concluded(
 					self.candidate_hash,
 					Err(RecoveryError::Unavailable),
-				)).await;
+				)).await.is_err() {
+					return;
+				};
 				break;
 			}
 
@@ -161,12 +163,14 @@ impl Interaction {
 				if let Some(validator_index) = self.shuffling.pop() {
 					let (tx, rx) = oneshot::channel();
 
-					let _ = self.to_state.send(FromInteraction::MakeRequest(
+					if self.to_state.send(FromInteraction::MakeRequest(
 						self.validators[validator_index as usize].clone(),
 						self.candidate_hash.clone(),
 						validator_index,
 						tx,
-					)).await;
+					)).await.is_err() {
+						return;
+					};
 
 					self.requesting_chunks.push(rx);
 				} else {
@@ -186,18 +190,22 @@ impl Interaction {
 					let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
 					if erasure_chunk_hash != anticipated_hash {
-						let _ = self.to_state.send(FromInteraction::ReportPeer(
+						if self.to_state.send(FromInteraction::ReportPeer(
 							peer_id,
 							COST_MERKLE_PROOF_INVALID,
-						)).await;
+						)).await.is_err() {
+							return;
+						}
 					} else {
 						self.received_chunks.insert(peer_id, chunk);
 					}
 				} else {
-					let _ = self.to_state.send(FromInteraction::ReportPeer(
+					if self.to_state.send(FromInteraction::ReportPeer(
 						peer_id,
 						COST_MERKLE_PROOF_INVALID,
-					)).await;
+					)).await.is_err() {
+						return;
+					}
 				}
 			}
 
@@ -363,9 +371,12 @@ async fn launch_interaction(
 		requesting_chunks: FuturesUnordered::new(),
 	};
 
-	match ctx.spawn("recovery interaction", interaction.run().boxed()).await {
-		Ok(_) => {}
-		Err(_) => {}
+	if let Err(e) = ctx.spawn("recovery interaction", interaction.run().boxed()).await {
+		tracing::warn!(
+			target: LOG_TARGET,
+			err = ?e,
+			"Failed to spawn a recovery interaction task",
+		);
 	}
 
 	Ok(())
