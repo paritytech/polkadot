@@ -708,6 +708,24 @@ pub struct SessionInfo {
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
+		// NOTE: Many runtime API are declared with `#[skip_initialize_block]`. This is because without
+		// this attribute before each runtime call, the `initialize_block` runtime API will be called.
+		// That in turns will lead to two things:
+		//
+		// (a) The frame_system module will be initialized to the next block.
+		// (b) Initialization sequences for each runtime module (pallet) will be run.
+		//
+		// (a) is undesirable because the runtime APIs are querying the state against a specific
+		// block state. However, due to that initialization the observed block number would be as if
+		// it was the next block.
+		//
+		// We dont want (b) mainly because block initialization can be very heavy. Upgrade enactment,
+		// storage migration, and whatever other logic exists in `on_initialize` will be executed
+		// if not explicitly opted out with the `#[skip_initalize_block]` attribute.
+		//
+		// Additionally, some runtime APIs may depend on state that is pruned on the `on_initilize`.
+		// At the moment of writing, this is `candidate_events`.
+
 		/// Get the current validators.
 		#[skip_initialize_block]
 		fn validators() -> Vec<ValidatorId>;
@@ -748,9 +766,13 @@ sp_api::decl_runtime_apis! {
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
+		// NOTE: This runtime API specifically needs to operate on the next block and depends on the
+		// `on_initialize` ran.
 		fn session_index_for_child() -> SessionIndex;
 
 		/// Get the session info for the given session, if stored.
+		// NOTE: This operates on the next block so that this runtime API is callable with the result
+		// of `session_index_for_child`
 		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
