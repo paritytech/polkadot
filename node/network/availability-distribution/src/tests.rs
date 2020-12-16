@@ -1803,18 +1803,13 @@ fn view_setup_w_overlapping_ancestors_teardown() {
 
 }
 
-
-
 #[test]
-fn normal_ops() {
+fn peers_with_empty_views() {
 
 	let test_state = TestState::default();
 
-	// a has an empty view
+	// two peers with random views each
 	let peer_a = PeerId::random();
-	// b does have an empty view
-	// so the `if peers.is_empty()` evals to true
-	// and triggers the issue
 	let peer_b = PeerId::random();
 	assert_ne!(&peer_a, &peer_b);
 
@@ -1826,22 +1821,8 @@ fn normal_ops() {
 		block_data: BlockData(vec![45, 46, 47]),
 	};
 
-	let pov_block_c = PoV {
-		block_data: BlockData(vec![48, 49, 50]),
-	};
-
-	let pov_block_d = PoV {
-		block_data: BlockData(vec![1, 1, 11]),
-	};
-	let pov_block_e = pov_block_d.clone();
-
 	let pov_hash_a = pov_block_a.hash();
 	let pov_hash_b = pov_block_b.hash();
-	let pov_hash_c = pov_block_c.hash();
-	let pov_hash_d = pov_block_d.hash();
-	let pov_hash_e = pov_hash_d;
-
-	let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 	let make_candidate = |relay_parent: Hash, pov: &PoV| {
 		TestCandidateBuilder {
@@ -1861,23 +1842,17 @@ fn normal_ops() {
 
 	let candidate_a = make_candidate(test_state.relay_parent, &pov_block_a);
 	let candidate_b = make_candidate(test_state.ancestors[0], &pov_block_b);
-	let candidate_c = make_candidate(test_state.ancestors[1], &pov_block_c);
-	let candidate_d = make_candidate(test_state.ancestors[2], &pov_block_d);
-	let candidate_e = make_candidate(test_state.ancestors[3], &pov_block_e);
 
 	let candidate_hash_a = candidate_a.hash();
 	let candidate_hash_b = candidate_b.hash();
-	let candidate_hash_c = candidate_c.hash();
-	let candidate_hash_e = candidate_d.hash();
-	let candidate_hash_d = candidate_e.hash();
 
 	let mut state = ProtocolState {
 		peer_views: hashmap!{
 				peer_b.clone() => view![
-					// test_state.ancestors[0],
+					// empty view of peer b
 				],
 				peer_a.clone() => view![
-					// test_state.relay_parent,
+					// empty view of peer a
 				],
 			},
 		view: view![test_state.relay_parent],
@@ -1945,10 +1920,9 @@ fn normal_ops() {
 		let peer_b = peer_b.clone();
 		let test_state = test_state.clone();
 		async move {
-			// make sure to store the chunk
+			// make sure to store the chunk, we are the associated validator for this one
 			let erasure_chunk_index = test_state.validator_index.unwrap();
-			// pretend we received an incomming message
-			// send a live candidate
+
 			let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, erasure_chunk_index, pov_block_b.clone());
 			process_incoming_peer_message(&mut ctx, &mut state, peer_a.clone(),  gossip.clone(), &metrics).await.unwrap();
 
@@ -1956,6 +1930,7 @@ fn normal_ops() {
 			assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&erasure_chunk_index), Some(&gossip));
 
 
+			// a different chunk from peer b
 			let erasure_chunk_index = 1_u32;
 			let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, erasure_chunk_index, pov_block_b.clone());
 			process_incoming_peer_message(&mut ctx, &mut state, peer_b.clone(),  gossip.clone(), &metrics).await.unwrap();
@@ -1964,7 +1939,7 @@ fn normal_ops() {
 			assert_eq!(state.per_candidate.get(&candidate_hash_b).unwrap().message_vault.get(&erasure_chunk_index), Some(&gossip));
 
 
-
+			// the same chunk from peer a
 			let erasure_chunk_index = 1_u32;
 			let gossip = make_valid_availability_gossip(&test_state, candidate_hash_b, erasure_chunk_index, pov_block_b.clone());
 			process_incoming_peer_message(&mut ctx, &mut state, peer_a.clone(),  gossip.clone(), &metrics).await.unwrap();
