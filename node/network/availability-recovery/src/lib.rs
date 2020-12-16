@@ -455,6 +455,8 @@ async fn handle_from_interaction(
 					candidate_hash,
 				);
 			}
+
+			state.availability_lru.insert(candidate_hash, result);
 		}
 	    FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
 			let relay_parent = state.live_block_hash;
