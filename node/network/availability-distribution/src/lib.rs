@@ -486,9 +486,9 @@ where
 				peers.clone(),
 				protocol_v1::ValidationProtocol::AvailabilityDistribution(message.into()),
 			).into()).await;
-		}
 
-		metrics.on_chunk_distributed();
+			metrics.on_chunk_distributed();
+		}
 	}
 }
 
