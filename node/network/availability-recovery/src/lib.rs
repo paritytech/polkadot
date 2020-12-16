@@ -76,7 +76,7 @@ const fn recovery_threshold(n_validators: usize) -> usize {
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem;
 
-type ChunkResponse = Result<(PeerId, ErasureChunk), ()>; // Unavailable.
+type ChunkResponse = Result<(PeerId, ErasureChunk), RecoveryError>;
 
 /// Data we keep around for every chunk that we are awaiting.
 struct AwaitedChunk {
@@ -622,7 +622,6 @@ async fn handle_validator_connected(
 	validator_id: ValidatorId,
 	peer_id: PeerId,
 ) -> error::Result<()> {
-	// The droids we've been looking for?
 	if let Some(discovering) = state.discovering_validators.remove(&validator_id) {
 		for chunk in discovering {
 			issue_chunk_request(state, ctx, peer_id.clone(), chunk).await?;
