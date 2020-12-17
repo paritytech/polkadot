@@ -17,7 +17,7 @@
 use super::*;
 use assert_matches::assert_matches;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_network_protocol::ObservedRole;
+use polkadot_node_network_protocol::{view, ObservedRole};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
@@ -33,11 +33,6 @@ use sp_application_crypto::AppKey;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::{sync::Arc, time::Duration};
 
-macro_rules! view {
-		( $( $hash:expr ),* $(,)? ) => [
-			View(vec![ $( $hash.clone() ),* ])
-		];
-	}
 
 macro_rules! delay {
 	($delay:expr) => {

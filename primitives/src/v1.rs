@@ -825,10 +825,10 @@ mod tests {
 		assert_eq!(h.as_ref().len(), 32);
 
 		let _payload = collator_signature_payload(
-			&Hash::from([1; 32]),
+			&Hash::repeat_byte(1),
 			&5u32.into(),
-			&Hash::from([2; 32]),
-			&Hash::from([3; 32]),
+			&Hash::repeat_byte(2),
+			&Hash::repeat_byte(3),
 		);
 	}
 }
