@@ -126,16 +126,31 @@ pub(crate) fn canonicalize(
 	let mut visited_block_keys = Vec::new();
 	let mut visited_candidates = HashMap::new();
 
-	// TODO [now]: finish implementation
+	let visit_and_remove_block_entry
+
+	// First visit everything before the height.
 	for i in range.0..canon_number {
 		let at_height = load_blocks_at_height(store, i)?;
 
 		visited_height_keys.push(blocks_at_height_key(i));
+
+
 	}
 
+	// Then visit everything at the height.
 	{
 		let at_height = load_blocks_at_height(store, canon_number)?;
 		visited_height_keys.push(blocks_at_height_key(canon_number));
+	}
+
+	// Follow all children of non-canonicalized blocks.
+	{
+
+	}
+
+	// Update all `CandidateEntry`s, deleting all those which now have empty `block_assignments`.
+	{
+
 	}
 }
 
