@@ -210,20 +210,16 @@ impl Jaeger {
 
 		// Spawn a background task that pulls span information and sends them on the network.
 		spawner.spawn("jaeger-collector", Box::pin(async move {
-			let res = async_std::net::UdpSocket::bind("127.0.0.1:0").await
-				.map_err(JaegerError::PortAllocationError);
-			match res {
+			match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
 				Ok(udp_socket) => loop {
 					let buf = traces_out.next().await;
 					// UDP sending errors happen only either if the API is misused or in case of missing privilege.
-					if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await
-						.map_err(|e| JaegerError::SendError(e))
-					{
-						log::trace!("Jaeger: {:?}", e);
+					if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await {
+						log::debug!(target: "jaeger", "UDP send error: {}", e);
 					}
 				}
 				Err(e) => {
-					log::warn!("Jaeger: {:?}", e);
+					log::warn!(target: "jaeger", "UDP socket open error: {}", e);
 				}
 			}
 		}));
