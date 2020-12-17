@@ -31,6 +31,10 @@ struct OccupiedCore {
     availability: Bitfield,
     /// The group assigned to distribute availability pieces of this candidate.
     group_responsible: GroupIndex,
+    /// The hash of the candidate occupying the core.
+    candidate_hash: CandidateHash,
+    /// The descriptor of the candidate occupying the core.
+    candidate_descriptor: CandidateDescriptor,
 }
 
 struct ScheduledCore {
