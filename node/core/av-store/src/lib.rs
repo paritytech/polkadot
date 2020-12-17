@@ -774,11 +774,11 @@ where
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
-			let res = store_available_data(subsystem, &hash, id, n_validators, av_data);
+			let result = store_available_data(subsystem, &hash, id, n_validators, av_data);
 
-			tracing::trace!(target: LOG_TARGET, candidate_hash = ?hash, result = ?res, "Stored available data");
+			tracing::trace!(target: LOG_TARGET, candidate_hash = ?hash, ?result, "Stored available data");
 
-			match res {
+			match result {
 				Err(e) => {
 					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
