@@ -538,8 +538,8 @@ where
 						process_block_activated(ctx, &subsystem.inner, activated, &subsystem.metrics).await?;
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					process_block_finalized(subsystem, ctx, &subsystem.inner, hash).await?;
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+					process_block_finalized(subsystem, &subsystem.inner, number).await?;
 				}
 				FromOverseer::Communication { msg } => {
 					process_message(subsystem, ctx, msg).await?;
@@ -564,19 +564,13 @@ where
 /// The state of data has to be changed from
 /// `CandidateState::Included` to `CandidateState::Finalized` and their pruning times have
 /// to be updated to `now` + keep_finalized_{block, chunk}_for`.
-#[tracing::instrument(level = "trace", skip(subsystem, ctx, db), fields(subsystem = LOG_TARGET))]
-async fn process_block_finalized<Context>(
+#[tracing::instrument(level = "trace", skip(subsystem, db), fields(subsystem = LOG_TARGET))]
+async fn process_block_finalized(
 	subsystem: &AvailabilityStoreSubsystem,
-	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
-	hash: Hash,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>
-{
+	block_number: BlockNumber,
+) -> Result<(), Error> {
 	let _timer = subsystem.metrics.time_process_block_finalized();
-
-	let block_number = get_block_number(ctx, hash).await?;
 
 	if let Some(mut pov_pruning) = pov_pruning(db) {
 		// Since the records are sorted by time in which they need to be pruned and not by block

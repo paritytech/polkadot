@@ -368,7 +368,7 @@ where
 			.filter(|(_peer, view)| {
 				// collect all direct interests of a peer w/o ancestors
 				state
-					.cached_live_candidates_unioned(view.0.iter())
+					.cached_live_candidates_unioned(view.heads.iter())
 					.contains(&candidate_hash)
 			})
 			.map(|(peer, _view)| peer.clone())
@@ -544,7 +544,7 @@ where
 	let _timer = metrics.time_process_incoming_peer_message();
 
 	// obtain the set of candidates we are interested in based on our current view
-	let live_candidates = state.cached_live_candidates_unioned(state.view.0.iter());
+	let live_candidates = state.cached_live_candidates_unioned(state.view.heads.iter());
 
 	// check if the candidate is of interest
 	let descriptor = if live_candidates.contains(&message.candidate_hash) {
@@ -648,7 +648,7 @@ where
 		.filter(|(_, view)| {
 			// peers view must contain the candidate hash too
 			state
-				.cached_live_candidates_unioned(view.0.iter())
+				.cached_live_candidates_unioned(view.heads.iter())
 				.contains(&message.candidate_hash)
 		})
 		.map(|(peer, _)| -> PeerId { peer.clone() })
@@ -730,7 +730,7 @@ impl AvailabilityDistributionSubsystem {
 				})) => {
 					// handled at view change
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {}
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					return Ok(());
 				}

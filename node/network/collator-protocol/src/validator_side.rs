@@ -714,7 +714,7 @@ where
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
-				Signal(BlockFinalized(_)) => {}
+				Signal(BlockFinalized(..)) => {}
 				Signal(ActiveLeaves(_)) => {}
 				Signal(Conclude) => { break }
 			}
@@ -760,6 +760,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair};
 	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_node_network_protocol::view;
 
 	#[derive(Clone)]
 	struct TestState {
@@ -872,7 +873,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
+					NetworkBridgeEvent::OurViewChange(view![test_state.relay_parent])
 				)
 			).await;
 
@@ -930,7 +931,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
+					NetworkBridgeEvent::OurViewChange(view![test_state.relay_parent])
 				)
 			).await;
 
@@ -1021,7 +1022,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![Hash::repeat_byte(0x42)]))
+					NetworkBridgeEvent::OurViewChange(view![Hash::repeat_byte(0x42)])
 				)
 			).await;
 
@@ -1049,7 +1050,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
+					NetworkBridgeEvent::OurViewChange(view![test_state.relay_parent])
 				)
 			).await;
 
@@ -1133,7 +1134,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
+					NetworkBridgeEvent::OurViewChange(view![test_state.relay_parent])
 				)
 			).await;
 

@@ -145,7 +145,7 @@ impl CollationGenerationSubsystem {
 				}
 				false
 			}
-			Ok(Signal(BlockFinalized(_))) => false,
+			Ok(Signal(BlockFinalized(..))) => false,
 			Err(err) => {
 				tracing::error!(
 					target: LOG_TARGET,

@@ -197,7 +197,7 @@ async fn handle_signal(
 
 			Ok(false)
 		}
-		OverseerSignal::BlockFinalized(_) => Ok(false),
+		OverseerSignal::BlockFinalized(..) => Ok(false),
 	}
 }
 
@@ -499,7 +499,7 @@ async fn handle_awaiting(
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
 ) {
-	if !state.our_view.0.contains(&relay_parent) {
+	if !state.our_view.contains(&relay_parent) {
 		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await;
 		return;
 	}
@@ -635,10 +635,10 @@ async fn handle_network_update(
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 			if let Some(peer_state) = state.peer_state.get_mut(&peer_id) {
 				// prune anything not in the new view.
-				peer_state.awaited.retain(|relay_parent, _| view.0.contains(&relay_parent));
+				peer_state.awaited.retain(|relay_parent, _| view.contains(&relay_parent));
 
 				// introduce things from the new view.
-				for relay_parent in view.0.iter() {
+				for relay_parent in view.heads.iter() {
 					if let Entry::Vacant(entry) = peer_state.awaited.entry(*relay_parent) {
 						entry.insert(HashSet::new());
 

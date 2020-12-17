@@ -17,7 +17,7 @@
 use super::*;
 use assert_matches::assert_matches;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_network_protocol::ObservedRole;
+use polkadot_node_network_protocol::{view, ObservedRole};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
@@ -33,7 +33,10 @@ use std::{sync::Arc, time::Duration};
 use maplit::hashmap;
 
 macro_rules! view {
-	( $( $hash:expr ),* $(,)? ) => { View(vec![ $( $hash.clone() ),* ]) };
+	( $( $hash:expr ),* $(,)? ) => {
+		// Finalized number unimportant for availability distribution.
+		View { heads: vec![ $( $hash.clone() ),* ], finalized_number: 0 }
+	};
 }
 
 fn chunk_protocol_message(
