@@ -896,7 +896,7 @@ mod tests {
 			overseer_send(
 				virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(hashes)),
+					NetworkBridgeEvent::OurViewChange(View::new(hashes)),
 				),
 			).await;
 		}
@@ -1004,7 +1004,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent])),
+				NetworkBridgeEvent::OurViewChange(View::new(vec![test_state.relay_parent])),
 			),
 		).await;
 	}
@@ -1144,7 +1144,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer, View(Default::default())),
+				NetworkBridgeEvent::PeerViewChange(peer, View::new(Default::default())),
 			),
 		).await;
 	}
@@ -1213,7 +1213,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View(hashes)),
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::new(hashes)),
 			),
 		).await;
 	}
@@ -1323,7 +1323,7 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(
 						peer.clone(),
-						View(vec![test_state.relay_parent]),
+						View::new(vec![test_state.relay_parent]),
 					)
 				)
 			).await;
