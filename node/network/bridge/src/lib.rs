@@ -993,7 +993,7 @@ mod tests {
 				ObservedRole::Full,
 			).await;
 
-			let hash_a = Hash::from([1; 32]);
+			let hash_a = Hash::repeat_byte(1);
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
@@ -1181,7 +1181,7 @@ mod tests {
 
 			// to show that we're still connected on the collation protocol, send a view update.
 
-			let hash_a = Hash::from([1; 32]);
+			let hash_a = Hash::repeat_byte(1);
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
@@ -1367,8 +1367,8 @@ mod tests {
 				ObservedRole::Full,
 			).await;
 
-			let hash_a = Hash::from([1; 32]);
-			let hash_b = Hash::from([2; 32]);
+			let hash_a = Hash::repeat_byte(1);
+			let hash_b = Hash::repeat_byte(2);
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_a, 1))

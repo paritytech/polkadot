@@ -1575,7 +1575,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1609,7 +1609,7 @@ mod tests {
 				let mut candidate_a = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1617,7 +1617,7 @@ mod tests {
 				let mut candidate_b = TestCandidateBuilder {
 					para_id: chain_b,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([2; 32]),
+					pov_hash: Hash::repeat_byte(2),
 					persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1667,7 +1667,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1698,13 +1698,13 @@ mod tests {
 
 			// candidate not in parent context.
 			{
-				let wrong_parent_hash = Hash::from([222; 32]);
+				let wrong_parent_hash = Hash::repeat_byte(222);
 				assert!(System::parent_hash() != wrong_parent_hash);
 
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: wrong_parent_hash,
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
@@ -1737,7 +1737,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1777,7 +1777,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1790,7 +1790,7 @@ mod tests {
 				);
 
 				// change the candidate after signing.
-				candidate.descriptor.pov_hash = Hash::from([2; 32]);
+				candidate.descriptor.pov_hash = Hash::repeat_byte(2);
 
 				let backed = block_on(back_candidate(
 					candidate,
@@ -1816,7 +1816,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1865,7 +1865,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1905,7 +1905,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
@@ -1949,7 +1949,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: [42u8; 32].into(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -2048,7 +2048,7 @@ mod tests {
 			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([1; 32]),
+				pov_hash: Hash::repeat_byte(1),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
@@ -2061,7 +2061,7 @@ mod tests {
 			let mut candidate_b = TestCandidateBuilder {
 				para_id: chain_b,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([2; 32]),
+				pov_hash: Hash::repeat_byte(2),
 				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
@@ -2074,7 +2074,7 @@ mod tests {
 			let mut candidate_c = TestCandidateBuilder {
 				para_id: thread_a,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([3; 32]),
+				pov_hash: Hash::repeat_byte(3),
 				persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
@@ -2220,7 +2220,7 @@ mod tests {
 			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([1; 32]),
+				pov_hash: Hash::repeat_byte(1),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				new_validation_code: Some(vec![1, 2, 3].into()),
 				hrmp_watermark: RELAY_PARENT_NUM,

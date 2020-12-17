@@ -274,7 +274,7 @@ fn store_block_works() {
 	let test_state = TestState::default();
 	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let candidate_hash = CandidateHash(Hash::from([1; 32]));
+		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let validator_index = 5;
 		let n_validators = 10;
 
@@ -328,7 +328,7 @@ fn store_pov_and_query_chunk_works() {
 
 	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let candidate_hash = CandidateHash(Hash::from([1; 32]));
+		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let n_validators = 10;
 
 		let pov = PoV {
