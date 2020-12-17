@@ -368,7 +368,7 @@ where
 		),
 		candidate_selection: CandidateSelectionSubsystem::new(
 			spawner.clone(),
-			(),
+			keystore.clone(),
 			Metrics::register(registry)?,
 		),
 		candidate_validation: CandidateValidationSubsystem::new(
@@ -407,6 +407,7 @@ where
 		runtime_api: RuntimeApiSubsystem::new(
 			runtime_client,
 			Metrics::register(registry)?,
+			spawner.clone(),
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
 			Metrics::register(registry)?,
@@ -509,6 +510,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	#[cfg(feature = "real-overseer")]
 	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
+	config.network.notifications_protocols.push(grandpa::GRANDPA_PROTOCOL_NAME.into());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -728,8 +730,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			"grandpa-voter",
 			grandpa::run_grandpa_voter(grandpa_config)?
 		);
-	} else {
-		grandpa::setup_disabled_grandpa(network.clone())?;
 	}
 
 	network_starter.start_network();

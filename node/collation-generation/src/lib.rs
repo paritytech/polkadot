@@ -84,8 +84,9 @@ impl CollationGenerationSubsystem {
 		// at any point waiting for them all, so instead, we create a channel on which they can
 		// send those messages. We can then just monitor the channel and forward messages on it
 		// to the overseer here, via the context.
-		let (sender, mut receiver) = mpsc::channel(0);
+		let (sender, receiver) = mpsc::channel(0);
 
+		let mut receiver = receiver.fuse();
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => {
@@ -93,7 +94,7 @@ impl CollationGenerationSubsystem {
 						break;
 					}
 				},
-				msg = receiver.next().fuse() => {
+				msg = receiver.next() => {
 					if let Some(msg) = msg {
 						ctx.send_message(msg).await;
 					}
@@ -284,7 +285,6 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					horizontal_messages: collation.horizontal_messages,
 					new_validation_code: collation.new_validation_code,
 					head_data: collation.head_data,
-					erasure_root,
 					processed_downward_messages: collation.processed_downward_messages,
 					hrmp_watermark: collation.hrmp_watermark,
 				};
@@ -298,6 +298,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						collator: task_config.key.public(),
 						persisted_validation_data_hash,
 						pov_hash,
+						erasure_root,
 					},
 				};
 
@@ -702,6 +703,7 @@ mod tests {
 				collator: config.key.public(),
 				persisted_validation_data_hash: expect_validation_data_hash,
 				pov_hash: expect_pov_hash,
+				erasure_root: Default::default(), // this isn't something we're checking right now
 			};
 
 			assert_eq!(sent_messages.len(), 1);
@@ -728,6 +730,7 @@ mod tests {
 					let expect_descriptor = {
 						let mut expect_descriptor = expect_descriptor;
 						expect_descriptor.signature = descriptor.signature.clone();
+						expect_descriptor.erasure_root = descriptor.erasure_root.clone();
 						expect_descriptor
 					};
 					assert_eq!(descriptor, &expect_descriptor);

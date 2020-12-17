@@ -28,7 +28,7 @@ use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
-	HeadData, PoV, CollatorPair, Id as ParaId, OutboundHrmpMessage, ValidationOutputs, CandidateHash,
+	HeadData, PoV, CollatorPair, Id as ParaId, OutboundHrmpMessage, CandidateCommitments, CandidateHash,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -144,7 +144,7 @@ pub enum InvalidCandidate {
 pub enum ValidationResult {
 	/// Candidate is valid. The validation process yields these outputs and the persisted validation
 	/// data used to form inputs.
-	Valid(ValidationOutputs, PersistedValidationData),
+	Valid(CandidateCommitments, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid(InvalidCandidate),
 }

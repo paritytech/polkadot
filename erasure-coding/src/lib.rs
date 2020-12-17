@@ -45,9 +45,9 @@ pub enum Error {
 	/// Returned when there are too many validators.
 	#[error("There are too many validators")]
 	TooManyValidators,
-	/// Cannot encode something for no validators
-	#[error("Validator set is empty")]
-	EmptyValidators,
+	/// Cannot encode something for zero or one validator
+	#[error("Expected at least 2 validators")]
+	NotEnoughValidators,
 	/// Cannot reconstruct: wrong number of validators.
 	#[error("Validator count mismatches between encoding and decoding")]
 	WrongValidatorCount,
@@ -122,7 +122,7 @@ impl CodeParams {
 
 fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
-	if n_validators == 0 { return Err(Error::EmptyValidators) }
+	if n_validators <= 1 { return Err(Error::NotEnoughValidators) }
 
 	let n_faulty = n_validators.saturating_sub(1) / 3;
 	let n_good = n_validators - n_faulty;
@@ -406,12 +406,9 @@ mod tests {
 
 	#[test]
 	fn test_code_params() {
-		assert_eq!(code_params(0), Err(Error::EmptyValidators));
+		assert_eq!(code_params(0), Err(Error::NotEnoughValidators));
 
-		assert_eq!(code_params(1), Ok(CodeParams {
-			data_shards: 1,
-			parity_shards: 0,
-		}));
+		assert_eq!(code_params(1), Err(Error::NotEnoughValidators));
 
 		assert_eq!(code_params(2), Ok(CodeParams {
 			data_shards: 1,
@@ -485,6 +482,15 @@ mod tests {
 		).unwrap();
 
 		assert_eq!(reconstructed, available_data);
+	}
+
+	#[test]
+	fn reconstruct_does_not_panic_on_low_validator_count() {
+		let reconstructed = reconstruct_v1(
+			1,
+			[].iter().cloned(),
+		);
+		assert_eq!(reconstructed, Err(Error::NotEnoughValidators));
 	}
 
 	#[test]

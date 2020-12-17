@@ -193,13 +193,13 @@ mod select_candidates {
 	use futures_timer::Delay;
 	use super::super::*;
 	use super::{build_occupied_core, default_bitvec, occupied_core, scheduled_core};
-	use polkadot_node_subsystem::messages::RuntimeApiRequest::{
-		AvailabilityCores, PersistedValidationData as PersistedValidationDataReq,
+	use polkadot_node_subsystem::messages::{
+		AllMessages, RuntimeApiMessage,
+		RuntimeApiRequest::{AvailabilityCores, PersistedValidationData as PersistedValidationDataReq},
 	};
 	use polkadot_primitives::v1::{
 		BlockNumber, CandidateDescriptor, CommittedCandidateReceipt, PersistedValidationData,
 	};
-	use FromJob::{ChainApi, Runtime};
 
 	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 
@@ -207,9 +207,9 @@ mod select_candidates {
 		overseer_factory: OverseerFactory,
 		test_factory: TestFactory,
 	) where
-		OverseerFactory: FnOnce(mpsc::Receiver<FromJob>) -> Overseer,
+		OverseerFactory: FnOnce(mpsc::Receiver<FromJobCommand>) -> Overseer,
 		Overseer: Future<Output = ()>,
-		TestFactory: FnOnce(mpsc::Sender<FromJob>) -> Test,
+		TestFactory: FnOnce(mpsc::Sender<FromJobCommand>) -> Test,
 		Test: Future<Output = ()>,
 	{
 		let (tx, rx) = mpsc::channel(64);
@@ -297,20 +297,20 @@ mod select_candidates {
 		]
 	}
 
-	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJob>) {
+	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJobCommand>) {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
 
 		while let Some(from_job) = receiver.next().await {
 			match from_job {
-				ChainApi(BlockNumber(_relay_parent, tx)) => {
+				FromJobCommand::SendMessage(AllMessages::ChainApi(BlockNumber(_relay_parent, tx))) => {
 					tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
 				}
-				Runtime(Request(
+				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(
 					_parent_hash,
 					PersistedValidationDataReq(_para_id, _assumption, tx),
-				)) => tx.send(Ok(Some(Default::default()))).unwrap(),
-				Runtime(Request(_parent_hash, AvailabilityCores(tx))) => {
+				))) => tx.send(Ok(Some(Default::default()))).unwrap(),
+				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx)))) => {
 					tx.send(Ok(mock_availability_cores())).unwrap()
 				}
 				// non-exhaustive matches are fine for testing
@@ -321,14 +321,14 @@ mod select_candidates {
 
 	#[test]
 	fn handles_overseer_failure() {
-		let overseer = |rx: mpsc::Receiver<FromJob>| async move {
+		let overseer = |rx: mpsc::Receiver<FromJobCommand>| async move {
 			// drop the receiver so it closes and the sender can't send, then just sleep long enough that
 			// this is almost certainly not the first of the two futures to complete
 			std::mem::drop(rx);
 			Delay::new(std::time::Duration::from_secs(1)).await;
 		};
 
-		let test = |mut tx: mpsc::Sender<FromJob>| async move {
+		let test = |mut tx: mpsc::Sender<FromJobCommand>| async move {
 			// wait so that the overseer can drop the rx before we attempt to send
 			Delay::new(std::time::Duration::from_millis(50)).await;
 			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
@@ -341,7 +341,7 @@ mod select_candidates {
 
 	#[test]
 	fn can_succeed() {
-		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
+		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJobCommand>| async move {
 			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
 			println!("{:?}", result);
 			assert!(result.is_ok());
@@ -403,7 +403,7 @@ mod select_candidates {
 			.map(|&idx| candidates[idx].clone())
 			.collect();
 
-		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
+		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJobCommand>| async move {
 			let result =
 				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
 					.await;

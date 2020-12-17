@@ -30,15 +30,14 @@ use polkadot_subsystem::{
 	},
 	errors::RuntimeApiError,
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
-use std::sync::Arc;
 
-use sp_api::{ProvideRuntimeApi};
+use sp_api::ProvideRuntimeApi;
+use sp_core::traits::SpawnNamed;
 
 use futures::prelude::*;
+use std::sync::Arc;
 
 const LOG_TARGET: &str = "runtime_api";
 
@@ -46,12 +45,13 @@ const LOG_TARGET: &str = "runtime_api";
 pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
 	metrics: Metrics,
+	spawn_handle: Box<dyn SpawnNamed>,
 }
 
 impl<Client> RuntimeApiSubsystem<Client> {
 	/// Create a new Runtime API subsystem wrapping the given client and metrics.
-	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
-		RuntimeApiSubsystem { client, metrics }
+	pub fn new(client: Arc<Client>, metrics: Metrics, spawn_handle: impl SpawnNamed + 'static) -> Self {
+		RuntimeApiSubsystem { client, metrics, spawn_handle: Box::new(spawn_handle) }
 	}
 }
 
@@ -73,7 +73,7 @@ async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()> where
-	Client: ProvideRuntimeApi<Block>,
+	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block>,
 {
 	loop {
@@ -82,12 +82,19 @@ async fn run<Client>(
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
-				RuntimeApiMessage::Request(relay_parent, request) => make_runtime_api_request(
-					&*subsystem.client,
-					&subsystem.metrics,
-					relay_parent,
-					request,
-				),
+				RuntimeApiMessage::Request(relay_parent, request) => {
+					let client = subsystem.client.clone();
+					let metrics = subsystem.metrics.clone();
+
+					subsystem.spawn_handle.spawn_blocking("polkadot-runtime-api-request", async move {
+						make_runtime_api_request(
+							client,
+							metrics,
+							relay_parent,
+							request,
+						)
+					}.boxed())
+				},
 			}
 		}
 	}
@@ -95,8 +102,8 @@ async fn run<Client>(
 
 #[tracing::instrument(level = "trace", skip(client, metrics), fields(subsystem = LOG_TARGET))]
 fn make_runtime_api_request<Client>(
-	client: &Client,
-	metrics: &Metrics,
+	client: Arc<Client>,
+	metrics: Metrics,
 	relay_parent: Hash,
 	request: Request,
 ) where
@@ -134,7 +141,7 @@ fn make_runtime_api_request<Client>(
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
-		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
+		Request::SessionInfo(index, sender) => query!(session_info(index), sender),
 		Request::DmqContents(id, sender) => query!(dmq_contents(id), sender),
 		Request::InboundHrmpChannelsContents(id, sender) => query!(inbound_hrmp_channels_contents(id), sender),
 	}
@@ -201,8 +208,8 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
-		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
-		BlockNumber, InboundHrmpMessage,
+		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
+		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -216,6 +223,7 @@ mod tests {
 		availability_cores: Vec<CoreState>,
 		validation_data: HashMap<ParaId, ValidationData>,
 		session_index_for_child: SessionIndex,
+		session_info: HashMap<SessionIndex, SessionInfo>,
 		validation_code: HashMap<ParaId, ValidationCode>,
 		historical_validation_code: HashMap<ParaId, Vec<(BlockNumber, ValidationCode)>>,
 		validation_outputs_results: HashMap<ParaId, bool>,
@@ -235,7 +243,7 @@ mod tests {
 
 	sp_api::mock_impl_runtime_apis! {
 		impl ParachainHost<Block> for MockRuntimeApi {
-			type Error = String;
+			type Error = sp_api::ApiError;
 
 			fn validators(&self) -> Vec<ValidatorId> {
 				self.validators.clone()
@@ -275,7 +283,7 @@ mod tests {
 			fn check_validation_outputs(
 				&self,
 				para_id: ParaId,
-				_commitments: polkadot_primitives::v1::ValidationOutputs,
+				_commitments: polkadot_primitives::v1::CandidateCommitments,
 			) -> bool {
 				self.validation_outputs_results
 					.get(&para_id)
@@ -287,6 +295,10 @@ mod tests {
 
 			fn session_index_for_child(&self) -> SessionIndex {
 				self.session_index_for_child.clone()
+			}
+
+			fn session_info(&self, index: SessionIndex) -> Option<SessionInfo> {
+				self.session_info.get(&index).cloned()
 			}
 
 			fn validation_code(
@@ -321,10 +333,6 @@ mod tests {
 				self.candidate_events.clone()
 			}
 
-			fn validator_discovery(ids: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-				vec![None; ids.len()]
-			}
-
 			fn dmq_contents(
 				&self,
 				recipient: ParaId,
@@ -346,8 +354,9 @@ mod tests {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -369,8 +378,9 @@ mod tests {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -392,8 +402,9 @@ mod tests {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -413,14 +424,16 @@ mod tests {
 	#[test]
 	fn requests_persisted_validation_data() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		Arc::get_mut(&mut runtime_api).unwrap().validation_data.insert(para_a, Default::default());
+		let mut runtime_api = MockRuntimeApi::default();
+		runtime_api.validation_data.insert(para_a, Default::default());
+		let runtime_api = Arc::new(runtime_api);
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -453,14 +466,16 @@ mod tests {
 	#[test]
 	fn requests_full_validation_data() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		Arc::get_mut(&mut runtime_api).unwrap().validation_data.insert(para_a, Default::default());
+		let mut runtime_api = MockRuntimeApi::default();
+		runtime_api.validation_data.insert(para_a, Default::default());
+		let runtime_api = Arc::new(runtime_api);
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -497,14 +512,15 @@ mod tests {
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
-		let commitments = polkadot_primitives::v1::ValidationOutputs::default();
+		let commitments = polkadot_primitives::v1::CandidateCommitments::default();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		runtime_api.validation_outputs_results.insert(para_a, false);
 		runtime_api.validation_outputs_results.insert(para_b, true);
 
 		let runtime_api = Arc::new(runtime_api);
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -551,8 +567,9 @@ mod tests {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -570,16 +587,47 @@ mod tests {
 	}
 
 	#[test]
+	fn requests_session_info() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let session_index = 1;
+		runtime_api.session_info.insert(session_index, Default::default());
+		let runtime_api = Arc::new(runtime_api);
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		let relay_parent = [1; 32].into();
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::SessionInfo(session_index, tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
 	fn requests_validation_code() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = Arc::new(MockRuntimeApi::default());
+
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		Arc::get_mut(&mut runtime_api).unwrap().validation_code.insert(para_a, Default::default());
+		let mut runtime_api = MockRuntimeApi::default();
+		runtime_api.validation_code.insert(para_a, Default::default());
+		let runtime_api = Arc::new(runtime_api);
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -612,16 +660,16 @@ mod tests {
 	#[test]
 	fn requests_candidate_pending_availability() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
+		let mut runtime_api = MockRuntimeApi::default();
 		runtime_api.candidate_pending_availability.insert(para_a, Default::default());
-
 		let runtime_api = Arc::new(runtime_api);
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -657,8 +705,9 @@ mod tests {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -682,6 +731,7 @@ mod tests {
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		let runtime_api = Arc::new({
 			let mut runtime_api = MockRuntimeApi::default();
@@ -698,7 +748,7 @@ mod tests {
 			runtime_api
 		});
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -738,6 +788,7 @@ mod tests {
 		let para_a = 99.into();
 		let para_b = 66.into();
 		let para_c = 33.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		let para_b_inbound_channels = [
 			(para_a, vec![]),
@@ -764,7 +815,7 @@ mod tests {
 			runtime_api
 		});
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
@@ -802,6 +853,7 @@ mod tests {
 
 		let para_a = 5.into();
 		let para_b = 6.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		let runtime_api = Arc::new({
 			let mut runtime_api = MockRuntimeApi::default();
@@ -820,7 +872,7 @@ mod tests {
 		});
 		let relay_parent = [1; 32].into();
 
-		let subsystem = RuntimeApiSubsystem::new(runtime_api, Metrics(None));
+		let subsystem = RuntimeApiSubsystem::new(runtime_api, Metrics(None), spawner);
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			{
