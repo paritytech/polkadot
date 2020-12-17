@@ -210,7 +210,7 @@ impl Jaeger {
 
 		// Spawn a background task that pulls span information and sends them on the network.
 		spawner.spawn("jaeger-collector", Box::pin(async move {
-			match async_std::net::UdpSocket::bind("127.0.0.1:0").await {
+			match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
 				Ok(udp_socket) => loop {
 					let buf = traces_out.next().await;
 					// UDP sending errors happen only either if the API is misused or in case of missing privilege.
