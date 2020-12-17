@@ -227,9 +227,7 @@ generate-impl-guide:
 
 publish-docker:
   <<:                              *publish-build
-  image:                           docker:stable
-  services:
-    - docker:dind
+  image:                           quay.io/buildah/stable
   <<:                              *collect-artifacts
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
@@ -238,26 +236,29 @@ publish-docker:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
   variables:
-    DOCKER_HOST:                   tcp://localhost:2375
-    DOCKER_DRIVER:                 overlay2
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
-    CONTAINER_IMAGE:               parity/polkadot
+    IMAGE_NAME:                    docker.io/parity/polkadot
   script:
-    - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity"
-        || ( echo "no docker credentials provided"; exit 1 )
-    - docker login -u "$Docker_Hub_User_Parity" -p "$Docker_Hub_Pass_Parity"
-    - docker info
+    - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
+      ( echo "no docker credentials provided"; exit 1 )
     - cd ./artifacts
-    - docker build
+    - buildah bud
+      --squash
+      --format=docker
       --build-arg VCS_REF="${CI_COMMIT_SHA}"
       --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-      --tag $CONTAINER_IMAGE:$VERSION
-      --tag $CONTAINER_IMAGE:$EXTRATAG .
-    - docker push $CONTAINER_IMAGE:$VERSION
-    - docker push $CONTAINER_IMAGE:$EXTRATAG
+      --tag "$IMAGE_NAME:$VERSION"
+      --tag "$IMAGE_NAME:$EXTRATAG" .
+    - echo "$Docker_Hub_Pass_Parity" |
+      buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
+    - buildah info
+    - buildah push
+      --format=v2s2
+      "$IMAGE_NAME:$VERSION"
+      "$IMAGE_NAME:$EXTRATAG"
   after_script:
-    - docker logout
+    - buildah logout "$IMAGE_NAME"
     # only VERSION information is needed for the deployment
     - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
 
