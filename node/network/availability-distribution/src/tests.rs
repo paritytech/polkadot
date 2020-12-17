@@ -1010,10 +1010,10 @@ fn clean_up_receipts_cache_unions_ancestors_and_view() {
 	let hash_c = [2u8; 32].into();
 	let hash_d = [3u8; 32].into();
 
-	state.receipts.insert(hash_a, HashSet::new());
-	state.receipts.insert(hash_b, HashSet::new());
-	state.receipts.insert(hash_c, HashSet::new());
-	state.receipts.insert(hash_d, HashSet::new());
+	state.live_under.insert(hash_a, HashSet::new());
+	state.live_under.insert(hash_b, HashSet::new());
+	state.live_under.insert(hash_c, HashSet::new());
+	state.live_under.insert(hash_d, HashSet::new());
 
 	state.per_relay_parent.insert(hash_a, PerRelayParent {
 		ancestors: vec![hash_b],
@@ -1022,13 +1022,13 @@ fn clean_up_receipts_cache_unions_ancestors_and_view() {
 
 	state.per_relay_parent.insert(hash_c, PerRelayParent::default());
 
-	state.clean_up_receipts_cache();
+	state.clean_up_live_under_cache();
 
-	assert_eq!(state.receipts.len(), 3);
-	assert!(state.receipts.contains_key(&hash_a));
-	assert!(state.receipts.contains_key(&hash_b));
-	assert!(state.receipts.contains_key(&hash_c));
-	assert!(!state.receipts.contains_key(&hash_d));
+	assert_eq!(state.live_under.len(), 3);
+	assert!(state.live_under.contains_key(&hash_a));
+	assert!(state.live_under.contains_key(&hash_b));
+	assert!(state.live_under.contains_key(&hash_c));
+	assert!(!state.live_under.contains_key(&hash_d));
 }
 
 #[test]
