@@ -30,6 +30,7 @@ use polkadot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
 };
 use polkadot_subsystem::{
+	jaeger,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
@@ -504,6 +505,7 @@ where
 			state.peer_views.entry(origin).or_default();
 		}
 		AdvertiseCollation(relay_parent, para_id) => {
+			let _span = jaeger::hash_span(&relay_parent, "advertising-collation");
 			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
@@ -515,6 +517,8 @@ where
 			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 		Collation(request_id, receipt, pov) => {
+			let _span1 = jaeger::hash_span(&receipt.descriptor.relay_parent, "received-collation");
+			let _span2 = jaeger::pov_span(&pov, "received-collation");
 			received_collation(ctx, state, origin, request_id, receipt, pov).await;
 		}
 	}
@@ -659,6 +663,7 @@ where
 			);
 		}
 		FetchCollation(relay_parent, collator_id, para_id, tx) => {
+			let _span = jaeger::hash_span(&relay_parent, "fetching-collation");
 			fetch_collation(ctx, state, relay_parent, collator_id, para_id, tx).await;
 		}
 		ReportCollator(id) => {

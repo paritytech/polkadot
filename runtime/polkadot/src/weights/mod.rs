@@ -32,3 +32,5 @@ pub mod pallet_timestamp;
 pub mod pallet_treasury;
 pub mod pallet_utility;
 pub mod pallet_vesting;
+pub mod pallet_bounties;
+pub mod pallet_tips;
