@@ -259,7 +259,7 @@ impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::Ac
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Initializer, Test, System};
+	use crate::mock::{new_test_ext, Initializer, System};
 
 	use frame_support::traits::{OnFinalize, OnInitialize};
 
@@ -276,20 +276,15 @@ mod tests {
 			let now = System::block_number();
 			Initializer::on_initialize(now);
 
-			let v = <BufferedSessionChanges<Test>>::get();
+			let v = <BufferedSessionChanges>::get();
 			assert_eq!(v.len(), 1);
-
-			let apply_at = now + 1;
-			assert_eq!(v[0].apply_at, apply_at);
 		});
 	}
 
 	#[test]
-	fn session_change_applied_on_initialize() {
+	fn session_change_applied_on_finalize() {
 		new_test_ext(Default::default()).execute_with(|| {
 			Initializer::on_initialize(1);
-
-			let now = System::block_number();
 			Initializer::on_new_session(
 				false,
 				1,
@@ -297,9 +292,9 @@ mod tests {
 				Some(Vec::new().into_iter()),
 			);
 
-			Initializer::on_initialize(now + 1);
+			Initializer::on_finalize(1);
 
-			assert!(<BufferedSessionChanges<Test>>::get().is_empty());
+			assert!(<BufferedSessionChanges>::get().is_empty());
 		});
 	}
 
