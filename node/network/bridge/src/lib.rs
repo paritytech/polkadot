@@ -362,11 +362,12 @@ async fn update_our_view(
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
 	live_heads: &[Hash],
 	local_view: &mut View,
+	finalized_number: BlockNumber,
 	validation_peers: &HashMap<PeerId, PeerData>,
 	collation_peers: &HashMap<PeerId, PeerData>,
 ) -> SubsystemResult<()> {
-	let new_view = construct_view(live_heads, local_view.finalized_number);
-	if *local_view == new_view { return Ok(())  }
+	let new_view = construct_view(live_heads, finalized_number);
+	if *local_view == new_view { return Ok(()) }
 
 	*local_view = new_view.clone();
 
@@ -585,6 +586,7 @@ where
 	// Most recent heads are at the back.
 	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut local_view = View::default();
+	let mut finalized_number = 0;
 
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
@@ -647,19 +649,20 @@ where
 					&mut ctx,
 					&live_heads,
 					&mut local_view,
+					finalized_number,
 					&validation_peers,
 					&collation_peers,
 				).await?;
 			}
 
 			Action::BlockFinalized(number) => {
-				debug_assert!(local_view.finalized_number < number);
+				debug_assert!(finalized_number < number);
 
 				// we don't send the view updates here, but delay them until the next `Action::ActiveLeaves`
 				// otherwise it might break assumptions of some of the subsystems
 				// that we never send the same `ActiveLeavesUpdate`
 				// this is fine, we will get `Action::ActiveLeaves` on block finalization anyway
-				local_view.finalized_number = number;
+				finalized_number = number;
 			},
 
 			Action::PeerConnected(peer_set, peer, role) => {
@@ -1369,6 +1372,7 @@ mod tests {
 
 			let hash_a = Hash::repeat_byte(1);
 			let hash_b = Hash::repeat_byte(2);
+			let hash_c = Hash::repeat_byte(3);
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_a, 1))
@@ -1382,6 +1386,31 @@ mod tests {
 				View {
 					heads: vec![hash_b],
 					finalized_number: 1,
+				}
+			).encode();
+
+			assert!(network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer_a.clone(),
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
+			));
+
+			// view updates are issued even when `ActiveLeavesUpdate` is empty
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_c, 3))
+			).await;
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default()))
+			).await;
+
+			let actions = network_handle.next_network_actions(1).await;
+			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+				View {
+					heads: vec![hash_b],
+					finalized_number: 3,
 				}
 			).encode();
 
