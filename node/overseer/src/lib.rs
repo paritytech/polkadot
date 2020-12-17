@@ -1415,13 +1415,10 @@ where
 			self.on_head_deactivated(deactivated)
 		}
 
-		// Most of the time we have a leave already closed when it is finalized, so we check here if there are actually
-		// any updates before sending it to the subsystems.
-		if !update.is_empty() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-		}
 
 		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+		// broadcast `ActiveLeavesUpdate` even if empty to issue view updates
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
 	}
