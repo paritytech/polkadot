@@ -23,9 +23,7 @@ polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpe
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures-timer = "3.0.2"
-env_logger = "0.8.2"
 assert_matches = "1.4.0"
-smallvec = "1.5.1"
-log = "0.4.11"
+maplit = "1.0"
