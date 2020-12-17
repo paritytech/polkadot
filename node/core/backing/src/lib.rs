@@ -1157,7 +1157,7 @@ mod tests {
 			let mut head_data = HashMap::new();
 			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
 
-			let relay_parent = Hash::from([5; 32]);
+			let relay_parent = Hash::repeat_byte(5);
 
 			let signing_context = SigningContext {
 				session_index: 1,

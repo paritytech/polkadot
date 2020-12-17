@@ -808,7 +808,7 @@ where
 					jobs.send_msg(to_job.relay_parent(), to_job).await;
 				}
 			}
-			Ok(Signal(BlockFinalized(_))) => {}
+			Ok(Signal(BlockFinalized(..))) => {}
 			Err(err) => {
 				tracing::error!(
 					job = Job::NAME,
