@@ -543,7 +543,7 @@ fn stored_data_kept_until_finalized() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::BlockFinalized(new_leaf)
+			OverseerSignal::BlockFinalized(new_leaf, 0)
 		).await;
 
 		assert_matches!(
@@ -658,7 +658,7 @@ fn stored_chunk_kept_until_finalized() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::BlockFinalized(new_leaf)
+			OverseerSignal::BlockFinalized(new_leaf, 0)
 		).await;
 
 		assert_matches!(
@@ -812,7 +812,7 @@ fn forkfullness_works() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::BlockFinalized(new_leaf_1)
+			OverseerSignal::BlockFinalized(new_leaf_1, 0)
 		).await;
 
 		assert_matches!(

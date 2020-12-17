@@ -938,7 +938,7 @@ impl StatementDistribution {
 							.or_insert(ActiveHeadData::new(validators, session_index));
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_block_hash)) => {
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
 					// do nothing
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => break,
@@ -1338,8 +1338,8 @@ mod tests {
 		};
 		let candidate_hash = candidate.hash();
 
-		let old_view = View(vec![hash_a, hash_b]);
-		let new_view = View(vec![hash_b, hash_c]);
+		let old_view = View::new(vec![hash_a, hash_b]);
+		let new_view = View::new(vec![hash_b, hash_c]);
 
 		let mut active_heads = HashMap::new();
 		let validators = vec![
@@ -1489,15 +1489,15 @@ mod tests {
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();
 
-		let peer_a_view = View(vec![hash_a]);
-		let peer_b_view = View(vec![hash_a, hash_b]);
-		let peer_c_view = View(vec![hash_b, hash_c]);
+		let peer_a_view = View::new(vec![hash_a]);
+		let peer_b_view = View::new(vec![hash_a, hash_b]);
+		let peer_c_view = View::new(vec![hash_b, hash_c]);
 
 		let session_index = 1;
 
 		let peer_data_from_view = |view: View| PeerData {
 			view: view.clone(),
-			view_knowledge: view.0.iter().map(|v| (v.clone(), Default::default())).collect(),
+			view_knowledge: view.heads.iter().map(|v| (v.clone(), Default::default())).collect(),
 		};
 
 		let mut peer_data: HashMap<_, _> = vec![

@@ -1421,7 +1421,7 @@ where
 			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 		}
 
-		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash)).await?;
+		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
 
 		Ok(())
 	}
@@ -2061,7 +2061,7 @@ mod tests {
 					deactivated: [first_block_hash, second_block_hash].as_ref().into(),
 					..Default::default()
 				}),
-				OverseerSignal::BlockFinalized(third_block_hash),
+				OverseerSignal::BlockFinalized(third_block_hash, 3),
 			];
 
 			loop {

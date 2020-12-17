@@ -714,7 +714,7 @@ pub(crate) async fn run(
 					}
 				},
 				Signal(ActiveLeaves(_update)) => {}
-				Signal(BlockFinalized(_)) => {}
+				Signal(BlockFinalized(..)) => {}
 				Signal(Conclude) => return Ok(()),
 			}
 		}

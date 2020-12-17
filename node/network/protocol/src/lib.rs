@@ -19,7 +19,7 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::convert::TryFrom;
 use std::fmt;
@@ -159,35 +159,49 @@ impl<M> NetworkBridgeEvent<M> {
 	}
 }
 
-/// A succinct representation of a peer's view. This consists of a bounded amount of chain heads.
+/// A succinct representation of a peer's view. This consists of a bounded amount of chain heads
+/// and the highest known finalized block number.
 ///
 /// Up to `N` (5?) chain heads.
 #[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct View(pub Vec<Hash>);
+pub struct View {
+	/// A bounded amount of chain heads.
+	pub heads: Vec<Hash>,
+	/// The highest known finalized block number.
+	pub finalized_number: BlockNumber,
+}
 
 impl View {
+	/// Construct a new view with the given chain heads and finalized number 0.
+	pub fn new(heads: Vec<Hash>) -> Self {
+		Self {
+			heads,
+			finalized_number: 0,
+		}
+	}
+
 	/// Replace `self` with `new`.
 	///
 	/// Returns an iterator that will yield all elements of `new` that were not part of `self`.
 	pub fn replace_difference(&mut self, new: View) -> impl Iterator<Item = &Hash> {
 		let old = std::mem::replace(self, new);
 
-		self.0.iter().filter(move |h| !old.contains(h))
+		self.heads.iter().filter(move |h| !old.contains(h))
 	}
 
 	/// Returns an iterator of the hashes present in `Self` but not in `other`.
 	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
-		self.0.iter().filter(move |h| !other.contains(h))
+		self.heads.iter().filter(move |h| !other.contains(h))
 	}
 
 	/// An iterator containing hashes present in both `Self` and in `other`.
 	pub fn intersection<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
-		self.0.iter().filter(move |h| other.contains(h))
+		self.heads.iter().filter(move |h| other.contains(h))
 	}
 
 	/// Whether the view contains a given hash.
 	pub fn contains(&self, hash: &Hash) -> bool {
-		self.0.contains(hash)
+		self.heads.contains(hash)
 	}
 }
 

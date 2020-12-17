@@ -35,7 +35,7 @@ use std::{sync::Arc, time::Duration};
 
 macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
-			View(vec![ $( $hash.clone() ),* ])
+			View::new(vec![ $( $hash.clone() ),* ])
 		];
 	}
 

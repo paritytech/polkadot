@@ -212,8 +212,8 @@ impl BitfieldDistribution {
 						// defer the cleanup to the view change
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					tracing::trace!(target: LOG_TARGET, hash = %hash, "block finalized");
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+					tracing::trace!(target: LOG_TARGET, hash = %hash, number = %number, "block finalized");
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					tracing::trace!(target: LOG_TARGET, "Conclude");
@@ -774,7 +774,7 @@ mod test {
 
 	macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
-			View(vec![ $( $hash.clone() ),* ])
+			View::new(vec![ $( $hash.clone() ),* ])
 		];
 	}
 
@@ -833,7 +833,7 @@ mod test {
 		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
 
-		state.per_relay_parent = view.0.iter().map(|relay_parent| {(
+		state.per_relay_parent = view.heads.iter().map(|relay_parent| {(
 				relay_parent.clone(),
 				PerRelayParentData {
 					signing_context: signing_context.clone(),
