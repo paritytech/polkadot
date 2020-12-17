@@ -176,7 +176,7 @@ pub struct View {
 /// NOTE: Use for tests only.
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// view![Hash::repeat_byte(1), Hash::repeat_byte(2)]
 /// ```
 #[macro_export]
