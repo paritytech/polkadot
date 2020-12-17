@@ -168,7 +168,7 @@ async fn construct_availability_bitfield(
 ) -> Result<AvailabilityBitfield, Error> {
 	// get the set of availability cores from the runtime
 	let availability_cores = {
-		let _span = span.child("get-availability-cores")
+		let _span = span.child("get-availability-cores");
 		get_availability_cores(relay_parent, sender).await?
 	};
 
