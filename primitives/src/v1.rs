@@ -578,7 +578,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct OccupiedCore<N = BlockNumber> {
+pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	/// The ID of the para occupying the core.
 	pub para_id: Id,
 	/// If this core is freed by availability, this is the assignment that is next up on this
@@ -601,7 +601,7 @@ pub struct OccupiedCore<N = BlockNumber> {
 	/// The hash of the candidate occupying the core.
 	pub candidate_hash: CandidateHash,
 	/// The descriptor of the candidate occupying the core.
-	pub candidate_descriptor: CandidateDescriptor,
+	pub candidate_descriptor: CandidateDescriptor<H>,
 }
 
 /// Information about a core which is currently occupied.
@@ -617,10 +617,10 @@ pub struct ScheduledCore {
 /// The state of a particular availability core.
 #[derive(Clone, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub enum CoreState<N = BlockNumber> {
+pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]
-	Occupied(OccupiedCore<N>),
+	Occupied(OccupiedCore<H, N>),
 	/// The core is currently free, with a para scheduled and given the opportunity
 	/// to occupy.
 	///
@@ -722,7 +722,7 @@ sp_api::decl_runtime_apis! {
 
 		/// Yields information on all availability cores. Cores are either free or occupied. Free
 		/// cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState<N>>;
+		fn availability_cores() -> Vec<CoreState<H, N>>;
 
 		/// Yields the full validation data for the given ParaId along with an assumption that
 		/// should be used if the para currently occupieds a core.

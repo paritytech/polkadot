@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData,
+	CandidateReceipt, HeadData, CandidateHash,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
@@ -58,6 +58,8 @@ pub struct AvailabilityBitfieldRecord<N> {
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
+	/// The candidate hash.
+	hash: CandidateHash,
 	/// The candidate descriptor.
 	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
@@ -84,6 +86,16 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the core index.
 	pub(crate) fn core_occupied(&self)-> CoreIndex {
 		self.core.clone()
+	}
+
+	/// Get the candidate hash.
+	pub(crate) fn candidate_hash(&self) -> CandidateHash {
+		self.hash
+	}
+
+	/// Get the canddiate descriptor.
+	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
+		&self.descriptor
 	}
 }
 
@@ -568,6 +580,8 @@ impl<T: Config> Module<T> {
 				candidate.candidate.commitments.head_data.clone(),
 			));
 
+			let candidate_hash = candidate.candidate.hash();
+
 			let (descriptor, commitments) = (
 				candidate.candidate.descriptor,
 				candidate.candidate.commitments,
@@ -575,6 +589,7 @@ impl<T: Config> Module<T> {
 
 			<PendingAvailability<T>>::insert(&para_id, CandidatePendingAvailability {
 				core,
+				hash: candidate_hash,
 				descriptor,
 				availability_votes,
 				relay_parent_number: check_cx.relay_parent_number,
