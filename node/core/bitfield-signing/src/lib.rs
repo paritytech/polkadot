@@ -133,7 +133,7 @@ async fn get_core_availability(
 			"Candidate availability",
 		);
 
-		res
+		return res;
 	}
 
 	Ok(false)
