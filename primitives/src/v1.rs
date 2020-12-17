@@ -598,6 +598,10 @@ pub struct OccupiedCore<N = BlockNumber> {
 	pub availability: BitVec<bitvec::order::Lsb0, u8>,
 	/// The group assigned to distribute availability pieces of this candidate.
 	pub group_responsible: GroupIndex,
+	/// The hash of the candidate occupying the core.
+	pub candidate_hash: CandidateHash,
+	/// The descriptor of the candidate occupying the core.
+	pub candidate_descriptor: CandidateDescriptor,
 }
 
 /// Information about a core which is currently occupied.
