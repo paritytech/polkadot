@@ -7,11 +7,11 @@ if [ "$#" -ne 1 ]; then
 fi
 
 generate_account_id() {
-	subkey ${3:-} inspect "$SECRET//$1//$2" | grep "Account ID" | awk '{ print $3 }'
+	subkey inspect ${3:-} ${4:-} "$SECRET//$1//$2" | grep "Account ID" | awk '{ print $3 }'
 }
 
 generate_address() {
-	subkey ${3:-} inspect "$SECRET//$1//$2" | grep "SS58 Address" | awk '{ print $3 }'
+	subkey inspect ${3:-} ${4:-} "$SECRET//$1//$2" | grep "SS58 Address" | awk '{ print $3 }'
 }
 
 generate_address_and_account_id() {
@@ -34,11 +34,12 @@ for i in $(seq 1 $V_NUM); do
 	AUTHORITIES+="(\n"
 	AUTHORITIES+="$(generate_address_and_account_id $i stash)\n"
 	AUTHORITIES+="$(generate_address_and_account_id $i controller)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i babe '--sr25519' true)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i grandpa '--ed25519' true)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i im_online '--sr25519' true)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i parachains '--sr25519' true)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i authority_discovery '--sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i babe '--scheme sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i grandpa '--scheme ed25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i im_online '--scheme sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i para_validator '--scheme sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i para_assignment '--scheme sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i authority_discovery '--scheme sr25519' true)\n"
 	AUTHORITIES+="),\n"
 done
 

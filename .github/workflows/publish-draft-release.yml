@@ -139,5 +139,5 @@ jobs:
         with:
           room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          message: "**New version of polkadot tagged**: ${{ github.ref }}<br/>Gav: Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}"
+          message: "**New version of polkadot tagged**: ${{ github.ref }}<br/>Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}"
           server: "matrix.parity.io"

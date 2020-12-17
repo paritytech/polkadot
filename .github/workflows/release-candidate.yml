@@ -45,7 +45,7 @@ jobs:
         if: steps.compute_tag.outputs.first_rc == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.compute_tag.outputs.version }}
+          VERSION: ${{ steps.compute_tag.outputs.version }}
         with:
           filename: .github/ISSUE_TEMPLATE/release.md
       - uses: s3krit/matrix-message-action@v0.0.2
