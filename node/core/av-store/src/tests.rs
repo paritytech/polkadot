@@ -543,19 +543,8 @@ fn stored_data_kept_until_finalized() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::BlockFinalized(new_leaf, 0)
+			OverseerSignal::BlockFinalized(new_leaf, 10)
 		).await;
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
-				hash,
-				tx,
-			)) => {
-				assert_eq!(hash, new_leaf);
-				tx.send(Ok(Some(10))).unwrap();
-			}
-		);
 
 		// Wait for a half of the time finalized data should be available for
 		Delay::new(test_state.pruning_config.keep_finalized_block_for / 2).await;
@@ -658,19 +647,8 @@ fn stored_chunk_kept_until_finalized() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::BlockFinalized(new_leaf, 0)
+			OverseerSignal::BlockFinalized(new_leaf, 10)
 		).await;
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
-				hash,
-				tx,
-			)) => {
-				assert_eq!(hash, new_leaf);
-				tx.send(Ok(Some(10))).unwrap();
-			}
-		);
 
 		// Wait for a half of the time finalized data should be available for
 		Delay::new(test_state.pruning_config.keep_finalized_block_for / 2).await;
@@ -812,20 +790,8 @@ fn forkfullness_works() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::BlockFinalized(new_leaf_1, 0)
+			OverseerSignal::BlockFinalized(new_leaf_1, 5)
 		).await;
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
-				hash,
-				tx,
-			)) => {
-				assert_eq!(hash, new_leaf_1);
-				tx.send(Ok(Some(5))).unwrap();
-			}
-		);
-
 
 		// Data of both candidates should be still present in the DB.
 		assert_eq!(
