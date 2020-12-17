@@ -102,7 +102,7 @@ impl JobTrait for CandidateSelectionJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let span = jaeger::hash_span(&relay_parent, "candidate-selection:run");
 		async move {
-			let _span = span.child("query runtime");
+			let _span = span.child("query-runtime");
 			let (groups, cores) = futures::try_join!(
 				try_runtime_api!(request_validator_groups(relay_parent, &mut sender).await),
 				try_runtime_api!(request_from_runtime(
@@ -116,7 +116,7 @@ impl JobTrait for CandidateSelectionJob {
 			let cores = try_runtime_api!(cores);
 
 			drop(_span);
-			let _span = span.child("find assignment");
+			let _span = span.child("find-assignment");
 
 			let n_cores = cores.len();
 
@@ -171,7 +171,7 @@ impl CandidateSelectionJob {
 	}
 
 	async fn run_loop(&mut self, span: &jaeger::JaegerSpan) -> Result<(), Error> {
-		let span = span.child("run loop");
+		let span = span.child("run-loop");
 		loop {
 			match self.receiver.next().await  {
 				Some(CandidateSelectionMessage::Collation(
@@ -179,14 +179,14 @@ impl CandidateSelectionJob {
 					para_id,
 					collator_id,
 				)) => {
-					let _span = span.child("handle collation");
+					let _span = span.child("handle-collation");
 					self.handle_collation(relay_parent, para_id, collator_id).await;
 				}
 				Some(CandidateSelectionMessage::Invalid(
 					_,
 					candidate_receipt,
 				)) => {
-					let _span = span.child("handle invalid");
+					let _span = span.child("handle-invalid");
 					self.handle_invalid(candidate_receipt).await;
 				}
 				None => break,

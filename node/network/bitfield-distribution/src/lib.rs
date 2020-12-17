@@ -310,7 +310,7 @@ async fn relay_message<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	let span = jaeger::hash_span(&message.relay_parent, "relay_msg");
+	let span = jaeger::hash_span(&message.relay_parent, "relay-msg");
 
 	let _span = span.child("provisionable");
 	// notify the overseer about a new and valid signed bitfield
@@ -327,7 +327,7 @@ where
 
 	drop(_span);
 
-	let _span = span.child("interested peers");
+	let _span = span.child("interested-peers");
 	// pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
 		.iter()

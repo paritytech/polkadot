@@ -76,7 +76,7 @@ async fn get_core_availability(
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
 ) -> Result<bool, Error> {
-	let span = jaeger::hash_span(&relay_parent, "core_availability");
+	let span = jaeger::hash_span(&relay_parent, "core-availability");
 	if let CoreState::Occupied(core) = core {
 		tracing::trace!(target: LOG_TARGET, para_id = %core.para_id, "Getting core availability");
 
@@ -144,7 +144,6 @@ async fn get_availability_cores(
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<Vec<CoreState>, Error> {
-	let _span = jaeger::hash_span(&relay_parent, "get availability cores");
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send(AllMessages::from(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx))).into())
@@ -160,14 +159,18 @@ async fn get_availability_cores(
 /// - for each core, concurrently determine chunk availability (see `get_core_availability`)
 /// - return the bitfield if there were no errors at any point in this process
 ///   (otherwise, it's prone to false negatives)
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
+	span: &jaeger::JaegerSpan,
 	validator_idx: ValidatorIndex,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<AvailabilityBitfield, Error> {
 	// get the set of availability cores from the runtime
-	let availability_cores = get_availability_cores(relay_parent, sender).await?;
+	let availability_cores = {
+		let _span = span.child("get-availability-cores");
+		get_availability_cores(relay_parent, sender).await?
+	};
 
 	// Wrap the sender in a Mutex to share it between the futures.
 	//
@@ -274,7 +277,12 @@ impl JobTrait for BitfieldSigningJob {
 			let _span = span.child("availablity");
 
 			let bitfield =
-				match construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await
+				match construct_availability_bitfield(
+					relay_parent,
+					&span,
+					validator.index(),
+					&mut sender,
+				).await
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
@@ -338,7 +346,12 @@ mod tests {
 			let relay_parent = Hash::default();
 			let validator_index = 1u32;
 
-			let future = construct_availability_bitfield(relay_parent, validator_index, &mut sender).fuse();
+			let future = construct_availability_bitfield(
+				relay_parent,
+				&jaeger::JaegerSpan::Disabled,
+				validator_index,
+				&mut sender,
+			).fuse();
 			pin_mut!(future);
 
 			loop {
