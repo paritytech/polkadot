@@ -756,6 +756,11 @@ where
 	}
 }
 
+// Metadata about a candidate that is part of the live_candidates set.
+//
+// Those which were not present in a cache are "fresh" and have their candidate descriptor attached. This
+// information is propagated to the higher level where it can be used to create data entries. Cached candidates
+// already have entries associated with them, and thus don't need this metadata to be fetched.
 #[derive(Debug)]
 enum FetchedLiveCandidate {
 	Cached,
