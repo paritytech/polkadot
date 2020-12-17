@@ -576,11 +576,11 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
-	/// The ID of the para occupying the core.
-	pub para_id: Id,
+    // NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	pub next_up_on_available: Option<ScheduledCore>,
@@ -604,9 +604,16 @@ pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	pub candidate_descriptor: CandidateDescriptor<H>,
 }
 
+impl<H, N> OccupiedCore<H, N> {
+	/// Get the Para currently occupying this core.
+	pub fn para_id(&self) -> Id {
+		self.candidate_descriptor.para_id
+	}
+}
+
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default))]
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -615,8 +622,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]
@@ -638,7 +645,7 @@ impl<N> CoreState<N> {
 	/// If this core state has a `para_id`, return it.
 	pub fn para_id(&self) -> Option<Id> {
 		match self {
-			Self::Occupied(OccupiedCore { para_id, ..}) => Some(*para_id),
+			Self::Occupied(ref core) => Some(core.para_id()),
 			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
 			Self::Free => None,
 		}

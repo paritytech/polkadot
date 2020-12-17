@@ -1127,6 +1127,7 @@ mod tests {
 			let default_candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: default_candidate.hash(),
 				descriptor: default_candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1137,6 +1138,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: default_candidate.hash(),
 				descriptor: default_candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1301,6 +1303,7 @@ mod tests {
 				let default_candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: default_candidate.hash(),
 					descriptor: default_candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
@@ -1336,6 +1339,7 @@ mod tests {
 				let default_candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: default_candidate.hash(),
 					descriptor: default_candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
@@ -1408,6 +1412,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: candidate_a.hash(),
 				descriptor: candidate_a.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1424,6 +1429,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: candidate_b.hash(),
 				descriptor: candidate_b.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1854,6 +1860,7 @@ mod tests {
 				let candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate.hash(),
 					descriptor: candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 3,
@@ -2142,6 +2149,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate_a.hash(),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2158,6 +2166,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_b),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(1),
+					hash: candidate_b.hash(),
 					descriptor: candidate_b.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2174,6 +2183,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&thread_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(2),
+					hash: candidate_c.hash(),
 					descriptor: candidate_c.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2269,6 +2279,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate_a.hash(),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2344,6 +2355,7 @@ mod tests {
 			let candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: candidate.hash(),
 				descriptor: candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 5,
@@ -2354,6 +2366,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: candidate.hash(),
 				descriptor: candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 6,

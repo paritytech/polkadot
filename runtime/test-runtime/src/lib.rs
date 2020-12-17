@@ -631,7 +631,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::validator_groups::<Runtime>()
 		}
 
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_impl::availability_cores::<Runtime>()
 		}
 

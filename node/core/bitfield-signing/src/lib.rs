@@ -79,7 +79,6 @@ async fn get_core_availability(
 	let span = jaeger::hash_span(&relay_parent, "core_availability");
 	if let CoreState::Occupied(core) = core {
 		let _span = span.child("query chunk");
-		let candidate_hash = committed_candidate_receipt.hash();
 
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -98,9 +97,9 @@ async fn get_core_availability(
 
 		tracing::trace!(
 			target: LOG_TARGET,
-			para_id = %core.para_id,
+			para_id = %core.para_id(),
 			availability = ?res,
-			?candidate_hash,
+			?core.candidate_hash,
 			"Candidate availability",
 		);
 
@@ -292,7 +291,6 @@ mod tests {
 
 	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
 		CoreState::Occupied(OccupiedCore {
-			para_id: para_id.into(),
 			group_responsible: para_id.into(),
 			next_up_on_available: None,
 			occupied_since: 100_u32,

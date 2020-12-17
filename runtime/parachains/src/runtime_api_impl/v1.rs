@@ -96,7 +96,6 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
@@ -125,7 +124,6 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),

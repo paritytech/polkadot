@@ -97,23 +97,8 @@ async fn overseer_recv(
 	msg
 }
 
-fn dummy_occupied_core(para: ParaId, candidate_hash: CandidateHash) -> CoreState {
-	CoreState::Occupied(OccupiedCore {
-		para_id: para,
-		next_up_on_available: None,
-		occupied_since: 0,
-		time_out_at: 5,
-		next_up_on_time_out: None,
-		availability: Default::default(),
-		group_responsible: GroupIndex::from(0),
-		candidate_hash,
-		candidate_descriptor: Default::default(),
-	})
-}
-
 fn occupied_core_from_candidate(receipt: &CommittedCandidateReceipt) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
-		para_id: receipt.descriptor.para_id,
 		next_up_on_available: None,
 		occupied_since: 0,
 		time_out_at: 5,
@@ -564,7 +549,6 @@ fn check_views() {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
-			chain_ids,
 			validator_public,
 			relay_parent: current,
 			ancestors,
@@ -582,12 +566,11 @@ fn check_views() {
 			hashmap! { current => 1, genesis => 1 },
 			hashmap! {
 				ancestors[0] => vec![
-					dummy_occupied_core(chain_ids[0], candidates[0].hash()),
-					dummy_occupied_core(chain_ids[1], candidates[1].hash()),
+					occupied_core_from_candidate(&candidates[0]),
+					occupied_core_from_candidate(&candidates[1]),
 				],
 				current => vec![
 					CoreState::Occupied(OccupiedCore {
-						para_id: chain_ids[0].clone(),
 						next_up_on_available: None,
 						occupied_since: 0,
 						time_out_at: 10,
@@ -600,7 +583,6 @@ fn check_views() {
 					CoreState::Free,
 					CoreState::Free,
 					CoreState::Occupied(OccupiedCore {
-						para_id: chain_ids[1].clone(),
 						next_up_on_available: None,
 						occupied_since: 1,
 						time_out_at: 7,
@@ -1159,7 +1141,6 @@ fn query_pending_availability_at_pulls_from_and_updates_receipts() {
 			) if r == hash_b => {
 				let _ = tx.send(Ok(vec![
 					CoreState::Occupied(OccupiedCore {
-						para_id: para_b,
 						next_up_on_available: None,
 						occupied_since: 0,
 						time_out_at: 0,
@@ -1170,7 +1151,6 @@ fn query_pending_availability_at_pulls_from_and_updates_receipts() {
 						candidate_descriptor: candidate_b.descriptor.clone(),
 					}),
 					CoreState::Occupied(OccupiedCore {
-						para_id: para_c,
 						next_up_on_available: None,
 						occupied_since: 0,
 						time_out_at: 0,
