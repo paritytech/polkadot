@@ -106,9 +106,9 @@ async fn get_core_availability(
 			}
 		};
 
-		let candidate_hash = committed_candidate_receipt.hash();
 		drop(_span);
 		let _span = span.child("query chunk");
+		let candidate_hash = committed_candidate_receipt.hash();
 
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -133,7 +133,7 @@ async fn get_core_availability(
 			"Candidate availability",
 		);
 
-		return res
+		res
 	}
 
 	Ok(false)

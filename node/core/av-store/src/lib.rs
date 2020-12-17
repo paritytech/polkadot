@@ -752,18 +752,18 @@ where
 			let chunk_index = chunk.index;
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
-			let res = store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number);
+			let result = store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number);
 
 			tracing::trace!(
 				target: LOG_TARGET,
 				%chunk_index,
 				?candidate_hash,
 				%block_number,
-				result = ?res,
+				?result,
 				"Stored chunk",
 			);
 
-			match res {
+			match result {
 				Err(e) => {
 					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
@@ -774,11 +774,11 @@ where
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
-			let res = store_available_data(subsystem, &hash, id, n_validators, av_data);
+			let result = store_available_data(subsystem, &hash, id, n_validators, av_data);
 
-			tracing::trace!(target: LOG_TARGET, candidate_hash = ?hash, result = ?res, "Stored available data");
+			tracing::trace!(target: LOG_TARGET, candidate_hash = ?hash, ?result, "Stored available data");
 
-			match res {
+			match result {
 				Err(e) => {
 					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);

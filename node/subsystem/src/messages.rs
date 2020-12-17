@@ -231,7 +231,7 @@ impl NetworkBridgeMessage {
 }
 
 /// Availability Distribution Message.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum AvailabilityDistributionMessage {
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),

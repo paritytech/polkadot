@@ -118,6 +118,12 @@ pub struct AvailabilityGossipMessage {
 	pub erasure_chunk: ErasureChunk,
 }
 
+impl From<AvailabilityGossipMessage> for protocol_v1::AvailabilityDistributionMessage {
+	fn from(message: AvailabilityGossipMessage) -> Self {
+		Self::Chunk(message.candidate_hash, message.erasure_chunk)
+	}
+}
+
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
 #[derive(Default, Clone, Debug)]
@@ -344,6 +350,11 @@ where
 
 	// handle all candidates
 	for candidate_hash in state.cached_live_candidates_unioned(view.difference(&old_view)) {
+		// If we are not a validator for this candidate, let's skip it.
+		if state.per_candidate.entry(candidate_hash).or_default().validator_index.is_none() {
+			continue
+		}
+
 		// check if the availability is present in the store exists
 		if !query_data_availability(ctx, candidate_hash).await? {
 			continue;
@@ -369,27 +380,45 @@ where
 
 		// distribute all erasure messages to interested peers
 		for chunk_index in 0u32..(validator_count as u32) {
-			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
-				message.erasure_chunk.clone()
+			let message = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
+				tracing::trace!(
+					target: LOG_TARGET,
+					%chunk_index,
+					?candidate_hash,
+					"Retrieved chunk from message vault",
+				);
+				message.clone()
 			} else if let Some(erasure_chunk) = query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await? {
-				erasure_chunk
+				tracing::trace!(
+					target: LOG_TARGET,
+					%chunk_index,
+					?candidate_hash,
+					"Retrieved chunk from availability storage",
+				);
+
+				AvailabilityGossipMessage {
+					candidate_hash,
+					erasure_chunk,
+				}
 			} else {
+				tracing::error!(
+					target: LOG_TARGET,
+					%chunk_index,
+					?candidate_hash,
+					"Availability store reported that we have the availability data, but we could not retrieve a chunk of it!",
+				);
 				continue;
 			};
 
-			debug_assert_eq!(erasure_chunk.index, chunk_index);
+			debug_assert_eq!(message.erasure_chunk.index, chunk_index);
 
 			let peers = peers
 				.iter()
 				.filter(|peer| per_candidate.message_required_by_peer(peer, &chunk_index))
 				.cloned()
 				.collect::<Vec<_>>();
-			let message = AvailabilityGossipMessage {
-				candidate_hash,
-				erasure_chunk,
-			};
 
-			send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await;
+			send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await;
 		}
 	}
 
@@ -398,34 +427,6 @@ where
 	state.clean_up_receipts_cache();
 
 	Ok(())
-}
-
-#[inline(always)]
-async fn send_tracked_gossip_message_to_peers<Context>(
-	ctx: &mut Context,
-	per_candidate: &mut PerCandidate,
-	metrics: &Metrics,
-	peers: Vec<PeerId>,
-	message: AvailabilityGossipMessage,
-)
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await
-}
-
-#[inline(always)]
-async fn send_tracked_gossip_messages_to_peer<Context>(
-	ctx: &mut Context,
-	per_candidate: &mut PerCandidate,
-	metrics: &Metrics,
-	peer: PeerId,
-	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
-)
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![peer], message_iter).await
 }
 
 #[tracing::instrument(level = "trace", skip(ctx, metrics, message_iter), fields(subsystem = LOG_TARGET))]
@@ -439,9 +440,6 @@ async fn send_tracked_gossip_messages_to_peers<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	if peers.is_empty() {
-		return;
-	}
 	for message in message_iter {
 		for peer in peers.iter() {
 			per_candidate
@@ -455,20 +453,14 @@ where
 			.message_vault
 			.insert(message.erasure_chunk.index, message.clone());
 
-		let wire_message = protocol_v1::AvailabilityDistributionMessage::Chunk(
-			message.candidate_hash,
-			message.erasure_chunk,
-		);
-
-		ctx.send_message(AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendValidationMessage(
+		if !peers.is_empty() {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers.clone(),
-				protocol_v1::ValidationProtocol::AvailabilityDistribution(wire_message),
-			),
-		))
-		.await;
+				protocol_v1::ValidationProtocol::AvailabilityDistribution(message.into()),
+			).into()).await;
 
-		metrics.on_chunk_distributed();
+			metrics.on_chunk_distributed();
+		}
 	}
 }
 
@@ -513,7 +505,7 @@ where
 			.cloned()
 			.collect::<HashSet<_>>();
 
-		send_tracked_gossip_messages_to_peer(ctx, per_candidate, metrics, origin.clone(), messages).await;
+		send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![origin.clone()], messages).await;
 	}
 }
 
@@ -670,7 +662,7 @@ where
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
-	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await;
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await;
 	Ok(())
 }
 
@@ -692,13 +684,21 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
+	async fn run<Context>(self, ctx: Context) -> Result<()>
+	where
+		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+	{
+		let mut state = ProtocolState::default();
+		self.run_inner(ctx, &mut state).await
+	}
+
+	/// Start processing work.
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
-	async fn run<Context>(self, mut ctx: Context) -> Result<()>
+	async fn run_inner<Context>(self, mut ctx: Context, state: &mut ProtocolState) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
 		// work: process incoming messages from the overseer.
-		let mut state = ProtocolState::default();
 		loop {
 			let message = ctx
 				.recv()
@@ -711,7 +711,7 @@ impl AvailabilityDistributionSubsystem {
 					if let Err(e) = handle_network_msg(
 						&mut ctx,
 						&self.keystore.clone(),
-						&mut state,
+						state,
 						&self.metrics,
 						event,
 					)
@@ -780,21 +780,17 @@ where
 {
 	let mut live_candidates = HashMap::new();
 
-	let uncached = relay_blocks
-		.into_iter()
-		.filter(|r|  {
-			receipts.get(&r).map_or(true, |c| {
-				live_candidates.extend(
-					c.iter().cloned().map(|c| (c, FetchedLiveCandidate::Cached))
-				);
-				false
-			})
-		})
-		.collect::<Vec<_>>();
-
 	// fetch and fill out cache for each of these
-	for relay_parent in uncached {
-		let receipts_for = receipts.entry(relay_parent).or_default();
+	for relay_parent in relay_blocks {
+		let receipts_for = match receipts.entry(relay_parent) {
+			Entry::Occupied(e) => {
+				live_candidates.extend(
+					e.get().iter().cloned().map(|c| (c, FetchedLiveCandidate::Cached))
+				);
+				continue
+			},
+			e => e.or_default(),
+		};
 
 		for para in query_para_ids(ctx, relay_parent).await? {
 			if let Some(ccr) = query_pending_availability(ctx, relay_parent, para).await? {
@@ -839,17 +835,11 @@ where
 	)
 	.await?;
 
-	let ancestors_and_head = {
-		let mut a = ancestors.clone();
-		a.push(relay_parent);
-		a
-	};
-
 	// query the ones that were not present in the receipts cache and add them
 	// to it.
 	let live_candidates = query_pending_availability_at(
 		ctx,
-		ancestors_and_head,
+		ancestors.iter().cloned().chain(std::iter::once(relay_parent)),
 		receipts,
 	).await?;
 
@@ -1070,18 +1060,11 @@ where
 	// iterate from youngest to oldest
 	let mut iter = ancestors.into_iter().peekable();
 
-	while let Some(ancestor) = iter.next() {
-		if let Some(ancestor_parent) = iter.peek() {
-			let session = query_session_index_for_child(ctx, *ancestor_parent).await?;
-			if session != desired_session {
-				break;
-			}
-			acc.push(ancestor);
-		} else {
-			// either ended up at genesis or the blocks were
-			// already pruned
+	while let Some((ancestor, ancestor_parent)) = iter.next().and_then(|a| iter.peek().map(|ap| (a, ap))) {
+		if query_session_index_for_child(ctx, *ancestor_parent).await? != desired_session {
 			break;
 		}
+		acc.push(ancestor);
 	}
 
 	debug_assert!(acc.len() <= k);
