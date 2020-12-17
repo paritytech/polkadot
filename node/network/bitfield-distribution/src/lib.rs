@@ -770,13 +770,7 @@ mod test {
 	use std::sync::Arc;
 	use std::time::Duration;
 	use assert_matches::assert_matches;
-	use polkadot_node_network_protocol::ObservedRole;
-
-	macro_rules! view {
-		( $( $hash:expr ),* $(,)? ) => [
-			View::new(vec![ $( $hash.clone() ),* ])
-		];
-	}
+	use polkadot_node_network_protocol::{view, ObservedRole};
 
 	macro_rules! launch {
 		($fut:expr) => {

@@ -171,15 +171,22 @@ pub struct View {
 	pub finalized_number: BlockNumber,
 }
 
-impl View {
-	/// Construct a new view with the given chain heads and finalized number 0.
-	pub fn new(heads: Vec<Hash>) -> Self {
-		Self {
-			heads,
-			finalized_number: 0,
-		}
-	}
 
+/// Construct a new view with the given chain heads and finalized number 0.
+/// NOTE: Use for tests only.
+/// # Example
+///
+/// ```
+/// view![Hash::repeat_byte(1), Hash::repeat_byte(2)]
+/// ```
+#[macro_export]
+macro_rules! view {
+	( $( $hash:expr ),* $(,)? ) => {
+		View { heads: vec![ $( $hash.clone() ),* ], finalized_number: 0 }
+	};
+}
+
+impl View {
 	/// Replace `self` with `new`.
 	///
 	/// Returns an iterator that will yield all elements of `new` that were not part of `self`.

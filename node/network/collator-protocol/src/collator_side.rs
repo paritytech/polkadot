@@ -742,6 +742,7 @@ mod tests {
 	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_node_network_protocol::view;
 
 	#[derive(Default)]
 	struct TestCandidateBuilder {
@@ -896,7 +897,7 @@ mod tests {
 			overseer_send(
 				virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View::new(hashes)),
+					NetworkBridgeEvent::OurViewChange(View { heads: hashes, finalized_number: 0 }),
 				),
 			).await;
 		}
@@ -1004,7 +1005,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::OurViewChange(View::new(vec![test_state.relay_parent])),
+				NetworkBridgeEvent::OurViewChange(view![test_state.relay_parent]),
 			),
 		).await;
 	}
@@ -1144,7 +1145,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer, View::new(Default::default())),
+				NetworkBridgeEvent::PeerViewChange(peer, view![]),
 			),
 		).await;
 	}
@@ -1213,7 +1214,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::new(hashes)),
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: hashes, finalized_number: 0 }),
 			),
 		).await;
 	}
@@ -1323,7 +1324,7 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(
 						peer.clone(),
-						View::new(vec![test_state.relay_parent]),
+						view![test_state.relay_parent],
 					)
 				)
 			).await;

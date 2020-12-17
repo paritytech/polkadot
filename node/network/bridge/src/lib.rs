@@ -584,7 +584,7 @@ where
 
 	// Most recent heads are at the back.
 	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
-	let mut local_view = View::new(Vec::new());
+	let mut local_view = View::default();
 
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
@@ -767,6 +767,7 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 	};
+	use polkadot_node_network_protocol::view;
 	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
 
@@ -1000,7 +1001,7 @@ mod tests {
 
 			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View::new(vec![hash_a])
+				view![hash_a]
 			).encode();
 
 			assert!(network_actions_contains(
@@ -1035,7 +1036,7 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 
-			let view = View::new(vec![Hash::from([1u8; 32])]);
+			let view = view![Hash::repeat_byte(1)];
 
 			// bridge will inform about all connected peers.
 			{
@@ -1188,7 +1189,7 @@ mod tests {
 
 			let actions = network_handle.next_network_actions(1).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View::new(vec![hash_a])
+				view![hash_a]
 			).encode();
 
 			assert!(network_actions_contains(
@@ -1326,8 +1327,8 @@ mod tests {
 				).await;
 			}
 
-			let view_a = View::new(vec![[1; 32].into()]);
-			let view_b = View::new(vec![[2; 32].into()]);
+			let view_a = view![Hash::repeat_byte(1)];
+			let view_b = view![Hash::repeat_byte(2)];
 
 			network_handle.peer_message(
 				peer.clone(),
