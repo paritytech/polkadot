@@ -61,7 +61,7 @@ impl core::fmt::Display for ChainApiError {
 impl std::error::Error for ChainApiError {}
 
 /// An error that may happen during Availability Recovery process.
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum RecoveryError {
 	/// A chunk is recovered but is invalid.
 	Invalid,

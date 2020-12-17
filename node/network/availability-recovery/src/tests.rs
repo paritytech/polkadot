@@ -129,6 +129,128 @@ struct TestState {
 	chunks: Vec<ErasureChunk>,
 }
 
+impl TestState {
+	async fn test_runtime_api(
+		&self,
+		virtual_overseer: &mut VirtualOverseer,
+	) {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionIndexForChild(tx),
+			)) => {
+				assert_eq!(relay_parent, self.current);
+				tx.send(Ok(self.session_index)).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(
+					session_index,
+					tx,
+				)
+			)) => {
+				assert_eq!(relay_parent, self.current);
+				assert_eq!(session_index, self.session_index);
+
+				tx.send(Ok(Some(SessionInfo {
+					validators: self.validator_public.clone(),
+					discovery_keys: self.validator_authority_id.clone(),
+					..Default::default()
+				}))).unwrap();
+			}
+		);
+	}
+
+	async fn test_connect_to_validators(
+		&self,
+		virtual_overseer: &mut VirtualOverseer,
+	) {
+		// Indexes of validators subsystem has attempted to connect to.
+		let mut attempted_to_connect_to = Vec::new();
+
+		for _ in 0..self.validator_public.len() {
+			self.test_runtime_api(virtual_overseer).await;
+
+			// Connect to shuffled validators one by one.
+			assert_matches!(
+				overseer_recv(virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ConnectToValidators {
+						validator_ids,
+						mut connected,
+						..
+					}
+				) => {
+					for validator_id in validator_ids {
+						let idx = self.validator_authority_id
+							.iter()
+							.position(|x| *x == validator_id)
+							.unwrap();
+
+						attempted_to_connect_to.push(idx);
+
+						let result = (
+							self.validator_authority_id[idx].clone(),
+							self.validator_peer_id[idx].clone(),
+						);
+
+						connected.try_send(result).unwrap();
+					}
+				}
+			);
+		}
+	}
+
+	async fn test_chunk_requests(
+		&self,
+		candidate_hash: CandidateHash,
+		virtual_overseer: &mut VirtualOverseer,
+	) {
+		for _ in 0..self.validator_public.len() {
+			// Receive a request for a chunk.
+			assert_matches!(
+				overseer_recv(virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendValidationMessage(
+						_peers,
+						protocol_v1::ValidationProtocol::AvailabilityRecovery(wire_message),
+					)
+				) => {
+					let (request_id, validator_index) = assert_matches!(
+						wire_message,
+						protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
+							request_id,
+							candidate_hash_recvd,
+							validator_index,
+						) => {
+							assert_eq!(candidate_hash_recvd, candidate_hash);
+							(request_id, validator_index)
+						}
+					);
+
+					overseer_send(
+						virtual_overseer,
+						AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(
+							NetworkBridgeEvent::PeerMessage(
+								self.validator_peer_id[validator_index as usize].clone(),
+								protocol_v1::AvailabilityRecoveryMessage::Chunk(
+									request_id,
+									Some(self.chunks[validator_index as usize].clone()),
+								)
+							)
+						)
+					).await;
+				}
+			);
+		}
+	}
+}
+
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
@@ -220,52 +342,6 @@ impl Default for TestState {
 	}
 }
 
-async fn test_validator_discovery(
-	virtual_overseer: &mut VirtualOverseer,
-	expected_relay_parent: Hash,
-	session_index: SessionIndex,
-	validator_ids: &[ValidatorId],
-	discovery_ids: &[AuthorityDiscoveryId],
-) {
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::SessionIndexForChild(tx),
-		)) => {
-			assert_eq!(relay_parent, expected_relay_parent);
-			tx.send(Ok(session_index)).unwrap();
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::SessionInfo(index, tx),
-		)) => {
-			assert_eq!(relay_parent, expected_relay_parent);
-			assert_eq!(index, session_index);
-
-			let validators = validator_ids
-				.iter()
-				.cloned()
-				.collect();
-
-			let discovery_keys = discovery_ids
-				.iter()
-				.cloned()
-				.collect();
-
-			tx.send(Ok(Some(SessionInfo {
-				validators,
-				discovery_keys,
-				..Default::default()
-			}))).unwrap();
-		}
-	);
-}
-
 #[test]
 fn availability_is_recovered() {
 	let test_state = TestState::default();
@@ -291,116 +367,35 @@ fn availability_is_recovered() {
 			)
 		).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::SessionIndexForChild(tx),
-			)) => {
-				assert_eq!(relay_parent, test_state.current);
-				tx.send(Ok(test_state.session_index)).unwrap();
-			}
-		);
+		test_state.test_runtime_api(&mut virtual_overseer).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::SessionInfo(
-					session_index,
-					tx,
-				)
-			)) => {
-				assert_eq!(relay_parent, test_state.current);
-				assert_eq!(session_index, test_state.session_index);
+		test_state.test_connect_to_validators(&mut virtual_overseer).await;
 
-				tx.send(Ok(Some(SessionInfo {
-					validators: test_state.validator_public.clone(),
-					..Default::default()
-				}))).unwrap();
-			}
-		);
+		let candidate_hash = test_state.candidate.hash();
 
-		// Indexes of validators subsystem has attempted to connect to.
-		let mut attempted_to_connect_to = Vec::new();
-
-		for _ in 0..test_state.validator_public.len() {
-			test_validator_discovery(
-				&mut virtual_overseer,
-				test_state.current,
-				test_state.session_index,
-				&test_state.validator_public,
-				&test_state.validator_authority_id,
-			).await;
-
-			// Connect to shuffled validators one by one.
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ConnectToValidators {
-						validator_ids,
-						mut connected,
-						..
-					}
-				) => {
-					for validator_id in validator_ids {
-						let idx = test_state.validator_authority_id
-							.iter()
-							.position(|x| *x == validator_id)
-							.unwrap();
-
-						attempted_to_connect_to.push(idx);
-
-						let result = (
-							test_state.validator_authority_id[idx].clone(),
-							test_state.validator_peer_id[idx].clone(),
-						);
-
-						connected.try_send(result).unwrap();
-					}
-				}
-			);
-		}
-
-		for _ in 0..test_state.validator_public.len() {
-			// Receive a request for a chunk.
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendValidationMessage(
-						_peers,
-						protocol_v1::ValidationProtocol::AvailabilityRecovery(wire_message),
-					)
-				) => {
-					let (request_id, validator_index) = assert_matches!(
-						wire_message,
-						protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
-							request_id,
-							candidate_hash,
-							validator_index,
-						) => {
-							assert_eq!(candidate_hash, test_state.candidate.hash());
-							(request_id, validator_index)
-						}
-					);
-
-					overseer_send(
-						&mut virtual_overseer,
-						AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(
-							NetworkBridgeEvent::PeerMessage(
-								test_state.validator_peer_id[validator_index as usize].clone(),
-								protocol_v1::AvailabilityRecoveryMessage::Chunk(
-									request_id,
-									Some(test_state.chunks[validator_index as usize].clone()),
-								)
-							)
-						)
-					).await;
-				}
-			);
-		}
+		test_state.test_chunk_requests(candidate_hash, &mut virtual_overseer).await;
 
 		// Recovered data should match the original one.
 		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
+
+		let (tx, rx) = oneshot::channel();
+
+		// Test another candidate, send no chunks.
+		let new_candidate = CandidateReceipt::default();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				new_candidate,
+				tx,
+			)
+		).await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		test_state.test_connect_to_validators(&mut virtual_overseer).await;
+
+		// A request times out with `Unavailable` error.
+		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Unavailable);
 	});
 }

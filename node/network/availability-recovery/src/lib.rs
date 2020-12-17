@@ -19,6 +19,7 @@
 #![warn(missing_docs)]
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use futures::prelude::*;
 use futures::stream::FuturesUnordered;
@@ -42,6 +43,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, RequestId,
 };
 use polkadot_node_subsystem_util::{
+	Timeout, TimeoutExt,
 	validator_discovery,
 	request_session_index_for_child_ctx,
 	request_session_info_ctx,
@@ -63,6 +65,9 @@ const N_PARALLEL: usize = 50;
 
 // Size of the LRU cache where we keep recovered data.
 const LRU_SIZE: usize = 16;
+
+// A timeout for a chunk request.
+const CHUNK_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Compute the threshold from the number of validators.
 ///
@@ -141,7 +146,7 @@ struct Interaction {
 	received_chunks: HashMap<PeerId, ErasureChunk>,
 
 	/// The chunk requests that are waiting to complete.
-	requesting_chunks: FuturesUnordered<oneshot::Receiver<ChunkResponse>>,
+	requesting_chunks: FuturesUnordered<Timeout<oneshot::Receiver<ChunkResponse>>>,
 }
 
 impl Interaction {
@@ -172,39 +177,66 @@ impl Interaction {
 						return;
 					};
 
-					self.requesting_chunks.push(rx);
+					self.requesting_chunks.push(rx.timeout(CHUNK_REQUEST_TIMEOUT));
 				} else {
 					break;
 				}
 			}
 
-			// Poll for new updates from requesting_chunks.
-			if let Some(Ok(Ok((peer_id, chunk)))) = self.requesting_chunks.next().await {
-				// Check merkle proofs of any received chunks, and any failures should
-				// lead to issuance of a FromInteraction::ReportPeer message.
-				if let Ok(anticipated_hash) = branch_hash(
-					&self.erasure_root,
-					&chunk.proof,
-					chunk.index as usize,
-				) {
-					let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
+			// Check if the requesting chunks is not empty not to poll to completion.
+			if !self.requesting_chunks.is_empty() {
+				// Poll for new updates from requesting_chunks.
+				while let Some(request_result) = self.requesting_chunks.next().await {
+					match request_result {
+						Some(Ok(Ok((peer_id, chunk)))) => {
+							// Check merkle proofs of any received chunks, and any failures should
+							// lead to issuance of a FromInteraction::ReportPeer message.
+							if let Ok(anticipated_hash) = branch_hash(
+								&self.erasure_root,
+								&chunk.proof,
+								chunk.index as usize,
+							) {
+								let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
-					if erasure_chunk_hash != anticipated_hash {
-						if self.to_state.send(FromInteraction::ReportPeer(
-							peer_id,
-							COST_MERKLE_PROOF_INVALID,
-						)).await.is_err() {
-							return;
+								if erasure_chunk_hash != anticipated_hash {
+									if self.to_state.send(FromInteraction::ReportPeer(
+											peer_id,
+											COST_MERKLE_PROOF_INVALID,
+									)).await.is_err() {
+										return;
+									}
+								} else {
+									self.received_chunks.insert(peer_id, chunk);
+								}
+							} else {
+								if self.to_state.send(FromInteraction::ReportPeer(
+										peer_id,
+										COST_MERKLE_PROOF_INVALID,
+								)).await.is_err() {
+									return;
+								}
+							}
 						}
-					} else {
-						self.received_chunks.insert(peer_id, chunk);
-					}
-				} else {
-					if self.to_state.send(FromInteraction::ReportPeer(
-						peer_id,
-						COST_MERKLE_PROOF_INVALID,
-					)).await.is_err() {
-						return;
+						Some(Err(e)) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								err = ?e,
+								"A response channel was cacelled while waiting for a chunk",
+							);
+						}
+						Some(Ok(Err(e))) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								err = ?e,
+								"A chunk request ended with an error",
+							);
+						}
+						None => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								"A chunk request has timed out",
+							)
+						}
 					}
 				}
 			}
