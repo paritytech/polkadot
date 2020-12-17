@@ -41,12 +41,11 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
-	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
+	BlockHashCount, BlockWeights, BlockLength,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -74,6 +73,7 @@ use frame_support::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
+use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -125,6 +125,9 @@ parameter_types! {
 
 impl frame_system::Config for Runtime {
 	type BaseCallFilter = ();
+	type BlockWeights = BlockWeights;
+	type BlockLength = BlockLength;
+	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -136,13 +139,6 @@ impl frame_system::Config for Runtime {
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = ();
-	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
@@ -257,7 +253,8 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
-		pub parachain_validator: Initializer,
+		pub para_validator: Initializer,
+		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -331,7 +328,7 @@ impl pallet_staking::Config for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = MaximumBlockWeight;
+	type OffchainSolutionWeightLimit = ();
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 
@@ -401,7 +398,7 @@ impl frame_system::offchain::SigningTypes for Runtime {
 }
 
 parameter_types! {
-	pub storage OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub storage OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -450,6 +447,7 @@ impl parachains_configuration::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_inclusion_inherent::Config for Runtime {}
@@ -519,6 +517,7 @@ construct_runtime! {
 		Paras: parachains_paras::{Module, Call, Storage, Origin},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
+		SessionInfo: parachains_session_info::{Module, Call, Storage},
 
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
@@ -681,7 +680,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 
-		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+		fn session_info(index: SessionIndex) -> Option<SessionInfoData> {
 			runtime_impl::session_info::<Runtime>(index)
 		}
 

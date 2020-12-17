@@ -560,7 +560,7 @@ impl<T: Config> Module<T> {
 	}
 
 	pub fn crowdfund_kill(index: FundIndex) {
-		child::kill_storage(&Self::id_from_index(index));
+		child::kill_storage(&Self::id_from_index(index), None);
 	}
 }
 
@@ -573,13 +573,12 @@ mod tests {
 		impl_outer_origin, assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
 	};
-	use frame_support::traits::{Contains, ContainsLengthBound};
 	use sp_core::H256;
 	use primitives::v1::{Id as ParaId, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
-		Perbill, Permill, Percent, testing::Header, DispatchResult,
+		Permill, testing::Header, DispatchResult,
 		traits::{BlakeTwo256, IdentityLookup},
 	};
 	use crate::slots::Registrar;
@@ -595,12 +594,13 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
-		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
-		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
+
 	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
+		type BlockWeights = ();
+		type BlockLength = ();
+		type DbWeight = ();
 		type Origin = Origin;
 		type Call = ();
 		type Index = u64;
@@ -612,13 +612,6 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
-		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ();
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u64>;
@@ -644,28 +637,7 @@ mod tests {
 		pub const ProposalBondMinimum: u64 = 1;
 		pub const SpendPeriod: u64 = 2;
 		pub const Burn: Permill = Permill::from_percent(50);
-		pub const TipCountdown: u64 = 1;
-		pub const TipFindersFee: Percent = Percent::from_percent(20);
-		pub const TipReportDepositBase: u64 = 1;
 		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
-		pub const DataDepositPerByte: u64 = 1;
-		pub const BountyDepositBase: u64 = 1;
-		pub const BountyDepositPayoutDelay: u64 = 1;
-		pub const BountyUpdatePeriod: u64 = 1;
-		pub const MaximumReasonLength: u32 = 16384;
-		pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-		pub const BountyValueMinimum: u64 = 1;
-	}
-	pub struct Nobody;
-	impl Contains<u64> for Nobody {
-		fn contains(_: &u64) -> bool { false }
-		fn sorted_members() -> Vec<u64> { vec![] }
-		#[cfg(feature = "runtime-benchmarks")]
-		fn add(_: &u64) { unimplemented!() }
-	}
-	impl ContainsLengthBound for Nobody {
-		fn min_len() -> usize { 0 }
-		fn max_len() -> usize { 0 }
 	}
 	impl pallet_treasury::Config for Test {
 		type Currency = pallet_balances::Module<Test>;
@@ -678,18 +650,8 @@ mod tests {
 		type SpendPeriod = SpendPeriod;
 		type Burn = Burn;
 		type BurnDestination = ();
-		type Tippers = Nobody;
-		type TipCountdown = TipCountdown;
-		type TipFindersFee = TipFindersFee;
-		type TipReportDepositBase = TipReportDepositBase;
-		type DataDepositPerByte = DataDepositPerByte;
-		type BountyDepositBase = BountyDepositBase;
-		type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
-		type BountyUpdatePeriod = BountyUpdatePeriod;
-		type MaximumReasonLength = MaximumReasonLength;
-		type BountyCuratorDeposit = BountyCuratorDeposit;
-		type BountyValueMinimum = BountyValueMinimum;
 		type ModuleId = TreasuryModuleId;
+		type SpendFunds = ();
 		type WeightInfo = ();
 	}
 

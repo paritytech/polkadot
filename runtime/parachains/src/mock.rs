@@ -17,18 +17,17 @@
 //! Mocks for all the traits.
 
 use sp_io::TestExternalities;
-use sp_core::{H256};
-use sp_runtime::{
-	Perbill,
-	traits::{
-		BlakeTwo256, IdentityLookup,
-	},
+use sp_core::H256;
+use sp_runtime::traits::{
+	BlakeTwo256, IdentityLookup,
 };
-use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header};
+use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header, ValidatorIndex};
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
-	weights::Weight, traits::Randomness as RandomnessT,
+	traits::Randomness as RandomnessT,
 };
+use std::cell::RefCell;
+use std::collections::HashMap;
 use crate::inclusion;
 use crate as parachains;
 
@@ -65,13 +64,15 @@ impl RandomnessT<H256> for TestRandomness {
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
-	pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	pub BlockWeights: frame_system::limits::BlockWeights =
+		frame_system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
 }
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = ();
+	type BlockWeights = BlockWeights;
+	type BlockLength = ();
+	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;
 	type Index = u64;
@@ -83,13 +84,6 @@ impl frame_system::Config for Test {
 	type Header = Header;
 	type Event = TestEvent;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = ();
-	type BlockExecutionWeight = ();
-	type ExtrinsicBaseWeight = ();
-	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<u128>;
@@ -122,6 +116,7 @@ impl crate::scheduler::Config for Test { }
 
 impl crate::inclusion::Config for Test {
 	type Event = TestEvent;
+	type RewardValidators = TestRewardValidators;
 }
 
 impl crate::session_info::Config for Test { }
@@ -129,6 +124,43 @@ impl crate::session_info::Config for Test { }
 impl crate::session_info::AuthorityDiscoveryConfig for Test {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
 		Vec::new()
+	}
+}
+
+thread_local! {
+	pub static BACKING_REWARDS: RefCell<HashMap<ValidatorIndex, usize>>
+		= RefCell::new(HashMap::new());
+
+	pub static AVAILABILITY_REWARDS: RefCell<HashMap<ValidatorIndex, usize>>
+		= RefCell::new(HashMap::new());
+}
+
+pub fn backing_rewards() -> HashMap<ValidatorIndex, usize> {
+	BACKING_REWARDS.with(|r| r.borrow().clone())
+}
+
+pub fn availability_rewards() -> HashMap<ValidatorIndex, usize> {
+	AVAILABILITY_REWARDS.with(|r| r.borrow().clone())
+}
+
+pub struct TestRewardValidators;
+
+impl inclusion::RewardValidators for TestRewardValidators {
+	fn reward_backing(v: impl IntoIterator<Item = ValidatorIndex>) {
+		BACKING_REWARDS.with(|r| {
+			let mut r = r.borrow_mut();
+			for i in v {
+				*r.entry(i).or_insert(0) += 1;
+			}
+		})
+	}
+	fn reward_bitfields(v: impl IntoIterator<Item = ValidatorIndex>) {
+		AVAILABILITY_REWARDS.with(|r| {
+			let mut r = r.borrow_mut();
+			for i in v {
+				*r.entry(i).or_insert(0) += 1;
+			}
+		})
 	}
 }
 
@@ -163,6 +195,9 @@ pub type SessionInfo = crate::session_info::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
+	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
+	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
+
 	let mut t = state.system.build_storage::<Test>().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
 	state.paras.assimilate_storage(&mut t).unwrap();

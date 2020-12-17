@@ -84,8 +84,9 @@ impl CollationGenerationSubsystem {
 		// at any point waiting for them all, so instead, we create a channel on which they can
 		// send those messages. We can then just monitor the channel and forward messages on it
 		// to the overseer here, via the context.
-		let (sender, mut receiver) = mpsc::channel(0);
+		let (sender, receiver) = mpsc::channel(0);
 
+		let mut receiver = receiver.fuse();
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => {
@@ -93,7 +94,7 @@ impl CollationGenerationSubsystem {
 						break;
 					}
 				},
-				msg = receiver.next().fuse() => {
+				msg = receiver.next() => {
 					if let Some(msg) = msg {
 						ctx.send_message(msg).await;
 					}
@@ -201,7 +202,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 		let availability_cores = availability_cores??;
 		let n_validators = validators??.len();
 
-		for core in availability_cores {
+		for (core_idx, core) in availability_cores.into_iter().enumerate() {
 			let _availability_core_timer = metrics.time_new_activations_availability_core();
 
 			let (scheduled_core, assumption) = match core {
@@ -210,12 +211,33 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				}
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						relay_parent = ?relay_parent,
+						"core is occupied. Keep going.",
+					);
 					continue;
 				}
-				_ => continue,
+				CoreState::Free => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						"core is free. Keep going.",
+					);
+					continue
+				}
 			};
 
 			if scheduled_core.para_id != config.para_id {
+				tracing::trace!(
+					target: LOG_TARGET,
+					core_idx = %core_idx,
+					relay_parent = ?relay_parent,
+					our_para = %config.para_id,
+					their_para = %scheduled_core.para_id,
+					"core is not assigned to our para. Keep going.",
+				);
 				continue;
 			}
 
@@ -232,7 +254,17 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			.await??
 			{
 				Some(v) => v,
-				None => continue,
+				None => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						relay_parent = ?relay_parent,
+						our_para = %config.para_id,
+						their_para = %scheduled_core.para_id,
+						"validation data is not available",
+					);
+					continue
+				}
 			};
 
 			let task_config = config.clone();

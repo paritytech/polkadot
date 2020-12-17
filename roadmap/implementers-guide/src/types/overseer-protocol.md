@@ -211,7 +211,7 @@ enum BitfieldSigningMessage { }
 enum CandidateBackingMessage {
   /// Requests a set of backable candidates that could be backed in a child of the given
   /// relay-parent, referenced by its hash.
-  GetBackedCandidates(Hash, ResponseChannel<Vec<NewBackedCandidate>>),
+  GetBackedCandidates(Hash, Vec<CandidateHash>, ResponseChannel<Vec<BackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
   /// The PoV is expected to match the `pov_hash` in the descriptor.
@@ -384,7 +384,7 @@ enum ProvisionableData {
   /// This bitfield indicates the availability of various candidate blocks.
   Bitfield(Hash, SignedAvailabilityBitfield),
   /// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
-  BackedCandidate(BackedCandidate),
+  BackedCandidate(CandidateReceipt),
   /// Misbehavior reports are self-contained proofs of validator misbehavior.
   MisbehaviorReport(Hash, MisbehaviorReport),
   /// Disputes trigger a broad dispute resolution process.

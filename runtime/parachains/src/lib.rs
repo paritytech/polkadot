@@ -29,11 +29,11 @@ pub mod initializer;
 pub mod paras;
 pub mod scheduler;
 pub mod session_info;
-pub mod validity;
 pub mod origin;
 pub mod dmp;
 pub mod ump;
 pub mod hrmp;
+pub mod reward_points;
 
 pub mod runtime_api_impl;
 
