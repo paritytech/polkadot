@@ -938,7 +938,7 @@ impl StatementDistribution {
 							.or_insert(ActiveHeadData::new(validators, session_index));
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_block_hash)) => {
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
 					// do nothing
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => break,
@@ -1072,6 +1072,7 @@ mod tests {
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
+	use polkadot_node_network_protocol::view;
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -1326,9 +1327,9 @@ mod tests {
 
 	#[test]
 	fn peer_view_update_sends_messages() {
-		let hash_a = [1; 32].into();
-		let hash_b = [2; 32].into();
-		let hash_c = [3; 32].into();
+		let hash_a = Hash::repeat_byte(1);
+		let hash_b = Hash::repeat_byte(2);
+		let hash_c = Hash::repeat_byte(3);
 
 		let candidate = {
 			let mut c = CommittedCandidateReceipt::default();
@@ -1338,8 +1339,8 @@ mod tests {
 		};
 		let candidate_hash = candidate.hash();
 
-		let old_view = View(vec![hash_a, hash_b]);
-		let new_view = View(vec![hash_b, hash_c]);
+		let old_view = view![hash_a, hash_b];
+		let new_view = view![hash_b, hash_c];
 
 		let mut active_heads = HashMap::new();
 		let validators = vec![
@@ -1474,9 +1475,9 @@ mod tests {
 
 	#[test]
 	fn circulated_statement_goes_to_all_peers_with_view() {
-		let hash_a = [1; 32].into();
-		let hash_b = [2; 32].into();
-		let hash_c = [3; 32].into();
+		let hash_a = Hash::repeat_byte(1);
+		let hash_b = Hash::repeat_byte(2);
+		let hash_c = Hash::repeat_byte(3);
 
 		let candidate = {
 			let mut c = CommittedCandidateReceipt::default();
@@ -1489,15 +1490,15 @@ mod tests {
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();
 
-		let peer_a_view = View(vec![hash_a]);
-		let peer_b_view = View(vec![hash_a, hash_b]);
-		let peer_c_view = View(vec![hash_b, hash_c]);
+		let peer_a_view = view![hash_a];
+		let peer_b_view = view![hash_a, hash_b];
+		let peer_c_view = view![hash_b, hash_c];
 
 		let session_index = 1;
 
 		let peer_data_from_view = |view: View| PeerData {
 			view: view.clone(),
-			view_knowledge: view.0.iter().map(|v| (v.clone(), Default::default())).collect(),
+			view_knowledge: view.heads.iter().map(|v| (v.clone(), Default::default())).collect(),
 		};
 
 		let mut peer_data: HashMap<_, _> = vec![

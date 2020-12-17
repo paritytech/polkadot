@@ -89,7 +89,7 @@ where
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				ChainApiMessage::BlockNumber(hash, response_channel) => {
 					let _timer = subsystem.metrics.time_block_number();

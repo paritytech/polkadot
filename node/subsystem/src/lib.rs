@@ -28,7 +28,7 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{Hash, BlockNumber};
 use async_trait::async_trait;
 use smallvec::SmallVec;
 
@@ -89,8 +89,8 @@ impl PartialEq for ActiveLeavesUpdate {
 pub enum OverseerSignal {
 	/// Subsystems should adjust their jobs to start and stop work on appropriate block hashes.
 	ActiveLeaves(ActiveLeavesUpdate),
-	/// `Subsystem` is informed of a finalized block by its block hash.
-	BlockFinalized(Hash),
+	/// `Subsystem` is informed of a finalized block by its block hash and number.
+	BlockFinalized(Hash, BlockNumber),
 	/// Conclude the work of the `Overseer` and all `Subsystem`s.
 	Conclude,
 }
