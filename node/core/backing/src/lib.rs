@@ -395,7 +395,7 @@ async fn validate_and_make_available(
 	let pov = match pov {
 		Some(pov) => pov,
 		None => {
-			let _span = span.child("request PoV");
+			let _span = span.child("request-pov");
 			request_pov_from_distribution(
 				&mut tx_from,
 				relay_parent,
@@ -405,7 +405,7 @@ async fn validate_and_make_available(
 	};
 
 	let v = {
-		let _span = span.child("request candidate validation");
+		let _span = span.child("request-validation");
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
 
@@ -423,7 +423,7 @@ async fn validate_and_make_available(
 				);
 				Err(candidate)
 			} else {
-				let _span = span.child("make pov available");
+				let _span = span.child("make-available");
 				let erasure_valid = make_pov_available(
 					&mut tx_from,
 					validator_index,
@@ -474,7 +474,7 @@ impl CandidateBackingJob {
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
-					let _span = span.child("process validation result");
+					let _span = span.child("process-validation-result");
 					if let Some(c) = validated_command {
 						self.handle_validated_candidate_command(c).await?;
 					} else {
@@ -486,7 +486,7 @@ impl CandidateBackingJob {
 					Some(msg) => {
 						// we intentionally want spans created in `process_msg` to descend from the
 						// `span ` which is longer-lived than this ephemeral timing span.
-						let _timing_span = span.child("process message");
+						let _timing_span = span.child("process-message");
 						self.process_msg(&span, msg).await?;
 					}
 				}
@@ -844,7 +844,7 @@ impl CandidateBackingJob {
 
 	fn add_unbacked_span(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) {
 		self.unbacked_candidates.entry(hash).or_insert_with(|| {
-			let mut span = parent_span.child("unbacked candidate");
+			let mut span = parent_span.child("unbacked-candidate");
 			span.add_string_tag("candidate-hash", &format!("{:?}", hash.0));
 			span
 		});
@@ -921,7 +921,7 @@ impl util::JobTrait for CandidateBackingJob {
 			}
 
 			let span = jaeger::hash_span(&parent, "run:backing");
-			let _span = span.child("runtime apis");
+			let _span = span.child("runtime-apis");
 
 			let (validators, groups, session_index, cores) = futures::try_join!(
 				try_runtime_api!(request_validators(parent, &mut tx_from).await),
@@ -940,7 +940,7 @@ impl util::JobTrait for CandidateBackingJob {
 			let cores = try_runtime_api!(cores);
 
 			drop(_span);
-			let _span = span.child("validator construction");
+			let _span = span.child("validator-construction");
 
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
@@ -962,7 +962,7 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			drop(_span);
-			let _span = span.child("calc validator groups");
+			let _span = span.child("calc-validator-groups");
 
 
 			let mut groups = HashMap::new();
@@ -997,7 +997,7 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			drop(_span);
-			let _span = span.child("wait for candidate backing job");
+			let _span = span.child("wait-for-job");
 
 			let (background_tx, background_rx) = mpsc::channel(16);
 			let job = CandidateBackingJob {
