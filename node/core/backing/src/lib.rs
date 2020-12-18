@@ -503,7 +503,6 @@ impl CandidateBackingJob {
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
 		self.awaiting_validation.remove(&candidate_hash);
-		self.remove_unbacked_span(&candidate_hash);
 
 		match command {
 			ValidatedCandidateCommand::Second(res) => {
