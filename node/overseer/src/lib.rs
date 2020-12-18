@@ -17,7 +17,7 @@
 //! # Overseer
 //!
 //! `overseer` implements the Overseer architecture described in the
-//! [implementers-guide](https://github.com/paritytech/polkadot/blob/master/roadmap/implementers-guide/guide.md).
+//! [implementers-guide](https://w3f.github.io/parachain-implementers-guide/node/index.html).
 //! For the motivations behind implementing the overseer itself you should
 //! check out that guide, documentation in this crate will be mostly discussing
 //! technical stuff.
@@ -203,7 +203,7 @@ impl OverseerHandler {
 		self.send_and_log_error(Event::MsgToSubsystem(msg.into())).await
 	}
 
-	/// Inform the `Overseer` that that some block was finalized.
+	/// Inform the `Overseer` that some block was finalized.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn block_finalized(&mut self, block: BlockInfo) {
 		self.send_and_log_error(Event::BlockFinalized(block)).await
@@ -1002,7 +1002,7 @@ impl<S> Overseer<S>
 where
 	S: SpawnNamed,
 {
-	/// Create a new intance of the `Overseer` with a fixed set of [`Subsystem`]s.
+	/// Create a new instance of the `Overseer` with a fixed set of [`Subsystem`]s.
 	///
 	/// ```text
 	///                  +------------------------------------+

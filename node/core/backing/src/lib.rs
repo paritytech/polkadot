@@ -140,7 +140,7 @@ struct CandidateBackingJob {
 	issued_statements: HashSet<CandidateHash>,
 	/// These candidates are undergoing validation in the background.
 	awaiting_validation: HashSet<CandidateHash>,
-	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
+	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h` hash.
 	seconded: Option<CandidateHash>,
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
