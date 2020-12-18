@@ -46,7 +46,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.
-pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNumber>> {
+pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Module<T>>::availability_cores();
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
@@ -96,7 +96,6 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
@@ -113,6 +112,8 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 							backed_in_number,
 							pending_availability.core_occupied(),
 						),
+						candidate_hash: pending_availability.candidate_hash(),
+						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 					}
 				}
 				CoreOccupied::Parathread(p) => {
@@ -123,7 +124,6 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
@@ -140,6 +140,8 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 							backed_in_number,
 							pending_availability.core_occupied(),
 						),
+						candidate_hash: pending_availability.candidate_hash(),
+						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 					}
 				}
 			})

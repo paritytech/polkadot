@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{
-	BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk, Hash, HashT, Id as ParaId,
+	BlakeTwo256, CoreState, ErasureChunk, Hash, HashT,
 	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID, CandidateHash,
 	CandidateDescriptor,
 };
@@ -62,11 +62,6 @@ const LOG_TARGET: &'static str = "availability_distribution";
 
 #[derive(Debug, Error)]
 enum Error {
-	#[error("Response channel to obtain PendingAvailability failed")]
-	QueryPendingAvailabilityResponseChannel(#[source] oneshot::Canceled),
-	#[error("RuntimeAPI to obtain PendingAvailability failed")]
-	QueryPendingAvailability(#[source] RuntimeApiError),
-
 	#[error("Response channel to obtain StoreChunk failed")]
 	StoreChunkResponseChannel(#[source] oneshot::Canceled),
 
@@ -135,10 +130,10 @@ struct ProtocolState {
 	/// Our own view.
 	view: View,
 
-	/// Caches a mapping of relay parents or ancestor to live candidate receipts.
+	/// Caches a mapping of relay parents or ancestor to live candidate hashes.
 	/// Allows fast intersection of live candidates with views and consecutive unioning.
-	/// Maps relay parent / ancestor -> candidate receipts.
-	receipts: HashMap<Hash, HashSet<CandidateHash>>,
+	/// Maps relay parent / ancestor -> candidate hashes.
+	live_under: HashMap<Hash, HashSet<CandidateHash>>,
 
 	/// Track things needed to start and stop work on a particular relay parent.
 	per_relay_parent: HashMap<Hash, PerRelayParent>,
@@ -217,7 +212,9 @@ impl ProtocolState {
 		candidates: HashMap<CandidateHash, FetchedLiveCandidate>,
 		ancestors: Vec<Hash>,
 	) {
-		let candidate_hashes: Vec<_> = candidates.keys().cloned().collect();
+		let per_relay_parent = self.per_relay_parent.entry(relay_parent).or_default();
+		per_relay_parent.ancestors = ancestors;
+		per_relay_parent.live_candidates.extend(candidates.keys().cloned());
 
 		// register the relation of relay_parent to candidate..
 		for (receipt_hash, fetched) in candidates {
@@ -232,10 +229,6 @@ impl ProtocolState {
 			}
 			per_candidate.live_in.insert(relay_parent);
 		}
-
-		let per_relay_parent = self.per_relay_parent.entry(relay_parent).or_default();
-		per_relay_parent.ancestors = ancestors;
-		per_relay_parent.live_candidates.extend(candidate_hashes);
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -254,15 +247,15 @@ impl ProtocolState {
 		}
 	}
 
-	// Removes all entries from receipts which aren't referenced in the ancestry of
+	// Removes all entries from live_under which aren't referenced in the ancestry of
 	// one of our live relay-chain heads.
-	fn clean_up_receipts_cache(&mut self) {
+	fn clean_up_live_under_cache(&mut self) {
 		let extended_view: HashSet<_> = self.per_relay_parent.iter()
-			.map(|(r_hash, v)| v.ancestors.iter().cloned().chain(std::iter::once(*r_hash)))
+			.map(|(r_hash, v)| v.ancestors.iter().cloned().chain(iter::once(*r_hash)))
 			.flatten()
 			.collect();
 
-		self.receipts.retain(|ancestor_hash, _| extended_view.contains(ancestor_hash));
+		self.live_under.retain(|ancestor_hash, _| extended_view.contains(ancestor_hash));
 	}
 }
 
@@ -337,7 +330,7 @@ where
 		let validators = query_validators(ctx, *added).await?;
 		let validator_index = obtain_our_validator_index(&validators, keystore.clone()).await;
 		let (candidates, ancestors)
-			= query_live_candidates(ctx, &mut state.receipts, *added).await?;
+			= query_live_candidates(ctx, &mut state.live_under, *added).await?;
 
 		state.add_relay_parent(
 			*added,
@@ -424,7 +417,7 @@ where
 
 	// cleanup the removed relay parents and their states
 	old_view.difference(&view).for_each(|r| state.remove_relay_parent(r));
-	state.clean_up_receipts_cache();
+	state.clean_up_live_under_cache();
 
 	Ok(())
 }
@@ -772,13 +765,13 @@ enum FetchedLiveCandidate {
 /// This returns a set of all candidate hashes pending availability within the state
 /// of the explicitly referenced relay heads.
 ///
-/// This also queries the provided `receipts` cache before reaching into the
+/// This also queries the provided `live_under` cache before reaching into the
 /// runtime and updates it with the information learned.
-#[tracing::instrument(level = "trace", skip(ctx, relay_blocks, receipts), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, relay_blocks, live_under), fields(subsystem = LOG_TARGET))]
 async fn query_pending_availability_at<Context>(
 	ctx: &mut Context,
 	relay_blocks: impl IntoIterator<Item = Hash>,
-	receipts: &mut HashMap<Hash, HashSet<CandidateHash>>,
+	live_under: &mut HashMap<Hash, HashSet<CandidateHash>>,
 ) -> Result<HashMap<CandidateHash, FetchedLiveCandidate>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -787,7 +780,7 @@ where
 
 	// fetch and fill out cache for each of these
 	for relay_parent in relay_blocks {
-		let receipts_for = match receipts.entry(relay_parent) {
+		let receipts_for = match live_under.entry(relay_parent) {
 			Entry::Occupied(e) => {
 				live_candidates.extend(
 					e.get().iter().cloned().map(|c| (c, FetchedLiveCandidate::Cached))
@@ -797,19 +790,12 @@ where
 			e => e.or_default(),
 		};
 
-		for para in query_para_ids(ctx, relay_parent).await? {
-			if let Some(ccr) = query_pending_availability(ctx, relay_parent, para).await? {
-				let receipt_hash = ccr.hash();
-				let descriptor = ccr.descriptor().clone();
-
-				// unfortunately we have no good way of telling the candidate was
-				// cached until now. But we don't clobber a `Cached` entry if there
-				// is one already.
-				live_candidates.entry(receipt_hash)
-					.or_insert(FetchedLiveCandidate::Fresh(descriptor));
-
-				receipts_for.insert(receipt_hash);
-			}
+		for (receipt_hash, descriptor) in query_pending_availability(ctx, relay_parent).await? {
+			// unfortunately we have no good way of telling the candidate was
+			// cached until now. But we don't clobber a `Cached` entry if there
+			// is one already.
+			live_candidates.entry(receipt_hash).or_insert(FetchedLiveCandidate::Fresh(descriptor));
+			receipts_for.insert(receipt_hash);
 		}
 	}
 
@@ -819,14 +805,15 @@ where
 /// Obtain all live candidates under a particular relay head. This implicitly includes
 /// `K` ancestors of the head, such that the candidates pending availability in all of
 /// the states of the head and the ancestors are unioned together to produce the
-/// return type of this function. Each candidate hash is paired.
+/// return type of this function. Each candidate hash is paired with information about
+/// from where it was fetched.
 ///
-/// This also updates all `receipts` cached by the protocol state and returns a list
+/// This also updates all `live_under` cached by the protocol state and returns a list
 /// of up to `K` ancestors of the relay-parent.
-#[tracing::instrument(level = "trace", skip(ctx, receipts), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, live_under), fields(subsystem = LOG_TARGET))]
 async fn query_live_candidates<Context>(
 	ctx: &mut Context,
-	receipts: &mut HashMap<Hash, HashSet<CandidateHash>>,
+	live_under: &mut HashMap<Hash, HashSet<CandidateHash>>,
 	relay_parent: Hash,
 ) -> Result<(HashMap<CandidateHash, FetchedLiveCandidate>, Vec<Hash>)>
 where
@@ -840,20 +827,21 @@ where
 	)
 	.await?;
 
-	// query the ones that were not present in the receipts cache and add them
+	// query the ones that were not present in the live_under cache and add them
 	// to it.
 	let live_candidates = query_pending_availability_at(
 		ctx,
-		ancestors.iter().cloned().chain(std::iter::once(relay_parent)),
-		receipts,
+		ancestors.iter().cloned().chain(iter::once(relay_parent)),
+		live_under,
 	).await?;
 
 	Ok((live_candidates, ancestors))
 }
 
-/// Query all para IDs that are occupied under a given relay-parent.
+/// Query all hashes and descriptors of candidates pending availability at a particular block.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn query_para_ids<Context>(ctx: &mut Context, relay_parent: Hash) -> Result<Vec<ParaId>>
+async fn query_pending_availability<Context>(ctx: &mut Context, relay_parent: Hash)
+	-> Result<Vec<(CandidateHash, CandidateDescriptor)>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -864,22 +852,18 @@ where
 	)))
 	.await;
 
-	let all_para_ids = rx
+	let cores: Vec<_> = rx
 		.await
 		.map_err(|e| Error::AvailabilityCoresResponseChannel(e))?
 		.map_err(|e| Error::AvailabilityCores(e))?;
 
-	let occupied_para_ids = all_para_ids
-		.into_iter()
-		.filter_map(|core_state| {
-			if let CoreState::Occupied(occupied) = core_state {
-				Some(occupied.para_id)
-			} else {
-				None
-			}
+	Ok(cores.into_iter()
+		.filter_map(|core_state| if let CoreState::Occupied(occupied) = core_state {
+			Some((occupied.candidate_hash, occupied.candidate_descriptor))
+		} else {
+			None
 		})
-		.collect();
-	Ok(occupied_para_ids)
+		.collect())
 }
 
 /// Modify the reputation of a peer based on its behavior.
@@ -953,27 +937,6 @@ where
 	)).await;
 
 	rx.await.map_err(|e| Error::StoreChunkResponseChannel(e))
-}
-
-/// Request the head data for a particular para.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn query_pending_availability<Context>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-	para: ParaId,
-) -> Result<Option<CommittedCandidateReceipt>>
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent,
-		RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-	))).await;
-
-	rx.await
-		.map_err(|e| Error::QueryPendingAvailabilityResponseChannel(e))?
-		.map_err(|e| Error::QueryPendingAvailability(e))
 }
 
 /// Query the validator set.
