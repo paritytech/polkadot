@@ -28,9 +28,10 @@ use frame_support::{
 };
 use parity_scale_codec::{Encode, Decode};
 use frame_system::ensure_root;
+use sp_runtime::traits::Zero;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, Default, sp_core::RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	/// The minimum frequency at which parachains can update their validation code.
@@ -50,23 +51,32 @@ pub struct HostConfiguration<BlockNumber> {
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
 	pub parathread_retries: u32,
-	/// How often parachain groups should be rotated across parachains. Must be non-zero.
+	/// How often parachain groups should be rotated across parachains.
+	///
+	/// Must be non-zero.
 	pub group_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for parachains. This is the amount of blocks
 	/// after inclusion that validators have to make the block available and signal its availability to
-	/// the chain. Must be at least 1.
+	/// the chain.
+	///
+	/// Must be at least 1.
 	pub chain_availability_period: BlockNumber,
 	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
-	/// but a differing timeout due to differing requirements. Must be at least 1.
+	/// but a differing timeout due to differing requirements.
+	///
+	/// Must be at least 1.
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
-	/// The maximum number of validators to have per core. `None` means no maximum.
+	/// The maximum number of validators to have per core.
+	///
+	/// `None` means no maximum.
 	pub max_validators_per_core: Option<u32>,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
+	///
 	/// Must be at least 1.
 	pub no_show_slots: u32,
 	/// The number of delay tranches in total.
@@ -132,6 +142,74 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_message_num_per_candidate: u32,
 }
 
+impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
+	fn default() -> Self {
+		Self {
+			group_rotation_frequency: 1u32.into(),
+			chain_availability_period: 1u32.into(),
+			thread_availability_period: 1u32.into(),
+			no_show_slots: 1u32.into(),
+			validation_upgrade_frequency: Default::default(),
+			validation_upgrade_delay: Default::default(),
+			acceptance_period: Default::default(),
+			max_code_size: Default::default(),
+			max_pov_size: Default::default(),
+			max_head_data_size: Default::default(),
+			parathread_cores: Default::default(),
+			parathread_retries: Default::default(),
+			scheduling_lookahead: Default::default(),
+			max_validators_per_core: Default::default(),
+			dispute_period: Default::default(),
+			n_delay_tranches: Default::default(),
+			zeroth_delay_tranche_width: Default::default(),
+			needed_approvals: Default::default(),
+			relay_vrf_modulo_samples: Default::default(),
+			max_upward_queue_count: Default::default(),
+			max_upward_queue_size: Default::default(),
+			max_downward_message_size: Default::default(),
+			preferred_dispatchable_upward_messages_step_weight: Default::default(),
+			max_upward_message_size: Default::default(),
+			max_upward_message_num_per_candidate: Default::default(),
+			hrmp_open_request_ttl: Default::default(),
+			hrmp_sender_deposit: Default::default(),
+			hrmp_recipient_deposit: Default::default(),
+			hrmp_channel_max_capacity: Default::default(),
+			hrmp_channel_max_total_size: Default::default(),
+			hrmp_max_parachain_inbound_channels: Default::default(),
+			hrmp_max_parathread_inbound_channels: Default::default(),
+			hrmp_channel_max_message_size: Default::default(),
+			hrmp_max_parachain_outbound_channels: Default::default(),
+			hrmp_max_parathread_outbound_channels: Default::default(),
+			hrmp_max_message_num_per_candidate: Default::default(),
+		}
+	}
+}
+
+impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
+	/// Checks that this instance is consistent with the requirements on each individual member.
+	///
+	/// # Panic
+	///
+	/// This function panics if any member is not set properly.
+	fn check_consistency(&self) {
+		if self.group_rotation_frequency.is_zero() {
+			panic!("`group_rotation_frequency` must be non-zero!")
+		}
+
+		if self.chain_availability_period.is_zero() {
+			panic!("`chain_availability_period` must be at least 1!")
+		}
+
+		if self.thread_availability_period.is_zero() {
+			panic!("`thread_availability_period` must be at least 1!")
+		}
+
+		if self.no_show_slots.is_zero() {
+			panic!("`no_show_slots` must be at least 1!")
+		}
+	}
+}
+
 pub trait Config: frame_system::Config { }
 
 decl_storage! {
@@ -141,10 +219,18 @@ decl_storage! {
 		/// Pending configuration (if any) for the next session.
 		PendingConfig: Option<HostConfiguration<T::BlockNumber>>;
 	}
+	add_extra_genesis {
+		build(|config: &Self| {
+			config.config.check_consistency();
+		})
+	}
 }
 
 decl_error! {
-	pub enum Error for Module<T: Config> { }
+	pub enum Error for Module<T: Config> {
+		/// The new value for a configuration parameter is invalid.
+		InvalidNewValue,
+	}
 }
 
 decl_module! {
@@ -237,6 +323,9 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_group_rotation_frequency(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
+
+			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.group_rotation_frequency, new) != new
 			});
@@ -247,6 +336,9 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_chain_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
+
+			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.chain_availability_period, new) != new
 			});
@@ -257,6 +349,9 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_thread_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
+
+			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.thread_availability_period, new) != new
 			});
@@ -298,7 +393,9 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_no_show_slots(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(new >= 1, "no_show_slots must be at least 1");
+
+			ensure!(!new.is_zero(), Error::<T>::InvalidNewValue);
+
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.no_show_slots, new) != new
 			});

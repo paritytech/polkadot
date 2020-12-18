@@ -44,7 +44,6 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
-use thiserror::Error;
 
 const LOG_TARGET: &str = "availability";
 
@@ -54,22 +53,32 @@ mod columns {
 	pub const NUM_COLUMNS: u32 = 2;
 }
 
-#[derive(Debug, Error)]
-enum Error {
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum Error {
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
+
 	#[error(transparent)]
 	Erasure(#[from] erasure::Error),
+
 	#[error(transparent)]
 	Io(#[from] io::Error),
+
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
+
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
+
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
+
+	#[error("Custom databases are not supported")]
+	CustomDatabase,
 }
 
 impl Error {
@@ -418,10 +427,10 @@ pub struct Config {
 }
 
 impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
-	type Error = &'static str;
+	type Error = Error;
 
 	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
-		let path = config.path().ok_or("custom databases are not supported")?;
+		let path = config.path().ok_or(Error::CustomDatabase)?;
 
 		Ok(Self {
 			// substrate cache size is improper here; just use the default
@@ -529,8 +538,8 @@ where
 						process_block_activated(ctx, &subsystem.inner, activated, &subsystem.metrics).await?;
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					process_block_finalized(subsystem, ctx, &subsystem.inner, hash).await?;
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+					process_block_finalized(subsystem, &subsystem.inner, number).await?;
 				}
 				FromOverseer::Communication { msg } => {
 					process_message(subsystem, ctx, msg).await?;
@@ -555,19 +564,13 @@ where
 /// The state of data has to be changed from
 /// `CandidateState::Included` to `CandidateState::Finalized` and their pruning times have
 /// to be updated to `now` + keep_finalized_{block, chunk}_for`.
-#[tracing::instrument(level = "trace", skip(subsystem, ctx, db), fields(subsystem = LOG_TARGET))]
-async fn process_block_finalized<Context>(
+#[tracing::instrument(level = "trace", skip(subsystem, db), fields(subsystem = LOG_TARGET))]
+async fn process_block_finalized(
 	subsystem: &AvailabilityStoreSubsystem,
-	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
-	hash: Hash,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>
-{
+	block_number: BlockNumber,
+) -> Result<(), Error> {
 	let _timer = subsystem.metrics.time_process_block_finalized();
-
-	let block_number = get_block_number(ctx, hash).await?;
 
 	if let Some(mut pov_pruning) = pov_pruning(db) {
 		// Since the records are sorted by time in which they need to be pruned and not by block
@@ -710,25 +713,51 @@ where
 
 	match msg {
 		QueryAvailableData(hash, tx) => {
-			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data))
-				.map_err(|_| oneshot::Canceled)?;
+			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data)).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryDataAvailability(hash, tx) => {
-			tx.send(available_data(&subsystem.inner, &hash).is_some())
-				.map_err(|_| oneshot::Canceled)?;
+			let result = available_data(&subsystem.inner, &hash).is_some();
+
+			tracing::trace!(
+				target: LOG_TARGET,
+				candidate_hash = ?hash,
+				availability = ?result,
+				"Queried data availability",
+			);
+
+			tx.send(result).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunk(hash, id, tx) => {
-			tx.send(get_chunk(subsystem, &hash, id)?)
-				.map_err(|_| oneshot::Canceled)?;
+			tx.send(get_chunk(subsystem, &hash, id)?).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunkAvailability(hash, id, tx) => {
-			tx.send(get_chunk(subsystem, &hash, id)?.is_some())
-				.map_err(|_| oneshot::Canceled)?;
+			let result = get_chunk(subsystem, &hash, id).map(|r| r.is_some());
+
+			tracing::trace!(
+				target: LOG_TARGET,
+				candidate_hash = ?hash,
+				availability = ?result,
+				"Queried chunk availability",
+			);
+
+			tx.send(result?).map_err(|_| oneshot::Canceled)?;
 		}
 		StoreChunk { candidate_hash, relay_parent, validator_index, chunk, tx } => {
+			let chunk_index = chunk.index;
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
-			match store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number) {
+			let result = store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number);
+
+			tracing::trace!(
+				target: LOG_TARGET,
+				%chunk_index,
+				?candidate_hash,
+				%block_number,
+				?result,
+				"Stored chunk",
+			);
+
+			match result {
 				Err(e) => {
 					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
@@ -739,7 +768,11 @@ where
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
-			match store_available_data(subsystem, &hash, id, n_validators, av_data) {
+			let result = store_available_data(subsystem, &hash, id, n_validators, av_data);
+
+			tracing::trace!(target: LOG_TARGET, candidate_hash = ?hash, ?result, "Stored available data");
+
+			match result {
 				Err(e) => {
 					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
