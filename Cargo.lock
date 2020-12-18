@@ -3480,9 +3480,9 @@ dependencies = [
 
 [[package]]
 name = "mick-jaeger"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68c751e6643309568aa78a725b75755c11d866d6d0d0f7209033142007971cdd"
+checksum = "4247b181b96e62eacb5a1e7a2f1a39a78b945cb0434c0fceaae4ed1882555957"
 dependencies = [
  "futures 0.3.8",
  "rand 0.7.3",
