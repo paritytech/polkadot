@@ -14,6 +14,7 @@ struct AvailabilityBitfield {
 
 struct CandidatePendingAvailability {
   core: CoreIndex, // availability core
+  hash: CandidateHash,
   descriptor: CandidateDescriptor,
   availability_votes: Bitfield, // one bit per validator.
   relay_parent_number: BlockNumber, // number of the relay-parent.

@@ -576,11 +576,11 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct OccupiedCore<N = BlockNumber> {
-	/// The ID of the para occupying the core.
-	pub para_id: Id,
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq))]
+pub struct OccupiedCore<H = Hash, N = BlockNumber> {
+    // NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	pub next_up_on_available: Option<ScheduledCore>,
@@ -598,11 +598,22 @@ pub struct OccupiedCore<N = BlockNumber> {
 	pub availability: BitVec<bitvec::order::Lsb0, u8>,
 	/// The group assigned to distribute availability pieces of this candidate.
 	pub group_responsible: GroupIndex,
+	/// The hash of the candidate occupying the core.
+	pub candidate_hash: CandidateHash,
+	/// The descriptor of the candidate occupying the core.
+	pub candidate_descriptor: CandidateDescriptor<H>,
+}
+
+impl<H, N> OccupiedCore<H, N> {
+	/// Get the Para currently occupying this core.
+	pub fn para_id(&self) -> Id {
+		self.candidate_descriptor.para_id
+	}
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default))]
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -611,12 +622,12 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
-pub enum CoreState<N = BlockNumber> {
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq))]
+pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]
-	Occupied(OccupiedCore<N>),
+	Occupied(OccupiedCore<H, N>),
 	/// The core is currently free, with a para scheduled and given the opportunity
 	/// to occupy.
 	///
@@ -634,7 +645,7 @@ impl<N> CoreState<N> {
 	/// If this core state has a `para_id`, return it.
 	pub fn para_id(&self) -> Option<Id> {
 		match self {
-			Self::Occupied(OccupiedCore { para_id, ..}) => Some(*para_id),
+			Self::Occupied(ref core) => Some(core.para_id()),
 			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
 			Self::Free => None,
 		}
@@ -718,7 +729,7 @@ sp_api::decl_runtime_apis! {
 
 		/// Yields information on all availability cores. Cores are either free or occupied. Free
 		/// cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState<N>>;
+		fn availability_cores() -> Vec<CoreState<H, N>>;
 
 		/// Yields the full validation data for the given ParaId along with an assumption that
 		/// should be used if the para currently occupieds a core.

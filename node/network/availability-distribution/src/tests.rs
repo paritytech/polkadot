@@ -21,7 +21,8 @@ use polkadot_node_network_protocol::{view, ObservedRole};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
-	GroupRotationInfo, HeadData, OccupiedCore, PersistedValidationData, PoV, ScheduledCore,
+	GroupRotationInfo, HeadData, OccupiedCore, PersistedValidationData, PoV, ScheduledCore, Id as ParaId,
+	CommittedCandidateReceipt,
 };
 use polkadot_subsystem_testhelpers as test_helpers;
 
@@ -29,6 +30,7 @@ use futures::{executor, future, Future};
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::AppKey;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keyring::Sr25519Keyring;
 use std::{sync::Arc, time::Duration};
 use maplit::hashmap;
 
@@ -95,19 +97,18 @@ async fn overseer_recv(
 	msg
 }
 
-fn dummy_occupied_core(para: ParaId) -> CoreState {
+fn occupied_core_from_candidate(receipt: &CommittedCandidateReceipt) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
-		para_id: para,
 		next_up_on_available: None,
 		occupied_since: 0,
 		time_out_at: 5,
 		next_up_on_time_out: None,
 		availability: Default::default(),
 		group_responsible: GroupIndex::from(0),
+		candidate_hash: receipt.hash(),
+		candidate_descriptor: receipt.descriptor().clone(),
 	})
 }
-
-use sp_keyring::Sr25519Keyring;
 
 #[derive(Clone)]
 struct TestState {
@@ -388,7 +389,6 @@ async fn change_our_view(
 	ancestors: Vec<Hash>,
 	session_per_relay_parent: HashMap<Hash, SessionIndex>,
 	availability_cores_per_relay_parent: HashMap<Hash, Vec<CoreState>>,
-	candidate_pending_availabilities_per_relay_parent: HashMap<Hash, Vec<CommittedCandidateReceipt>>,
 	data_availability: HashMap<CandidateHash, bool>,
 	chunk_data_per_candidate: HashMap<CandidateHash, (PoV, PersistedValidationData)>,
 	send_chunks_to: HashMap<CandidateHash, Vec<PeerId>>,
@@ -436,7 +436,7 @@ async fn change_our_view(
 	}
 
 	for _ in 0..availability_cores_per_relay_parent.len() {
-		let relay_parent = assert_matches!(
+		assert_matches!(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				relay_parent,
@@ -446,30 +446,8 @@ async fn change_our_view(
 					.expect(&format!("Availability core for relay parent {:?} does not exist", relay_parent));
 
 				tx.send(Ok(cores.clone())).unwrap();
-				relay_parent
 			}
 		);
-
-		let pending_availability = candidate_pending_availabilities_per_relay_parent.get(&relay_parent)
-			.expect(&format!("Candidate pending availability for relay parent {:?} does not exist", relay_parent));
-
-		for _ in 0..pending_availability.len() {
-			assert_matches!(
-				overseer_recv(virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
-				)) => {
-					assert_eq!(relay_parent, hash);
-
-					let candidate = pending_availability.iter()
-						.find(|c| c.descriptor.para_id == para)
-						.expect(&format!("Pending candidate for para {} does not exist", para));
-
-					tx.send(Ok(Some(candidate.clone()))).unwrap();
-				}
-			);
-		}
 	}
 
 	for _ in 0..data_availability.len() {
@@ -571,7 +549,6 @@ fn check_views() {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let TestState {
-			chain_ids,
 			validator_public,
 			relay_parent: current,
 			ancestors,
@@ -588,35 +565,36 @@ fn check_views() {
 			vec![ancestors[0], genesis],
 			hashmap! { current => 1, genesis => 1 },
 			hashmap! {
-				ancestors[0] => vec![dummy_occupied_core(chain_ids[0]), dummy_occupied_core(chain_ids[1])],
+				ancestors[0] => vec![
+					occupied_core_from_candidate(&candidates[0]),
+					occupied_core_from_candidate(&candidates[1]),
+				],
 				current => vec![
 					CoreState::Occupied(OccupiedCore {
-						para_id: chain_ids[0].clone(),
 						next_up_on_available: None,
 						occupied_since: 0,
 						time_out_at: 10,
 						next_up_on_time_out: None,
 						availability: Default::default(),
 						group_responsible: GroupIndex::from(0),
+						candidate_hash: candidates[0].hash(),
+						candidate_descriptor: candidates[0].descriptor().clone(),
 					}),
 					CoreState::Free,
 					CoreState::Free,
 					CoreState::Occupied(OccupiedCore {
-						para_id: chain_ids[1].clone(),
 						next_up_on_available: None,
 						occupied_since: 1,
 						time_out_at: 7,
 						next_up_on_time_out: None,
 						availability: Default::default(),
 						group_responsible: GroupIndex::from(0),
+						candidate_hash: candidates[1].hash(),
+						candidate_descriptor: candidates[1].descriptor().clone(),
 					}),
 					CoreState::Free,
 					CoreState::Free,
 				]
-			},
-			hashmap! {
-				ancestors[0] => vec![candidates[0].clone(), candidates[1].clone()],
-				current => vec![candidates[0].clone(), candidates[1].clone()],
 			},
 			hashmap! {
 				candidates[0].hash() => true,
@@ -690,11 +668,10 @@ fn reputation_verification() {
 			hashmap! { current => 1 },
 			hashmap! {
 				current => vec![
-					dummy_occupied_core(candidates[0].descriptor.para_id),
-					dummy_occupied_core(candidates[1].descriptor.para_id)
+					occupied_core_from_candidate(&candidates[0]),
+					occupied_core_from_candidate(&candidates[1]),
 				],
 			},
-			hashmap! { current => vec![candidates[0].clone(), candidates[1].clone()] },
 			hashmap! { candidates[0].hash() => true, candidates[1].hash() => false },
 			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
 			hashmap! {},
@@ -783,10 +760,9 @@ fn not_a_live_candidate_is_detected() {
 			hashmap! { current => 1 },
 			hashmap! {
 				current => vec![
-					dummy_occupied_core(candidates[0].descriptor.para_id),
+					occupied_core_from_candidate(&candidates[0]),
 				],
 			},
-			hashmap! { current => vec![candidates[0].clone()] },
 			hashmap! { candidates[0].hash() => true },
 			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
 			hashmap! {},
@@ -832,10 +808,9 @@ fn peer_change_view_before_us() {
 			hashmap! { current => 1 },
 			hashmap! {
 				current => vec![
-					dummy_occupied_core(candidates[0].descriptor.para_id),
+					occupied_core_from_candidate(&candidates[0]),
 				],
 			},
-			hashmap! { current => vec![candidates[0].clone()] },
 			hashmap! { candidates[0].hash() => true },
 			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
 			hashmap! { candidates[0].hash() => vec![peer_a.clone()] },
@@ -880,10 +855,9 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 			hashmap! { ancestors[0] => 1 },
 			hashmap! {
 				ancestors[0] => vec![
-					dummy_occupied_core(candidates[0].descriptor.para_id),
+					occupied_core_from_candidate(&candidates[0]),
 				],
 			},
-			hashmap! { ancestors[0] => vec![candidates[0].clone()] },
 			hashmap! { candidates[0].hash() => true },
 			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
 			hashmap! {},
@@ -897,10 +871,9 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 			hashmap! { current => 1 },
 			hashmap! {
 				current => vec![
-					dummy_occupied_core(candidates[0].descriptor.para_id),
+					occupied_core_from_candidate(&candidates[0]),
 				],
 			},
-			hashmap! { current => vec![candidates[0].clone()] },
 			hashmap! { candidates[0].hash() => true },
 			hashmap! {},
 			hashmap! {},
@@ -1168,48 +1141,26 @@ fn query_pending_availability_at_pulls_from_and_updates_receipts() {
 			) if r == hash_b => {
 				let _ = tx.send(Ok(vec![
 					CoreState::Occupied(OccupiedCore {
-						para_id: para_b,
 						next_up_on_available: None,
 						occupied_since: 0,
 						time_out_at: 0,
 						next_up_on_time_out: None,
 						availability: Default::default(),
 						group_responsible: GroupIndex::from(0),
+						candidate_hash: candidate_hash_b,
+						candidate_descriptor: candidate_b.descriptor.clone(),
 					}),
 					CoreState::Occupied(OccupiedCore {
-						para_id: para_c,
 						next_up_on_available: None,
 						occupied_since: 0,
 						time_out_at: 0,
 						next_up_on_time_out: None,
 						availability: Default::default(),
 						group_responsible: GroupIndex::from(0),
+						candidate_hash: candidate_hash_c,
+						candidate_descriptor: candidate_c.descriptor.clone(),
 					}),
 				]));
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					r,
-					RuntimeApiRequest::CandidatePendingAvailability(p, tx),
-				)
-			) if r == hash_b && p == para_b => {
-				let _ = tx.send(Ok(Some(candidate_b)));
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					r,
-					RuntimeApiRequest::CandidatePendingAvailability(p, tx),
-				)
-			) if r == hash_b && p == para_c => {
-				let _ = tx.send(Ok(Some(candidate_c)));
 			}
 		);
 	};
@@ -1256,11 +1207,10 @@ fn new_peer_gets_all_chunks_send() {
 			hashmap! { current => 1 },
 			hashmap! {
 				current => vec![
-					dummy_occupied_core(candidates[0].descriptor.para_id),
-					dummy_occupied_core(candidates[1].descriptor.para_id)
+					occupied_core_from_candidate(&candidates[0]),
+					occupied_core_from_candidate(&candidates[1])
 				],
 			},
-			hashmap! { current => vec![candidates[0].clone(), candidates[1].clone()] },
 			hashmap! { candidates[0].hash() => true, candidates[1].hash() => false },
 			hashmap! { candidates[0].hash() => (pov_blocks[0].clone(), test_state.persisted_validation_data.clone())},
 			hashmap! {},

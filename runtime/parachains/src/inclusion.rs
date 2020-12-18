@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData,
+	CandidateReceipt, HeadData, CandidateHash,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
@@ -58,6 +58,8 @@ pub struct AvailabilityBitfieldRecord<N> {
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
+	/// The candidate hash.
+	hash: CandidateHash,
 	/// The candidate descriptor.
 	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
@@ -84,6 +86,16 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the core index.
 	pub(crate) fn core_occupied(&self)-> CoreIndex {
 		self.core.clone()
+	}
+
+	/// Get the candidate hash.
+	pub(crate) fn candidate_hash(&self) -> CandidateHash {
+		self.hash
+	}
+
+	/// Get the canddiate descriptor.
+	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
+		&self.descriptor
 	}
 }
 
@@ -568,6 +580,8 @@ impl<T: Config> Module<T> {
 				candidate.candidate.commitments.head_data.clone(),
 			));
 
+			let candidate_hash = candidate.candidate.hash();
+
 			let (descriptor, commitments) = (
 				candidate.candidate.descriptor,
 				candidate.candidate.commitments,
@@ -575,6 +589,7 @@ impl<T: Config> Module<T> {
 
 			<PendingAvailability<T>>::insert(&para_id, CandidatePendingAvailability {
 				core,
+				hash: candidate_hash,
 				descriptor,
 				availability_votes,
 				relay_parent_number: check_cx.relay_parent_number,
@@ -1112,6 +1127,7 @@ mod tests {
 			let default_candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: default_candidate.hash(),
 				descriptor: default_candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1122,6 +1138,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: default_candidate.hash(),
 				descriptor: default_candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1286,6 +1303,7 @@ mod tests {
 				let default_candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: default_candidate.hash(),
 					descriptor: default_candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
@@ -1321,6 +1339,7 @@ mod tests {
 				let default_candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: default_candidate.hash(),
 					descriptor: default_candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
@@ -1393,6 +1412,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: candidate_a.hash(),
 				descriptor: candidate_a.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1409,6 +1429,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: candidate_b.hash(),
 				descriptor: candidate_b.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1839,6 +1860,7 @@ mod tests {
 				let candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate.hash(),
 					descriptor: candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 3,
@@ -2127,6 +2149,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate_a.hash(),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2143,6 +2166,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_b),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(1),
+					hash: candidate_b.hash(),
 					descriptor: candidate_b.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2159,6 +2183,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&thread_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(2),
+					hash: candidate_c.hash(),
 					descriptor: candidate_c.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2254,6 +2279,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate_a.hash(),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2329,6 +2355,7 @@ mod tests {
 			let candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: candidate.hash(),
 				descriptor: candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 5,
@@ -2339,6 +2366,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: candidate.hash(),
 				descriptor: candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 6,

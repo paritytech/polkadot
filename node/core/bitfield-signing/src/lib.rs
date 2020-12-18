@@ -78,37 +78,7 @@ async fn get_core_availability(
 ) -> Result<bool, Error> {
 	let span = jaeger::hash_span(&relay_parent, "core-availability");
 	if let CoreState::Occupied(core) = core {
-		tracing::trace!(target: LOG_TARGET, para_id = %core.para_id, "Getting core availability");
-
-		let _span = span.child("occupied");
-		let (tx, rx) = oneshot::channel();
-		sender
-			.lock()
-			.await
-			.send(
-				AllMessages::from(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::CandidatePendingAvailability(core.para_id, tx),
-				)).into(),
-			)
-			.await?;
-
-		let committed_candidate_receipt = match rx.await? {
-			Ok(Some(ccr)) => ccr,
-			Ok(None) => {
-				tracing::trace!(target: LOG_TARGET, para_id = %core.para_id, "No committed candidate");
-				return Ok(false)
-			},
-			Err(e) => {
-				// Don't take down the node on runtime API errors.
-				tracing::warn!(target: LOG_TARGET, err = ?e, "Encountered a runtime API error");
-				return Ok(false);
-			}
-		};
-
-		drop(_span);
 		let _span = span.child("query chunk");
-		let candidate_hash = committed_candidate_receipt.hash();
 
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -116,7 +86,7 @@ async fn get_core_availability(
 			.await
 			.send(
 				AllMessages::from(AvailabilityStoreMessage::QueryChunkAvailability(
-					candidate_hash,
+					core.candidate_hash,
 					validator_idx,
 					tx,
 				)).into(),
@@ -127,9 +97,9 @@ async fn get_core_availability(
 
 		tracing::trace!(
 			target: LOG_TARGET,
-			para_id = %core.para_id,
+			para_id = %core.para_id(),
 			availability = ?res,
-			?candidate_hash,
+			?core.candidate_hash,
 			"Candidate availability",
 		);
 
@@ -325,17 +295,18 @@ pub type BitfieldSigningSubsystem<Spawner, Context> = JobManager<Spawner, Contex
 mod tests {
 	use super::*;
 	use futures::{pin_mut, executor::block_on};
-	use polkadot_primitives::v1::OccupiedCore;
+	use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
 
-	fn occupied_core(para_id: u32) -> CoreState {
+	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
 		CoreState::Occupied(OccupiedCore {
-			para_id: para_id.into(),
 			group_responsible: para_id.into(),
 			next_up_on_available: None,
 			occupied_since: 100_u32,
 			time_out_at: 200_u32,
 			next_up_on_time_out: None,
 			availability: Default::default(),
+			candidate_hash,
+			candidate_descriptor: Default::default(),
 		})
 	}
 
@@ -354,6 +325,9 @@ mod tests {
 			).fuse();
 			pin_mut!(future);
 
+			let hash_a = CandidateHash(Hash::repeat_byte(1));
+			let hash_b = CandidateHash(Hash::repeat_byte(2));
+
 			loop {
 				futures::select! {
 					m = receiver.next() => match m.unwrap() {
@@ -363,29 +337,16 @@ mod tests {
 							),
 						) => {
 							assert_eq!(relay_parent, rp);
-							tx.send(Ok(vec![CoreState::Free, occupied_core(1), occupied_core(2)])).unwrap();
-						},
-						FromJobCommand::SendMessage(
-							AllMessages::RuntimeApi(
-								RuntimeApiMessage::Request(rp, RuntimeApiRequest::CandidatePendingAvailability(para_id, tx)),
-							),
-						) => {
-							assert_eq!(relay_parent, rp);
-
-							if para_id == 1.into() {
-								tx.send(Ok(Some(Default::default()))).unwrap();
-							} else {
-								tx.send(Ok(None)).unwrap();
-							}
+							tx.send(Ok(vec![CoreState::Free, occupied_core(1, hash_a), occupied_core(2, hash_b)])).unwrap();
 						},
 						FromJobCommand::SendMessage(
 							AllMessages::AvailabilityStore(
-								AvailabilityStoreMessage::QueryChunkAvailability(_, vidx, tx),
+								AvailabilityStoreMessage::QueryChunkAvailability(c_hash, vidx, tx),
 							),
 						) => {
 							assert_eq!(validator_index, vidx);
 
-							tx.send(true).unwrap();
+							tx.send(c_hash == hash_a).unwrap();
 						},
 						o => panic!("Unknown message: {:?}", o),
 					},
