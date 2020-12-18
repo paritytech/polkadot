@@ -197,3 +197,59 @@ impl<T: Config> ProvideInherent for Module<T> {
 			})
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use crate::mock::{
+		new_test_ext, System, GenesisConfig as MockGenesisConfig, Test
+	};
+
+	mod limit_backed_candidates {
+		use super::*;
+
+		#[test]
+		fn does_not_truncate_on_empty_block() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let backed_candidates = vec![BackedCandidate::default()];
+				System::set_block_consumed_resources(0, 0);
+				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
+			});
+		}
+
+		#[test]
+		fn does_not_truncate_on_exactly_full_block() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let backed_candidates = vec![BackedCandidate::default()];
+				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
+				System::set_block_consumed_resources(max_block_weight, 0);
+				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
+			});
+		}
+
+		#[test]
+		fn truncates_on_over_full_block() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let backed_candidates = vec![BackedCandidate::default()];
+				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
+				System::set_block_consumed_resources(max_block_weight + 1, 0);
+				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
+			});
+		}
+
+		#[test]
+		fn all_backed_candidates_get_truncated() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let backed_candidates = vec![BackedCandidate::default(); 10];
+				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
+				System::set_block_consumed_resources(max_block_weight + 1, 0);
+				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
+			});
+		}
+	}
+
+}
