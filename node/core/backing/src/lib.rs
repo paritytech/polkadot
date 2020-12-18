@@ -503,7 +503,6 @@ impl CandidateBackingJob {
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
 		self.awaiting_validation.remove(&candidate_hash);
-		self.remove_unbacked_span(&candidate_hash);
 
 		match command {
 			ValidatedCandidateCommand::Second(res) => {
@@ -664,6 +663,12 @@ impl CandidateBackingJob {
 		&mut self,
 		statement: &SignedFullStatement,
 	) -> Result<Option<TableSummary>, Error> {
+		let _span = {
+			// create a span only for candidates we're already aware of.
+			let candidate_hash = statement.payload().candidate_hash();
+			self.get_unbacked_statement_child(&candidate_hash, statement.validator_index())
+		};
+
 		let stmt = primitive_statement_to_table(statement);
 
 		let summary = self.table.import_statement(&self.table_context, stmt);
@@ -852,6 +857,14 @@ impl CandidateBackingJob {
 
 	fn get_unbacked_validation_child(&self, hash: &CandidateHash) -> Option<JaegerSpan> {
 		self.unbacked_candidates.get(hash).map(|span| span.child("validation"))
+	}
+
+	fn get_unbacked_statement_child(&self, hash: &CandidateHash, validator: ValidatorIndex) -> Option<JaegerSpan> {
+		self.unbacked_candidates.get(hash).map(|span| {
+			let mut span = span.child("import-statement");
+			span.add_string_tag("validator-index", &format!("{}", validator));
+			span
+		})
 	}
 
 	fn remove_unbacked_span(&mut self, hash: &CandidateHash) {
