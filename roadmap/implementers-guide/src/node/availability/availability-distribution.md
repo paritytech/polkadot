@@ -23,7 +23,8 @@ Output:
 
 For each relay-parent in our local view update, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have to peers.
 
-We define an operation `live_candidates(relay_heads) -> Set<CommittedCandidateReceipt>` which returns a set of [`CommittedCandidateReceipt`s](../../types/candidate.md#committed-candidate-receipt).
+We define an operation `live_candidates(relay_heads) -> Set<CandidateHash>` which returns a set of hashes corresponding to [`CandidateReceipt`s](../../types/candidate.md#candidate-receipt).
+
 This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors in the same session. We assume that state is not pruned within `K` blocks of the chain-head. `K` commonly is small and is currently fixed to `K=3`.
 
 We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_view_update)`.

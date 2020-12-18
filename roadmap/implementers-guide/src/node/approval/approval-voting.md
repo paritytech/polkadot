@@ -281,5 +281,5 @@ enum RequiredTranches {
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
   * Construct a `SignedApprovalVote` with the validator index for the session.
   * `import_checked_approval(block_entry, candidate_entry, validator_index)`
-  * Construct a `IndirectSignedApprovalVote` using the informatio about the vote.
+  * Construct a `IndirectSignedApprovalVote` using the information about the vote.
   * Dispatch `ApprovalDistributionMessage::DistributeApproval`.

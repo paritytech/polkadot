@@ -95,7 +95,7 @@ async fn run(
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
