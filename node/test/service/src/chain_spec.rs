@@ -20,7 +20,7 @@ use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
-use polkadot_primitives::v1::{ValidatorId, AccountId};
+use polkadot_primitives::v1::{ValidatorId, AccountId, AssignmentId};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
 use polkadot_test_runtime::constants::currency::DOTS;
 use sc_chain_spec::{ChainSpec, ChainType};
@@ -63,13 +63,14 @@ pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig 
 /// Helper function to generate stash, controller and session key from seed
 fn get_authority_keys_from_seed(
 	seed: &str,
-) -> (AccountId, AccountId, BabeId, GrandpaId, ValidatorId, AuthorityDiscoveryId) {
+) -> (AccountId, AccountId, BabeId, GrandpaId, ValidatorId, AssignmentId, AuthorityDiscoveryId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<BabeId>(seed),
 		get_from_seed::<GrandpaId>(seed),
 		get_from_seed::<ValidatorId>(seed),
+		get_from_seed::<AssignmentId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 	)
 }
@@ -93,7 +94,15 @@ fn testnet_accounts() -> Vec<AccountId> {
 
 /// Helper function to create polkadot GenesisConfig for testing
 fn polkadot_testnet_genesis(
-	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ValidatorId, AuthorityDiscoveryId)>,
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ValidatorId,
+		AssignmentId,
+		AuthorityDiscoveryId,
+	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> polkadot_test_runtime::GenesisConfig {
@@ -126,8 +135,9 @@ fn polkadot_testnet_genesis(
 						runtime::SessionKeys {
 							babe: x.2.clone(),
 							grandpa: x.3.clone(),
-							parachain_validator: x.4.clone(),
-							authority_discovery: x.5.clone(),
+							para_validator: x.4.clone(),
+							para_assignment: x.5.clone(),
+							authority_discovery: x.6.clone(),
 						},
 					)
 				})

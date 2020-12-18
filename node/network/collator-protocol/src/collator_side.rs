@@ -24,6 +24,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
 };
 use polkadot_subsystem::{
+	jaeger,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CollatorProtocolMessage,
@@ -430,6 +431,8 @@ async fn process_msg(
 			state.collating_on = Some(id);
 		}
 		DistributeCollation(receipt, pov) => {
+			let _span1 = jaeger::hash_span(&receipt.descriptor.relay_parent, "distributing-collation");
+			let _span2 = jaeger::pov_span(&pov, "distributing-collation");
 			match state.collating_on {
 				Some(id) if receipt.descriptor.para_id != id => {
 					// If the ParaId of a collation requested to be distributed does not match
@@ -539,10 +542,12 @@ async fn handle_incoming_peer_message(
 			);
 		}
 		RequestCollation(request_id, relay_parent, para_id) => {
+			let _span = jaeger::hash_span(&relay_parent, "rx-collation-request");
 			match state.collating_on {
 				Some(our_para_id) => {
 					if our_para_id == para_id {
 						if let Some(collation) = state.collations.get(&relay_parent).cloned() {
+							let _span = _span.child("sending");
 							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await;
 						}
 					} else {
@@ -709,7 +714,7 @@ pub(crate) async fn run(
 					}
 				},
 				Signal(ActiveLeaves(_update)) => {}
-				Signal(BlockFinalized(_)) => {}
+				Signal(BlockFinalized(..)) => {}
 				Signal(Conclude) => return Ok(()),
 			}
 		}
@@ -737,6 +742,7 @@ mod tests {
 	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_node_network_protocol::view;
 
 	#[derive(Default)]
 	struct TestCandidateBuilder {
@@ -891,7 +897,7 @@ mod tests {
 			overseer_send(
 				virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(hashes)),
+					NetworkBridgeEvent::OurViewChange(View { heads: hashes, finalized_number: 0 }),
 				),
 			).await;
 		}
@@ -999,7 +1005,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent])),
+				NetworkBridgeEvent::OurViewChange(view![test_state.relay_parent]),
 			),
 		).await;
 	}
@@ -1139,7 +1145,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer, View(Default::default())),
+				NetworkBridgeEvent::PeerViewChange(peer, view![]),
 			),
 		).await;
 	}
@@ -1208,7 +1214,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View(hashes)),
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: hashes, finalized_number: 0 }),
 			),
 		).await;
 	}
@@ -1318,7 +1324,7 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(
 						peer.clone(),
-						View(vec![test_state.relay_parent]),
+						view![test_state.relay_parent],
 					)
 				)
 			).await;

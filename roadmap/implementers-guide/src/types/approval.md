@@ -1,9 +1,5 @@
 # Approval Types
 
-## ApprovalId
-
-The public key of a keypair used by a validator for approval voting on included parachain candidates.
-
 ## AssignmentId
 
 The public key of a keypair used by a validator for determining assignments to approve included parachain candidates.
@@ -57,11 +53,13 @@ struct ApprovalVote(Hash);
 
 ## SignedApprovalVote
 
+An approval vote signed with a validator's key. This should be verifiable under the `ValidatorId` corresponding to the `ValidatorIndex` of the session, which should be implicit from context.
+
 ```rust
 struct SignedApprovalVote {
     vote: ApprovalVote,
     validator: ValidatorIndex,
-    signature: ApprovalSignature,
+    signature: ValidatorSignature,
 }
 ```
 
@@ -78,7 +76,7 @@ struct IndirectSignedApprovalVote {
     // The index of the candidate in the list of candidates fully included as-of the block.
     candidate_index: u32,
     validator: ValidatorIndex,
-    signature: ApprovalSignature,
+    signature: ValidatorSignature,
 }
 ```
 

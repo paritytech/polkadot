@@ -262,7 +262,7 @@ mod tests {
 		}, testing::{UintAuthorityId, TestXt}, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::v1::{
-		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId,
+		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId, ValidatorIndex,
 	};
 	use frame_system::limits;
 	use frame_support::{
@@ -472,8 +472,16 @@ mod tests {
 
 	impl configuration::Config for Test { }
 
+	pub struct TestRewardValidators;
+
+	impl inclusion::RewardValidators for TestRewardValidators {
+		fn reward_backing(_: impl IntoIterator<Item = ValidatorIndex>) { }
+		fn reward_bitfields(_: impl IntoIterator<Item = ValidatorIndex>) { }
+	}
+
 	impl inclusion::Config for Test {
 		type Event = ();
+		type RewardValidators = TestRewardValidators;
 	}
 
 	impl session_info::AuthorityDiscoveryConfig for Test {

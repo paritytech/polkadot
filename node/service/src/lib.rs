@@ -35,11 +35,15 @@ use {
 	polkadot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
-	sp_core::traits::SpawnNamed,
 	sp_keystore::SyncCryptoStorePtr,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
 };
+
+use sp_core::traits::SpawnNamed;
+
+
+use polkadot_subsystem::jaeger;
 
 use std::sync::Arc;
 
@@ -97,7 +101,6 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
 	#[error(transparent)]
@@ -120,6 +123,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	Prometheus(#[from] prometheus_endpoint::PrometheusError),
+
+	#[error(transparent)]
+	Jaeger(#[from] polkadot_subsystem::jaeger::JaegerError),
 
 	#[cfg(feature = "full-node")]
 	#[error(transparent)]
@@ -162,6 +168,20 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Initialize the `Jeager` collector. The destination must listen
+/// on the given address and port for `UDP` packets.
+fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configuration, agent: Option<std::net::SocketAddr>) -> Result<(), Error> {
+	if let Some(agent) = agent {
+		let cfg = jaeger::JaegerConfig::builder()
+			.agent(agent)
+			.named(&config.network.node_name)
+			.build();
+
+		jaeger::Jaeger::new(cfg).launch(spawner)?;
+	}
+	Ok(())
+}
+
 pub type FullBackend = service::TFullBackend<Block>;
 #[cfg(feature = "full-node")]
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
@@ -177,7 +197,7 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
+fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: Option<std::net::SocketAddr>) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
@@ -207,11 +227,14 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 {
 	set_prometheus_registry(config)?;
 
+
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
+
+	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
@@ -507,6 +530,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	jaeger_agent: Option<std::net::SocketAddr>,
 	isolation_strategy: IsolationStrategy,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
@@ -532,7 +556,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
-	} = new_partial::<RuntimeApi, Executor>(&mut config)?;
+	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
@@ -676,7 +700,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool,
-			overseer_handler.as_ref().ok_or_else(|| Error::AuthoritiesRequireRealOverseer)?.clone(),
+			overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone(),
 			prometheus_registry.as_ref(),
 		);
 
@@ -879,7 +903,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
+pub fn new_chain_ops(mut config: &mut Configuration, jaeger_agent: Option<std::net::SocketAddr>) -> Result<
 	(
 		Arc<Client>,
 		Arc<FullBackend>,
@@ -892,19 +916,19 @@ pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
 	config.keystore = service::config::KeystoreConfig::InMemory;
 	if config.chain_spec.is_rococo() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<rococo_runtime::RuntimeApi, RococoExecutor>(config)?;
+			= new_partial::<rococo_runtime::RuntimeApi, RococoExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Rococo(client)), backend, import_queue, task_manager))
 	} else if config.chain_spec.is_kusama() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)?;
+			= new_partial::<kusama_runtime::RuntimeApi, KusamaExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Kusama(client)), backend, import_queue, task_manager))
 	} else if config.chain_spec.is_westend() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<westend_runtime::RuntimeApi, WestendExecutor>(config)?;
+			= new_partial::<westend_runtime::RuntimeApi, WestendExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Westend(client)), backend, import_queue, task_manager))
 	} else {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)?;
+			= new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
 	}
 }
@@ -927,12 +951,14 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
@@ -940,6 +966,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
@@ -947,6 +974,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Westend))
 	} else {
@@ -954,6 +982,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			jaeger_agent,
 			Default::default(),
 		).map(|full| full.with_client(Client::Polkadot))
 	}
