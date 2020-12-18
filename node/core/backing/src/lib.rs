@@ -373,7 +373,7 @@ struct BackgroundValidationParams<F> {
 	pov: Option<Arc<PoV>>,
 	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
-	span: JaegerSpan,
+	span: Option<JaegerSpan>,
 	make_command: F,
 }
 
@@ -395,7 +395,7 @@ async fn validate_and_make_available(
 	let pov = match pov {
 		Some(pov) => pov,
 		None => {
-			let _span = span.child("request-pov");
+			let _span = span.as_ref().map(|s| s.child("request-pov"));
 			request_pov_from_distribution(
 				&mut tx_from,
 				relay_parent,
@@ -405,7 +405,7 @@ async fn validate_and_make_available(
 	};
 
 	let v = {
-		let _span = span.child("request-validation");
+		let _span = span.as_ref().map(|s| s.child("request-validation"));
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
 
@@ -423,7 +423,7 @@ async fn validate_and_make_available(
 				);
 				Err(candidate)
 			} else {
-				let _span = span.child("make-available");
+				let _span = span.as_ref().map(|s| s.child("make-available"));
 				let erasure_valid = make_pov_available(
 					&mut tx_from,
 					validator_index,
@@ -594,8 +594,7 @@ impl CandidateBackingJob {
 
 		let candidate_hash = candidate.hash();
 		self.add_unbacked_span(&parent_span, candidate_hash);
-		let span = self.get_unbacked_validation_child(&candidate_hash)
-			.expect("just added unbacked span; qed");
+		let span = self.get_unbacked_validation_child(&candidate_hash);
 
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
@@ -758,7 +757,7 @@ impl CandidateBackingJob {
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
-		span: JaegerSpan,
+		span: Option<JaegerSpan>,
 	) -> Result<(), Error> {
 		let candidate_hash = summary.candidate;
 
@@ -808,8 +807,7 @@ impl CandidateBackingJob {
 			if let Statement::Seconded(_) = statement.payload() {
 				self.add_unbacked_span(parent_span, summary.candidate);
 				if Some(summary.group_id) == self.assignment {
-					let span = self.get_unbacked_validation_child(&summary.candidate)
-						.expect("just created unbacked span; qed");
+					let span = self.get_unbacked_validation_child(&summary.candidate);
 
 					self.kick_off_validation_work(summary, span).await?;
 				}
@@ -848,11 +846,14 @@ impl CandidateBackingJob {
 	}
 
 	fn add_unbacked_span(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) {
-		self.unbacked_candidates.entry(hash).or_insert_with(|| {
-			let mut span = parent_span.child("unbacked-candidate");
-			span.add_string_tag("candidate-hash", &format!("{:?}", hash.0));
-			span
-		});
+		if !self.backed.contains(&hash) {
+			// only add if we don't consider this backed.
+			self.unbacked_candidates.entry(hash).or_insert_with(|| {
+				let mut span = parent_span.child("unbacked-candidate");
+				span.add_string_tag("candidate-hash", &format!("{:?}", hash.0));
+				span
+			});
+		}
 	}
 
 	fn get_unbacked_validation_child(&self, hash: &CandidateHash) -> Option<JaegerSpan> {
