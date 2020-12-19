@@ -862,7 +862,7 @@ async fn handle_network_update(
 						message,
 						metrics,
 						statement_listeners,
-					).await;
+					).await
 				}
 				None => None,
 			};
