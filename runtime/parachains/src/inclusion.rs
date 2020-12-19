@@ -611,7 +611,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Run the acceptance criteria checks on the given candidate commitments.
-	pub(crate) fn check_validation_outputs(
+	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
 		validation_outputs: primitives::v1::CandidateCommitments,
 	) -> bool {

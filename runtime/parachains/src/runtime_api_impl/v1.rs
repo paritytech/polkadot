@@ -222,7 +222,7 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
-	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs)
+	<inclusion::Module<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
