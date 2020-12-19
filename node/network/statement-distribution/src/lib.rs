@@ -389,16 +389,23 @@ struct ActiveHeadData {
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,
+	/// A Jaeger span for this head, so we can attach data to it.
+	span: jaeger::JaegerSpan,
 }
 
 impl ActiveHeadData {
-	fn new(validators: Vec<ValidatorId>, session_index: sp_staking::SessionIndex) -> Self {
+	fn new(
+		validators: Vec<ValidatorId>,
+		session_index: sp_staking::SessionIndex,
+		relay_parent: &Hash,
+	) -> Self {
 		ActiveHeadData {
 			candidates: Default::default(),
 			statements: Default::default(),
 			validators,
 			session_index,
 			seconded_counts: Default::default(),
+			span: jaeger::hash_span(&relay_parent, "statement-dist-active"),
 		}
 	}
 
@@ -530,6 +537,15 @@ async fn circulate_statement_and_dependents(
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(res) => res,
 		None => return,
+	};
+
+	let _span = {
+		let mut span = active_head.span.child("circulate-statement");
+		span.add_string_tag(
+			"candidate-hash",
+			&format!("{:?}", statement.payload().candidate_hash().0),
+		);
+		span
 	};
 
 	// First circulate the statement directly to all peers needing it.
@@ -706,6 +722,15 @@ async fn handle_incoming_message<'a>(
 			);
 			return None;
 		}
+	};
+
+	let _span = {
+		let mut span = active_head.span.child("handle-incoming");
+		span.add_string_tag(
+			"candidate-hash",
+			&format!("{:?}", statement.payload().candidate_hash().0),
+		);
+		span
 	};
 
 	// check the signature on the statement.
@@ -935,7 +960,7 @@ impl StatementDistribution {
 						};
 
 						active_heads.entry(relay_parent)
-							.or_insert(ActiveHeadData::new(validators, session_index));
+							.or_insert(ActiveHeadData::new(validators, session_index, &relay_parent));
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
@@ -945,14 +970,6 @@ impl StatementDistribution {
 				FromOverseer::Communication { msg } => match msg {
 					StatementDistributionMessage::Share(relay_parent, statement) => {
 						let _timer = metrics.time_share();
-						let _span = {
-							let mut span = jaeger::hash_span(&relay_parent, "circulate-statement");
-							span.add_string_tag(
-								"candidate-hash",
-								&format!("{:?}", statement.payload().candidate_hash()),
-							);
-							span
-						};
 
 						inform_statement_listeners(
 							&statement,
@@ -1117,7 +1134,7 @@ mod tests {
 			c
 		};
 
-		let mut head_data = ActiveHeadData::new(validators, session_index);
+		let mut head_data = ActiveHeadData::new(validators, session_index, &parent_hash);
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		let alice_public = SyncCryptoStore::sr25519_generate_new(
@@ -1375,7 +1392,7 @@ mod tests {
 		).unwrap();
 
 		let new_head_data = {
-			let mut data = ActiveHeadData::new(validators, session_index);
+			let mut data = ActiveHeadData::new(validators, session_index, &hash_c);
 
 			let noted = data.note_statement(block_on(SignedFullStatement::sign(
 				&keystore,
