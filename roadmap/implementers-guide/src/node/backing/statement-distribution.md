@@ -38,7 +38,7 @@ There is a very simple state machine which governs which messages we are willing
 
 A: Initial State. Receive `SignedFullStatement(Statement::Second)`: extract `Statement`, forward to Candidate Backing and PoV Distribution, proceed to B. Receive any other `SignedFullStatement` variant: drop it.
 
-B: Receive any `SignedFullStatement`: check signature, forward to Candidate Backing. Receive `OverseerMessage::StopWork`: proceed to C.
+B: Receive any `SignedFullStatement`: check signature and determine whether the statement is new to us. if new, forward to Candidate Backing and circulate to other peers. Receive `OverseerMessage::StopWork`: proceed to C.
 
 C: Receive any message for this block: drop it.
 
