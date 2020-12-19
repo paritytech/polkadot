@@ -851,7 +851,7 @@ async fn handle_network_update(
 			peers.remove(&peer);
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
-			match peers.get_mut(&peer) {
+			let handled_incoming = match peers.get_mut(&peer) {
 				Some(data) => {
 					handle_incoming_message(
 						peer,
@@ -864,9 +864,25 @@ async fn handle_network_update(
 						statement_listeners,
 					).await;
 				}
-				None => (),
-			}
+				None => None,
+			};
 
+			// if we got a fresh message, we need to circulate it to all peers.
+			if let Some((relay_parent, statement)) = handled_incoming {
+				// we can ignore the set of peers who this function returns as now expecting
+				// dependent statements.
+				//
+				// we have the invariant in this subsystem that we never store a `Valid` or `Invalid`
+				// statement before a `Seconded` statement. `Seconded` statements are the only ones
+				// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
+				// were not aware of before, we cannot have any dependent statements from the candidate.
+				let _ = circulate_statement(
+					peers,
+					ctx,
+					relay_parent,
+					statement,
+				).await;
+			}
 		}
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
 			match peers.get_mut(&peer) {
