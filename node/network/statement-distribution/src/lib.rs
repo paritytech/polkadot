@@ -945,7 +945,14 @@ impl StatementDistribution {
 				FromOverseer::Communication { msg } => match msg {
 					StatementDistributionMessage::Share(relay_parent, statement) => {
 						let _timer = metrics.time_share();
-						let mut _span = jaeger::hash_span(&relay_parent, "circulate-statement");
+						let _span = {
+							let mut span = jaeger::hash_span(&relay_parent, "circulate-statement");
+							span.add_string_tag(
+								"candidate-hash",
+								&format!("{:?}", statement.payload().candidate_hash()),
+							);
+							span
+						};
 
 						inform_statement_listeners(
 							&statement,
