@@ -4354,7 +4354,7 @@ dependencies = [
 [[package]]
 name = "pallet-tips"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#3c531e291fcc2c315abd3dcf436c487cdd91bd25"
+source = "git+https://github.com/paritytech/substrate#330f5c0dbfdf4ffbb891251e90880757687a8a72"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
