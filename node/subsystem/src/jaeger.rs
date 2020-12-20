@@ -159,9 +159,13 @@ pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
+///
+/// This span automatically has the `relay-parent` tag set.
 #[inline(always)]
 pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.read_recursive().span(|| { *hash }, span_name).into()
+	let mut span: JaegerSpan = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
+	span.add_string_tag("relay-parent", &format!("{:?}", hash));
+	span
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
