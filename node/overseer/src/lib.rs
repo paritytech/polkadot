@@ -90,7 +90,7 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}};
 use polkadot_node_primitives::SpawnNamed;
 
 
@@ -289,6 +289,7 @@ impl Debug for ToOverseer {
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M> {
 	tx: mpsc::Sender<FromOverseer<M>>,
+	name: &'static str,
 }
 
 /// A context type that is given to the [`Subsystem`] upon spawning.
@@ -400,11 +401,19 @@ impl<M> OverseenSubsystem<M> {
 	///
 	/// If the inner `instance` is `None`, nothing is happening.
 	async fn send_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
-		if let Some(ref mut instance) = self.instance {
-			instance.tx.send(FromOverseer::Signal(signal)).await?;
-		}
+		const SIGNAL_TIMEOUT: Duration = Duration::from_secs(10);
 
-		Ok(())
+		if let Some(ref mut instance) = self.instance {
+			match instance.tx.send(FromOverseer::Signal(signal)).timeout(SIGNAL_TIMEOUT).await {
+				None => {
+					tracing::warn!(target: LOG_TARGET, "Subsystem {} appears unresponsive.", instance.name);
+					Err(SubsystemError::SubsystemStalled(instance.name))
+				}
+				Some(res) => res.map_err(Into::into),
+			}
+		} else {
+			Ok(())
+		}
 	}
 }
 
@@ -1577,6 +1586,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	let instance = Some(SubsystemInstance {
 		tx: to_tx,
+		name,
 	});
 
 	Ok(OverseenSubsystem {
