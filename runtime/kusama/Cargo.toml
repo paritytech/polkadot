@@ -61,7 +61,7 @@ pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-tips = { git = "https://github.com/shamb0/substrate.git", branch = "issue-7057-allow-council-to-slash-treasury-tip", default-features = false }
+pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
