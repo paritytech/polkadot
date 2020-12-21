@@ -710,6 +710,31 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 		}
 	}
 
+	/// Replace the `availability_recovery` instance in `self`.
+	pub fn replace_availability_recovery<NEW>(
+		self,
+		availability_recovery: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			availability_recovery,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
 	/// Replace the `bitfield_signing` instance in `self`.
 	pub fn replace_bitfield_signing<NEW>(
 		self,
