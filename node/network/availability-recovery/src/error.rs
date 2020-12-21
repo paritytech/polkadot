@@ -19,6 +19,7 @@
 use futures::channel::oneshot;
 use thiserror::Error;
 
+/// Error type used by the Availability Recovery subsystem.
 #[derive(Debug, Error)]
 pub enum Error {
 	#[error(transparent)]
