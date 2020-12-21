@@ -36,6 +36,10 @@ pub enum Error {
 	#[error(transparent)]
 	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
 
+
+	#[error(transparent)]
+	Erasure(#[from] polkadot_erasure_coding::Error),
+
 	#[error(transparent)]
 	Util(#[from] polkadot_node_subsystem_util::Error),
 }

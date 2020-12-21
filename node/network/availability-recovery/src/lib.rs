@@ -48,8 +48,7 @@ use polkadot_node_subsystem_util::{
 	request_session_index_for_child_ctx,
 	request_session_info_ctx,
 };
-use polkadot_erasure_coding::branch_hash;
-
+use polkadot_erasure_coding::{branch_hash, recovery_threshold};
 mod error;
 
 #[cfg(test)]
@@ -68,15 +67,6 @@ const LRU_SIZE: usize = 16;
 
 // A timeout for a chunk request.
 const CHUNK_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
-
-/// Compute the threshold from the number of validators.
-///
-/// It should be f + 1, where n = 3f + k, where k in {1, 2, 3}, and n is the number of validators.
-const fn recovery_threshold(n_validators: usize) -> usize {
-	let k = n_validators % 4;
-	let f = (n_validators - k) / 3;
-	f + 1
-}
 
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem;
@@ -372,7 +362,7 @@ async fn launch_interaction(
 	use rand::seq::SliceRandom;
 	use rand::thread_rng;
 
-	let threshold = recovery_threshold(session_info.validators.len());
+	let threshold = recovery_threshold(session_info.validators.len())?;
 	let to_state = state.from_interaction_tx.clone();
 	let candidate_hash = receipt.hash();
 	let erasure_root = receipt.descriptor.erasure_root;
