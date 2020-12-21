@@ -616,7 +616,7 @@ mod tests {
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
-		type OnKilledAccount = Balances;
+		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 	}
 	parameter_types! {

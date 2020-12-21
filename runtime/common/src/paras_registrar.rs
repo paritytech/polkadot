@@ -329,7 +329,7 @@ mod tests {
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u128>;
 		type OnNewAccount = ();
-		type OnKilledAccount = Balances;
+		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 	}
 
