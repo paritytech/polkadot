@@ -16,16 +16,26 @@
 
 //! The `Error` and `Result` types used by the subsystem.
 
+use futures::channel::oneshot;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
 	#[error(transparent)]
 	Subsystem(#[from] polkadot_subsystem::SubsystemError),
-	#[error(transparent)]
-	OneshotRecv(#[from] futures::channel::oneshot::Canceled),
+
+	#[error("failed to query a chunk from store")]
+	CanceledQueryChunk(#[source] oneshot::Canceled),
+
+	#[error("failed to query session index for child")]
+	CanceledSessionIndex(#[source] oneshot::Canceled),
+
+	#[error("failed to query session info")]
+	CanceledSessionInfo(#[source] oneshot::Canceled),
+
 	#[error(transparent)]
 	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
+
 	#[error(transparent)]
 	Util(#[from] polkadot_node_subsystem_util::Error),
 }

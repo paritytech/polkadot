@@ -440,8 +440,16 @@ async fn handle_recover(
 		return Ok(());
 	}
 
-	let session_index = request_session_index_for_child_ctx(state.live_block_hash, ctx).await?.await??;
-	let session_info = request_session_info_ctx(state.live_block_hash, session_index, ctx).await?.await??;
+	let session_index = request_session_index_for_child_ctx(
+		state.live_block_hash,
+		ctx,
+	).await?.await.map_err(error::Error::CanceledSessionIndex)??;
+
+	let session_info = request_session_info_ctx(
+		state.live_block_hash,
+		session_index,
+		ctx,
+	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
 
 	match session_info {
 		Some(session_info) => {
@@ -476,7 +484,7 @@ async fn query_chunk(
 		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
 	)).await;
 
-	Ok(rx.await?)
+	Ok(rx.await.map_err(error::Error::CanceledQueryChunk)?)
 }
 
 /// Handles message from interaction.
@@ -493,7 +501,12 @@ async fn handle_from_interaction(
 			if let Some(interaction) = state.interactions.remove(&candidate_hash) {
 				// Send the result to each member of awaiting.
 				for awaiting in interaction.awaiting {
-					awaiting.send(result.clone()).map_err(|_| oneshot::Canceled)?;
+					if let Err(_) = awaiting.send(result.clone()) {
+						tracing::debug!(
+							target: LOG_TARGET,
+							"An awaiting side of the interaction has been canceled",
+						);
+					}
 				}
 			} else {
 				tracing::warn!(
@@ -546,6 +559,7 @@ async fn handle_from_interaction(
 			report_peer(ctx, peer_id, rep).await;
 		}
 	}
+
 	Ok(())
 }
 
@@ -593,9 +607,12 @@ async fn handle_network_update(
 							// If there exists an entry under r_id, remove it.
 							// Send the chunk response on the awaited_chunk for the interaction to handle.
 							if let Some(chunk) = chunk {
-								awaited_chunk.response
-									.send(Ok((peer_id, chunk)))
-									.map_err(|_| oneshot::Canceled)?;
+								if awaited_chunk.response.send(Ok((peer_id, chunk))).is_err() {
+									tracing::debug!(
+										target: LOG_TARGET,
+										"A sending side of the recovery request is closed",
+									);
+								}
 							}
 						}
 						Some(a) => {
