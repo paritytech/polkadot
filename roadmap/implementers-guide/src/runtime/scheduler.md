@@ -162,7 +162,7 @@ AvailabilityCores: Vec<Option<CoreOccupied>>;
 ParathreadClaimIndex: Vec<ParaId>;
 /// The block number where the session start occurred. Used to track how many group rotations have occurred.
 SessionStartBlock: BlockNumber;
-/// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
+/// Currently scheduled cores - free but up to be occupied.
 Scheduled: Vec<CoreAssignment>, // sorted ascending by CoreIndex.
 ```
 
@@ -190,13 +190,12 @@ Actions:
 
 ## Initialization
 
+1. Free all scheduled cores and return parathread claims to queue, with retries incremented.
 1. Schedule free cores using the `schedule(Vec::new())`.
 
 ## Finalization
 
-Actions:
-
-1. Free all scheduled cores and return parathread claims to queue, with retries incremented.
+No finalization routine runs for this module.
 
 ## Routines
 
