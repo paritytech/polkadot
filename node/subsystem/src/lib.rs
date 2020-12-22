@@ -144,6 +144,9 @@ pub enum SubsystemError {
 	#[error("Failed to {0}")]
 	Context(String),
 
+	#[error("Subsystem stalled: {0}")]
+	SubsystemStalled(&'static str),
+
 	/// Per origin (or subsystem) annotations to wrap an error.
 	#[error("Error originated in {origin}")]
 	FromOrigin {

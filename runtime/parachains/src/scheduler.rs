@@ -182,7 +182,7 @@ decl_storage! {
 		ParathreadClaimIndex: Vec<ParaId>;
 		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
 		SessionStartBlock get(fn session_start_block): T::BlockNumber;
-		/// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
+		/// Currently scheduled cores - free but up to be occupied.
 		///
 		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
 		Scheduled get(fn scheduled): Vec<CoreAssignment>; // sorted ascending by CoreIndex.
@@ -203,13 +203,6 @@ decl_module! {
 impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the scheduler module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		Self::schedule(Vec::new());
-
-		0
-	}
-
-	/// Called by the initializer to finalize the scheduler module.
-	pub(crate) fn initializer_finalize() {
 		// Free all scheduled cores and return parathread claims to queue, with retries incremented.
 		let config = <configuration::Module<T>>::config();
 		ParathreadQueue::mutate(|queue| {
@@ -225,9 +218,15 @@ impl<T: Config> Module<T> {
 					}
 				}
 			}
-		})
+		});
 
+		Self::schedule(Vec::new());
+
+		0
 	}
+
+	/// Called by the initializer to finalize the scheduler module.
+	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
