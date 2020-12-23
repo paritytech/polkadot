@@ -16,7 +16,7 @@
 
 //! The `Error` and `Result` types used by the subsystem.
 
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 
 /// Error type used by the Availability Recovery subsystem.
@@ -34,9 +34,11 @@ pub enum Error {
 	#[error("failed to query session info")]
 	CanceledSessionInfo(#[source] oneshot::Canceled),
 
+	#[error("to_state channel is closed")]
+	ClosedToState(#[source] mpsc::SendError),
+
 	#[error(transparent)]
 	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
-
 
 	#[error(transparent)]
 	Erasure(#[from] polkadot_erasure_coding::Error),

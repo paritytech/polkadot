@@ -305,7 +305,10 @@ impl TestState {
 						)
 					) => {
 						assert_eq!(rep, COST_MERKLE_PROOF_INVALID);
-						assert_eq!(peer, self.validator_peer_id[i]);
+
+						// These may arrive in any order since the interaction implementation
+						// uses `FuturesUnordered`.
+						assert!(self.validator_peer_id.iter().find(|p| **p == peer).is_some());
 					}
 				);
 			}

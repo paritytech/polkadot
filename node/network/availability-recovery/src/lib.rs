@@ -140,96 +140,105 @@ struct Interaction {
 }
 
 impl Interaction {
-	async fn run(mut self) {
-		loop {
-			// If it's empty and requesting_chunks is empty,
-			// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
-			if self.received_chunks.len() + self.requesting_chunks.len() + self.shuffling.len() < self.threshold {
-				if self.to_state.send(FromInteraction::Concluded(
+	async fn maybe_done(&mut self) -> error::Result<()> {
+		// If it's empty and requesting_chunks is empty,
+		// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
+		if self.received_chunks.len() + self.requesting_chunks.len() + self.shuffling.len() < self.threshold {
+			self.to_state.send(FromInteraction::Concluded(
 					self.candidate_hash,
 					Err(RecoveryError::Unavailable),
-				)).await.is_err() {
-					return;
-				};
+			)).await.map_err(error::Error::ClosedToState)?;
+		}
+
+		Ok(())
+	}
+
+	async fn launch_parallel_requests(&mut self) -> error::Result<()> {
+		while self.requesting_chunks.len() < N_PARALLEL {
+			if let Some(validator_index) = self.shuffling.pop() {
+				let (tx, rx) = oneshot::channel();
+
+				self.to_state.send(FromInteraction::MakeRequest(
+					self.validators[validator_index as usize].clone(),
+					self.candidate_hash.clone(),
+					validator_index,
+					tx,
+				)).await.map_err(error::Error::ClosedToState)?;
+
+				self.requesting_chunks.push(rx.timeout(CHUNK_REQUEST_TIMEOUT));
+			} else {
 				break;
 			}
+		}
 
-			while self.requesting_chunks.len() < N_PARALLEL {
-				if let Some(validator_index) = self.shuffling.pop() {
-					let (tx, rx) = oneshot::channel();
+		Ok(())
+	}
 
-					if self.to_state.send(FromInteraction::MakeRequest(
-						self.validators[validator_index as usize].clone(),
-						self.candidate_hash.clone(),
-						validator_index,
-						tx,
-					)).await.is_err() {
-						return;
-					};
+	async fn wait_for_chunks(&mut self) -> error::Result<()> {
+		// Check if the requesting chunks is not empty not to poll to completion.
+		if !self.requesting_chunks.is_empty() {
+			// Poll for new updates from requesting_chunks.
+			while let Some(request_result) = self.requesting_chunks.next().await {
+				match request_result {
+					Some(Ok(Ok((peer_id, chunk)))) => {
+						// Check merkle proofs of any received chunks, and any failures should
+						// lead to issuance of a FromInteraction::ReportPeer message.
+						if let Ok(anticipated_hash) = branch_hash(
+							&self.erasure_root,
+							&chunk.proof,
+							chunk.index as usize,
+						) {
+							let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
-					self.requesting_chunks.push(rx.timeout(CHUNK_REQUEST_TIMEOUT));
-				} else {
-					break;
-				}
-			}
-
-			// Check if the requesting chunks is not empty not to poll to completion.
-			if !self.requesting_chunks.is_empty() {
-				// Poll for new updates from requesting_chunks.
-				while let Some(request_result) = self.requesting_chunks.next().await {
-					match request_result {
-						Some(Ok(Ok((peer_id, chunk)))) => {
-							// Check merkle proofs of any received chunks, and any failures should
-							// lead to issuance of a FromInteraction::ReportPeer message.
-							if let Ok(anticipated_hash) = branch_hash(
-								&self.erasure_root,
-								&chunk.proof,
-								chunk.index as usize,
-							) {
-								let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
-
-								if erasure_chunk_hash != anticipated_hash {
-									if self.to_state.send(FromInteraction::ReportPeer(
-											peer_id.clone(),
-											COST_MERKLE_PROOF_INVALID,
-									)).await.is_err() {
-										return;
-									}
-								}
-							} else {
-								if self.to_state.send(FromInteraction::ReportPeer(
+							if erasure_chunk_hash != anticipated_hash {
+								self.to_state.send(FromInteraction::ReportPeer(
 										peer_id.clone(),
 										COST_MERKLE_PROOF_INVALID,
-								)).await.is_err() {
-									return;
-								}
+								)).await.map_err(error::Error::ClosedToState)?;
 							}
+						} else {
+							self.to_state.send(FromInteraction::ReportPeer(
+									peer_id.clone(),
+									COST_MERKLE_PROOF_INVALID,
+							)).await.map_err(error::Error::ClosedToState)?;
+						}
 
-							self.received_chunks.insert(peer_id, chunk);
-						}
-						Some(Err(e)) => {
-							tracing::debug!(
-								target: LOG_TARGET,
-								err = ?e,
-								"A response channel was cacelled while waiting for a chunk",
-							);
-						}
-						Some(Ok(Err(e))) => {
-							tracing::debug!(
-								target: LOG_TARGET,
-								err = ?e,
-								"A chunk request ended with an error",
-							);
-						}
-						None => {
-							tracing::debug!(
-								target: LOG_TARGET,
-								"A chunk request has timed out",
-							)
-						}
+						self.received_chunks.insert(peer_id, chunk);
+					}
+					Some(Err(e)) => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							err = ?e,
+							"A response channel was cacelled while waiting for a chunk",
+						);
+					}
+					Some(Ok(Err(e))) => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							err = ?e,
+							"A chunk request ended with an error",
+						);
+					}
+					None => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							"A chunk request has timed out",
+						)
 					}
 				}
 			}
+		}
+
+		Ok(())
+	}
+
+	async fn run(mut self) -> error::Result<()> {
+		loop {
+			self.maybe_done().await?;
+
+			self.launch_parallel_requests().await?;
+
+			self.wait_for_chunks().await?;
 
 			// If received_chunks has more than threshold entries, attempt to recover the data.
 			// If that fails, or a re-encoding of it doesn't match the expected erasure root,
@@ -256,14 +265,7 @@ impl Interaction {
 					),
 				};
 
-				if let Err(e) = self.to_state.send(concluded).await {
-					tracing::warn!(
-						target: LOG_TARGET,
-						err = ?e,
-						"Failed to send Concluded result from interaction",
-					);
-				}
-				return;
+				self.to_state.send(concluded).await.map_err(error::Error::ClosedToState)?
 			}
 		}
 	}
@@ -426,7 +428,17 @@ async fn launch_interaction(
 		requesting_chunks: FuturesUnordered::new(),
 	};
 
-	if let Err(e) = ctx.spawn("recovery interaction", interaction.run().boxed()).await {
+	let future = async move {
+		if let Err(e) = interaction.run().await {
+			tracing::debug!(
+				target: LOG_TARGET,
+				err = ?e,
+				"Interaction finished with an error",
+			);
+		}
+	}.boxed();
+
+	if let Err(e) = ctx.spawn("recovery interaction", future).await {
 		tracing::warn!(
 			target: LOG_TARGET,
 			err = ?e,
