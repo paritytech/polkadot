@@ -230,6 +230,50 @@ fn add_block_entry_works() {
 }
 
 #[test]
+fn add_block_entry_adds_child() {
+	let store = TestStore::default();
+
+	let parent_hash = Hash::repeat_byte(1);
+	let block_hash_a = Hash::repeat_byte(2);
+	let block_hash_b = Hash::repeat_byte(69);
+
+	let mut block_entry_a = make_block_entry(
+		block_hash_a,
+		Vec::new(),
+	);
+
+	let block_entry_b = make_block_entry(
+		block_hash_b,
+		Vec::new(),
+	);
+
+	let n_validators = 10;
+
+	add_block_entry(
+		&store,
+		parent_hash,
+		1,
+		block_entry_a.clone(),
+		n_validators,
+		|_| None,
+	).unwrap();
+
+	add_block_entry(
+		&store,
+		block_hash_a,
+		2,
+		block_entry_b.clone(),
+		n_validators,
+		|_| None,
+	).unwrap();
+
+	block_entry_a.children.push(block_hash_b);
+
+	assert_eq!(load_block_entry(&store, &block_hash_a).unwrap(), Some(block_entry_a));
+	assert_eq!(load_block_entry(&store, &block_hash_b).unwrap(), Some(block_entry_b));
+}
+
+#[test]
 fn clear_works() {
 	let store = TestStore::default();
 
