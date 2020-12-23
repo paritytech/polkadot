@@ -517,3 +517,53 @@ fn a_faulty_chunk_leads_to_recovery_error() {
 		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Invalid);
 	});
 }
+
+#[test]
+fn a_wrong_chunk_leads_to_recovery_error() {
+	let mut test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![test_state.current.clone()],
+				deactivated: smallvec![],
+			}),
+		).await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				tx,
+			)
+		).await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		test_state.test_connect_to_validators(&mut virtual_overseer).await;
+
+		let candidate_hash = test_state.candidate.hash();
+
+		// Send a wrong chunk so it passes proof check but fails to reconstruct.
+		test_state.chunks[1] = test_state.chunks[0].clone();
+		test_state.chunks[2] = test_state.chunks[0].clone();
+		test_state.chunks[3] = test_state.chunks[0].clone();
+		test_state.chunks[4] = test_state.chunks[0].clone();
+
+		let faulty = vec![false; test_state.chunks.len()];
+
+		test_state.test_faulty_chunk_requests(
+			candidate_hash,
+			&mut virtual_overseer,
+			&faulty,
+		).await;
+
+		// A request times out with `Unavailable` error.
+		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Invalid);
+	});
+}

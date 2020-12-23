@@ -147,7 +147,7 @@ struct Interaction {
 }
 
 impl Interaction {
-	async fn maybe_done(&mut self) -> error::Result<()> {
+	async fn maybe_done(&mut self) -> error::Result<bool> {
 		// If it's empty and requesting_chunks is empty,
 		// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
 		if self.received_chunks.len() + self.requesting_chunks.len() + self.shuffling.len() < self.threshold {
@@ -155,9 +155,10 @@ impl Interaction {
 					self.candidate_hash,
 					Err(RecoveryError::Unavailable),
 			)).await.map_err(error::Error::ClosedToState)?;
+			Ok(true)
+		} else {
+			Ok(false)
 		}
-
-		Ok(())
 	}
 
 	async fn launch_parallel_requests(&mut self) -> error::Result<()> {
@@ -242,7 +243,9 @@ impl Interaction {
 
 	async fn run(mut self) -> error::Result<()> {
 		loop {
-			self.maybe_done().await?;
+			if self.maybe_done().await? {
+				return Ok(());
+			}
 
 			self.launch_parallel_requests().await?;
 
@@ -273,7 +276,8 @@ impl Interaction {
 					),
 				};
 
-				self.to_state.send(concluded).await.map_err(error::Error::ClosedToState)?
+				self.to_state.send(concluded).await.map_err(error::Error::ClosedToState)?;
+				return Ok(());
 			}
 		}
 	}
