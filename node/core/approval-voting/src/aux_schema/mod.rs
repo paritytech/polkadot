@@ -45,6 +45,9 @@ use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 use super::Tick;
 
+#[cfg(test)]
+mod tests;
+
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
