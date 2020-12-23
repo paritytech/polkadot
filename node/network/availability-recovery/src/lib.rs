@@ -232,7 +232,9 @@ impl Interaction {
 						tracing::debug!(
 							target: LOG_TARGET,
 							"A chunk request has timed out",
-						)
+						);
+						// we break here to launch another request.
+						break;
 					}
 				}
 			}
