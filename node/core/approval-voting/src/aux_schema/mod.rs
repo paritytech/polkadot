@@ -348,6 +348,7 @@ fn load_decode<D: Decode>(store: &impl AuxStore, key: &[u8])
 
 /// Information about a new candidate necessary to instantiate the requisite
 /// candidate and approval entries.
+#[derive(Clone)]
 pub(crate) struct NewCandidateInfo {
 	candidate: CandidateReceipt,
 	backing_group: GroupIndex,

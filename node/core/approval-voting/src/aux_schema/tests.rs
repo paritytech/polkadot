@@ -18,6 +18,7 @@
 
 use super::*;
 use std::cell::RefCell;
+use polkadot_primitives::v1::Id as ParaId;
 
 #[derive(Default)]
 struct TestStore {
@@ -96,6 +97,15 @@ fn make_block_entry(
 	}
 }
 
+fn make_candidate(para_id: ParaId, relay_parent: Hash) -> CandidateReceipt {
+	let mut c = CandidateReceipt::default();
+
+	c.descriptor.para_id = para_id;
+	c.descriptor.relay_parent = relay_parent;
+
+	c
+}
+
 #[test]
 fn read_write() {
 	let store = TestStore::default();
@@ -152,4 +162,69 @@ fn read_write() {
 	assert!(load_blocks_at_height(&store, 1).unwrap().is_empty());
 	assert!(load_block_entry(&store, &hash_a).unwrap().is_none());
 	assert!(load_candidate_entry(&store, &candidate_hash).unwrap().is_none());
+}
+
+#[test]
+fn add_block_entry_works() {
+	let store = TestStore::default();
+
+	let parent_hash = Hash::repeat_byte(1);
+	let block_hash_a = Hash::repeat_byte(2);
+	let block_hash_b = Hash::repeat_byte(69);
+
+	let candidate_hash_a = CandidateHash(Hash::repeat_byte(3));
+	let candidate_hash_b = CandidateHash(Hash::repeat_byte(4));
+
+	let block_entry_a = make_block_entry(
+		block_hash_a,
+		vec![(CoreIndex(0), candidate_hash_a)],
+	);
+
+	let block_entry_b = make_block_entry(
+		block_hash_b,
+		vec![(CoreIndex(0), candidate_hash_a), (CoreIndex(1), candidate_hash_b)],
+	);
+
+	let n_validators = 10;
+	let block_number = 10;
+
+	let mut new_candidate_info = HashMap::new();
+	new_candidate_info.insert(candidate_hash_a, NewCandidateInfo {
+		candidate: make_candidate(1.into(), parent_hash),
+		backing_group: GroupIndex(0),
+		our_assignment: None,
+	});
+
+	add_block_entry(
+		&store,
+		parent_hash,
+		block_number,
+		block_entry_a.clone(),
+		n_validators,
+		|h| new_candidate_info.get(h).map(|x| x.clone()),
+	).unwrap();
+
+	new_candidate_info.insert(candidate_hash_b, NewCandidateInfo {
+		candidate: make_candidate(2.into(), parent_hash),
+		backing_group: GroupIndex(1),
+		our_assignment: None,
+	});
+
+	add_block_entry(
+		&store,
+		parent_hash,
+		block_number,
+		block_entry_b.clone(),
+		n_validators,
+		|h| new_candidate_info.get(h).map(|x| x.clone()),
+	).unwrap();
+
+	assert_eq!(load_block_entry(&store, &block_hash_a).unwrap(), Some(block_entry_a));
+	assert_eq!(load_block_entry(&store, &block_hash_b).unwrap(), Some(block_entry_b));
+
+	let candidate_entry_a = load_candidate_entry(&store, &candidate_hash_a).unwrap().unwrap();
+	assert_eq!(candidate_entry_a.block_assignments.keys().collect::<Vec<_>>(), vec![&block_hash_a, &block_hash_b]);
+
+	let candidate_entry_b = load_candidate_entry(&store, &candidate_hash_b).unwrap().unwrap();
+	assert_eq!(candidate_entry_b.block_assignments.keys().collect::<Vec<_>>(), vec![&block_hash_b]);
 }
