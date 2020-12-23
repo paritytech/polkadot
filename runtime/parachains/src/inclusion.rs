@@ -1132,6 +1132,7 @@ mod tests {
 			= crate::util::make_persisted_validation_data::<Test>(
 				para_id,
 				relay_parent_number,
+				Default::default(),
 			)?;
 		Some(persisted_validation_data.hash())
 	}
@@ -1637,6 +1638,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_b_assignment.clone()],
 						&group_validators,
@@ -1695,6 +1697,7 @@ mod tests {
 				// out-of-order manifests as unscheduled.
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 						&group_validators,
@@ -1729,6 +1732,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1765,6 +1769,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1801,6 +1806,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![
 							chain_a_assignment.clone(),
@@ -1844,6 +1850,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![thread_a_assignment.clone()],
 						&group_validators,
@@ -1891,6 +1898,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1932,6 +1940,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1978,6 +1987,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -2013,6 +2023,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -2154,6 +2165,7 @@ mod tests {
 			));
 
 			let occupied_cores = Inclusion::process_candidates(
+				Default::default(),
 				vec![backed_a, backed_b, backed_c],
 				vec![
 					chain_a_assignment.clone(),
@@ -2286,6 +2298,7 @@ mod tests {
 			));
 
 			let occupied_cores = Inclusion::process_candidates(
+				Default::default(),
 				vec![backed_a],
 				vec![
 					chain_a_assignment.clone(),
