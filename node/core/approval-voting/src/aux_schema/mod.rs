@@ -266,7 +266,7 @@ pub(crate) fn canonicalize(
 	// if a relatively short fork is canonicalized.
 	let new_range = StoredBlockRange(
 		canon_number + 1,
-		std::cmp::max(range.1, canon_number + 1),
+		std::cmp::max(range.1, canon_number + 2),
 	).encode();
 
 	// Because aux-store requires &&[u8], we have to collect.
