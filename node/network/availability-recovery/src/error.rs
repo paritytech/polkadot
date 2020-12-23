@@ -34,6 +34,9 @@ pub enum Error {
 	#[error("failed to query session info")]
 	CanceledSessionInfo(#[source] oneshot::Canceled),
 
+	#[error("failed to send response")]
+	CanceledResponseSender,
+
 	#[error("to_state channel is closed")]
 	ClosedToState(#[source] mpsc::SendError),
 

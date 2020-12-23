@@ -140,7 +140,7 @@ impl TestState {
 				relay_parent,
 				RuntimeApiRequest::SessionIndexForChild(tx),
 			)) => {
-				assert_eq!(relay_parent, self.current);
+				assert_eq!(relay_parent, self.candidate.descriptor.relay_parent);
 				tx.send(Ok(self.session_index)).unwrap();
 			}
 		);
@@ -154,7 +154,7 @@ impl TestState {
 					tx,
 				)
 			)) => {
-				assert_eq!(relay_parent, self.current);
+				assert_eq!(relay_parent, self.candidate.descriptor.relay_parent);
 				assert_eq!(session_index, self.session_index);
 
 				tx.send(Ok(Some(SessionInfo {
@@ -392,6 +392,7 @@ impl Default for TestState {
 		);
 
 		candidate.descriptor.erasure_root = erasure_root;
+		candidate.descriptor.relay_parent = Hash::repeat_byte(10);
 
 		Self {
 			validators,
@@ -447,7 +448,9 @@ fn availability_is_recovered() {
 		let (tx, rx) = oneshot::channel();
 
 		// Test another candidate, send no chunks.
-		let new_candidate = CandidateReceipt::default();
+		let mut new_candidate = CandidateReceipt::default();
+
+		new_candidate.descriptor.relay_parent = test_state.candidate.descriptor.relay_parent;
 
 		overseer_send(
 			&mut virtual_overseer,

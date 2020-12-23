@@ -103,6 +103,7 @@ enum FromInteraction {
 	MakeRequest(
 		ValidatorId,
 		CandidateHash,
+		Hash,
 		ValidatorIndex,
 		oneshot::Sender<ChunkResponse>,
 	),
@@ -135,6 +136,9 @@ struct Interaction {
 	/// The root of the erasure encoding of the para block.
 	erasure_root: Hash,
 
+	/// Relay parent of the candidate.
+	relay_parent: Hash,
+
 	/// The chunks that we have received from peers.
 	received_chunks: HashMap<PeerId, ErasureChunk>,
 
@@ -164,6 +168,7 @@ impl Interaction {
 				self.to_state.send(FromInteraction::MakeRequest(
 					self.validators[validator_index as usize].clone(),
 					self.candidate_hash.clone(),
+					self.relay_parent.clone(),
 					validator_index,
 					tx,
 				)).await.map_err(error::Error::ClosedToState)?;
@@ -401,8 +406,9 @@ async fn launch_interaction(
 	let to_state = state.from_interaction_tx.clone();
 	let candidate_hash = receipt.hash();
 	let erasure_root = receipt.descriptor.erasure_root;
+	let relay_parent = receipt.descriptor.relay_parent;
 	let validators = session_info.validators.clone();
-	let mut shuffling: Vec<_> = (0..validators.len() as u32).collect();
+	let mut shuffling: Vec<_> = (0..validators.len() as ValidatorIndex).collect();
 
 	state.interactions.insert(
 		candidate_hash.clone(),
@@ -424,6 +430,7 @@ async fn launch_interaction(
 		threshold,
 		candidate_hash,
 		erasure_root,
+		relay_parent,
 		received_chunks: HashMap::new(),
 		requesting_chunks: FuturesUnordered::new(),
 	};
@@ -476,12 +483,12 @@ async fn handle_recover(
 	}
 
 	let session_index = request_session_index_for_child_ctx(
-		state.live_block_hash,
+		receipt.descriptor.relay_parent,
 		ctx,
 	).await?.await.map_err(error::Error::CanceledSessionIndex)??;
 
 	let session_info = request_session_info_ctx(
-		state.live_block_hash,
+		receipt.descriptor.relay_parent,
 		session_index,
 		ctx,
 	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
@@ -502,6 +509,9 @@ async fn handle_recover(
 				target: LOG_TARGET,
 				"SessionInfo is `None` at {}", state.live_block_hash,
 			);
+			response_sender
+				.send(Err(RecoveryError::Unavailable))
+				.map_err(|_| error::Error::CanceledResponseSender)?;
 			Ok(())
 		}
 	}
@@ -553,9 +563,7 @@ async fn handle_from_interaction(
 
 			state.availability_lru.put(candidate_hash, result);
 		}
-		FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
-			let relay_parent = state.live_block_hash;
-
+		FromInteraction::MakeRequest(id, candidate_hash, relay_parent, validator_index, response) => {
 			// Take the validators we are already connecting to and merge them with the
 			// newly requested one to create a new connection request.
 			let new_discovering_validators_set = state.discovering_validators.keys()
@@ -654,6 +662,7 @@ async fn handle_network_update(
 							// If the peer in the entry doesn't match the sending peer,
 							// reinstate the entry, report the peer, and return
 							state.live_chunk_requests.insert(request_id, a);
+							report_peer(ctx, peer, COST_UNEXPECTED_CHUNK).await;
 						}
 					}
 				}
