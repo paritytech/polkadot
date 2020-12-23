@@ -40,6 +40,7 @@ use sp_consensus_slots::SlotNumber;
 use parity_scale_codec::{Encode, Decode};
 
 use std::collections::{BTreeMap, HashMap};
+use std::collections::hash_map::Entry;
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 use super::Tick;
@@ -112,46 +113,175 @@ pub(crate) struct OurAssignment { }
 pub(crate) fn canonicalize(
 	store: &impl AuxStore,
 	canon_number: BlockNumber,
-	canon_hash: BlockNumber,
+	canon_hash: Hash,
 )
 	-> sp_blockchain::Result<()>
 {
 	let range = match load_stored_blocks(store)? {
 		None => return Ok(()),
-		Some(range) if range.0 >= canon_number => return Ok(()).
-		Some(range) => range,
+		Some(range) => if range.0 >= canon_number {
+			return Ok(())
+		} else {
+			range
+		},
 	};
 
-	let mut visited_height_keys = Vec::new();
-	let mut visited_block_keys = Vec::new();
+	let mut deleted_height_keys = Vec::new();
+	let mut deleted_block_keys = Vec::new();
+
+	// Storing all candidates in memory is potentially heavy, but should be fine
+	// as long as finality doesn't stall for a long while. We could optimize this
+	// by keeping only the metadata about which blocks reference each candidate.
 	let mut visited_candidates = HashMap::new();
 
-	let visit_and_remove_block_entry
+	// All the block heights we visited but didn't necessarily delete everything from.
+	let mut visited_heights = HashMap::new();
+
+	let visit_and_remove_block_entry = |
+		block_hash: Hash,
+		deleted_block_keys: &mut Vec<_>,
+		visited_candidates: &mut HashMap<CandidateHash, CandidateEntry>,
+	| -> sp_blockchain::Result<Vec<Hash>> {
+		let block_entry = match load_block_entry(store, &block_hash)? {
+			None => return Ok(Vec::new()),
+			Some(b) => b,
+		};
+
+		deleted_block_keys.push(block_entry_key(&block_hash));
+		for &(_, ref candidate_hash) in &block_entry.candidates {
+			let candidate = match visited_candidates.entry(*candidate_hash) {
+				Entry::Occupied(e) => e.into_mut(),
+				Entry::Vacant(e) => {
+					e.insert(match load_candidate_entry(store, candidate_hash)? {
+						None => continue, // Should not happen except for corrupt DB
+						Some(c) => c,
+					})
+				}
+			};
+
+			candidate.block_assignments.remove(&block_hash);
+		}
+
+		Ok(block_entry.children)
+	};
 
 	// First visit everything before the height.
 	for i in range.0..canon_number {
 		let at_height = load_blocks_at_height(store, i)?;
+		deleted_height_keys.push(blocks_at_height_key(i));
 
-		visited_height_keys.push(blocks_at_height_key(i));
-
-
+		for b in at_height {
+			let _ = visit_and_remove_block_entry(
+				b,
+				&mut deleted_block_keys,
+				&mut visited_candidates,
+			)?;
+		}
 	}
 
 	// Then visit everything at the height.
-	{
+	let pruned_branches = {
 		let at_height = load_blocks_at_height(store, canon_number)?;
-		visited_height_keys.push(blocks_at_height_key(canon_number));
-	}
+		deleted_height_keys.push(blocks_at_height_key(canon_number));
+
+		// Note that while there may be branches descending from blocks at earlier heights,
+		// we have already covered them by removing everything at earlier heights.
+		let mut pruned_branches = Vec::new();
+
+		for b in at_height {
+			let children = visit_and_remove_block_entry(
+				b,
+				&mut deleted_block_keys,
+				&mut visited_candidates,
+			)?;
+
+			if b != canon_hash {
+				pruned_branches.extend(children);
+			}
+		}
+
+		pruned_branches
+	};
 
 	// Follow all children of non-canonicalized blocks.
 	{
+		let mut frontier: Vec<_> = pruned_branches.into_iter().map(|h| (canon_number + 1, h)).collect();
+		while let Some((height, next_child)) = frontier.pop() {
+			let children = visit_and_remove_block_entry(
+				next_child,
+				&mut deleted_block_keys,
+				&mut visited_candidates,
+			)?;
 
+			// extend the frontier of branches to include the given height.
+			frontier.extend(children.into_iter().map(|h| (height + 1, h)));
+
+			// visit the at-height key for this deleted block's height.
+			let at_height = match visited_heights.entry(height) {
+				Entry::Occupied(e) => e.into_mut(),
+				Entry::Vacant(e) => e.insert(load_blocks_at_height(store, height)?),
+			};
+
+			if let Some(i) = at_height.iter().position(|x| x == &next_child) {
+				at_height.remove(i);
+			}
+		}
 	}
 
 	// Update all `CandidateEntry`s, deleting all those which now have empty `block_assignments`.
-	{
+	let (written_candidates, deleted_candidates) = {
+		let mut written = Vec::new();
+		let mut deleted = Vec::new();
 
-	}
+		for (candidate_hash, candidate) in visited_candidates {
+			if candidate.block_assignments.is_empty() {
+				deleted.push(candidate_entry_key(&candidate_hash));
+			} else {
+				written.push((candidate_entry_key(&candidate_hash), candidate.encode()));
+			}
+		}
+
+		(written, deleted)
+	};
+
+	// Update all blocks-at-height keys, deleting all those which now have empty `block_assignments`.
+	let written_at_height = {
+		visited_heights.into_iter().filter_map(|(h, at)| {
+			if at.is_empty() {
+				deleted_height_keys.push(blocks_at_height_key(h));
+				None
+			} else {
+				Some((blocks_at_height_key(h), at.encode()))
+			}
+		}).collect::<Vec<_>>()
+	};
+
+	// due to the fork pruning, this range actually might go too far above where our actual highest block is,
+	// if a relatively short fork is canonicalized.
+	let new_range = StoredBlockRange(
+		canon_number + 1,
+		std::cmp::max(range.1, canon_number + 1),
+	).encode();
+
+	// Because aux-store requires &&[u8], we have to collect.
+
+	let inserted_keys: Vec<_> = std::iter::once((&STORED_BLOCKS_KEY[..], &new_range[..]))
+		.chain(written_candidates.iter().map(|&(ref k, ref v)| (&k[..], &v[..])))
+		.chain(written_at_height.iter().map(|&(ref k, ref v)| (&k[..], &v[..])))
+		.collect();
+
+	let deleted_keys: Vec<_> = deleted_block_keys.iter().map(|k| &k[..])
+		.chain(deleted_height_keys.iter().map(|k| &k[..]))
+		.chain(deleted_candidates.iter().map(|k| &k[..]))
+		.collect();
+
+	// Update the values on-disk.
+	store.insert_aux(
+		inserted_keys.iter(),
+		deleted_keys.iter(),
+	)?;
+
+	Ok(())
 }
 
 /// Clear the aux store of everything.
