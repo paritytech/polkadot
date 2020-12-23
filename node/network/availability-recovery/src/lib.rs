@@ -21,10 +21,10 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use futures::prelude::*;
-use futures::stream::FuturesUnordered;
-use futures::channel::{oneshot, mpsc};
+use futures::{channel::{oneshot, mpsc}, prelude::*, stream::FuturesUnordered};
+use futures_timer::Delay;
 use lru::LruCache;
+use rand::{seq::SliceRandom, thread_rng};
 
 use polkadot_primitives::v1::{
 	AvailableData, CandidateReceipt, CandidateHash,
@@ -67,6 +67,9 @@ const LRU_SIZE: usize = 16;
 
 // A timeout for a chunk request.
 const CHUNK_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+// A period to poll and clean AwaitedChunks.
+const AWAITED_CHUNKS_CLEANUP_INTERVAL: Duration = Duration::from_secs(1);
 
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem;
@@ -371,7 +374,7 @@ async fn handle_signal(
 
 			Ok(false)
 		}
-		_ => Ok(false),
+	    OverseerSignal::BlockFinalized(_) => Ok(false)
 	}
 }
 
@@ -394,9 +397,6 @@ async fn launch_interaction(
 	receipt: CandidateReceipt,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 ) -> error::Result<()> {
-	use rand::seq::SliceRandom;
-	use rand::thread_rng;
-
 	let threshold = recovery_threshold(session_info.validators.len())?;
 	let to_state = state.from_interaction_tx.clone();
 	let candidate_hash = receipt.hash();
@@ -715,6 +715,17 @@ async fn handle_validator_connected(
 	Ok(())
 }
 
+/// Awaited chunks info that `State` holds has to be cleaned up
+/// periodically since there is no way `Interaction` can communicate
+/// a timedout request.
+fn cleanup_awaited_chunks(state: &mut State) {
+	for (_, v) in state.discovering_validators.iter_mut() {
+		v.retain(|e| !e.response.is_canceled());
+	}
+	state.discovering_validators.retain(|_, v| !v.is_empty());
+	state.live_chunk_requests.retain(|_, v| !v.1.response.is_canceled());
+}
+
 impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem`.
 	pub fn new() -> Self {
@@ -727,8 +738,17 @@ impl AvailabilityRecoverySubsystem {
 	) -> SubsystemResult<()> {
 		let mut state = State::default();
 
+		let awaited_chunk_cleanup_interval = futures::stream::repeat(()).then(|_| async move {
+			Delay::new(AWAITED_CHUNKS_CLEANUP_INTERVAL).await;
+		});
+
+		futures::pin_mut!(awaited_chunk_cleanup_interval);
+
 		loop {
 			futures::select_biased! {
+				_v = awaited_chunk_cleanup_interval.next() => {
+					cleanup_awaited_chunks(&mut state);
+				}
 				v = state.connection_requests.next().fuse() => {
 					if let Err(e) = handle_validator_connected(
 						&mut state,
