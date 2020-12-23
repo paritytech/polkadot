@@ -54,7 +54,7 @@ mod tests;
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct TrancheEntry {
 	tranche: DelayTranche,
 	// Assigned validators, and the instant we received their assignment, rounded
@@ -64,7 +64,7 @@ pub(crate) struct TrancheEntry {
 
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct ApprovalEntry {
 	tranches: Vec<TrancheEntry>,
 	backing_group: GroupIndex,
@@ -78,7 +78,7 @@ pub(crate) struct ApprovalEntry {
 }
 
 /// Metadata regarding approval of a particular candidate.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct CandidateEntry {
 	candidate: CandidateReceipt,
 	session: SessionIndex,
@@ -90,7 +90,7 @@ pub(crate) struct CandidateEntry {
 
 /// Metadata regarding approval of a particular block, by way of approval of the
 /// candidates contained within it.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct BlockEntry {
 	block_hash: Hash,
 	session: SessionIndex,
@@ -107,11 +107,11 @@ pub(crate) struct BlockEntry {
 }
 
 /// A range from earliest..last block number stored within the DB.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
 
 // TODO https://github.com/paritytech/polkadot/1975: probably in lib.rs
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct OurAssignment { }
 
 /// Canonicalize some particular block, pruning everything before it and
