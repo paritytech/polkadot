@@ -326,6 +326,7 @@ pub(crate) fn clear(store: &impl AuxStore)
 	let visited_keys_borrowed = visited_height_keys.iter().map(|x| &x[..])
 		.chain(visited_block_keys.iter().map(|x| &x[..]))
 		.chain(visited_candidate_keys.iter().map(|x| &x[..]))
+		.chain(std::iter::once(&STORED_BLOCKS_KEY[..]))
 		.collect::<Vec<_>>();
 
 	store.insert_aux(&[], &visited_keys_borrowed)?;

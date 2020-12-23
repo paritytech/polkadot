@@ -228,3 +228,53 @@ fn add_block_entry_works() {
 	let candidate_entry_b = load_candidate_entry(&store, &candidate_hash_b).unwrap().unwrap();
 	assert_eq!(candidate_entry_b.block_assignments.keys().collect::<Vec<_>>(), vec![&block_hash_b]);
 }
+
+#[test]
+fn clear_works() {
+	let store = TestStore::default();
+
+	let hash_a = Hash::repeat_byte(1);
+	let hash_b = Hash::repeat_byte(2);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(3));
+
+	let range = StoredBlockRange(0, 5);
+	let at_height = vec![hash_a, hash_b];
+
+	let block_entry = make_block_entry(
+		hash_a,
+		vec![(CoreIndex(0), candidate_hash)],
+	);
+
+	let candidate_entry = CandidateEntry {
+		candidate: Default::default(),
+		session: 5,
+		block_assignments: vec![
+			(hash_a, ApprovalEntry {
+				tranches: Vec::new(),
+				backing_group: GroupIndex(1),
+				next_wakeup: 1000,
+				our_assignment: None,
+				assignments: Default::default(),
+				approved: false,
+			})
+		].into_iter().collect(),
+		approvals: Default::default(),
+	};
+
+	store.write_stored_blocks(range.clone());
+	store.write_blocks_at_height(1, &at_height);
+	store.write_block_entry(&hash_a, &block_entry);
+	store.write_candidate_entry(&candidate_hash, &candidate_entry);
+
+	assert_eq!(load_stored_blocks(&store).unwrap(), Some(range));
+	assert_eq!(load_blocks_at_height(&store, 1).unwrap(), at_height);
+	assert_eq!(load_block_entry(&store, &hash_a).unwrap(), Some(block_entry));
+	assert_eq!(load_candidate_entry(&store, &candidate_hash).unwrap(), Some(candidate_entry));
+
+	clear(&store).unwrap();
+
+	assert!(load_stored_blocks(&store).unwrap().is_none());
+	assert!(load_blocks_at_height(&store, 1).unwrap().is_empty());
+	assert!(load_block_entry(&store, &hash_a).unwrap().is_none());
+	assert!(load_candidate_entry(&store, &candidate_hash).unwrap().is_none());
+}
