@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	request_session_index_for_child_ctx,
 	request_session_info_ctx,
 };
-use polkadot_erasure_coding::{branch_hash, recovery_threshold};
+use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
 mod error;
 
 #[cfg(test)]
@@ -144,7 +144,7 @@ impl Interaction {
 		loop {
 			// If it's empty and requesting_chunks is empty,
 			// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
-			if self.requesting_chunks.is_empty() && self.shuffling.is_empty() {
+			if self.received_chunks.len() + self.requesting_chunks.len() + self.shuffling.len() < self.threshold {
 				if self.to_state.send(FromInteraction::Concluded(
 					self.candidate_hash,
 					Err(RecoveryError::Unavailable),
@@ -190,22 +190,22 @@ impl Interaction {
 
 								if erasure_chunk_hash != anticipated_hash {
 									if self.to_state.send(FromInteraction::ReportPeer(
-											peer_id,
+											peer_id.clone(),
 											COST_MERKLE_PROOF_INVALID,
 									)).await.is_err() {
 										return;
 									}
-								} else {
-									self.received_chunks.insert(peer_id, chunk);
 								}
 							} else {
 								if self.to_state.send(FromInteraction::ReportPeer(
-										peer_id,
+										peer_id.clone(),
 										COST_MERKLE_PROOF_INVALID,
 								)).await.is_err() {
 									return;
 								}
 							}
+
+							self.received_chunks.insert(peer_id, chunk);
 						}
 						Some(Err(e)) => {
 							tracing::debug!(
@@ -240,8 +240,20 @@ impl Interaction {
 					self.validators.len(),
 					self.received_chunks.values().map(|c| (&c.chunk[..], c.index as usize)),
 				) {
-					Ok(data) => FromInteraction::Concluded(self.candidate_hash.clone(), Ok(data)),
-					Err(_) => FromInteraction::Concluded(self.candidate_hash.clone(), Err(RecoveryError::Invalid)),
+					Ok(data) => {
+						if self.reconstructed_data_matches_root(&data) {
+							FromInteraction::Concluded(self.candidate_hash.clone(), Ok(data))
+						} else {
+							FromInteraction::Concluded(
+								self.candidate_hash.clone(),
+								Err(RecoveryError::Invalid),
+							)
+						}
+					}
+					Err(_) => FromInteraction::Concluded(
+						self.candidate_hash.clone(),
+						Err(RecoveryError::Invalid),
+					),
 				};
 
 				if let Err(e) = self.to_state.send(concluded).await {
@@ -254,6 +266,27 @@ impl Interaction {
 				return;
 			}
 		}
+	}
+
+	fn reconstructed_data_matches_root(
+		&self,
+		data: &AvailableData,
+	) -> bool {
+		let chunks = match obtain_chunks_v1(self.validators.len(), data) {
+		    Ok(chunks) => chunks,
+		    Err(e) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Failed to obtain chunks",
+				);
+				return false;
+			}
+		};
+
+		let branches = branches(&chunks);
+
+		branches.root() == self.erasure_root
 	}
 }
 

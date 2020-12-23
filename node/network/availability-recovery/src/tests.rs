@@ -249,7 +249,70 @@ impl TestState {
 			);
 		}
 	}
+
+	async fn test_faulty_chunk_requests(
+		&self,
+		candidate_hash: CandidateHash,
+		virtual_overseer: &mut VirtualOverseer,
+		faulty: &[bool],
+	) {
+		for _ in 0..self.validator_public.len() {
+			// Receive a request for a chunk.
+			assert_matches!(
+				overseer_recv(virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendValidationMessage(
+						_peers,
+						protocol_v1::ValidationProtocol::AvailabilityRecovery(wire_message),
+					)
+				) => {
+					let (request_id, validator_index) = assert_matches!(
+						wire_message,
+						protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
+							request_id,
+							candidate_hash_recvd,
+							validator_index,
+						) => {
+							assert_eq!(candidate_hash_recvd, candidate_hash);
+							(request_id, validator_index)
+						}
+					);
+
+					overseer_send(
+						virtual_overseer,
+						AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(
+							NetworkBridgeEvent::PeerMessage(
+								self.validator_peer_id[validator_index as usize].clone(),
+								protocol_v1::AvailabilityRecoveryMessage::Chunk(
+									request_id,
+									Some(self.chunks[validator_index as usize].clone()),
+								)
+							)
+						)
+					).await;
+				}
+			);
+		}
+
+		for i in 0..self.validator_public.len() {
+			if faulty[i] {
+				assert_matches!(
+					overseer_recv(virtual_overseer).await,
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(
+							peer,
+							rep,
+						)
+					) => {
+						assert_eq!(rep, COST_MERKLE_PROOF_INVALID);
+						assert_eq!(peer, self.validator_peer_id[i]);
+					}
+				);
+			}
+		}
+	}
 }
+
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
@@ -397,5 +460,54 @@ fn availability_is_recovered() {
 
 		// A request times out with `Unavailable` error.
 		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Unavailable);
+	});
+}
+
+#[test]
+fn a_faulty_chunk_leads_to_recovery_error() {
+	let mut test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![test_state.current.clone()],
+				deactivated: smallvec![],
+			}),
+		).await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				tx,
+			)
+		).await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		test_state.test_connect_to_validators(&mut virtual_overseer).await;
+
+		let candidate_hash = test_state.candidate.hash();
+
+		// Create some faulty chunks.
+		test_state.chunks[0].chunk = vec![1; 32];
+		test_state.chunks[1].chunk = vec![2; 32];
+		let mut faulty = vec![false; test_state.chunks.len()];
+		faulty[0] = true;
+		faulty[1] = true;
+
+		test_state.test_faulty_chunk_requests(
+			candidate_hash,
+			&mut virtual_overseer,
+			&faulty,
+		).await;
+
+		// A request times out with `Unavailable` error.
+		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Invalid);
 	});
 }
