@@ -77,6 +77,25 @@ impl TestStore {
 	}
 }
 
+fn make_bitvec(len: usize) -> BitVec<BitOrderLsb0, u8> {
+	bitvec::bitvec![BitOrderLsb0, u8; 0; len]
+}
+
+fn make_block_entry(
+	block_hash: Hash,
+	candidates: Vec<(CoreIndex, CandidateHash)>,
+) -> BlockEntry {
+	BlockEntry {
+		block_hash,
+		session: 1,
+		slot: 1,
+		relay_vrf_story: RelayVRF([0u8; 32]),
+		approved_bitfield: make_bitvec(candidates.len()),
+		candidates,
+		children: Vec::new(),
+	}
+}
+
 #[test]
 fn read_write() {
 	let store = TestStore::default();
@@ -88,15 +107,10 @@ fn read_write() {
 	let range = StoredBlockRange(10, 20);
 	let at_height = vec![hash_a, hash_b];
 
-	let block_entry = BlockEntry {
-		block_hash: hash_a,
-		session: 5,
-		slot: 10,
-		relay_vrf_story: RelayVRF([0; 32]),
-		candidates: vec![(CoreIndex(0), candidate_hash)],
-		approved_bitfield: Default::default(),
-		children: Vec::new(),
-	};
+	let block_entry = make_block_entry(
+		hash_a,
+		vec![(CoreIndex(0), candidate_hash)],
+	);
 
 	let candidate_entry = CandidateEntry {
 		candidate: Default::default(),
