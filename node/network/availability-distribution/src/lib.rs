@@ -121,7 +121,7 @@ impl From<AvailabilityGossipMessage> for protocol_v1::AvailabilityDistributionMe
 
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct ProtocolState {
 	/// Track all active peers and their views
 	/// to determine what is relevant to them.
@@ -429,10 +429,15 @@ where
 					"Retrieved chunk from availability storage",
 				);
 
-				AvailabilityGossipMessage {
+
+				let msg = AvailabilityGossipMessage {
 					candidate_hash,
 					erasure_chunk,
-				}
+				};
+
+				per_candidate.add_message(chunk_index, msg.clone());
+
+				msg
 			} else {
 				tracing::error!(
 					target: LOG_TARGET,
@@ -481,8 +486,6 @@ where
 				.or_default()
 				.insert(message.erasure_chunk.index);
 		}
-
-		per_candidate.add_message(message.erasure_chunk.index, message.clone());
 
 		if !peers.is_empty() {
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
@@ -668,6 +671,16 @@ where
 	}
 
 	{
+		// insert into known messages and change reputation. we've guaranteed
+		// above that the message vault doesn't contain any message under this
+		// chunk index already.
+
+		candidate_entry
+				.received_messages
+				.entry(origin.clone())
+				.or_default()
+				.insert(message.erasure_chunk.index);
+
 		modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await;
 
 		// save the chunk for our index
@@ -687,9 +700,6 @@ where
 			}
 		}
 
-		// insert into known messages and change reputation. we've guaranteed
-		// above that the message vault doesn't contain any message under this
-		// chunk index already.
 		candidate_entry.add_message(message.erasure_chunk.index, message.clone());
 	}
 
