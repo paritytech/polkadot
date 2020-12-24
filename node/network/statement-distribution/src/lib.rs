@@ -731,6 +731,10 @@ async fn handle_incoming_message<'a>(
 			"candidate-hash",
 			&format!("{:?}", candidate_hash.0),
 		);
+		span.add_string_tag(
+			"peer-id",
+			&peer.to_base58(),
+		);
 		span
 	};
 
