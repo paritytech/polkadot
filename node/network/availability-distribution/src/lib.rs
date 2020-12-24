@@ -167,7 +167,7 @@ struct PerCandidate {
 	/// The set of relay chain blocks this appears to be live in.
 	live_in: HashSet<Hash>,
 
-	/// A Jaeger span relating to this candidate. Dropped after we obtain our availability piece.
+	/// A Jaeger span relating to this candidate.
 	span: jaeger::JaegerSpan,
 }
 
@@ -178,13 +178,17 @@ impl PerCandidate {
 			&& self.sent_messages.get(peer).map(|v| !v.contains(&validator_index)).unwrap_or(true)
 	}
 
-	/// Add a chunk to the message vault. Overwrites anything that was already present. Drops the span
-	/// if availability is reached.
+	/// Add a chunk to the message vault. Overwrites anything that was already present.
 	fn add_message(&mut self, chunk_index: u32, message: AvailabilityGossipMessage) {
 		let _ = self.message_vault.insert(chunk_index, message);
+	}
 
-		if Some(chunk_index) == self.validator_index {
-			self.span = jaeger::JaegerSpan::Disabled;
+	/// Clean up the span if we've got our own chunk.
+	fn drop_span_after_own_availability(&mut self) {
+		if let Some(validator_index) = self.validator_index {
+			if self.message_vault.contains_key(&validator_index) {
+				self.span = jaeger::JaegerSpan::Disabled;
+			}
 		}
 	}
 }
@@ -413,6 +417,11 @@ where
 
 		// distribute all erasure messages to interested peers
 		for chunk_index in 0u32..(validator_count as u32) {
+			let _span = {
+				let mut span = per_candidate.span.child("load-and-distribute");
+				span.add_string_tag("chunk-index", &format!("{}", chunk_index));
+				span
+			};
 			let message = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -458,6 +467,9 @@ where
 
 			send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await;
 		}
+
+		// traces are better if we wait until the loop is done to drop.
+		per_candidate.drop_span_after_own_availability();
 	}
 
 	// cleanup the removed relay parents and their states
@@ -701,6 +713,7 @@ where
 		}
 
 		candidate_entry.add_message(message.erasure_chunk.index, message.clone());
+		candidate_entry.drop_span_after_own_availability();
 	}
 
 	// condense the peers to the peers with interest on the candidate
