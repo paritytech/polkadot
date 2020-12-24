@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! # Parachain Crowdfunding module
+//! # Parachain Crowdloaning module
 //!
 //! The point of this module is to allow parachain projects to offer the ability to help fund a
 //! deposit for the parachain. When the parachain is retired, the funds may be returned.
@@ -90,17 +90,17 @@ pub type NegativeImbalanceOf<T> =
 pub trait Config: slots::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
-	/// ModuleID for the crowdfund module. An appropriate value could be ```ModuleId(*b"py/cfund")```
+	/// ModuleID for the crowdloan module. An appropriate value could be ```ModuleId(*b"py/cfund")```
 	type ModuleId: Get<ModuleId>;
 
-	/// The amount to be held on deposit by the owner of a crowdfund.
+	/// The amount to be held on deposit by the owner of a crowdloan.
 	type SubmissionDeposit: Get<BalanceOf<Self>>;
 
-	/// The minimum amount that may be contributed into a crowdfund. Should almost certainly be at
+	/// The minimum amount that may be contributed into a crowdloan. Should almost certainly be at
 	/// least ExistentialDeposit.
 	type MinContribution: Get<BalanceOf<Self>>;
 
-	/// The period of time (in blocks) after an unsuccessful crowdfund ending when
+	/// The period of time (in blocks) after an unsuccessful crowdloan ending when
 	/// contributors are able to withdraw their funds. After this period, their funds are lost.
 	type RetirementPeriod: Get<Self::BlockNumber>;
 
@@ -164,7 +164,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 }
 
 decl_storage! {
-	trait Store for Module<T: Config> as Crowdfund {
+	trait Store for Module<T: Config> as Crowdloan {
 		/// Info on all of the funds.
 		Funds get(fn funds):
 			map hasher(twox_64_concat) FundIndex
@@ -187,7 +187,7 @@ decl_event! {
 		<T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
-		/// Create a new crowdfunding campaign. [fund_index]
+		/// Create a new crowdloaning campaign. [fund_index]
 		Created(FundIndex),
 		/// Contributed to a crowd sale. [who, fund_index, amount]
 		Contributed(AccountId, FundIndex, Balance),
@@ -231,7 +231,7 @@ decl_error! {
 		UnsetDeployData,
 		/// This fund has already been onboarded.
 		AlreadyOnboard,
-		/// This crowdfund does not correspond to a parachain.
+		/// This crowdloan does not correspond to a parachain.
 		NotParachain,
 		/// This parachain still has its deposit. Implies that it has already been offboarded.
 		ParaHasDeposit,
@@ -239,11 +239,11 @@ decl_error! {
 		FundsNotReturned,
 		/// Fund has not yet retired.
 		FundNotRetired,
-		/// The crowdfund has not yet ended.
+		/// The crowdloan has not yet ended.
 		FundNotEnded,
-		/// There are no contributions stored in this crowdfund.
+		/// There are no contributions stored in this crowdloan.
 		NoContributions,
-		/// This crowdfund has an active parachain and cannot be dissolved.
+		/// This crowdloan has an active parachain and cannot be dissolved.
 		HasActiveParachain,
 		/// The retirement period has not ended.
 		InRetirementPeriod,
@@ -258,7 +258,7 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
+		/// Create a new crowdloaning campaign for a parachain slot deposit for the current auction.
 		#[weight = 100_000_000]
 		fn create(origin,
 			#[compact] cap: BalanceOf<T>,
@@ -312,7 +312,7 @@ decl_module! {
 			fund.raised  = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
 			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
 
-			// Make sure crowdfund has not ended
+			// Make sure crowdloan has not ended
 			let now = <frame_system::Module<T>>::block_number();
 			ensure!(fund.end > now, Error::<T>::ContributionPeriodOver);
 
@@ -492,7 +492,7 @@ decl_module! {
 			let imbalance = T::Currency::withdraw(&account, fund.raised, transfer, AllowDeath)?;
 			T::OrphanedFunds::on_unbalanced(imbalance);
 
-			Self::crowdfund_kill(index);
+			Self::crowdloan_kill(index);
 			<Funds<T>>::remove(index);
 
 			Self::deposit_event(RawEvent::Dissolved(index));
@@ -513,8 +513,8 @@ decl_module! {
 						sub: index,
 					});
 
-					// Care needs to be taken by the crowdfund creator that this function will succeed given
-					// the crowdfunding configuration. We do some checks ahead of time in crowdfund `create`.
+					// Care needs to be taken by the crowdloan creator that this function will succeed given
+					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
 					let _ = <slots::Module<T>>::handle_bid(
 						bidder,
 						auction_index,
@@ -539,7 +539,7 @@ impl<T: Config> Module<T> {
 
 	pub fn id_from_index(index: FundIndex) -> child::ChildInfo {
 		let mut buf = Vec::new();
-		buf.extend_from_slice(b"crowdfund");
+		buf.extend_from_slice(b"crowdloan");
 		buf.extend_from_slice(&index.to_le_bytes()[..]);
 		child::ChildInfo::new_default(T::Hashing::hash(&buf[..]).as_ref())
 	}
@@ -559,7 +559,7 @@ impl<T: Config> Module<T> {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdfund_kill(index: FundIndex) {
+	pub fn crowdloan_kill(index: FundIndex) {
 		child::kill_storage(&Self::id_from_index(index), None);
 	}
 }
@@ -723,7 +723,7 @@ mod tests {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
 		pub const RetirementPeriod: u64 = 5;
-		pub const CrowdfundModuleId: ModuleId = ModuleId(*b"py/cfund");
+		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
 	}
 	impl Config for Test {
 		type Event = ();
@@ -731,14 +731,14 @@ mod tests {
 		type MinContribution = MinContribution;
 		type RetirementPeriod = RetirementPeriod;
 		type OrphanedFunds = Treasury;
-		type ModuleId = CrowdfundModuleId;
+		type ModuleId = CrowdloanModuleId;
 	}
 
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
 	type Slots = slots::Module<Test>;
 	type Treasury = pallet_treasury::Module<Test>;
-	type Crowdfund = Module<Test>;
+	type Crowdloan = Module<Test>;
 	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	use pallet_balances::Error as BalancesError;
 	use slots::Error as SlotsError;
@@ -755,7 +755,7 @@ mod tests {
 
 	fn run_to_block(n: u64) {
 		while System::block_number() < n {
-			Crowdfund::on_finalize(System::block_number());
+			Crowdloan::on_finalize(System::block_number());
 			Treasury::on_finalize(System::block_number());
 			Slots::on_finalize(System::block_number());
 			Balances::on_finalize(System::block_number());
@@ -765,7 +765,7 @@ mod tests {
 			Balances::on_initialize(System::block_number());
 			Slots::on_initialize(System::block_number());
 			Treasury::on_initialize(System::block_number());
-			Crowdfund::on_initialize(System::block_number());
+			Crowdloan::on_initialize(System::block_number());
 		}
 	}
 
@@ -773,21 +773,21 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(System::block_number(), 0);
-			assert_eq!(Crowdfund::fund_count(), 0);
-			assert_eq!(Crowdfund::funds(0), None);
+			assert_eq!(Crowdloan::fund_count(), 0);
+			assert_eq!(Crowdloan::funds(0), None);
 			let empty: Vec<FundIndex> = Vec::new();
-			assert_eq!(Crowdfund::new_raise(), empty);
-			assert_eq!(Crowdfund::contribution_get(0, &1), 0);
-			assert_eq!(Crowdfund::endings_count(), 0);
+			assert_eq!(Crowdloan::new_raise(), empty);
+			assert_eq!(Crowdloan::contribution_get(0, &1), 0);
+			assert_eq!(Crowdloan::endings_count(), 0);
 		});
 	}
 
 	#[test]
 	fn create_works() {
 		new_test_ext().execute_with(|| {
-			// Now try to create a crowdfund campaign
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
-			assert_eq!(Crowdfund::fund_count(), 1);
+			// Now try to create a crowdloan campaign
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_eq!(Crowdloan::fund_count(), 1);
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
 				parachain: None,
@@ -802,33 +802,33 @@ mod tests {
 				last_slot: 4,
 				deploy_data: None,
 			};
-			assert_eq!(Crowdfund::funds(0), Some(fund_info));
+			assert_eq!(Crowdloan::funds(0), Some(fund_info));
 			// User has deposit removed from their free balance
 			assert_eq!(Balances::free_balance(1), 999);
-			// Deposit is placed in crowdfund free balance
-			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 1);
+			// Deposit is placed in crowdloan free balance
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
 			// No new raise until first contribution
 			let empty: Vec<FundIndex> = Vec::new();
-			assert_eq!(Crowdfund::new_raise(), empty);
+			assert_eq!(Crowdloan::new_raise(), empty);
 		});
 	}
 
 	#[test]
 	fn create_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Cannot create a crowdfund with bad slots
+			// Cannot create a crowdloan with bad slots
 			assert_noop!(
-				Crowdfund::create(Origin::signed(1), 1000, 4, 1, 9),
+				Crowdloan::create(Origin::signed(1), 1000, 4, 1, 9),
 				Error::<Test>::LastSlotBeforeFirstSlot
 			);
 			assert_noop!(
-				Crowdfund::create(Origin::signed(1), 1000, 1, 5, 9),
+				Crowdloan::create(Origin::signed(1), 1000, 1, 5, 9),
 				Error::<Test>::LastSlotTooFarInFuture
 			);
 
-			// Cannot create a crowdfund without some deposit funds
+			// Cannot create a crowdloan without some deposit funds
 			assert_noop!(
-				Crowdfund::create(Origin::signed(1337), 1000, 1, 3, 9),
+				Crowdloan::create(Origin::signed(1337), 1000, 1, 3, 9),
 				BalancesError::<Test, _>::InsufficientBalance
 			);
 		});
@@ -837,26 +837,26 @@ mod tests {
 	#[test]
 	fn contribute_works() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
-			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 1);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
 
 			// No contributions yet
-			assert_eq!(Crowdfund::contribution_get(0, &1), 0);
+			assert_eq!(Crowdloan::contribution_get(0, &1), 0);
 
-			// User 1 contributes to their own crowdfund
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			// User 1 contributes to their own crowdloan
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
-			assert_eq!(Crowdfund::contribution_get(0, &1), 49);
-			// Contributions appear in free balance of crowdfund
-			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 50);
-			// Crowdfund is added to NewRaise
-			assert_eq!(Crowdfund::new_raise(), vec![0]);
+			assert_eq!(Crowdloan::contribution_get(0, &1), 49);
+			// Contributions appear in free balance of crowdloan
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 50);
+			// Crowdloan is added to NewRaise
+			assert_eq!(Crowdloan::new_raise(), vec![0]);
 
-			let fund = Crowdfund::funds(0).unwrap();
+			let fund = Crowdloan::funds(0).unwrap();
 
 			// Last contribution time recorded
 			assert_eq!(fund.last_contribution, LastContribution::PreEnding(0));
@@ -868,34 +868,34 @@ mod tests {
 	fn contribute_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot contribute to non-existing fund
-			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49), Error::<Test>::InvalidFundIndex);
 			// Cannot contribute below minimum contribution
-			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 9), Error::<Test>::ContributionTooSmall);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 9), Error::<Test>::ContributionTooSmall);
 
-			// Set up a crowdfund
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 101));
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 101));
 
 			// Cannot contribute past the limit
-			assert_noop!(Crowdfund::contribute(Origin::signed(2), 0, 900), Error::<Test>::CapExceeded);
+			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0, 900), Error::<Test>::CapExceeded);
 
 			// Move past end date
 			run_to_block(10);
 
 			// Cannot contribute to ended fund
-			assert_noop!(Crowdfund::contribute(Origin::signed(1), 0, 49), Error::<Test>::ContributionPeriodOver);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49), Error::<Test>::ContributionPeriodOver);
 		});
 	}
 
 	#[test]
 	fn fix_deploy_data_works() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -903,7 +903,7 @@ mod tests {
 				vec![0].into()
 			));
 
-			let fund = Crowdfund::funds(0).unwrap();
+			let fund = Crowdloan::funds(0).unwrap();
 
 			// Confirm deploy data is stored correctly
 			assert_eq!(
@@ -920,12 +920,12 @@ mod tests {
 	#[test]
 	fn fix_deploy_data_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Cannot set deploy data by non-owner
-			assert_noop!(Crowdfund::fix_deploy_data(
+			assert_noop!(Crowdloan::fix_deploy_data(
 				Origin::signed(2),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -935,7 +935,7 @@ mod tests {
 			);
 
 			// Cannot set deploy data to an invalid index
-			assert_noop!(Crowdfund::fix_deploy_data(
+			assert_noop!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				1,
 				<Test as frame_system::Config>::Hash::default(),
@@ -945,7 +945,7 @@ mod tests {
 			);
 
 			// Cannot set deploy data after it already has been set
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -953,7 +953,7 @@ mod tests {
 				vec![0].into(),
 			));
 
-			assert_noop!(Crowdfund::fix_deploy_data(
+			assert_noop!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -967,13 +967,13 @@ mod tests {
 	#[test]
 	fn onboard_works() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -981,19 +981,19 @@ mod tests {
 				vec![0].into(),
 			));
 
-			// Fund crowdfund
-			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 1000));
+			// Fund crowdloan
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000));
 
 			run_to_block(10);
 
 			// Endings count incremented
-			assert_eq!(Crowdfund::endings_count(), 1);
+			assert_eq!(Crowdloan::endings_count(), 1);
 
-			// Onboard crowdfund
-			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			// Onboard crowdloan
+			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
 
-			let fund = Crowdfund::funds(0).unwrap();
-			// Crowdfund is now assigned a parachain id
+			let fund = Crowdloan::funds(0).unwrap();
+			// Crowdloan is now assigned a parachain id
 			assert_eq!(fund.parachain, Some(0.into()));
 			// This parachain is managed by Slots
 			assert_eq!(Slots::managed_ids(), vec![0.into()]);
@@ -1003,23 +1003,23 @@ mod tests {
 	#[test]
 	fn onboard_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
-			// Fund crowdfund
-			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 1000));
+			// Fund crowdloan
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000));
 
 			run_to_block(10);
 
 			// Cannot onboard invalid fund index
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 1, 0.into()), Error::<Test>::InvalidFundIndex);
-			// Cannot onboard crowdfund without deploy data
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()), Error::<Test>::UnsetDeployData);
+			assert_noop!(Crowdloan::onboard(Origin::signed(1), 1, 0.into()), Error::<Test>::InvalidFundIndex);
+			// Cannot onboard crowdloan without deploy data
+			assert_noop!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()), Error::<Test>::UnsetDeployData);
 
 			// Add deploy data
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -1028,26 +1028,26 @@ mod tests {
 			));
 
 			// Cannot onboard fund with incorrect parachain id
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 1.into()), SlotsError::<Test>::ParaNotOnboarding);
+			assert_noop!(Crowdloan::onboard(Origin::signed(1), 0, 1.into()), SlotsError::<Test>::ParaNotOnboarding);
 
-			// Onboard crowdfund
-			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			// Onboard crowdloan
+			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
 
 			// Cannot onboard fund again
-			assert_noop!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()), Error::<Test>::AlreadyOnboard);
+			assert_noop!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()), Error::<Test>::AlreadyOnboard);
 		});
 	}
 
 	#[test]
 	fn begin_retirement_works() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -1055,27 +1055,27 @@ mod tests {
 				vec![0].into(),
 			));
 
-			// Fund crowdfund
-			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 1000));
+			// Fund crowdloan
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000));
 
 			run_to_block(10);
 
-			// Onboard crowdfund
-			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			// Onboard crowdloan
+			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
 			// Fund is assigned a parachain id
-			let fund = Crowdfund::funds(0).unwrap();
+			let fund = Crowdloan::funds(0).unwrap();
 			assert_eq!(fund.parachain, Some(0.into()));
 
-			// Off-boarding is set to the crowdfund account
-			assert_eq!(Slots::offboarding(ParaId::from(0)), Crowdfund::fund_account_id(0));
+			// Off-boarding is set to the crowdloan account
+			assert_eq!(Slots::offboarding(ParaId::from(0)), Crowdloan::fund_account_id(0));
 
 			run_to_block(50);
 
-			// Retire crowdfund to remove parachain id
-			assert_ok!(Crowdfund::begin_retirement(Origin::signed(1), 0));
+			// Retire crowdloan to remove parachain id
+			assert_ok!(Crowdloan::begin_retirement(Origin::signed(1), 0));
 
 			// Fund should no longer have parachain id
-			let fund = Crowdfund::funds(0).unwrap();
+			let fund = Crowdloan::funds(0).unwrap();
 			assert_eq!(fund.parachain, None);
 
 		});
@@ -1084,13 +1084,13 @@ mod tests {
 	#[test]
 	fn begin_retirement_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -1098,56 +1098,56 @@ mod tests {
 				vec![0].into(),
 			));
 
-			// Fund crowdfund
-			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 1000));
+			// Fund crowdloan
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000));
 
 			run_to_block(10);
 
 			// Cannot retire fund that is not onboarded
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), Error::<Test>::NotParachain);
+			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 0), Error::<Test>::NotParachain);
 
-			// Onboard crowdfund
-			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			// Onboard crowdloan
+			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
 			// Fund is assigned a parachain id
-			let fund = Crowdfund::funds(0).unwrap();
+			let fund = Crowdloan::funds(0).unwrap();
 			assert_eq!(fund.parachain, Some(0.into()));
 
 			// Cannot retire fund whose deposit has not been returned
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), Error::<Test>::ParaHasDeposit);
+			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 0), Error::<Test>::ParaHasDeposit);
 
 			run_to_block(50);
 
 			// Cannot retire invalid fund index
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
 
 			// Cannot retire twice
-			assert_ok!(Crowdfund::begin_retirement(Origin::signed(1), 0));
-			assert_noop!(Crowdfund::begin_retirement(Origin::signed(1), 0), Error::<Test>::NotParachain);
+			assert_ok!(Crowdloan::begin_retirement(Origin::signed(1), 0));
+			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 0), Error::<Test>::NotParachain);
 		});
 	}
 
 	#[test]
 	fn withdraw_works() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
-			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
-			assert_ok!(Crowdfund::contribute(Origin::signed(3), 0, 300));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300));
 
 			// Skip all the way to the end
 			run_to_block(50);
 
 			// User can withdraw their full balance without fees
-			assert_ok!(Crowdfund::withdraw(Origin::signed(1), 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1), 0));
 			assert_eq!(Balances::free_balance(1), 999);
 
-			assert_ok!(Crowdfund::withdraw(Origin::signed(2), 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 0));
 			assert_eq!(Balances::free_balance(2), 2000);
 
-			assert_ok!(Crowdfund::withdraw(Origin::signed(3), 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(3), 0));
 			assert_eq!(Balances::free_balance(3), 3000);
 		});
 	}
@@ -1155,37 +1155,37 @@ mod tests {
 	#[test]
 	fn withdraw_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49));
 			assert_eq!(Balances::free_balance(1), 950);
 
 			run_to_block(5);
 
 			// Cannot withdraw before fund ends
-			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 0), Error::<Test>::FundNotEnded);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1), 0), Error::<Test>::FundNotEnded);
 
 			run_to_block(10);
 
 			// Cannot withdraw if they did not contribute
-			assert_noop!(Crowdfund::withdraw(Origin::signed(2), 0), Error::<Test>::NoContributions);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(2), 0), Error::<Test>::NoContributions);
 			// Cannot withdraw from a non-existent fund
-			assert_noop!(Crowdfund::withdraw(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
 		});
 	}
 
 	#[test]
 	fn dissolve_works() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
-			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
-			assert_ok!(Crowdfund::contribute(Origin::signed(3), 0, 300));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300));
 
 			// Skip all the way to the end
 			run_to_block(50);
@@ -1193,22 +1193,22 @@ mod tests {
 			// Check initiator's balance.
 			assert_eq!(Balances::free_balance(1), 899);
 			// Check current funds (contributions + deposit)
-			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 601);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 601);
 
-			// Dissolve the crowdfund
-			assert_ok!(Crowdfund::dissolve(Origin::signed(1), 0));
+			// Dissolve the crowdloan
+			assert_ok!(Crowdloan::dissolve(Origin::signed(1), 0));
 
 			// Fund account is emptied
-			assert_eq!(Balances::free_balance(Crowdfund::fund_account_id(0)), 0);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 0);
 			// Deposit is returned
 			assert_eq!(Balances::free_balance(1), 900);
 			// Treasury account is filled
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 600);
 
 			// Storage trie is removed
-			assert_eq!(Crowdfund::contribution_get(0,&0), 0);
+			assert_eq!(Crowdloan::contribution_get(0,&0), 0);
 			// Fund storage is removed
-			assert_eq!(Crowdfund::funds(0), None);
+			assert_eq!(Crowdloan::funds(0), None);
 
 		});
 	}
@@ -1216,52 +1216,52 @@ mod tests {
 	#[test]
 	fn dissolve_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Set up a crowdfund
+			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
-			assert_ok!(Crowdfund::contribute(Origin::signed(2), 0, 200));
-			assert_ok!(Crowdfund::contribute(Origin::signed(3), 0, 300));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300));
 
 			// Cannot dissolve an invalid fund index
-			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
 			// Cannot dissolve a fund in progress
-			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), Error::<Test>::InRetirementPeriod);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 0), Error::<Test>::InRetirementPeriod);
 
 			run_to_block(10);
 
 			// Onboard fund
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
-			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
 
 			// Cannot dissolve an active fund
-			assert_noop!(Crowdfund::dissolve(Origin::signed(1), 0), Error::<Test>::HasActiveParachain);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 0), Error::<Test>::HasActiveParachain);
 		});
 	}
 
 	#[test]
 	fn fund_before_auction_works() {
 		new_test_ext().execute_with(|| {
-			// Create a crowdfund before an auction is created
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
+			// Create a crowdloan before an auction is created
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Users can already contribute
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49));
 			// Fund added to NewRaise
-			assert_eq!(Crowdfund::new_raise(), vec![0]);
+			assert_eq!(Crowdloan::new_raise(), vec![0]);
 
 			// Some blocks later...
 			run_to_block(2);
 			// Create an auction
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Add deploy data
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
@@ -1272,13 +1272,13 @@ mod tests {
 			run_to_block(12);
 
 			// Endings count incremented
-			assert_eq!(Crowdfund::endings_count(), 1);
+			assert_eq!(Crowdloan::endings_count(), 1);
 
-			// Onboard crowdfund
-			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
+			// Onboard crowdloan
+			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
 
-			let fund = Crowdfund::funds(0).unwrap();
-			// Crowdfund is now assigned a parachain id
+			let fund = Crowdloan::funds(0).unwrap();
+			// Crowdloan is now assigned a parachain id
 			assert_eq!(fund.parachain, Some(0.into()));
 			// This parachain is managed by Slots
 			assert_eq!(Slots::managed_ids(), vec![0.into()]);
@@ -1290,24 +1290,24 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Create an auction
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			// Create two competing crowdfunds, with end dates across multiple auctions
-			// Each crowdfund is competing for the same slots, so only one can win
-			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 30));
-			assert_ok!(Crowdfund::create(Origin::signed(2), 1000, 1, 4, 30));
+			// Create two competing crowdloans, with end dates across multiple auctions
+			// Each crowdloan is competing for the same slots, so only one can win
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 30));
+			assert_ok!(Crowdloan::create(Origin::signed(2), 1000, 1, 4, 30));
 
 			// Contribute to all, but more money to 0, less to 1
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 300));
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 1, 200));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 300));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 200));
 
 			// Add deploy data to all
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(1),
 				0,
 				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into(),
 			));
-			assert_ok!(Crowdfund::fix_deploy_data(
+			assert_ok!(Crowdloan::fix_deploy_data(
 				Origin::signed(2),
 				1,
 				<Test as frame_system::Config>::Hash::default(),
@@ -1317,11 +1317,11 @@ mod tests {
 
 			// End the current auction, fund 0 wins!
 			run_to_block(10);
-			assert_eq!(Crowdfund::endings_count(), 1);
-			// Onboard crowdfund
-			assert_ok!(Crowdfund::onboard(Origin::signed(1), 0, 0.into()));
-			let fund = Crowdfund::funds(0).unwrap();
-			// Crowdfund is now assigned a parachain id
+			assert_eq!(Crowdloan::endings_count(), 1);
+			// Onboard crowdloan
+			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
+			let fund = Crowdloan::funds(0).unwrap();
+			// Crowdloan is now assigned a parachain id
 			assert_eq!(fund.parachain, Some(0.into()));
 			// This parachain is managed by Slots
 			assert_eq!(Slots::managed_ids(), vec![0.into()]);
@@ -1329,15 +1329,15 @@ mod tests {
 			// Create a second auction
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Contribute to existing funds add to NewRaise
-			assert_ok!(Crowdfund::contribute(Origin::signed(1), 1, 10));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 10));
 
 			// End the current auction, fund 1 wins!
 			run_to_block(20);
-			assert_eq!(Crowdfund::endings_count(), 2);
-			// Onboard crowdfund
-			assert_ok!(Crowdfund::onboard(Origin::signed(2), 1, 1.into()));
-			let fund = Crowdfund::funds(1).unwrap();
-			// Crowdfund is now assigned a parachain id
+			assert_eq!(Crowdloan::endings_count(), 2);
+			// Onboard crowdloan
+			assert_ok!(Crowdloan::onboard(Origin::signed(2), 1, 1.into()));
+			let fund = Crowdloan::funds(1).unwrap();
+			// Crowdloan is now assigned a parachain id
 			assert_eq!(fund.parachain, Some(1.into()));
 			// This parachain is managed by Slots
 			assert_eq!(Slots::managed_ids(), vec![0.into(), 1.into()]);
