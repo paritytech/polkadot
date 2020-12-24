@@ -642,7 +642,11 @@ where
 		return Ok(());
 	}
 
-	let span = candidate_entry.span.child("process-new-chunk");
+	let span = {
+		let mut span = candidate_entry.span.child("process-new-chunk");
+		span.add_string_tag("peer-id", &origin.to_base58());
+		span
+	};
 
 	// check the merkle proof against the erasure root in the candidate descriptor.
 	let anticipated_hash = {
