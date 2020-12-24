@@ -129,6 +129,12 @@ impl JaegerSpan {
 	}
 }
 
+impl std::fmt::Debug for JaegerSpan {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "<jaeger span>")
+	}
+}
+
 impl From<Option<mick_jaeger::Span>> for JaegerSpan {
 	fn from(src: Option<mick_jaeger::Span>) -> Self {
 		if let Some(span) = src {
