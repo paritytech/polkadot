@@ -176,8 +176,8 @@ Actions:
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../types/runtime.md#host-configuration))
 1. Determine the number of cores & validator groups as `n_cores`. This is the maximum of
-  1. `Paras::parachains().len() + configuration.parathread_cores`
-  1. `n_validators / max_validators_per_core` > N if `configuration.max_validators_per_core` is `Some` and non-zero.
+   1. `Paras::parachains().len() + configuration.parathread_cores`
+   1. `n_validators / max_validators_per_core` if `configuration.max_validators_per_core` is `Some` and non-zero.
 1. Resize `AvailabilityCores` to have length `n_cores` with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
    - We obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
