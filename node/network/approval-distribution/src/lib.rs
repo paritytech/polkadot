@@ -46,11 +46,10 @@ use polkadot_node_network_protocol::{
 
 const LOG_TARGET: &str = "approval_distribution";
 
-// TODO: justify the numbers:
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::new(-100, "Peer sent an out-of-view assignment or approval");
 const COST_DUPLICATE_MESSAGE: Rep = Rep::new(-100, "Peer sent identical messages");
-const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep = Rep::new(-10, "The vote was valid but too far in the future");
-const COST_INVALID_MESSAGE: Rep = Rep::new(-500, "The vote was bad");
+const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep = Rep::new(-30, "The vote was valid but too far in the future");
+const COST_INVALID_MESSAGE: Rep = Rep::new(-1000, "The vote was bad");
 
 const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Peer sent a valid message");
 const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::new(15, "Valid message with new information");
@@ -97,8 +96,8 @@ struct BlockEntry {
 	parent_hash: Hash,
 	/// Our knowledge of messages.
 	knowledge: Knowledge,
-	/// A votes entry for each candidate.
-	candidates: HashMap<CandidateIndex, CandidateEntry>,
+	/// A votes entry for each candidate indexed by [`CandidateIndex`].
+	candidates: Vec<CandidateEntry>,
 }
 
 #[derive(Debug)]
@@ -151,8 +150,8 @@ impl State {
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
 			}
-			NetworkBridgeEvent::OurViewChange(view) => {
-				self.handle_our_view_change(metrics, view);
+			NetworkBridgeEvent::OurViewChange(_view) => {
+				// handled by `BlockFinalized` notification
 			}
 			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg).await;
@@ -166,27 +165,31 @@ impl State {
 		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 	) {
-		let hashes: HashSet<&Hash> = metas.iter().map(|m| &m.hash).collect();
-		for meta in metas.iter() {
+		let mut new_hashes = HashSet::new();
+		for meta in metas.into_iter() {
 			match self.blocks.entry(meta.hash.clone()) {
 				hash_map::Entry::Vacant(entry) => {
+					let candidates_count = meta.candidates.len();
+					let mut candidates = Vec::with_capacity(candidates_count);
+					candidates.resize_with(candidates_count, Default::default);
+
 					entry.insert(BlockEntry {
 						known_by: HashMap::new(),
 						number: meta.number,
 						parent_hash: meta.parent_hash.clone(),
 						knowledge: Knowledge::default(),
-						candidates: HashMap::new(),
+						candidates,
 					});
+					new_hashes.insert(meta.hash.clone());
 				}
 				_ => continue,
 			}
-			self.blocks_by_number.entry(meta.number).or_default().push(meta.hash.clone());
+			self.blocks_by_number.entry(meta.number).or_default().push(meta.hash);
 		}
 		for (peer_id, view) in self.peer_views.iter() {
-			let view_set = view.heads.iter().collect::<HashSet<_>>();
-			let intersection = view_set.intersection(&hashes);
+			let intersection = view.heads.iter().filter(|h| new_hashes.contains(h));
 			let view_intersection = View {
-				heads: intersection.map(|h| **h).collect(),
+				heads: intersection.cloned().collect(),
 				finalized_number: view.finalized_number,
 			};
 			Self::unify_with_peer(
@@ -276,15 +279,14 @@ impl State {
 		}
 	}
 
-	fn handle_our_view_change(
+	fn handle_block_finalized(
 		&mut self,
-		_metrics: &Metrics,
-		view: View,
+		finalized_number: BlockNumber,
 	) {
-		// we want to prune every block up to (including) view.finalized_number
+		// we want to prune every block up to (including) finalized_number
 		// why +1 here?
 		// split_off returns everything after the given key, including the key
-		let split_point = view.finalized_number.saturating_add(1);
+		let split_point = finalized_number.saturating_add(1);
 		let mut old_blocks = self.blocks_by_number.split_off(&split_point);
 		// after split_off old_blocks actually contains new blocks, we need to swap
 		std::mem::swap(&mut self.blocks_by_number, &mut old_blocks);
@@ -348,8 +350,6 @@ impl State {
 				return;
 			}
 
-			// FIXME: possibly deadlocks due to https://github.com/paritytech/polkadot/issues/2149
-			// unless ApprovalVoting does not .await for the reply
 			let (tx, rx) = oneshot::channel();
 
 			ctx.send_message(AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
@@ -369,14 +369,18 @@ impl State {
 			};
 
 			match result {
-				AssignmentCheckResult::Accepted | AssignmentCheckResult::AcceptedDuplicate => {
-					if result == AssignmentCheckResult::Accepted {
-						modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
-					}
+				AssignmentCheckResult::Accepted => {
+					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 					entry.knowledge.known_messages.insert(fingerprint.clone());
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.known_messages.insert(fingerprint.clone());
 					}
+				}
+				AssignmentCheckResult::AcceptedDuplicate => {
+					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+						peer_knowledge.known_messages.insert(fingerprint);
+					}
+					return;
 				}
 				AssignmentCheckResult::TooFarInFuture => {
 					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
@@ -391,7 +395,9 @@ impl State {
 			entry.knowledge.known_messages.insert(fingerprint.clone());
 		}
 
-		match entry.candidates.get_mut(&claimed_candidate_index) {
+		// Invariant: none of the peers except for the `source` know about the assignment.
+
+		match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Assigned
 				// unless the approval state is set already
@@ -421,20 +427,22 @@ impl State {
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
 
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-			peers.clone(),
-			protocol_v1::ValidationProtocol::ApprovalDistribution(
-				protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
-			),
-		).into()).await;
-
 		// Add the fingerprint of the assignment to the knowledge of each peer.
-		for peer in peers.into_iter() {
+		for peer in peers.iter().cloned() {
 			entry.known_by
 				.entry(peer)
 				.or_default()
 				.known_messages
 				.insert(fingerprint.clone());
+		}
+
+		if !peers.is_empty() {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
+				),
+			).into()).await;
 		}
 	}
 
@@ -450,7 +458,7 @@ impl State {
 		let candidate_index = vote.candidate_index;
 
 		let entry = match self.blocks.get_mut(&block_hash) {
-			Some(entry) if entry.candidates.contains_key(&candidate_index) => entry,
+			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
@@ -478,7 +486,7 @@ impl State {
 				return;
 			}
 
-			// check if our knowledge of the peer already contains this assignment
+			// check if our knowledge of the peer already contains this approval
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(knowledge) => {
 					if knowledge.get().known_messages.contains(&fingerprint) {
@@ -491,7 +499,7 @@ impl State {
 				}
 			}
 
-			// if the assignment is known to be valid, reward the peer
+			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.known_messages.contains(&fingerprint) {
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
@@ -500,7 +508,6 @@ impl State {
 				return;
 			}
 
-			// FIXME: possibly deadlocks due to https://github.com/paritytech/polkadot/issues/2149
 			let (tx, rx) = oneshot::channel();
 
 			ctx.send_message(AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
@@ -537,7 +544,9 @@ impl State {
 			entry.knowledge.known_messages.insert(fingerprint.clone());
 		}
 
-		match entry.candidates.get_mut(&candidate_index) {
+		// Invariant: none of the peers except for the `source` know about the approval.
+
+		match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Approved
 				// it should be in assigned state already
@@ -578,23 +587,22 @@ impl State {
 			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
 
-		let approvals = vec![vote];
-
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-			peers.clone(),
-			protocol_v1::ValidationProtocol::ApprovalDistribution(
-				protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
-			),
-		).into()).await;
-
 		// Add the fingerprint of the assignment to the knowledge of each peer.
-		for peer in peers.into_iter() {
+		for peer in peers.iter().cloned() {
 			entry.known_by
 				.entry(peer)
 				.or_default()
 				.known_messages
 				.insert(fingerprint.clone());
 		}
+
+		let approvals = vec![vote];
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			peers,
+			protocol_v1::ValidationProtocol::ApprovalDistribution(
+				protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
+			),
+		).into()).await;
 	}
 
 	async fn unify_with_peer(
@@ -657,7 +665,8 @@ impl State {
 				Some(entry) => entry,
 				None => continue, // should be unreachable
 			};
-			for (candidate_index, candidate_entry) in entry.candidates.iter() {
+			for (candidate_index, candidate_entry) in entry.candidates.iter().enumerate() {
+				let candidate_index = candidate_index as u32;
 				for (validator_index, approval_state) in candidate_entry.approvals.iter() {
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
@@ -727,11 +736,20 @@ impl ApprovalDistribution {
 	}
 
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
-	async fn run<Context>(self, mut ctx: Context)
+	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
 		let mut state = State::default();
+		self.run_inner(ctx, &mut state).await
+	}
+
+	/// Used for testing.
+	#[tracing::instrument(skip(self, ctx, state), fields(subsystem = LOG_TARGET))]
+	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
+	where
+		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
+	{
 		loop {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
@@ -782,8 +800,8 @@ impl ApprovalDistribution {
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
 					tracing::trace!(target: LOG_TARGET, number = %number, "finalized signal (ignored)");
-					// handled by our handle_our_view_change
-
+					// handled by our handle_block_finalized
+					state.handle_block_finalized(number);
 				},
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					return;

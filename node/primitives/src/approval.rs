@@ -30,10 +30,10 @@ use parity_scale_codec::{Encode, Decode};
 pub type DelayTranche = u32;
 
 /// A static context used for all relay-vrf-modulo VRFs.
-pub const RELAY_VRF_MODULO_CONTEXT: &str = "A&V MOD";
+pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
 
 /// A static context used for all relay-vrf-delay VRFs.
-pub const RELAY_VRF_DELAY_CONTEXT: &str = "A&V TRANCHE";
+pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V TRANCHE";
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.

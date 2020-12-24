@@ -301,7 +301,7 @@ pub mod v1 {
 	}
 
 	/// Network messages used by the availability recovery subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AvailabilityRecoveryMessage {
 		/// Request a chunk for a given candidate hash and validator index.
 		RequestChunk(RequestId, CandidateHash, ValidatorIndex),

@@ -670,7 +670,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
-		DummySubsystem
+		DummySubsystem,
 		DummySubsystem,
 	> {
 		AllSubsystems {
@@ -1545,8 +1545,10 @@ where
 		let approval_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.approval_distribution,
+			&metrics,
+			&mut seed,
 		)?;
 
 		let leaves = leaves

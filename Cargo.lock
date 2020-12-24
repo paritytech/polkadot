@@ -4887,12 +4887,19 @@ dependencies = [
 name = "polkadot-approval-distribution"
 version = "0.1.0"
 dependencies = [
- "futures 0.3.10",
+ "assert_matches",
+ "env_logger 0.8.2",
+ "futures 0.3.12",
+ "log",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "rand_core 0.5.1",
+ "schnorrkel",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
