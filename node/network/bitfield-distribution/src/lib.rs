@@ -495,8 +495,16 @@ where
 		NetworkBridgeEvent::PeerMessage(remote, message) => {
 			match message {
 				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
-					let mut _span = jaeger::hash_span(&relay_parent, "bitfield-gossip-received");
-					_span.add_string_tag("peer-id", &remote.to_base58());
+					let mut _span = {
+						let mut span = jaeger::hash_span(&relay_parent, "bitfield-gossip-received");
+						span.add_string_tag("peer-id", &remote.to_base58());
+						span.add_string_tag(
+							"claimed-validator",
+							&format!("{}", bitfield.validator_index()),
+						);
+						span
+					};
+
 					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "received bitfield gossip from peer");
 					let gossiped_bitfield = BitfieldGossipMessage {
 						relay_parent,
