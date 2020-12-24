@@ -39,6 +39,7 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Pallets
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
