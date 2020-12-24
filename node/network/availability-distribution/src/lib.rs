@@ -167,7 +167,7 @@ struct PerCandidate {
 	/// The set of relay chain blocks this appears to be live in.
 	live_in: HashSet<Hash>,
 
-	/// A Jaeger span relating to this candidate. Dropped after availability is reached.
+	/// A Jaeger span relating to this candidate. Dropped after we obtain our availability piece.
 	span: jaeger::JaegerSpan,
 }
 
@@ -183,11 +183,8 @@ impl PerCandidate {
 	fn add_message(&mut self, chunk_index: u32, message: AvailabilityGossipMessage) {
 		let _ = self.message_vault.insert(chunk_index, message);
 
-		if let Ok(threshold) = polkadot_erasure_coding::recovery_threshold(self.validators.len()) {
-			// drop the span as soon as availability is reached.
-			if self.message_vault.len() >= threshold {
-				self.span = jaeger::JaegerSpan::Disabled;
-			}
+		if Some(chunk_index) == self.validator_index {
+			self.span = jaeger::JaegerSpan::Disabled;
 		}
 	}
 }
@@ -244,7 +241,11 @@ impl ProtocolState {
 							validator_index,
 							descriptor,
 							live_in: HashSet::new(),
-							span: jaeger::candidate_hash_span(&receipt_hash, "pending-availability"),
+							span: if validator_index.is_some() {
+								jaeger::candidate_hash_span(&receipt_hash, "pending-availability")
+							} else {
+								jaeger::JaegerSpan::Disabled
+							},
 						})
 					} else {
 						tracing::warn!(target: LOG_TARGET, "No `per_candidate` but not fresh. logic error");
