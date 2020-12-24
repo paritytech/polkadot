@@ -36,7 +36,7 @@ substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1.0", features = ["macros"] }
 
 [features]
 real-overseer = [ "polkadot-service/real-overseer" ]
