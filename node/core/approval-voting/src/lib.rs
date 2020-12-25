@@ -21,7 +21,32 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
+use polkadot_subsystem::{Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem};
+use futures::prelude::*;
+
 mod aux_schema;
 
 /// A base unit of time, starting from the unix epoch, split into half-second intervals.
 type Tick = u64;
+
+/// The approval voting subsystem.
+pub struct ApprovalVotingSubsystem {
+	// TODO [now]: keystore. chain config?
+}
+
+impl<C: SubsystemContext> Subsystem<C> for ApprovalVotingSubsystem {
+	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = run(ctx)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+			.boxed();
+
+		SpawnedSubsystem {
+			name: "approval-voting-subsystem",
+			future,
+		}
+	}
+}
+
+async fn run(_: impl SubsystemContext) -> SubsystemResult<()> {
+	loop { }
+}
