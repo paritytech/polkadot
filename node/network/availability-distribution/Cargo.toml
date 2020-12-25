@@ -14,16 +14,16 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "rh-babe-current-epoch-info", features = ["std"]  }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "rh-babe-current-epoch-info" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.22"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "rh-babe-current-epoch-info", features = ["std"] }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "rh-babe-current-epoch-info" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rh-babe-current-epoch-info" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "rh-babe-current-epoch-info" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "rh-babe-current-epoch-info" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
 maplit = "1.0"
