@@ -5243,6 +5243,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",

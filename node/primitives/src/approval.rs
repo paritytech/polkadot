@@ -16,10 +16,12 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
+pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof, Randomness};
+pub use sp_consensus_babe::SlotNumber;
 
 use polkadot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature, CoreIndex,
+	Header,
 };
 use parity_scale_codec::{Encode, Decode};
 
@@ -102,4 +104,39 @@ pub struct IndirectSignedApprovalVote {
 	pub validator: ValidatorIndex,
 	/// The signature by the validator.
 	pub signature: ValidatorSignature,
+}
+
+/// An unsafe VRF output. Provide BABE Epoch info to create a `RelayVRFStory`.
+pub struct UnsafeVRFOutput {
+	vrf: VRFOutput,
+	slot: SlotNumber,
+}
+
+/// Extract the slot number and relay VRF from a header.
+///
+/// This fails if either there is no BABE `PreRuntime` digest or
+/// the digest has type `SecondaryPlain`, which Substrate nodes do
+/// not produce or accept anymore.
+pub fn babe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
+	use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest};
+
+	for digest in &header.digest.logs {
+		if let Some(pre) = digest.as_babe_pre_digest() {
+			let slot = pre.slot_number();
+
+			// exhaustive match to defend against upstream variant changes.
+			let vrf = match pre {
+				PreDigest::Primary(primary) => primary.vrf_output,
+				PreDigest::SecondaryVRF(secondary) => secondary.vrf_output,
+				PreDigest::SecondaryPlain(_) => return None,
+			};
+
+			return Some(UnsafeVRFOutput {
+				vrf,
+				slot,
+			});
+		}
+	}
+
+	None
 }
