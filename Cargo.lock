@@ -5050,6 +5050,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-client-api",
+ "sc-keystore",
  "sp-blockchain",
  "sp-consensus-slots",
 ]
