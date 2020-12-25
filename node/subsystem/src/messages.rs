@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
 use polkadot_node_primitives::{
-	approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
@@ -97,6 +97,23 @@ pub enum ApprovalVotingMessage {
 	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
 	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<Hash>>),
+}
+
+/// Message to the Approval Distribution subsystem.
+#[derive(Debug)]
+pub enum ApprovalDistributionMessage {
+	/// Notify the `ApprovalDistribution` subsystem about new blocks
+	/// and the candidates contained within them.
+	NewBlocks(Vec<BlockApprovalMeta>),
+	/// Distribute an assignment cert from the local validator. The cert is assumed
+	/// to be valid, relevant, and for the given relay-parent and validator index.
+	///
+	/// The `u32` param is the candidate index in the fully-included list.
+	DistributeAssignment(IndirectAssignmentCert, u32),
+	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
+	/// valid, relevant, and the corresponding approval already issued.
+	/// If not, the subsystem is free to drop the message.
+	DistributeApproval(IndirectSignedApprovalVote),
 }
 
 /// Messages received by the Candidate Selection subsystem.

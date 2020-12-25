@@ -21,7 +21,7 @@ pub use sp_consensus_babe::SlotNumber;
 
 use polkadot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature, CoreIndex,
-	Header,
+	Header, BlockNumber,
 };
 use parity_scale_codec::{Encode, Decode};
 use sp_consensus_babe as babe_primitives;
@@ -110,6 +110,22 @@ pub struct IndirectSignedApprovalVote {
 	pub validator: ValidatorIndex,
 	/// The signature by the validator.
 	pub signature: ValidatorSignature,
+}
+
+/// Metadata about a block which is now live in the approval protocol.
+#[derive(Debug)]
+pub struct BlockApprovalMeta {
+	/// The hash of the block.
+	pub hash: Hash,
+	/// The number of the block.
+	pub number: BlockNumber,
+	/// The hash of the parent block.
+	pub parent_hash: Hash,
+	/// The candidates included by the block.
+	/// Note that these are not the same as the candidates that appear within the block body.
+	pub candidates: Vec<CandidateHash>,
+	/// The consensus slot number of the block.
+	pub slot_number: SlotNumber,
 }
 
 /// Errors that can occur during the approvals protocol.
