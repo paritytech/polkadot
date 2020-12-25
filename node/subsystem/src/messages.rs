@@ -28,6 +28,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
 use polkadot_node_primitives::{
+	approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
@@ -45,6 +46,57 @@ use std::{sync::Arc, collections::btree_map::BTreeMap};
 pub trait BoundToRelayParent {
 	/// Returns the relay parent this message is bound to.
 	fn relay_parent(&self) -> Hash;
+}
+
+/// The result of an assignment being checked by the approval voting subsystem.
+#[derive(Debug)]
+pub enum AssignmentCheckResult {
+	/// The vote was accepted and should be propagated onwards.
+	Accepted,
+	/// The vote was accepted but duplicate and should not be propagated onwards.
+	AcceptedDuplicate,
+	/// The vote was valid but too far in the future to accept right now.
+	TooFarInFuture,
+	/// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+}
+
+/// The result of an approval being checked by the approval voting subsytem
+#[derive(Debug)]
+pub enum ApprovalCheckResult {
+	/// The vote was accepted and should be propagated onwards.
+	Accepted,
+	/// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+}
+
+/// Messages received by the Approval Voting subsystem.
+#[derive(Debug)]
+pub enum ApprovalVotingMessage {
+	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	/// Should not be sent unless the block hash is known.
+	CheckAndImportAssignment(
+		IndirectAssignmentCert,
+		oneshot::Sender<AssignmentCheckResult>,
+	),
+
+	/// Check if the approval vote is valid and can be accepted by our view of the protocol.
+	///
+	/// Should not be sent unless the block hash within the indirect vote is known.
+	CheckAndImportApproval(
+		IndirectSignedApprovalVote,
+		oneshot::Sender<ApprovalCheckResult>,
+	),
+
+	/// Returns the highest possible ancestor hash of the provided block hash which is
+	/// acceptable to vote on finality for.
+	///
+	/// The `BlockNumber` provided is the number of the block's ancestor which is the
+	/// earliest possible vote.
+	///
+	/// It can also return the same block hash, if that is acceptable to vote upon.
+	/// Return `None` if the input hash is unrecognized.
+	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<Hash>>),
 }
 
 /// Messages received by the Candidate Selection subsystem.
