@@ -5243,10 +5243,13 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "schnorrkel",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
+ "thiserror",
 ]
 
 [[package]]

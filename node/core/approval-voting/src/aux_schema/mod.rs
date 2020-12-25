@@ -34,7 +34,7 @@
 #![allow(unused)]
 
 use sc_client_api::backend::AuxStore;
-use polkadot_node_primitives::approval::{DelayTranche, RelayVRF};
+use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory};
 use polkadot_primitives::v1::{
 	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
 	BlockNumber, Hash, CandidateHash,
@@ -95,7 +95,7 @@ pub(crate) struct BlockEntry {
 	block_hash: Hash,
 	session: SessionIndex,
 	slot: SlotNumber,
-	relay_vrf_story: RelayVRF,
+	relay_vrf_story: RelayVRFStory,
 	// The candidates included as-of this block and the index of the core they are
 	// leaving. Sorted ascending by core index.
 	candidates: Vec<(CoreIndex, CandidateHash)>,
