@@ -745,7 +745,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
-	fn new_test_ext() -> sp_io::TestExternalities {
+	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
@@ -1363,5 +1363,81 @@ mod tests {
 			// This parachain is managed by Slots
 			assert_eq!(Slots::managed_ids(), vec![0.into(), 1.into()]);
 		});
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking {
+	use super::{*, Module as Crowdloan};
+	use frame_system::RawOrigin;
+	use frame_support::assert_ok;
+	use sp_runtime::traits::Bounded;
+
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
+
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+		let events = frame_system::Module::<T>::events();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		// compare to the last event record
+		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+		assert_eq!(event, &system_event);
+	}
+
+	fn create_fund<T: Config>(end: T::BlockNumber) -> FundIndex {
+		let cap = BalanceOf::<T>::max_value();
+		let first_slot = 0.into();
+		let last_slot = 3.into();
+
+		let caller = account("fund_creator", 0, 0);
+		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+
+		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end));
+		FundCount::get() - 1
+	}
+
+	benchmarks! {
+		_{ }
+
+		create {
+			let cap = BalanceOf::<T>::max_value();
+			let first_slot = 0.into();
+			let last_slot = 3.into();
+			let end = T::BlockNumber::max_value();
+
+			let caller: T::AccountId = whitelisted_caller();
+
+			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		}: _(RawOrigin::Signed(caller), cap, first_slot, last_slot, end)
+		verify {
+			assert_last_event::<T>(RawEvent::Created(FundCount::get() - 1).into())
+		}
+
+		contribute_ongoing {
+			let fund_index = create_fund::<T>(100.into());
+			let caller: T::AccountId = whitelisted_caller();
+			let contribution = T::MinContribution::get();
+
+			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+
+		}: contribute(RawOrigin::Signed(caller.clone()), fund_index, contribution, caller.clone())
+		verify {
+			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
+			assert!(!NewRaise::get().is_empty());
+			assert_last_event::<T>(RawEvent::Contributed(caller, fund_index, contribution).into());
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::crowdloan::tests::{new_test_ext, Test};
+
+		#[test]
+		fn test_benchmarks() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_create::<Test>());
+				assert_ok!(test_benchmark_contribute_ongoing::<Test>());
+			});
+		}
 	}
 }
