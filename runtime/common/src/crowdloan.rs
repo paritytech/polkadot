@@ -329,7 +329,7 @@ decl_module! {
 						// do nothing - already in NewRaise
 					}
 					_ => {
-						NewRaise::mutate(|v| v.push(index));
+						NewRaise::append(index);
 						fund.last_contribution = LastContribution::Ending(now);
 					}
 				}
@@ -344,7 +344,7 @@ decl_module! {
 					_ => {
 						// Not in ending period; but an auction has been ending since our previous
 						// bid, or we never had one to begin with. Add bid.
-						NewRaise::mutate(|v| v.push(index));
+						NewRaise::append(index);
 						fund.last_contribution = LastContribution::PreEnding(endings_count);
 					}
 				}
