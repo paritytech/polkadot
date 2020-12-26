@@ -498,7 +498,7 @@ decl_module! {
 			Self::deposit_event(RawEvent::Dissolved(index));
 		}
 
-		fn on_finalize(n: T::BlockNumber) {
+		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
 			if let Some(n) = <slots::Module<T>>::is_ending(n) {
 				let auction_index = <slots::Module<T>>::auction_counter();
 				if n.is_zero() {
@@ -524,6 +524,8 @@ decl_module! {
 					);
 				}
 			}
+
+			0
 		}
 	}
 }
