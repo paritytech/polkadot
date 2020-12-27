@@ -54,9 +54,12 @@ pub trait Config: frame_system::Config {
 
 pub trait WeightInfo {
 	fn claim() -> Weight;
+	fn validate_unsigned_claim() -> Weight;
 	fn mint_claim() -> Weight;
 	fn claim_attest() -> Weight;
+	fn validate_unsigned_claim_attest() -> Weight;
 	fn attest() -> Weight;
+	fn validate_prevalidate_attests() -> Weight;
 	fn move_claim() -> Weight;
 }
 
@@ -252,7 +255,7 @@ decl_module! {
 		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
 		/// Validate Unsigned: +188.7 µs
 		/// </weight>
-		#[weight = T::WeightInfo::claim()]
+		#[weight = T::WeightInfo::claim().saturating_add(T::WeightInfo::validate_unsigned_claim())]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -347,7 +350,7 @@ decl_module! {
 		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
 		/// Validate Unsigned: +190.1 µs
 		/// </weight>
-		#[weight = T::WeightInfo::claim_attest()]
+		#[weight = T::WeightInfo::claim_attest().saturating_add(T::WeightInfo::validate_unsigned_claim_attest())]
 		fn claim_attest(origin,
 			dest: T::AccountId,
 			ethereum_signature: EcdsaSignature,
@@ -385,7 +388,7 @@ decl_module! {
 		/// Validate PreValidateAttests: +8.631 µs
 		/// </weight>
 		#[weight = (
-			T::WeightInfo::attest(),
+			T::WeightInfo::attest().saturating_add(T::WeightInfo::validate_prevalidate_attests()),
 			DispatchClass::Normal,
 			Pays::No
 		)]
@@ -718,9 +721,12 @@ mod tests {
 	pub struct TestWeightInfo;
 	impl WeightInfo for TestWeightInfo {
 		fn claim() -> Weight { 0 }
+		fn validate_unsigned_claim() -> Weight { 0 }
 		fn mint_claim() -> Weight { 0 }
 		fn claim_attest() -> Weight { 0 }
+		fn validate_unsigned_claim_attest() -> Weight { 0 }
 		fn attest() -> Weight { 0 }
+		fn validate_prevalidate_attests() -> Weight { 0 }
 		fn move_claim() -> Weight { 0 }
 	}
 
@@ -1210,17 +1216,11 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		_ {
-			// Create claims in storage. Two are created at a time!
-			let c in 0 .. MAX_CLAIMS / 2 => {
-				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
-			};
-		}
+		_ { }
 
 		// Benchmark `claim` for different users.
 		claim {
-			let u in 0 .. 1000;
+			let u = 1000;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", u, SEED);
@@ -1235,8 +1235,14 @@ mod benchmarking {
 
 		// Benchmark `mint_claim` when there already exists `c` claims in storage.
 		mint_claim {
-			let c in ...;
-			let eth_address = account("eth_address", c, SEED);
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			let eth_address = account("eth_address", 0, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 		}: _(RawOrigin::Root, eth_address, VALUE.into(), vesting, Some(statement))
@@ -1246,7 +1252,7 @@ mod benchmarking {
 
 		// Benchmark `claim_attest` for different users.
 		claim_attest {
-			let u in 0 .. 1000;
+			let u = 1000;
 			let attest_u = u32::max_value() - u;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
@@ -1263,7 +1269,7 @@ mod benchmarking {
 
 		// Benchmark `attest` for different users.
 		attest {
-			let u in 0 .. 1000;
+			let u = 1000;
 			let attest_u = u32::max_value() - u;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
 			let eth_address = eth(&secret_key);
@@ -1281,7 +1287,13 @@ mod benchmarking {
 
 		// Benchmark the time it takes to execute `validate_unsigned` for `claim`
 		validate_unsigned_claim {
-			let c in ...;
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
 			// Crate signature
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
 			let account: T::AccountId = account("user", c, SEED);
@@ -1294,7 +1306,13 @@ mod benchmarking {
 
 		// Benchmark the time it takes to execute `validate_unsigned` for `claim_attest`
 		validate_unsigned_claim_attest {
-			let c in ...;
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
 			// Crate signature
 			let attest_c = u32::max_value() - c;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
@@ -1307,7 +1325,13 @@ mod benchmarking {
 		}
 
 		validate_prevalidate_attests {
-			let c in ...;
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
 			let attest_c = u32::max_value() - c;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
@@ -1326,6 +1350,32 @@ mod benchmarking {
 			};
 		}: {
 			validate(&account, &call)?
+		}
+
+		move_claim {
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let eth_address = eth(&secret_key);
+
+			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
+			let new_eth_address = eth(&new_secret_key);
+
+			let account: T::AccountId = account("user", c, SEED);
+			Preclaims::<T>::insert(&account, eth_address);
+
+			assert!(Claims::<T>::contains_key(eth_address));
+			assert!(!Claims::<T>::contains_key(new_eth_address));
+		}: _(RawOrigin::Root, eth_address, new_eth_address, Some(account))
+		verify {
+			assert!(!Claims::<T>::contains_key(eth_address));
+			assert!(Claims::<T>::contains_key(new_eth_address));
 		}
 
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes

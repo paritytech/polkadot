@@ -709,6 +709,7 @@ impl claims::Config for Runtime {
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	type MoveClaimOrigin = pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type WeightInfo = weights::claims::WeightInfo<Runtime>;
 }
 
 parameter_types! {
