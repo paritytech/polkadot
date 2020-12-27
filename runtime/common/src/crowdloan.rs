@@ -67,7 +67,8 @@
 //! funds ultimately end up in module's fund sub-account.
 
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, storage::child, ensure,
+	decl_module, decl_storage, decl_event, decl_error, ensure,
+	storage::child,
 	traits::{
 		Currency, Get, OnUnbalanced, WithdrawReasons, ExistenceRequirement::AllowDeath
 	},
@@ -106,6 +107,9 @@ pub trait Config: slots::Config {
 
 	/// What to do with funds that were not withdrawn.
 	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
+	/// Max number of storage keys to remove per extrinsic call.
+	type RemoveKeysLimit: Get<u32>;
 }
 
 /// Simple index for identifying a fund.
@@ -195,6 +199,9 @@ decl_event! {
 		Withdrew(AccountId, FundIndex, Balance),
 		/// Fund is placed into retirement. [fund_index]
 		Retiring(FundIndex),
+		/// Fund is partially dissolved, i.e. there are some left over child
+		/// keys that still need to be killed. [fund_index]
+		PartiallyDissolved(FundIndex),
 		/// Fund is dissolved. [fund_index]
 		Dissolved(FundIndex),
 		/// The deploy data of the funded parachain is setted. [fund_index]
@@ -482,20 +489,27 @@ decl_module! {
 				Error::<T>::InRetirementPeriod
 			);
 
-			let account = Self::fund_account_id(index);
+			// Try killing the crowdloan child trie
+			match Self::crowdloan_kill(index) {
+				child::KillOutcome::AllRemoved => {
+					let account = Self::fund_account_id(index);
 
-			// Avoid using transfer to ensure we don't pay any fees.
-			let transfer = WithdrawReasons::TRANSFER;
-			let imbalance = T::Currency::withdraw(&account, fund.deposit, transfer, AllowDeath)?;
-			let _ = T::Currency::resolve_into_existing(&fund.owner, imbalance);
+					// Avoid using transfer to ensure we don't pay any fees.
+					let transfer = WithdrawReasons::TRANSFER;
+					let imbalance = T::Currency::withdraw(&account, fund.deposit, transfer, AllowDeath)?;
+					let _ = T::Currency::resolve_into_existing(&fund.owner, imbalance);
 
-			let imbalance = T::Currency::withdraw(&account, fund.raised, transfer, AllowDeath)?;
-			T::OrphanedFunds::on_unbalanced(imbalance);
+					let imbalance = T::Currency::withdraw(&account, fund.raised, transfer, AllowDeath)?;
+					T::OrphanedFunds::on_unbalanced(imbalance);
 
-			Self::crowdloan_kill(index);
-			<Funds<T>>::remove(index);
+					<Funds<T>>::remove(index);
 
-			Self::deposit_event(RawEvent::Dissolved(index));
+					Self::deposit_event(RawEvent::Dissolved(index));
+				},
+				child::KillOutcome::SomeRemaining => {
+					Self::deposit_event(RawEvent::PartiallyDissolved(index));
+				}
+			}
 		}
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
@@ -561,8 +575,8 @@ impl<T: Config> Module<T> {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdloan_kill(index: FundIndex) {
-		child::kill_storage(&Self::id_from_index(index), None);
+	pub fn crowdloan_kill(index: FundIndex) -> child::KillOutcome {
+		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 }
 
@@ -726,6 +740,7 @@ mod tests {
 		pub const MinContribution: u64 = 10;
 		pub const RetirementPeriod: u64 = 5;
 		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
+		pub const RemoveKeysLimit: u32 = 10;
 	}
 	impl Config for Test {
 		type Event = ();
@@ -734,6 +749,7 @@ mod tests {
 		type RetirementPeriod = RetirementPeriod;
 		type OrphanedFunds = Treasury;
 		type ModuleId = CrowdloanModuleId;
+		type RemoveKeysLimit = RemoveKeysLimit;
 	}
 
 	type System = frame_system::Module<Test>;
@@ -1237,6 +1253,49 @@ mod tests {
 	}
 
 	#[test]
+	fn partial_dissolve_works() {
+		new_test_ext().execute_with(|| {
+			// Set up a crowdloan
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 100_000, 1, 4, 9));
+
+			// Add lots of contributors, beyond what we can delete in one go.
+			for i in 0 .. 30 {
+				Balances::make_free_balance_be(&i, 300);
+				assert_ok!(Crowdloan::contribute(Origin::signed(i), 0, 100, i));
+				assert_eq!(Crowdloan::contribution_get(0, &i), 100);
+			}
+
+			// Skip all the way to the end
+			run_to_block(50);
+
+			// Check current funds (contributions + deposit)
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 100 * 30 + 1);
+
+			// Partially dissolve the crowdloan
+			assert_ok!(Crowdloan::dissolve(Origin::signed(1), 0));
+
+			// TODO: THIS SHOULD FAIL
+			for i in 0 .. 30 {
+				assert_eq!(Crowdloan::contribution_get(0, &i), 0);
+			}
+
+			// Fund account is emptied
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 0);
+			// Deposit is returned
+			assert_eq!(Balances::free_balance(1), 201);
+			// Treasury account is filled
+			assert_eq!(Balances::free_balance(Treasury::account_id()), 100 * 30);
+
+			// Storage trie is removed
+			assert_eq!(Crowdloan::contribution_get(0,&0), 0);
+			// Fund storage is removed
+			assert_eq!(Crowdloan::funds(0), None);
+
+		});
+	}
+
+	#[test]
 	fn dissolve_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
@@ -1462,6 +1521,22 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(RawEvent::Withdrew(caller, fund_index, T::MinContribution::get()).into());
 		}
+
+		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
+		dissolve {
+			let fund_index = create_fund::<T>(100.into());
+
+			// Dissolve will remove at most `RemoveKeysLimit` at once.
+			for i in 0 .. T::RemoveKeysLimit::get() {
+				contribute_fund::<T>(&account("contributor", i, 0), fund_index);
+			}
+
+			let caller: T::AccountId = whitelisted_caller();
+			frame_system::Module::<T>::set_block_number(T::RetirementPeriod::get().saturating_add(200.into()));
+		}: _(RawOrigin::Signed(caller.clone()), fund_index)
+		verify {
+			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
+		}
 	}
 
 	#[cfg(test)]
@@ -1476,6 +1551,7 @@ mod benchmarking {
 				assert_ok!(test_benchmark_contribute::<Test>());
 				assert_ok!(test_benchmark_fix_deploy_data::<Test>());
 				assert_ok!(test_benchmark_withdraw::<Test>());
+				assert_ok!(test_benchmark_dissolve::<Test>());
 			});
 		}
 	}
