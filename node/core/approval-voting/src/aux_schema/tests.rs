@@ -90,7 +90,7 @@ fn make_block_entry(
 		block_hash,
 		session: 1,
 		slot: 1,
-		relay_vrf_story: RelayVRF([0u8; 32]),
+		relay_vrf_story: RelayVRFStory([0u8; 32]),
 		approved_bitfield: make_bitvec(candidates.len()),
 		candidates,
 		children: Vec::new(),
