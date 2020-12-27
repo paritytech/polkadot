@@ -20,7 +20,9 @@ use sp_std::{prelude::*, fmt::Debug};
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{
 	decl_event, decl_storage, decl_module, decl_error, ensure,
-	traits::{Currency, Get, VestingSchedule, EnsureOrigin, IsSubType}, weights::{Pays, DispatchClass}
+	traits::{Currency, Get, VestingSchedule, EnsureOrigin, IsSubType},
+	weights::{Weight, Pays, DispatchClass},
+	pallet_prelude::DispatchResultWithPostInfo,
 };
 use frame_system::{ensure_signed, ensure_root, ensure_none};
 use parity_scale_codec::{Encode, Decode};
@@ -47,6 +49,15 @@ pub trait Config: frame_system::Config {
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
 	type MoveClaimOrigin: EnsureOrigin<Self::Origin>;
+	type WeightInfo: WeightInfo;
+}
+
+pub trait WeightInfo {
+	fn claim() -> Weight;
+	fn mint_claim() -> Weight;
+	fn claim_attest() -> Weight;
+	fn attest() -> Weight;
+	fn move_claim() -> Weight;
 }
 
 /// The kind of a statement an account needs to make for a claim to be valid.
@@ -241,7 +252,7 @@ decl_module! {
 		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
 		/// Validate Unsigned: +188.7 µs
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(7, 7) + 270_000_000 + 190_000_000]
+		#[weight = T::WeightInfo::claim()]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -276,12 +287,7 @@ decl_module! {
 		/// - Writes: Total, Claims
 		/// - Maybe Write: Vesting, Statement
 		/// </weight>
-		#[weight =
-			T::DbWeight::get().reads_writes(1, 2)
-			+ T::DbWeight::get().writes(vesting_schedule.is_some().into())
-			+ T::DbWeight::get().writes(statement.is_some().into())
-			+ 10_000_000
-		]
+		#[weight = T::WeightInfo::mint_claim()]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -341,7 +347,7 @@ decl_module! {
 		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
 		/// Validate Unsigned: +190.1 µs
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(7, 7) + 270_000_000 + 190_000_000]
+		#[weight = T::WeightInfo::claim_attest()]
 		fn claim_attest(origin,
 			dest: T::AccountId,
 			ethereum_signature: EcdsaSignature,
@@ -379,7 +385,7 @@ decl_module! {
 		/// Validate PreValidateAttests: +8.631 µs
 		/// </weight>
 		#[weight = (
-			T::DbWeight::get().reads_writes(8, 8) + 90_000_000 + 10_000_000,
+			T::WeightInfo::attest(),
 			DispatchClass::Normal,
 			Pays::No
 		)]
@@ -393,16 +399,12 @@ decl_module! {
 			Preclaims::<T>::remove(&who);
 		}
 
-		#[weight = (
-			T::DbWeight::get().reads_writes(4, 4) + 100_000_000_000,
-			DispatchClass::Normal,
-			Pays::No
-		)]
+		#[weight = T::WeightInfo::move_claim()]
 		fn move_claim(origin,
 			old: EthereumAddress,
 			new: EthereumAddress,
 			maybe_preclaim: Option<T::AccountId>,
-		) {
+		) -> DispatchResultWithPostInfo {
 			T::MoveClaimOrigin::try_origin(origin).map(|_| ()).or_else(ensure_root)?;
 
 			Claims::<T>::take(&old).map(|c| Claims::<T>::insert(&new, c));
@@ -411,6 +413,7 @@ decl_module! {
 			maybe_preclaim.map(|preclaim| Preclaims::<T>::mutate(&preclaim, |maybe_o|
 				if maybe_o.as_ref().map_or(false, |o| o == &old) { *maybe_o = Some(new) }
 			));
+			Ok(Pays::No.into())
 		}
 	}
 }
@@ -712,6 +715,15 @@ mod tests {
 		type WeightInfo = ();
 	}
 
+	pub struct TestWeightInfo;
+	impl WeightInfo for TestWeightInfo {
+		fn claim() -> Weight { 0 }
+		fn mint_claim() -> Weight { 0 }
+		fn claim_attest() -> Weight { 0 }
+		fn attest() -> Weight { 0 }
+		fn move_claim() -> Weight { 0 }
+	}
+
 	parameter_types!{
 		pub Prefix: &'static [u8] = b"Pay RUSTs to the TEST account:";
 	}
@@ -724,6 +736,7 @@ mod tests {
 		type VestingSchedule = Vesting;
 		type Prefix = Prefix;
 		type MoveClaimOrigin = frame_system::EnsureSignedBy<Six, u64>;
+		type WeightInfo = TestWeightInfo;
 	}
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
@@ -1316,6 +1329,7 @@ mod benchmarking {
 		}
 
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes
+		#[extra]
 		keccak256 {
 			let i in 0 .. 10_000;
 			let bytes = (i).encode();
@@ -1326,6 +1340,7 @@ mod benchmarking {
 		}
 
 		// Benchmark the time it takes to do `repeat` number of `eth_recover`
+		#[extra]
 		eth_recover {
 			let i in 0 .. 1_000;
 			// Crate signature
