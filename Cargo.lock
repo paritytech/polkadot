@@ -5044,6 +5044,7 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "futures 0.3.8",
+ "futures-timer 3.0.2",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
