@@ -153,7 +153,7 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 				let _woken = state.wakeups.remove(&tick_wakeup).unwrap_or_default();
 			}
 			next_msg = ctx.recv().fuse() => {
-				if handle_from_overseer(&mut ctx, &mut state, next_msg?).await {
+				if handle_from_overseer(&mut ctx, &mut state, next_msg?).await? {
 					break
 				}
 			}
@@ -168,29 +168,30 @@ async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	x: FromOverseer<ApprovalVotingMessage>,
-) -> bool {
+) -> SubsystemResult<bool> {
 	match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			// TODO [now]
-			false
+			Ok(false)
 		}
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
-			// TODO [now]
-			false
+			aux_schema::canonicalize(&*state.db, block_number, block_hash)
+				.map(|_| false)
+				.map_err(|e| SubsystemError::with_origin("db", e))
 		}
-		FromOverseer::Signal(OverseerSignal::Conclude) => true,
+		FromOverseer::Signal(OverseerSignal::Conclude) => Ok(true),
 		FromOverseer::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, res) => {
 				let _ = res.send(check_and_import_assignment(ctx, state, a).await);
-				false
+				Ok(false)
 			}
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
 				let _ = res.send(check_and_import_approval(ctx, state, a).await);
-				false
+				Ok(false)
 			}
 			ApprovalVotingMessage::ApprovedAncestor(_target, _lower_bound, _res ) => {
 				// TODO [now]
-				false
+				Ok(false)
 			}
 		}
 	}
