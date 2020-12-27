@@ -42,7 +42,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for claims.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> claims::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<T> {
 	fn claim() -> Weight {
 		(295_158_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(7 as Weight))
