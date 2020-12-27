@@ -80,7 +80,7 @@ struct ApprovalVoteRequest {
 	candidate_index: u32,
 }
 
-struct State<T: AuxStore> {
+struct State<T> {
 	earliest_session: SessionIndex,
 	session_info: Vec<SessionInfo>,
 	keystore: LocalKeystore,
@@ -91,7 +91,16 @@ struct State<T: AuxStore> {
 
 	// These are connected to each other.
 	approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
-	approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest>,
+}
+
+impl<T> State<T> {
+	fn session_info(&self, index: SessionIndex) -> Option<&SessionInfo> {
+		if index < self.earliest_session {
+			None
+		} else {
+			self.session_info.get((index - self.earliest_session) as usize)
+		}
+	}
 }
 
 fn tick_now() -> Tick {
@@ -117,6 +126,10 @@ fn slot_number_to_tick(slot_duration_millis: u64, slot: SlotNumber) -> Tick {
 	slot * ticks_per_slot
 }
 
+fn tranche_now(slot_duration_millis: u64, base_slot: SlotNumber) -> DelayTranche {
+	tick_now().saturating_sub(slot_number_to_tick(slot_duration_millis, base_slot))
+}
+
 // Returns `None` if the tick has been reached or is already
 // passed.
 fn until_tick(tick: Tick) -> Option<Duration> {
@@ -132,6 +145,8 @@ fn until_tick(tick: Tick) -> Option<Duration> {
 async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
+	let approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest> = unimplemented!();
+	let mut approval_vote_rx = approval_vote_rx.fuse();
 	let mut state: State<T> = unimplemented!();
 
 	if let Err(e) = aux_schema::clear(&*state.db) {
@@ -162,6 +177,9 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 				if handle_from_overseer(&mut ctx, &mut state, next_msg?).await? {
 					break
 				}
+			}
+			approval = approval_vote_rx.next().fuse() => {
+				// TODO [now]
 			}
 		}
 	}
