@@ -277,9 +277,12 @@ where
 	<frame_system::Module<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
-			RawEvent::<T>::CandidateBacked(c, h) => CandidateEvent::CandidateBacked(c, h),
-			RawEvent::<T>::CandidateIncluded(c, h) => CandidateEvent::CandidateIncluded(c, h),
-			RawEvent::<T>::CandidateTimedOut(c, h) => CandidateEvent::CandidateTimedOut(c, h),
+			RawEvent::<T>::CandidateBacked(c, h, core)
+				=> CandidateEvent::CandidateBacked(c, h, core),
+			RawEvent::<T>::CandidateIncluded(c, h, core)
+				=> CandidateEvent::CandidateIncluded(c, h, core),
+			RawEvent::<T>::CandidateTimedOut(c, h, core)
+				=> CandidateEvent::CandidateTimedOut(c, h, core),
 		})
 		.collect()
 }

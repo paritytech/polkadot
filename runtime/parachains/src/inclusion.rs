@@ -197,11 +197,11 @@ decl_error! {
 decl_event! {
 	pub enum Event<T> where <T as frame_system::Config>::Hash {
 		/// A candidate was backed. [candidate, head_data]
-		CandidateBacked(CandidateReceipt<Hash>, HeadData),
+		CandidateBacked(CandidateReceipt<Hash>, HeadData, CoreIndex),
 		/// A candidate was included. [candidate, head_data]
-		CandidateIncluded(CandidateReceipt<Hash>, HeadData),
+		CandidateIncluded(CandidateReceipt<Hash>, HeadData, CoreIndex),
 		/// A candidate timed out. [candidate, head_data]
-		CandidateTimedOut(CandidateReceipt<Hash>, HeadData),
+		CandidateTimedOut(CandidateReceipt<Hash>, HeadData, CoreIndex),
 	}
 }
 
@@ -368,6 +368,7 @@ impl<T: Config> Module<T> {
 					receipt,
 					pending_availability.backers,
 					pending_availability.availability_votes,
+					pending_availability.core,
 				);
 
 				freed_cores.push(pending_availability.core);
@@ -586,6 +587,7 @@ impl<T: Config> Module<T> {
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
+				core,
 			));
 
 			let candidate_hash = candidate.candidate.hash();
@@ -648,6 +650,7 @@ impl<T: Config> Module<T> {
 		receipt: CommittedCandidateReceipt<T::Hash>,
 		backers: BitVec<BitOrderLsb0, u8>,
 		availability_votes: BitVec<BitOrderLsb0, u8>,
+		core_index: CoreIndex,
 	) -> Weight {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
@@ -692,7 +695,7 @@ impl<T: Config> Module<T> {
 		);
 
 		Self::deposit_event(
-			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
+			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone(), core_index)
 		);
 
 		weight + <paras::Module<T>>::note_new_head(
@@ -733,6 +736,7 @@ impl<T: Config> Module<T> {
 				Self::deposit_event(Event::<T>::CandidateTimedOut(
 					candidate,
 					commitments.head_data,
+					pending.core,
 				));
 			}
 		}
@@ -761,6 +765,7 @@ impl<T: Config> Module<T> {
 				candidate,
 				pending.backers,
 				pending.availability_votes,
+				pending.core,
 			);
 		}
 	}
