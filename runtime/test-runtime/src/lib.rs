@@ -424,6 +424,7 @@ impl claims::Config for Runtime {
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	type MoveClaimOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = claims::TestWeightInfo;
 }
 
 parameter_types! {

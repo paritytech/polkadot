@@ -63,6 +63,18 @@ pub trait WeightInfo {
 	fn move_claim() -> Weight;
 }
 
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn claim() -> Weight { 0 }
+	fn validate_unsigned_claim() -> Weight { 0 }
+	fn mint_claim() -> Weight { 0 }
+	fn claim_attest() -> Weight { 0 }
+	fn validate_unsigned_claim_attest() -> Weight { 0 }
+	fn attest() -> Weight { 0 }
+	fn validate_prevalidate_attests() -> Weight { 0 }
+	fn move_claim() -> Weight { 0 }
+}
+
 /// The kind of a statement an account needs to make for a claim to be valid.
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
@@ -716,18 +728,6 @@ mod tests {
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
-	}
-
-	pub struct TestWeightInfo;
-	impl WeightInfo for TestWeightInfo {
-		fn claim() -> Weight { 0 }
-		fn validate_unsigned_claim() -> Weight { 0 }
-		fn mint_claim() -> Weight { 0 }
-		fn claim_attest() -> Weight { 0 }
-		fn validate_unsigned_claim_attest() -> Weight { 0 }
-		fn attest() -> Weight { 0 }
-		fn validate_prevalidate_attests() -> Weight { 0 }
-		fn move_claim() -> Weight { 0 }
 	}
 
 	parameter_types!{
