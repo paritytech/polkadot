@@ -22,11 +22,16 @@
 //! been sufficiently approved to finalize.
 
 use polkadot_subsystem::{
-	messages::{AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage},
+	messages::{
+		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
+		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
+	},
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal,
 };
-use polkadot_primitives::v1::{ValidatorIndex, Hash, SessionIndex, SessionInfo};
+use polkadot_primitives::v1::{
+	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header
+};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
 };
@@ -35,7 +40,7 @@ use sp_consensus_slots::SlotNumber;
 use sc_client_api::backend::AuxStore;
 
 use futures::prelude::*;
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
@@ -101,6 +106,10 @@ impl<T> State<T> {
 			self.session_info.get((index - self.earliest_session) as usize)
 		}
 	}
+
+	fn latest_session(&self) -> SessionIndex {
+		self.earliest_session + (self.session_info.len() as SessionIndex).saturating_sub(1)
+	}
 }
 
 fn tick_now() -> Tick {
@@ -145,6 +154,7 @@ fn until_tick(tick: Tick) -> Option<Duration> {
 async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
+	// TODO [now]
 	let approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest> = unimplemented!();
 	let mut approval_vote_rx = approval_vote_rx.fuse();
 	let mut state: State<T> = unimplemented!();
@@ -195,7 +205,11 @@ async fn handle_from_overseer(
 ) -> SubsystemResult<bool> {
 	match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-			// TODO [now]
+			for head in update.activated {
+				if let Err(e) = handle_new_head(ctx, state, head).await {
+					return Err(SubsystemError::with_origin("db", e));
+				}
+			}
 			Ok(false)
 		}
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
@@ -219,6 +233,146 @@ async fn handle_from_overseer(
 			}
 		}
 	}
+}
+
+// Given a new chain-head hash, this determines the hashes of all new blocks we should track
+// metadata for, given this head. The list will typically include the `head` hash provided unless
+// that block is already known, in which case the list should be empty. This is guaranteed to be
+// a subset of the ancestry of `head`, as well as `head`.
+//
+// This won't return the entire ancestry of the head in the case of a fresh DB.
+async fn determine_new_blocks(
+	ctx: &mut impl SubsystemContext,
+	db: &impl AuxStore,
+	head: Hash,
+) -> sp_blockchain::Result<Vec<(Hash, Header)>> {
+	const MAX_ANCESTRY: usize = 64;
+	const ANCESTRY_STEP: usize = 4;
+
+	// TODO [now]
+	unimplemented!()
+}
+
+async fn handle_new_head(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl AuxStore>,
+	head: Hash,
+) -> sp_blockchain::Result<()> {
+	let new_blocks = determine_new_blocks(ctx, &*state.db, head).await?;
+
+	let mut approval_meta: Vec<()> = Vec::with_capacity(new_blocks.len());
+
+	{
+		// Update session info based on most recent head.
+		let header: Header = unimplemented!();
+
+		let session_index = {
+			let (s_tx, s_rx) = oneshot::channel();
+			ctx.send_message(RuntimeApiMessage::Request(
+				header.parent_hash,
+				RuntimeApiRequest::SessionIndexForChild(s_tx),
+			).into()).await;
+
+			match s_rx.await {
+				Ok(Ok(s)) => s,
+				Ok(Err(_)) => return Ok(()),
+				Err(_) => return Ok(()),
+			}
+		};
+
+		if session_index >= state.earliest_session {
+			// Update the window of sessions.
+			if session_index > state.latest_session() {
+				let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
+				let old_window_end = state.latest_session();
+				tracing::info!(
+					target: LOG_TARGET, "Moving approval window from session {}..={} to {}..={}",
+					state.earliest_session, old_window_end,
+					window_start, session_index,
+				);
+
+				// keep some of the old window, if applicable.
+				let old_window_start = std::mem::replace(&mut state.earliest_session, window_start);
+				let overlap_start = session_index - old_window_end;
+				state.session_info.drain(..overlap_start as usize);
+
+				// load the end of the window.
+				for i in state.session_info.len() as SessionIndex + window_start ..= session_index {
+					let (tx, rx)= oneshot::channel();
+					ctx.send_message(RuntimeApiMessage::Request(
+						head,
+						RuntimeApiRequest::SessionInfo(i, tx),
+					).into()).await;
+
+					let session_info = match rx.await {
+						Ok(Ok(Some(s))) => s,
+						Ok(Ok(None)) => unimplemented!(), // indicates a runtime error.
+						Ok(Err(_)) => unimplemented!(), // TODO [now]: what to do if unavailable?
+						Err(_) => unimplemented!(),
+					};
+
+					state.session_info.push(session_info);
+				}
+			}
+		}
+	}
+
+	for (block_hash, block_header) in new_blocks {
+		// Ignore any runtime API errors - that means these blocks are old and finalized.
+		// Only unfinalized blocks factor into the approval voting process.
+
+		// fetch candidates
+		let included_candidates: Vec<_> = {
+			let (c_tx, c_rx) = oneshot::channel();
+			ctx.send_message(RuntimeApiMessage::Request(
+				block_hash,
+				RuntimeApiRequest::CandidateEvents(c_tx),
+			).into()).await;
+
+			let events: Vec<CandidateEvent> = match c_rx.await {
+				Ok(Ok(events)) => events,
+				Ok(Err(_)) => continue,
+				Err(_) => continue,
+			};
+
+			events.into_iter().filter_map(|e| match e {
+				CandidateEvent::CandidateIncluded(receipt, _, core) => Some((receipt, core)),
+				_ => None,
+			}).collect()
+		};
+
+		// fetch session. ignore blocks that are too old, but unless sessions are really
+		// short, that shouldn't happen.
+		let session_index = {
+			let (s_tx, s_rx) = oneshot::channel();
+			ctx.send_message(RuntimeApiMessage::Request(
+				block_header.parent_hash,
+				RuntimeApiRequest::SessionIndexForChild(s_tx),
+			).into()).await;
+
+			let session_index = match s_rx.await {
+				Ok(Ok(s)) => s,
+				Ok(Err(_)) => continue,
+				Err(_) => continue,
+			};
+
+			if session_index < state.earliest_session {
+				tracing::debug!(target: LOG_TARGET, "Block {} is from ancient session {}. Skipping",
+					block_hash, session_index);
+
+				continue;
+			}
+		};
+
+		// TODO [now]: compute assignments and import to DB
+
+		// push block approval meta
+	}
+
+	// TODO [now]: send block approval meta to approval distribution.
+
+	// TODO [now]
+	unimplemented!()
 }
 
 async fn check_and_import_assignment(
