@@ -1364,7 +1364,7 @@ mod benchmarking {
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 
-			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
+			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&(u32::max_value()/2).encode())).unwrap();
 			let new_eth_address = eth(&new_secret_key);
 
 			let account: T::AccountId = account("user", c, SEED);
@@ -1422,6 +1422,7 @@ mod benchmarking {
 				assert_ok!(test_benchmark_validate_unsigned_claim::<Test>());
 				assert_ok!(test_benchmark_validate_unsigned_claim_attest::<Test>());
 				assert_ok!(test_benchmark_validate_prevalidate_attests::<Test>());
+				assert_ok!(test_benchmark_move_claim::<Test>());
 				assert_ok!(test_benchmark_keccak256::<Test>());
 				assert_ok!(test_benchmark_eth_recover::<Test>());
 			});
