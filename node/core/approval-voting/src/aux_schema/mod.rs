@@ -44,7 +44,7 @@ use parity_scale_codec::{Encode, Decode};
 
 use std::collections::{BTreeMap, HashMap};
 use std::collections::hash_map::Entry;
-use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
+use bitvec::{slice::BitSlice, vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 use super::Tick;
 
@@ -77,6 +77,22 @@ pub(crate) struct ApprovalEntry {
 	approved: bool,
 }
 
+impl ApprovalEntry {
+	// Produce a bitvec indicating the assignments of all validators up to and
+	// including `tranche`.
+	pub(crate) fn assignments_up_to(&self, tranche: DelayTranche) -> BitVec<BitOrderLsb0, u8> {
+		self.tranches.iter()
+			.take_while(|e| e.tranche <= tranche)
+			.fold(bitvec::bitvec![BitOrderLsb0, u8; 0; self.assignments.len()], |mut a, e| {
+				for &(v, _) in &e.assignments {
+					a.set(v as _, true);
+				}
+
+				a
+			})
+	}
+}
+
 /// Metadata regarding approval of a particular candidate.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct CandidateEntry {
@@ -86,6 +102,13 @@ pub(crate) struct CandidateEntry {
 	// based on the block we are looking at.
 	block_assignments: BTreeMap<Hash, ApprovalEntry>,
 	approvals: BitVec<BitOrderLsb0, u8>,
+}
+
+impl CandidateEntry {
+	/// Access the bit-vec of approvals.
+	pub(crate) fn approvals(&self) -> &BitSlice<BitOrderLsb0, u8> {
+		&self.approvals
+	}
 }
 
 /// Metadata regarding approval of a particular block, by way of approval of the

@@ -29,7 +29,7 @@ use sp_application_crypto::Public;
 
 /// Validators assigning to check a particular candidate are split up into tranches.
 /// Earlier tranches of validators check first, with later tranches serving as backup.
-pub type DelayTranche = u32;
+pub type DelayTranche = u64;
 
 /// A static context used to compute the Relay VRF story based on the
 /// VRF output included in the header-chain.

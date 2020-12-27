@@ -28,7 +28,7 @@ use polkadot_subsystem::{
 };
 use polkadot_primitives::v1::{ValidatorIndex, Hash, SessionIndex, SessionInfo};
 use polkadot_node_primitives::approval::{
-	IndirectAssignmentCert, IndirectSignedApprovalVote
+	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
@@ -40,6 +40,8 @@ use futures::channel::mpsc;
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime};
 use std::sync::Arc;
+
+use aux_schema::{TrancheEntry, ApprovalEntry, CandidateEntry, BlockEntry};
 
 mod aux_schema;
 
@@ -217,4 +219,45 @@ async fn check_and_import_approval(
 ) -> ApprovalCheckResult {
 	// TODO [now]
 	unimplemented!()
+}
+
+enum RequiredTranches {
+	// All validators appear to be required, based on tranches already taken and remaining
+	// no-shows.
+	All,
+	// More tranches required - We're awaiting more assignments. The given `DelayTranche`
+	// indicates the upper bound of tranches that should broadcast based on the last no-show.
+	Pending(DelayTranche),
+	// An exact number of required tranches and a number of no-shows. This indicates that
+	// the amount of `needed_approvals` are assigned and additionally all no-shows are
+	// covered.
+	Exact(DelayTranche, usize),
+}
+
+fn check_approval(
+	block: &BlockEntry,
+	candidate: &CandidateEntry,
+	approval: &ApprovalEntry,
+	required: RequiredTranches,
+) -> bool {
+	match required {
+		RequiredTranches::Pending(_) => false,
+		RequiredTranches::All => {
+			let approvals = candidate.approvals();
+			3 * approvals.count_ones() > 2 * approvals.len()
+		}
+		RequiredTranches::Exact(tranche, no_shows) => {
+			let mut assigned_mask = approval.assignments_up_to(tranche);
+			let approvals = candidate.approvals();
+
+			let n_assigned = assigned_mask.count_ones();
+			assigned_mask &= approvals.iter().cloned();
+			let n_approved = assigned_mask.count_ones();
+
+			// note: the process of computing `required` only chooses `exact` if
+			// that will surpass a minimum amount of checks.
+			// shouldn't typically go above, since all no-shows are supposed to be covered.
+			n_approved + no_shows >= n_assigned
+		}
+	}
 }
