@@ -32,12 +32,14 @@ use polkadot_node_primitives::approval::{
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
+use sc_client_api::backend::AuxStore;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
 
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
+use std::sync::Arc;
 
 mod aux_schema;
 
@@ -51,13 +53,15 @@ const TICK_DURATION_MILLIS: u64 = 500;
 const TICK_DURATION: Duration = Duration::from_millis(TICK_DURATION_MILLIS);
 
 /// The approval voting subsystem.
-pub struct ApprovalVotingSubsystem {
+pub struct ApprovalVotingSubsystem<T> {
 	// TODO [now]: keystore. chain config? aux-store.
+	_marker: std::marker::PhantomData<T>,
 }
 
-impl<C: SubsystemContext<Message = ApprovalVotingMessage>> Subsystem<C> for ApprovalVotingSubsystem {
+impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
+	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage> {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run(ctx)
+		let future = run::<T, C>(ctx)
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 			.boxed();
 
@@ -74,13 +78,14 @@ struct ApprovalVoteRequest {
 	candidate_index: u32,
 }
 
-struct State {
+struct State<T: AuxStore> {
 	earliest_session: SessionIndex,
 	session_info: Vec<SessionInfo>,
 	keystore: LocalKeystore,
 	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>,
 	slot_duration: Duration,
+	db: Arc<T>,
 
 	// These are connected to each other.
 	approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
@@ -118,12 +123,15 @@ fn until_tick(tick: Tick) -> Option<Duration> {
 	}
 }
 
-async fn run(mut ctx: impl SubsystemContext<Message = ApprovalVotingMessage>)
-	-> SubsystemResult<()>
+async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
+	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
-	let mut state: State = unimplemented!();
+	let mut state: State<T> = unimplemented!();
 
-	// TODO [now]: clear DB.
+	if let Err(e) = aux_schema::clear(&*state.db) {
+		tracing::warn!(target: LOG_TARGET, "Failed to clear DB: {:?}", e);
+		return Err(SubsystemError::with_origin("db", e));
+	}
 
 	loop {
 		let mut wait_til_next_tick = match state.wakeups.iter().next() {
@@ -158,7 +166,7 @@ async fn run(mut ctx: impl SubsystemContext<Message = ApprovalVotingMessage>)
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State,
+	state: &mut State<impl AuxStore>,
 	x: FromOverseer<ApprovalVotingMessage>,
 ) -> bool {
 	match x {
@@ -190,7 +198,7 @@ async fn handle_from_overseer(
 
 async fn check_and_import_assignment(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State,
+	state: &mut State<impl AuxStore>,
 	assignment: IndirectAssignmentCert,
 ) -> AssignmentCheckResult {
 	// TODO [now]
@@ -199,7 +207,7 @@ async fn check_and_import_assignment(
 
 async fn check_and_import_approval(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State,
+	state: &mut State<impl AuxStore>,
 	approval: IndirectSignedApprovalVote,
 ) -> ApprovalCheckResult {
 	// TODO [now]

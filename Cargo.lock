@@ -5054,6 +5054,8 @@ dependencies = [
  "sc-keystore",
  "sp-blockchain",
  "sp-consensus-slots",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
