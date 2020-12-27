@@ -215,6 +215,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 				babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
+			u64, // slot-duration
 		)
 	>,
 	Error
@@ -261,8 +262,9 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let justification_import = grandpa_block_import.clone();
 
+	let babe_config = babe::Config::get_or_compute(&*client)?;
 	let (block_import, babe_link) = babe::block_import(
-		babe::Config::get_or_compute(&*client)?,
+		babe_config.clone(),
 		grandpa_block_import,
 		client.clone(),
 	)?;
@@ -288,8 +290,8 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
 	let rpc_setup = shared_voter_state.clone();
 
-	let babe_config = babe_link.config().clone();
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
+	let slot_duration: u64 = 0; // TODO [now]: babe_config.slot_duration();
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
@@ -332,7 +334,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup)
+		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration)
 	})
 }
 
@@ -348,6 +350,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	_: IsCollator,
 	_: IsolationStrategy,
+	_: u64,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -374,6 +377,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	is_collator: IsCollator,
 	isolation_strategy: IsolationStrategy,
+	_slot_duration: u64, // TODO [now]: instantiate approval voting.
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -555,7 +559,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup)
+		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
@@ -668,6 +672,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			spawner,
 			is_collator,
 			isolation_strategy,
+			slot_duration,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
