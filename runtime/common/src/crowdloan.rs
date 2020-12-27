@@ -1375,7 +1375,7 @@ mod benchmarking {
 	use frame_support::assert_ok;
 	use sp_runtime::traits::Bounded;
 
-	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -1397,6 +1397,12 @@ mod benchmarking {
 		FundCount::get() - 1
 	}
 
+	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
+		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
+		let value = T::MinContribution::get();
+		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, who.clone()));
+	}
+
 	benchmarks! {
 		_{ }
 
@@ -1414,18 +1420,47 @@ mod benchmarking {
 			assert_last_event::<T>(RawEvent::Created(FundCount::get() - 1).into())
 		}
 
-		contribute_ongoing {
+		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
+		contribute {
 			let fund_index = create_fund::<T>(100.into());
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
-
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-
-		}: contribute(RawOrigin::Signed(caller.clone()), fund_index, contribution, caller.clone())
+		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, caller.clone())
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
 			assert!(!NewRaise::get().is_empty());
 			assert_last_event::<T>(RawEvent::Contributed(caller, fund_index, contribution).into());
+		}
+
+		fix_deploy_data {
+			let fund_index = create_fund::<T>(100.into());
+			// Matches fund creator in `create_fund`
+			let caller = account("fund_creator", 0, 0);
+
+			let code_hash = T::Hash::default();
+			// Random number... shouldn't matter.
+			let code_size = 1_000;
+			let initial_head_data = HeadData::default();
+
+			whitelist_account!(caller);
+		}: _(RawOrigin::Signed(caller), fund_index, code_hash, code_size, initial_head_data)
+		verify {
+			assert_last_event::<T>(RawEvent::DeployDataFixed(fund_index).into());
+		}
+
+		// onboard
+
+		// begin_retirement
+
+		withdraw {
+			let fund_index = create_fund::<T>(100.into());
+			let caller: T::AccountId = whitelisted_caller();
+			contribute_fund::<T>(&caller, fund_index);
+			frame_system::Module::<T>::set_block_number(200.into());
+		}: _(RawOrigin::Signed(caller.clone()), fund_index)
+		verify {
+			assert_last_event::<T>(RawEvent::Withdrew(caller, fund_index, T::MinContribution::get()).into());
 		}
 	}
 
@@ -1438,7 +1473,9 @@ mod benchmarking {
 		fn test_benchmarks() {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_create::<Test>());
-				assert_ok!(test_benchmark_contribute_ongoing::<Test>());
+				assert_ok!(test_benchmark_contribute::<Test>());
+				assert_ok!(test_benchmark_fix_deploy_data::<Test>());
+				assert_ok!(test_benchmark_withdraw::<Test>());
 			});
 		}
 	}
