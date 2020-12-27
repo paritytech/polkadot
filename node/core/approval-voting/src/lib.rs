@@ -38,7 +38,7 @@ use futures::prelude::*;
 use futures::channel::mpsc;
 
 use std::collections::BTreeMap;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 use std::sync::Arc;
 
 mod aux_schema;
@@ -84,7 +84,7 @@ struct State<T: AuxStore> {
 	keystore: LocalKeystore,
 	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>,
-	slot_duration: Duration,
+	slot_duration_millis: u64,
 	db: Arc<T>,
 
 	// These are connected to each other.
@@ -93,31 +93,35 @@ struct State<T: AuxStore> {
 }
 
 fn tick_now() -> Tick {
-	instant_to_tick(Instant::now())
+	time_to_tick(SystemTime::now())
 }
 
-fn instant_to_tick(instant: Instant) -> Tick {
-	// TODO [now]
-	unimplemented!()
+// returns '0' if before the unix epoch, otherwise, number of
+// whole ticks elapsed since unix epoch.
+fn time_to_tick(time: SystemTime) -> Tick {
+	match time.duration_since(SystemTime::UNIX_EPOCH) {
+		Err(_) => 0,
+		Ok(d) => d.as_millis() as u64 / TICK_DURATION_MILLIS,
+	}
 }
 
-fn tick_to_instant(tick: Tick) -> Instant {
-	// TODO [now]
-	unimplemented!()
+fn tick_to_time(tick: Tick) -> SystemTime {
+	SystemTime::UNIX_EPOCH + Duration::from_millis(TICK_DURATION_MILLIS * tick)
 }
 
-fn slot_number_to_tick(slot: SlotNumber) -> Tick {
-	// TODO [now]
-	unimplemented!()
+// assumes `slot_duration_millis` evenly divided by tick duration.
+fn slot_number_to_tick(slot_duration_millis: u64, slot: SlotNumber) -> Tick {
+	let ticks_per_slot = slot_duration_millis / TICK_DURATION_MILLIS;
+	slot * ticks_per_slot
 }
 
 // Returns `None` if the tick has been reached or is already
 // passed.
 fn until_tick(tick: Tick) -> Option<Duration> {
-	let now = Instant::now();
-	let tick_onset = tick_to_instant(tick);
+	let now = SystemTime::now();
+	let tick_onset = tick_to_time(tick);
 	if now < tick_onset {
-		Some(tick_onset - now)
+		tick_onset.duration_since(now).ok()
 	} else {
 		None
 	}
