@@ -677,14 +677,17 @@ pub enum OccupiedCoreAssumption {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum CandidateEvent<H = Hash> {
 	/// This candidate receipt was backed in the most recent block.
+	/// This includes the core index the candidate is now occupying.
 	#[codec(index = "0")]
-	CandidateBacked(CandidateReceipt<H>, HeadData),
+	CandidateBacked(CandidateReceipt<H>, HeadData, CoreIndex),
 	/// This candidate receipt was included and became a parablock at the most recent block.
+	/// This includes the core index the candidate was occupying.
 	#[codec(index = "1")]
-	CandidateIncluded(CandidateReceipt<H>, HeadData),
+	CandidateIncluded(CandidateReceipt<H>, HeadData, CoreIndex),
 	/// This candidate receipt was not made available in time and timed out.
+	/// This includes the core index the candidate was occupying.
 	#[codec(index = "2")]
-	CandidateTimedOut(CandidateReceipt<H>, HeadData),
+	CandidateTimedOut(CandidateReceipt<H>, HeadData, CoreIndex),
 }
 
 /// Information about validator sets of a session.
