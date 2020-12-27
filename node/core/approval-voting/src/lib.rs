@@ -21,28 +21,41 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use polkadot_subsystem::{Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem};
+use polkadot_subsystem::{
+	messages::{AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage},
+	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
+	FromOverseer, OverseerSignal,
+};
 use polkadot_primitives::v1::{ValidatorIndex, Hash, SessionIndex, SessionInfo};
+use polkadot_node_primitives::approval::{
+	IndirectAssignmentCert, IndirectSignedApprovalVote
+};
 use sc_keystore::LocalKeystore;
+use sp_consensus_slots::SlotNumber;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
 
 use std::collections::BTreeMap;
+use std::time::{Duration, Instant};
 
 mod aux_schema;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
+const LOG_TARGET: &str = "approval-voting";
 
 /// A base unit of time, starting from the unix epoch, split into half-second intervals.
 type Tick = u64;
 
+const TICK_DURATION_MILLIS: u64 = 500;
+const TICK_DURATION: Duration = Duration::from_millis(TICK_DURATION_MILLIS);
+
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem {
-	// TODO [now]: keystore. chain config?
+	// TODO [now]: keystore. chain config? aux-store.
 }
 
-impl<C: SubsystemContext> Subsystem<C> for ApprovalVotingSubsystem {
+impl<C: SubsystemContext<Message = ApprovalVotingMessage>> Subsystem<C> for ApprovalVotingSubsystem {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = run(ctx)
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
@@ -67,12 +80,128 @@ struct State {
 	keystore: LocalKeystore,
 	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>,
+	slot_duration: Duration,
 
 	// These are connected to each other.
 	approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
 	approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest>,
 }
 
-async fn run(_: impl SubsystemContext) -> SubsystemResult<()> {
-	loop { }
+fn tick_now() -> Tick {
+	instant_to_tick(Instant::now())
+}
+
+fn instant_to_tick(instant: Instant) -> Tick {
+	// TODO [now]
+	unimplemented!()
+}
+
+fn tick_to_instant(tick: Tick) -> Instant {
+	// TODO [now]
+	unimplemented!()
+}
+
+fn slot_number_to_tick(slot: SlotNumber) -> Tick {
+	// TODO [now]
+	unimplemented!()
+}
+
+// Returns `None` if the tick has been reached or is already
+// passed.
+fn until_tick(tick: Tick) -> Option<Duration> {
+	let now = Instant::now();
+	let tick_onset = tick_to_instant(tick);
+	if now < tick_onset {
+		Some(tick_onset - now)
+	} else {
+		None
+	}
+}
+
+async fn run(mut ctx: impl SubsystemContext<Message = ApprovalVotingMessage>)
+	-> SubsystemResult<()>
+{
+	let mut state: State = unimplemented!();
+
+	// TODO [now]: clear DB.
+
+	loop {
+		let mut wait_til_next_tick = match state.wakeups.iter().next() {
+			None => future::Either::Left(future::pending()),
+			Some((&tick, _)) => future::Either::Right(async move {
+				if let Some(until) = until_tick(tick) {
+					futures_timer::Delay::new(until).await;
+				}
+
+				tick
+			})
+		};
+		futures::pin_mut!(wait_til_next_tick);
+
+		futures::select! {
+			tick_wakeup = wait_til_next_tick.fuse() => {
+				// TODO [now]
+				// should always be "Some" in practice.
+				let _woken = state.wakeups.remove(&tick_wakeup).unwrap_or_default();
+			}
+			next_msg = ctx.recv().fuse() => {
+				if handle_from_overseer(&mut ctx, &mut state, next_msg?).await {
+					break
+				}
+			}
+		}
+	}
+
+	Ok(())
+}
+
+// Handle an incoming signal from the overseer. Returns true if execution should conclude.
+async fn handle_from_overseer(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State,
+	x: FromOverseer<ApprovalVotingMessage>,
+) -> bool {
+	match x {
+		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			// TODO [now]
+			false
+		}
+		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			// TODO [now]
+			false
+		}
+		FromOverseer::Signal(OverseerSignal::Conclude) => true,
+		FromOverseer::Communication { msg } => match msg {
+			ApprovalVotingMessage::CheckAndImportAssignment(a, res) => {
+				let _ = res.send(check_and_import_assignment(ctx, state, a).await);
+				false
+			}
+			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
+				let _ = res.send(check_and_import_approval(ctx, state, a).await);
+				false
+			}
+			ApprovalVotingMessage::ApprovedAncestor(_target, _lower_bound, _res ) => {
+				// TODO [now]
+				false
+			}
+		}
+	}
+}
+
+async fn check_and_import_assignment(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State,
+	assignment: IndirectAssignmentCert,
+) -> AssignmentCheckResult {
+	// TODO [now]
+	unimplemented!()
+}
+
+async fn check_and_import_approval(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State,
+	approval: IndirectSignedApprovalVote,
+) -> ApprovalCheckResult {
+	// TODO [now]
+	unimplemented!()
 }
