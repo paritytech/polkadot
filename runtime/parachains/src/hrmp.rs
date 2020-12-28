@@ -56,10 +56,6 @@ pub struct HrmpOpenChannelRequest {
 #[derive(Encode, Decode)]
 #[cfg_attr(test, derive(Debug))]
 pub struct HrmpChannel {
-	/// The amount that the sender supplied as a deposit when opening this channel.
-	pub sender_deposit: Balance,
-	/// The amount that the recipient supplied as a deposit when accepting opening this channel.
-	pub recipient_deposit: Balance,
 	/// The maximum number of messages that can be pending in the channel at once.
 	pub max_capacity: u32,
 	/// The maximum total size of the messages that can be pending in the channel at once.
@@ -80,6 +76,10 @@ pub struct HrmpChannel {
 	/// This value is initialized to a special value that consists of all zeroes which indicates
 	/// that no messages were previously added.
 	pub mqc_head: Option<Hash>,
+	/// The amount that the sender supplied as a deposit when opening this channel.
+	pub sender_deposit: Balance,
+	/// The amount that the recipient supplied as a deposit when accepting opening this channel.
+	pub recipient_deposit: Balance,
 }
 
 /// An error returned by [`check_hrmp_watermark`] that indicates an acceptance criteria check
