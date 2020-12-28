@@ -878,4 +878,42 @@ mod tests {
 			assert!(<Configuration as Store>::PendingConfig::get().is_none())
 		});
 	}
+
+	#[test]
+	fn verify_externally_accessible() {
+		// This test verifies that the value can be accessed through the well known keys and the
+		// host configuration decodes into the abridged version.
+
+		use primitives::v1::{well_known_keys, AbridgedHostConfiguration};
+
+		new_test_ext(Default::default()).execute_with(|| {
+			let ground_truth = HostConfiguration::default();
+
+			// Make sure that the configuration is stored in the storage.
+			<Configuration as Store>::ActiveConfig::put(ground_truth.clone());
+
+			// Extract the active config via the well known key.
+			let raw_active_config = sp_io::storage::get(well_known_keys::ACTIVE_CONFIG)
+				.expect("config must be present in storage under ACTIVE_CONFIG");
+			let abridged_config = AbridgedHostConfiguration::decode(&mut &raw_active_config[..])
+				.expect("HostConfiguration must be decodable into AbridgedHostConfiguration");
+
+			assert_eq!(
+				abridged_config,
+				AbridgedHostConfiguration {
+					max_code_size: ground_truth.max_code_size,
+					max_head_data_size: ground_truth.max_head_data_size,
+					max_upward_queue_count: ground_truth.max_upward_queue_count,
+					max_upward_queue_size: ground_truth.max_upward_queue_size,
+					max_upward_message_size: ground_truth.max_upward_message_size,
+					max_upward_message_num_per_candidate: ground_truth
+						.max_upward_message_num_per_candidate,
+					hrmp_max_message_num_per_candidate: ground_truth
+						.hrmp_max_message_num_per_candidate,
+					validation_upgrade_frequency: ground_truth.validation_upgrade_frequency,
+					validation_upgrade_delay: ground_truth.validation_upgrade_delay,
+				},
+			);
+		});
+	}
 }

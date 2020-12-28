@@ -910,6 +910,66 @@ impl From<ValidityError> for u8 {
 	}
 }
 
+/// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime module)
+/// meant to be used by a parachain or PDK such as cumulus.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
+pub struct AbridgedHostConfiguration {
+	/// The maximum validation code size, in bytes.
+	pub max_code_size: u32,
+	/// The maximum head-data size, in bytes.
+	pub max_head_data_size: u32,
+	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+	pub max_upward_queue_count: u32,
+	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
+	/// no further messages may be added to it. If it exceeds this then the queue may contain only
+	/// a single message.
+	pub max_upward_queue_size: u32,
+	/// The maximum size of an upward message that can be sent by a candidate.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_size: u32,
+	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_num_per_candidate: u32,
+	/// The maximum number of outbound HRMP messages can be sent by a candidate.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_max_message_num_per_candidate: u32,
+	/// The minimum frequency at which parachains can update their validation code.
+	pub validation_upgrade_frequency: BlockNumber,
+	/// The delay, in blocks, before a validation upgrade is applied.
+	pub validation_upgrade_delay: BlockNumber,
+}
+
+/// Abridged version of `HrmpChannel` (from the `Hrmp` parachains host runtime module) meant to be
+/// used by a parachain or PDK such as cumulus.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
+pub struct AbridgedHrmpChannel {
+	/// The maximum number of messages that can be pending in the channel at once.
+	pub max_capacity: u32,
+	/// The maximum total size of the messages that can be pending in the channel at once.
+	pub max_total_size: u32,
+	/// The maximum message size that could be put into the channel.
+	pub max_message_size: u32,
+	/// The current number of messages pending in the channel.
+	/// Invariant: should be less or equal to `max_capacity`.s`.
+	pub msg_count: u32,
+	/// The total size in bytes of all message payloads in the channel.
+	/// Invariant: should be less or equal to `max_total_size`.
+	pub total_size: u32,
+	/// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
+	/// `(prev_head, B, H(M))`, where
+	/// - `prev_head`: is the previous value of `mqc_head` or zero if none.
+	/// - `B`: is the [relay-chain] block number in which a message was appended
+	/// - `H(M)`: is the hash of the message being appended.
+	/// This value is initialized to a special value that consists of all zeroes which indicates
+	/// that no messages were previously added.
+	pub mqc_head: Option<Hash>,
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
