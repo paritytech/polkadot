@@ -83,9 +83,9 @@ decl_module! {
 		#[weight = (1_000_000_000, DispatchClass::Mandatory)]
 		pub fn inclusion(
 			origin,
-			parent_header: Header,
 			signed_bitfields: SignedAvailabilityBitfields,
 			backed_candidates: Vec<BackedCandidate<T::Hash>>,
+			parent_header: Header,
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
@@ -151,24 +151,24 @@ impl<T: Config> ProvideInherent for Module<T> {
 		data.get_data(&Self::INHERENT_IDENTIFIER)
 			.expect("inclusion inherent data failed to decode")
 			.map(
-				|(parent_header, signed_bitfields, backed_candidates): (
-					Header,
+				|(signed_bitfields, backed_candidates, parent_header): (
 					SignedAvailabilityBitfields,
 					Vec<BackedCandidate<T::Hash>>,
+					Header,
 				)| {
 					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 					// See github.com/paritytech/polkadot/issues/1327
 					if Self::inclusion(
 						frame_system::RawOrigin::None.into(),
-						parent_header.clone(),
 						signed_bitfields.clone(),
 						backed_candidates.clone(),
+						parent_header.clone(),
 					)
 					.is_ok()
 					{
-						Call::inclusion(parent_header, signed_bitfields, backed_candidates)
+						Call::inclusion(signed_bitfields, backed_candidates, parent_header)
 					} else {
-						Call::inclusion(parent_header, Vec::new().into(), Vec::new())
+						Call::inclusion(Vec::new().into(), Vec::new(), parent_header)
 					}
 				}
 			)

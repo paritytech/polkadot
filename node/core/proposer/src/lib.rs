@@ -213,9 +213,9 @@ where
 			drop(_span);
 
 			let inclusion_inherent_data = (
-				self.parent_header,
 				provisioner_data.0,
 				provisioner_data.1,
+				self.parent_header,
 			);
 			inherent_data.put_data(
 				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,

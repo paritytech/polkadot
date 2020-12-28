@@ -76,9 +76,9 @@ impl InitPolkadotBlockBuilder for Client {
 			.expect("The target block header must exist");
 		let provisioner_data = polkadot_node_subsystem::messages::ProvisionerInherentData::default();
 		let inclusion_inherent_data = (
-			parent_header,
 			provisioner_data.0,
 			provisioner_data.1,
+			parent_header,
 		);
 		inherent_data
 			.put_data(
