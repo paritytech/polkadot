@@ -55,6 +55,72 @@ pub use crate::v0::{ValidatorPair, CollatorPair};
 pub use sp_staking::SessionIndex;
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
+/// A declarations of storage keys where an external observer can find some interesting data.
+pub mod well_known_keys {
+	use super::{Id, HrmpChannelId};
+	use hex_literal::hex;
+	use sp_io::hashing::twox_64;
+	use sp_std::prelude::*;
+	use parity_scale_codec::Encode as _;
+
+	/// The currently active host configuration.
+	///
+	/// The storage entry stores a `HostConfiguration` encoded value.
+	pub const ACTIVE_CONFIG: &[u8] =
+		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
+
+	/// The upward message dispatch queue for the given para id.
+	///
+	/// The storage entry stores a tuple of two values:
+	///
+	/// - `count: u32`, the number of messages currently in the queue for given para,
+	/// - `total_size: u32`, the total size of all messages in the queue.
+	pub fn relay_dispatch_queue_size(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["f5207f03cfdce586301014700e2c2593fad157e461d71fd4c1f936839a5f1f3e"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
+	/// The hrmp channel for the given identifier.
+	///
+	/// The storage stores an `HrmpChannel` encoded value.
+	pub fn hrmp_channels(channel: HrmpChannelId) -> Vec<u8> {
+		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cb6604cff828a6e3f579ca6c59ace013d"];
+
+		channel.using_encoded(|channel: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(channel).iter())
+				.chain(channel.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
+	/// The list of outbound channels for the given para.
+	///
+	/// The storage entry stores a `Vec<ParaId>`
+	pub fn hrmp_egress_channel_index(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cf12b746dcf32e843354583c9702cc020"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+}
+
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 
