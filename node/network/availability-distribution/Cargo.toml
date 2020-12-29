@@ -16,7 +16,7 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.22"
+thiserror = "1.0.23"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

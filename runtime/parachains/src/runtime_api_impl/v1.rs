@@ -193,12 +193,13 @@ pub fn full_validation_data<T: initializer::Config>(
 )
 	-> Option<ValidationData<T::BlockNumber>>
 {
+	let relay_parent_number = <frame_system::Module<T>>::block_number();
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,
 		|| Some(ValidationData {
-			persisted: crate::util::make_persisted_validation_data::<T>(para_id)?,
-			transient: crate::util::make_transient_validation_data::<T>(para_id)?,
+			persisted: crate::util::make_persisted_validation_data::<T>(para_id, relay_parent_number)?,
+			transient: crate::util::make_transient_validation_data::<T>(para_id, relay_parent_number)?,
 		}),
 	)
 }
@@ -208,10 +209,11 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
+	let relay_parent_number = <frame_system::Module<T>>::block_number();
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,
-		|| crate::util::make_persisted_validation_data::<T>(para_id),
+		|| crate::util::make_persisted_validation_data::<T>(para_id, relay_parent_number),
 	)
 }
 
@@ -220,7 +222,7 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
-	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs)
+	<inclusion::Module<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.

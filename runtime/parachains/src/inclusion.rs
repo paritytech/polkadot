@@ -399,7 +399,12 @@ impl<T: Config> Module<T> {
 
 		let validators = Validators::get();
 		let parent_hash = <frame_system::Module<T>>::parent_hash();
-		let check_cx = CandidateCheckContext::<T>::new();
+
+		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
+		// before of the block where we include a candidate (i.e. this code path).
+		let now = <frame_system::Module<T>>::block_number();
+		let relay_parent_number = now - One::one();
+		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		// do all checks before writing storage.
 		let core_indices_and_backers = {
@@ -483,7 +488,10 @@ impl<T: Config> Module<T> {
 						{
 							// this should never fail because the para is registered
 							let persisted_validation_data =
-								match crate::util::make_persisted_validation_data::<T>(para_id) {
+								match crate::util::make_persisted_validation_data::<T>(
+									para_id,
+									relay_parent_number,
+								) {
 									Some(l) => l,
 									None => {
 										// We don't want to error out here because it will
@@ -592,7 +600,7 @@ impl<T: Config> Module<T> {
 				hash: candidate_hash,
 				descriptor,
 				availability_votes,
-				relay_parent_number: check_cx.relay_parent_number,
+				relay_parent_number,
 				backers,
 				backed_in_number: check_cx.now,
 			});
@@ -603,11 +611,17 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Run the acceptance criteria checks on the given candidate commitments.
-	pub(crate) fn check_validation_outputs(
+	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
 		validation_outputs: primitives::v1::CandidateCommitments,
 	) -> bool {
-		if let Err(err) = CandidateCheckContext::<T>::new().check_validation_outputs(
+		// This function is meant to be called from the runtime APIs against the relay-parent, hence
+		// `relay_parent_number` is equal to `now`.
+		let now = <frame_system::Module<T>>::block_number();
+		let relay_parent_number = now;
+		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+
+		if let Err(err) = check_cx.check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
@@ -812,12 +826,11 @@ struct CandidateCheckContext<T: Config> {
 }
 
 impl<T: Config> CandidateCheckContext<T> {
-	fn new() -> Self {
-		let now = <frame_system::Module<T>>::block_number();
+	fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self {
 			config: <configuration::Module<T>>::config(),
 			now,
-			relay_parent_number: now - One::one(),
+			relay_parent_number,
 		}
 	}
 
@@ -1111,8 +1124,12 @@ mod tests {
 	}
 
 	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
+		let relay_parent_number = <frame_system::Module<Test>>::block_number() - 1;
 		let persisted_validation_data
-			= crate::util::make_persisted_validation_data::<Test>(para_id)?;
+			= crate::util::make_persisted_validation_data::<Test>(
+				para_id,
+				relay_parent_number,
+			)?;
 		Some(persisted_validation_data.hash())
 	}
 
