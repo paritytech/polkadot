@@ -54,24 +54,18 @@ pub trait Config: frame_system::Config {
 
 pub trait WeightInfo {
 	fn claim() -> Weight;
-	fn validate_unsigned_claim() -> Weight;
 	fn mint_claim() -> Weight;
 	fn claim_attest() -> Weight;
-	fn validate_unsigned_claim_attest() -> Weight;
 	fn attest() -> Weight;
-	fn validate_prevalidate_attests() -> Weight;
 	fn move_claim() -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn claim() -> Weight { 0 }
-	fn validate_unsigned_claim() -> Weight { 0 }
 	fn mint_claim() -> Weight { 0 }
 	fn claim_attest() -> Weight { 0 }
-	fn validate_unsigned_claim_attest() -> Weight { 0 }
 	fn attest() -> Weight { 0 }
-	fn validate_prevalidate_attests() -> Weight { 0 }
 	fn move_claim() -> Weight { 0 }
 }
 
@@ -267,7 +261,7 @@ decl_module! {
 		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
 		/// Validate Unsigned: +188.7 µs
 		/// </weight>
-		#[weight = T::WeightInfo::claim().saturating_add(T::WeightInfo::validate_unsigned_claim())]
+		#[weight = T::WeightInfo::claim()]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -362,7 +356,7 @@ decl_module! {
 		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
 		/// Validate Unsigned: +190.1 µs
 		/// </weight>
-		#[weight = T::WeightInfo::claim_attest().saturating_add(T::WeightInfo::validate_unsigned_claim_attest())]
+		#[weight = T::WeightInfo::claim_attest()]
 		fn claim_attest(origin,
 			dest: T::AccountId,
 			ethereum_signature: EcdsaSignature,
@@ -400,7 +394,7 @@ decl_module! {
 		/// Validate PreValidateAttests: +8.631 µs
 		/// </weight>
 		#[weight = (
-			T::WeightInfo::attest().saturating_add(T::WeightInfo::validate_prevalidate_attests()),
+			T::WeightInfo::attest(),
 			DispatchClass::Normal,
 			Pays::No
 		)]
@@ -1218,17 +1212,28 @@ mod benchmarking {
 	benchmarks! {
 		_ { }
 
-		// Benchmark `claim` for different users.
+		// Benchmark `claim` including `validate_unsigned` logic.
 		claim {
-			let u = 1000;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&u.encode())).unwrap();
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", u, SEED);
+			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-		}: _(RawOrigin::None, account, signature)
+			let source = sp_runtime::transaction_validity::TransactionSource::External;
+			let call = Call::<T>::claim(account.clone(), signature.clone());
+		}: {
+			super::Module::<T>::validate_unsigned(source, &call)?;
+			super::Module::<T>::claim(RawOrigin::None.into(), account, signature)?;
+		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
 		}
@@ -1250,93 +1255,55 @@ mod benchmarking {
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 		}
 
-		// Benchmark `claim_attest` for different users.
+		// Benchmark `claim_attest` including `validate_unsigned` logic.
 		claim_attest {
-			let u = 1000;
-			let attest_u = u32::max_value() - u;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			// Crate signature
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", u, SEED);
+			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-		}: _(RawOrigin::None, account, signature, statement.to_text().to_vec())
+			let call = Call::<T>::claim_attest(account.clone(), signature.clone(), StatementKind::Regular.to_text().to_vec());
+			let source = sp_runtime::transaction_validity::TransactionSource::External;
+		}: {
+			super::Module::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
+			super::Module::<T>::validate_unsigned(source, &call)?;
+		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
 		}
 
-		// Benchmark `attest` for different users.
+		// Benchmark `attest` including prevalidate logic.
 		attest {
-			let u = 1000;
-			let attest_u = u32::max_value() - u;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", u, SEED);
+			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
 			Preclaims::<T>::insert(&account, eth_address);
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-		}: _(RawOrigin::Signed(account), statement.to_text().to_vec())
-		verify {
-			assert_eq!(Claims::<T>::get(eth_address), None);
-		}
 
-		// Benchmark the time it takes to execute `validate_unsigned` for `claim`
-		validate_unsigned_claim {
-			let c = MAX_CLAIMS;
-
-			for i in 0 .. c / 2 {
-				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
-			}
-
-			// Crate signature
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
-			let account: T::AccountId = account("user", c, SEED);
-			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
-			let call = Call::<T>::claim(account, signature);
-			let source = sp_runtime::transaction_validity::TransactionSource::External;
-		}: {
-			super::Module::<T>::validate_unsigned(source, &call)?
-		}
-
-		// Benchmark the time it takes to execute `validate_unsigned` for `claim_attest`
-		validate_unsigned_claim_attest {
-			let c = MAX_CLAIMS;
-
-			for i in 0 .. c / 2 {
-				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
-			}
-
-			// Crate signature
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
-			let account: T::AccountId = account("user", c, SEED);
-			let signature = sig::<T>(&secret_key, &account.encode(), StatementKind::Regular.to_text());
-			let call = Call::<T>::claim_attest(account, signature, StatementKind::Regular.to_text().to_vec());
-			let source = sp_runtime::transaction_validity::TransactionSource::External;
-		}: {
-			super::Module::<T>::validate_unsigned(source, &call)?
-		}
-
-		validate_prevalidate_attests {
-			let c = MAX_CLAIMS;
-
-			for i in 0 .. c / 2 {
-				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
-			}
-
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
-			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", c, SEED);
-			Preclaims::<T>::insert(&account, eth_address);
 			let call = super::Call::attest(StatementKind::Regular.to_text().to_vec());
 			// We have to copy the validate statement here because of trait issues... :(
 			let validate = |who: &T::AccountId, call: &super::Call<T>| -> DispatchResult {
@@ -1349,7 +1316,11 @@ mod benchmarking {
 				Ok(())
 			};
 		}: {
-			validate(&account, &call)?
+			validate(&account, &call)?;
+			super::Module::<T>::attest(RawOrigin::Signed(account).into(), statement.to_text().to_vec())?;
+		}
+		verify {
+			assert_eq!(Claims::<T>::get(eth_address), None);
 		}
 
 		move_claim {
@@ -1419,9 +1390,6 @@ mod benchmarking {
 				assert_ok!(test_benchmark_mint_claim::<Test>());
 				assert_ok!(test_benchmark_claim_attest::<Test>());
 				assert_ok!(test_benchmark_attest::<Test>());
-				assert_ok!(test_benchmark_validate_unsigned_claim::<Test>());
-				assert_ok!(test_benchmark_validate_unsigned_claim_attest::<Test>());
-				assert_ok!(test_benchmark_validate_prevalidate_attests::<Test>());
 				assert_ok!(test_benchmark_move_claim::<Test>());
 				assert_ok!(test_benchmark_keccak256::<Test>());
 				assert_ok!(test_benchmark_eth_recover::<Test>());
