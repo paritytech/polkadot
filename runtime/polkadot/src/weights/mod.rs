@@ -15,7 +15,6 @@
 
 //! A list of the different weight modules for our runtime.
 
-pub mod claims;
 pub mod frame_system;
 pub mod pallet_balances;
 pub mod pallet_collective;
@@ -35,3 +34,4 @@ pub mod pallet_utility;
 pub mod pallet_vesting;
 pub mod pallet_bounties;
 pub mod pallet_tips;
+pub mod runtime_common_claims;
