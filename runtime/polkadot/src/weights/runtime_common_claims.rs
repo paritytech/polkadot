@@ -63,18 +63,6 @@ impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<
 			.saturating_add(T::DbWeight::get().reads(8 as Weight))
 			.saturating_add(T::DbWeight::get().writes(8 as Weight))
 	}
-	fn validate_unsigned_claim() -> Weight {
-		(176_674_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-	}
-	fn validate_unsigned_claim_attest() -> Weight {
-		(179_375_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-	}
-	fn validate_prevalidate_attests() -> Weight {
-		(15_014_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-	}
 	fn move_claim() -> Weight {
 		(39_889_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))

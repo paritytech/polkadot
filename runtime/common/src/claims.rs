@@ -1277,8 +1277,8 @@ mod benchmarking {
 			let call = Call::<T>::claim_attest(account.clone(), signature.clone(), StatementKind::Regular.to_text().to_vec());
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
-			super::Module::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
 			super::Module::<T>::validate_unsigned(source, &call)?;
+			super::Module::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
 		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
