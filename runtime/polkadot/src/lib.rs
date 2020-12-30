@@ -761,6 +761,7 @@ impl claims::Config for Runtime {
 	type Prefix = Prefix;
 	/// At least 3/4 of the council must agree to a claim move before it can happen.
 	type MoveClaimOrigin = pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1327,7 +1328,7 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 			// Polkadot
-			add_benchmark!(params, batches, claims, Claims);
+			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
