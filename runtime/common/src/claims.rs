@@ -243,23 +243,9 @@ decl_module! {
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
-		/// - One `eth_recover` operation which involves a keccak hash and a
-		///   ecdsa recover.
-		/// - Three storage reads to check if a claim exists for the user, to
-		///   get the current pot size, to see if there exists a vesting schedule.
-		/// - Up to one storage write for adding a new vesting schedule.
-		/// - One `deposit_creating` Currency call.
-		/// - One storage write to update the total.
-		/// - Two storage removals for vesting and claims information.
-		/// - One deposit event.
+		/// Weight includes logic to validate unsigned `claim` call.
 		///
 		/// Total Complexity: O(1)
-		/// ----------------------------
-		/// Base Weight: 269.7 µs
-		/// DB Weight:
-		/// - Read: Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
-		/// Validate Unsigned: +188.7 µs
 		/// </weight>
 		#[weight = T::WeightInfo::claim()]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
@@ -284,17 +270,9 @@ decl_module! {
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
-		/// - One storage mutate to increase the total claims available.
-		/// - One storage write to add a new claim.
-		/// - Up to one storage write to add a new vesting schedule.
+		/// We assume worst case that both vesting and statement is being inserted.
 		///
 		/// Total Complexity: O(1)
-		/// ---------------------
-		/// Base Weight: 10.46 µs
-		/// DB Weight:
-		/// - Reads: Total
-		/// - Writes: Total, Claims
-		/// - Maybe Write: Vesting, Statement
 		/// </weight>
 		#[weight = T::WeightInfo::mint_claim()]
 		fn mint_claim(origin,
@@ -337,24 +315,9 @@ decl_module! {
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
-		/// - One `eth_recover` operation which involves a keccak hash and a
-		///   ecdsa recover.
-		/// - Four storage reads to check if a claim exists for the user, to
-		///   get the current pot size, to see if there exists a vesting schedule, to get the
-		///   required statement.
-		/// - Up to one storage write for adding a new vesting schedule.
-		/// - One `deposit_creating` Currency call.
-		/// - One storage write to update the total.
-		/// - Two storage removals for vesting and claims information.
-		/// - One deposit event.
+		/// Weight includes logic to validate unsigned `claim_attest` call.
 		///
 		/// Total Complexity: O(1)
-		/// ----------------------------
-		/// Base Weight: 270.2 µs
-		/// DB Weight:
-		/// - Read: Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
-		/// Validate Unsigned: +190.1 µs
 		/// </weight>
 		#[weight = T::WeightInfo::claim_attest()]
 		fn claim_attest(origin,
@@ -385,13 +348,10 @@ decl_module! {
 		/// - `statement`: The identity of the statement which is being attested to in the signature.
 		///
 		/// <weight>
+		/// The weight of this call is invariant over the input parameters.
+		/// Weight includes logic to do pre-validation on `attest` call.
+		///
 		/// Total Complexity: O(1)
-		/// ----------------------------
-		/// Base Weight: 93.3 µs
-		/// DB Weight:
-		/// - Read: Preclaims, Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing, Preclaims
-		/// Validate PreValidateAttests: +8.631 µs
 		/// </weight>
 		#[weight = (
 			T::WeightInfo::attest(),
@@ -507,16 +467,14 @@ impl<T: Config> sp_runtime::traits::ValidateUnsigned for Module<T> {
 
 		let (maybe_signer, maybe_statement) = match call {
 			// <weight>
-			// Base Weight: 188.7 µs (includes the full logic of `validate_unsigned`)
-			// DB Weight: 2 Read (Claims, Signing)
+			// The weight of this logic is included in the `claim` dispatchable.
 			// </weight>
 			Call::claim(account, ethereum_signature) => {
 				let data = account.using_encoded(to_ascii_hex);
 				(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
 			}
 			// <weight>
-			// Base Weight: 190.1 µs (includes the full logic of `validate_unsigned`)
-			// DB Weight: 2 Read (Claims, Signing)
+			// The weight of this logic is included in the `claim_attest` dispatchable.
 			// </weight>
 			Call::claim_attest(account, ethereum_signature, statement) => {
 				let data = account.using_encoded(to_ascii_hex);
@@ -590,8 +548,7 @@ impl<T: Config + Send + Sync> SignedExtension for PrevalidateAttests<T> where
 	}
 
 	// <weight>
-	// Base Weight: 8.631 µs
-	// DB Weight: 2 Read (Preclaims, Signing)
+	// The weight of this logic is included in the `attest` dispatchable.
 	// </weight>
 	fn validate(
 		&self,
