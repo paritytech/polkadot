@@ -1080,7 +1080,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
-	fn new_test_ext() -> sp_io::TestExternalities {
+	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
@@ -1750,4 +1750,49 @@ mod tests {
 			assert!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), code.into()).is_err());
 		});
 	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking {
+	use super::*;
+	use crate::slots::Module as Slots;
+	use frame_system::RawOrigin;
+	use frame_benchmarking::{benchmarks, account};
+
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+		let events = frame_system::Module::<T>::events();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		// compare to the last event record
+		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+		assert_eq!(event, &system_event);
+	}
+
+	benchmarks! {
+		_{ }
+
+		new_auction {
+			let lease_period_index = Slots::<T>::lease_period_index();
+			let duration = 100.into();
+		}: _(RawOrigin::Root, duration, lease_period_index)
+		verify {
+			let auction_counter = AuctionCounter::get();
+			let ending = <frame_system::Module<T>>::block_number() + duration;
+			assert_last_event::<T>(RawEvent::AuctionStarted(auction_counter, lease_period_index, ending).into());
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::slots::tests::{new_test_ext, Test};
+		use frame_support::assert_ok;
+
+		#[test]
+		fn test_benchmarks() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_new_auction::<Test>());
+			});
+		}
+	}
+
 }
