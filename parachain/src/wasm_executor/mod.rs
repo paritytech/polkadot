@@ -265,10 +265,6 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("place_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn chain_id(&self) -> u64 {
-		panic!("chain_id: unsupported feature for parachain validation")
-	}
-
 	fn storage_root(&mut self) -> Vec<u8> {
 		panic!("storage_root: unsupported feature for parachain validation")
 	}
