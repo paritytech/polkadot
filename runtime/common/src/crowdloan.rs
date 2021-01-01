@@ -1255,7 +1255,8 @@ mod tests {
 
 	#[test]
 	fn partial_dissolve_works() {
-		new_test_ext().execute_with(|| {
+		let mut ext = new_test_ext();
+		ext.execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdloan::create(Origin::signed(1), 100_000, 1, 4, 9));
@@ -1272,11 +1273,37 @@ mod tests {
 
 			// Check current funds (contributions + deposit)
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 100 * 30 + 1);
+		});
 
+		ext.commit_all().unwrap();
+		ext.execute_with(|| {
 			// Partially dissolve the crowdloan
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), 0));
+			for i in 0 .. 10 {
+				assert_eq!(Crowdloan::contribution_get(0, &i), 0);
+			}
+			for i in 10 .. 30 {
+				assert_eq!(Crowdloan::contribution_get(0, &i), 100);
+			}
+		});
 
-			// TODO: THIS SHOULD FAIL
+		ext.commit_all().unwrap();
+		ext.execute_with(|| {
+			// Partially dissolve the crowdloan, again
+			assert_ok!(Crowdloan::dissolve(Origin::signed(1), 0));
+			for i in 0 .. 20 {
+				println!("{:?}", i);
+				assert_eq!(Crowdloan::contribution_get(0, &i), 0);
+			}
+			for i in 20 .. 30 {
+				assert_eq!(Crowdloan::contribution_get(0, &i), 100);
+			}
+		});
+
+		ext.commit_all().unwrap();
+		ext.execute_with(|| {
+			// Fully dissolve the crowdloan
+			assert_ok!(Crowdloan::dissolve(Origin::signed(1), 0));
 			for i in 0 .. 30 {
 				assert_eq!(Crowdloan::contribution_get(0, &i), 0);
 			}
@@ -1287,12 +1314,8 @@ mod tests {
 			assert_eq!(Balances::free_balance(1), 201);
 			// Treasury account is filled
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 100 * 30);
-
-			// Storage trie is removed
-			assert_eq!(Crowdloan::contribution_get(0,&0), 0);
 			// Fund storage is removed
 			assert_eq!(Crowdloan::funds(0), None);
-
 		});
 	}
 
