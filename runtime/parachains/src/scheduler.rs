@@ -173,7 +173,9 @@ decl_storage! {
 		/// The i'th parachain belongs to the i'th core, with the remaining cores all being
 		/// parathread-multiplexers.
 		///
-		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
+		/// Bounded by the maximum of either of these two values:
+		///   * The number of parachains and parathread multiplexers
+		///   * The number of validators divided by `configuration.max_validators_per_core`.
 		AvailabilityCores get(fn availability_cores): Vec<Option<CoreOccupied>>;
 		/// An index used to ensure that only one claim on a parathread exists in the queue or is
 		/// currently being handled by an occupied core.
@@ -240,7 +242,13 @@ impl<T: Config> Module<T> {
 
 		let mut thread_queue = ParathreadQueue::get();
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
-		let n_cores = n_parachains + config.parathread_cores;
+		let n_cores = core::cmp::max(
+			n_parachains + config.parathread_cores,
+			match config.max_validators_per_core {
+				Some(x) if x != 0 => { validators.len() as u32 / x },
+				_ => 0,
+			},
+		);
 
 		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number());
 		AvailabilityCores::mutate(|cores| {
@@ -271,14 +279,6 @@ impl<T: Config> Module<T> {
 				.collect();
 
 			shuffled_indices.shuffle(&mut rng);
-
-			// trim to max per cores. do this after shuffling.
-			{
-				if let Some(max_per_core) = config.max_validators_per_core {
-					let max_total = max_per_core * n_cores;
-					shuffled_indices.truncate(max_total as usize);
-				}
-			}
 
 			let group_base_size = shuffled_indices.len() / n_cores as usize;
 			let n_larger_groups = shuffled_indices.len() % n_cores as usize;
@@ -1070,6 +1070,7 @@ mod tests {
 		new_test_ext(genesis_config).execute_with(|| {
 			let chain_a = ParaId::from(1);
 			let chain_b = ParaId::from(2);
+			let chain_c = ParaId::from(3);
 
 			// ensure that we have 5 groups by registering 2 parachains.
 			Paras::schedule_para_initialize(chain_a, ParaGenesisArgs {
@@ -1081,6 +1082,11 @@ mod tests {
 				genesis_head: Vec::new().into(),
 				validation_code: Vec::new().into(),
 				parachain: true,
+			});
+			Paras::schedule_para_initialize(chain_c, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: false,
 			});
 
 			run_to_block(1, |number| match number {
@@ -1102,11 +1108,10 @@ mod tests {
 			});
 
 			let groups = ValidatorGroups::get();
-			assert_eq!(groups.len(), 2);
+			assert_eq!(groups.len(), 7);
 
-			// Even though there are 7 validators, only 1 validator per group
-			// due to the max.
-			for i in 0..2 {
+			// Every validator gets its own group, even though there are 2 paras.
+			for i in 0..7 {
 				assert_eq!(groups[i].len(), 1);
 			}
 		});

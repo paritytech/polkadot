@@ -9,7 +9,7 @@ futures = "0.3.8"
 futures-timer = "3.0.2"
 kvdb = "0.7.0"
 kvdb-rocksdb = "0.9.1"
-thiserror = "1.0.22"
+thiserror = "1.0.23"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 
