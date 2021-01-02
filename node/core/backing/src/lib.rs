@@ -288,7 +288,7 @@ async fn store_available_data(
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
-#[tracing::instrument(level = "trace", skip(tx_from, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(tx_from, pov, span), fields(subsystem = LOG_TARGET))]
 async fn make_pov_available(
 	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	validator_index: Option<ValidatorIndex>,
@@ -297,31 +297,39 @@ async fn make_pov_available(
 	candidate_hash: CandidateHash,
 	validation_data: polkadot_primitives::v1::PersistedValidationData,
 	expected_erasure_root: Hash,
+	span: Option<&JaegerSpan>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
 	let available_data = AvailableData {
 		pov,
 		validation_data,
 	};
 
-	let chunks = erasure_coding::obtain_chunks_v1(
-		n_validators,
-		&available_data,
-	)?;
+	{
+		let _span = span.as_ref().map(|s| s.child("erasure-coding"));
 
-	let branches = erasure_coding::branches(chunks.as_ref());
-	let erasure_root = branches.root();
+		let chunks = erasure_coding::obtain_chunks_v1(
+			n_validators,
+			&available_data,
+		)?;
 
-	if erasure_root != expected_erasure_root {
-		return Ok(Err(InvalidErasureRoot));
+		let branches = erasure_coding::branches(chunks.as_ref());
+		let erasure_root = branches.root();
+
+		if erasure_root != expected_erasure_root {
+			return Ok(Err(InvalidErasureRoot));
+		}
 	}
 
-	store_available_data(
-		tx_from,
-		validator_index,
-		n_validators as u32,
-		candidate_hash,
-		available_data,
-	).await?;
+	{
+		let _span = span.as_ref().map(|s| s.child("store-data"));
+		store_available_data(
+			tx_from,
+			validator_index,
+			n_validators as u32,
+			candidate_hash,
+			available_data,
+		).await?;
+	}
 
 	Ok(Ok(()))
 }
@@ -423,7 +431,6 @@ async fn validate_and_make_available(
 				);
 				Err(candidate)
 			} else {
-				let _span = span.as_ref().map(|s| s.child("make-available"));
 				let erasure_valid = make_pov_available(
 					&mut tx_from,
 					validator_index,
@@ -432,6 +439,7 @@ async fn validate_and_make_available(
 					candidate.hash(),
 					validation_data,
 					candidate.descriptor.erasure_root,
+					span.as_ref(),
 				).await?;
 
 				match erasure_valid {
