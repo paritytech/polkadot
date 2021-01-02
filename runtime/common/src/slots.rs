@@ -1772,12 +1772,53 @@ mod benchmarking {
 
 		new_auction {
 			let lease_period_index = Slots::<T>::lease_period_index();
-			let duration = 100.into();
+			let duration = 100u32.into();
 		}: _(RawOrigin::Root, duration, lease_period_index)
 		verify {
 			let auction_counter = AuctionCounter::get();
 			let ending = <frame_system::Module<T>>::block_number() + duration;
 			assert_last_event::<T>(RawEvent::AuctionStarted(auction_counter, lease_period_index, ending).into());
+		}
+
+		// bid
+
+		// bid_renew
+
+		set_offboarding {
+			let sender = ParaId::default().into_account();
+			let dest: T::AccountId = account("dest", 0, 0);
+			let dest_lookup = T::Lookup::unlookup(dest.clone());
+		}: _(RawOrigin::Signed(sender), dest_lookup)
+		verify {
+			assert_eq!(Offboarding::<T>::get(ParaId::default()), dest);
+		}
+
+		fix_deploy_data {
+			let para_id = ParaId::default();
+			let bidder: T::AccountId = account("bidder", 0, 0);
+			let onboarding_data = (
+				LeasePeriodOf::<T>::default(),
+				IncomingParachain::Unset(
+					NewBidder {
+						who: bidder.clone(),
+						sub: Default::default(),
+					}
+				),
+			);
+
+			Onboarding::<T>::insert(&para_id, onboarding_data.clone());
+
+		}: _(
+			RawOrigin::Signed(bidder),
+			Default::default(),
+			para_id.clone(),
+			Default::default(),
+			Default::default(),
+			Default::default()
+		)
+		verify {
+			// Onboarding data updated.
+			assert!(Onboarding::<T>::get(&para_id) != Some(onboarding_data));
 		}
 	}
 
@@ -1791,6 +1832,8 @@ mod benchmarking {
 		fn test_benchmarks() {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_new_auction::<Test>());
+				assert_ok!(test_benchmark_set_offboarding::<Test>());
+				assert_ok!(test_benchmark_fix_deploy_data::<Test>());
 			});
 		}
 	}
