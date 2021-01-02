@@ -59,14 +59,14 @@ pub trait Config: frame_system::Config {
 
 /// Parachain registration API.
 pub trait Registrar<AccountId> {
+	/// Maximum code size allowed.
+	const MAX_CODE_SIZE: u32;
+
+	/// Maximum head data size allowed.
+	const MAX_HEAD_DATA_SIZE: u32;
+
 	/// Create a new unique parachain identity for later registration.
 	fn new_id() -> ParaId;
-
-	/// Checks whether the given initial head data size falls within the limit.
-	fn head_data_size_allowed(head_data_size: u32) -> bool;
-
-	/// Checks whether the given validation code falls within the limit.
-	fn code_size_allowed(code_size: u32) -> bool;
 
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
@@ -486,11 +486,11 @@ decl_module! {
 			}
 
 			ensure!(
-				T::Parachains::head_data_size_allowed(initial_head_data.0.len() as _),
+				T::Parachains::MAX_HEAD_DATA_SIZE >= initial_head_data.0.len() as _,
 				Error::<T>::HeadDataTooLarge,
 			);
 			ensure!(
-				T::Parachains::code_size_allowed(code_size),
+				T::Parachains::MAX_CODE_SIZE >= code_size,
 				Error::<T>::CodeTooLarge,
 			);
 
@@ -1006,24 +1006,16 @@ mod tests {
 			RefCell<HashMap<u32, (ValidationCode, HeadData)>> = RefCell::new(HashMap::new());
 	}
 
-	const MAX_CODE_SIZE: u32 = 100;
-	const MAX_HEAD_DATA_SIZE: u32 = 10;
-
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
+		const MAX_CODE_SIZE: u32 = 100;
+		const MAX_HEAD_DATA_SIZE: u32 = 10;
+
 		fn new_id() -> ParaId {
 			PARACHAIN_COUNT.with(|p| {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
-		}
-
-		fn head_data_size_allowed(head_data_size: u32) -> bool {
-			head_data_size <= MAX_HEAD_DATA_SIZE
-		}
-
-		fn code_size_allowed(code_size: u32) -> bool {
-			code_size <= MAX_CODE_SIZE
 		}
 
 		fn register_para(
@@ -1673,7 +1665,7 @@ mod tests {
 
 			run_to_block(10);
 
-			let code = vec![0u8; (MAX_CODE_SIZE + 1) as _];
+			let code = vec![0u8; (<Test as Config>::Parachains::MAX_CODE_SIZE + 1) as _];
 			let h = BlakeTwo256::hash(&code[..]);
 			assert_eq!(
 				Slots::fix_deploy_data(
@@ -1696,8 +1688,8 @@ mod tests {
 
 			run_to_block(10);
 
-			let code = vec![0u8; MAX_CODE_SIZE as _];
-			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _].into();
+			let code = vec![0u8; <Test as Config>::Parachains::MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; <Test as Config>::Parachains::MAX_HEAD_DATA_SIZE as _].into();
 			let h = BlakeTwo256::hash(&code[..]);
 			assert_ok!(Slots::fix_deploy_data(
 				Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
@@ -1717,8 +1709,8 @@ mod tests {
 
 			run_to_block(10);
 
-			let code = vec![0u8; MAX_CODE_SIZE as _];
-			let head_data = vec![1u8; (MAX_HEAD_DATA_SIZE + 1) as _].into();
+			let code = vec![0u8; <Test as Config>::Parachains::MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; (<Test as Config>::Parachains::MAX_HEAD_DATA_SIZE + 1) as _].into();
 			let h = BlakeTwo256::hash(&code[..]);
 			assert_eq!(
 				Slots::fix_deploy_data(
@@ -1741,8 +1733,8 @@ mod tests {
 
 			run_to_block(10);
 
-			let code = vec![0u8; MAX_CODE_SIZE as _];
-			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _].into();
+			let code = vec![0u8; <Test as Config>::Parachains::MAX_CODE_SIZE as _];
+			let head_data = vec![1u8; <Test as Config>::Parachains::MAX_HEAD_DATA_SIZE as _].into();
 			let h = BlakeTwo256::hash(&code[..]);
 			assert_ok!(Slots::fix_deploy_data(
 				Origin::signed(1), 0, 0.into(), h, (code.len() - 1) as _, head_data,
@@ -1805,6 +1797,7 @@ mod benchmarking {
 					}
 				),
 			);
+			let head_data = HeadData(vec![0u8; T::Parachains::MAX_HEAD_DATA_SIZE as usize]);
 
 			Onboarding::<T>::insert(&para_id, onboarding_data.clone());
 
@@ -1813,13 +1806,20 @@ mod benchmarking {
 			Default::default(),
 			para_id.clone(),
 			Default::default(),
-			Default::default(),
-			Default::default()
+			T::Parachains::MAX_CODE_SIZE,
+			head_data
 		)
 		verify {
 			// Onboarding data updated.
 			assert!(Onboarding::<T>::get(&para_id) != Some(onboarding_data));
 		}
+
+		// elaborate_deploy_data {
+
+		// }: _(RawOrigin::Root, para_id, code: )
+		// verify {
+
+		// }
 	}
 
 	#[cfg(test)]

@@ -661,24 +661,16 @@ mod tests {
 			RefCell<HashMap<u32, (ValidationCode, HeadData)>> = RefCell::new(HashMap::new());
 	}
 
-	const MAX_CODE_SIZE: u32 = 100;
-	const MAX_HEAD_DATA_SIZE: u32 = 10;
-
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
+		const MAX_CODE_SIZE: u32 = 100;
+		const MAX_HEAD_DATA_SIZE: u32 = 10;
+
 		fn new_id() -> ParaId {
 			PARACHAIN_COUNT.with(|p| {
 				*p.borrow_mut() += 1;
 				(*p.borrow() - 1).into()
 			})
-		}
-
-		fn head_data_size_allowed(head_data_size: u32) -> bool {
-			head_data_size <= MAX_HEAD_DATA_SIZE
-		}
-
-		fn code_size_allowed(code_size: u32) -> bool {
-			code_size <= MAX_CODE_SIZE
 		}
 
 		fn register_para(
