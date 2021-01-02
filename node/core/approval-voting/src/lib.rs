@@ -238,19 +238,89 @@ async fn handle_from_overseer(
 // Given a new chain-head hash, this determines the hashes of all new blocks we should track
 // metadata for, given this head. The list will typically include the `head` hash provided unless
 // that block is already known, in which case the list should be empty. This is guaranteed to be
-// a subset of the ancestry of `head`, as well as `head`.
+// a subset of the ancestry of `head`, as well as `head`, starting from `head` and moving
+// backwards.
 //
 // This won't return the entire ancestry of the head in the case of a fresh DB.
 async fn determine_new_blocks(
 	ctx: &mut impl SubsystemContext,
 	db: &impl AuxStore,
 	head: Hash,
+	header: &Header,
 ) -> sp_blockchain::Result<Vec<(Hash, Header)>> {
 	const MAX_ANCESTRY: usize = 64;
 	const ANCESTRY_STEP: usize = 4;
 
-	// TODO [now]
-	unimplemented!()
+	let mut ancestry = vec![(head, header.clone())];
+
+	// Early exit if the parent hash is in the DB.
+	if aux_schema::load_block_entry(db, &header.parent_hash)?.is_some() {
+		return Ok(ancestry);
+	}
+
+	while ancestry.len() < MAX_ANCESTRY {
+		let &(ref last_hash, ref last_header) = ancestry.last()
+			.expect("ancestry has length 1 at initialization and is only added to; qed");
+
+		// If we iterated back to genesis, which can happen at the beginning of chains.
+		if last_header.number <= 1 {
+			break
+		}
+
+		let (tx, rx) = oneshot::channel();
+		let ancestors = ctx.send_message(ChainApiMessage::Ancestors {
+			hash: *last_hash,
+			k: ANCESTRY_STEP,
+			response_channel: tx,
+		}.into()).await;
+
+		// Continue past these errors.
+		let batch_hashes = match rx.await {
+			Err(_) | Ok(Err(_)) => break,
+			Ok(Ok(ancestors)) => ancestors,
+		};
+
+		let batch_headers = {
+			let (batch_senders, batch_receivers) = (0..batch_hashes.len())
+				.map(|_| oneshot::channel())
+				.unzip::<_, _, Vec<_>, Vec<_>>();
+
+			for (hash, sender) in batch_hashes.iter().cloned().zip(batch_senders) {
+				ctx.send_message(ChainApiMessage::BlockHeader(hash, sender).into()).await;
+			}
+
+			let mut requests = futures::stream::FuturesOrdered::new();
+			batch_receivers.into_iter().map(|rx| async move {
+				match rx.await {
+					Err(_) | Ok(Err(_)) => None,
+					Ok(Ok(h)) => h,
+				}
+			})
+				.for_each(|x| requests.push(x));
+
+			let batch_headers: Vec<_> = requests
+				.flat_map(|x: Option<Header>| stream::iter(x))
+				.collect()
+				.await;
+
+			// Any failed header fetch of the batch will yield a `None` result that will
+			// be skipped. Any failure at this stage means we'll just ignore those blocks
+			// as the chain DB has failed us.
+			if batch_headers.len() != batch_hashes.len() { break }
+			batch_headers
+		};
+
+		for (hash, header) in batch_hashes.into_iter().zip(batch_headers) {
+			if aux_schema::load_block_entry(db, &hash)?.is_some() {
+				break
+			}
+
+			ancestry.push((hash, header));
+		}
+	}
+
+	ancestry.reverse();
+	Ok(ancestry)
 }
 
 async fn handle_new_head(
@@ -258,13 +328,10 @@ async fn handle_new_head(
 	state: &mut State<impl AuxStore>,
 	head: Hash,
 ) -> sp_blockchain::Result<()> {
-	let new_blocks = determine_new_blocks(ctx, &*state.db, head).await?;
-
-	let mut approval_meta: Vec<()> = Vec::with_capacity(new_blocks.len());
+	// Update session info based on most recent head.
+	let header: Header = unimplemented!();
 
 	{
-		// Update session info based on most recent head.
-		let header: Header = unimplemented!();
 
 		let session_index = {
 			let (s_tx, s_rx) = oneshot::channel();
@@ -316,6 +383,9 @@ async fn handle_new_head(
 			}
 		}
 	}
+
+	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header).await?;
+	let mut approval_meta: Vec<()> = Vec::with_capacity(new_blocks.len());
 
 	for (block_hash, block_header) in new_blocks {
 		// Ignore any runtime API errors - that means these blocks are old and finalized.
