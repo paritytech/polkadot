@@ -242,6 +242,7 @@ async fn handle_from_overseer(
 // backwards.
 //
 // This won't return the entire ancestry of the head in the case of a fresh DB.
+// TODO [now]: improve error handling.
 async fn determine_new_blocks(
 	ctx: &mut impl SubsystemContext,
 	db: &impl AuxStore,
