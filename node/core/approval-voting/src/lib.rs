@@ -248,14 +248,17 @@ async fn determine_new_blocks(
 	db: &impl AuxStore,
 	head: Hash,
 	header: &Header,
-) -> sp_blockchain::Result<Vec<(Hash, Header)>> {
+) -> SubsystemResult<Vec<(Hash, Header)>> {
 	const MAX_ANCESTRY: usize = 64;
 	const ANCESTRY_STEP: usize = 4;
 
 	let mut ancestry = vec![(head, header.clone())];
 
 	// Early exit if the parent hash is in the DB.
-	if aux_schema::load_block_entry(db, &header.parent_hash)?.is_some() {
+	if aux_schema::load_block_entry(db, &header.parent_hash)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+		.is_some()
+	{
 		return Ok(ancestry);
 	}
 
@@ -312,7 +315,10 @@ async fn determine_new_blocks(
 		};
 
 		for (hash, header) in batch_hashes.into_iter().zip(batch_headers) {
-			if aux_schema::load_block_entry(db, &hash)?.is_some() {
+			if aux_schema::load_block_entry(db, &hash)
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+				.is_some()
+			{
 				break
 			}
 
@@ -328,7 +334,7 @@ async fn handle_new_head(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	head: Hash,
-) -> sp_blockchain::Result<()> {
+) -> SubsystemResult<()> {
 	// Update session info based on most recent head.
 	let header: Header = unimplemented!();
 
@@ -385,7 +391,10 @@ async fn handle_new_head(
 		}
 	}
 
-	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header).await?;
+	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+		.await?;
+
 	let mut approval_meta: Vec<()> = Vec::with_capacity(new_blocks.len());
 
 	for (block_hash, block_header) in new_blocks {
