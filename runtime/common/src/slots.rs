@@ -288,6 +288,8 @@ decl_event!(
 		Reserved(AccountId, Balance, Balance),
 		/// Funds were unreserved since bidder is no longer active. [bidder, amount]
 		Unreserved(AccountId, Balance),
+		/// Result of the Para Registration
+		RegisterParaResult(DispatchResult),
 	}
 );
 
@@ -530,8 +532,10 @@ decl_module! {
 					// Should have already begun. Remove the on-boarding entry and register the
 					// parachain for its immediate start.
 					<Onboarding<T>>::remove(&para_id);
-					let _ = T::Parachains::
+					// TODO: Probably best to make sure this doesn't fail or handle fail conditions.
+					let result = T::Parachains::
 						register_para(para_id, true, code, initial_head_data);
+					Self::deposit_event(RawEvent::RegisterParaResult(result));
 				}
 
 				Ok(())
@@ -1815,7 +1819,13 @@ mod benchmarking {
 		elaborate_deploy_data {
 			let para_id = ParaId::default();
 
-			let code = ValidationCode(vec![0u8; T::Parachains::MAX_CODE_SIZE as usize]);
+			let mut validation_code = vec![0u8; T::Parachains::MAX_CODE_SIZE as usize];
+			// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
+			let _ = validation_code.splice(
+				..crate::WASM_MAGIC.len(),
+				crate::WASM_MAGIC.iter().cloned(),
+			).collect::<Vec<_>>();
+			let code = ValidationCode(validation_code);
 			let head_data = HeadData(vec![0u8; T::Parachains::MAX_HEAD_DATA_SIZE as usize]);
 
 			let onboarding_data = (
@@ -1830,7 +1840,8 @@ mod benchmarking {
 		}: _(RawOrigin::Root, para_id, code)
 		verify {
 			// Onboarding is removed if the call is successful.
-			assert!(!Onboarding::<T>::contains_key(&para_id))
+			assert!(!Onboarding::<T>::contains_key(&para_id));
+			assert_last_event::<T>(RawEvent::RegisterParaResult(Ok(())).into());
 		}
 	}
 
