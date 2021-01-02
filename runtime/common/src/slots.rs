@@ -1800,7 +1800,6 @@ mod benchmarking {
 			let head_data = HeadData(vec![0u8; T::Parachains::MAX_HEAD_DATA_SIZE as usize]);
 
 			Onboarding::<T>::insert(&para_id, onboarding_data.clone());
-
 		}: _(
 			RawOrigin::Signed(bidder),
 			Default::default(),
@@ -1814,12 +1813,27 @@ mod benchmarking {
 			assert!(Onboarding::<T>::get(&para_id) != Some(onboarding_data));
 		}
 
-		// elaborate_deploy_data {
+		elaborate_deploy_data {
+			let para_id = ParaId::default();
 
-		// }: _(RawOrigin::Root, para_id, code: )
-		// verify {
+			let code = ValidationCode(vec![0u8; T::Parachains::MAX_CODE_SIZE as usize]);
+			let head_data = HeadData(vec![0u8; T::Parachains::MAX_HEAD_DATA_SIZE as usize]);
 
-		// }
+			let onboarding_data = (
+				LeasePeriodOf::<T>::default(),
+				IncomingParachain::Fixed {
+					code_hash: T::Hashing::hash(&code.0),
+					code_size: T::Parachains::MAX_CODE_SIZE,
+					initial_head_data: head_data,
+				},
+			);
+
+			Onboarding::<T>::insert(&para_id, onboarding_data);
+
+		}: _(RawOrigin::Root, para_id, code)
+		verify {
+			assert!(!Onboarding::<T>::contains_key(&para_id))
+		}
 	}
 
 	#[cfg(test)]
@@ -1834,6 +1848,7 @@ mod benchmarking {
 				assert_ok!(test_benchmark_new_auction::<Test>());
 				assert_ok!(test_benchmark_set_offboarding::<Test>());
 				assert_ok!(test_benchmark_fix_deploy_data::<Test>());
+				assert_ok!(test_benchmark_elaborate_deploy_data::<Test>());
 			});
 		}
 	}
