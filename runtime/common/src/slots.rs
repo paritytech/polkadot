@@ -1798,7 +1798,6 @@ mod benchmarking {
 				),
 			);
 			let head_data = HeadData(vec![0u8; T::Parachains::MAX_HEAD_DATA_SIZE as usize]);
-
 			Onboarding::<T>::insert(&para_id, onboarding_data.clone());
 		}: _(
 			RawOrigin::Signed(bidder),
@@ -1827,11 +1826,10 @@ mod benchmarking {
 					initial_head_data: head_data,
 				},
 			);
-
 			Onboarding::<T>::insert(&para_id, onboarding_data);
-
 		}: _(RawOrigin::Root, para_id, code)
 		verify {
+			// Onboarding is removed if the call is successful.
 			assert!(!Onboarding::<T>::contains_key(&para_id))
 		}
 	}
