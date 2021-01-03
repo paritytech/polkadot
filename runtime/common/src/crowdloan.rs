@@ -1454,11 +1454,20 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{*, Module as Crowdloan};
+	use crate::slots::Module as Slots;
 	use frame_system::RawOrigin;
-	use frame_support::assert_ok;
+	use frame_support::{
+		assert_ok,
+		// traits::OnInitialize,
+	};
 	use sp_runtime::traits::Bounded;
+	use sp_std::prelude::*;
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
+
+	// TODO: replace with T::Parachains::MAX_CODE_SIZE
+	const MAX_CODE_SIZE: u32 = 10;
+	const MAX_HEAD_DATA_SIZE: u32 = 10;
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -1470,8 +1479,8 @@ mod benchmarking {
 
 	fn create_fund<T: Config>(end: T::BlockNumber) -> FundIndex {
 		let cap = BalanceOf::<T>::max_value();
-		let first_slot = 0.into();
-		let last_slot = 3.into();
+		let first_slot = 0u32.into();
+		let last_slot = 3u32.into();
 
 		let caller = account("fund_creator", 0, 0);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
@@ -1486,13 +1495,38 @@ mod benchmarking {
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, who.clone()));
 	}
 
+	fn worst_validation_code<T: Config>() -> Vec<u8> {
+		// TODO: replace with T::Parachains::MAX_CODE_SIZE
+		let mut validation_code = vec![0u8; MAX_CODE_SIZE as usize];
+		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
+		let _ = validation_code.splice(
+			..crate::WASM_MAGIC.len(),
+			crate::WASM_MAGIC.iter().cloned(),
+		).collect::<Vec<_>>();
+		validation_code
+	}
+
+	fn worst_deploy_data<T: Config>() -> DeployData<T::Hash> {
+		let validation_code = worst_validation_code::<T>();
+		let code = primitives::v1::ValidationCode(validation_code);
+		// TODO: replace with T::Parachains::MAX_HEAD_DATA_SIZE
+		let head_data = HeadData(vec![0u8; MAX_HEAD_DATA_SIZE as usize]);
+
+		DeployData {
+			code_hash: T::Hashing::hash(&code.0),
+			// TODO: replace with T::Parachains::MAX_CODE_SIZE
+			code_size: MAX_CODE_SIZE,
+			initial_head_data: head_data,
+		}
+	}
+
 	benchmarks! {
 		_{ }
 
 		create {
 			let cap = BalanceOf::<T>::max_value();
-			let first_slot = 0.into();
-			let last_slot = 3.into();
+			let first_slot = 0u32.into();
+			let last_slot = 3u32.into();
 			let end = T::BlockNumber::max_value();
 
 			let caller: T::AccountId = whitelisted_caller();
@@ -1505,7 +1539,7 @@ mod benchmarking {
 
 		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
 		contribute {
-			let fund_index = create_fund::<T>(100.into());
+			let fund_index = create_fund::<T>(100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
@@ -1517,14 +1551,11 @@ mod benchmarking {
 		}
 
 		fix_deploy_data {
-			let fund_index = create_fund::<T>(100.into());
+			let fund_index = create_fund::<T>(100u32.into());
 			// Matches fund creator in `create_fund`
 			let caller = account("fund_creator", 0, 0);
 
-			let code_hash = T::Hash::default();
-			// Random number... shouldn't matter.
-			let code_size = 1_000;
-			let initial_head_data = HeadData::default();
+			let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
 
 			whitelist_account!(caller);
 		}: _(RawOrigin::Signed(caller), fund_index, code_hash, code_size, initial_head_data)
@@ -1532,15 +1563,49 @@ mod benchmarking {
 			assert_last_event::<T>(RawEvent::DeployDataFixed(fund_index).into());
 		}
 
-		// onboard
+		onboard {
+			let end_block: T::BlockNumber = 100u32.into();
+			let fund_index = create_fund::<T>(end_block);
+
+			// Matches fund creator in `create_fund`
+			let fund_creator = account("fund_creator", 0, 0);
+			let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
+			Crowdloan::<T>::fix_deploy_data(
+				RawOrigin::Signed(fund_creator).into(),
+				fund_index,
+				code_hash,
+				code_size,
+				initial_head_data
+			)?;
+
+			let lease_period_index = end_block / T::LeasePeriod::get();
+			Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
+			let contributor: T::AccountId = account("contributor", 0, 0);
+			contribute_fund::<T>(&contributor, fund_index);
+
+			// TODO: Probably should use on_initialize
+			//Slots::<T>::on_initialize(end_block + T::EndingPeriod::get());
+			let para_id = Default::default();
+			let onboarding_data = (lease_period_index, crate::slots::IncomingParachain::Unset(
+				crate::slots::NewBidder {
+					who: Crowdloan::<T>::fund_account_id(fund_index),
+					sub: Default::default(),
+				}
+			));
+			crate::slots::Onboarding::<T>::insert(para_id, onboarding_data);
+			let caller = whitelisted_caller();
+		}: _(RawOrigin::Signed(caller), fund_index, para_id)
+		verify {
+			assert_last_event::<T>(RawEvent::Onboarded(fund_index, para_id).into());
+		}
 
 		// begin_retirement
 
 		withdraw {
-			let fund_index = create_fund::<T>(100.into());
+			let fund_index = create_fund::<T>(100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			contribute_fund::<T>(&caller, fund_index);
-			frame_system::Module::<T>::set_block_number(200.into());
+			frame_system::Module::<T>::set_block_number(200u32.into());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(RawEvent::Withdrew(caller, fund_index, T::MinContribution::get()).into());
@@ -1548,7 +1613,7 @@ mod benchmarking {
 
 		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
 		dissolve {
-			let fund_index = create_fund::<T>(100.into());
+			let fund_index = create_fund::<T>(100u32.into());
 
 			// Dissolve will remove at most `RemoveKeysLimit` at once.
 			for i in 0 .. T::RemoveKeysLimit::get() {
@@ -1556,7 +1621,7 @@ mod benchmarking {
 			}
 
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Module::<T>::set_block_number(T::RetirementPeriod::get().saturating_add(200.into()));
+			frame_system::Module::<T>::set_block_number(T::RetirementPeriod::get().saturating_add(200u32.into()));
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
@@ -1574,6 +1639,7 @@ mod benchmarking {
 				assert_ok!(test_benchmark_create::<Test>());
 				assert_ok!(test_benchmark_contribute::<Test>());
 				assert_ok!(test_benchmark_fix_deploy_data::<Test>());
+				assert_ok!(test_benchmark_onboard::<Test>());
 				assert_ok!(test_benchmark_withdraw::<Test>());
 				assert_ok!(test_benchmark_dissolve::<Test>());
 			});
