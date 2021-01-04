@@ -50,6 +50,19 @@ fn chunk_protocol_message(
 	)
 }
 
+fn make_per_candidate() -> PerCandidate {
+	PerCandidate {
+		live_in: HashSet::new(),
+		message_vault: HashMap::new(),
+		received_messages: HashMap::new(),
+		sent_messages: HashMap::new(),
+		validators: Vec::new(),
+		validator_index: None,
+		descriptor: Default::default(),
+		span: jaeger::JaegerSpan::Disabled,
+	}
+}
+
 struct TestHarness {
 	virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 }
@@ -1024,9 +1037,10 @@ fn remove_relay_parent_only_removes_per_candidate_if_final() {
 		live_candidates: std::iter::once(candidate_hash_a).collect(),
 	});
 
-	state.per_candidate.insert(candidate_hash_a, PerCandidate {
-		live_in: vec![hash_a, hash_b].into_iter().collect(),
-		..Default::default()
+	state.per_candidate.insert(candidate_hash_a, {
+		let mut per_candidate = make_per_candidate();
+		per_candidate.live_in = vec![hash_a, hash_b].into_iter().collect();
+		per_candidate
 	});
 
 	state.remove_relay_parent(&hash_a);
@@ -1051,6 +1065,8 @@ fn add_relay_parent_includes_all_live_candidates() {
 
 	let candidate_hash_a = CandidateHash([10u8; 32].into());
 	let candidate_hash_b = CandidateHash([11u8; 32].into());
+
+	state.per_candidate.insert(candidate_hash_b, make_per_candidate());
 
 	let candidates = vec![
 		(candidate_hash_a, FetchedLiveCandidate::Fresh(Default::default())),

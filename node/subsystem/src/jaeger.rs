@@ -129,6 +129,12 @@ impl JaegerSpan {
 	}
 }
 
+impl std::fmt::Debug for JaegerSpan {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "<jaeger span>")
+	}
+}
+
 impl From<Option<mick_jaeger::Span>> for JaegerSpan {
 	fn from(src: Option<mick_jaeger::Span>) -> Self {
 		if let Some(span) = src {
@@ -146,9 +152,12 @@ impl From<mick_jaeger::Span> for JaegerSpan {
 }
 
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
-#[inline(always)]
 pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.read_recursive().span(|| { candidate_hash.0 }, span_name).into()
+	let mut span: JaegerSpan = INSTANCE.read_recursive()
+		.span(|| { candidate_hash.0 }, span_name).into();
+
+	span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
+	span
 }
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
