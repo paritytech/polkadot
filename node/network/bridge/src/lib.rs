@@ -70,7 +70,7 @@ const MALFORMED_VIEW_COST: ReputationChange
 // network bridge log target
 const LOG_TARGET: &'static str = "network_bridge";
 
-/// Messages received on the network.
+/// Messages from and to the network.
 #[derive(Debug, Encode, Decode, Clone)]
 pub enum WireMessage<M> {
 	/// A message from a peer on a specific protocol.
@@ -259,6 +259,11 @@ struct PeerData {
 	view: View,
 }
 
+/// Internal type combining all actions a `NetworkBridge` might perform.
+///
+/// Both messages coming from the network (`NetworkEvent`) and messages coming from other
+/// subsystems (`FromOverseer`) will be converted to `Action` in `run_network` before being
+/// processed.
 #[derive(Debug)]
 enum Action {
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
@@ -589,6 +594,7 @@ async fn dispatch_collation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
+/// Main driver, processing network events and messages from other subsystems.
 #[tracing::instrument(skip(network_service, authority_discovery_service, ctx), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	mut network_service: N,
