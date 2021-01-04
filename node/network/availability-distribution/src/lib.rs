@@ -679,7 +679,7 @@ where
 				target: LOG_TARGET,
 				candidate_hash = ?message.candidate_hash,
 				peer = %origin,
-				"Peer send chunk with invalid merkle proof",
+				"Peer sent chunk with invalid merkle proof",
 			);
 			modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
 			return Ok(());
