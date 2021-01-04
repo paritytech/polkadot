@@ -25,7 +25,7 @@ block-builder = { package = "sc-block-builder", git = "https://github.com/parity
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.22"
+thiserror = "1.0.23"
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

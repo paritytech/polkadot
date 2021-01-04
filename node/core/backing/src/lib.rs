@@ -140,7 +140,7 @@ struct CandidateBackingJob {
 	issued_statements: HashSet<CandidateHash>,
 	/// These candidates are undergoing validation in the background.
 	awaiting_validation: HashSet<CandidateHash>,
-	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
+	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h` hash.
 	seconded: Option<CandidateHash>,
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
@@ -288,7 +288,7 @@ async fn store_available_data(
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
-#[tracing::instrument(level = "trace", skip(tx_from, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(tx_from, pov, span), fields(subsystem = LOG_TARGET))]
 async fn make_pov_available(
 	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	validator_index: Option<ValidatorIndex>,
@@ -297,31 +297,39 @@ async fn make_pov_available(
 	candidate_hash: CandidateHash,
 	validation_data: polkadot_primitives::v1::PersistedValidationData,
 	expected_erasure_root: Hash,
+	span: Option<&JaegerSpan>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
 	let available_data = AvailableData {
 		pov,
 		validation_data,
 	};
 
-	let chunks = erasure_coding::obtain_chunks_v1(
-		n_validators,
-		&available_data,
-	)?;
+	{
+		let _span = span.as_ref().map(|s| s.child("erasure-coding"));
 
-	let branches = erasure_coding::branches(chunks.as_ref());
-	let erasure_root = branches.root();
+		let chunks = erasure_coding::obtain_chunks_v1(
+			n_validators,
+			&available_data,
+		)?;
 
-	if erasure_root != expected_erasure_root {
-		return Ok(Err(InvalidErasureRoot));
+		let branches = erasure_coding::branches(chunks.as_ref());
+		let erasure_root = branches.root();
+
+		if erasure_root != expected_erasure_root {
+			return Ok(Err(InvalidErasureRoot));
+		}
 	}
 
-	store_available_data(
-		tx_from,
-		validator_index,
-		n_validators as u32,
-		candidate_hash,
-		available_data,
-	).await?;
+	{
+		let _span = span.as_ref().map(|s| s.child("store-data"));
+		store_available_data(
+			tx_from,
+			validator_index,
+			n_validators as u32,
+			candidate_hash,
+			available_data,
+		).await?;
+	}
 
 	Ok(Ok(()))
 }
@@ -373,7 +381,7 @@ struct BackgroundValidationParams<F> {
 	pov: Option<Arc<PoV>>,
 	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
-	span: JaegerSpan,
+	span: Option<JaegerSpan>,
 	make_command: F,
 }
 
@@ -395,7 +403,7 @@ async fn validate_and_make_available(
 	let pov = match pov {
 		Some(pov) => pov,
 		None => {
-			let _span = span.child("request-pov");
+			let _span = span.as_ref().map(|s| s.child("request-pov"));
 			request_pov_from_distribution(
 				&mut tx_from,
 				relay_parent,
@@ -405,7 +413,7 @@ async fn validate_and_make_available(
 	};
 
 	let v = {
-		let _span = span.child("request-validation");
+		let _span = span.as_ref().map(|s| s.child("request-validation"));
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
 
@@ -423,7 +431,6 @@ async fn validate_and_make_available(
 				);
 				Err(candidate)
 			} else {
-				let _span = span.child("make-available");
 				let erasure_valid = make_pov_available(
 					&mut tx_from,
 					validator_index,
@@ -432,6 +439,7 @@ async fn validate_and_make_available(
 					candidate.hash(),
 					validation_data,
 					candidate.descriptor.erasure_root,
+					span.as_ref(),
 				).await?;
 
 				match erasure_valid {
@@ -503,7 +511,6 @@ impl CandidateBackingJob {
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
 		self.awaiting_validation.remove(&candidate_hash);
-		self.remove_unbacked_span(&candidate_hash);
 
 		match command {
 			ValidatedCandidateCommand::Second(res) => {
@@ -595,8 +602,7 @@ impl CandidateBackingJob {
 
 		let candidate_hash = candidate.hash();
 		self.add_unbacked_span(&parent_span, candidate_hash);
-		let span = self.get_unbacked_validation_child(&candidate_hash)
-			.expect("just added unbacked span; qed");
+		let span = self.get_unbacked_validation_child(&candidate_hash);
 
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
@@ -664,6 +670,12 @@ impl CandidateBackingJob {
 		&mut self,
 		statement: &SignedFullStatement,
 	) -> Result<Option<TableSummary>, Error> {
+		let _span = {
+			// create a span only for candidates we're already aware of.
+			let candidate_hash = statement.payload().candidate_hash();
+			self.get_unbacked_statement_child(&candidate_hash, statement.validator_index())
+		};
+
 		let stmt = primitive_statement_to_table(statement);
 
 		let summary = self.table.import_statement(&self.table_context, stmt);
@@ -753,7 +765,7 @@ impl CandidateBackingJob {
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
-		span: JaegerSpan,
+		span: Option<JaegerSpan>,
 	) -> Result<(), Error> {
 		let candidate_hash = summary.candidate;
 
@@ -803,8 +815,7 @@ impl CandidateBackingJob {
 			if let Statement::Seconded(_) = statement.payload() {
 				self.add_unbacked_span(parent_span, summary.candidate);
 				if Some(summary.group_id) == self.assignment {
-					let span = self.get_unbacked_validation_child(&summary.candidate)
-						.expect("just created unbacked span; qed");
+					let span = self.get_unbacked_validation_child(&summary.candidate);
 
 					self.kick_off_validation_work(summary, span).await?;
 				}
@@ -843,15 +854,26 @@ impl CandidateBackingJob {
 	}
 
 	fn add_unbacked_span(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) {
-		self.unbacked_candidates.entry(hash).or_insert_with(|| {
-			let mut span = parent_span.child("unbacked-candidate");
-			span.add_string_tag("candidate-hash", &format!("{:?}", hash.0));
-			span
-		});
+		if !self.backed.contains(&hash) {
+			// only add if we don't consider this backed.
+			self.unbacked_candidates.entry(hash).or_insert_with(|| {
+				let mut span = parent_span.child("unbacked-candidate");
+				span.add_string_tag("candidate-hash", &format!("{:?}", hash.0));
+				span
+			});
+		}
 	}
 
 	fn get_unbacked_validation_child(&self, hash: &CandidateHash) -> Option<JaegerSpan> {
 		self.unbacked_candidates.get(hash).map(|span| span.child("validation"))
+	}
+
+	fn get_unbacked_statement_child(&self, hash: &CandidateHash, validator: ValidatorIndex) -> Option<JaegerSpan> {
+		self.unbacked_candidates.get(hash).map(|span| {
+			let mut span = span.child("import-statement");
+			span.add_string_tag("validator-index", &format!("{}", validator));
+			span
+		})
 	}
 
 	fn remove_unbacked_span(&mut self, hash: &CandidateHash) {
