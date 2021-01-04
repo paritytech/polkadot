@@ -56,6 +56,13 @@ pub struct HrmpOpenChannelRequest {
 #[derive(Encode, Decode)]
 #[cfg_attr(test, derive(Debug))]
 pub struct HrmpChannel {
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
+	// special treatment.
+	//
+	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
+	// only a first few fields can be depended upon (See `AbridgedHrmpChannel`). These fields cannot
+	// be changed without corresponding migration of parachains.
+
 	/// The maximum number of messages that can be pending in the channel at once.
 	pub max_capacity: u32,
 	/// The maximum total size of the messages that can be pending in the channel at once.
@@ -270,7 +277,10 @@ decl_storage! {
 		/// - there should be no other dangling channels in `HrmpChannels`.
 		/// - the vectors are sorted.
 		HrmpIngressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+		// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+		// the format will require migration of parachains.
 		HrmpEgressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+	
 		/// Storage for the messages for each channel.
 		/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
 		HrmpChannelContents: map hasher(twox_64_concat) HrmpChannelId => Vec<InboundHrmpMessage<T::BlockNumber>>;
