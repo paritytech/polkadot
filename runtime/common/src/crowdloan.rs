@@ -1520,6 +1520,39 @@ mod benchmarking {
 		}
 	}
 
+	fn setup_onboarding<T: Config>(
+		fund_index: FundIndex,
+		para_id: ParaId,
+		end_block: T::BlockNumber,
+	) -> sp_runtime::DispatchResult {
+		// Matches fund creator in `create_fund`
+		let fund_creator = account("fund_creator", 0, 0);
+		let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
+		Crowdloan::<T>::fix_deploy_data(
+			RawOrigin::Signed(fund_creator).into(),
+			fund_index,
+			code_hash,
+			code_size,
+			initial_head_data
+		)?;
+
+		let lease_period_index = end_block / T::LeasePeriod::get();
+		Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
+		let contributor: T::AccountId = account("contributor", 0, 0);
+		contribute_fund::<T>(&contributor, fund_index);
+
+		// TODO: Probably should use on_initialize
+		//Slots::<T>::on_initialize(end_block + T::EndingPeriod::get());
+		let onboarding_data = (lease_period_index, crate::slots::IncomingParachain::Unset(
+			crate::slots::NewBidder {
+				who: Crowdloan::<T>::fund_account_id(fund_index),
+				sub: Default::default(),
+			}
+		));
+		crate::slots::Onboarding::<T>::insert(para_id, onboarding_data);
+		Ok(())
+	}
+
 	benchmarks! {
 		_{ }
 
@@ -1566,40 +1599,32 @@ mod benchmarking {
 		onboard {
 			let end_block: T::BlockNumber = 100u32.into();
 			let fund_index = create_fund::<T>(end_block);
-
-			// Matches fund creator in `create_fund`
-			let fund_creator = account("fund_creator", 0, 0);
-			let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
-			Crowdloan::<T>::fix_deploy_data(
-				RawOrigin::Signed(fund_creator).into(),
-				fund_index,
-				code_hash,
-				code_size,
-				initial_head_data
-			)?;
-
-			let lease_period_index = end_block / T::LeasePeriod::get();
-			Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
-			let contributor: T::AccountId = account("contributor", 0, 0);
-			contribute_fund::<T>(&contributor, fund_index);
-
-			// TODO: Probably should use on_initialize
-			//Slots::<T>::on_initialize(end_block + T::EndingPeriod::get());
 			let para_id = Default::default();
-			let onboarding_data = (lease_period_index, crate::slots::IncomingParachain::Unset(
-				crate::slots::NewBidder {
-					who: Crowdloan::<T>::fund_account_id(fund_index),
-					sub: Default::default(),
-				}
-			));
-			crate::slots::Onboarding::<T>::insert(para_id, onboarding_data);
+
+			setup_onboarding::<T>(fund_index, para_id, end_block)?;
+
 			let caller = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), fund_index, para_id)
 		verify {
 			assert_last_event::<T>(RawEvent::Onboarded(fund_index, para_id).into());
 		}
 
-		// begin_retirement
+		begin_retirement {
+			let end_block: T::BlockNumber = 100u32.into();
+			let fund_index = create_fund::<T>(end_block);
+			let para_id = Default::default();
+
+			setup_onboarding::<T>(fund_index, para_id, end_block)?;
+
+			let caller: T::AccountId = whitelisted_caller();
+			Crowdloan::<T>::onboard(RawOrigin::Signed(caller.clone()).into(), fund_index, para_id)?;
+
+			// Remove deposits to look like it is off-boarded
+			crate::slots::Deposits::<T>::remove(para_id);
+		}: _(RawOrigin::Signed(caller), fund_index)
+		verify {
+			assert_last_event::<T>(RawEvent::Retiring(fund_index).into());
+		}
 
 		withdraw {
 			let fund_index = create_fund::<T>(100u32.into());
@@ -1640,6 +1665,7 @@ mod benchmarking {
 				assert_ok!(test_benchmark_contribute::<Test>());
 				assert_ok!(test_benchmark_fix_deploy_data::<Test>());
 				assert_ok!(test_benchmark_onboard::<Test>());
+				assert_ok!(test_benchmark_begin_retirement::<Test>());
 				assert_ok!(test_benchmark_withdraw::<Test>());
 				assert_ok!(test_benchmark_dissolve::<Test>());
 			});
