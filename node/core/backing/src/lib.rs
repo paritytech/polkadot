@@ -670,7 +670,7 @@ impl CandidateBackingJob {
 		&mut self,
 		statement: &SignedFullStatement,
 	) -> Result<Option<TableSummary>, Error> {
-		let _span = {
+		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
 			let candidate_hash = statement.payload().candidate_hash();
 			self.get_unbacked_statement_child(&candidate_hash, statement.validator_index())
@@ -680,30 +680,40 @@ impl CandidateBackingJob {
 
 		let summary = self.table.import_statement(&self.table_context, stmt);
 
-		if let Some(ref summary) = summary {
-			if let Some(attested) = self.table.attested_candidate(
-				&summary.candidate,
-				&self.table_context,
-			) {
-				// `HashSet::insert` returns true if the thing wasn't in there already.
-				// one of the few places the Rust-std folks did a bad job with API
-				if self.backed.insert(summary.candidate) {
-					self.remove_unbacked_span(&summary.candidate);
+		let unbacked_span = if let Some(attested) = summary.as_ref()
+			.and_then(|s| self.table.attested_candidate(&s.candidate, &self.table_context))
+		{
+			let candidate_hash = attested.candidate.hash();
+			// `HashSet::insert` returns true if the thing wasn't in there already.
+			if self.backed.insert(candidate_hash) {
+				let span = self.remove_unbacked_span(&candidate_hash);
 
-					if let Some(backed) =
-						table_attested_to_backed(attested, &self.table_context)
-					{
-						let message = ProvisionerMessage::ProvisionableData(
-							self.parent,
-							ProvisionableData::BackedCandidate(backed.receipt()),
-						);
-						self.send_to_provisioner(message).await?;
-					}
+				if let Some(backed) =
+					table_attested_to_backed(attested, &self.table_context)
+				{
+					let message = ProvisionerMessage::ProvisionableData(
+						self.parent,
+						ProvisionableData::BackedCandidate(backed.receipt()),
+					);
+					self.send_to_provisioner(message).await?;
+
+					span.as_ref().map(|s| s.child("backed"));
+					span
+				} else {
+					None
 				}
+			} else {
+				None
 			}
-		}
+		} else {
+			None
+		};
 
 		self.issue_new_misbehaviors().await?;
+
+		// It is important that the child span is dropped before its parent span (`unbacked_span`)
+		drop(import_statement_span);
+		drop(unbacked_span);
 
 		Ok(summary)
 	}
@@ -876,8 +886,8 @@ impl CandidateBackingJob {
 		})
 	}
 
-	fn remove_unbacked_span(&mut self, hash: &CandidateHash) {
-		self.unbacked_candidates.remove(hash);
+	fn remove_unbacked_span(&mut self, hash: &CandidateHash) -> Option<JaegerSpan> {
+		self.unbacked_candidates.remove(hash)
 	}
 
 	async fn send_to_provisioner(&mut self, msg: ProvisionerMessage) -> Result<(), Error> {
