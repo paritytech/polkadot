@@ -41,7 +41,7 @@ fn init_state(view: View, relay_parent: Hash) -> (ProtocolState, SigningContext,
 	};
 
 	unimplemented!("TODO");
-	
+
 	(state, signing_context, validator_pair)
 }
 
@@ -52,16 +52,21 @@ fn stance() {
 		.is_test(true)
 		.try_init();
 
-	let (mut state, signing_context, validator_pair) = init_state(view![hash_a, hash_b], hash_a.clone());
 
-	// TODO more setup code	
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+
+	let db = VotesDB::new_in_memory(store, Default::default());
+
+	let (mut state, signing_context, validator_pair) = init_state(view![hash_a, hash_b], hash_a.clone());
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) =
-		make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+		make_subsystem_context::<VotesDbMessage, _>(pool);
 
 	executor::block_on(async move {
 		// launch!();
 		// assert_matches!();
+
+		store_vote(ctx, vote).await;
 	});
 }

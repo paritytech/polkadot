@@ -616,14 +616,12 @@ pub enum VotesDbMessage {
 pub enum DisputeParticipationMessage {
     /// A dispute is detected
     Detection {
-        /// Unique validator indentification by session.
+		/// The disputed candidate at a particular session.
+		candidate: CandidateHash,
+		/// Relay parent.
+		relay_parent: Hash,
+        /// At which session the dispute happened.
 		session: SessionIndex,
-		/// Unique validator indentification by session and validator index.
-        validator: ValidatorIndex,
-        /// The attestation.
-        attestation: ValidityAttestation,
-        /// response channel
-        response: ResponseChannel<Vec<Hash>>,
     },
     /// Concluded a dispute with the following resolution
     Resolution {

@@ -524,7 +524,7 @@ impl VotesDB {
 		}
 	}
 
-	pub async fn on_session_change(&mut self) -> Result<()>
+	pub async fn on_session_change(&mut self) -> Result<()> {
 		let current_session = unimplemented!("current session index")
 			.saturating_sub(SESSION_COUNT_BEFORE_DROP);
 
@@ -540,15 +540,20 @@ impl VotesDB {
 		let votes: Vec<Vote> = votes.into();
 
 		let votes = store_votes_inner(&self.inner, votes.as_slice())?;
-		}
 
-		let reached_quorums = check_for_supermajority(ctx, db, votes.values() ).await?;
+		let reached_quorums = check_for_supermajority::<Context>(ctx, db, votes.values()).await?;
 
+		let attestation = unimplemented!("attestion retriveal missing");
+		let response = unimplemented!("attestion retriveal missing");
 		for reached_quorum in reached_quorums {
-			ctx.send
+			ctx.send_message(AllMessages::DisputeParticipation(
+				DisputeParticipationMessage::Detection {
+					candidate,
+					relay_parent,
+					session,
+				}
+			)).await
 		}
-
-
 		Ok(())
 	}
 
@@ -578,7 +583,7 @@ impl VotesDB {
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					// TODO Finalization is not relevent afaik
+					// TODO investigate if cleanup depends on finalization or not
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: TARGET, "Conclude");
