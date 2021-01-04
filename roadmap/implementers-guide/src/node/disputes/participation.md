@@ -14,7 +14,9 @@ element `CommittedCandidateReceipt` is verifiable.
 
 ## IO
 
-Inputs:1. Receive `DisputeParticipationMessage::Resolution`
+Inputs:
+
+1. Receive `DisputeParticipationMessage::Resolution`
 1. Delete all relevant data associated with this dispute
 
 
