@@ -32,7 +32,7 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View,
+	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View, OurView,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{
@@ -45,10 +45,8 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_subsystem::{
-	jaeger,
-	errors::{ChainApiError, RuntimeApiError},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
-	SubsystemContext, SubsystemError,
+	jaeger, errors::{ChainApiError, RuntimeApiError},
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
@@ -128,7 +126,7 @@ struct ProtocolState {
 	peer_views: HashMap<PeerId, View>,
 
 	/// Our own view.
-	view: View,
+	view: OurView,
 
 	/// Caches a mapping of relay parents or ancestor to live candidate hashes.
 	/// Allows fast intersection of live candidates with views and consecutive unioning.
@@ -278,8 +276,8 @@ impl ProtocolState {
 		}
 	}
 
-	// Removes all entries from live_under which aren't referenced in the ancestry of
-	// one of our live relay-chain heads.
+	/// Removes all entries from live_under which aren't referenced in the ancestry of
+	/// one of our live relay-chain heads.
 	fn clean_up_live_under_cache(&mut self) {
 		let extended_view: HashSet<_> = self.per_relay_parent.iter()
 			.map(|(r_hash, v)| v.ancestors.iter().cloned().chain(iter::once(*r_hash)))
@@ -353,7 +351,7 @@ async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
 	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
-	view: View,
+	view: OurView,
 	metrics: &Metrics,
 ) -> Result<()>
 where
@@ -845,11 +843,11 @@ where
 	}
 }
 
-// Metadata about a candidate that is part of the live_candidates set.
-//
-// Those which were not present in a cache are "fresh" and have their candidate descriptor attached. This
-// information is propagated to the higher level where it can be used to create data entries. Cached candidates
-// already have entries associated with them, and thus don't need this metadata to be fetched.
+/// Metadata about a candidate that is part of the live_candidates set.
+///
+/// Those which were not present in a cache are "fresh" and have their candidate descriptor attached. This
+/// information is propagated to the higher level where it can be used to create data entries. Cached candidates
+/// already have entries associated with them, and thus don't need this metadata to be fetched.
 #[derive(Debug)]
 enum FetchedLiveCandidate {
 	Cached,
