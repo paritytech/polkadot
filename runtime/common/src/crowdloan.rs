@@ -74,7 +74,7 @@ use frame_support::{
 	},
 };
 use frame_system::ensure_signed;
-use sp_runtime::{ModuleId,
+use sp_runtime::{ModuleId, DispatchResult,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
 use crate::slots;
@@ -208,6 +208,8 @@ decl_event! {
 		DeployDataFixed(FundIndex),
 		/// Onboarding process for a winning parachain fund is completed. [find_index, parachain_id]
 		Onboarded(FundIndex, ParaId),
+		/// The result of trying to submit a new bid to the Slots pallet.
+		HandleBidResult(FundIndex, DispatchResult),
 	}
 }
 
@@ -529,13 +531,15 @@ decl_module! {
 
 					// Care needs to be taken by the crowdloan creator that this function will succeed given
 					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
-					let _ = <slots::Module<T>>::handle_bid(
+					let result = <slots::Module<T>>::handle_bid(
 						bidder,
 						auction_index,
 						fund.first_slot,
 						fund.last_slot,
 						fund.raised,
 					);
+
+					Self::deposit_event(RawEvent::HandleBidResult(index, result));
 				}
 			}
 
@@ -586,7 +590,7 @@ mod tests {
 
 	use std::{collections::HashMap, cell::RefCell};
 	use frame_support::{
-		impl_outer_origin, assert_ok, assert_noop, parameter_types,
+		impl_outer_origin, impl_outer_event, assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
 	};
 	use sp_core::H256;
@@ -594,13 +598,31 @@ mod tests {
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
-		Permill, testing::Header, DispatchResult,
+		Permill, testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
 	};
 	use crate::slots::Registrar;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
+	}
+
+	mod runtime_common_slots {
+		pub use crate::slots::Event;
+	}
+
+	mod runtime_common_crowdloan {
+		pub use crate::crowdloan::Event;
+	}
+
+	impl_outer_event! {
+		pub enum Event for Test {
+			frame_system<T>,
+			pallet_balances<T>,
+			pallet_treasury<T>,
+			runtime_common_slots<T>,
+			runtime_common_crowdloan<T>,
+		}
 	}
 
 	// For testing the module, we construct most of a mock runtime. This means
@@ -626,7 +648,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = ();
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = ();
@@ -641,7 +663,7 @@ mod tests {
 	}
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = ();
+		type Event = Event;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -660,7 +682,7 @@ mod tests {
 		type Currency = pallet_balances::Module<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<u64>;
 		type RejectOrigin = frame_system::EnsureRoot<u64>;
-		type Event = ();
+		type Event = Event;
 		type OnSlash = ();
 		type ProposalBond = ProposalBond;
 		type ProposalBondMinimum = ProposalBondMinimum;
@@ -729,7 +751,7 @@ mod tests {
 		pub const EndingPeriod: u64 = 3;
 	}
 	impl slots::Config for Test {
-		type Event = ();
+		type Event = Event;
 		type Currency = Balances;
 		type Parachains = TestParachains;
 		type LeasePeriod = LeasePeriod;
@@ -744,7 +766,7 @@ mod tests {
 		pub const RemoveKeysLimit: u32 = 10;
 	}
 	impl Config for Test {
-		type Event = ();
+		type Event = Event;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
 		type RetirementPeriod = RetirementPeriod;
@@ -1458,7 +1480,7 @@ mod benchmarking {
 	use frame_system::RawOrigin;
 	use frame_support::{
 		assert_ok,
-		// traits::OnInitialize,
+		traits::OnInitialize,
 	};
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
@@ -1479,8 +1501,9 @@ mod benchmarking {
 
 	fn create_fund<T: Config>(end: T::BlockNumber) -> FundIndex {
 		let cap = BalanceOf::<T>::max_value();
-		let first_slot = 0u32.into();
-		let last_slot = 3u32.into();
+		let lease_period_index = end / T::LeasePeriod::get();
+		let first_slot = lease_period_index;
+		let last_slot = lease_period_index + 3u32.into();
 
 		let caller = account("fund_creator", 0, 0);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
@@ -1524,7 +1547,7 @@ mod benchmarking {
 		fund_index: FundIndex,
 		para_id: ParaId,
 		end_block: T::BlockNumber,
-	) -> sp_runtime::DispatchResult {
+	) -> DispatchResult {
 		// Matches fund creator in `create_fund`
 		let fund_creator = account("fund_creator", 0, 0);
 		let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
@@ -1651,6 +1674,35 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
 		}
+
+		// Worst case scenario: N funds are all in the `NewRaise` list, we are
+		// in the beginning of the ending period, and each fund outbids the next
+		// over the same slot.
+		on_initialize {
+			// We test the complexity over different number of new raise
+			let n in 2 .. 100;
+			let end_block: T::BlockNumber = 100u32.into();
+
+			for i in 0 .. n {
+				let fund_index = create_fund::<T>(end_block);
+				let contributor: T::AccountId = account("contributor", i, 0);
+				let contribution = T::MinContribution::get() * (i + 1).into();
+				T::Currency::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
+				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, Default::default())?;
+			}
+
+			let lease_period_index = end_block / T::LeasePeriod::get();
+			Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
+
+			assert_eq!(<slots::Module<T>>::is_ending(end_block), Some(0u32.into()));
+			assert_eq!(NewRaise::get().len(), n as usize);
+			let old_endings_count = EndingsCount::get();
+		}: {
+			Crowdloan::<T>::on_initialize(end_block);
+		} verify {
+			assert_eq!(EndingsCount::get(), old_endings_count + 1);
+			assert_last_event::<T>(RawEvent::HandleBidResult((n - 1).into(), Ok(())).into());
+		}
 	}
 
 	#[cfg(test)]
@@ -1668,6 +1720,7 @@ mod benchmarking {
 				assert_ok!(test_benchmark_begin_retirement::<Test>());
 				assert_ok!(test_benchmark_withdraw::<Test>());
 				assert_ok!(test_benchmark_dissolve::<Test>());
+				assert_ok!(test_benchmark_on_initialize::<Test>());
 			});
 		}
 	}
