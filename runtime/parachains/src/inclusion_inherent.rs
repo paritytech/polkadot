@@ -252,4 +252,83 @@ mod tests {
 		}
 	}
 
+	mod inclusion_inherent_weight {
+		use super::*;
+
+		use crate::mock::{
+			new_test_ext, System, GenesisConfig as MockGenesisConfig, Test
+		};
+
+		use frame_support::traits::UnfilteredDispatchable;
+
+		/// We expect the weight of the inclusion inherent not to change when no truncation occurs:
+		/// its weight is dynamically computed from the size of the backed candidates list, and is
+		/// already incorporated into the current block weight when it is selected by the provisioner.
+		#[test]
+		fn weight_does_not_change_on_happy_path() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
+				let signed_bitfields = Vec::new();
+				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
+				let backed_candidates = vec![BackedCandidate::default(); 10];
+
+				// the expected weight can always be computed by this formula
+				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT +
+					(backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT);
+
+				// we've used half the block weight; there's plenty of margin
+				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let used_block_weight = max_block_weight / 2;
+				System::set_block_consumed_resources(used_block_weight, 0);
+
+				// execute the inclusion inherent
+				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates)
+					.dispatch_bypass_filter(None.into()).unwrap_err().post_info;
+
+				// we don't directly check the block's weight post-call. Instead, we check that the
+				// call has returned the appropriate post-dispatch weight for refund, and trust
+				// Substrate to do the right thing with that information.
+				//
+				// In this case, the weight system can update the actual weight with the same amount,
+				// or return `None` to indicate that the pre-computed weight should not change.
+				// Either option is acceptable for our purposes.
+				if let Some(actual_weight) = post_info.actual_weight {
+					assert_eq!(actual_weight, expected_weight);
+				}
+			});
+		}
+
+		/// We expect the weight of the inclusion inherent to change when truncation occurs: its
+		/// weight was initially dynamically computed from the size of the backed candidates list,
+		/// but was reduced by truncation.
+		#[test]
+		fn weight_changes_when_backed_candidates_are_truncated() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
+				let signed_bitfields = Vec::new();
+				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
+				let backed_candidates = vec![BackedCandidate::default(); 10];
+
+				// the expected weight with no blocks is just the minimum weight
+				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
+
+				// oops, looks like this mandatory call pushed the block weight over the limit
+				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let used_block_weight = max_block_weight + 1;
+				System::set_block_consumed_resources(used_block_weight, 0);
+
+				// execute the inclusion inherent
+				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates)
+					.dispatch_bypass_filter(None.into()).unwrap();
+
+				// we don't directly check the block's weight post-call. Instead, we check that the
+				// call has returned the appropriate post-dispatch weight for refund, and trust
+				// Substrate to do the right thing with that information.
+				assert_eq!(
+					post_info.actual_weight.unwrap(),
+					expected_weight,
+				);
+			});
+		}
+	}
 }
