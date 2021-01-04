@@ -5,7 +5,7 @@ Tracks all open disputes in the active leaves set.
 ## Remarks
 
 `UnsignedTransaction`s are OK to be used, since the inner
-element `CommittedCanddidateReceipt` is verifiable.
+element `CommittedCandidateReceipt` is verifiable.
 
 ## ToDo
 
