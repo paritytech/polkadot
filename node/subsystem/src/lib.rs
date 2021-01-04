@@ -28,15 +28,16 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{Hash, BlockNumber};
 use async_trait::async_trait;
 use smallvec::SmallVec;
-use thiserror::Error;
 
 use crate::messages::AllMessages;
 
 pub mod errors;
 pub mod messages;
+pub mod jaeger;
+pub use crate::jaeger::*;
 
 /// How many slots are stack-reserved for active leaves updates
 ///
@@ -77,7 +78,7 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len() 
+		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len()
 			&& self.activated.iter().all(|a| other.activated.contains(a))
 			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
 	}
@@ -88,8 +89,8 @@ impl PartialEq for ActiveLeavesUpdate {
 pub enum OverseerSignal {
 	/// Subsystems should adjust their jobs to start and stop work on appropriate block hashes.
 	ActiveLeaves(ActiveLeavesUpdate),
-	/// `Subsystem` is informed of a finalized block by its block hash.
-	BlockFinalized(Hash),
+	/// `Subsystem` is informed of a finalized block by its block hash and number.
+	BlockFinalized(Hash, BlockNumber),
 	/// Conclude the work of the `Overseer` and all `Subsystem`s.
 	Conclude,
 }
@@ -119,31 +120,32 @@ pub enum FromOverseer<M> {
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
+#[allow(missing_docs)]
 pub enum SubsystemError {
-	/// A notification connection is no longer valid.
 	#[error(transparent)]
 	NotifyCancellation(#[from] oneshot::Canceled),
 
-	/// Queue does not accept another item.
 	#[error(transparent)]
 	QueueError(#[from] mpsc::SendError),
 
-	/// An attempt to spawn a futures task did not succeed.
 	#[error(transparent)]
 	TaskSpawn(#[from] futures::task::SpawnError),
 
-	/// An infallable error.
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
 
-	/// Prometheus had a problem
 	#[error(transparent)]
 	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
 
-	/// An other error lacking particular type information.
+	#[error(transparent)]
+	Jaeger(#[from] errors::JaegerError),
+
 	#[error("Failed to {0}")]
 	Context(String),
+
+	#[error("Subsystem stalled: {0}")]
+	SubsystemStalled(&'static str),
 
 	/// Per origin (or subsystem) annotations to wrap an error.
 	#[error("Error originated in {origin}")]
@@ -151,13 +153,13 @@ pub enum SubsystemError {
 		/// An additional anotation tag for the origin of `source`.
 		origin: &'static str,
 		/// The wrapped error. Marked as source for tracking the error chain.
-		#[source] source: Box<dyn std::error::Error + Send>
+		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
 	},
 }
 
 impl SubsystemError {
 	/// Adds a `str` as `origin` to the given error `err`.
-	pub fn with_origin<E: 'static + Send + std::error::Error>(origin: &'static str, err: E) -> Self {
+	pub fn with_origin<E: 'static + Send + Sync + std::error::Error>(origin: &'static str, err: E) -> Self {
 		Self::FromOrigin { origin, source: Box::new(err) }
 	}
 }

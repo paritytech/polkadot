@@ -41,6 +41,8 @@ use std::pin::Pin;
 
 pub use sp_core::traits::SpawnNamed;
 
+pub mod approval;
+
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
 /// This is the committed candidate receipt instead of the bare candidate receipt. As such,
@@ -61,6 +63,17 @@ pub enum Statement {
 }
 
 impl Statement {
+	/// Get the candidate hash referenced by this statement.
+	///
+	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be expensive
+	/// for large candidates.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			Statement::Valid(ref h) | Statement::Invalid(ref h) => *h,
+			Statement::Seconded(ref c) => c.hash(),
+		}
+	}
+
 	/// Transform this statement into its compact version, which references only the hash
 	/// of the candidate.
 	pub fn to_compact(&self) -> CompactStatement {

@@ -28,7 +28,8 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
+	SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
@@ -77,9 +78,19 @@ use runtime_parachains::dmp as parachains_dmp;
 use runtime_parachains::ump as parachains_ump;
 use runtime_parachains::hrmp as parachains_hrmp;
 use runtime_parachains::scheduler as parachains_scheduler;
+use runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_staking::StakerStatus;
+
+use polkadot_parachain::primitives::Id as ParaId;
+use xcm::v0::{MultiLocation, NetworkId};
+use xcm_executor::traits::IsConcrete;
+use xcm_builder::{
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
+	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
+	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+};
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -94,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1"),
 	authoring_version: 0,
-	spec_version: 10,
+	spec_version: 13,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -147,7 +158,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub parachain_validator: Initializer,
+		pub para_validator: Initializer,
+		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -189,6 +201,7 @@ construct_runtime! {
 		Dmp: parachains_dmp::{Module, Call, Storage},
 		Ump: parachains_ump::{Module, Call, Storage},
 		Hrmp: parachains_hrmp::{Module, Call, Storage},
+		SessionInfo: parachains_session_info::{Module, Call, Storage},
 
 		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
@@ -207,6 +220,7 @@ impl Filter<Call> for BaseFilter {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
@@ -231,6 +245,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = SS58Prefix;
 }
 
 parameter_types! {
@@ -315,13 +330,13 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
-	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub ElectionLookahead: BlockNumber = EpochDurationInBlocks::get() / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
 parameter_types! {
-	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
+	pub SessionDuration: BlockNumber = EpochDurationInBlocks::get() as _;
 }
 
 parameter_types! {
@@ -444,12 +459,11 @@ impl pallet_session::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
 impl pallet_babe::Config for Runtime {
-	type EpochDuration = EpochDuration;
+	type EpochDuration = EpochDurationInBlocks;
 	type ExpectedBlockTime = ExpectedBlockTime;
 
 	// session module is the trigger
@@ -526,16 +540,58 @@ impl parachains_configuration::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 }
 
+parameter_types! {
+	pub const RocLocation: MultiLocation = MultiLocation::Null;
+	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
+	pub const Ancestry: MultiLocation = MultiLocation::Null;
+}
+
+pub type LocationConverter = (
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<RococoNetwork, AccountId>,
+);
+
+pub type LocalAssetTransactor =
+	XcmCurrencyAdapter<
+		// Use this currency:
+		Balances,
+		// Use this currency when it is a fungible asset matching the given location or name:
+		IsConcrete<RocLocation>,
+		// We can convert the MultiLocations with our converter above:
+		LocationConverter,
+		// Our chain's account ID type (we can't get away without mentioning it explicitly):
+		AccountId,
+	>;
+
+type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+);
+
+pub struct XcmConfig;
+impl xcm_executor::Config for XcmConfig {
+	type Call = Call;
+	type XcmSender = ();
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	type IsReserve = ();
+	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
+}
+
 impl parachains_session_info::Config for Runtime {}
 
 impl parachains_ump::Config for Runtime {
-	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
+	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -636,7 +692,7 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::validator_groups::<Runtime>()
 		}
 
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_api_impl::availability_cores::<Runtime>()
 		}
 
@@ -687,7 +743,7 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+		fn session_info(index: SessionIndex) -> Option<SessionInfoData> {
 			runtime_api_impl::session_info::<Runtime>(index)
 		}
 
@@ -743,7 +799,7 @@ sp_api::impl_runtime_apis! {
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
-				epoch_length: EpochDuration::get(),
+				epoch_length: EpochDurationInBlocks::get().into(),
 				c: PRIMARY_PROBABILITY,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
@@ -753,6 +809,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
+		}
+
+		fn current_epoch() -> babe_primitives::Epoch {
+			Babe::current_epoch()
 		}
 
 		fn generate_key_ownership_proof(

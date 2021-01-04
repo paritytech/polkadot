@@ -16,6 +16,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_network_protocol::view;
 
 fn make_pov(data: Vec<u8>) -> PoV {
 	PoV { block_data: BlockData(data) }
@@ -358,7 +359,7 @@ fn ask_validators_for_povs() {
 				PoVDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(
 						test_state.validator_peer_id[i].clone(),
-						View(vec![current]),
+						view![current],
 					)
 				)
 			).await;
@@ -405,7 +406,7 @@ fn ask_validators_for_povs() {
 			PoVDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerViewChange(
 					test_state.validator_peer_id[2].clone(),
-					View(vec![next_leaf]),
+					view![next_leaf],
 				)
 			)
 		).await;
@@ -582,7 +583,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 
 			s
 		},
-		our_view: View(vec![hash_a, hash_b]),
+		our_view: view![hash_a, hash_b],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -665,7 +666,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -839,7 +840,7 @@ fn peer_view_change_leads_to_us_informing() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -851,7 +852,7 @@ fn peer_view_change_leads_to_us_informing() {
 		handle_network_update(
 			&mut state,
 			&mut ctx,
-			NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View(vec![hash_a, hash_b])),
+			NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a, hash_b]),
 		).await;
 
 		assert_matches!(
@@ -912,7 +913,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1002,7 +1003,7 @@ fn peer_punished_for_sending_bad_pov() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1067,7 +1068,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1130,7 +1131,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1190,7 +1191,7 @@ fn peer_reported_for_awaiting_too_much() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1277,7 +1278,7 @@ fn peer_reported_for_awaiting_outside_their_view() {
 
 			s
 		},
-		our_view: View(vec![hash_a, hash_b]),
+		our_view: view![hash_a, hash_b],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1341,7 +1342,7 @@ fn peer_reported_for_awaiting_outside_our_view() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1420,7 +1421,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1504,7 +1505,7 @@ fn peer_completing_request_no_longer_awaiting() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};

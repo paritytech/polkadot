@@ -24,7 +24,7 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage,
+	InboundDownwardMessage, InboundHrmpMessage, Hash,
 };
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
@@ -46,7 +46,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.
-pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNumber>> {
+pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Module<T>>::availability_cores();
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
@@ -96,7 +96,6 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
@@ -113,6 +112,8 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 							backed_in_number,
 							pending_availability.core_occupied(),
 						),
+						candidate_hash: pending_availability.candidate_hash(),
+						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 					}
 				}
 				CoreOccupied::Parathread(p) => {
@@ -123,7 +124,6 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
@@ -140,6 +140,8 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::BlockNum
 							backed_in_number,
 							pending_availability.core_occupied(),
 						),
+						candidate_hash: pending_availability.candidate_hash(),
+						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 					}
 				}
 			})
@@ -188,17 +190,24 @@ fn with_assumption<Config, T, F>(
 pub fn full_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-)
-	-> Option<ValidationData<T::BlockNumber>>
-{
-	with_assumption::<T, _, _>(
-		para_id,
-		assumption,
-		|| Some(ValidationData {
-			persisted: crate::util::make_persisted_validation_data::<T>(para_id)?,
-			transient: crate::util::make_transient_validation_data::<T>(para_id)?,
-		}),
-	)
+) -> Option<ValidationData<T::BlockNumber>> {
+	use parity_scale_codec::Decode as _;
+	let relay_parent_number = <frame_system::Module<T>>::block_number();
+	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+		.expect("storage root must decode to the Hash type; qed");
+	with_assumption::<T, _, _>(para_id, assumption, || {
+		Some(ValidationData {
+			persisted: crate::util::make_persisted_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+				relay_storage_root,
+			)?,
+			transient: crate::util::make_transient_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+			)?,
+		})
+	})
 }
 
 /// Implementation for the `persisted_validation_data` function of the runtime API.
@@ -206,11 +215,17 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
-	with_assumption::<T, _, _>(
-		para_id,
-		assumption,
-		|| crate::util::make_persisted_validation_data::<T>(para_id),
-	)
+	use parity_scale_codec::Decode as _;
+	let relay_parent_number = <frame_system::Module<T>>::block_number();
+	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+		.expect("storage root must decode to the Hash type; qed");
+	with_assumption::<T, _, _>(para_id, assumption, || {
+		crate::util::make_persisted_validation_data::<T>(
+			para_id,
+			relay_parent_number,
+			relay_storage_root,
+		)
+	})
 }
 
 /// Implementation for the `check_validation_outputs` function of the runtime API.
@@ -218,7 +233,7 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
-	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs)
+	<inclusion::Module<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
