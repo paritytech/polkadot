@@ -23,8 +23,9 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER,
+	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER, Header,
 };
+use sp_runtime::traits::One;
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
 	dispatch::DispatchResult,
@@ -57,6 +58,9 @@ decl_error! {
 	pub enum Error for Module<T: Config> {
 		/// Inclusion inherent called more than once per block.
 		TooManyInclusionInherents,
+		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
+		/// the parent.
+		InvalidParentHeader,
 	}
 }
 
@@ -81,9 +85,18 @@ decl_module! {
 			origin,
 			signed_bitfields: SignedAvailabilityBitfields,
 			backed_candidates: Vec<BackedCandidate<T::Hash>>,
+			parent_header: Header,
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
+
+			// Check that the submitted parent header indeed corresponds to the previous block hash.
+			let now = <frame_system::Module<T>>::block_number();
+			let parent_hash = <frame_system::Module<T>>::block_hash(now - One::one());
+			ensure!(
+				parent_header.hash().as_ref() == parent_hash.as_ref(),
+				Error::<T>::InvalidParentHeader,
+			);
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
@@ -107,7 +120,9 @@ decl_module! {
 			<scheduler::Module<T>>::schedule(freed);
 
 			// Process backed candidates according to scheduled cores.
+			let parent_storage_root = parent_header.state_root;
 			let occupied = <inclusion::Module<T>>::process_candidates(
+				parent_storage_root,
 				backed_candidates,
 				<scheduler::Module<T>>::scheduled(),
 				<scheduler::Module<T>>::group_validators,
@@ -135,14 +150,27 @@ impl<T: Config> ProvideInherent for Module<T> {
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 		data.get_data(&Self::INHERENT_IDENTIFIER)
 			.expect("inclusion inherent data failed to decode")
-			.map(|(signed_bitfields, backed_candidates): (SignedAvailabilityBitfields, Vec<BackedCandidate<T::Hash>>)| {
-				// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-				// See github.com/paritytech/polkadot/issues/1327
-				if Self::inclusion(frame_system::RawOrigin::None.into(), signed_bitfields.clone(), backed_candidates.clone()).is_ok() {
-					Call::inclusion(signed_bitfields, backed_candidates)
-				} else {
-					Call::inclusion(Vec::new().into(), Vec::new())
+			.map(
+				|(signed_bitfields, backed_candidates, parent_header): (
+					SignedAvailabilityBitfields,
+					Vec<BackedCandidate<T::Hash>>,
+					Header,
+				)| {
+					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+					// See github.com/paritytech/polkadot/issues/1327
+					if Self::inclusion(
+						frame_system::RawOrigin::None.into(),
+						signed_bitfields.clone(),
+						backed_candidates.clone(),
+						parent_header.clone(),
+					)
+					.is_ok()
+					{
+						Call::inclusion(signed_bitfields, backed_candidates, parent_header)
+					} else {
+						Call::inclusion(Vec::new().into(), Vec::new(), parent_header)
+					}
 				}
-			})
+			)
 	}
 }

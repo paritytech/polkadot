@@ -284,6 +284,8 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	pub parent_head: HeadData,
 	/// The relay-chain block number this is in the context of.
 	pub block_number: N,
+	/// The relay-chain block storage root this is in the context of.
+	pub relay_storage_root: Hash,
 	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
