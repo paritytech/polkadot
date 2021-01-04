@@ -152,7 +152,6 @@ impl From<mick_jaeger::Span> for JaegerSpan {
 }
 
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
-#[inline(always)]
 pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> JaegerSpan {
 	let mut span: JaegerSpan = INSTANCE.read_recursive()
 		.span(|| { candidate_hash.0 }, span_name).into();
