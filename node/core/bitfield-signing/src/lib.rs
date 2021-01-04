@@ -69,16 +69,16 @@ pub enum Error {
 
 /// If there is a candidate pending availability, query the Availability Store
 /// for whether we have the availability chunk for our validator index.
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
 	relay_parent: Hash,
 	core: CoreState,
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
+	span: &jaeger::JaegerSpan,
 ) -> Result<bool, Error> {
-	let span = jaeger::hash_span(&relay_parent, "core-availability");
 	if let CoreState::Occupied(core) = core {
-		let _span = span.child("query chunk");
+		let _span = span.child("query chunk availability");
 
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -103,10 +103,10 @@ async fn get_core_availability(
 			"Candidate availability",
 		);
 
-		return res;
+		res
+	} else {
+		Ok(false)
 	}
-
-	Ok(false)
 }
 
 /// delegates to the v1 runtime API
@@ -152,7 +152,8 @@ async fn construct_availability_bitfield(
 	// Handle all cores concurrently
 	// `try_join_all` returns all results in the same order as the input futures.
 	let results = future::try_join_all(
-		availability_cores.into_iter().map(|core| get_core_availability(relay_parent, core, validator_idx, &sender)),
+		availability_cores.into_iter()
+			.map(|core| get_core_availability(relay_parent, core, validator_idx, &sender, span)),
 	).await?;
 
 	Ok(AvailabilityBitfield(FromIterator::from_iter(results)))
