@@ -7,19 +7,16 @@ Tracks all open disputes in the active leaves set.
 `UnsignedTransaction`s are OK to be used, since the inner
 element `CommittedCandidateReceipt` is verifiable.
 
-## ToDo
+## Assumptions
 
-1. Specify what is being gossiped, what messages and what they must contain.
-
+* If each validator gossips its own vote regarding the disputed block, upon receiving the first vote (the initiating dispute vote) there is only
+a need for a very small gossip only containing the `Vote` itself.
 
 ## IO
 
 Inputs:
 
-1. Receive `DisputeParticipationMessage::Resolution`
-1. Delete all relevant data associated with this dispute
-
-
+* `DisputeGossip::Vote` (votes of other validators)
 * `DisputeParticipationMessage::Detection`
 * `DisputeParticipationMessage::Resolution`
 
@@ -27,7 +24,7 @@ Outputs:
 
 * `AvailabilityRecoveryMessage::RecoverAvailableData`
 * `CandidateValidationMessage::ValidateFromChainState`
-* `...::Blacklist`
+* `DisputeGossip::Vote` (own vote)
 
 ## Messages
 
@@ -42,6 +39,17 @@ enum DisputeParticipationMessage {
         resolution: Resolution,
         votes: HashMap<ValidatorId, Vote>,
     },
+}
+```
+
+Distribution of our own vote via gossip, but also
+receive them in order to store it to `VotesDB`:
+
+```rust
+enum DisputeGossip {
+    /// A vote by a validator, referenced by session
+    /// index and validator index
+    Vote(SessionIndex, ValidatorIndex, Vote),
 }
 ```
 
@@ -67,7 +75,7 @@ Nothing to store, everything lives in `VotesDB`.
 
 ## Sequence
 
-### Resolution
+### Detection
 
 1. Receive `DisputeParticipationMessage::Detection`
 1. Request `AvailableData` via `RecoverAvailableData` to obtain the `PoV`.
@@ -89,8 +97,10 @@ Nothing to store, everything lives in `VotesDB`.
 In case a block was disputed successfully, and is now deemed invalid.
 
 1. Query `ChainApiMessage::Descendants` for all descendants of the disputed `Hash`.
-1. Blacklist all descendants of the disputed block `ChainApiMessage::Blacklist`.
+1. Blacklist all descendants of the disputed block `substrate::Client::unsafe_revert`.
 1. Check if the dispute block was finalized
 1. iff:
     1. put the chain into governance mode
-1. Craft and enqueue an unsigned transaction to reward/slash the validator of the proof, that is part of the incoming message, directly.
+1. Craft and enqueue an unsigned transaction that does the following:
+    1. reward the validator of the proof
+    1. slash the party or parties identified by the sender as misbehaving

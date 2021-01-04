@@ -16,8 +16,7 @@ could cause the node to forget the state.
 ## ToDo
 
 * Missing Definition of Governance Mode.
-* Is a `CommittedCandidateReceipt` enough or should the whole `PoV` be included? There was talk about detachable validator signatures.
-* Currently [`fn mark_bad()`](https://github.com/paritytech/substrate/pull/6301/files#diff-8faeb5c685a8fdff428c5ec6d9102fd59e127ff69762d43045cd38e586db5559R60-R64) does not persist data.
+* Currently [`fn mark_bad()`](https://github.com/paritytech/substrate/pull/6301/files#diff-8faeb5c685a8fdff428c5ec6d9102fd59e127ff69762d43045cd38e586db5559R60-R64) does not persist data, but that is a requirement.
 
 ## IO
 
@@ -96,12 +95,12 @@ bound anymore in order to save storage space.
 
 ## Storage
 
-To fulfill the required query features.
+To fulfill the required query features following schema is used:
 
 ```raw
-(ValidatorIndex, Session) -> Vec<Hash>
-(ValidatorId) -> Vec<(ValidatorIndex, Session)>
-(Hash) -> (CommittedCandidateReceipt, PoV)
+(ValidatorIndex, Session) => Vec<Hash>
+ValidatorId => Vec<(ValidatorIndex, Session)>
+Hash => CommittedCandidateReceipt
 ```
 
 ## Sequence
@@ -124,7 +123,8 @@ To fulfill the required query features.
     1. Resolve `ValidatorId` to a set of `(SessionIndex, ValidatorIndex)`.
     1. For each `(SessionIndex, ValidatorIndex)`:
         1. Accumulate `Hash`es.
-    1. Lookup all `PoV`s.
+    1. Lookup all `CommittedCandidateReceipt`s
+    1. Reconstruct the `PoV` via `AvailabilityStoreMessage::QueryAvailableData`
 
 ### Incoming dispute vote
 
