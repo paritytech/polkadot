@@ -34,6 +34,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::approval::{
 	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
+	BlockApprovalMeta,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
@@ -398,9 +399,10 @@ async fn handle_new_head(
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.await?;
 
-	let mut approval_meta: Vec<()> = Vec::with_capacity(new_blocks.len());
+	let mut approval_meta: Vec<BlockApprovalMeta> = Vec::with_capacity(new_blocks.len());
 
-	for (block_hash, block_header) in new_blocks {
+	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
+	for (block_hash, block_header) in new_blocks.into_iter().rev() {
 		// Ignore any runtime API errors - that means these blocks are old and finalized.
 		// Only unfinalized blocks factor into the approval voting process.
 
@@ -540,7 +542,13 @@ async fn handle_new_head(
 			}
 		).map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
-		// push block approval meta
+		approval_meta.push(BlockApprovalMeta {
+			hash: block_hash,
+			number: block_header.number,
+			parent_hash: block_header.parent_hash,
+			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
+			slot_number: slot,
+		});
 	}
 
 	// TODO [now]: send block approval meta to approval distribution.
