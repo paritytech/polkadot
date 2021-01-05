@@ -123,7 +123,7 @@ impl JaegerConfigBuilder {
 /// This just works as auxiliary structure to easily store both.
 #[derive(Debug)]
 pub struct PerLeafSpan {
-	leave_span: Arc<JaegerSpan>,
+	leaf_span: Arc<JaegerSpan>,
 	span: JaegerSpan,
 }
 
@@ -133,18 +133,18 @@ impl PerLeafSpan {
 	/// Takes the `leaf_span` that is created by the overseer per leaf and a name for a child span.
 	/// Both will be stored in this object, while the child span is implicitly accessible by using the
 	/// [`Deref`](std::ops::Deref) implementation.
-	pub fn new(leave_span: Arc<JaegerSpan>, name: impl Into<String>) -> Self {
-		let span = leave_span.child(name);
+	pub fn new(leaf_span: Arc<JaegerSpan>, name: impl Into<String>) -> Self {
+		let span = leaf_span.child(name);
 
 		Self {
 			span,
-			leave_span,
+			leaf_span,
 		}
 	}
 
 	/// Returns the leaf span.
 	pub fn leaf_span(&self) -> &Arc<JaegerSpan> {
-		&self.leave_span
+		&self.leaf_span
 	}
 }
 
