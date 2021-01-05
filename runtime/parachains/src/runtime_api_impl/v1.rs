@@ -288,10 +288,10 @@ where
 	<frame_system::Module<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
-			RawEvent::<T>::CandidateBacked(c, h, core)
-				=> CandidateEvent::CandidateBacked(c, h, core),
-			RawEvent::<T>::CandidateIncluded(c, h, core)
-				=> CandidateEvent::CandidateIncluded(c, h, core),
+			RawEvent::<T>::CandidateBacked(c, h, core, group)
+				=> CandidateEvent::CandidateBacked(c, h, core, group),
+			RawEvent::<T>::CandidateIncluded(c, h, core, group)
+				=> CandidateEvent::CandidateIncluded(c, h, core, group),
 			RawEvent::<T>::CandidateTimedOut(c, h, core)
 				=> CandidateEvent::CandidateTimedOut(c, h, core),
 		})
