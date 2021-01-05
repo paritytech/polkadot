@@ -110,7 +110,7 @@ pub(crate) struct BlockEntry {
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
 
-// TODO https://github.com/paritytech/polkadot/1975: probably in lib.rs
+// TODO https://github.com/paritytech/polkadot/issues/1975: probably in lib.rs
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct OurAssignment { }
 
