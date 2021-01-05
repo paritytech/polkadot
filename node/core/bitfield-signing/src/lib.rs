@@ -215,7 +215,7 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "BitfieldSigningJob";
 
 	/// Run a job for the parent block indicated
-	#[tracing::instrument(skip(keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(span, keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
 		span: Arc<JaegerSpan>,
