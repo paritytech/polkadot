@@ -66,7 +66,32 @@ pub type KusamaChainSpec = service::GenericChainSpec<kusama::GenesisConfig, Exte
 pub type WestendChainSpec = service::GenericChainSpec<westend::GenesisConfig, Extensions>;
 
 /// The `ChainSpec` parametrized for the rococo runtime.
-pub type RococoChainSpec = service::GenericChainSpec<rococo::GenesisConfig, Extensions>;
+pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
+
+/// Extension for the Rococo genesis config to support a custom changes to the genesis state.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct RococoGenesisExt {
+	/// The runtime genesis config.
+	runtime_genesis_config: rococo::GenesisConfig,
+	/// The session length in blocks.
+	///
+	/// If `None` is supplied, the default value is used.
+	session_length_in_blocks: Option<u32>,
+}
+
+impl sp_runtime::BuildStorage for RococoGenesisExt {
+	fn assimilate_storage(
+		&self,
+		storage: &mut sp_core::storage::Storage,
+	) -> Result<(), String> {
+		sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
+			if let Some(length) = self.session_length_in_blocks.as_ref() {
+				rococo::constants::time::EpochDurationInBlocks::set(length);
+			}
+		});
+		self.runtime_genesis_config.assimilate_storage(storage)
+	}
+}
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
 	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
@@ -245,6 +270,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
@@ -627,6 +653,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(kusama::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
@@ -923,7 +950,10 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		"Rococo Staging Testnet",
 		"rococo_staging_testnet",
 		ChainType::Live,
-		move || rococo_staging_testnet_config_genesis(wasm_binary),
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
+			session_length_in_blocks: None,
+		},
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(ROCOCO_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -1083,6 +1113,7 @@ pub fn polkadot_testnet_genesis(
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
@@ -1177,6 +1208,7 @@ pub fn kusama_testnet_genesis(
 			vesting: vec![],
 		}),
 		pallet_vesting: Some(kusama::VestingConfig { vesting: vec![] }),
+		pallet_treasury: Some(Default::default()),
 	}
 }
 
@@ -1538,7 +1570,11 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		"Rococo Local Testnet",
 		"rococo_local_testnet",
 		ChainType::Local,
-		move || rococo_local_testnet_genesis(wasm_binary),
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_local_testnet_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),

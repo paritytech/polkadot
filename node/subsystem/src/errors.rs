@@ -70,10 +70,4 @@ pub enum JaegerError {
 
 	#[error("Missing jaeger configuration")]
 	MissingConfiguration,
-
-	#[error("Failed to allocate port for UDP transfer to jaeger agent")]
-	PortAllocationError(#[source] std::io::Error),
-
-	#[error("Failed to send jaeger span to agent")]
-	SendError(#[source] std::io::Error),
 }

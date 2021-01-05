@@ -126,6 +126,7 @@ mod tests {
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
+		type SS58Prefix = ();
 	}
 
 	impl pallet_balances::Config for Test {
@@ -136,18 +137,6 @@ mod tests {
 		type AccountStore = System;
 		type MaxLocks = ();
 		type WeightInfo = ();
-	}
-
-	pub struct Nobody;
-	impl frame_support::traits::Contains<AccountId> for Nobody {
-		fn contains(_: &AccountId) -> bool { false }
-		fn sorted_members() -> Vec<AccountId> { vec![] }
-		#[cfg(feature = "runtime-benchmarks")]
-		fn add(_: &AccountId) { unimplemented!() }
-	}
-	impl frame_support::traits::ContainsLengthBound for Nobody {
-		fn min_len() -> usize { 0 }
-		fn max_len() -> usize { 0 }
 	}
 
 	parameter_types! {
@@ -165,18 +154,8 @@ mod tests {
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
-		type Tippers = Nobody;
-		type TipCountdown = ();
-		type TipFindersFee = ();
-		type TipReportDepositBase = ();
-		type DataDepositPerByte = ();
-		type BountyDepositBase = ();
-		type BountyDepositPayoutDelay = ();
-		type BountyUpdatePeriod = ();
-		type MaximumReasonLength = ();
-		type BountyCuratorDeposit = ();
-		type BountyValueMinimum = ();
 		type ModuleId = TreasuryModuleId;
+		type SpendFunds = ();
 		type WeightInfo = ();
 	}
 

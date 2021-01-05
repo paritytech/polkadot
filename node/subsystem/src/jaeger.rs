@@ -129,6 +129,12 @@ impl JaegerSpan {
 	}
 }
 
+impl std::fmt::Debug for JaegerSpan {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "<jaeger span>")
+	}
+}
+
 impl From<Option<mick_jaeger::Span>> for JaegerSpan {
 	fn from(src: Option<mick_jaeger::Span>) -> Self {
 		if let Some(span) = src {
@@ -146,9 +152,12 @@ impl From<mick_jaeger::Span> for JaegerSpan {
 }
 
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
-#[inline(always)]
 pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.read_recursive().span(|| { candidate_hash.0 }, span_name).into()
+	let mut span: JaegerSpan = INSTANCE.read_recursive()
+		.span(|| { candidate_hash.0 }, span_name).into();
+
+	span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
+	span
 }
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
@@ -159,9 +168,13 @@ pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
 /// same hash (even from multiple different nodes) will be visible in the same view on Jaeger.
+///
+/// This span automatically has the `relay-parent` tag set.
 #[inline(always)]
 pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.read_recursive().span(|| { *hash }, span_name).into()
+	let mut span: JaegerSpan = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
+	span.add_string_tag("relay-parent", &format!("{:?}", hash));
+	span
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
@@ -205,25 +218,21 @@ impl Jaeger {
 		log::info!("🐹 Collecting jaeger spans for {:?}", &jaeger_agent);
 
 		let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
-			service_name: format!("{}-{}", cfg.node_name, cfg.node_name),
+			service_name: format!("polkadot-{}", cfg.node_name),
 		});
 
 		// Spawn a background task that pulls span information and sends them on the network.
 		spawner.spawn("jaeger-collector", Box::pin(async move {
-			let res = async_std::net::UdpSocket::bind("127.0.0.1:0").await
-				.map_err(JaegerError::PortAllocationError);
-			match res {
+			match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
 				Ok(udp_socket) => loop {
 					let buf = traces_out.next().await;
 					// UDP sending errors happen only either if the API is misused or in case of missing privilege.
-					if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await
-						.map_err(|e| JaegerError::SendError(e))
-					{
-						log::trace!("Jaeger: {:?}", e);
+					if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await {
+						log::debug!(target: "jaeger", "UDP send error: {}", e);
 					}
 				}
 				Err(e) => {
-					log::warn!("Jaeger: {:?}", e);
+					log::warn!(target: "jaeger", "UDP socket open error: {}", e);
 				}
 			}
 		}));

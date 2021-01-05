@@ -11,7 +11,7 @@ async-trait = "0.1.42"
 derive_more = "0.99.11"
 futures = "0.3.8"
 futures-timer = "3.0.2"
-mick-jaeger = "0.1.1"
+mick-jaeger = "0.1.2"
 lazy_static = "1.4"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
@@ -26,7 +26,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 smallvec = "1.5.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.22"
+thiserror = "1.0.23"
 log = "0.4.11"
 
 [dev-dependencies]

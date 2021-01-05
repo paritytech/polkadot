@@ -23,7 +23,7 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER,
+	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER, Header,
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
@@ -63,6 +63,9 @@ decl_error! {
 	pub enum Error for Module<T: Config> {
 		/// Inclusion inherent called more than once per block.
 		TooManyInclusionInherents,
+		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
+		/// the parent.
+		InvalidParentHeader,
 	}
 }
 
@@ -90,9 +93,17 @@ decl_module! {
 			origin,
 			signed_bitfields: SignedAvailabilityBitfields,
 			backed_candidates: Vec<BackedCandidate<T::Hash>>,
+			parent_header: Header,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
+
+			// Check that the submitted parent header indeed corresponds to the previous block hash.
+			let parent_hash = <frame_system::Module<T>>::parent_hash();
+			ensure!(
+				parent_header.hash().as_ref() == parent_hash.as_ref(),
+				Error::<T>::InvalidParentHeader,
+			);
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
@@ -119,7 +130,9 @@ decl_module! {
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Process backed candidates according to scheduled cores.
+			let parent_storage_root = parent_header.state_root;
 			let occupied = <inclusion::Module<T>>::process_candidates(
+				parent_storage_root,
 				backed_candidates,
 				<scheduler::Module<T>>::scheduled(),
 				<scheduler::Module<T>>::group_validators,
@@ -163,23 +176,6 @@ fn limit_backed_candidates<T: Config>(
 	}
 }
 
-/// We should only include the inherent under certain circumstances.
-///
-/// Most importantly, we check that the inherent is itself valid. It may not be, for example, in the
-/// event of a session change.
-fn should_include_inherent<T: Config>(
-	signed_bitfields: &SignedAvailabilityBitfields,
-	backed_candidates: &[BackedCandidate<T::Hash>],
-) -> bool {
-	// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-	// See github.com/paritytech/polkadot/issues/1327
-	Module::<T>::inclusion(
-		frame_system::RawOrigin::None.into(),
-		signed_bitfields.clone(),
-		backed_candidates.to_vec(),
-	).is_ok()
-}
-
 impl<T: Config> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
@@ -188,13 +184,28 @@ impl<T: Config> ProvideInherent for Module<T> {
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 		data.get_data(&Self::INHERENT_IDENTIFIER)
 			.expect("inclusion inherent data failed to decode")
-			.map(|(signed_bitfields, backed_candidates): (SignedAvailabilityBitfields, Vec<BackedCandidate<T::Hash>>)| {
-				if should_include_inherent::<T>(&signed_bitfields, &backed_candidates) {
-					Call::inclusion(signed_bitfields, backed_candidates)
-				} else {
-					Call::inclusion(Vec::new().into(), Vec::new())
+			.map(
+				|(signed_bitfields, backed_candidates, parent_header): (
+					SignedAvailabilityBitfields,
+					Vec<BackedCandidate<T::Hash>>,
+					Header,
+				)| {
+					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+					// See github.com/paritytech/polkadot/issues/1327
+					if Self::inclusion(
+						frame_system::RawOrigin::None.into(),
+						signed_bitfields.clone(),
+						backed_candidates.clone(),
+						parent_header.clone(),
+					)
+					.is_ok()
+					{
+						Call::inclusion(signed_bitfields, backed_candidates, parent_header)
+					} else {
+						Call::inclusion(Vec::new().into(), Vec::new(), parent_header)
+					}
 				}
-			})
+			)
 	}
 }
 
@@ -261,12 +272,26 @@ mod tests {
 
 		use frame_support::traits::UnfilteredDispatchable;
 
+		fn default_header() -> Header {
+			Header {
+				parent_hash: Default::default(),
+				number: 0,
+				state_root: Default::default(),
+				extrinsics_root: Default::default(),
+				digest: Default::default(),
+			}
+		}
+
 		/// We expect the weight of the inclusion inherent not to change when no truncation occurs:
 		/// its weight is dynamically computed from the size of the backed candidates list, and is
 		/// already incorporated into the current block weight when it is selected by the provisioner.
 		#[test]
 		fn weight_does_not_change_on_happy_path() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let header = default_header();
+				System::set_block_number(1);
+				System::set_parent_hash(header.hash());
+
 				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
@@ -282,7 +307,7 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the inclusion inherent
-				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates)
+				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates, default_header())
 					.dispatch_bypass_filter(None.into()).unwrap_err().post_info;
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
@@ -304,6 +329,10 @@ mod tests {
 		#[test]
 		fn weight_changes_when_backed_candidates_are_truncated() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let header = default_header();
+				System::set_block_number(1);
+				System::set_parent_hash(header.hash());
+
 				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
@@ -318,7 +347,7 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the inclusion inherent
-				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates)
+				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates, header)
 					.dispatch_bypass_filter(None.into()).unwrap();
 
 				// we don't directly check the block's weight post-call. Instead, we check that the

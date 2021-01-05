@@ -212,8 +212,8 @@ impl BitfieldDistribution {
 						// defer the cleanup to the view change
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					tracing::trace!(target: LOG_TARGET, hash = %hash, "block finalized");
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+					tracing::trace!(target: LOG_TARGET, hash = %hash, number = %number, "block finalized");
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					tracing::trace!(target: LOG_TARGET, "Conclude");
@@ -310,7 +310,7 @@ async fn relay_message<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	let span = jaeger::hash_span(&message.relay_parent, "relay_msg");
+	let span = jaeger::hash_span(&message.relay_parent, "relay-msg");
 
 	let _span = span.child("provisionable");
 	// notify the overseer about a new and valid signed bitfield
@@ -327,7 +327,7 @@ where
 
 	drop(_span);
 
-	let _span = span.child("interested peers");
+	let _span = span.child("interested-peers");
 	// pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
 		.iter()
@@ -495,8 +495,16 @@ where
 		NetworkBridgeEvent::PeerMessage(remote, message) => {
 			match message {
 				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
-					let mut _span = jaeger::hash_span(&relay_parent, "bitfield-gossip-received");
-					_span.add_string_tag("peer-id", &remote.to_base58());
+					let mut _span = {
+						let mut span = jaeger::hash_span(&relay_parent, "bitfield-gossip-received");
+						span.add_string_tag("peer-id", &remote.to_base58());
+						span.add_string_tag(
+							"claimed-validator",
+							&format!("{}", bitfield.validator_index()),
+						);
+						span
+					};
+
 					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "received bitfield gossip from peer");
 					let gossiped_bitfield = BitfieldGossipMessage {
 						relay_parent,
@@ -770,13 +778,7 @@ mod test {
 	use std::sync::Arc;
 	use std::time::Duration;
 	use assert_matches::assert_matches;
-	use polkadot_node_network_protocol::ObservedRole;
-
-	macro_rules! view {
-		( $( $hash:expr ),* $(,)? ) => [
-			View(vec![ $( $hash.clone() ),* ])
-		];
-	}
+	use polkadot_node_network_protocol::{view, ObservedRole};
 
 	macro_rules! launch {
 		($fut:expr) => {
@@ -833,7 +835,7 @@ mod test {
 		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
 
-		state.per_relay_parent = view.0.iter().map(|relay_parent| {(
+		state.per_relay_parent = view.heads.iter().map(|relay_parent| {(
 				relay_parent.clone(),
 				PerRelayParentData {
 					signing_context: signing_context.clone(),

@@ -73,6 +73,7 @@ use frame_support::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
+use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -120,6 +121,7 @@ sp_api::decl_runtime_apis! {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
@@ -144,6 +146,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = SS58Prefix;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
@@ -423,6 +426,7 @@ impl claims::Config for Runtime {
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	type MoveClaimOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = claims::TestWeightInfo;
 }
 
 parameter_types! {
@@ -446,6 +450,7 @@ impl parachains_configuration::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_inclusion_inherent::Config for Runtime {}
@@ -629,7 +634,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::validator_groups::<Runtime>()
 		}
 
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_impl::availability_cores::<Runtime>()
 		}
 
@@ -737,6 +742,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
+		}
+
+		fn current_epoch() -> babe_primitives::Epoch {
+			Babe::current_epoch()
 		}
 
 		fn generate_key_ownership_proof(
