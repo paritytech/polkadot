@@ -116,18 +116,18 @@ impl CandidateEntry {
 /// candidates contained within it.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct BlockEntry {
-	block_hash: Hash,
-	session: SessionIndex,
-	slot: SlotNumber,
-	relay_vrf_story: RelayVRFStory,
+	pub block_hash: Hash,
+	pub session: SessionIndex,
+	pub slot: SlotNumber,
+	pub relay_vrf_story: RelayVRFStory,
 	// The candidates included as-of this block and the index of the core they are
 	// leaving. Sorted ascending by core index.
-	candidates: Vec<(CoreIndex, CandidateHash)>,
+	pub candidates: Vec<(CoreIndex, CandidateHash)>,
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	approved_bitfield: BitVec<BitOrderLsb0, u8>,
-	children: Vec<Hash>,
+	pub approved_bitfield: BitVec<BitOrderLsb0, u8>,
+	pub children: Vec<Hash>,
 }
 
 /// A range from earliest..last block number stored within the DB.
@@ -371,9 +371,9 @@ fn load_decode<D: Decode>(store: &impl AuxStore, key: &[u8])
 /// candidate and approval entries.
 #[derive(Clone)]
 pub(crate) struct NewCandidateInfo {
-	candidate: CandidateReceipt,
-	backing_group: GroupIndex,
-	our_assignment: Option<OurAssignment>,
+	pub candidate: CandidateReceipt,
+	pub backing_group: GroupIndex,
+	pub our_assignment: Option<OurAssignment>,
 }
 
 /// Record a new block entry.

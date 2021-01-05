@@ -42,6 +42,7 @@ use sp_consensus_babe::Epoch as BabeEpoch;
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
+use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use std::collections::{BTreeMap, HashMap};
 use std::time::{Duration, SystemTime};
@@ -418,7 +419,8 @@ async fn handle_new_head(
 			};
 
 			events.into_iter().filter_map(|e| match e {
-				CandidateEvent::CandidateIncluded(receipt, _, core) => Some((receipt, core)),
+				CandidateEvent::CandidateIncluded(receipt, _, core, group)
+					=> Some((receipt.hash(), receipt, core, group)),
 				_ => None,
 			}).collect()
 		};
@@ -462,38 +464,81 @@ async fn handle_new_head(
 			}
 		};
 
-		let assignments = {
-			let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
-			let session_info = state.session_info(session_index);
+		let session_info = match state.session_info(session_index) {
+			Some(s) => s,
+			None => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Session info unavailable for block {}",
+					block_hash,
+				);
 
-			match (unsafe_vrf, session_info) {
-				(Some(unsafe_vrf), Some(session_info)) => {
+				continue;
+			}
+		};
+
+		let (assignments, slot, relay_vrf) = {
+			let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
+
+			match unsafe_vrf {
+				Some(unsafe_vrf) => {
+					let slot = unsafe_vrf.slot_number();
+
 					match unsafe_vrf.compute_randomness(
 						&babe_epoch.authorities,
 						&babe_epoch.randomness,
 						babe_epoch.epoch_index,
 					) {
-						Ok(relay_vrf) => criteria::compute_assignments(
-							&state.keystore,
-							relay_vrf,
-							session_info,
-							included_candidates.iter().map(|(_, core)| *core),
-						),
-						Err(_) => HashMap::new()
+						Ok(relay_vrf) => {
+							let assignments = criteria::compute_assignments(
+								&state.keystore,
+								relay_vrf.clone(),
+								session_info,
+								included_candidates.iter().map(|(_, _, core, _)| *core),
+							);
+
+							(assignments, slot, relay_vrf)
+						},
+						Err(_) => continue,
 					}
 				}
-				_ => {
+				_None=> {
 					tracing::debug!(
 						target: LOG_TARGET,
-						"Session info or BABE VRF info unavailable for block {}",
+						"BABE VRF info unavailable for block {}",
 						block_hash,
 					);
 
-					HashMap::new()
+					continue;
 				}
 			}
 		};
-		// TODO [now]: import to DB
+
+		let n_validators = session_info.validators.len();
+		aux_schema::add_block_entry(
+			&*state.db,
+			block_header.parent_hash,
+			block_header.number,
+			BlockEntry {
+				block_hash: block_hash,
+				session: session_index,
+				slot,
+				relay_vrf_story: relay_vrf,
+				candidates: included_candidates.iter()
+					.map(|(hash, _, core, _)| (*core, *hash)).collect(),
+				approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+				children: Vec::new(),
+			},
+			n_validators,
+			|candidate_hash| {
+				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash)
+					.map(|(_, receipt, core, backing_group)| aux_schema::NewCandidateInfo {
+						candidate: receipt.clone(),
+						backing_group: *backing_group,
+						our_assignment: assignments.get(core).map(|a| a.clone()),
+					})
+			}
+		).map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 		// push block approval meta
 	}
