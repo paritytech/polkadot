@@ -24,7 +24,7 @@
 use polkadot_subsystem::{
 	messages::{
 		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
-		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
+		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
 	},
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal,
@@ -551,10 +551,9 @@ async fn handle_new_head(
 		});
 	}
 
-	// TODO [now]: send block approval meta to approval distribution.
+	ctx.send_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into()).await;
 
-	// TODO [now]
-	unimplemented!()
+	Ok(())
 }
 
 async fn check_and_import_assignment(
