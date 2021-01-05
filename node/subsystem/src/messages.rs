@@ -648,6 +648,10 @@ impl CollationGenerationMessage {
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug, derive_more::From)]
 pub enum AllMessages {
+	/// Message for the approval distribution subsystem
+	ApprovalDistribution(ApprovalDistributionMessage),
+	/// Message for the approval voting subsystem.
+	ApprovalVoting(ApprovalVotingMessage),
 	/// Message for the validation subsystem.
 	CandidateValidation(CandidateValidationMessage),
 	/// Message for the candidate backing subsystem.

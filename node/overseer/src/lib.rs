@@ -1465,6 +1465,12 @@ where
 	async fn route_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
 		self.metrics.on_message_relayed();
 		match msg {
+			AllMessages::ApprovalDistribution(_) => {
+				unimplemented!()
+			}
+			AllMessages::ApprovalVoting(_) => {
+				unimplemented!()
+			}
 			AllMessages::CandidateValidation(msg) => {
 				self.candidate_validation_subsystem.send_message(msg).await?;
 			},
