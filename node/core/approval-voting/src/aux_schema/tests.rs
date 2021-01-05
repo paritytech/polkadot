@@ -331,7 +331,7 @@ fn canonicalize_works() {
 	//   -> B1 -> C1 -> D1
 	// A -> B2 -> C2 -> D2
 	//
-	// We'll canonicalize C1. Everytning except D1 should disappear.
+	// We'll canonicalize C1. Everything except D1 should disappear.
 	//
 	// Candidates:
 	// Cand1 in B2
