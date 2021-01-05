@@ -5043,8 +5043,10 @@ name = "polkadot-node-core-approval-voting"
 version = "0.1.0"
 dependencies = [
  "bitvec",
+ "byteorder",
  "futures 0.3.8",
  "futures-timer 3.0.2",
+ "merlin",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5052,6 +5054,8 @@ dependencies = [
  "polkadot-primitives",
  "sc-client-api",
  "sc-keystore",
+ "schnorrkel",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus-slots",
  "tracing",

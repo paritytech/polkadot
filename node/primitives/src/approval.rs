@@ -41,6 +41,12 @@ pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
 /// A static context used for all relay-vrf-delay VRFs.
 pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V TRANCHE";
 
+/// A static context used for transcripts indicating assigned availability core.
+pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED";
+
+/// A static context associated with producing randomness for a core.
+pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE";
+
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
@@ -48,7 +54,7 @@ pub struct RelayVRFStory(pub [u8; 32]);
 
 /// Different kinds of input data or criteria that can prove a validator's assignment
 /// to check a particular parachain.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum AssignmentCertKind {
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with a sample number.
@@ -69,7 +75,7 @@ pub enum AssignmentCertKind {
 }
 
 /// A certification of assignment.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct AssignmentCert {
 	/// The criterion which is claimed to be met by this cert.
 	pub kind: AssignmentCertKind,

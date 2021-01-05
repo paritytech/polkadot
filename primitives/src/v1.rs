@@ -63,14 +63,20 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
-mod assigment_app {
+mod assignment_app {
 	use application_crypto::{app_crypto, sr25519};
 	app_crypto!(sr25519, super::ASSIGNMENT_KEY_TYPE_ID);
 }
 
 /// The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
-pub type AssignmentId = assigment_app::Public;
+pub type AssignmentId = assignment_app::Public;
+
+application_crypto::with_pair! {
+	/// The full keypair used by a validator for determining assignments to approve included
+	/// parachain candidates.
+	pub type AssignmentPair = assignment_app::Pair;
+}
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
@@ -471,7 +477,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 
 /// The unique (during session) index of a core.
 #[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {

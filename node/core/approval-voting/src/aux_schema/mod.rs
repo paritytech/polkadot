@@ -47,6 +47,7 @@ use std::collections::hash_map::Entry;
 use bitvec::{slice::BitSlice, vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 use super::Tick;
+use super::criteria::OurAssignment;
 
 #[cfg(test)]
 mod tests;
@@ -132,10 +133,6 @@ pub(crate) struct BlockEntry {
 /// A range from earliest..last block number stored within the DB.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
-
-// TODO https://github.com/paritytech/polkadot/1975: probably in lib.rs
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct OurAssignment { }
 
 /// Canonicalize some particular block, pruning everything before it and
 /// pruning any competing branches at the same height.

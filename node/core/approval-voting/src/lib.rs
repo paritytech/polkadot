@@ -49,6 +49,7 @@ use std::sync::Arc;
 use aux_schema::{TrancheEntry, ApprovalEntry, CandidateEntry, BlockEntry};
 
 mod aux_schema;
+mod criteria;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const LOG_TARGET: &str = "approval-voting";
