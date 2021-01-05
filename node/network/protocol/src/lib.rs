@@ -214,7 +214,8 @@ impl std::ops::Deref for OurView {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::our_view;
-/// our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)]
+/// # use polkadot_primitives::v1::Hash;
+/// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
 macro_rules! our_view {
@@ -246,7 +247,8 @@ pub struct View {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::view;
-/// view![Hash::repeat_byte(1), Hash::repeat_byte(2)]
+/// # use polkadot_primitives::v1::Hash;
+/// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
 macro_rules! view {
