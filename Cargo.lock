@@ -4969,7 +4969,6 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "smallvec 1.5.1",
  "sp-core",
  "sp-keyring",
  "thiserror",
@@ -5057,7 +5056,6 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-service",
- "smallvec 1.5.1",
  "sp-core",
  "thiserror",
  "tracing",
@@ -5209,10 +5207,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-jaeger"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "lazy_static",
+ "log",
+ "mick-jaeger",
+ "parking_lot 0.11.1",
+ "polkadot-primitives",
+ "sc-network",
+ "sp-core",
+ "thiserror",
+]
+
+[[package]]
 name = "polkadot-node-network-protocol"
 version = "0.1.0"
 dependencies = [
  "parity-scale-codec",
+ "polkadot-node-jaeger",
  "polkadot-node-primitives",
  "polkadot-primitives",
  "sc-network",
@@ -5247,6 +5261,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.2",
+ "polkadot-node-jaeger",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem-test-helpers",
@@ -5297,6 +5312,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.2",
+ "polkadot-node-jaeger",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -5368,7 +5384,6 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "smallvec 1.5.1",
  "sp-core",
  "sp-keyring",
  "thiserror",

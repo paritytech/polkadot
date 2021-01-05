@@ -29,6 +29,7 @@ use polkadot_node_subsystem::{
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
+use polkadot_node_jaeger::JaegerSpan;
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
@@ -36,27 +37,14 @@ use pin_project::pin_project;
 use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
-	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
-	SessionInfo,
+	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
 };
-use sp_core::{
-	traits::SpawnNamed,
-	Public
-};
+use sp_core::{traits::SpawnNamed, Public};
 use sp_application_crypto::AppKey;
-use sp_keystore::{
-	CryptoStore,
-	SyncCryptoStorePtr,
-	Error as KeystoreError,
-};
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
 use std::{
-	collections::{HashMap, hash_map::Entry},
-	convert::{TryFrom, TryInto},
-	marker::Unpin,
-	pin::Pin,
-	task::{Poll, Context},
-	time::Duration,
-	fmt,
+	collections::{HashMap, hash_map::Entry}, convert::{TryFrom, TryInto}, marker::Unpin, pin::Pin, task::{Poll, Context},
+	time::Duration, fmt, sync::Arc,
 };
 use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
@@ -494,6 +482,7 @@ pub trait JobTrait: Unpin {
 	/// The job should be ended when `receiver` returns `None`.
 	fn run(
 		parent: Hash,
+		span: Arc<JaegerSpan>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
@@ -561,14 +550,20 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
-	fn spawn_job(&mut self, parent_hash: Hash, run_args: Job::RunArgs, metrics: Job::Metrics) -> Result<(), Error> {
+	fn spawn_job(
+		&mut self,
+		parent_hash: Hash,
+		span: Arc<JaegerSpan>,
+		run_args: Job::RunArgs,
+		metrics: Job::Metrics,
+	) -> Result<(), Error> {
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 
 		let err_tx = self.errors.clone();
 
 		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
+			if let Err(e) = Job::run(parent_hash, span, run_args, metrics, to_job_rx, from_job_tx).await {
 				tracing::error!(
 					job = Job::NAME,
 					parent_hash = %parent_hash,
@@ -782,9 +777,9 @@ where
 				activated,
 				deactivated,
 			}))) => {
-				for hash in activated {
+				for (hash, span) in activated {
 					let metrics = metrics.clone();
-					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
+					if let Err(e) = jobs.spawn_job(hash, span, run_args.clone(), metrics) {
 						tracing::error!(
 							job = Job::NAME,
 							err = ?e,
@@ -998,13 +993,13 @@ mod tests {
 	use thiserror::Error;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem,
+		SpawnedSubsystem, JaegerSpan,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-	use std::{pin::Pin, time::Duration};
+	use std::{pin::Pin, time::Duration, sync::Arc};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 	// you can leave the subsystem itself to the job manager.
@@ -1040,6 +1035,7 @@ mod tests {
 		// this function is in charge of creating and executing the job's main loop
 		fn run(
 			_: Hash,
+			_: Arc<JaegerSpan>,
 			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<CandidateSelectionMessage>,
@@ -1123,7 +1119,7 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent),
+					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(JaegerSpan::Disabled)),
 				)))
 				.await;
 			assert_matches!(
@@ -1152,7 +1148,7 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent),
+					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(JaegerSpan::Disabled)),
 				)))
 				.await;
 

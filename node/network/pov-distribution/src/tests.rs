@@ -1,11 +1,26 @@
+// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use super::*;
 
-use std::time::Duration;
+use std::{time::Duration, sync::Arc};
 
 use assert_matches::assert_matches;
 use futures::executor;
 use tracing::trace;
-use smallvec::smallvec;
 
 use sp_keyring::Sr25519Keyring;
 
@@ -13,10 +28,10 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId,
 	ScheduledCore, ValidatorIndex, SessionIndex, SessionInfo,
 };
-use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_node_network_protocol::view;
+use polkadot_node_network_protocol::{view, our_view};
 
 fn make_pov(data: Vec<u8>) -> PoV {
 	PoV { block_data: BlockData(data) }
@@ -261,8 +276,8 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![test_state.relay_parent.clone()],
-				deactivated: smallvec![],
+				activated: [(test_state.relay_parent, Arc::new(JaegerSpan::Disabled))][..].into(),
+				deactivated: [][..].into(),
 			}),
 		).await;
 
@@ -429,8 +444,8 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![next_leaf.clone()],
-				deactivated: smallvec![current.clone()],
+				activated: [(next_leaf, Arc::new(JaegerSpan::Disabled))][..].into(),
+				deactivated: [current.clone()][..].into(),
 			})
 		).await;
 
@@ -583,7 +598,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 
 			s
 		},
-		our_view: view![hash_a, hash_b],
+		our_view: our_view![hash_a, hash_b],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -666,7 +681,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -840,7 +855,7 @@ fn peer_view_change_leads_to_us_informing() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -913,7 +928,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1003,7 +1018,7 @@ fn peer_punished_for_sending_bad_pov() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1068,7 +1083,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1131,7 +1146,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1191,7 +1206,7 @@ fn peer_reported_for_awaiting_too_much() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1278,7 +1293,7 @@ fn peer_reported_for_awaiting_outside_their_view() {
 
 			s
 		},
-		our_view: view![hash_a, hash_b],
+		our_view: our_view![hash_a, hash_b],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1342,7 +1357,7 @@ fn peer_reported_for_awaiting_outside_our_view() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1421,7 +1436,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1505,7 +1520,7 @@ fn peer_completing_request_no_longer_awaiting() {
 
 			s
 		},
-		our_view: view![hash_a],
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};

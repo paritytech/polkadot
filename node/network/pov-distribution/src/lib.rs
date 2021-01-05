@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View,
+	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, OurView,
 };
 
 use futures::prelude::*;
@@ -96,7 +96,7 @@ struct State {
 	peer_state: HashMap<PeerId, PeerState>,
 
 	/// Our own view.
-	our_view: View,
+	our_view: OurView,
 
 	/// Connect to relevant groups of validators at different relay parents.
 	connection_requests: validator_discovery::ConnectionRequests,
@@ -152,8 +152,8 @@ async fn handle_signal(
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 			let _timer = state.metrics.time_handle_signal();
 
-			for relay_parent in activated {
-				match request_validators_ctx(relay_parent.clone(), ctx).await {
+			for (relay_parent, _span) in activated {
+				match request_validators_ctx(relay_parent, ctx).await {
 					Ok(vals_rx) => {
 						let n_validators = match vals_rx.await? {
 							Ok(v) => v.len(),
