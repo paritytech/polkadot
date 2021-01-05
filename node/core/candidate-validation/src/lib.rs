@@ -166,7 +166,7 @@ async fn runtime_api_request<T>(
 	request: RuntimeApiRequest,
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
 ) -> SubsystemResult<Result<T, RuntimeApiError>> {
-	ctx.send_message(
+	let _ = ctx.send_message(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 			relay_parent,
 			request,

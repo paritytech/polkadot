@@ -236,10 +236,10 @@ where
 {
 	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "reputation change");
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	let _ = ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
 	))
-	.await
+	.await;
 }
 
 /// Distribute a given valid and signature checked bitfield message.

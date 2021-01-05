@@ -191,14 +191,16 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 		Ok(())
 	}
 
-	async fn send_message(&mut self, msg: AllMessages) {
+	async fn send_message(&mut self, msg: AllMessages) -> bool {
 		self.tx
 			.send(msg)
 			.await
 			.expect("test overseer no longer live");
+
+		true
 	}
 
-	async fn send_messages<T>(&mut self, msgs: T)
+	async fn send_messages<T>(&mut self, msgs: T) -> bool
 	where
 		T: IntoIterator<Item = AllMessages> + Send,
 		T::IntoIter: Send,
@@ -208,6 +210,8 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 			.send_all(&mut iter)
 			.await
 			.expect("test overseer no longer live");
+
+		true
 	}
 }
 

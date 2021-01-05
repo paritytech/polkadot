@@ -343,33 +343,56 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		}).await.map_err(Into::into)
 	}
 
-	async fn send_message(&mut self, msg: AllMessages) {
+	async fn send_message(&mut self, msg: AllMessages) -> bool {
 		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
 	}
 
-	async fn send_messages<T>(&mut self, msgs: T)
+	async fn send_messages<T>(&mut self, msgs: T) -> bool
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
 	{
-		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
-		if self.tx.send_all(&mut msgs).await.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				msg_type = std::any::type_name::<M>(),
-				"Failed to send messages to Overseer",
-			);
+		const SEND_TIMEOUT: Duration = Duration::from_millis(1000);
 
+		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
+		match self.tx.send_all(&mut msgs).timeout(SEND_TIMEOUT).await {
+			None => {
+				tracing::error!(target: LOG_TARGET, "Outgoing messages timeout reached");
+				false
+			}
+			Some(Err(_)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					msg_type = std::any::type_name::<M>(),
+					"Failed to send a messages to Overseer",
+				);
+
+				// We return `true` here because errors indicate no change of re-try.
+				true
+			}
+			Some(Ok(_)) => true,
 		}
 	}
 }
 
 impl<M> OverseerSubsystemContext<M> {
-	async fn send_and_log_error(&mut self, msg: ToOverseer) {
-		if self.tx.send(msg).await.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				msg_type = std::any::type_name::<M>(),
-				"Failed to send a message to Overseer",
-			);
+	async fn send_and_log_error(&mut self, msg: ToOverseer) -> bool {
+		const SEND_TIMEOUT: Duration = Duration::from_millis(500);
+
+		match self.tx.send(msg).timeout(SEND_TIMEOUT).await {
+			None => {
+				tracing::error!(target: LOG_TARGET, "Outgoing message timeout reached");
+				false
+			}
+			Some(Err(_)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					msg_type = std::any::type_name::<M>(),
+					"Failed to send a message to Overseer",
+				);
+
+				// We return `true` here because errors indicate no chance of re-try.
+				true
+			}
+			Some(Ok(_)) => true,
 		}
 	}
 }

@@ -681,9 +681,9 @@ async fn report_peer(
 	peer: PeerId,
 	rep: Rep,
 ) {
-	ctx.send_message(AllMessages::NetworkBridge(
+	let _ = ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep)
-	)).await
+	)).await;
 }
 
 // Handle an incoming wire message. Returns a reference to a newly-stored statement

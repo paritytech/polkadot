@@ -517,7 +517,7 @@ async fn send_batch_to_network(
 	batch: Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>,
 ) {
 	if !batch.is_empty() {
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessages(batch).into()).await
+		let _ = ctx.send_message(NetworkBridgeMessage::SendValidationMessages(batch).into()).await;
 	}
 }
 
