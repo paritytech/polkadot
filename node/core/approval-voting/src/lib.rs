@@ -33,7 +33,7 @@ use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header
 };
 use polkadot_node_primitives::approval::{
-	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
+	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
@@ -42,7 +42,7 @@ use sc_client_api::backend::AuxStore;
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::time::{Duration, SystemTime};
 use std::sync::Arc;
 
@@ -443,8 +443,41 @@ async fn handle_new_head(
 
 				continue;
 			}
+
+			session_index
 		};
 
+		let assignments = {
+			let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
+			let session_info = state.session_info(session_index);
+
+			match (unsafe_vrf, session_info) {
+				(Some(unsafe_vrf), Some(session_info)) => {
+					match unsafe_vrf.compute_randomness(
+						unimplemented!(),
+						unimplemented!(),
+						unimplemented!(),
+					) {
+						Ok(relay_vrf) => criteria::compute_assignments(
+							&state.keystore,
+							relay_vrf,
+							session_info,
+							included_candidates.iter().map(|(_, core)| *core),
+						),
+						Err(_) => HashMap::new()
+					}
+				}
+				_ => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Session info or BABE VRF info unavailable for block {}",
+						block_hash,
+					);
+
+					HashMap::new()
+				}
+			}
+		};
 		// TODO [now]: compute assignments and import to DB
 
 		// push block approval meta
