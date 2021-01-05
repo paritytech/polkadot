@@ -7,8 +7,8 @@ edition = "2018"
 [dependencies]
 futures = "0.3.8"
 futures-timer = "3.0.2"
-kvdb = "0.7.0"
-kvdb-rocksdb = "0.9.1"
+kvdb = "0.8.0"
+kvdb-rocksdb = "0.10.0"
 thiserror = "1.0.23"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
@@ -26,7 +26,7 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 log = "0.4.11"
 env_logger = "0.8.2"
 assert_matches = "1.4.0"
-kvdb-memorydb = "0.7.0"
+kvdb-memorydb = "0.8.0"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
