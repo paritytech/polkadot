@@ -59,7 +59,7 @@
 // yielding false positives
 #![warn(missing_docs)]
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Poll;
@@ -74,6 +74,7 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use futures_timer::Delay;
+use rand_chacha::ChaCha8Rng as Rng;
 use streamunordered::{StreamYield, StreamUnordered};
 
 use polkadot_primitives::v1::{Block, BlockNumber, Hash};
@@ -100,6 +101,8 @@ const CHANNEL_CAPACITY: usize = 1024;
 const STOP_DELAY: u64 = 1;
 // Target for logs.
 const LOG_TARGET: &'static str = "overseer";
+// Rate at which messages are timed.
+const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -303,6 +306,50 @@ struct SubsystemInstance<M> {
 pub struct OverseerSubsystemContext<M>{
 	rx: mpsc::Receiver<FromOverseer<M>>,
 	tx: mpsc::Sender<ToOverseer>,
+	metrics: Metrics,
+	rng: Rng,
+	distribution: rand::distributions::Bernoulli,
+}
+
+impl<M> OverseerSubsystemContext<M> {
+	/// Create a new `OverseerSubsystemContext` with randomized initial RNG state.
+	///
+	/// The internal RNG is used to determine which messages are timed.
+	///
+	/// `capture_rate` determines what fraction of messages are timed. Its useful values are clamped
+	/// to the range `0.0..=1.0`.
+	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer>, metrics: Metrics, mut capture_rate: f64) -> Self {
+		let rng = unimplemented!();
+
+		if capture_rate < 0.0 {
+			capture_rate = 0.0;
+		} else if capture_rate > 1.0 {
+			capture_rate = 1.0;
+		}
+		let distribution = rand::distributions::Bernoulli::new(capture_rate).expect("input is clamped to valid range; qed");
+
+		OverseerSubsystemContext { rx, tx, metrics, rng, distribution }
+	}
+
+	/// Create a new `OverseserSubsystemContext` with no metering.
+	///
+	/// Intended for tests.
+	#[allow(unused)]
+	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer>) -> Self {
+		let metrics = Metrics::default();
+		Self::new(rx, tx, metrics, 0.0)
+	}
+
+	/// Create a timer for a held message, with probability `self.distribution`.
+	fn time_message_hold(&mut self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		use rand::distributions::Distribution;
+
+		if self.distribution.sample(&mut self.rng) {
+			self.metrics.time_message_hold()
+		} else {
+			None
+		}
+	}
 }
 
 #[async_trait::async_trait]
@@ -964,6 +1011,7 @@ struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
+	message_relay_timing: prometheus::Histogram,
 }
 
 #[derive(Default, Clone)]
@@ -986,6 +1034,11 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.messages_relayed_total.inc();
 		}
+	}
+
+	/// Provide a timer for the duration between receiving a message and passing it to `route_message`
+	fn time_message_hold(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.message_relay_timing.start_timer())
 	}
 }
 
@@ -1013,8 +1066,36 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			message_relay_timing: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts {
+						common_opts: prometheus::Opts::new(
+							"overseer_messages_relay_timing",
+							"Time spent holding a message in the overseer before passing it to `route_message`",
+						),
+						// guessing at the desired resolution, but we know that messages will time
+						// out after 0.5 seconds, so the bucket set below seems plausible:
+						// `0.0001 * (1.6 ^ 18) ~= 0.472`. Prometheus auto-generates a final bucket
+						// for all values between the final value and `+Inf`, so this should work.
+						//
+						// The documented legal range for the inputs are:
+						//
+						// - `> 0.0`
+						// - `> 1.0`
+						// - `! 0`
+						buckets: prometheus::exponential_buckets(0.0001, 1.6, 18).expect("inputs are within documented range; qed"),
+					}
+				)?,
+				registry,
+			)?,
 		};
 		Ok(Metrics(Some(metrics)))
+	}
+}
+
+impl fmt::Debug for Metrics {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("Metrics {{...}}")
 	}
 }
 
@@ -1134,6 +1215,8 @@ where
 			events_tx: events_tx.clone(),
 		};
 
+		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
+
 		let mut running_subsystems_rx = StreamUnordered::new();
 		let mut running_subsystems = FuturesUnordered::new();
 
@@ -1142,6 +1225,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.candidate_validation,
+			&metrics,
 		)?;
 
 		let candidate_backing_subsystem = spawn(
@@ -1149,6 +1233,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.candidate_backing,
+			&metrics,
 		)?;
 
 		let candidate_selection_subsystem = spawn(
@@ -1156,6 +1241,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.candidate_selection,
+			&metrics,
 		)?;
 
 		let statement_distribution_subsystem = spawn(
@@ -1163,6 +1249,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.statement_distribution,
+			&metrics,
 		)?;
 
 		let availability_distribution_subsystem = spawn(
@@ -1170,6 +1257,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.availability_distribution,
+			&metrics,
 		)?;
 
 		let bitfield_signing_subsystem = spawn(
@@ -1177,6 +1265,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.bitfield_signing,
+			&metrics,
 		)?;
 
 		let bitfield_distribution_subsystem = spawn(
@@ -1184,6 +1273,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.bitfield_distribution,
+			&metrics,
 		)?;
 
 		let provisioner_subsystem = spawn(
@@ -1191,6 +1281,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.provisioner,
+			&metrics,
 		)?;
 
 		let pov_distribution_subsystem = spawn(
@@ -1198,6 +1289,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.pov_distribution,
+			&metrics,
 		)?;
 
 		let runtime_api_subsystem = spawn(
@@ -1205,6 +1297,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.runtime_api,
+			&metrics,
 		)?;
 
 		let availability_store_subsystem = spawn(
@@ -1212,6 +1305,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.availability_store,
+			&metrics,
 		)?;
 
 		let network_bridge_subsystem = spawn(
@@ -1219,6 +1313,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.network_bridge,
+			&metrics,
 		)?;
 
 		let chain_api_subsystem = spawn(
@@ -1226,6 +1321,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.chain_api,
+			&metrics,
 		)?;
 
 		let collation_generation_subsystem = spawn(
@@ -1233,6 +1329,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.collation_generation,
+			&metrics,
 		)?;
 
 
@@ -1241,6 +1338,7 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.collator_protocol,
+			&metrics,
 		)?;
 
 		let leaves = leaves
@@ -1249,8 +1347,6 @@ where
 			.collect();
 
 		let active_leaves = HashMap::new();
-
-		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 		let activation_external_listeners = HashMap::new();
 
 		let this = Self {
@@ -1575,10 +1671,11 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 	streams: &mut StreamUnordered<mpsc::Receiver<ToOverseer>>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
+	metrics: &Metrics,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
 	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
 	let (from_tx, from_rx) = mpsc::channel(CHANNEL_CAPACITY);
-	let ctx = OverseerSubsystemContext { rx: to_rx, tx: from_tx };
+	let ctx = OverseerSubsystemContext::new(to_rx, from_tx, metrics.clone(), MESSAGE_TIMER_METRIC_CAPTURE_RATE);
 	let SpawnedSubsystem { future, name } = s.start(ctx);
 
 	let (tx, rx) = oneshot::channel();
