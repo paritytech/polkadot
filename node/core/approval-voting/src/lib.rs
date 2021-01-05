@@ -137,7 +137,7 @@ fn slot_number_to_tick(slot_duration_millis: u64, slot: SlotNumber) -> Tick {
 }
 
 fn tranche_now(slot_duration_millis: u64, base_slot: SlotNumber) -> DelayTranche {
-	tick_now().saturating_sub(slot_number_to_tick(slot_duration_millis, base_slot))
+	tick_now().saturating_sub(slot_number_to_tick(slot_duration_millis, base_slot)) as u32
 }
 
 // Returns `None` if the tick has been reached or is already
