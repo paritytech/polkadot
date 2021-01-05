@@ -24,7 +24,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
 };
 use polkadot_subsystem::{
-	jaeger, PerLeaveSpan,
+	jaeger, PerLeafSpan,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
 };
@@ -186,7 +186,7 @@ struct State {
 	view: OurView,
 
 	/// Span per relay parent.
-	span_per_relay_parent: HashMap<Hash, PerLeaveSpan>,
+	span_per_relay_parent: HashMap<Hash, PerLeafSpan>,
 
 	/// Possessed collations.
 	///

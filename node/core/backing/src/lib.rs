@@ -37,7 +37,7 @@ use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
-	JaegerSpan, PerLeaveSpan,
+	JaegerSpan, PerLeafSpan,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
@@ -953,7 +953,7 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
-			let span = PerLeaveSpan::new(span, "backing");
+			let span = PerLeafSpan::new(span, "backing");
 			let _span = span.child("runtime-apis");
 
 			let (validators, groups, session_index, cores) = futures::try_join!(

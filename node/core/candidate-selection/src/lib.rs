@@ -25,7 +25,7 @@ use futures::{
 };
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_subsystem::{
-	jaeger, JaegerSpan, PerLeaveSpan,
+	jaeger, JaegerSpan, PerLeafSpan,
 	errors::ChainApiError,
 	messages::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage,
@@ -101,7 +101,7 @@ impl JobTrait for CandidateSelectionJob {
 		receiver: mpsc::Receiver<CandidateSelectionMessage>,
 		mut sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		let span = PerLeaveSpan::new(span, "candidate-selection");
+		let span = PerLeafSpan::new(span, "candidate-selection");
 		async move {
 			let _span = span.child("query-runtime");
 			let (groups, cores) = futures::try_join!(

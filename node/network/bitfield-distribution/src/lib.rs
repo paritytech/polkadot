@@ -27,7 +27,7 @@ use futures::{channel::oneshot, FutureExt};
 
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	PerLeaveSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
+	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
 	SubsystemResult,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
@@ -114,13 +114,13 @@ struct PerRelayParentData {
 	/// to prevent flooding.
 	message_received_from_peer: HashMap<PeerId, HashSet<ValidatorId>>,
 
-	/// The span for this leave/relay parent.
-	span: PerLeaveSpan,
+	/// The span for this leaf/relay parent.
+	span: PerLeafSpan,
 }
 
 impl PerRelayParentData {
 	/// Create a new instance.
-	fn new(signing_context: SigningContext, validator_set: Vec<ValidatorId>, span: PerLeaveSpan) -> Self {
+	fn new(signing_context: SigningContext, validator_set: Vec<ValidatorId>, span: PerLeafSpan) -> Self {
 		Self {
 			signing_context,
 			validator_set,
@@ -196,7 +196,7 @@ impl BitfieldDistribution {
 
 					for (relay_parent, span) in activated {
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
-						let span = PerLeaveSpan::new(span, "bitfield-distribution");
+						let span = PerLeafSpan::new(span, "bitfield-distribution");
 						let _span = span.child("query-basics");
 
 						// query validator set and signing context per relay_parent once only
@@ -818,7 +818,7 @@ mod test {
 						},
 						message_received_from_peer: hashmap!{},
 						message_sent_to_peer: hashmap!{},
-						span: PerLeaveSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+						span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
 					},
 			},
 			peer_views: peers
@@ -852,7 +852,7 @@ mod test {
 					one_per_validator: hashmap!{},
 					message_received_from_peer: hashmap!{},
 					message_sent_to_peer: hashmap!{},
-					span: PerLeaveSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+					span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
 				})
 			}).collect();
 

@@ -28,7 +28,7 @@ use polkadot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
 };
 use polkadot_subsystem::{
-	jaeger, PerLeaveSpan, JaegerSpan,
+	jaeger, PerLeafSpan, JaegerSpan,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
@@ -211,7 +211,7 @@ struct State {
 	metrics: Metrics,
 
 	/// Span per relay parent.
-	span_per_relay_parent: HashMap<Hash, PerLeaveSpan>,
+	span_per_relay_parent: HashMap<Hash, PerLeafSpan>,
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
@@ -565,7 +565,7 @@ async fn handle_our_view_change(
 		.map(|v| (v.0.clone(), v.1.clone()))
 		.collect();
 	added.into_iter().for_each(|(h, s)| {
-		state.span_per_relay_parent.insert(h, PerLeaveSpan::new(s, "validator-side"));
+		state.span_per_relay_parent.insert(h, PerLeafSpan::new(s, "validator-side"));
 	});
 
 	let removed = old_view

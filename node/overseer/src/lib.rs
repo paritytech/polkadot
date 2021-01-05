@@ -489,8 +489,8 @@ pub struct Overseer<S> {
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
 
-	/// Stores the [`JaegerSpan`] per active leave.
-	span_per_active_leave: HashMap<Hash, Arc<JaegerSpan>>,
+	/// Stores the [`JaegerSpan`] per active leaf.
+	span_per_active_leaf: HashMap<Hash, Arc<JaegerSpan>>,
 
 	/// A set of leaves that `Overseer` starts working with.
 	///
@@ -1279,7 +1279,7 @@ where
 			leaves,
 			active_leaves,
 			metrics,
-			span_per_active_leave: Default::default(),
+			span_per_active_leaf: Default::default(),
 		};
 
 		Ok((this, handler))
@@ -1526,7 +1526,7 @@ where
 		}
 
 		let span = Arc::new(jaeger::hash_span(hash, "leave activated"));
-		self.span_per_active_leave.insert(*hash, span.clone());
+		self.span_per_active_leaf.insert(*hash, span.clone());
 		span
 	}
 
@@ -1534,7 +1534,7 @@ where
 	fn on_head_deactivated(&mut self, hash: &Hash) {
 		self.metrics.on_head_deactivated();
 		self.activation_external_listeners.remove(hash);
-		self.span_per_active_leave.remove(hash);
+		self.span_per_active_leaf.remove(hash);
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]

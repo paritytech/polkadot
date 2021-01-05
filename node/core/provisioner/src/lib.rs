@@ -25,7 +25,7 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError}, PerLeaveSpan, JaegerSpan,
+	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, JaegerSpan,
 	messages::{
 		AllMessages, CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage,
@@ -156,7 +156,7 @@ impl JobTrait for ProvisioningJob {
 				receiver,
 			);
 
-			job.run_loop(PerLeaveSpan::new(span, "provisioner")).await
+			job.run_loop(PerLeafSpan::new(span, "provisioner")).await
 		}
 		.boxed()
 	}
@@ -182,7 +182,7 @@ impl ProvisioningJob {
 		}
 	}
 
-	async fn run_loop(mut self, span: PerLeaveSpan) -> Result<(), Error> {
+	async fn run_loop(mut self, span: PerLeafSpan) -> Result<(), Error> {
 		use ProvisionerMessage::{
 			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
 		};

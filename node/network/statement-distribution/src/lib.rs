@@ -24,7 +24,7 @@
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeaveSpan,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
 	messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
@@ -389,14 +389,14 @@ struct ActiveHeadData {
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,
 	/// A Jaeger span for this head, so we can attach data to it.
-	span: PerLeaveSpan,
+	span: PerLeafSpan,
 }
 
 impl ActiveHeadData {
 	fn new(
 		validators: Vec<ValidatorId>,
 		session_index: sp_staking::SessionIndex,
-		span: PerLeaveSpan,
+		span: PerLeafSpan,
 	) -> Self {
 		ActiveHeadData {
 			candidates: Default::default(),
@@ -941,7 +941,7 @@ impl StatementDistribution {
 					let _timer = metrics.time_active_leaves_update();
 
 					for (relay_parent, span) in activated {
-						let span = PerLeaveSpan::new(span, "statement-distribution");
+						let span = PerLeafSpan::new(span, "statement-distribution");
 
 						let (validators, session_index) = {
 							let (val_tx, val_rx) = oneshot::channel();
@@ -1160,7 +1160,7 @@ mod tests {
 		let mut head_data = ActiveHeadData::new(
 			validators,
 			session_index,
-			PerLeaveSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+			PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
 		);
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
@@ -1422,7 +1422,7 @@ mod tests {
 			let mut data = ActiveHeadData::new(
 				validators,
 				session_index,
-				PerLeaveSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+				PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
 			);
 
 			let noted = data.note_statement(block_on(SignedFullStatement::sign(

@@ -113,24 +113,24 @@ impl JaegerConfigBuilder {
 	}
 }
 
-/// A special "per leave span".
+/// A special "per leaf span".
 ///
 /// Essentially this span wraps two spans:
 ///
-/// 1. The span that is created per leave in the overseer.
-/// 2. Some child span of the per-leave span.
+/// 1. The span that is created per leaf in the overseer.
+/// 2. Some child span of the per-leaf span.
 ///
 /// This just works as auxiliary structure to easily store both.
 #[derive(Debug)]
-pub struct PerLeaveSpan {
+pub struct PerLeafSpan {
 	leave_span: Arc<JaegerSpan>,
 	span: JaegerSpan,
 }
 
-impl PerLeaveSpan {
+impl PerLeafSpan {
 	/// Creates a new instance.
 	///
-	/// Takes the `leave_span` that is created by the overseer per leave and a name for a child span.
+	/// Takes the `leaf_span` that is created by the overseer per leaf and a name for a child span.
 	/// Both will be stored in this object, while the child span is implicitly accessible by using the
 	/// [`Deref`](std::ops::Deref) implementation.
 	pub fn new(leave_span: Arc<JaegerSpan>, name: impl Into<String>) -> Self {
@@ -142,14 +142,14 @@ impl PerLeaveSpan {
 		}
 	}
 
-	/// Returns the leave span.
-	pub fn leave_span(&self) -> &Arc<JaegerSpan> {
+	/// Returns the leaf span.
+	pub fn leaf_span(&self) -> &Arc<JaegerSpan> {
 		&self.leave_span
 	}
 }
 
 /// Returns a reference to the child span.
-impl std::ops::Deref for PerLeaveSpan {
+impl std::ops::Deref for PerLeafSpan {
 	type Target = JaegerSpan;
 
 	fn deref(&self) -> &JaegerSpan {
