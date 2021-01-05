@@ -309,6 +309,12 @@ impl<T> MaybeTimed<T> {
 	}
 }
 
+impl<T> From<T> for MaybeTimed<T> {
+	fn from(t: T) -> Self {
+		Self { timer: None, t }
+	}
+}
+
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or to spawn it's [`SubsystemJob`]s.
@@ -1502,7 +1508,7 @@ where
 
 					match msg {
 						Event::MsgToSubsystem(msg) => {
-							self.route_message(msg).await?;
+							self.route_message(msg.into()).await?;
 						}
 						Event::Stop => {
 							self.stop().await;
@@ -1520,14 +1526,17 @@ where
 					}
 				},
 				msg = self.running_subsystems_rx.next().fuse() => {
-					let msg = if let Some((StreamYield::Item(msg), _)) = msg {
-						msg.into_inner()
+					let MaybeTimed { timer, t: msg } = if let Some((StreamYield::Item(msg), _)) = msg {
+						msg
 					} else {
 						continue
 					};
 
 					match msg {
-						ToOverseer::SubsystemMessage(msg) => self.route_message(msg).await?,
+						ToOverseer::SubsystemMessage(msg) => {
+							let msg = MaybeTimed { timer, t: msg };
+							self.route_message(msg).await?
+						},
 						ToOverseer::SpawnJob { name, s } => {
 							self.spawn_job(name, s);
 						}
@@ -1628,7 +1637,8 @@ where
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	async fn route_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
+	async fn route_message(&mut self, msg: MaybeTimed<AllMessages>) -> SubsystemResult<()> {
+		let msg = msg.into_inner();
 		self.metrics.on_message_relayed();
 		match msg {
 			AllMessages::CandidateValidation(msg) => {
