@@ -295,6 +295,20 @@ struct SubsystemInstance<M> {
 	name: &'static str,
 }
 
+type MaybeTimer = Option<metrics::prometheus::prometheus::HistogramTimer>;
+
+#[derive(Debug)]
+struct MaybeTimed<T> {
+	timer: MaybeTimer,
+	t: T,
+}
+
+impl<T> MaybeTimed<T> {
+	fn into_inner(self) -> T {
+		self.t
+	}
+}
+
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or to spawn it's [`SubsystemJob`]s.
@@ -305,7 +319,7 @@ struct SubsystemInstance<M> {
 #[derive(Debug)]
 pub struct OverseerSubsystemContext<M>{
 	rx: mpsc::Receiver<FromOverseer<M>>,
-	tx: mpsc::Sender<ToOverseer>,
+	tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
 	metrics: Metrics,
 	rng: Rng,
 	distribution: rand::distributions::Bernoulli,
@@ -316,9 +330,9 @@ impl<M> OverseerSubsystemContext<M> {
 	///
 	/// The internal RNG is used to determine which messages are timed.
 	///
-	/// `capture_rate` determines what fraction of messages are timed. Its useful values are clamped
+	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
 	/// to the range `0.0..=1.0`.
-	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer>, metrics: Metrics, mut capture_rate: f64) -> Self {
+	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>, metrics: Metrics, mut capture_rate: f64) -> Self {
 		use rand_chacha::rand_core::SeedableRng;
 		let rng = Rng::from_entropy();
 
@@ -336,19 +350,50 @@ impl<M> OverseerSubsystemContext<M> {
 	///
 	/// Intended for tests.
 	#[allow(unused)]
-	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer>) -> Self {
+	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>) -> Self {
 		let metrics = Metrics::default();
 		Self::new(rx, tx, metrics, 0.0)
 	}
 
-	/// Create a timer for a held message, with probability `self.distribution`.
-	fn time_message_hold(&mut self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	fn maybe_timed<T>(&mut self, t: T) -> MaybeTimed<T> {
 		use rand::distributions::Distribution;
 
-		if self.distribution.sample(&mut self.rng) {
+		let timer = if self.distribution.sample(&mut self.rng) {
 			self.metrics.time_message_hold()
 		} else {
 			None
+		};
+
+		MaybeTimed { timer, t }
+	}
+
+	/// Make a standalone function which can construct a `MaybeTimed` wrapper around some `T`
+	/// without borrowing `self`.
+	///
+	/// This is somewhat more expensive than `self.maybe_timed` because it must clone some stuff.
+	fn make_maybe_timed<T>(&mut self) -> impl FnMut(T) -> MaybeTimed<T> {
+		use rand::{RngCore, SeedableRng};
+
+		// We don't want to simply clone this RNG because we don't want to duplicate its state.
+		// It's not ever going to be used for cryptographic purposes, but it's still better to
+		// keep good habits.
+		let mut child_seed = [0_u8; 32];
+		self.rng.fill_bytes(&mut child_seed);
+		let mut rng = Rng::from_seed(child_seed);
+
+		let metrics = self.metrics.clone();
+		let distribution = self.distribution.clone();
+
+		move |t| {
+			use rand::distributions::Distribution;
+
+			let timer = if distribution.sample(&mut rng) {
+				metrics.time_message_hold()
+			} else {
+				None
+			};
+
+			MaybeTimed { timer, t }
 		}
 	}
 }
@@ -376,7 +421,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.tx.send(ToOverseer::SpawnJob {
+		self.send_timed(ToOverseer::SpawnJob {
 			name,
 			s,
 		}).await.map_err(Into::into)
@@ -385,7 +430,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.tx.send(ToOverseer::SpawnBlockingJob {
+		self.send_timed(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
 		}).await.map_err(Into::into)
@@ -398,25 +443,46 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
 	{
-		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
-		if self.tx.send_all(&mut msgs).await.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				msg_type = std::any::type_name::<M>(),
-				"Failed to send messages to Overseer",
-			);
-
-		}
+		self.send_all_timed_or_log(msgs).await
 	}
 }
 
 impl<M> OverseerSubsystemContext<M> {
 	async fn send_and_log_error(&mut self, msg: ToOverseer) {
-		if self.tx.send(msg).await.is_err() {
+		if self.send_timed(msg).await.is_err() {
 			tracing::debug!(
 				target: LOG_TARGET,
 				msg_type = std::any::type_name::<M>(),
 				"Failed to send a message to Overseer",
+			);
+		}
+	}
+
+	async fn send_timed(&mut self, msg: ToOverseer) -> Result<
+		(),
+		<mpsc::Sender<MaybeTimed<ToOverseer>> as futures::Sink<MaybeTimed<ToOverseer>>>::Error
+	>
+	{
+		let msg = self.maybe_timed(msg);
+		self.tx.send(msg).await
+	}
+
+	async fn send_all_timed_or_log<Msg, Msgs>(&mut self, msgs: Msgs)
+	where
+		Msgs: IntoIterator<Item = Msg> + Send,
+		Msgs::IntoIter: Send,
+		Msg: Into<AllMessages> + Send,
+	{
+		let mut maybe_timed = self.make_maybe_timed();
+		let mut msgs = stream::iter(
+			msgs.into_iter()
+				.map(move |msg| Ok(maybe_timed(ToOverseer::SubsystemMessage(msg.into()))))
+		);
+		if self.tx.send_all(&mut msgs).await.is_err() {
+			tracing::debug!(
+				target: LOG_TARGET,
+				msg_type = std::any::type_name::<M>(),
+				"Failed to send messages to Overseer",
 			);
 		}
 	}
@@ -529,8 +595,8 @@ pub struct Overseer<S> {
 	/// Here we keep handles to spawned subsystems to be notified when they terminate.
 	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
-	/// Gather running subsystms' outbound streams into one.
-	running_subsystems_rx: StreamUnordered<mpsc::Receiver<ToOverseer>>,
+	/// Gather running subsystems' outbound streams into one.
+	running_subsystems_rx: StreamUnordered<mpsc::Receiver<MaybeTimed<ToOverseer>>>,
 
 	/// Events that are sent to the overseer from the outside world
 	events_rx: mpsc::Receiver<Event>,
@@ -1038,7 +1104,7 @@ impl Metrics {
 	}
 
 	/// Provide a timer for the duration between receiving a message and passing it to `route_message`
-	fn time_message_hold(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	fn time_message_hold(&self) -> MaybeTimer {
 		self.0.as_ref().map(|metrics| metrics.message_relay_timing.start_timer())
 	}
 }
@@ -1455,7 +1521,7 @@ where
 				},
 				msg = self.running_subsystems_rx.next().fuse() => {
 					let msg = if let Some((StreamYield::Item(msg), _)) = msg {
-						msg
+						msg.into_inner()
 					} else {
 						continue
 					};
@@ -1670,7 +1736,7 @@ where
 fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-	streams: &mut StreamUnordered<mpsc::Receiver<ToOverseer>>,
+	streams: &mut StreamUnordered<mpsc::Receiver<MaybeTimed<ToOverseer>>>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
