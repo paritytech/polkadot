@@ -55,6 +55,84 @@ pub use crate::v0::{ValidatorPair, CollatorPair};
 pub use sp_staking::SessionIndex;
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
+/// A declarations of storage keys where an external observer can find some interesting data.
+pub mod well_known_keys {
+	use super::{Id, HrmpChannelId};
+	use hex_literal::hex;
+	use sp_io::hashing::twox_64;
+	use sp_std::prelude::*;
+	use parity_scale_codec::Encode as _;
+
+	// A note on generating these magic values below:
+	//
+	// The `StorageValue`, such as `ACTIVE_CONFIG` was obtained by calling:
+	//
+	//     <Self as Store>::ActiveConfig::hashed_key()
+	//
+	// The `StorageMap` values require `prefix`, and for example for `hrmp_egress_channel_index`,
+	// it could be obtained like:
+	//
+	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
+	//
+
+	/// The currently active host configuration.
+	///
+	/// The storage entry should be accessed as an `AbridgedHostConfiguration` encoded value.
+	pub const ACTIVE_CONFIG: &[u8] =
+		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
+
+	/// The upward message dispatch queue for the given para id.
+	///
+	/// The storage entry stores a tuple of two values:
+	///
+	/// - `count: u32`, the number of messages currently in the queue for given para,
+	/// - `total_size: u32`, the total size of all messages in the queue.
+	pub fn relay_dispatch_queue_size(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["f5207f03cfdce586301014700e2c2593fad157e461d71fd4c1f936839a5f1f3e"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
+	/// The hrmp channel for the given identifier.
+	///
+	/// The storage entry should be accessed as an `AbridgedHrmpChannel` encoded value.
+	pub fn hrmp_channels(channel: HrmpChannelId) -> Vec<u8> {
+		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cb6604cff828a6e3f579ca6c59ace013d"];
+
+		channel.using_encoded(|channel: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(channel).iter())
+				.chain(channel.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
+	/// The list of outbound channels for the given para.
+	///
+	/// The storage entry stores a `Vec<ParaId>`
+	pub fn hrmp_egress_channel_index(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cf12b746dcf32e843354583c9702cc020"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+}
+
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 
@@ -842,6 +920,66 @@ impl From<ValidityError> for u8 {
 	fn from(err: ValidityError) -> Self {
 		err as u8
 	}
+}
+
+/// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime module)
+/// meant to be used by a parachain or PDK such as cumulus.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
+pub struct AbridgedHostConfiguration {
+	/// The maximum validation code size, in bytes.
+	pub max_code_size: u32,
+	/// The maximum head-data size, in bytes.
+	pub max_head_data_size: u32,
+	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+	pub max_upward_queue_count: u32,
+	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
+	/// no further messages may be added to it. If it exceeds this then the queue may contain only
+	/// a single message.
+	pub max_upward_queue_size: u32,
+	/// The maximum size of an upward message that can be sent by a candidate.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_size: u32,
+	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_num_per_candidate: u32,
+	/// The maximum number of outbound HRMP messages can be sent by a candidate.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_max_message_num_per_candidate: u32,
+	/// The minimum frequency at which parachains can update their validation code.
+	pub validation_upgrade_frequency: BlockNumber,
+	/// The delay, in blocks, before a validation upgrade is applied.
+	pub validation_upgrade_delay: BlockNumber,
+}
+
+/// Abridged version of `HrmpChannel` (from the `Hrmp` parachains host runtime module) meant to be
+/// used by a parachain or PDK such as cumulus.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
+pub struct AbridgedHrmpChannel {
+	/// The maximum number of messages that can be pending in the channel at once.
+	pub max_capacity: u32,
+	/// The maximum total size of the messages that can be pending in the channel at once.
+	pub max_total_size: u32,
+	/// The maximum message size that could be put into the channel.
+	pub max_message_size: u32,
+	/// The current number of messages pending in the channel.
+	/// Invariant: should be less or equal to `max_capacity`.s`.
+	pub msg_count: u32,
+	/// The total size in bytes of all message payloads in the channel.
+	/// Invariant: should be less or equal to `max_total_size`.
+	pub total_size: u32,
+	/// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
+	/// `(prev_head, B, H(M))`, where
+	/// - `prev_head`: is the previous value of `mqc_head` or zero if none.
+	/// - `B`: is the [relay-chain] block number in which a message was appended
+	/// - `H(M)`: is the hash of the message being appended.
+	/// This value is initialized to a special value that consists of all zeroes which indicates
+	/// that no messages were previously added.
+	pub mqc_head: Option<Hash>,
 }
 
 #[cfg(test)]
