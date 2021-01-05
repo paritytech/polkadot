@@ -319,7 +319,8 @@ impl<M> OverseerSubsystemContext<M> {
 	/// `capture_rate` determines what fraction of messages are timed. Its useful values are clamped
 	/// to the range `0.0..=1.0`.
 	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer>, metrics: Metrics, mut capture_rate: f64) -> Self {
-		let rng = unimplemented!();
+		use rand_chacha::rand_core::SeedableRng;
+		let rng = Rng::from_entropy();
 
 		if capture_rate < 0.0 {
 			capture_rate = 0.0;
