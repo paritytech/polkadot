@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData, CandidateHash,
+	CandidateReceipt, HeadData, CandidateHash, Hash,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
@@ -383,11 +383,13 @@ impl<T: Config> Module<T> {
 		Ok(freed_cores)
 	}
 
-	/// Process candidates that have been backed. Provide a set of candidates and scheduled cores.
+	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
+	/// and scheduled cores.
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates(
+		parent_storage_root: Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -492,6 +494,7 @@ impl<T: Config> Module<T> {
 								match crate::util::make_persisted_validation_data::<T>(
 									para_id,
 									relay_parent_number,
+									parent_storage_root,
 								) {
 									Some(l) => l,
 									None => {
@@ -1134,6 +1137,7 @@ mod tests {
 			= crate::util::make_persisted_validation_data::<Test>(
 				para_id,
 				relay_parent_number,
+				Default::default(),
 			)?;
 		Some(persisted_validation_data.hash())
 	}
@@ -1639,6 +1643,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_b_assignment.clone()],
 						&group_validators,
@@ -1697,6 +1702,7 @@ mod tests {
 				// out-of-order manifests as unscheduled.
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 						&group_validators,
@@ -1731,6 +1737,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1767,6 +1774,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1803,6 +1811,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![
 							chain_a_assignment.clone(),
@@ -1846,6 +1855,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![thread_a_assignment.clone()],
 						&group_validators,
@@ -1893,6 +1903,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1934,6 +1945,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1980,6 +1992,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -2015,6 +2028,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -2156,6 +2170,7 @@ mod tests {
 			));
 
 			let occupied_cores = Inclusion::process_candidates(
+				Default::default(),
 				vec![backed_a, backed_b, backed_c],
 				vec![
 					chain_a_assignment.clone(),
@@ -2288,6 +2303,7 @@ mod tests {
 			));
 
 			let occupied_cores = Inclusion::process_candidates(
+				Default::default(),
 				vec![backed_a],
 				vec![
 					chain_a_assignment.clone(),

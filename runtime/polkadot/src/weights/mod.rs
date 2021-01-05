@@ -34,3 +34,4 @@ pub mod pallet_utility;
 pub mod pallet_vesting;
 pub mod pallet_bounties;
 pub mod pallet_tips;
+pub mod runtime_common_claims;

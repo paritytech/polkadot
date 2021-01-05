@@ -59,7 +59,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
   1. Return a list of freed cores consisting of the cores where candidates have become available.
-* `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
+* `process_candidates(parent_storage_root, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
   1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
   1. check that there is no candidate pending availability for any scheduled `ParaId`.

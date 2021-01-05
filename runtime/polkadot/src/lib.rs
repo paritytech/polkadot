@@ -138,6 +138,7 @@ type MoreThanHalfCouncil = EnsureOneOf<
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 0;
 }
 
 impl frame_system::Config for Runtime {
@@ -162,6 +163,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
+	type SS58Prefix = SS58Prefix;
 }
 
 parameter_types! {
@@ -761,6 +763,7 @@ impl claims::Config for Runtime {
 	type Prefix = Prefix;
 	/// At least 3/4 of the council must agree to a claim move before it can happen.
 	type MoveClaimOrigin = pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1231,6 +1234,10 @@ sp_api::impl_runtime_apis! {
 			Babe::current_epoch_start()
 		}
 
+		fn current_epoch() -> babe_primitives::Epoch {
+			Babe::current_epoch()
+		}
+
 		fn generate_key_ownership_proof(
 			_slot_number: babe_primitives::SlotNumber,
 			authority_id: babe_primitives::AuthorityId,
@@ -1323,7 +1330,7 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 			// Polkadot
-			add_benchmark!(params, batches, claims, Claims);
+			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);

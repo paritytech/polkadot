@@ -331,6 +331,7 @@ mod tests {
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
+		type SS58Prefix = ();
 	}
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test where
