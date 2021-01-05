@@ -473,6 +473,7 @@ pub type SignedAvailabilityBitfields = Vec<SignedAvailabilityBitfield>;
 
 /// A backed (or backable, depending on context) candidate.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct BackedCandidate<H = Hash> {
 	/// The candidate referred to.
 	pub candidate: CommittedCandidateReceipt<H>,
