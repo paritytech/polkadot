@@ -748,6 +748,10 @@ sp_api::impl_runtime_apis! {
 			Babe::current_epoch()
 		}
 
+		fn next_epoch() -> babe_primitives::Epoch {
+			Babe::next_epoch()
+		}
+
 		fn generate_key_ownership_proof(
 			_slot_number: babe_primitives::SlotNumber,
 			_authority_id: babe_primitives::AuthorityId,
