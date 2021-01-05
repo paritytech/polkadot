@@ -77,7 +77,7 @@ pub mod well_known_keys {
 
 	/// The currently active host configuration.
 	///
-	/// The storage entry stores a `HostConfiguration` encoded value.
+	/// The storage entry should be accessed as an `AbridgedHostConfiguration` encoded value.
 	pub const ACTIVE_CONFIG: &[u8] =
 		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
 
@@ -102,7 +102,7 @@ pub mod well_known_keys {
 
 	/// The hrmp channel for the given identifier.
 	///
-	/// The storage stores an `HrmpChannel` encoded value.
+	/// The storage entry should be accessed as an `AbridgedHrmpChannel` encoded value.
 	pub fn hrmp_channels(channel: HrmpChannelId) -> Vec<u8> {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cb6604cff828a6e3f579ca6c59ace013d"];
 
