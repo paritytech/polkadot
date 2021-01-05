@@ -123,7 +123,7 @@ fn assigned_core_transcript(core_index: CoreIndex) -> Transcript {
 ///
 /// The current description of the protocol assigns every validator to check every core. But at different times.
 /// The idea is that most assignments are never triggered and fall by the wayside.
-pub(crate) fn compute_assignment(
+pub(crate) fn compute_assignments(
 	keystore: &LocalKeystore,
 	relay_vrf_story: RelayVRFStory,
 	session_info: &SessionInfo,
