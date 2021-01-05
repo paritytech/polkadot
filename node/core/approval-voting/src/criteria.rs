@@ -16,10 +16,14 @@
 
 //! Assignment criteria VRF generation and checking.
 
-use polkadot_node_primitives::approval::{self as approval_types, AssignmentCert, DelayTranche, RelayVRFStory};
+use polkadot_node_primitives::approval::{
+	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
+};
 use polkadot_primitives::v1::{CoreIndex, ValidatorIndex, SessionInfo, AssignmentPair};
 use sc_keystore::LocalKeystore;
 use parity_scale_codec::{Encode, Decode};
+use sp_application_crypto::Public;
+
 use merlin::Transcript;
 use byteorder::{ByteOrder, LE};
 use schnorrkel::vrf::VRFInOut;
@@ -116,6 +120,9 @@ fn assigned_core_transcript(core_index: CoreIndex) -> Transcript {
 
 /// Compute the assignments for a given block. Returns a map containing all assignments to cores in
 /// the block. If more than one assignment targets the given core, only the earliest assignment is kept.
+///
+/// The current description of the protocol assigns every validator to check every core. But at different times.
+/// The idea is that most assignments are never triggered and fall by the wayside.
 pub(crate) fn compute_assignment(
 	keystore: &LocalKeystore,
 	relay_vrf_story: RelayVRFStory,
@@ -195,7 +202,7 @@ fn compute_relay_vrf_modulo_assignments(
 			// has been executed.
 
 			let cert = AssignmentCert {
-				kind: approval_types::AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
+				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
 				vrf: (approval_types::VRFOutput(vrf_in_out.to_output()), approval_types::VRFProof(vrf_proof)),
 			};
 
@@ -219,9 +226,8 @@ fn compute_relay_vrf_delay_assignments(
 	assignments: &mut HashMap<CoreIndex, OurAssignment>,
 ) {
 	for core in leaving_cores {
-		let (vrf_in_out, vrf_proof, _) = assignments_key.vrf_sign_extra(
+		let (vrf_in_out, vrf_proof, _) = assignments_key.vrf_sign(
 			relay_vrf_delay_transcript(relay_vrf_story.clone(), core),
-			assigned_core_transcript(core),
 		);
 
 		let tranche = relay_vrf_delay_tranche(
@@ -231,7 +237,7 @@ fn compute_relay_vrf_delay_assignments(
 		);
 
 		let cert = AssignmentCert {
-			kind: approval_types::AssignmentCertKind::RelayVRFDelay { core_index: core },
+			kind: AssignmentCertKind::RelayVRFDelay { core_index: core },
 			vrf: (approval_types::VRFOutput(vrf_in_out.to_output()), approval_types::VRFProof(vrf_proof)),
 		};
 
@@ -244,9 +250,90 @@ fn compute_relay_vrf_delay_assignments(
 
 		match assignments.entry(core) {
 			Entry::Vacant(e) => { let _ = e.insert(our_assignment); }
-			Entry::Occupied(e) => if e.get().tranche > our_assignment.tranche {
+			Entry::Occupied(mut e) => if e.get().tranche > our_assignment.tranche {
 				e.insert(our_assignment);
 			},
+		}
+	}
+}
+
+/// Assignment invalid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidAssignment;
+
+impl std::fmt::Display for InvalidAssignment {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "Invalid Assignment")
+	}
+}
+
+impl std::error::Error for InvalidAssignment { }
+
+/// Checks the crypto of an assignment cert. Failure conditions:
+///   * Validator index out of bounds
+///   * VRF signature check fails
+///   * VRF output doesn't match assigned core
+///   * Core is not covered by extra data in signature
+///   * Core index out of bounds
+///   * Sample is out of bounds
+///
+/// This function does not check whether the core is actually a valid assignment or not. That should be done
+/// outside of the scope of this function.
+pub(crate) fn check_assignment_cert(
+	claimed_core_index: CoreIndex,
+	validator_index: ValidatorIndex,
+	session_info: &SessionInfo,
+	relay_vrf_story: RelayVRFStory,
+	assignment: &AssignmentCert,
+) -> Result<DelayTranche, InvalidAssignment> {
+	let validator_public = session_info.assignment_keys
+		.get(validator_index as usize)
+		.ok_or(InvalidAssignment)?;
+
+	let public = schnorrkel::PublicKey::from_bytes(validator_public.as_slice())
+		.map_err(|_| InvalidAssignment)?;
+
+	if claimed_core_index.0 >= session_info.n_cores {
+		return Err(InvalidAssignment);
+	}
+
+	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
+	match assignment.kind {
+		AssignmentCertKind::RelayVRFModulo { sample } => {
+			if sample >= session_info.relay_vrf_modulo_samples {
+				return Err(InvalidAssignment);
+			}
+
+			let (vrf_in_out, _) = public.vrf_verify_extra(
+				relay_vrf_modulo_transcript(relay_vrf_story, sample),
+				&vrf_output.0,
+				&vrf_proof.0,
+				assigned_core_transcript(claimed_core_index)
+			).map_err(|_| InvalidAssignment)?;
+
+			// ensure that the `vrf_in_out` actually gives us the claimed core.
+			if relay_vrf_modulo_core(&vrf_in_out, session_info.n_cores) == claimed_core_index {
+				Ok(0)
+			} else {
+				Err(InvalidAssignment)
+			}
+		}
+		AssignmentCertKind::RelayVRFDelay { core_index } => {
+			if core_index != claimed_core_index {
+				return Err(InvalidAssignment);
+			}
+
+			let (vrf_in_out, _) = public.vrf_verify(
+				relay_vrf_delay_transcript(relay_vrf_story, core_index),
+				&vrf_output.0,
+				&vrf_proof.0,
+			).map_err(|_| InvalidAssignment)?;
+
+			Ok(relay_vrf_delay_tranche(
+				&vrf_in_out,
+				session_info.n_delay_tranches,
+				session_info.zeroth_delay_tranche_width,
+			))
 		}
 	}
 }
