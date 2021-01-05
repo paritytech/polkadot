@@ -477,14 +477,14 @@ impl CandidateBackingJob {
 	async fn run_loop(
 		mut self,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
-		span: &JaegerSpan
+		span: PerLeafSpan,
 	) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
 					let _span = span.child("process-validation-result");
 					if let Some(c) = validated_command {
-						self.handle_validated_candidate_command(c).await?;
+						self.handle_validated_candidate_command(&span, c).await?;
 					} else {
 						panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
 					}
@@ -507,6 +507,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
+		parent_span: &JaegerSpan,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
@@ -526,7 +527,7 @@ impl CandidateBackingJob {
 								descriptor: candidate.descriptor.clone(),
 								commitments,
 							});
-							self.sign_import_and_distribute_statement(statement).await?;
+							self.sign_import_and_distribute_statement(statement, parent_span).await?;
 							self.distribute_pov(candidate.descriptor, pov).await?;
 						}
 					}
@@ -545,7 +546,7 @@ impl CandidateBackingJob {
 					};
 
 					self.issued_statements.insert(candidate_hash);
-					self.sign_import_and_distribute_statement(statement).await?;
+					self.sign_import_and_distribute_statement(statement, &parent_span).await?;
 				}
 			}
 		}
@@ -601,8 +602,7 @@ impl CandidateBackingJob {
 		}
 
 		let candidate_hash = candidate.hash();
-		self.add_unbacked_span(&parent_span, candidate_hash);
-		let span = self.get_unbacked_validation_child(&candidate_hash);
+		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
 
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
@@ -619,9 +619,13 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	async fn sign_import_and_distribute_statement(&mut self, statement: Statement) -> Result<(), Error> {
+	async fn sign_import_and_distribute_statement(
+		&mut self,
+		statement: Statement,
+		parent_span: &JaegerSpan,
+	) -> Result<(), Error> {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.import_statement(&signed_statement).await?;
+			self.import_statement(&signed_statement, parent_span).await?;
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
@@ -669,11 +673,12 @@ impl CandidateBackingJob {
 	async fn import_statement(
 		&mut self,
 		statement: &SignedFullStatement,
+		parent_span: &JaegerSpan,
 	) -> Result<Option<TableSummary>, Error> {
 		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
 			let candidate_hash = statement.payload().candidate_hash();
-			self.get_unbacked_statement_child(&candidate_hash, statement.validator_index())
+			self.get_unbacked_statement_child(parent_span, candidate_hash, statement.validator_index())
 		};
 
 		let stmt = primitive_statement_to_table(statement);
@@ -821,11 +826,10 @@ impl CandidateBackingJob {
 		parent_span: &JaegerSpan,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
-		if let Some(summary) = self.import_statement(&statement).await? {
+		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
 			if let Statement::Seconded(_) = statement.payload() {
-				self.add_unbacked_span(parent_span, summary.candidate);
 				if Some(summary.group_id) == self.assignment {
-					let span = self.get_unbacked_validation_child(&summary.candidate);
+					let span = self.get_unbacked_validation_child(parent_span, summary.candidate);
 
 					self.kick_off_validation_work(summary, span).await?;
 				}
@@ -863,23 +867,32 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	fn add_unbacked_span(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) {
+	/// Insert or get the unbacked-span for the given candidate hash.
+	fn insert_or_get_unbacked_span(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) -> Option<&JaegerSpan> {
 		if !self.backed.contains(&hash) {
 			// only add if we don't consider this backed.
-			self.unbacked_candidates.entry(hash).or_insert_with(|| {
+			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
 				let mut span = parent_span.child("unbacked-candidate");
 				span.add_string_tag("candidate-hash", &format!("{:?}", hash.0));
 				span
 			});
+			Some(span)
+		} else {
+			None
 		}
 	}
 
-	fn get_unbacked_validation_child(&self, hash: &CandidateHash) -> Option<JaegerSpan> {
-		self.unbacked_candidates.get(hash).map(|span| span.child("validation"))
+	fn get_unbacked_validation_child(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) -> Option<JaegerSpan> {
+		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| span.child("validation"))
 	}
 
-	fn get_unbacked_statement_child(&self, hash: &CandidateHash, validator: ValidatorIndex) -> Option<JaegerSpan> {
-		self.unbacked_candidates.get(hash).map(|span| {
+	fn get_unbacked_statement_child(
+		&mut self,
+		parent_span: &JaegerSpan,
+		hash: CandidateHash,
+		validator: ValidatorIndex,
+	) -> Option<JaegerSpan> {
+		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| {
 			let mut span = span.child("import-statement");
 			span.add_string_tag("validator-index", &format!("{}", validator));
 			span
@@ -1053,7 +1066,7 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 			drop(_span);
 
-			job.run_loop(rx_to, &span).await
+			job.run_loop(rx_to, span).await
 		}.boxed()
 	}
 }
