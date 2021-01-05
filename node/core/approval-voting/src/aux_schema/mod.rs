@@ -30,7 +30,7 @@
 //! In the future, we may use a temporary DB which doesn't need to be wiped, but for the
 //! time being we share the same DB with the rest of Substrate.
 
-// TODO https://github.com/paritytech/polkadot/1975: remove this
+// TODO https://github.com/paritytech/polkadot/issues/1975: remove this
 #![allow(unused)]
 
 use sc_client_api::backend::AuxStore;
