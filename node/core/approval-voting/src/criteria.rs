@@ -25,6 +25,7 @@ use byteorder::{ByteOrder, LE};
 use schnorrkel::vrf::VRFInOut;
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 use super::LOG_TARGET;
 
@@ -83,6 +84,30 @@ fn relay_vrf_modulo_core(
 	CoreIndex(random_core)
 }
 
+fn relay_vrf_delay_transcript(
+	relay_vrf_story: RelayVRFStory,
+	core_index: CoreIndex,
+) -> Transcript {
+	let mut t = Transcript::new(approval_types::RELAY_VRF_DELAY_CONTEXT);
+	t.append_message(b"RC-VRF", &relay_vrf_story.0);
+	core_index.0.using_encoded(|s| t.append_message(b"core", s));
+	t
+}
+
+fn relay_vrf_delay_tranche(
+	vrf_in_out: &VRFInOut,
+	num_delay_tranches: u32,
+	zeroth_delay_tranche_width: u32,
+) -> DelayTranche {
+	let bytes: [u8; 4] = vrf_in_out.make_bytes(approval_types::TRANCHE_RANDOMNESS_CONTEXT);
+
+	// interpret as little-endian u32 and reduce by the number of tranches.
+	let wide_tranche = LE::read_u32(&bytes) % (num_delay_tranches + zeroth_delay_tranche_width);
+
+	// Consolidate early results to tranche zero so tranche zero is extra wide.
+	wide_tranche.saturating_sub(zeroth_delay_tranche_width)
+}
+
 fn assigned_core_transcript(core_index: CoreIndex) -> Transcript {
 	let mut t = Transcript::new(approval_types::ASSIGNED_CORE_CONTEXT);
 	core_index.0.using_encoded(|s| t.append_message(b"core", s));
@@ -130,6 +155,16 @@ pub(crate) fn compute_assignment(
 		&mut assignments,
 	);
 
+	// Then run `RelayVRFDelay` once for the whole block.
+	compute_relay_vrf_delay_assignments(
+		&assignments_key,
+		index,
+		session_info,
+		relay_vrf_story,
+		leaving_cores,
+		&mut assignments,
+	);
+
 	assignments
 }
 
@@ -171,6 +206,47 @@ fn compute_relay_vrf_modulo_assignments(
 				validator_index,
 				triggered: false,
 			});
+		}
+	}
+}
+
+fn compute_relay_vrf_delay_assignments(
+	assignments_key: &schnorrkel::Keypair,
+	validator_index: ValidatorIndex,
+	session_info: &SessionInfo,
+	relay_vrf_story: RelayVRFStory,
+	leaving_cores: impl IntoIterator<Item = CoreIndex>,
+	assignments: &mut HashMap<CoreIndex, OurAssignment>,
+) {
+	for core in leaving_cores {
+		let (vrf_in_out, vrf_proof, _) = assignments_key.vrf_sign_extra(
+			relay_vrf_delay_transcript(relay_vrf_story.clone(), core),
+			assigned_core_transcript(core),
+		);
+
+		let tranche = relay_vrf_delay_tranche(
+			&vrf_in_out,
+			session_info.n_delay_tranches,
+			session_info.zeroth_delay_tranche_width,
+		);
+
+		let cert = AssignmentCert {
+			kind: approval_types::AssignmentCertKind::RelayVRFDelay { core_index: core },
+			vrf: (approval_types::VRFOutput(vrf_in_out.to_output()), approval_types::VRFProof(vrf_proof)),
+		};
+
+		let our_assignment = OurAssignment {
+			cert,
+			tranche,
+			validator_index,
+			triggered: false,
+		};
+
+		match assignments.entry(core) {
+			Entry::Vacant(e) => { let _ = e.insert(our_assignment); }
+			Entry::Occupied(e) => if e.get().tranche > our_assignment.tranche {
+				e.insert(our_assignment);
+			},
 		}
 	}
 }

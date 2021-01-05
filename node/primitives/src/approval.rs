@@ -29,7 +29,7 @@ use sp_application_crypto::Public;
 
 /// Validators assigning to check a particular candidate are split up into tranches.
 /// Earlier tranches of validators check first, with later tranches serving as backup.
-pub type DelayTranche = u64;
+pub type DelayTranche = u32;
 
 /// A static context used to compute the Relay VRF story based on the
 /// VRF output included in the header-chain.
@@ -38,14 +38,17 @@ pub const RELAY_VRF_STORY_CONTEXT: &[u8] = b"A&V RC-VRF";
 /// A static context used for all relay-vrf-modulo VRFs.
 pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
 
-/// A static context used for all relay-vrf-delay VRFs.
-pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V TRANCHE";
+/// A static context used for all relay-vrf-modulo VRFs.
+pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V DELAY";
 
 /// A static context used for transcripts indicating assigned availability core.
 pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED";
 
 /// A static context associated with producing randomness for a core.
 pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE";
+
+/// A static context associated with producing randomness for a tranche.
+pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
