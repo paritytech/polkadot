@@ -38,6 +38,7 @@ use polkadot_node_primitives::approval::{
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
 use sc_client_api::backend::AuxStore;
+use sp_consensus_babe::Epoch as BabeEpoch;
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
@@ -206,7 +207,7 @@ async fn handle_from_overseer(
 ) -> SubsystemResult<bool> {
 	match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-			for head in update.activated {
+			for (head, _span) in update.activated {
 				if let Err(e) = handle_new_head(ctx, state, head).await {
 					return Err(SubsystemError::with_origin("db", e));
 				}
@@ -447,6 +448,20 @@ async fn handle_new_head(
 			session_index
 		};
 
+		let babe_epoch = {
+			let (s_tx, s_rx) = oneshot::channel();
+			ctx.send_message(RuntimeApiMessage::Request(
+				block_hash,
+				RuntimeApiRequest::CurrentBabeEpoch(s_tx),
+			).into()).await;
+
+			match s_rx.await {
+				Ok(Ok(s)) => s,
+				Ok(Err(_)) => continue,
+				Err(_) => continue,
+			}
+		};
+
 		let assignments = {
 			let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
 			let session_info = state.session_info(session_index);
@@ -454,9 +469,9 @@ async fn handle_new_head(
 			match (unsafe_vrf, session_info) {
 				(Some(unsafe_vrf), Some(session_info)) => {
 					match unsafe_vrf.compute_randomness(
-						unimplemented!(),
-						unimplemented!(),
-						unimplemented!(),
+						&babe_epoch.authorities,
+						&babe_epoch.randomness,
+						babe_epoch.epoch_index,
 					) {
 						Ok(relay_vrf) => criteria::compute_assignments(
 							&state.keystore,
@@ -478,7 +493,7 @@ async fn handle_new_head(
 				}
 			}
 		};
-		// TODO [now]: compute assignments and import to DB
+		// TODO [now]: import to DB
 
 		// push block approval meta
 	}
