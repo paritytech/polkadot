@@ -53,8 +53,8 @@ const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 pub struct ActiveLeavesUpdate {
 	/// New relay chain block hashes of interest and their associated [`JaegerSpan`].
 	///
-	/// NOTE: Each span should only kept active as long as the leave is considered active and should be dropped
-	/// when the leave is deactivated.
+	/// NOTE: Each span should only kept active as long as the leaf is considered active and should be dropped
+	/// when the leaf is deactivated.
 	pub activated: SmallVec<[(Hash, Arc<JaegerSpan>); ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 	/// Relay chain block hashes no longer of interest.
 	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
