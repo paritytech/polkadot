@@ -30,6 +30,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
+	BabeEpoch,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
@@ -514,6 +515,8 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		RuntimeApiSender<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	),
+	/// Get information about the BABE epoch the block was included in.
+	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 }
 
 /// A message to the Runtime API subsystem.

@@ -5055,6 +5055,7 @@ dependencies = [
  "schnorrkel",
  "sp-application-crypto",
  "sp-blockchain",
+ "sp-consensus-babe",
  "sp-consensus-slots",
  "tracing",
  "tracing-futures",
@@ -5220,11 +5221,13 @@ name = "polkadot-node-core-runtime-api"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.8",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-api",
+ "sp-consensus-babe",
  "sp-core",
  "tracing",
  "tracing-futures",

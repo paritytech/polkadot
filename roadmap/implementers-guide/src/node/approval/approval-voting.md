@@ -119,7 +119,7 @@ struct ApprovalVoteRequest {
 struct State {
     earliest_session: SessionIndex,
     session_info: Vec<SessionInfo>,
-    babe_epochs: Vec<BabeEpoch>, // information about a cached BABE epoch.
+    babe_epoch: Option<BabeEpoch>, // information about a cached BABE epoch.
     keystore: KeyStorePtr,
     wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>, // Tick -> [(Relay Block, Candidate Hash)]
     
