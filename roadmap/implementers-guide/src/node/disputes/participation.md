@@ -56,6 +56,36 @@ enum DisputeGossip {
 ## Helper Structs
 
 ```rust
+pub enum Vote {
+	/// Fragment information of a `BackedCandidate`.
+	Backing {
+		/// The required checkable signature for the statement.
+		attestation: ValidityAttestation,
+		/// Validator index of the backing validator in the validator set
+		/// back then in that session.
+		validator_index: ValidatorIndex,
+		/// Committed candidate receipt for the candidate.
+		candidate_receipt: CommittedCandidateReceipt,
+	},
+	/// Result of secondary checking the dispute block.
+	ApprovalCheck {
+		/// Signed full statement to back the vote.
+		sfs: SignedFullStatement
+	},
+	/// An explicit vote on the disputed candidate.
+	DisputePositive {
+		/// Signed full statement to back the vote.
+		sfs: SignedFullStatement
+	},
+	/// An explicit vote on the disputed candidate.
+	DisputeNegative {
+		/// Signed full statement to back the vote.
+		sfs: SignedFullStatement
+	},
+}
+```
+
+```rust
 /// Resolution of a vote:
 enum Resolution {
     /// The block is valid
