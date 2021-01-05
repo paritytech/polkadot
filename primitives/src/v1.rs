@@ -63,6 +63,18 @@ pub mod well_known_keys {
 	use sp_std::prelude::*;
 	use parity_scale_codec::Encode as _;
 
+	// A note on generating these magic values below:
+	//
+	// The `StorageValue`, such as `ACTIVE_CONFIG` was obtained by calling:
+	//
+	//     <Self as Store>::ActiveConfig::hashed_key()
+	//
+	// The `StorageMap` values require `prefix`, and for example for `hrmp_egress_channel_index`,
+	// it could be obtained like:
+	//
+	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
+	//
+
 	/// The currently active host configuration.
 	///
 	/// The storage entry stores a `HostConfiguration` encoded value.
