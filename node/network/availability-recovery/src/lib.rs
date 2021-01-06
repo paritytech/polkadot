@@ -25,9 +25,10 @@ use futures::{channel::{oneshot, mpsc}, prelude::*, stream::FuturesUnordered};
 use futures_timer::Delay;
 use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
+use streamunordered::{StreamUnordered, StreamYield};
 
 use polkadot_primitives::v1::{
-	AvailableData, CandidateReceipt, CandidateHash,
+	AuthorityDiscoveryId, AvailableData, CandidateReceipt, CandidateHash,
 	Hash, ErasureChunk, ValidatorId, ValidatorIndex,
 	SessionInfo, SessionIndex, BlakeTwo256, HashT,
 };
@@ -44,7 +45,6 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::{
 	Timeout, TimeoutExt,
-	validator_discovery,
 	request_session_info_ctx,
 };
 use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
@@ -89,8 +89,6 @@ struct AwaitedChunk {
 
 /// Accumulate all awaiting sides for some particular `AvailableData`.
 struct InteractionHandle {
-	session_index: SessionIndex,
-
 	awaiting: Vec<oneshot::Sender<Result<AvailableData, RecoveryError>>>,
 }
 
@@ -102,7 +100,7 @@ enum FromInteraction {
 
 	/// Make a request of a particular chunk from a particular validator.
 	MakeRequest(
-		ValidatorId,
+		AuthorityDiscoveryId,
 		CandidateHash,
 		ValidatorIndex,
 		oneshot::Sender<ChunkResponse>,
@@ -119,6 +117,9 @@ enum FromInteraction {
 struct Interaction {
 	/// A communication channel with the `State`.
 	to_state: mpsc::Sender<FromInteraction>,
+
+	/// Discovery ids of `validators`.
+	validator_authority_keys: Vec<AuthorityDiscoveryId>,
 
 	/// Validators relevant to this `Interaction`.
 	validators: Vec<ValidatorId>,
@@ -164,7 +165,7 @@ impl Interaction {
 				let (tx, rx) = oneshot::channel();
 
 				self.to_state.send(FromInteraction::MakeRequest(
-					self.validators[validator_index as usize].clone(),
+					self.validator_authority_keys[validator_index as usize].clone(),
 					self.candidate_hash.clone(),
 					validator_index,
 					tx,
@@ -315,7 +316,7 @@ struct State {
 
 	/// We are waiting for these validators to connect and as soon as they
 	/// do to request the needed chunks we are awaitinf for.
-	discovering_validators: HashMap<ValidatorId, Vec<AwaitedChunk>>,
+	discovering_validators: HashMap<AuthorityDiscoveryId, Vec<AwaitedChunk>>,
 
 	/// Requests that we have issued to the already connected validators
 	/// about the chunks we are interested in.
@@ -324,8 +325,7 @@ struct State {
 	/// Derive request ids from this.
 	next_request_id: RequestId,
 
-	/// Connect to relevant groups of validators at different relay parents.
-	connection_requests: validator_discovery::ConnectionRequests,
+	connecting_validators: StreamUnordered<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>,
 
 	/// interaction communication. This is cloned and given to interactions that are spun up.
 	from_interaction_tx: mpsc::Sender<FromInteraction>,
@@ -349,7 +349,7 @@ impl Default for State {
 			discovering_validators: HashMap::new(),
 			live_chunk_requests: HashMap::new(),
 			next_request_id: 0,
-			connection_requests: Default::default(),
+			connecting_validators: StreamUnordered::new(),
 			availability_lru: LruCache::new(LRU_SIZE),
 		}
 	}
@@ -412,12 +412,12 @@ async fn launch_interaction(
 	let candidate_hash = receipt.hash();
 	let erasure_root = receipt.descriptor.erasure_root;
 	let validators = session_info.validators.clone();
+	let validator_authority_keys = session_info.discovery_keys.clone();
 	let mut shuffling: Vec<_> = (0..validators.len() as ValidatorIndex).collect();
 
 	state.interactions.insert(
 		candidate_hash.clone(),
 		InteractionHandle {
-			session_index,
 			awaiting: vec![response_sender],
 		}
 	);
@@ -430,6 +430,7 @@ async fn launch_interaction(
 
 	let interaction = Interaction {
 		to_state,
+		validator_authority_keys,
 		validators,
 		shuffling,
 		threshold,
@@ -564,55 +565,22 @@ async fn handle_from_interaction(
 			state.availability_lru.put(candidate_hash, result);
 		}
 		FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
-			let relay_parent = state.live_block_hash;
+			let (tx, rx) = mpsc::channel(2);
 
-			let session_index = match state.interactions.get(&candidate_hash) {
-			    Some(interaction_handle) => interaction_handle.session_index,
-			    None => {
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Interaction under candidate hash {} is missing",
-						candidate_hash,
-					);
-
-					return Ok(());
-				}
+			let message = NetworkBridgeMessage::ConnectToValidators {
+				validator_ids: vec![id.clone()],
+				connected: tx,
 			};
 
-			// Take the validators we are already connecting to and merge them with the
-			// newly requested one to create a new connection request.
-			let new_discovering_validators_set = state.discovering_validators.keys()
-				.cloned()
-				.chain(std::iter::once(id.clone()))
-				.collect();
+			ctx.send_message(AllMessages::NetworkBridge(message)).await;
 
-			// Issue a NetworkBridgeMessage::ConnectToValidators.
-			// Add the stream of connected validator events to state.connecting_validators.
-			match validator_discovery::connect_to_past_session_validators(
-				ctx,
-				relay_parent,
-				new_discovering_validators_set,
-				session_index,
-			).await {
-				Ok(new_connection_request) => {
-					state.connection_requests.put(relay_parent, new_connection_request);
-					// Add an AwaitedChunk to the discovering_validators map under discovery_pub.
-					let awaited_chunk = AwaitedChunk {
-						validator_index,
-						candidate_hash,
-						response,
-					};
+			state.discovering_validators.entry(id).or_default().push(AwaitedChunk {
+				validator_index,
+				candidate_hash,
+				response,
+			});
 
-					state.discovering_validators.entry(id).or_default().push(awaited_chunk);
-				}
-				Err(e) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						err = ?e,
-						"Failed to create a validator connection request",
-					);
-				}
-			}
+			state.connecting_validators.push(rx);
 		}
 		FromInteraction::ReportPeer(peer_id, rep) => {
 			report_peer(ctx, peer_id, rep).await;
@@ -728,10 +696,10 @@ async fn issue_chunk_request(
 async fn handle_validator_connected(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
-	validator_id: ValidatorId,
+	authority_id: AuthorityDiscoveryId,
 	peer_id: PeerId,
 ) -> error::Result<()> {
-	if let Some(discovering) = state.discovering_validators.remove(&validator_id) {
+	if let Some(discovering) = state.discovering_validators.remove(&authority_id) {
 		for chunk in discovering {
 			issue_chunk_request(state, ctx, peer_id.clone(), chunk).await?;
 		}
@@ -774,18 +742,20 @@ impl AvailabilityRecoverySubsystem {
 				_v = awaited_chunk_cleanup_interval.next() => {
 					cleanup_awaited_chunks(&mut state);
 				}
-				v = state.connection_requests.next().fuse() => {
-					if let Err(e) = handle_validator_connected(
-						&mut state,
-						&mut ctx,
-						v.validator_id,
-						v.peer_id,
-					).await {
-						tracing::warn!(
-							target: LOG_TARGET,
-							err = ?e,
-							"Failed to handle a newly connected validator",
-						);
+				v = state.connecting_validators.next() => {
+					if let Some((StreamYield::Item(v), _)) = v {
+						if let Err(e) = handle_validator_connected(
+							&mut state,
+							&mut ctx,
+							v.0,
+							v.1,
+						).await {
+							tracing::warn!(
+								target: LOG_TARGET,
+								err = ?e,
+								"Failed to handle a newly connected validator",
+							);
+						}
 					}
 				}
 				v = ctx.recv().fuse() => {

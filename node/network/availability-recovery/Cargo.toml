@@ -18,6 +18,7 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 futures-timer = "3.0.2"
+streamunordered = "0.5.1"
 
 [dev-dependencies]
 assert_matches = "1.4.0"

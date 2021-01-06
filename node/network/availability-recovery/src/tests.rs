@@ -159,19 +159,18 @@ impl TestState {
 		&self,
 		virtual_overseer: &mut VirtualOverseer,
 	) {
-		// Indexes of validators subsystem has attempted to connect to.
-		let mut attempted_to_connect_to = Vec::new();
+		// Channels by AuthorityDiscoveryId to send results to.
+		// Gather them here and send in batch after the loop not to race.
+		let mut results = HashMap::new();
 
 		for _ in 0..self.validator_public.len() {
-			self.test_runtime_api(virtual_overseer).await;
-
 			// Connect to shuffled validators one by one.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ConnectToValidators {
 						validator_ids,
-						mut connected,
+						connected,
 						..
 					}
 				) => {
@@ -181,17 +180,20 @@ impl TestState {
 							.position(|x| *x == validator_id)
 							.unwrap();
 
-						attempted_to_connect_to.push(idx);
-
-						let result = (
-							self.validator_authority_id[idx].clone(),
-							self.validator_peer_id[idx].clone(),
+						results.insert(
+							(
+								self.validator_authority_id[idx].clone(),
+								self.validator_peer_id[idx].clone(),
+							),
+							connected.clone(),
 						);
-
-						connected.try_send(result).unwrap();
 					}
 				}
 			);
+		}
+
+		for (k, mut v) in results.into_iter() {
+			v.send(k).await.unwrap();
 		}
 	}
 
