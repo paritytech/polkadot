@@ -194,7 +194,7 @@ mod select_candidates {
 	use futures_timer::Delay;
 	use super::super::*;
 	use super::{build_occupied_core, occupied_core, scheduled_core, default_bitvec};
-	use polkadot_node_subsystem::messages::{
+	use pnu_subsystem::messages::{
 		AllMessages, RuntimeApiMessage,
 		RuntimeApiRequest::{AvailabilityCores, PersistedValidationData as PersistedValidationDataReq},
 	};

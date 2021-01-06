@@ -28,10 +28,10 @@ use {
 	std::convert::TryInto,
 	std::time::Duration,
 	tracing::info,
-	polkadot_node_core_av_store::Config as AvailabilityConfig,
-	polkadot_node_core_av_store::Error as AvailabilityError,
-	polkadot_node_core_proposer::ProposerFactory,
-	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
+	pnc_av_store::Config as AvailabilityConfig,
+	pnc_av_store::Error as AvailabilityError,
+	pnc_proposer::ProposerFactory,
+	pnc_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
@@ -120,7 +120,7 @@ pub enum Error {
 	Consensus(#[from] consensus_common::Error),
 
 	#[error("Failed to create an overseer")]
-	Overseer(#[from] polkadot_overseer::SubsystemError),
+	Overseer(#[from] pnc_overseer::SubsystemError),
 
 	#[error(transparent)]
 	Prometheus(#[from] prometheus_endpoint::PrometheusError),
@@ -384,25 +384,25 @@ where
 	RuntimeClient::Api: ParachainHost<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
-	use polkadot_node_subsystem_util::metrics::Metrics;
+	use pnu_subsystem_util::metrics::Metrics;
 
-	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
-	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
-	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
-	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
-	use polkadot_node_core_backing::CandidateBackingSubsystem;
-	use polkadot_node_core_candidate_selection::CandidateSelectionSubsystem;
-	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-	use polkadot_node_core_chain_api::ChainApiSubsystem;
-	use polkadot_node_collation_generation::CollationGenerationSubsystem;
-	use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
-	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
-	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
-	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
-	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
-	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
-	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
+	use pnn_availability_distribution::AvailabilityDistributionSubsystem;
+	use pnc_av_store::AvailabilityStoreSubsystem;
+	use pnn_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
+	use pnc_bitfield_signing::BitfieldSigningSubsystem;
+	use pnc_candidate_backing::CandidateBackingSubsystem;
+	use pnc_candidate_selection::CandidateSelectionSubsystem;
+	use pnc_candidate_validation::CandidateValidationSubsystem;
+	use pnc_chain_api::ChainApiSubsystem;
+	use pnu_collation_generation::CollationGenerationSubsystem;
+	use pnn_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
+	use pnn_bridge::NetworkBridge as NetworkBridgeSubsystem;
+	use pnn_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
+	use pnc_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+	use pnc_runtime_api::RuntimeApiSubsystem;
+	use pnn_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+	use pnn_availability_recovery::AvailabilityRecoverySubsystem;
+	use pnn_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -578,7 +578,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 	#[cfg(feature = "real-overseer")]
-	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
+	config.network.extra_sets.extend(pnn_bridge::peer_sets_info());
 
 	// TODO: At the moment, the collator protocol uses notifications protocols to download
 	// collations. Because of DoS-protection measures, notifications protocols have a very limited
@@ -705,7 +705,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 			use futures::{pin_mut, select, FutureExt};
 
-			let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
+			let forward = pnc_overseer::forward_events(overseer_client, overseer_handler_clone);
 
 			let forward = forward.fuse();
 			let overseer_fut = overseer.run().fuse();

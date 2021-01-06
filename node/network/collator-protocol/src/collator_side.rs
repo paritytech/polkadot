@@ -28,8 +28,8 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
 };
-use polkadot_node_network_protocol::{v1 as protocol_v1, View, PeerId, NetworkBridgeEvent, RequestId, OurView};
-use polkadot_node_subsystem_util::{
+use pnn_protocol::{v1 as protocol_v1, View, PeerId, NetworkBridgeEvent, RequestId, OurView};
+use pnu_subsystem_util::{
 	validator_discovery,
 	request_validators_ctx,
 	request_validator_groups_ctx,
@@ -747,9 +747,9 @@ mod tests {
 		SessionIndex, SessionInfo,
 	};
 	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
-	use polkadot_node_subsystem_util::TimeoutExt;
+	use pnu_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
-	use polkadot_node_network_protocol::{view, our_view};
+	use pnn_protocol::{view, our_view};
 
 	#[derive(Default)]
 	struct TestCandidateBuilder {
@@ -921,7 +921,7 @@ mod tests {
 		let _ = env_logger::builder()
 			.is_test(true)
 			.filter(
-				Some("polkadot_collator_protocol"),
+				Some("pnn_collator_protocol"),
 				log::LevelFilter::Trace,
 			)
 			.filter(
@@ -1142,7 +1142,7 @@ mod tests {
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerConnected(
 					peer.clone(),
-					polkadot_node_network_protocol::ObservedRole::Authority,
+					pnn_protocol::ObservedRole::Authority,
 				),
 			),
 		).await;

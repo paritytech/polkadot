@@ -30,7 +30,7 @@ use polkadot_subsystem::{
 	},
 	errors::RuntimeApiError,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use pnu_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
 use sp_api::ProvideRuntimeApi;
@@ -411,7 +411,7 @@ mod tests {
 		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
 		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
-	use polkadot_node_subsystem_test_helpers as test_helpers;
+	use pnu_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
 	use std::{collections::{HashMap, BTreeMap}, sync::{Arc, Mutex}};
 	use futures::channel::oneshot;

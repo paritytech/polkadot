@@ -18,16 +18,16 @@
 //!
 //! These messages are intended to define the protocol by which different subsystems communicate with each
 //! other and signals that they receive from an overseer to coordinate their work.
-//! This is intended for use with the `polkadot-overseer` crate.
+//! This is intended for use with the `pnc-overseer` crate.
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
-use polkadot_node_network_protocol::{
+use pnn_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
-use polkadot_node_primitives::{
+use pnu_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 };

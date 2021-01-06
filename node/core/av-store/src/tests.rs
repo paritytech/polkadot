@@ -28,11 +28,11 @@ use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateDescriptor, CandidateReceipt, HeadData,
 	PersistedValidationData, PoV, Id as ParaId, CandidateHash, Header, ValidatorId,
 };
-use polkadot_node_subsystem_util::TimeoutExt;
+use pnu_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, errors::RuntimeApiError, JaegerSpan, messages::AllMessages,
 };
-use polkadot_node_subsystem_test_helpers as test_helpers;
+use pnu_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
 use parking_lot::Mutex;
 
@@ -137,7 +137,7 @@ fn test_harness<T: Future<Output=()>>(
 	let _ = env_logger::builder()
 		.is_test(true)
 		.filter(
-			Some("polkadot_node_core_av_store"),
+			Some("pnc_av_store"),
 			log::LevelFilter::Trace,
 		)
 		.filter(

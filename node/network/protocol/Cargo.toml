@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-node-network-protocol"
+name = "pnn-protocol"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -7,8 +7,8 @@ description = "Primitives types for the Node-side"
 
 [dependencies]
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-node-primitives = { path = "../../primitives" }
-polkadot-node-jaeger = { path = "../../jaeger" }
+pnu-primitives = { path = "../../primitives" }
+pnu-jaeger = { path = "../../jaeger" }
 parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.20", features = ["derive"] }

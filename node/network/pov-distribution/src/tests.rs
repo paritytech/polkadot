@@ -29,9 +29,9 @@ use polkadot_primitives::v1::{
 	ScheduledCore, ValidatorIndex, SessionIndex, SessionInfo,
 };
 use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
-use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_node_network_protocol::{view, our_view};
+use pnu_subsystem_test_helpers as test_helpers;
+use pnu_subsystem_util::TimeoutExt;
+use pnn_protocol::{view, our_view};
 
 fn make_pov(data: Vec<u8>) -> PoV {
 	PoV { block_data: BlockData(data) }
@@ -65,7 +65,7 @@ fn test_harness<T: Future<Output = ()>>(
 	let _ = env_logger::builder()
 		.is_test(true)
 		.filter(
-			Some("polkadot_pov_distribution"),
+			Some("pnn_pov_distribution"),
 			log::LevelFilter::Trace,
 		)
 		.filter(
@@ -608,7 +608,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 	let mut descriptor = CandidateDescriptor::default();
 	descriptor.pov_hash = pov_hash;
 
@@ -691,7 +691,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 	let mut descriptor = CandidateDescriptor::default();
 	descriptor.pov_hash = pov_hash;
 
@@ -865,7 +865,7 @@ fn peer_view_change_leads_to_us_informing() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		handle_network_update(
@@ -938,7 +938,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		// Peer A answers our request before peer B.
@@ -1028,7 +1028,7 @@ fn peer_punished_for_sending_bad_pov() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1093,7 +1093,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1156,7 +1156,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1216,7 +1216,7 @@ fn peer_reported_for_awaiting_too_much() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		let max_plausibly_awaited = n_validators * 2;
@@ -1303,7 +1303,7 @@ fn peer_reported_for_awaiting_outside_their_view() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1367,7 +1367,7 @@ fn peer_reported_for_awaiting_outside_our_view() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1446,7 +1446,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		handle_network_update(
@@ -1530,7 +1530,7 @@ fn peer_completing_request_no_longer_awaiting() {
 	};
 
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+	let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 	executor::block_on(async move {
 		handle_network_update(

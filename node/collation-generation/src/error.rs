@@ -19,13 +19,13 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
 	#[error(transparent)]
-	Subsystem(#[from] polkadot_node_subsystem::SubsystemError),
+	Subsystem(#[from] pnu_subsystem::SubsystemError),
 	#[error(transparent)]
 	OneshotRecv(#[from] futures::channel::oneshot::Canceled),
 	#[error(transparent)]
-	Runtime(#[from] polkadot_node_subsystem::errors::RuntimeApiError),
+	Runtime(#[from] pnu_subsystem::errors::RuntimeApiError),
 	#[error(transparent)]
-	Util(#[from] polkadot_node_subsystem_util::Error),
+	Util(#[from] pnu_subsystem_util::Error),
 	#[error(transparent)]
 	Erasure(#[from] polkadot_erasure_coding::Error),
 }

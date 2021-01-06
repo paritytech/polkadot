@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-availability-recovery"
+name = "pnn-availability-recovery"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -14,9 +14,9 @@ tracing-futures = "0.2.4"
 
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
+pnn-protocol = { path = "../../network/protocol" }
 futures-timer = "3.0.2"
 streamunordered = "0.5.1"
 
@@ -31,4 +31,4 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+polkadot-subsystem-testhelpers = { package = "pnu-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

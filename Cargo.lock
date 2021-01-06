@@ -3511,7 +3511,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "metered-channel"
+name = "pnu-metered-channel"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -4926,24 +4926,24 @@ dependencies = [
  "nix 0.19.1",
  "parity-util-mem",
  "polkadot-cli",
- "polkadot-service",
+ "pnu-service",
  "tempfile",
  "thiserror",
 ]
 
 [[package]]
-name = "polkadot-approval-distribution"
+name = "pnn-approval-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
  "env_logger 0.8.2",
  "futures 0.3.12",
  "log",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "rand_core 0.5.1",
  "schnorrkel",
@@ -4953,7 +4953,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-availability-bitfield-distribution"
+name = "pnn-bitfield-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -4963,10 +4963,10 @@ dependencies = [
  "log",
  "maplit",
  "parity-scale-codec",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-application-crypto",
  "sp-core",
@@ -4976,7 +4976,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-availability-distribution"
+name = "pnn-availability-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -4984,10 +4984,10 @@ dependencies = [
  "maplit",
  "parity-scale-codec",
  "polkadot-erasure-coding",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
  "sp-application-crypto",
@@ -5001,7 +5001,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-availability-recovery"
+name = "pnn-availability-recovery"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -5011,10 +5011,10 @@ dependencies = [
  "log",
  "lru",
  "polkadot-erasure-coding",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "rand 0.8.3",
  "smallvec 1.6.1",
@@ -5035,7 +5035,7 @@ dependencies = [
  "futures 0.3.12",
  "log",
  "polkadot-parachain",
- "polkadot-service",
+ "pnu-service",
  "sc-cli",
  "sc-service",
  "sp-core",
@@ -5050,7 +5050,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-collator-protocol"
+name = "pnn-collator-protocol"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -5058,10 +5058,10 @@ dependencies = [
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "log",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-core",
  "sp-keyring",
@@ -5094,7 +5094,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-network-bridge"
+name = "pnn-bridge"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -5102,10 +5102,10 @@ dependencies = [
  "futures 0.3.12",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sc-authority-discovery",
  "sc-network",
@@ -5116,15 +5116,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-collation-generation"
+name = "pnu-collation-generation"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
  "polkadot-erasure-coding",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-core",
  "thiserror",
@@ -5133,15 +5133,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-approval-voting"
+name = "pnc-approval-voting"
 version = "0.1.0"
 dependencies = [
  "bitvec",
  "futures 0.3.12",
  "parity-scale-codec",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-overseer",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnc-overseer",
  "polkadot-primitives",
  "sc-client-api",
  "sp-blockchain",
@@ -5149,7 +5149,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-av-store"
+name = "pnc-av-store"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -5164,10 +5164,10 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "polkadot-erasure-coding",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
- "polkadot-overseer",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "pnc-overseer",
  "polkadot-primitives",
  "sc-service",
  "sp-core",
@@ -5178,17 +5178,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-backing"
+name = "pnc-candidate-backing"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
  "bitvec",
  "futures 0.3.12",
  "polkadot-erasure-coding",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-keystore",
@@ -5202,12 +5202,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-bitfield-signing"
+name = "pnc-bitfield-signing"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-keystore",
  "thiserror",
@@ -5217,12 +5217,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-candidate-selection"
+name = "pnc-candidate-selection"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-core",
  "sp-keystore",
@@ -5232,16 +5232,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-candidate-validation"
+name = "pnc-candidate-validation"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
  "futures 0.3.12",
  "parity-scale-codec",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
  "sp-core",
@@ -5251,14 +5251,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-chain-api"
+name = "pnc-chain-api"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
  "maplit",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-blockchain",
  "sp-core",
@@ -5267,13 +5267,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-proposer"
+name = "pnc-proposer"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
  "futures-timer 3.0.2",
- "polkadot-node-subsystem",
- "polkadot-overseer",
+ "pnu-subsystem",
+ "pnc-overseer",
  "polkadot-primitives",
  "sc-basic-authorship",
  "sc-block-builder",
@@ -5290,14 +5290,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-provisioner"
+name = "pnc-provisioner"
 version = "0.1.0"
 dependencies = [
  "bitvec",
  "futures 0.3.12",
  "futures-timer 3.0.2",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-application-crypto",
  "sp-keystore",
@@ -5307,15 +5307,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-runtime-api"
+name = "pnc-runtime-api"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
  "memory-lru",
  "parity-util-mem",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-api",
  "sp-core",
@@ -5324,7 +5324,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-jaeger"
+name = "pnu-jaeger"
 version = "0.1.0"
 dependencies = [
  "async-std",
@@ -5339,12 +5339,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-network-protocol"
+name = "pnn-protocol"
 version = "0.1.0"
 dependencies = [
  "parity-scale-codec",
- "polkadot-node-jaeger",
- "polkadot-node-primitives",
+ "pnu-jaeger",
+ "pnu-primitives",
  "polkadot-primitives",
  "sc-network",
  "strum 0.20.0",
@@ -5353,7 +5353,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-primitives"
+name = "pnu-primitives"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
@@ -5367,7 +5367,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-subsystem"
+name = "pnu-subsystem"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -5382,10 +5382,10 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
- "polkadot-node-jaeger",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-node-subsystem-test-helpers",
+ "pnu-jaeger",
+ "pnn-protocol",
+ "pnu-primitives",
+ "pnu-subsystem-test-helpers",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",
@@ -5398,7 +5398,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-subsystem-test-helpers"
+name = "pnu-subsystem-test-helpers"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -5407,10 +5407,10 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
- "polkadot-overseer",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
+ "pnc-overseer",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",
@@ -5421,7 +5421,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-subsystem-util"
+name = "pnu-subsystem-util"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -5430,14 +5430,14 @@ dependencies = [
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "log",
- "metered-channel",
+ "pnu-metered-channel",
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
- "polkadot-node-jaeger",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
+ "pnu-jaeger",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-network",
  "sp-application-crypto",
@@ -5451,7 +5451,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-overseer"
+name = "pnc-overseer"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -5460,10 +5460,10 @@ dependencies = [
  "futures-timer 3.0.2",
  "kv-log-macro",
  "oorandom",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sc-client-api",
  "sp-core",
@@ -5495,17 +5495,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-pov-distribution"
+name = "pnn-pov-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
  "env_logger 0.8.2",
  "futures 0.3.12",
  "log",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sp-core",
  "sp-keyring",
@@ -5744,7 +5744,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-service"
+name = "pnu-service"
 version = "0.8.3"
 dependencies = [
  "env_logger 0.8.2",
@@ -5757,33 +5757,33 @@ dependencies = [
  "pallet-im-online",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
- "polkadot-approval-distribution",
- "polkadot-availability-bitfield-distribution",
- "polkadot-availability-distribution",
- "polkadot-availability-recovery",
- "polkadot-collator-protocol",
- "polkadot-network-bridge",
- "polkadot-node-collation-generation",
- "polkadot-node-core-av-store",
- "polkadot-node-core-backing",
- "polkadot-node-core-bitfield-signing",
- "polkadot-node-core-candidate-selection",
- "polkadot-node-core-candidate-validation",
- "polkadot-node-core-chain-api",
- "polkadot-node-core-proposer",
- "polkadot-node-core-provisioner",
- "polkadot-node-core-runtime-api",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
- "polkadot-overseer",
+ "pnn-approval-distribution",
+ "pnn-bitfield-distribution",
+ "pnn-availability-distribution",
+ "pnn-availability-recovery",
+ "pnn-collator-protocol",
+ "pnn-bridge",
+ "pnu-collation-generation",
+ "pnc-av-store",
+ "pnc-candidate-backing",
+ "pnc-bitfield-signing",
+ "pnc-candidate-selection",
+ "pnc-candidate-validation",
+ "pnc-chain-api",
+ "pnc-proposer",
+ "pnc-provisioner",
+ "pnc-runtime-api",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
+ "pnc-overseer",
  "polkadot-parachain",
- "polkadot-pov-distribution",
+ "pnn-pov-distribution",
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",
  "polkadot-runtime-parachains",
- "polkadot-statement-distribution",
- "polkadot-test-client",
+ "pnn-statement-distribution",
+ "pnu-test-client",
  "rococo-runtime",
  "sc-authority-discovery",
  "sc-block-builder",
@@ -5827,18 +5827,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-statement-distribution"
+name = "pnn-statement-distribution"
 version = "0.1.0"
 dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
  "futures 0.3.12",
  "indexmap",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
+ "pnn-protocol",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
  "sp-application-crypto",
@@ -5860,14 +5860,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-test-client"
+name = "pnu-test-client"
 version = "0.8.28"
 dependencies = [
  "parity-scale-codec",
- "polkadot-node-subsystem",
+ "pnu-subsystem",
  "polkadot-primitives",
  "polkadot-test-runtime",
- "polkadot-test-service",
+ "pnu-test-service",
  "sc-block-builder",
  "sc-consensus",
  "sc-service",
@@ -5943,7 +5943,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-test-service"
+name = "pnu-test-service"
 version = "0.8.28"
 dependencies = [
  "frame-benchmarking",
@@ -5954,15 +5954,15 @@ dependencies = [
  "pallet-balances",
  "pallet-staking",
  "pallet-transaction-payment",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-overseer",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnc-overseer",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
- "polkadot-service",
+ "pnu-service",
  "polkadot-test-runtime",
  "rand 0.8.3",
  "sc-authority-discovery",
@@ -9186,12 +9186,12 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "polkadot-cli",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
+ "pnu-primitives",
+ "pnu-subsystem",
  "polkadot-parachain",
  "polkadot-primitives",
- "polkadot-service",
- "polkadot-test-service",
+ "pnu-service",
+ "pnu-test-service",
  "sc-authority-discovery",
  "sc-cli",
  "sc-service",

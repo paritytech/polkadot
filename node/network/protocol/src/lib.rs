@@ -25,7 +25,7 @@ use std::{convert::TryFrom, fmt, collections::HashMap};
 
 pub use sc_network::{ReputationChange, PeerId};
 #[doc(hidden)]
-pub use polkadot_node_jaeger::JaegerSpan;
+pub use pnu_jaeger::JaegerSpan;
 #[doc(hidden)]
 pub use std::sync::Arc;
 
@@ -208,7 +208,7 @@ impl std::ops::Deref for OurView {
 /// # Example
 ///
 /// ```
-/// # use polkadot_node_network_protocol::our_view;
+/// # use pnn_protocol::our_view;
 /// # use polkadot_primitives::v1::Hash;
 /// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
@@ -241,7 +241,7 @@ pub struct View {
 /// # Example
 ///
 /// ```
-/// # use polkadot_node_network_protocol::view;
+/// # use pnn_protocol::view;
 /// # use polkadot_primitives::v1::Hash;
 /// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
@@ -284,7 +284,7 @@ pub mod v1 {
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
 		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex,
 	};
-	use polkadot_node_primitives::{
+	use pnu_primitives::{
 		SignedFullStatement,
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 	};

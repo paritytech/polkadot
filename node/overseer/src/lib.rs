@@ -91,8 +91,8 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, JaegerSpan, jaeger,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
-use polkadot_node_primitives::SpawnNamed;
+use pnu_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
+use pnu_primitives::SpawnNamed;
 
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
@@ -652,7 +652,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	/// you provide a "random" type for the first generic parameter:
 	///
 	/// ```
-	/// polkadot_overseer::AllSubsystems::<()>::dummy();
+	/// pnc_overseer::AllSubsystems::<()>::dummy();
 	/// ```
 	pub fn dummy() -> AllSubsystems<
 		DummySubsystem,
@@ -1294,7 +1294,7 @@ where
 	/// # use std::time::Duration;
 	/// # use futures::{executor, pin_mut, select, FutureExt};
 	/// # use futures_timer::Delay;
-	/// # use polkadot_overseer::{Overseer, AllSubsystems};
+	/// # use pnc_overseer::{Overseer, AllSubsystems};
 	/// # use polkadot_subsystem::{
 	/// #     Subsystem, DummySubsystem, SpawnedSubsystem, SubsystemContext,
 	/// #     messages::CandidateValidationMessage,
@@ -1962,9 +1962,9 @@ mod tests {
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, JaegerSpan};
-	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
-	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
-	use polkadot_node_subsystem_util::metered;
+	use pnu_primitives::{Collation, CollationGenerationConfig};
+	use pnn_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
+	use pnu_subsystem_util::metered;
 
 	use sp_core::crypto::Pair as _;
 

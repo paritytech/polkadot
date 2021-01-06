@@ -40,7 +40,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use pnu_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };

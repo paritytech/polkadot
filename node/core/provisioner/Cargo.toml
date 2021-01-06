@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-node-core-provisioner"
+name = "pnc-provisioner"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -11,8 +11,8 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 thiserror = "1.0.23"
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-node-subsystem = { path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+pnu-subsystem = { path = "../../subsystem" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
 futures-timer = "3.0.2"
 
 [dev-dependencies]

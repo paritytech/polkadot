@@ -94,22 +94,22 @@ impl SubstrateCli for Cli {
 		let id = if id.is_empty() { "rococo" } else { id };
 		Ok(match id {
 			"rococo-staging" => {
-				Box::new(polkadot_service::chain_spec::rococo_staging_testnet_config()?)
+				Box::new(pnu_service::chain_spec::rococo_staging_testnet_config()?)
 			}
 			"rococo-local" => {
-				Box::new(polkadot_service::chain_spec::rococo_local_testnet_config()?)
+				Box::new(pnu_service::chain_spec::rococo_local_testnet_config()?)
 			}
-			"rococo" => Box::new(polkadot_service::chain_spec::rococo_config()?),
+			"rococo" => Box::new(pnu_service::chain_spec::rococo_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
-				Box::new(polkadot_service::RococoChainSpec::from_json_file(path)?)
+				Box::new(pnu_service::RococoChainSpec::from_json_file(path)?)
 			}
 		})
 	}
 
 	fn native_runtime_version(
-		_spec: &Box<dyn polkadot_service::ChainSpec>,
+		_spec: &Box<dyn pnu_service::ChainSpec>,
 	) -> &'static RuntimeVersion {
-		&polkadot_service::rococo_runtime::VERSION
+		&pnu_service::rococo_runtime::VERSION
 	}
 }

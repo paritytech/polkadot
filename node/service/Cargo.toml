@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-service"
+name = "pnu-service"
 version = "0.8.3"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -62,13 +62,13 @@ serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.23"
 
 # Polkadot
-polkadot-node-core-proposer = { path = "../core/proposer" }
-polkadot-overseer = { path = "../overseer" }
+pnc-proposer = { path = "../core/proposer" }
+pnc-overseer = { path = "../overseer" }
 polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-rpc = { path = "../../rpc" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
-polkadot-node-subsystem-util = { path = "../subsystem-util" }
+polkadot-subsystem = { package = "pnu-subsystem", path = "../subsystem" }
+pnu-subsystem-util = { path = "../subsystem-util" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 
 # Polkadot Runtimes
@@ -78,33 +78,33 @@ westend-runtime = { path = "../../runtime/westend" }
 rococo-runtime = { path = "../../runtime/rococo" }
 
 # Polkadot Subsystems
-polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
-polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
-polkadot-availability-recovery = { path = "../network/availability-recovery", optional = true }
-polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
-polkadot-network-bridge = { path = "../network/bridge", optional = true }
-polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
-polkadot-node-core-av-store = { path = "../core/av-store", optional = true }
-polkadot-node-core-backing = { path = "../core/backing", optional = true }
-polkadot-node-core-bitfield-signing = { path = "../core/bitfield-signing", optional = true }
-polkadot-node-core-candidate-selection = { path = "../core/candidate-selection", optional = true }
-polkadot-node-core-candidate-validation = { path = "../core/candidate-validation", optional = true }
-polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
-polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
-polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
-polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
-polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
-polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
+pnn-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
+pnn-availability-distribution = { path = "../network/availability-distribution", optional = true }
+pnn-availability-recovery = { path = "../network/availability-recovery", optional = true }
+pnn-collator-protocol = { path = "../network/collator-protocol", optional = true }
+pnn-bridge = { path = "../network/bridge", optional = true }
+pnu-collation-generation = { path = "../collation-generation", optional = true }
+pnc-av-store = { path = "../core/av-store", optional = true }
+pnc-candidate-backing = { path = "../core/backing", optional = true }
+pnc-bitfield-signing = { path = "../core/bitfield-signing", optional = true }
+pnc-candidate-selection = { path = "../core/candidate-selection", optional = true }
+pnc-candidate-validation = { path = "../core/candidate-validation", optional = true }
+pnc-chain-api = { path = "../core/chain-api", optional = true }
+pnc-provisioner = { path = "../core/provisioner", optional = true }
+pnc-runtime-api = { path = "../core/runtime-api", optional = true }
+pnn-pov-distribution = { path = "../network/pov-distribution", optional = true }
+pnn-statement-distribution = { path = "../network/statement-distribution", optional = true }
+pnn-approval-distribution = { path = "../network/approval-distribution", optional = true }
 
 [dev-dependencies]
-polkadot-test-client = { path = "../test/client" }
+pnu-test-client = { path = "../test/client" }
 env_logger = "0.8.2"
 
 [features]
 default = ["db", "full-node"]
 db = ["service/db"]
 full-node = [
-	"polkadot-node-core-av-store",
+	"pnc-av-store",
 	"sc-finality-grandpa-warp-sync"
 ]
 
@@ -116,20 +116,20 @@ runtime-benchmarks = [
 ]
 
 real-overseer = [
-	"polkadot-availability-bitfield-distribution",
-	"polkadot-availability-distribution",
-	"polkadot-availability-recovery",
-	"polkadot-collator-protocol",
-	"polkadot-network-bridge",
-	"polkadot-node-collation-generation",
-	"polkadot-node-core-backing",
-	"polkadot-node-core-bitfield-signing",
-	"polkadot-node-core-candidate-selection",
-	"polkadot-node-core-candidate-validation",
-	"polkadot-node-core-chain-api",
-	"polkadot-node-core-provisioner",
-	"polkadot-node-core-runtime-api",
-	"polkadot-pov-distribution",
-	"polkadot-statement-distribution",
-	"polkadot-approval-distribution",
+	"pnn-bitfield-distribution",
+	"pnn-availability-distribution",
+	"pnn-availability-recovery",
+	"pnn-collator-protocol",
+	"pnn-bridge",
+	"pnu-collation-generation",
+	"pnc-candidate-backing",
+	"pnc-bitfield-signing",
+	"pnc-candidate-selection",
+	"pnc-candidate-validation",
+	"pnc-chain-api",
+	"pnc-provisioner",
+	"pnc-runtime-api",
+	"pnn-pov-distribution",
+	"pnn-statement-distribution",
+	"pnn-approval-distribution",
 ]

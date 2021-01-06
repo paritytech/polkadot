@@ -31,9 +31,9 @@ use polkadot_subsystem::{
 		ValidationFailed, RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use pnu_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
+use pnu_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
@@ -569,7 +569,7 @@ impl metrics::Metrics for Metrics {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_node_subsystem_test_helpers as test_helpers;
+	use pnu_subsystem_test_helpers as test_helpers;
 	use polkadot_primitives::v1::{HeadData, BlockData, UpwardMessage};
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;

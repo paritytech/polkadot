@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
 	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
-use polkadot_node_primitives::{
+use pnu_primitives::{
 	Statement, SignedFullStatement, ValidationResult,
 };
 use polkadot_subsystem::{
@@ -42,7 +42,7 @@ use polkadot_subsystem::{
 		ProvisionerMessage, StatementDistributionMessage, ValidationFailed, RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::{
+use pnu_subsystem_util::{
 	self as util,
 	request_session_index_for_child,
 	request_validator_groups,
@@ -1181,7 +1181,7 @@ mod tests {
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
-	use polkadot_node_primitives::InvalidCandidate;
+	use pnu_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStore};
@@ -1297,13 +1297,13 @@ mod tests {
 	}
 
 	struct TestHarness {
-		virtual_overseer: polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: pnu_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(keystore: SyncCryptoStorePtr, test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
 
-		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) = pnu_subsystem_test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = CandidateBackingSubsystem::run(context, keystore, Metrics(None), pool.clone());
 
@@ -1355,7 +1355,7 @@ mod tests {
 
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
-		virtual_overseer: &mut polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: &mut pnu_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.

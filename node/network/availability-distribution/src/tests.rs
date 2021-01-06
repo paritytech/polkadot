@@ -17,8 +17,8 @@
 use super::*;
 use assert_matches::assert_matches;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_network_protocol::{view, ObservedRole, our_view};
-use polkadot_node_subsystem_util::TimeoutExt;
+use pnn_protocol::{view, ObservedRole, our_view};
+use pnu_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
 	GroupRotationInfo, HeadData, OccupiedCore, PersistedValidationData, PoV, ScheduledCore, Id as ParaId,

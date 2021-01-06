@@ -22,19 +22,19 @@ pub mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_overseer::OverseerHandler;
+use pnc_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
 	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
 };
 use polkadot_runtime_common::BlockHashCount;
-use polkadot_service::{
+use pnu_service::{
 	Error, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
 };
-use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
+use pnu_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
 use polkadot_test_runtime::{
 	Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, SudoCall, UncheckedExtrinsic,
 };
-use polkadot_node_primitives::{CollatorFn, CollationGenerationConfig};
+use pnu_primitives::{CollatorFn, CollationGenerationConfig};
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
@@ -66,7 +66,7 @@ native_executor_instance!(
 /// The client type being used by the test service.
 pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>;
 
-pub use polkadot_service::FullBackend;
+pub use pnu_service::FullBackend;
 
 /// Create a new full node.
 #[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
@@ -77,7 +77,7 @@ pub fn new_full(
 	NewFull<Arc<Client>>,
 	Error,
 > {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+	pnu_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
 		is_collator,
 		None,
@@ -91,7 +91,7 @@ pub struct TestClient(pub Arc<Client>);
 
 impl ClientHandle for TestClient {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
-		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
+		T::execute_with_client::<_, _, pnu_service::FullBackend>(t, self.0.clone())
 	}
 }
 

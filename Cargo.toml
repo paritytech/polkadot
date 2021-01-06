@@ -16,7 +16,7 @@ cli = { package = "polkadot-cli", path = "cli" }
 color-eyre = "0.5.10"
 thiserror = "1.0.23"
 futures = "0.3.12"
-service = { package = "polkadot-service", path = "node/service" }
+service = { package = "pnu-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
@@ -68,7 +68,7 @@ members = [
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
-	"node/metered-channel",
+	"node/pnu-metered-channel",
 	"node/test/client",
 	"node/test/service",
 	"parachain/test-parachains",

@@ -24,7 +24,7 @@ use futures::{
 	prelude::*,
 };
 use sp_keystore::SyncCryptoStorePtr;
-use polkadot_node_subsystem::{
+use pnu_subsystem::{
 	jaeger, JaegerSpan, PerLeafSpan,
 	errors::ChainApiError,
 	messages::{
@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::{
+use pnu_subsystem_util::{
 	self as util, request_from_runtime, request_validator_groups, delegated_subsystem,
 	JobTrait, FromJobCommand, Validator, metrics::{self, prometheus},
 };

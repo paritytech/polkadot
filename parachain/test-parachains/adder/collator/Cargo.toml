@@ -19,9 +19,9 @@ structopt = "0.3.21"
 test-parachain-adder = { path = ".." }
 polkadot-primitives = { path = "../../../../primitives" }
 polkadot-cli = { path = "../../../../cli" }
-polkadot-service = { path = "../../../../node/service" }
-polkadot-node-primitives = { path = "../../../../node/primitives" }
-polkadot-node-subsystem = { path = "../../../../node/subsystem" }
+pnu-service = { path = "../../../../node/service" }
+pnu-primitives = { path = "../../../../node/primitives" }
+pnu-subsystem = { path = "../../../../node/subsystem" }
 
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -30,7 +30,7 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
-polkadot-test-service = { path = "../../../../node/test/service" }
+pnu-test-service = { path = "../../../../node/test/service" }
 
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -39,4 +39,4 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 tokio = { version = "0.2", features = ["macros"] }
 
 [features]
-real-overseer = [ "polkadot-service/real-overseer" ]
+real-overseer = [ "pnu-service/real-overseer" ]

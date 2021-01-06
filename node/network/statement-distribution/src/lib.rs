@@ -30,12 +30,12 @@ use polkadot_subsystem::{
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use pnu_subsystem_util::metrics::{self, prometheus};
 use node_primitives::SignedFullStatement;
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
-use polkadot_node_network_protocol::{
+use pnn_protocol::{
 	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, NetworkBridgeEvent, OurView,
 };
 
@@ -1118,7 +1118,7 @@ mod tests {
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
-	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
+	use pnn_protocol::{view, ObservedRole, our_view};
 	use polkadot_subsystem::JaegerSpan;
 
 	#[test]
@@ -1473,7 +1473,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 		let peer = PeerId::random();
 
 		executor::block_on(async move {
@@ -1563,7 +1563,7 @@ mod tests {
 		].into_iter().collect();
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let statement = {
@@ -1665,7 +1665,7 @@ mod tests {
 		let session_index = 1;
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+		let (ctx, mut handle) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 		let bg = async move {
 			let s = StatementDistribution { metrics: Default::default() };

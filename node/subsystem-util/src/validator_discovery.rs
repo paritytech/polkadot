@@ -27,7 +27,7 @@ use futures::{
 };
 use streamunordered::{StreamUnordered, StreamYield};
 
-use polkadot_node_subsystem::{
+use pnu_subsystem::{
 	errors::RuntimeApiError,
 	messages::{AllMessages, NetworkBridgeMessage},
 	SubsystemContext,

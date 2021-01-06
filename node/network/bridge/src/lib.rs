@@ -33,14 +33,14 @@ use polkadot_subsystem::messages::{
 	CollatorProtocolMessage, ApprovalDistributionMessage,
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
-use polkadot_node_network_protocol::{
+use pnn_protocol::{
 	ReputationChange, PeerId, peer_set::PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1, OurView,
 };
 
 /// Peer set infos for network initialization.
 ///
 /// To be added to [`NetworkConfiguration::extra_sets`].
-pub use polkadot_node_network_protocol::peer_set::peer_sets_info;
+pub use pnn_protocol::peer_set::peer_sets_info;
 
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
@@ -556,15 +556,15 @@ mod tests {
 		StatementDistributionMessage, BitfieldDistributionMessage,
 		ApprovalDistributionMessage,
 	};
-	use polkadot_node_subsystem_test_helpers::{
+	use pnu_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 	};
-	use polkadot_node_subsystem_util::metered;
-	use polkadot_node_network_protocol::view;
+	use pnu_subsystem_util::metered;
+	use pnn_protocol::view;
 	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_primitives::v1::AuthorityDiscoveryId;
-	use polkadot_node_network_protocol::ObservedRole;
+	use pnn_protocol::ObservedRole;
 
 	use crate::network::{Network, NetworkAction};
 
@@ -588,7 +588,7 @@ mod tests {
 		TestNetworkHandle,
 		TestAuthorityDiscovery,
 	) {
-		let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
+		let (net_tx, net_rx) = pnu_subsystem_test_helpers::single_item_sink();
 		let (action_tx, action_rx) = metered::unbounded("test_action");
 
 		(
@@ -699,7 +699,7 @@ mod tests {
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (network, network_handle, discovery) = new_test_network();
-		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+		let (context, virtual_overseer) = pnu_subsystem_test_helpers::make_subsystem_context(pool);
 
 		let network_bridge = run_network(
 			network,

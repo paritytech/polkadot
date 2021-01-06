@@ -24,14 +24,14 @@ use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
-use polkadot_node_subsystem::{
+use pnu_subsystem::{
 	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, JaegerSpan,
 	messages::{
 		AllMessages, CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage,
 	},
 };
-use polkadot_node_subsystem_util::{
+use pnu_subsystem_util::{
 	self as util, delegated_subsystem, FromJobCommand,
 	request_availability_cores, request_persisted_validation_data, JobTrait, metrics::{self, prometheus},
 };

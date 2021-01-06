@@ -17,10 +17,10 @@
 use std::time::Duration;
 use futures::{future, Future, executor};
 use assert_matches::assert_matches;
-use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt as _;
-use polkadot_node_network_protocol::{view, ObservedRole};
-use polkadot_node_primitives::approval::{
+use pnu_subsystem_test_helpers as test_helpers;
+use pnu_subsystem_util::TimeoutExt as _;
+use pnn_protocol::{view, ObservedRole};
+use pnu_primitives::approval::{
 	AssignmentCertKind, RELAY_VRF_MODULO_CONTEXT, VRFOutput, VRFProof,
 };
 use super::*;

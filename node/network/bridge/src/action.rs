@@ -18,7 +18,7 @@
 use futures::channel::mpsc;
 
 use parity_scale_codec::Decode;
-use polkadot_node_network_protocol::{
+use pnn_protocol::{
 	peer_set::PeerSet, v1 as protocol_v1, PeerId, ReputationChange,
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockNumber};
@@ -26,7 +26,7 @@ use polkadot_subsystem::messages::NetworkBridgeMessage;
 use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 use sc_network::Event as NetworkEvent;
 
-use polkadot_node_network_protocol::ObservedRole;
+use pnn_protocol::ObservedRole;
 
 use super::{WireMessage, LOG_TARGET, MALFORMED_MESSAGE_COST};
 

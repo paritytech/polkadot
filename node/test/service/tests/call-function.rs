@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_test_service::*;
+use pnu_test_service::*;
 use service::TaskExecutor;
 use sp_keyring::Sr25519Keyring::{Alice, Bob};
 

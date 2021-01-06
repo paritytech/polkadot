@@ -16,8 +16,8 @@
 
 //! Collator for the adder test parachain.
 
-use polkadot_node_primitives::CollationGenerationConfig;
-use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
+use pnu_primitives::CollationGenerationConfig;
+use pnu_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::v1::Id as ParaId;
 use polkadot_cli::{Error, Result};
 use sc_cli::{Error as SubstrateCliError, Role, SubstrateCli};
@@ -58,9 +58,9 @@ fn main() -> Result<()> {
 					_ => {
 						let collator = Collator::new();
 
-						let full_node = polkadot_service::build_full(
+						let full_node = pnu_service::build_full(
 							config,
-							polkadot_service::IsCollator::Yes(collator.collator_id()),
+							pnu_service::IsCollator::Yes(collator.collator_id()),
 							None,
 							None,
 						).map_err(|e| e.to_string())?;

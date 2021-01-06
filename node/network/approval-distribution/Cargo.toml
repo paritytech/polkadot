@@ -1,14 +1,14 @@
 [package]
-name = "polkadot-approval-distribution"
+name = "pnn-approval-distribution"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-polkadot-node-primitives = { path = "../../primitives" }
-polkadot-node-network-protocol = { path = "../protocol" }
-polkadot-node-subsystem = { path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+pnu-primitives = { path = "../../primitives" }
+pnn-protocol = { path = "../protocol" }
+pnu-subsystem = { path = "../../subsystem" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 
 futures = "0.3.8"
@@ -18,8 +18,8 @@ tracing-futures = "0.2.4"
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
+pnu-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 
 assert_matches = "1.4.0"
 schnorrkel = { version = "0.9.1", default-features = false }

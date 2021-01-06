@@ -29,18 +29,18 @@ use futures::{channel::oneshot, FutureExt as _};
 use polkadot_primitives::v1::{
 	Hash, BlockNumber, ValidatorIndex, ValidatorSignature, CandidateIndex,
 };
-use polkadot_node_primitives::{
+use pnu_primitives::{
 	approval::{AssignmentCert, BlockApprovalMeta, IndirectSignedApprovalVote, IndirectAssignmentCert},
 };
-use polkadot_node_subsystem::{
+use pnu_subsystem::{
 	messages::{
 		AllMessages, ApprovalDistributionMessage, ApprovalVotingMessage, NetworkBridgeMessage,
 		AssignmentCheckResult, ApprovalCheckResult,
 	},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_node_network_protocol::{
+use pnu_subsystem_util::metrics::{self, prometheus};
+use pnn_protocol::{
 	PeerId, View, NetworkBridgeEvent, v1 as protocol_v1, ReputationChange as Rep,
 };
 

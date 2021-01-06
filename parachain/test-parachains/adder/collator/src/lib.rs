@@ -17,7 +17,7 @@
 //! Collator for the adder test parachain.
 
 use futures_timer::Delay;
-use polkadot_node_primitives::{Collation, CollatorFn};
+use pnu_primitives::{Collation, CollatorFn};
 use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
 use parity_scale_codec::{Encode, Decode};
 use sp_core::Pair;

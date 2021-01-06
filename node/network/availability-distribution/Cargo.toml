@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-availability-distribution"
+name = "pnn-availability-distribution"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -11,15 +11,15 @@ tracing-futures = "0.2.4"
 parity-scale-codec = { version = "1.3.6", features = ["std"]  }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
-polkadot-node-network-protocol = { path = "../../network/protocol" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
+pnn-protocol = { path = "../../network/protocol" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.23"
 
 [dev-dependencies]
-polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+polkadot-subsystem-testhelpers = { package = "pnu-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-node-core-approval-voting"
+name = "pnc-approval-voting"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -8,10 +8,10 @@ edition = "2018"
 futures = "0.3.8"
 parity-scale-codec = { version = "1.3.5", default-features = false, features = ["bit-vec", "derive"] }
 
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
-polkadot-overseer = { path = "../../overseer" }
+polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
+pnc-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-node-primitives = { path = "../../primitives" }
+pnu-primitives = { path = "../../primitives" }
 bitvec = "0.17.4"
 
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-test-service"
+name = "pnu-test-service"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -14,14 +14,14 @@ rand = "0.8.3"
 tempfile = "3.2.0"
 
 # Polkadot dependencies
-polkadot-overseer = { path = "../../overseer" }
+pnc-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-rpc = { path = "../../../rpc" }
 polkadot-runtime-common = { path = "../../../runtime/common" }
-polkadot-service = { path = "../../service" }
-polkadot-node-subsystem = { path = "../../subsystem" }
-polkadot-node-primitives = { path = "../../primitives" }
+pnu-service = { path = "../../service" }
+pnu-subsystem = { path = "../../subsystem" }
+pnu-primitives = { path = "../../primitives" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 

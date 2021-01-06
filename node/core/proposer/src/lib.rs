@@ -20,11 +20,11 @@
 
 use futures::prelude::*;
 use futures::select;
-use polkadot_node_subsystem::{
+use pnu_subsystem::{
 	jaeger,
 	messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError,
 };
-use polkadot_overseer::OverseerHandler;
+use pnc_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
 	Block, Hash, Header,
 };

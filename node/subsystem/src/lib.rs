@@ -37,7 +37,7 @@ use crate::messages::AllMessages;
 pub mod errors;
 pub mod messages;
 
-pub use polkadot_node_jaeger as jaeger;
+pub use pnu_jaeger as jaeger;
 pub use jaeger::*;
 
 /// How many slots are stack-reserved for active leaves updates

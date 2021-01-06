@@ -234,7 +234,7 @@ pub(crate) fn kusama_hard_forks() -> Vec<(
 #[cfg(test)]
 mod tests {
 	use grandpa::VotingRule;
-	use polkadot_test_client::{
+	use pnu_test_client::{
 		TestClientBuilder, TestClientBuilderExt, DefaultTestClientBuilderExt, InitPolkadotBlockBuilder,
 		ClientBlockImportExt,
 	};

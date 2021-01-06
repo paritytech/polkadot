@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-statement-distribution"
+name = "pnn-statement-distribution"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
@@ -10,16 +10,16 @@ futures = "0.3.12"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
-node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
+node-primitives = { package = "pnu-primitives", path = "../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
+pnn-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
 indexmap = "1.6.1"
 
 [dev-dependencies]
-polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+pnu-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

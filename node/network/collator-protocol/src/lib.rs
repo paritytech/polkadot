@@ -31,11 +31,11 @@ use polkadot_subsystem::{
 		AllMessages, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
 };
-use polkadot_node_network_protocol::{
+use pnn_protocol::{
 	PeerId, ReputationChange as Rep,
 };
 use polkadot_primitives::v1::CollatorId;
-use polkadot_node_subsystem_util::{
+use pnu_subsystem_util::{
 	self as util,
 	metrics::prometheus,
 };

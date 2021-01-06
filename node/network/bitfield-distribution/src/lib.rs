@@ -30,9 +30,9 @@ use polkadot_subsystem::{
 	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
 	SubsystemResult,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use pnu_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
-use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange, OurView};
+use pnn_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange, OurView};
 use std::collections::{HashMap, HashSet};
 
 const COST_SIGNATURE_INVALID: ReputationChange =
@@ -777,15 +777,15 @@ mod test {
 	use futures::executor;
 	use maplit::hashmap;
 	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
-	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_subsystem_util::TimeoutExt;
+	use pnu_subsystem_test_helpers::make_subsystem_context;
+	use pnu_subsystem_util::TimeoutExt;
 	use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
 	use sp_application_crypto::AppKey;
 	use sp_keystore::testing::KeyStore;
 	use std::sync::Arc;
 	use std::time::Duration;
 	use assert_matches::assert_matches;
-	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
+	use pnn_protocol::{view, ObservedRole, our_view};
 	use polkadot_subsystem::JaegerSpan;
 
 	macro_rules! launch {

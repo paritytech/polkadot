@@ -41,10 +41,10 @@ use polkadot_subsystem::{
 		AvailabilityStoreMessage, AvailabilityRecoveryMessage, AllMessages, NetworkBridgeMessage,
 	},
 };
-use polkadot_node_network_protocol::{
+use pnn_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, RequestId,
 };
-use polkadot_node_subsystem_util::{
+use pnu_subsystem_util::{
 	Timeout, TimeoutExt,
 	request_session_info_ctx,
 };

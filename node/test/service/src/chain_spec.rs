@@ -21,7 +21,7 @@ use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
 use polkadot_primitives::v1::{ValidatorId, AccountId, AssignmentId};
-use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
+use pnu_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
 use polkadot_test_runtime::constants::currency::DOTS;
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_core::sr25519;

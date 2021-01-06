@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-collator-protocol"
+name = "pnn-collator-protocol"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -12,9 +12,9 @@ thiserror = "1.0.23"
 
 
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-node-network-protocol = { path = "../../network/protocol" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+pnn-protocol = { path = "../../network/protocol" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
+polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
 
 [dev-dependencies]
 log = "0.4.13"
@@ -25,4 +25,4 @@ futures-timer = "3.0.2"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+polkadot-subsystem-testhelpers = { package = "pnu-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

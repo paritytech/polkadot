@@ -34,10 +34,10 @@ use polkadot_subsystem::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
 };
-use polkadot_node_network_protocol::{
+use pnn_protocol::{
 	v1 as protocol_v1, View, OurView, PeerId, ReputationChange as Rep, RequestId, NetworkBridgeEvent,
 };
-use polkadot_node_subsystem_util::{TimeoutExt as _, metrics::{self, prometheus}};
+use pnu_subsystem_util::{TimeoutExt as _, metrics::{self, prometheus}};
 
 use super::{modify_reputation, LOG_TARGET, Result};
 
@@ -798,7 +798,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair};
 	use polkadot_subsystem_testhelpers as test_helpers;
-	use polkadot_node_network_protocol::our_view;
+	use pnn_protocol::our_view;
 
 	#[derive(Clone)]
 	struct TestState {
@@ -835,7 +835,7 @@ mod tests {
 		let _ = env_logger::builder()
 			.is_test(true)
 			.filter(
-				Some("polkadot_collator_protocol"),
+				Some("pnn_collator_protocol"),
 				log::LevelFilter::Trace,
 			)
 			.filter(

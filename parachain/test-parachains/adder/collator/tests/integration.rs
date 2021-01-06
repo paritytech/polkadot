@@ -32,10 +32,10 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 	let para_id = ParaId::from(100);
 
 	// start alice
-	let alice = polkadot_test_service::run_validator_node(task_executor.clone(), Alice, || {}, vec![]);
+	let alice = pnu_test_service::run_validator_node(task_executor.clone(), Alice, || {}, vec![]);
 
 	// start bob
-	let bob = polkadot_test_service::run_validator_node(
+	let bob = pnu_test_service::run_validator_node(
 		task_executor.clone(),
 		Bob,
 		|| {},
@@ -55,7 +55,7 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 		.unwrap();
 
 	// run the collator node
-	let mut charlie = polkadot_test_service::run_collator_node(
+	let mut charlie = pnu_test_service::run_collator_node(
 		task_executor.clone(),
 		Charlie,
 		|| {},

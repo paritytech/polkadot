@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-pov-distribution"
+name = "pnn-pov-distribution"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -11,9 +11,9 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
+pnu-subsystem-util = { path = "../../subsystem-util" }
+pnn-protocol = { path = "../../network/protocol" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
@@ -23,4 +23,4 @@ log = "0.4.13"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+pnu-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

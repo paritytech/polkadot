@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-node-subsystem-util"
+name = "pnu-subsystem-util"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -17,11 +17,11 @@ thiserror = "1.0.23"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 
-polkadot-node-primitives = { path = "../primitives" }
-polkadot-node-subsystem = { path = "../subsystem" }
-polkadot-node-jaeger = { path = "../jaeger" }
+pnu-primitives = { path = "../primitives" }
+pnu-subsystem = { path = "../subsystem" }
+pnu-jaeger = { path = "../jaeger" }
 polkadot-primitives = { path = "../../primitives" }
-metered-channel = { path = "../metered-channel"}
+pnu-metered-channel = { path = "../pnu-metered-channel"}
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -36,4 +36,4 @@ env_logger = "0.8.2"
 futures = { version = "0.3.12", features = ["thread-pool"] }
 log = "0.4.13"
 parking_lot = "0.11.1"
-polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
+pnu-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

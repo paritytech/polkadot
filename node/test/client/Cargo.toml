@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-test-client"
+name = "pnu-test-client"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -9,9 +9,9 @@ parity-scale-codec = { version = "1.3.6", default-features = false, features = [
 
 # Polkadot dependencies
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
-polkadot-test-service = { path = "../service" }
+pnu-test-service = { path = "../service" }
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-node-subsystem = { path = "../../subsystem" }
+pnu-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }

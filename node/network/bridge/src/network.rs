@@ -26,7 +26,7 @@ use parity_scale_codec::Encode;
 use sc_network::Event as NetworkEvent;
 
 use super::LOG_TARGET;
-use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId, ReputationChange};
+use pnn_protocol::{peer_set::PeerSet, PeerId, ReputationChange};
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
@@ -131,7 +131,7 @@ pub trait Network: Send + 'static {
 
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		sc_network::NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
+		sc_network::NetworkService::event_stream(self, "pnn-bridge").boxed()
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
