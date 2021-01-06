@@ -351,8 +351,8 @@ check-labels:
   needs:
     # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
     # here we should list the non-manual jobs from the previous stage
-    - job:                         check-transaction-versions
-      artifacts:                   false
+    # - job:                         check-transaction-versions
+    #   artifacts:                   false
     - job:                         generate-impl-guide
       artifacts:                   false
   script:
