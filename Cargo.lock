@@ -1862,7 +1862,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "memchr",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "pin-utils",
  "proc-macro-hack",
  "proc-macro-nested",
@@ -2267,7 +2267,7 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "socket2",
  "tokio 0.2.21",
  "tower-service",
@@ -2874,7 +2874,7 @@ dependencies = [
  "libp2p-yamux",
  "parity-multiaddr",
  "parking_lot 0.11.1",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "smallvec 1.6.0",
  "wasm-timer",
 ]
@@ -2899,7 +2899,7 @@ dependencies = [
  "multistream-select",
  "parity-multiaddr",
  "parking_lot 0.11.1",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "prost",
  "prost-build",
  "rand 0.7.3",
@@ -3132,7 +3132,7 @@ checksum = "6ce3374f3b28162db9d3442c9347c4f14cb01e8290052615c7d341d40eae0599"
 dependencies = [
  "futures 0.3.8",
  "log",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "rand 0.7.3",
  "salsa20",
  "sha3",
@@ -3641,7 +3641,7 @@ dependencies = [
  "bytes 0.5.6",
  "futures 0.3.8",
  "log",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "smallvec 1.6.0",
  "unsigned-varint",
 ]
@@ -4811,11 +4811,11 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ccc2237c2c489783abd8c4c80e5450fc0e98644555b1364da68cc29aa151ca7"
+checksum = "5a83804639aad6ba65345661744708855f9fbcb71176ea8d28d05aeb11d975e7"
 dependencies = [
- "pin-project-internal 1.0.2",
+ "pin-project-internal 1.0.3",
 ]
 
 [[package]]
@@ -4831,9 +4831,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-internal"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8e8d2bf0b23038a4424865103a4df472855692821aab4e4f5c3312d461d9e5f"
+checksum = "b7bcc46b8f73443d15bc1c5fecbb315718491fa9187fa483f0e359323cde8b3a"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -5259,7 +5259,7 @@ dependencies = [
  "mick-jaeger",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "polkadot-node-jaeger",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
@@ -5284,7 +5284,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
@@ -5310,7 +5310,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "pin-project 1.0.2",
+ "pin-project 1.0.3",
  "polkadot-node-jaeger",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
