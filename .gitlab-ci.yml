@@ -99,63 +99,63 @@ check-line-width:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
 
-# test-deterministic-wasm:
-#   stage:                           test
-#   <<:                              *docker-env
-#   script:
-#     - ./scripts/gitlab/test_deterministic_wasm.sh
+test-deterministic-wasm:
+  stage:                           test
+  <<:                              *docker-env
+  script:
+    - ./scripts/gitlab/test_deterministic_wasm.sh
 
-# test-linux-stable:                 &test
-#   stage:                           test
-#   <<:                              *test-refs
-#   <<:                              *docker-env
-#   <<:                              *compiler_info
-#   variables:
-#     RUST_TOOLCHAIN: stable
-#     # Enable debug assertions since we are running optimized builds for testing
-#     # but still want to have debug assertions.
-#     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
-#     TARGET: native
-#   artifacts:
-#     paths:
-#       - ./target/release/polkadot
-#   script:
-#     - ./scripts/gitlab/test_linux_stable.sh
-#     - sccache -s
+test-linux-stable:                 &test
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler_info
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    TARGET: native
+  artifacts:
+    paths:
+      - ./target/release/polkadot
+  script:
+    - ./scripts/gitlab/test_linux_stable.sh
+    - sccache -s
 
-# check-web-wasm:                    &test
-#   stage:                           test
-#   <<:                              *test-refs
-#   <<:                              *docker-env
-#   <<:                              *compiler_info
-#   script:
-#     # WASM support is in progress. As more and more crates support WASM, we
-#     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-#     - ./scripts/gitlab/check_web_wasm.sh
-#     - sccache -s
+check-web-wasm:                    &test
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler_info
+  script:
+    # WASM support is in progress. As more and more crates support WASM, we
+    # should add entries here. See https://github.com/paritytech/polkadot/issues/625
+    - ./scripts/gitlab/check_web_wasm.sh
+    - sccache -s
 
-# check-runtime-benchmarks:          &test
-#   stage:                           test
-#   <<:                              *test-refs
-#   <<:                              *docker-env
-#   <<:                              *compiler_info
-#   script:
-#     # Check that the node will compile with `runtime-benchmarks` feature flag.
-#     - ./scripts/gitlab/check_runtime_benchmarks.sh
-#     - sccache -s
+check-runtime-benchmarks:          &test
+  stage:                           test
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler_info
+  script:
+    # Check that the node will compile with `runtime-benchmarks` feature flag.
+    - ./scripts/gitlab/check_runtime_benchmarks.sh
+    - sccache -s
 
 #### stage:                        build
 
-# check-transaction-versions:
-#   image:                           node:15
-#   stage:                           build
-#   needs:
-#     - job:                         test-linux-stable
-#       artifacts:                   false
-#   before_script:
-#     - npm install -g @polkadot/metadata-cmp
-#     - git fetch origin release
-#   script: "scripts/gitlab/check_extrinsics_ordering.sh"
+check-transaction-versions:
+  image:                           node:15
+  stage:                           build
+  needs:
+    - job:                         test-linux-stable
+      artifacts:                   false
+  before_script:
+    - npm install -g @polkadot/metadata-cmp
+    - git fetch origin release
+  script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
 build-wasm-release:
   stage:                           build
@@ -210,16 +210,13 @@ build-linux-release:               &build
 build-linux-rococo:
   <<:                              *build
   rules:
-    # .test-refs with manual on PRs, master and tags
+    # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
+    # build job so that publish-docker-rococo would "needs" this job. This leads either to blocked
+    # or to forever running pipeline. It was decided to run these jobs from UI and on schedule.
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-      when: manual
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-      when: manual
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-      when: manual
-      allow_failure: false
+    - if: $IMAGE_NAME == "rococo"
   script:
     - time cargo build --release --verbose --features=real-overseer
     - sccache -s
@@ -287,19 +284,11 @@ publish-docker-polkadot:           &build-push-docker-image
 
 publish-docker-rococo:
   <<:                              *build-push-docker-image
-  # can't be executed on PRs since registry credentials are protected
-  # <<:                              *build-refs
   rules:
-    # .test-refs with manual on PRs, master and tags
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-      when: manual
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-      when: manual
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-      when: manual
-      allow_failure: false
+    - if: $IMAGE_NAME == "rococo"
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
@@ -357,12 +346,5 @@ check-labels:
   <<:                              *kubernetes-env
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-  # needs:
-    # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
-    # here we should list the non-manual jobs from the previous stage
-    # - job:                         check-transaction-versions
-    #   artifacts:                   false
-    # - job:                         generate-impl-guide
-    #   artifacts:                   false
   script:
     - ./scripts/gitlab/check_labels.sh
