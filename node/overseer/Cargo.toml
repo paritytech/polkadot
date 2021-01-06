@@ -19,7 +19,7 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 futures = { version = "0.3.8", features = ["thread-pool"] }
 futures-timer = "3.0.2"

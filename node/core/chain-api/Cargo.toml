@@ -8,7 +8,7 @@ edition = "2018"
 futures = "0.3.8"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -17,4 +17,4 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 futures = { version = "0.3.8", features = ["thread-pool"] }
 maplit = "1.0.2"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
