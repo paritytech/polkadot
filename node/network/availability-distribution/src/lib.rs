@@ -45,7 +45,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_subsystem::{
-	jaeger, errors::{ChainApiError, RuntimeApiError},
+	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 use std::collections::{HashMap, HashSet};
@@ -191,12 +191,14 @@ impl PerCandidate {
 	}
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
 	ancestors: Vec<Hash>,
 	/// Live candidates, according to this relay parent.
 	live_candidates: HashSet<CandidateHash>,
+	/// The span that belongs to this relay parent.
+	span: PerLeafSpan,
 }
 
 impl ProtocolState {
@@ -216,7 +218,7 @@ impl ProtocolState {
 		)
 	}
 
-	#[tracing::instrument(level = "trace", skip(candidates), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(candidates, span), fields(subsystem = LOG_TARGET))]
 	fn add_relay_parent(
 		&mut self,
 		relay_parent: Hash,
@@ -224,10 +226,13 @@ impl ProtocolState {
 		validator_index: Option<ValidatorIndex>,
 		candidates: HashMap<CandidateHash, FetchedLiveCandidate>,
 		ancestors: Vec<Hash>,
+		span: PerLeafSpan,
 	) {
-		let per_relay_parent = self.per_relay_parent.entry(relay_parent).or_default();
-		per_relay_parent.ancestors = ancestors;
-		per_relay_parent.live_candidates.extend(candidates.keys().cloned());
+		let per_relay_parent = self.per_relay_parent.entry(relay_parent).or_insert_with(|| PerRelayParent {
+			span,
+			ancestors,
+			live_candidates: candidates.keys().cloned().collect(),
+		});
 
 		// register the relation of relay_parent to candidate..
 		for (receipt_hash, fetched) in candidates {
@@ -256,6 +261,11 @@ impl ProtocolState {
 				}
 			};
 
+			// Create some span that will make it able to switch between the candidate and relay parent span.
+			let mut span = per_relay_parent.span.child("live-candidate");
+			span.add_string_tag("candidate-hash", &format!("{:?}", receipt_hash));
+
+			candidate_entry.span.add_follows_from(&span);
 			candidate_entry.live_in.insert(relay_parent);
 		}
 	}
@@ -365,7 +375,9 @@ where
 	let view = state.view.clone();
 
 	// add all the relay parents and fill the cache
-	for added in view.difference(&old_view) {
+	for (added, span) in view.span_per_head().iter().filter(|v| !old_view.contains(&v.0)) {
+		let span = PerLeafSpan::new(span.clone(), "availability-distribution");
+
 		let validators = query_validators(ctx, *added).await?;
 		let validator_index = obtain_our_validator_index(&validators, keystore.clone()).await;
 		let (candidates, ancestors)
@@ -377,6 +389,7 @@ where
 			validator_index,
 			candidates,
 			ancestors,
+			span,
 		);
 	}
 
@@ -435,7 +448,6 @@ where
 					?candidate_hash,
 					"Retrieved chunk from availability storage",
 				);
-
 
 				let msg = AvailabilityGossipMessage {
 					candidate_hash,

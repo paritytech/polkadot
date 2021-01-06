@@ -78,7 +78,7 @@ async fn get_core_availability(
 	span: &jaeger::JaegerSpan,
 ) -> Result<bool, Error> {
 	if let CoreState::Occupied(core) = core {
-		let _span = span.child("query chunk availability");
+		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();
 		sender
