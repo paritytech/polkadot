@@ -102,63 +102,63 @@ check-line-width:
   interruptible:                   true
   allow_failure:                   true
 
-test-deterministic-wasm:
-  stage:                           test
-  <<:                              *docker-env
-  script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
+# test-deterministic-wasm:
+#   stage:                           test
+#   <<:                              *docker-env
+#   script:
+#     - ./scripts/gitlab/test_deterministic_wasm.sh
 
-test-linux-stable:                 &test
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler_info
-  variables:
-    RUST_TOOLCHAIN: stable
-    # Enable debug assertions since we are running optimized builds for testing
-    # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
-    TARGET: native
-  artifacts:
-    paths:
-      - ./target/release/polkadot
-  script:
-    - ./scripts/gitlab/test_linux_stable.sh
-    - sccache -s
+# test-linux-stable:                 &test
+#   stage:                           test
+#   <<:                              *test-refs
+#   <<:                              *docker-env
+#   <<:                              *compiler_info
+#   variables:
+#     RUST_TOOLCHAIN: stable
+#     # Enable debug assertions since we are running optimized builds for testing
+#     # but still want to have debug assertions.
+#     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+#     TARGET: native
+#   artifacts:
+#     paths:
+#       - ./target/release/polkadot
+#   script:
+#     - ./scripts/gitlab/test_linux_stable.sh
+#     - sccache -s
 
-check-web-wasm:                    &test
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler_info
-  script:
-    # WASM support is in progress. As more and more crates support WASM, we
-    # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
-    - sccache -s
+# check-web-wasm:                    &test
+#   stage:                           test
+#   <<:                              *test-refs
+#   <<:                              *docker-env
+#   <<:                              *compiler_info
+#   script:
+#     # WASM support is in progress. As more and more crates support WASM, we
+#     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
+#     - ./scripts/gitlab/check_web_wasm.sh
+#     - sccache -s
 
-check-runtime-benchmarks:          &test
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler_info
-  script:
-    # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - ./scripts/gitlab/check_runtime_benchmarks.sh
-    - sccache -s
+# check-runtime-benchmarks:          &test
+#   stage:                           test
+#   <<:                              *test-refs
+#   <<:                              *docker-env
+#   <<:                              *compiler_info
+#   script:
+#     # Check that the node will compile with `runtime-benchmarks` feature flag.
+#     - ./scripts/gitlab/check_runtime_benchmarks.sh
+#     - sccache -s
 
 #### stage:                        build
 
-check-transaction-versions:
-  image:                           node:15
-  stage:                           build
-  needs:
-    - job:                         test-linux-stable
-      artifacts:                   false
-  before_script:
-    - npm install -g @polkadot/metadata-cmp
-    - git fetch origin release
-  script: "scripts/gitlab/check_extrinsics_ordering.sh"
+# check-transaction-versions:
+#   image:                           node:15
+#   stage:                           build
+#   needs:
+#     - job:                         test-linux-stable
+#       artifacts:                   false
+#   before_script:
+#     - npm install -g @polkadot/metadata-cmp
+#     - git fetch origin release
+#   script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
 build-wasm-release:
   stage:                           build
@@ -241,11 +241,9 @@ generate-impl-guide:
 
 .publish-build:                    &publish-build
   stage:                           publish
-  needs:
-    - job:                         build-linux-release
-      artifacts:                   true
-    - job:                         build-wasm-release
-      artifacts:                   true
+  dependencies:
+    - build-linux-release
+    - build-wasm-release
   <<:                              *build-refs
   <<:                              *kubernetes-env
   before_script:
@@ -292,10 +290,10 @@ publish-docker-polkadot:           &build-push-docker-image
 publish-docker-rococo:
   <<:                              *build-push-docker-image
   # can't be executed on PRs since registry credentials are protected
-  <<:                              *build-refs
-  needs:
-    - job:                         build-linux-rococo
-      artifacts:                   true
+  # <<:                              *build-refs
+  <<:                              *test-refs
+  dependencies:
+    - build-linux-rococo
   variables:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
@@ -350,12 +348,12 @@ check-labels:
   <<:                              *kubernetes-env
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-  needs:
-    # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
-    # here we should list the non-manual jobs from the previous stage
-    - job:                         check-transaction-versions
-      artifacts:                   false
-    - job:                         generate-impl-guide
-      artifacts:                   false
+  # needs:
+  #   # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
+  #   # here we should list the non-manual jobs from the previous stage
+  #   - job:                         check-transaction-versions
+  #     artifacts:                   false
+  #   - job:                         generate-impl-guide
+  #     artifacts:                   false
   script:
     - ./scripts/gitlab/check_labels.sh
