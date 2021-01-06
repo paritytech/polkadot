@@ -45,7 +45,6 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem_util::{
 	Timeout, TimeoutExt,
 	validator_discovery,
-	request_session_index_for_child_ctx,
 	request_session_info_ctx,
 };
 use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
@@ -471,6 +470,7 @@ async fn handle_recover(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	receipt: CandidateReceipt,
+	session_index: SessionIndex,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
@@ -490,11 +490,6 @@ async fn handle_recover(
 		interaction.awaiting.push(response_sender);
 		return Ok(());
 	}
-
-	let session_index = request_session_index_for_child_ctx(
-		receipt.descriptor.relay_parent,
-		ctx,
-	).await?.await.map_err(error::Error::CanceledSessionIndex)??;
 
 	let session_info = request_session_info_ctx(
 		receipt.descriptor.relay_parent,
@@ -793,12 +788,14 @@ impl AvailabilityRecoverySubsystem {
 							match msg {
 								AvailabilityRecoveryMessage::RecoverAvailableData(
 									receipt,
+									session_index,
 									response_sender,
 								) => {
 									if let Err(e) = handle_recover(
 										&mut state,
 										&mut ctx,
 										receipt,
+										session_index,
 										response_sender,
 									).await {
 										tracing::warn!(

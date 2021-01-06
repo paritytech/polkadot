@@ -2301,7 +2301,11 @@ mod tests {
 
 	fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 		let (sender, _) = oneshot::channel();
-		AvailabilityRecoveryMessage::RecoverAvailableData(Default::default(), sender)
+		AvailabilityRecoveryMessage::RecoverAvailableData(
+			Default::default(),
+			Default::default(),
+			sender,
+		)
 	}
 
 	fn test_bitfield_distribution_msg() -> BitfieldDistributionMessage {

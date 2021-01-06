@@ -138,17 +138,6 @@ impl TestState {
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				relay_parent,
-				RuntimeApiRequest::SessionIndexForChild(tx),
-			)) => {
-				assert_eq!(relay_parent, self.candidate.descriptor.relay_parent);
-				tx.send(Ok(self.session_index)).unwrap();
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
 				RuntimeApiRequest::SessionInfo(
 					session_index,
 					tx,
@@ -174,6 +163,17 @@ impl TestState {
 		let mut attempted_to_connect_to = Vec::new();
 
 		for _ in 0..self.validator_public.len() {
+			assert_matches!(
+				overseer_recv(virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionIndexForChild(tx),
+				)) => {
+					assert_eq!(relay_parent, self.candidate.descriptor.relay_parent);
+					tx.send(Ok(self.session_index)).unwrap();
+				}
+			);
+
 			self.test_runtime_api(virtual_overseer).await;
 
 			// Connect to shuffled validators one by one.
@@ -431,6 +431,7 @@ fn availability_is_recovered() {
 			&mut virtual_overseer,
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				test_state.candidate.clone(),
+				test_state.session_index,
 				tx,
 			)
 		).await;
@@ -457,6 +458,7 @@ fn availability_is_recovered() {
 			&mut virtual_overseer,
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				new_candidate,
+				test_state.session_index,
 				tx,
 			)
 		).await;
@@ -491,6 +493,7 @@ fn a_faulty_chunk_leads_to_recovery_error() {
 			&mut virtual_overseer,
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				test_state.candidate.clone(),
+				test_state.session_index,
 				tx,
 			)
 		).await;
@@ -540,6 +543,7 @@ fn a_wrong_chunk_leads_to_recovery_error() {
 			&mut virtual_overseer,
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				test_state.candidate.clone(),
+				test_state.session_index,
 				tx,
 			)
 		).await;

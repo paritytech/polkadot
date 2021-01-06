@@ -28,9 +28,6 @@ pub enum Error {
 	#[error("failed to query a chunk from store")]
 	CanceledQueryChunk(#[source] oneshot::Canceled),
 
-	#[error("failed to query session index for child")]
-	CanceledSessionIndex(#[source] oneshot::Canceled),
-
 	#[error("failed to query session info")]
 	CanceledSessionInfo(#[source] oneshot::Canceled),
 

@@ -243,6 +243,7 @@ pub enum AvailabilityRecoveryMessage {
 	/// Recover available data from validators on the network.
 	RecoverAvailableData(
 		CandidateReceipt,
+		SessionIndex,
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
 	/// Event from the network bridge.
