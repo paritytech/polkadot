@@ -241,9 +241,11 @@ generate-impl-guide:
 
 .publish-build:                    &publish-build
   stage:                           publish
-  dependencies:
-    - build-linux-release
-    - build-wasm-release
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+    - job:                         build-wasm-release
+      artifacts:                   true
   <<:                              *build-refs
   <<:                              *kubernetes-env
   before_script:
@@ -292,12 +294,14 @@ publish-docker-rococo:
   # can't be executed on PRs since registry credentials are protected
   # <<:                              *build-refs
   <<:                              *test-refs
-  dependencies:
-    - build-linux-rococo
+  needs:
+    - job:                         build-linux-rococo
+      artifacts:                   true
   variables:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
     IMAGE_NAME:                    docker.io/parity/rococo
+  allow_failure:                   true
 
 publish-s3-release:
   <<:                              *publish-build
