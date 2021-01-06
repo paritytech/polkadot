@@ -16,35 +16,15 @@ a need for a very small gossip only containing the `Vote` itself.
 
 Inputs:
 
-* `DisputeEvent::Vote`
-* `DisputeParticipationMessage::DisputeDetection`
-* `DisputeParticipationMessage::DisputeResolution`
-* `DisputeParticipationMessage::DisputeTimeout`
+* `DisputeEvent::DisputeVote`
+* `DisputeEvent::DisputeLateTimeout`
+* `DisputeEvent::DisputeResolution`
 
 Outputs:
 
 * `VotesDbMessage::StoreVote`
-
-Operational Queries:
-
 * `AvailabilityRecoveryMessage::RecoverAvailableData`
 * `CandidateValidationMessage::ValidateFromChainState`
-
-## Messages
-
-```rust
-enum DisputeParticipationMessage {
-    Detection {
-        candidate: CandidateHash,
-        votes: HashMap<ValidatorId, Vote>,
-    },
-
-    Resolution{
-        resolution: Resolution,
-        votes: HashMap<ValidatorId, Vote>,
-    },
-}
-```
 
 ## Helper Structs
 
@@ -88,6 +68,11 @@ enum Resolution {
 }
 ```
 
+## Constants
+
+* `DISPUTE_POST_RESOLUTION_TIME = Duration::from_secs(24 * 60 * 60)`: Keep a dispute open for an additional time where validators
+can cast their vote.
+
 ## Session Change
 
 Operation resumes, since the validator set at the time of the dispute
@@ -97,14 +82,17 @@ stays operational, and the validators are still bonded.
 
 Nothing to store, everything lives in `VotesDB`.
 
-## Sequence
+## Sequences
 
-### Persisting
+### ViewChange is BlockImport
 
-1. Extract imported blocks from `ViewChange` or introduce a new overseer `Event`.
+1. Extract imported blocks from `ViewChange`
 1. for each imported block:
   1. Extract the associated dispute _runtime_ events
-  1. Store votes according to the runtime events to the votesdb via `VotesDBMessage::StoreVote`
+  1. for each runtime event:
+  	1. Store vote according to the runtime events to the votesdb via `VotesDBMessage::StoreVote`
+  	1. iff vote is new
+	  1. add event to transaction events
 
 The `VotesDB` is then responsible for emitting `Detection`, `Resolution` or `Timeout` messages.
 

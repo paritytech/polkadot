@@ -23,68 +23,53 @@ could cause the node to forget the state.
 Inputs:
 
 * `VotesDbMessage::StoreVote`
-
-Outputs:
-
-* `DisputeParticipationMessage::Detection`
-* `DisputeParticipationMessage::Resolution`
-* `DisputeParticipationMessage::Timeout`
+* `VotesDbMessage::QueryVotesByValidator`
 
 ## Messages
 
 ```rust
 enum VotesDbMessage {
-    /// Allow querying all `Hash`es queried by a particular validator.
-    QueryValidatorVotes {
-        /// Validator indentification.
-        session: SessionIndex,
-        validator: ValidatorIndex,
-        response: ResponseChannel<Vec<Hash>>,
-    },
+	/// Allow querying all `Hash`es queried by a particular validator.
+	QueryValidatorVotes {
+		/// Validator indentification.
+		session: SessionIndex,
+		validator: ValidatorIndex,
+		response: ResponseChannel<Vec<Hash>>,
+	},
 
-    /// Store a vote for a particular dispute
-    StoreVote{
-        /// Unique validator indentification
-        session: SessionIndex,
-        validator: ValidatorIndex,
-        /// Vote.
-        vote: Vote,
-        /// Attestation.
-        attestation: ValidityAttestation,
-    },
+	/// Store a vote for a particular dispute
+	StoreVote {
+		/// Unique validator indentification
+		session: SessionIndex,
+		validator: ValidatorIndex,
+		/// Vote.
+		vote: Vote,
+		/// Attestation.
+		attestation: ValidityAttestation,
+		/// Returns `true` if the passed vote is new information
+		new_vote: oneshot::Sender<VoteStoreResult>
+	},
 }
 ```
 
-```rust
-enum DisputeMessage {
-    /// A dispute is detected
-    Detection {
-        /// unique validator indentification
-        session: SessionIndex,
-        validator: ValidatorIndex,
-        /// The attestation.
-        attestation: ValidityAttestation,
-        /// response channel
-        response: ResponseChannel<Vec<Hash>>,
-    },
-    /// Concluded a dispute with the following resolution
-    Resolution {
-        /// Resolution of the block can either be,
-        /// the block being valid or not.
-        valid: bool,
-    }
-}
-```
 
 ## Helper Structs
 
 ```rust
-/// Snapshot of the current vote state and recorded votes
-struct Snapshot {
-    /// all entries must be unique
-    pro: Vec<(ValidatorIndex, SessionIndex, ValidityAttestation)>,
-    /// all entries must be unique
-    cons: Vec<(ValidatorIndex, SessionIndex, ValidityAttestation)>,
+pub enum VoteStoreResult {
+	/// In case the stored vote was the first negative vote stored
+	/// and provides all votes (which hence must be supporting the
+	/// validity claim) cast up to the point.
+	Detection { supporting: Vec<Vote> },
+	/// The passed voted was successfully stored and did not
+	/// initiate a dispute.
+	Stored,
+	/// An identical vote is already present.
+	AlreadyPresent,
+	/// Double vote was detected for the particular validator.
+	DoubleVote { previous: Vote },
+	/// Quorum and super majority were reached.
+	Resolution,
 }
 ```
 
@@ -92,7 +77,7 @@ struct Snapshot {
 
 A sweep clean is to be done to remove stored attestions
 of all validators that are not slashable / have no funds
-bound anymore in order to save storage space.
+bound anymore in order to bound the storage space.
 
 ## Storage
 
@@ -104,41 +89,28 @@ ValidatorId => Vec<(ValidatorIndex, Session)>
 Hash => CommittedCandidateReceipt
 ```
 
-## Constants
-
-Keep a dispute open for an additional time where validators
-can cast their vote.
-`DISPUTE_POST_RESOLUTION_TIME = Duration::from_secs(24 * 60 * 60)`
 
 ## Sequence
 
 ### Incoming message
 
-1. Incoming request to store a dispute gossip message.
-1. Validate message.
-1. Check if the dispute already has a supermajority.
-    1. iff:
-        1. Craft and enqueue an unsigned transaction to reward/slash the validator of the proof, that is part of the incoming message, directly.
-    1. else:
-        1. Store the dispute including its proof to the DB.
-        1. Enqueue unsigned transaction to reward/slash all validators that voted.
-        1. >> Dispute Effects
+1. Incoming request to store a `Vote` via `VotesDbMessage::StoreVote`.
+1. Assure the message's content is verifying against one of the validator keys of the validators that had duty at the blocks inclusion.
+1. Attempt to retrieve the message that already exists
+1. iff an identical message is already present:
+	1. send response `VoteStoreResult::AlreadyExists`
+1. else iff a different message is already present:
+	1. send response `VoteStoreResult::DoubleVote`
+1. else iff the dispute already has a supermajority:
+	1. send response `VoteStoreResult::Resolution`
+1. else:
+	1. store the `Vote` to the database
+	1. send response `VoteStoreResult::Stored`
 
 ### Query
 
 1. Incoming query request
-    1. Resolve `ValidatorId` to a set of `(SessionIndex, ValidatorIndex)`.
-    1. For each `(SessionIndex, ValidatorIndex)`:
-        1. Accumulate `Hash`es.
-    1. Lookup all `CommittedCandidateReceipt`s
-    1. Reconstruct the `PoV` via `AvailabilityStoreMessage::QueryAvailableData`
-
-### Incoming dispute vote
-
-1. Check if the dispute already has a supermajority.
-1. iff:
-    1. store the resolution and keep the resolution
-    1. send `DisputeMessage::Resolution` to the overseer
-    1. Delete the
-1. else:
-    1. Store the new vote including its proof to the DB.
+	1. Resolve `ValidatorId` to a set of `(SessionIndex, ValidatorIndex)`.
+	1. For each `(SessionIndex, ValidatorIndex)`:
+		1. Accumulate `Hash`es.
+	1. Lookup all `Vote`s
