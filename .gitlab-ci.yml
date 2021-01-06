@@ -39,8 +39,6 @@ default:
 .kubernetes-env:                   &kubernetes-env
   tags:
     - kubernetes-parity-build
-  environment:
-    name: parity-build
   interruptible:                   true
 
 .docker-env:                       &docker-env
@@ -299,7 +297,7 @@ publish-docker-rococo:
       when: manual
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       when: manual
-      allow_failure: true
+      allow_failure: false
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
