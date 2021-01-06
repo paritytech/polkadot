@@ -55,7 +55,6 @@ impl<T: Config> LeafDataProvider for Module<T> where
 
 type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
 
-// TODO [ToDr] add Beefy pallet here.
 /// The module's configuration trait.
 pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config
 {}
@@ -85,9 +84,9 @@ impl<T: Config> Module<T> where
 	///
 	/// NOTE this does not include parathreads - only parachains are part of the merkle tree.
 	///
-	/// TODO describe merkle tree construction.
+	/// TODO [ToDr] describe merkle tree construction.
 	///
-	/// NOTE [ToDr] This is an initial and inefficient implementation, which re-constructs
+	/// NOTE This is an initial and inefficient implementation, which re-constructs
 	/// the merkle tree every block. Instead we should update the merkle root in [Self::on_initialize]
 	/// call of this pallet and update the merkle tree efficiently (use on-chain storage to persist inner nodes).
 	fn parachain_heads_merkle_root() -> MerkleRootOf<T> {
@@ -104,12 +103,12 @@ impl<T: Config> Module<T> where
 
 	/// Returns a merkle root of a tree constructed from secp256k1 public keys of current BEEFY authority set.
 	///
-	/// NOTE [ToDr] This is an initial and inefficient implementation, which re-constructs
+	/// NOTE This is an initial and inefficient implementation, which re-constructs
 	/// the merkle tree every block. Instead we should update the merkle root in [on_new_session]
 	/// callback, cause we know it will only change every session - in future it should be optimized
 	/// to change every era instead.
 	fn beefy_authority_set_merkle_root() -> MerkleRootOf<T> {
-		let beefy_public_keys = pallet_beefy::Module::<T>::authorities()
+		let beefy_public_keys = pallet_beefy::Module::<T>::next_authorities()
 			.into_iter()
 			.map(|authority_id| authority_id.encode())
 			.collect::<Vec<_>>();
