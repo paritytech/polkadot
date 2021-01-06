@@ -1577,8 +1577,6 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		_{ }
-
 		create {
 			let cap = BalanceOf::<T>::max_value();
 			let first_slot = 0u32.into();
