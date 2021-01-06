@@ -215,6 +215,7 @@ build-linux-rococo:
     # build job so that publish-docker-rococo would "needs" this job. This leads either to blocked
     # or to forever running pipeline. It was decided to run these jobs from UI and on schedule.
     - if: $IMAGE_NAME == "rococo"
+  needs:                           []
   script:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
