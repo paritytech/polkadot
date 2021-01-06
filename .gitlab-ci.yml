@@ -41,6 +41,7 @@ default:
     - kubernetes-parity-build
   environment:
     name: parity-build
+  interruptible:                   true
 
 .docker-env:                       &docker-env
   retry:
@@ -88,7 +89,6 @@ check-runtime:
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
     - ./scripts/gitlab/check_runtime.sh
-  interruptible:                   true
   allow_failure:                   true
 
 check-line-width:
@@ -99,7 +99,6 @@ check-line-width:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
     - ./scripts/gitlab/check_line_width.sh
-  interruptible:                   true
   allow_failure:                   true
 
 # test-deterministic-wasm:
@@ -349,12 +348,12 @@ check-labels:
   <<:                              *kubernetes-env
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-  # needs:
-  #   # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
-  #   # here we should list the non-manual jobs from the previous stage
-  #   - job:                         check-transaction-versions
-  #     artifacts:                   false
-  #   - job:                         generate-impl-guide
-  #     artifacts:                   false
+  needs:
+    # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
+    # here we should list the non-manual jobs from the previous stage
+    - job:                         check-transaction-versions
+      artifacts:                   false
+    - job:                         generate-impl-guide
+      artifacts:                   false
   script:
     - ./scripts/gitlab/check_labels.sh
