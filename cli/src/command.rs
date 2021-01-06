@@ -252,7 +252,9 @@ pub fn run() -> Result<()> {
 			})
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-			let _ = sc_cli::GlobalLoggerBuilder::new("").with_colors(false).init();
+			let mut builder = sc_cli::GlobalLoggerBuilder::new("");
+			builder.with_colors(false);
+			let _ = builder.init();
 
 			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
