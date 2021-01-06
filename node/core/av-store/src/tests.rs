@@ -23,7 +23,6 @@ use futures::{
 	executor,
 	Future,
 };
-use smallvec::smallvec;
 
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateDescriptor, CandidateReceipt, HeadData,
@@ -31,7 +30,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, errors::RuntimeApiError,
+	ActiveLeavesUpdate, errors::RuntimeApiError, JaegerSpan,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 
@@ -182,8 +181,8 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![new_leaf.clone()],
-				deactivated: smallvec![],
+				activated: vec![(new_leaf, Arc::new(JaegerSpan::Disabled))].into(),
+				deactivated: vec![].into(),
 			}),
 		).await;
 
@@ -516,8 +515,8 @@ fn stored_data_kept_until_finalized() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![new_leaf.clone()],
-				deactivated: smallvec![],
+				activated: vec![(new_leaf, Arc::new(JaegerSpan::Disabled))].into(),
+				deactivated: vec![].into(),
 			}),
 		).await;
 
@@ -620,8 +619,8 @@ fn stored_chunk_kept_until_finalized() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![new_leaf.clone()],
-				deactivated: smallvec![],
+				activated: vec![(new_leaf, Arc::new(JaegerSpan::Disabled))].into(),
+				deactivated: vec![].into(),
 			}),
 		).await;
 
@@ -758,8 +757,8 @@ fn forkfullness_works() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![new_leaf_1.clone(), new_leaf_2.clone()],
-				deactivated: smallvec![],
+				activated: vec![(new_leaf_1, Arc::new(JaegerSpan::Disabled)), (new_leaf_2, Arc::new(JaegerSpan::Disabled))].into(),
+				deactivated: vec![].into(),
 			}),
 		).await;
 

@@ -34,19 +34,92 @@ use sp_runtime::traits::Zero;
 #[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
-	/// The minimum frequency at which parachains can update their validation code.
-	pub validation_upgrade_frequency: BlockNumber,
-	/// The delay, in blocks, before a validation upgrade is applied.
-	pub validation_upgrade_delay: BlockNumber,
-	/// The acceptance period, in blocks. This is the amount of blocks after availability that validators
-	/// and fishermen have to perform secondary checks or issue reports.
-	pub acceptance_period: BlockNumber,
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
+	// special treatment.
+	//
+	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
+	// only a first few fields can be depended upon. These fields cannot be changed without
+	// corresponding migration of the parachains.
+
+	/**
+	 * The parameters that are required for the parachains.
+	 */
+
 	/// The maximum validation code size, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
 	pub max_head_data_size: u32,
+	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+	pub max_upward_queue_count: u32,
+	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
+	/// no further messages may be added to it. If it exceeds this then the queue may contain only
+	/// a single message.
+	pub max_upward_queue_size: u32,
+	/// The maximum size of an upward message that can be sent by a candidate.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_size: u32,
+	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_num_per_candidate: u32,
+	/// The maximum number of outbound HRMP messages can be sent by a candidate.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_max_message_num_per_candidate: u32,
+	/// The minimum frequency at which parachains can update their validation code.
+	pub validation_upgrade_frequency: BlockNumber,
+	/// The delay, in blocks, before a validation upgrade is applied.
+	pub validation_upgrade_delay: BlockNumber,
+
+	/**
+	 * The parameters that are not essential, but still may be of interest for parachains.
+	 */
+
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
+	/// The maximum size of a message that can be put in a downward message queue.
+	///
+	/// Since we require receiving at least one DMP message the obvious upper bound of the size is
+	/// the PoV size. Of course, there is a lot of other different things that a parachain may
+	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
+	/// size.
+	pub max_downward_message_size: u32,
+	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
+	/// stage.
+	///
+	/// NOTE that this is a soft limit and could be exceeded.
+	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
+	pub hrmp_max_parachain_outbound_channels: u32,
+	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
+	pub hrmp_max_parathread_outbound_channels: u32,
+	/// Number of sessions after which an HRMP open channel request expires.
+	pub hrmp_open_request_ttl: u32,
+	/// The deposit that the sender should provide for opening an HRMP channel.
+	pub hrmp_sender_deposit: Balance,
+	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
+	pub hrmp_recipient_deposit: Balance,
+	/// The maximum number of messages allowed in an HRMP channel at once.
+	pub hrmp_channel_max_capacity: u32,
+	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
+	pub hrmp_channel_max_total_size: u32,
+	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
+	pub hrmp_max_parachain_inbound_channels: u32,
+	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
+	pub hrmp_max_parathread_inbound_channels: u32,
+	/// The maximum size of a message that could ever be put into an HRMP channel.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_channel_max_message_size: u32,
+
+	/**
+	 * Parameters that will unlikely be needed by parachains.
+	 */
+
+	/// The acceptance period, in blocks. This is the amount of blocks after availability that validators
+	/// and fishermen have to perform secondary checks or issue reports.
+	pub acceptance_period: BlockNumber,
 	/// The amount of execution cores to dedicate to parathread execution.
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
@@ -88,58 +161,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
-	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
-	pub max_upward_queue_count: u32,
-	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
-	/// no further messages may be added to it. If it exceeds this then the queue may contain only
-	/// a single message.
-	pub max_upward_queue_size: u32,
-	/// The maximum size of a message that can be put in a downward message queue.
-	///
-	/// Since we require receiving at least one DMP message the obvious upper bound of the size is
-	/// the PoV size. Of course, there is a lot of other different things that a parachain may
-	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
-	/// size.
-	pub max_downward_message_size: u32,
-	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
-	/// stage.
-	///
-	/// NOTE that this is a soft limit and could be exceeded.
-	pub preferred_dispatchable_upward_messages_step_weight: Weight,
-	/// The maximum size of an upward message that can be sent by a candidate.
-	///
-	/// This parameter affects the size upper bound of the `CandidateCommitments`.
-	pub max_upward_message_size: u32,
-	/// The maximum number of messages that a candidate can contain.
-	///
-	/// This parameter affects the size upper bound of the `CandidateCommitments`.
-	pub max_upward_message_num_per_candidate: u32,
-	/// Number of sessions after which an HRMP open channel request expires.
-	pub hrmp_open_request_ttl: u32,
-	/// The deposit that the sender should provide for opening an HRMP channel.
-	pub hrmp_sender_deposit: Balance,
-	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
-	pub hrmp_recipient_deposit: Balance,
-	/// The maximum number of messages allowed in an HRMP channel at once.
-	pub hrmp_channel_max_capacity: u32,
-	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
-	pub hrmp_channel_max_total_size: u32,
-	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
-	pub hrmp_max_parachain_inbound_channels: u32,
-	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
-	pub hrmp_max_parathread_inbound_channels: u32,
-	/// The maximum size of a message that could ever be put into an HRMP channel.
-	///
-	/// This parameter affects the upper bound of size of `CandidateCommitments`.
-	pub hrmp_channel_max_message_size: u32,
-	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
-	pub hrmp_max_parachain_outbound_channels: u32,
-	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
-	pub hrmp_max_parathread_outbound_channels: u32,
-	/// The maximum number of outbound HRMP messages can be sent by a candidate.
-	///
-	/// This parameter affects the upper bound of size of `CandidateCommitments`.
-	pub hrmp_max_message_num_per_candidate: u32,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -855,6 +876,44 @@ mod tests {
 		new_test_ext(Default::default()).execute_with(|| {
 			Configuration::set_validation_upgrade_delay(Origin::root(), Default::default()).unwrap();
 			assert!(<Configuration as Store>::PendingConfig::get().is_none())
+		});
+	}
+
+	#[test]
+	fn verify_externally_accessible() {
+		// This test verifies that the value can be accessed through the well known keys and the
+		// host configuration decodes into the abridged version.
+
+		use primitives::v1::{well_known_keys, AbridgedHostConfiguration};
+
+		new_test_ext(Default::default()).execute_with(|| {
+			let ground_truth = HostConfiguration::default();
+
+			// Make sure that the configuration is stored in the storage.
+			<Configuration as Store>::ActiveConfig::put(ground_truth.clone());
+
+			// Extract the active config via the well known key.
+			let raw_active_config = sp_io::storage::get(well_known_keys::ACTIVE_CONFIG)
+				.expect("config must be present in storage under ACTIVE_CONFIG");
+			let abridged_config = AbridgedHostConfiguration::decode(&mut &raw_active_config[..])
+				.expect("HostConfiguration must be decodable into AbridgedHostConfiguration");
+
+			assert_eq!(
+				abridged_config,
+				AbridgedHostConfiguration {
+					max_code_size: ground_truth.max_code_size,
+					max_head_data_size: ground_truth.max_head_data_size,
+					max_upward_queue_count: ground_truth.max_upward_queue_count,
+					max_upward_queue_size: ground_truth.max_upward_queue_size,
+					max_upward_message_size: ground_truth.max_upward_message_size,
+					max_upward_message_num_per_candidate: ground_truth
+						.max_upward_message_num_per_candidate,
+					hrmp_max_message_num_per_candidate: ground_truth
+						.hrmp_max_message_num_per_candidate,
+					validation_upgrade_frequency: ground_truth.validation_upgrade_frequency,
+					validation_upgrade_delay: ground_truth.validation_upgrade_delay,
+				},
+			);
 		});
 	}
 }

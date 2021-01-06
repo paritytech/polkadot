@@ -23,9 +23,8 @@
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{
-	jaeger,
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
 	messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
@@ -37,7 +36,7 @@ use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, NetworkBridgeEvent,
+	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, NetworkBridgeEvent, OurView,
 };
 
 use futures::prelude::*;
@@ -390,14 +389,14 @@ struct ActiveHeadData {
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,
 	/// A Jaeger span for this head, so we can attach data to it.
-	span: jaeger::JaegerSpan,
+	span: PerLeafSpan,
 }
 
 impl ActiveHeadData {
 	fn new(
 		validators: Vec<ValidatorId>,
 		session_index: sp_staking::SessionIndex,
-		relay_parent: &Hash,
+		span: PerLeafSpan,
 	) -> Self {
 		ActiveHeadData {
 			candidates: Default::default(),
@@ -405,7 +404,7 @@ impl ActiveHeadData {
 			validators,
 			session_index,
 			seconded_counts: Default::default(),
-			span: jaeger::hash_span(&relay_parent, "statement-dist-active"),
+			span,
 		}
 	}
 
@@ -839,7 +838,7 @@ async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
-	our_view: &mut View,
+	our_view: &mut OurView,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
 	statement_listeners: &mut StatementListeners,
@@ -930,7 +929,7 @@ impl StatementDistribution {
 		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
 	) -> SubsystemResult<()> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
-		let mut our_view = View::default();
+		let mut our_view = OurView::default();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 		let mut statement_listeners = StatementListeners::new();
 		let metrics = self.metrics;
@@ -941,7 +940,9 @@ impl StatementDistribution {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
 					let _timer = metrics.time_active_leaves_update();
 
-					for relay_parent in activated {
+					for (relay_parent, span) in activated {
+						let span = PerLeafSpan::new(span, "statement-distribution");
+
 						let (validators, session_index) = {
 							let (val_tx, val_rx) = oneshot::channel();
 							let (session_tx, session_rx) = oneshot::channel();
@@ -981,7 +982,7 @@ impl StatementDistribution {
 						};
 
 						active_heads.entry(relay_parent)
-							.or_insert(ActiveHeadData::new(validators, session_index, &relay_parent));
+							.or_insert(ActiveHeadData::new(validators, session_index, span));
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
@@ -1117,7 +1118,8 @@ mod tests {
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
-	use polkadot_node_network_protocol::{view, ObservedRole};
+	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
+	use polkadot_subsystem::JaegerSpan;
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -1155,7 +1157,11 @@ mod tests {
 			c
 		};
 
-		let mut head_data = ActiveHeadData::new(validators, session_index, &parent_hash);
+		let mut head_data = ActiveHeadData::new(
+			validators,
+			session_index,
+			PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+		);
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		let alice_public = SyncCryptoStore::sr25519_generate_new(
@@ -1413,7 +1419,11 @@ mod tests {
 		).unwrap();
 
 		let new_head_data = {
-			let mut data = ActiveHeadData::new(validators, session_index, &hash_c);
+			let mut data = ActiveHeadData::new(
+				validators,
+				session_index,
+				PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+			);
 
 			let noted = data.note_statement(block_on(SignedFullStatement::sign(
 				&keystore,
@@ -1665,7 +1675,7 @@ mod tests {
 		let test_fut = async move {
 			// register our active heads.
 			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![hash_a].into(),
+				activated: vec![(hash_a, Arc::new(JaegerSpan::Disabled))].into(),
 				deactivated: vec![].into(),
 			}))).await;
 
@@ -1718,7 +1728,7 @@ mod tests {
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(view![hash_a])
+					NetworkBridgeEvent::OurViewChange(our_view![hash_a])
 				)
 			}).await;
 

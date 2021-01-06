@@ -56,10 +56,13 @@ pub struct HrmpOpenChannelRequest {
 #[derive(Encode, Decode)]
 #[cfg_attr(test, derive(Debug))]
 pub struct HrmpChannel {
-	/// The amount that the sender supplied as a deposit when opening this channel.
-	pub sender_deposit: Balance,
-	/// The amount that the recipient supplied as a deposit when accepting opening this channel.
-	pub recipient_deposit: Balance,
+	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
+	// special treatment.
+	//
+	// A parachain requested this struct can only depend on the subset of this struct. Specifically,
+	// only a first few fields can be depended upon (See `AbridgedHrmpChannel`). These fields cannot
+	// be changed without corresponding migration of parachains.
+
 	/// The maximum number of messages that can be pending in the channel at once.
 	pub max_capacity: u32,
 	/// The maximum total size of the messages that can be pending in the channel at once.
@@ -80,6 +83,10 @@ pub struct HrmpChannel {
 	/// This value is initialized to a special value that consists of all zeroes which indicates
 	/// that no messages were previously added.
 	pub mqc_head: Option<Hash>,
+	/// The amount that the sender supplied as a deposit when opening this channel.
+	pub sender_deposit: Balance,
+	/// The amount that the recipient supplied as a deposit when accepting opening this channel.
+	pub recipient_deposit: Balance,
 }
 
 /// An error returned by [`check_hrmp_watermark`] that indicates an acceptance criteria check
@@ -270,7 +277,10 @@ decl_storage! {
 		/// - there should be no other dangling channels in `HrmpChannels`.
 		/// - the vectors are sorted.
 		HrmpIngressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+		// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+		// the format will require migration of parachains.
 		HrmpEgressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+	
 		/// Storage for the messages for each channel.
 		/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
 		HrmpChannelContents: map hasher(twox_64_concat) HrmpChannelId => Vec<InboundHrmpMessage<T::BlockNumber>>;
@@ -1552,6 +1562,64 @@ mod tests {
 			);
 
 			assert_storage_consistency_exhaustive();
+		});
+	}
+
+	#[test]
+	fn verify_externally_accessible() {
+		use primitives::v1::{well_known_keys, AbridgedHrmpChannel};
+
+		let para_a = 20.into();
+		let para_b = 21.into();
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			// Register two parachains, wait until a session change, then initiate channel open
+			// request and accept that, and finally wait until the next session.
+			register_parachain(para_a);
+			register_parachain(para_b);
+			run_to_block(5, Some(vec![5]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+			run_to_block(8, Some(vec![8]));
+
+			// Here we have a channel a->b opened.
+			//
+			// Try to obtain this channel from the storage and
+			// decode it into the abridged version.
+			assert!(channel_exists(para_a, para_b));
+			let raw_hrmp_channel =
+				sp_io::storage::get(&well_known_keys::hrmp_channels(HrmpChannelId {
+					sender: para_a,
+					recipient: para_b,
+				}))
+				.expect("the channel exists and we must be able to get it through well known keys");
+			let abridged_hrmp_channel = AbridgedHrmpChannel::decode(&mut &raw_hrmp_channel[..])
+				.expect("HrmpChannel should be decodable as AbridgedHrmpChannel");
+
+			assert_eq!(
+				abridged_hrmp_channel,
+				AbridgedHrmpChannel {
+					max_capacity: 2,
+					max_total_size: 16,
+					max_message_size: 8,
+					msg_count: 0,
+					total_size: 0,
+					mqc_head: None,
+				},
+			);
+
+			// Now, verify that we can access and decode the egress index.
+			let raw_egress_index =
+				sp_io::storage::get(
+					&well_known_keys::hrmp_egress_channel_index(para_a)
+				)
+				.expect("the egress index must be present for para_a");
+			let egress_index = <Vec<ParaId>>::decode(&mut &raw_egress_index[..])
+				.expect("egress index should be decodable as a list of para ids");
+			assert_eq!(
+				egress_index,
+				vec![para_b],
+			);
 		});
 	}
 }
