@@ -219,12 +219,14 @@ build-linux-rococo:
       when: manual
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       when: manual
+      allow_failure: false
   script:
     - time cargo build --release --verbose --features=real-overseer
     - sccache -s
 
 generate-impl-guide:
   stage:                           build
+  <<:                              *docker-env
   image:
     name: michaelfbryan/mdbook-docker-image:latest
     entrypoint: [""]
