@@ -74,7 +74,6 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use futures_timer::Delay;
-use rand_chacha::ChaCha8Rng as Rng;
 use streamunordered::{StreamYield, StreamUnordered};
 
 use polkadot_primitives::v1::{Block, BlockNumber, Hash};
@@ -101,8 +100,8 @@ const CHANNEL_CAPACITY: usize = 1024;
 const STOP_DELAY: u64 = 1;
 // Target for logs.
 const LOG_TARGET: &'static str = "overseer";
-// Rate at which messages are timed.
-const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
+// 1 message out of each of this many is timed.
+const MESSAGE_TIMER_METRIC_CAPTURE_RATE: u32 = 256;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -327,29 +326,17 @@ pub struct OverseerSubsystemContext<M>{
 	rx: mpsc::Receiver<FromOverseer<M>>,
 	tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
 	metrics: Metrics,
-	rng: Rng,
-	distribution: rand::distributions::Bernoulli,
+	capture_each: u32,
+	capture_state: u32,
 }
 
 impl<M> OverseerSubsystemContext<M> {
-	/// Create a new `OverseerSubsystemContext` with randomized initial RNG state.
+	/// Create a new `OverseerSubsystemContext`.
 	///
-	/// The internal RNG is used to determine which messages are timed.
-	///
-	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
-	/// to the range `0.0..=1.0`.
-	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>, metrics: Metrics, mut capture_rate: f64) -> Self {
-		use rand_chacha::rand_core::SeedableRng;
-		let rng = Rng::from_rng(rand::thread_rng()).expect("can fail only if the inner RNG is fallible; thread_rng is infallible; qed");
-
-		if capture_rate < 0.0 {
-			capture_rate = 0.0;
-		} else if capture_rate > 1.0 {
-			capture_rate = 1.0;
-		}
-		let distribution = rand::distributions::Bernoulli::new(capture_rate).expect("input is clamped to valid range; qed");
-
-		OverseerSubsystemContext { rx, tx, metrics, rng, distribution }
+	/// `capture_each` determines which messages are timed, i.e. a value of 256 means that every 256th
+	/// message is timed. A value of `0` has a special meaning: no messages are timed.
+	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>, metrics: Metrics, capture_each: u32) -> Self {
+		OverseerSubsystemContext { rx, tx, metrics, capture_each, capture_state: 0 }
 	}
 
 	/// Create a new `OverseserSubsystemContext` with no metering.
@@ -357,19 +344,24 @@ impl<M> OverseerSubsystemContext<M> {
 	/// Intended for tests.
 	#[allow(unused)]
 	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>) -> Self {
-		use rand_chacha::rand_core::SeedableRng;
-		let rng = Rng::seed_from_u64(0);
-
 		let metrics = Metrics::default();
-		let distribution = rand::distributions::Bernoulli::new(0.0).expect("input is within valid range; qed");
+		OverseerSubsystemContext::new(rx, tx, metrics, 0)
+	}
 
-		OverseerSubsystemContext { rx, tx, metrics, rng, distribution }
+	fn should_capture(&mut self) -> bool {
+		if self.capture_each == 0 {
+			false
+		} else {
+			self.capture_state += 1;
+			if self.capture_state >= self.capture_each {
+				self.capture_state = 0;
+			}
+			self.capture_state == 0
+		}
 	}
 
 	fn maybe_timed<T>(&mut self, t: T) -> MaybeTimed<T> {
-		use rand::distributions::Distribution;
-
-		let timer = if self.distribution.sample(&mut self.rng) {
+		let timer = if self.should_capture() {
 			self.metrics.time_message_hold()
 		} else {
 			None
@@ -383,22 +375,24 @@ impl<M> OverseerSubsystemContext<M> {
 	///
 	/// This is somewhat more expensive than `self.maybe_timed` because it must clone some stuff.
 	fn make_maybe_timed<T>(&mut self) -> impl FnMut(T) -> MaybeTimed<T> {
-		use rand::{RngCore, SeedableRng};
-
-		// We don't want to simply clone this RNG because we don't want to duplicate its state.
-		// It's not ever going to be used for cryptographic purposes, but it's still better to
-		// keep good habits.
-		let mut child_seed = [0_u8; 32];
-		self.rng.fill_bytes(&mut child_seed);
-		let mut rng = Rng::from_seed(child_seed);
-
 		let metrics = self.metrics.clone();
-		let distribution = self.distribution.clone();
+		let capture_each = self.capture_each;
+		let mut capture_state = self.capture_state;
 
 		move |t| {
-			use rand::distributions::Distribution;
+			let mut should_capture = move || {
+				if capture_each == 0 {
+					false
+				} else {
+					capture_state += 1;
+					if capture_state >= capture_each {
+						capture_state = 0;
+					}
+					capture_state == 0
+				}
+			};
 
-			let timer = if distribution.sample(&mut rng) {
+			let timer = if should_capture() {
 				metrics.time_message_hold()
 			} else {
 				None
