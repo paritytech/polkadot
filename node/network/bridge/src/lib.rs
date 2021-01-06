@@ -87,10 +87,10 @@ pub fn peers_sets_info() -> Vec<sc_network::config::NonDefaultSetConfig> {
 		sc_network::config::NonDefaultSetConfig {
 			notifications_protocol: VALIDATION_PROTOCOL_NAME.into(),
 			set_config: sc_network::config::SetConfig {
-				in_peers: 0,
+				in_peers: 25,
 				out_peers: 0,
 				reserved_nodes: Vec::new(),
-				non_reserved_mode: sc_network::config::NonReservedPeerMode::Deny,
+				non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 			},
 		},
 		sc_network::config::NonDefaultSetConfig {
