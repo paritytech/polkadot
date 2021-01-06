@@ -22,7 +22,7 @@
   "properties": {
     "ss58Format": 42,
     "tokenDecimals": 12,
-    "tokenSymbol": "RCO"
+    "tokenSymbol": "ROC"
   },
   "forkBlocks": null,
   "badBlocks": null,

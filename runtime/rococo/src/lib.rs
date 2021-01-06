@@ -105,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1"),
 	authoring_version: 0,
-	spec_version: 12,
+	spec_version: 14,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -220,6 +220,7 @@ impl Filter<Call> for BaseFilter {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
@@ -244,6 +245,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = SS58Prefix;
 }
 
 parameter_types! {
@@ -811,6 +813,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch() -> babe_primitives::Epoch {
 			Babe::current_epoch()
+		}
+
+		fn next_epoch() -> babe_primitives::Epoch {
+			Babe::next_epoch()
 		}
 
 		fn generate_key_ownership_proof(

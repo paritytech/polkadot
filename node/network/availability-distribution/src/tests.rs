@@ -17,7 +17,7 @@
 use super::*;
 use assert_matches::assert_matches;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_network_protocol::{view, ObservedRole};
+use polkadot_node_network_protocol::{view, ObservedRole, our_view};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
@@ -48,6 +48,19 @@ fn chunk_protocol_message(
 		message.candidate_hash,
 		message.erasure_chunk,
 	)
+}
+
+fn make_per_candidate() -> PerCandidate {
+	PerCandidate {
+		live_in: HashSet::new(),
+		message_vault: HashMap::new(),
+		received_messages: HashMap::new(),
+		sent_messages: HashMap::new(),
+		validators: Vec::new(),
+		validator_index: None,
+		descriptor: Default::default(),
+		span: jaeger::JaegerSpan::Disabled,
+	}
 }
 
 struct TestHarness {
@@ -192,6 +205,7 @@ impl Default for TestState {
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 			max_pov_size: 1024,
+			relay_storage_root: Default::default(),
 		};
 
 		let pov_block_a = PoV {
@@ -384,7 +398,7 @@ async fn expect_chunks_network_message(
 
 async fn change_our_view(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
-	view: View,
+	view: OurView,
 	validator_public: &[ValidatorId],
 	ancestors: Vec<Hash>,
 	session_per_relay_parent: HashMap<Hash, SessionIndex>,
@@ -560,7 +574,7 @@ fn check_views() {
 		let genesis = Hash::repeat_byte(0xAA);
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0], genesis],
 			hashmap! { current => 1, genesis => 1 },
@@ -627,7 +641,7 @@ fn check_views() {
 					peer_b_2 => view![ancestors[0]],
 				},
 			);
-			assert_eq!(view, view![current]);
+			assert_eq!(view, our_view![current]);
 		}
 	};
 }
@@ -662,7 +676,7 @@ fn reputation_verification() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -754,7 +768,7 @@ fn not_a_live_candidate_is_detected() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -802,7 +816,7 @@ fn peer_change_view_before_us() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -849,7 +863,7 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![ancestors[0]],
+			our_view![ancestors[0]],
 			&validator_public,
 			vec![ancestors[1]],
 			hashmap! { ancestors[0] => 1 },
@@ -865,7 +879,7 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -1023,9 +1037,10 @@ fn remove_relay_parent_only_removes_per_candidate_if_final() {
 		live_candidates: std::iter::once(candidate_hash_a).collect(),
 	});
 
-	state.per_candidate.insert(candidate_hash_a, PerCandidate {
-		live_in: vec![hash_a, hash_b].into_iter().collect(),
-		..Default::default()
+	state.per_candidate.insert(candidate_hash_a, {
+		let mut per_candidate = make_per_candidate();
+		per_candidate.live_in = vec![hash_a, hash_b].into_iter().collect();
+		per_candidate
 	});
 
 	state.remove_relay_parent(&hash_a);
@@ -1050,6 +1065,8 @@ fn add_relay_parent_includes_all_live_candidates() {
 
 	let candidate_hash_a = CandidateHash([10u8; 32].into());
 	let candidate_hash_b = CandidateHash([11u8; 32].into());
+
+	state.per_candidate.insert(candidate_hash_b, make_per_candidate());
 
 	let candidates = vec![
 		(candidate_hash_a, FetchedLiveCandidate::Fresh(Default::default())),
@@ -1201,7 +1218,7 @@ fn new_peer_gets_all_chunks_send() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
