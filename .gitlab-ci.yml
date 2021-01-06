@@ -357,12 +357,12 @@ check-labels:
   <<:                              *kubernetes-env
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-  needs:
+  # needs:
     # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
     # here we should list the non-manual jobs from the previous stage
     # - job:                         check-transaction-versions
     #   artifacts:                   false
-    - job:                         generate-impl-guide
-      artifacts:                   false
+    # - job:                         generate-impl-guide
+    #   artifacts:                   false
   script:
     - ./scripts/gitlab/check_labels.sh
