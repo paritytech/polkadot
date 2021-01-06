@@ -88,11 +88,10 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem,
+	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, JaegerSpan, jaeger,
 };
 use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}};
 use polkadot_node_primitives::SpawnNamed;
-
 
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
@@ -489,6 +488,9 @@ pub struct Overseer<S> {
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
+
+	/// Stores the [`JaegerSpan`] per active leaf.
+	span_per_active_leaf: HashMap<Hash, Arc<JaegerSpan>>,
 
 	/// A set of leaves that `Overseer` starts working with.
 	///
@@ -1277,6 +1279,7 @@ where
 			leaves,
 			active_leaves,
 			metrics,
+			span_per_active_leaf: Default::default(),
 		};
 
 		Ok((this, handler))
@@ -1321,9 +1324,9 @@ where
 		let mut update = ActiveLeavesUpdate::default();
 
 		for (hash, number) in std::mem::take(&mut self.leaves) {
-			update.activated.push(hash);
 			let _ = self.active_leaves.insert(hash, number);
-			self.on_head_activated(&hash);
+			let span = self.on_head_activated(&hash);
+			update.activated.push((hash, span));
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -1390,32 +1393,26 @@ where
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		let mut update = ActiveLeavesUpdate::default();
+		match self.active_leaves.entry(block.hash) {
+			hash_map::Entry::Vacant(entry) => entry.insert(block.number),
+			hash_map::Entry::Occupied(entry) => {
+				debug_assert_eq!(*entry.get(), block.number);
+				return Ok(());
+			}
+		};
+
+		let span = self.on_head_activated(&block.hash);
+		let mut update = ActiveLeavesUpdate::start_work(block.hash, span);
 
 		if let Some(number) = self.active_leaves.remove(&block.parent_hash) {
-			if let Some(expected_parent_number) = block.number.checked_sub(1) {
-				debug_assert_eq!(expected_parent_number, number);
-			}
+			debug_assert_eq!(block.number.saturating_sub(1), number);
 			update.deactivated.push(block.parent_hash);
 			self.on_head_deactivated(&block.parent_hash);
 		}
 
-		match self.active_leaves.entry(block.hash) {
-			hash_map::Entry::Vacant(entry) => {
-				update.activated.push(block.hash);
-				let _ = entry.insert(block.number);
-				self.on_head_activated(&block.hash);
-			},
-			hash_map::Entry::Occupied(entry) => {
-				debug_assert_eq!(*entry.get(), block.number);
-			}
-		}
-
 		self.clean_up_external_listeners();
 
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-
-		Ok(())
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -1519,7 +1516,7 @@ where
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn on_head_activated(&mut self, hash: &Hash) {
+	fn on_head_activated(&mut self, hash: &Hash) -> Arc<JaegerSpan> {
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			for listener in listeners {
@@ -1527,15 +1524,17 @@ where
 				let _ = listener.send(Ok(()));
 			}
 		}
+
+		let span = Arc::new(jaeger::hash_span(hash, "leave activated"));
+		self.span_per_active_leaf.insert(*hash, span.clone());
+		span
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_deactivated(&mut self, hash: &Hash) {
 		self.metrics.on_head_deactivated();
-		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
-			// clean up and signal to listeners the block is deactivated
-			drop(listeners);
-		}
+		self.activation_external_listeners.remove(hash);
+		self.span_per_active_leaf.remove(hash);
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -1615,7 +1614,7 @@ mod tests {
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt, pending};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
-	use polkadot_subsystem::messages::RuntimeApiRequest;
+	use polkadot_subsystem::{messages::RuntimeApiRequest, JaegerSpan};
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
 
@@ -1980,13 +1979,16 @@ mod tests {
 			handler.block_imported(third_block).await;
 
 			let expected_heartbeats = vec![
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(first_block_hash)),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+					first_block_hash,
+					Arc::new(JaegerSpan::Disabled),
+				)),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [second_block_hash].as_ref().into(),
+					activated: [(second_block_hash, Arc::new(JaegerSpan::Disabled))].as_ref().into(),
 					deactivated: [first_block_hash].as_ref().into(),
 				}),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [third_block_hash].as_ref().into(),
+					activated: [(third_block_hash, Arc::new(JaegerSpan::Disabled))].as_ref().into(),
 					deactivated: [second_block_hash].as_ref().into(),
 				}),
 			];
@@ -2074,7 +2076,10 @@ mod tests {
 
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [first_block_hash, second_block_hash].as_ref().into(),
+					activated: [
+						(first_block_hash, Arc::new(JaegerSpan::Disabled)),
+						(second_block_hash, Arc::new(JaegerSpan::Disabled)),
+					].as_ref().into(),
 					..Default::default()
 				}),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {

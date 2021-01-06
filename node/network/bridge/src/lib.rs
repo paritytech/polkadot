@@ -30,7 +30,7 @@ use sc_network::Event as NetworkEvent;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult,
+	SubsystemResult, JaegerSpan,
 };
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
@@ -39,14 +39,13 @@ use polkadot_subsystem::messages::{
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash, BlockNumber};
 use polkadot_node_network_protocol::{
-	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
+	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1, OurView,
 };
 
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::pin::Pin;
 use std::sync::Arc;
-
 
 mod validator_discovery;
 
@@ -349,9 +348,9 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 	}
 }
 
-fn construct_view(live_heads: &[Hash], finalized_number: BlockNumber) -> View {
+fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_number: BlockNumber) -> View {
 	View {
-		heads: live_heads.iter().rev().take(MAX_VIEW_HEADS).cloned().collect(),
+		heads: live_heads.rev().take(MAX_VIEW_HEADS).collect(),
 		finalized_number
 	}
 }
@@ -360,13 +359,13 @@ fn construct_view(live_heads: &[Hash], finalized_number: BlockNumber) -> View {
 async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
-	live_heads: &[Hash],
+	live_heads: &[(Hash, Arc<JaegerSpan>)],
 	local_view: &mut View,
 	finalized_number: BlockNumber,
 	validation_peers: &HashMap<PeerId, PeerData>,
 	collation_peers: &HashMap<PeerId, PeerData>,
 ) -> SubsystemResult<()> {
-	let new_view = construct_view(live_heads, finalized_number);
+	let new_view = construct_view(live_heads.iter().map(|v| v.0), finalized_number);
 	if *local_view == new_view { return Ok(()) }
 
 	*local_view = new_view.clone();
@@ -380,18 +379,14 @@ async fn update_our_view(
 	send_collation_message(
 		net,
 		collation_peers.keys().cloned(),
-		WireMessage::ViewUpdate(new_view.clone()),
+		WireMessage::ViewUpdate(new_view),
 	).await?;
 
-	dispatch_validation_event_to_all(
-		NetworkBridgeEvent::OurViewChange(new_view.clone()),
-		ctx,
-	).await;
+	let our_view = OurView::new(live_heads.iter().cloned(), finalized_number);
 
-	dispatch_collation_event_to_all(
-		NetworkBridgeEvent::OurViewChange(new_view.clone()),
-		ctx,
-	).await;
+	dispatch_validation_event_to_all(NetworkBridgeEvent::OurViewChange(our_view.clone()), ctx).await;
+
+	dispatch_collation_event_to_all(NetworkBridgeEvent::OurViewChange(our_view), ctx).await;
 
 	Ok(())
 }
@@ -584,7 +579,7 @@ where
 	let mut event_stream = network_service.event_stream().fuse();
 
 	// Most recent heads are at the back.
-	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
+	let mut live_heads: Vec<(Hash, Arc<JaegerSpan>)> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut local_view = View::default();
 	let mut finalized_number = 0;
 
@@ -642,7 +637,7 @@ where
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
-				live_heads.retain(|h| !deactivated.contains(h));
+				live_heads.retain(|h| !deactivated.contains(&h.0));
 
 				update_our_view(
 					&mut network_service,
@@ -999,7 +994,9 @@ mod tests {
 			let hash_a = Hash::repeat_byte(1);
 
 			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+				))
 			).await;
 
 			let actions = network_handle.next_network_actions(2).await;
@@ -1187,7 +1184,9 @@ mod tests {
 			let hash_a = Hash::repeat_byte(1);
 
 			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+				))
 			).await;
 
 			let actions = network_handle.next_network_actions(1).await;
@@ -1378,7 +1377,9 @@ mod tests {
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_a, 1))
 			).await;
 			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_b)))
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(hash_b, Arc::new(JaegerSpan::Disabled)),
+				))
 			).await;
 
 			let actions = network_handle.next_network_actions(1).await;

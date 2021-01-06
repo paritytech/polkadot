@@ -19,6 +19,7 @@ tracing-futures = "0.2.4"
 
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
+polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-primitives = { path = "../../primitives" }
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

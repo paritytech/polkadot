@@ -25,7 +25,7 @@ use futures::{
 };
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_subsystem::{
-	jaeger,
+	jaeger, JaegerSpan, PerLeafSpan,
 	errors::ChainApiError,
 	messages::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage,
@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
 };
-use std::pin::Pin;
+use std::{pin::Pin, sync::Arc};
 use thiserror::Error;
 
 const LOG_TARGET: &'static str = "candidate_selection";
@@ -95,12 +95,13 @@ impl JobTrait for CandidateSelectionJob {
 	#[tracing::instrument(skip(keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
+		span: Arc<JaegerSpan>,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CandidateSelectionMessage>,
 		mut sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		let span = jaeger::hash_span(&relay_parent, "candidate-selection:run");
+		let span = PerLeafSpan::new(span, "candidate-selection");
 		async move {
 			let _span = span.child("query-runtime");
 			let (groups, cores) = futures::try_join!(
