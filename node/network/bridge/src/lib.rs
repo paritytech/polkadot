@@ -39,7 +39,7 @@ use polkadot_subsystem::messages::{
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash, BlockNumber};
 use polkadot_node_network_protocol::{
-	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
+	ObservedRole, ReputationChange, PeerId, peer_set::PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
 };
 
 use std::collections::{HashMap, hash_map};
@@ -55,10 +55,6 @@ mod validator_discovery;
 /// We use the same limit to compute the view sent to peers locally.
 const MAX_VIEW_HEADS: usize = 5;
 
-/// The protocol name for the validation peer-set.
-pub const VALIDATION_PROTOCOL_NAME: &'static str = "/polkadot/validation/1";
-/// The protocol name for the collation peer-set.
-pub const COLLATION_PROTOCOL_NAME: &'static str = "/polkadot/collation/1";
 
 const MALFORMED_MESSAGE_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed Network-bridge message");
@@ -81,30 +77,6 @@ pub enum WireMessage<M> {
 	ViewUpdate(View),
 }
 
-/// Information about the extra peers set. Should be used during network configuration
-/// to register the protocol with the network service.
-pub fn peers_sets_info() -> Vec<sc_network::config::NonDefaultSetConfig> {
-	vec![
-		sc_network::config::NonDefaultSetConfig {
-			notifications_protocol: VALIDATION_PROTOCOL_NAME.into(),
-			set_config: sc_network::config::SetConfig {
-				in_peers: 0,
-				out_peers: 0,
-				reserved_nodes: Vec::new(),
-				non_reserved_mode: sc_network::config::NonReservedPeerMode::Deny,
-			},
-		},
-		sc_network::config::NonDefaultSetConfig {
-			notifications_protocol: COLLATION_PROTOCOL_NAME.into(),
-			set_config: sc_network::config::SetConfig {
-				in_peers: 25,
-				out_peers: 0,
-				reserved_nodes: Vec::new(),
-				non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
-			},
-		}
-	]
-}
 
 /// An action to be carried out by the network.
 #[derive(Debug, PartialEq)]
@@ -177,20 +149,8 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 							cost_benefit,
 						)
 					}
-					NetworkAction::WriteNotification(peer, peer_set, message) => {
-						match peer_set {
-							PeerSet::Validation => self.0.write_notification(
-								peer,
-								VALIDATION_PROTOCOL_NAME.into(),
-								message,
-							),
-							PeerSet::Collation => self.0.write_notification(
-								peer,
-								COLLATION_PROTOCOL_NAME.into(),
-								message,
-							),
-						}
-					}
+					NetworkAction::WriteNotification(peer, peer_set, message) =>
+						self.0.write_notification(peer, peer_set.into_protocol_name(), message)
 				}
 
 				Ok(())
@@ -327,26 +287,16 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 		Some(NetworkEvent::SyncDisconnected { .. }) => Action::Nop,
 		Some(NetworkEvent::NotificationStreamOpened { remote, protocol, role }) => {
 			let role = role.into();
-			match protocol {
-				x if x == VALIDATION_PROTOCOL_NAME
-					=> Action::PeerConnected(PeerSet::Validation, remote, role),
-				x if x == COLLATION_PROTOCOL_NAME
-					=> Action::PeerConnected(PeerSet::Collation, remote, role),
-				_ => Action::Nop,
-			}
+			PeerSet::try_from_protocol_name(&protocol)
+				.map_or(Action::Nop, |peer_set| Action::PeerConnected(peer_set, remote, role))
 		}
 		Some(NetworkEvent::NotificationStreamClosed { remote, protocol }) => {
-			match protocol {
-				x if x == VALIDATION_PROTOCOL_NAME
-					=> Action::PeerDisconnected(PeerSet::Validation, remote),
-				x if x == COLLATION_PROTOCOL_NAME
-					=> Action::PeerDisconnected(PeerSet::Collation, remote),
-				_ => Action::Nop,
-			}
+			PeerSet::try_from_protocol_name(&protocol)
+				.map_or(Action::Nop, |peer_set| Action::PeerDisconnected(peer_set, remote))
 		}
 		Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
 			let v_messages: Result<Vec<_>, _> = messages.iter()
-				.filter(|(protocol, _)| protocol == &VALIDATION_PROTOCOL_NAME)
+				.filter(|(protocol, _)| protocol == &PeerSet::Validation.into_protocol_name())
 				.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
 				.collect();
 
@@ -356,7 +306,7 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 			};
 
 			let c_messages: Result<Vec<_>, _> = messages.iter()
-				.filter(|(protocol, _)| protocol == &COLLATION_PROTOCOL_NAME)
+				.filter(|(protocol, _)| protocol == &PeerSet::Collation.into_protocol_name())
 				.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
 				.collect();
 
@@ -835,13 +785,6 @@ mod tests {
 		)
 	}
 
-	fn peer_set_protocol(peer_set: PeerSet) -> std::borrow::Cow<'static, str> {
-		match peer_set {
-			PeerSet::Validation => VALIDATION_PROTOCOL_NAME.into(),
-			PeerSet::Collation => COLLATION_PROTOCOL_NAME.into(),
-		}
-	}
-
 	impl Network for TestNetwork {
 		fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 			self.net_events.lock()
@@ -898,7 +841,7 @@ mod tests {
 		async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
 			self.send_network_event(NetworkEvent::NotificationStreamOpened {
 				remote: peer,
-				protocol: peer_set_protocol(peer_set),
+				protocol: peer_set.into_protocol_name(),
 				role: role.into(),
 			}).await;
 		}
@@ -906,14 +849,14 @@ mod tests {
 		async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
 			self.send_network_event(NetworkEvent::NotificationStreamClosed {
 				remote: peer,
-				protocol: peer_set_protocol(peer_set),
+				protocol: peer_set.into_protocol_name(),
 			}).await;
 		}
 
 		async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
 			self.send_network_event(NetworkEvent::NotificationsReceived {
 				remote: peer,
-				messages: vec![(peer_set_protocol(peer_set), message.into())],
+				messages: vec![(peer_set.into_protocol_name(), message.into())],
 			}).await;
 		}
 
