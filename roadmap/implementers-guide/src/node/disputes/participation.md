@@ -22,8 +22,9 @@ Inputs:
 
 Outputs:
 
+* `X::DoubleVoteDetected`
 * `VotesDbMessage::StoreVote`
-* `AvailabilityRecoveryMessage::RecoverAvailableData`
+* `AvailabilityRecoveryMessage::RecoverAvailableData` recover the `PoV` from the availability store, in order to verify correctness
 * `CandidateValidationMessage::ValidateFromChainState`
 
 ## Helper Structs
@@ -88,23 +89,30 @@ Nothing to store, everything lives in `VotesDB`.
 
 1. Extract imported blocks from `ViewChange`
 1. for each imported block:
-  1. Extract the associated dispute _runtime_ events
-  1. for each runtime event:
-  	1. Store vote according to the runtime events to the votesdb via `VotesDBMessage::StoreVote`
-  	1. iff vote is new
-	  1. add event to transaction events
+	2. Extract the associated dispute _runtime_ events
+	3. for each runtime event:
+		1. Store vote according to the runtime events to the votesdb via `VotesDBMessage::StoreVote`
+		1. iff: result is `AlreadyPresent`
+			1. nop
+		1. else iff: result is `DoubleVote`
+			1. send `X::DoubleVote` to the overseer
+		1. else iff: result is `Resolution`
+			1. start timeout for late messages
+			1. add `DisputeVote` event to transaction events
+			1. craft unsigned transaction with transaction events
+			1. add to transaction pool via `submit_and_watch`
+		1. else:
+			1. iff: result is `Detection`
+				1. Request `AvailableData` via `RecoverAvailableData` to obtain the `PoV`.
+				1. Call `ValidateFromChainState` to validate the `PoV` with the runtime logic
+			1. else iff: result is `Resolution`
+				1. start post resolution timeout
+			1. else iff: result is `Stored`
+				1. nop
 
-The `VotesDB` is then responsible for emitting `Detection`, `Resolution` or `Timeout` messages.
-
-#### Detection
-
-The first negative vote will trigger the dispute detection.
-
-1. Receive `DisputeParticipationMessage::DisputeDetection`
-1. Request `AvailableData` via `RecoverAvailableData` to obtain the `PoV`.
-1. Call `ValidateFromChainState` to validate the `PoV` with the `CandidateDescriptor`.
-  1. Cast vote according to the `ValidationResult`.
-  1. Store our vote to the `VotesDB` via `VotesDBMessage::StoreVote`
+			1. add `DisputeVote` event to transaction events
+			1. craft unsigned transaction with transaction events
+			1. add to transaction pool via `submit_and_watch`
 
 #### Resolution
 
