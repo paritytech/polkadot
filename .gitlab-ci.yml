@@ -299,6 +299,7 @@ publish-docker-rococo:
       when: manual
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       when: manual
+      allow_failure: true
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
@@ -306,7 +307,6 @@ publish-docker-rococo:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
     IMAGE_NAME:                    docker.io/parity/rococo
-  allow_failure:                   true
 
 publish-s3-release:
   <<:                              *publish-build
