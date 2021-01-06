@@ -17,7 +17,6 @@ a need for a very small gossip only containing the `Vote` itself.
 Inputs:
 
 * `DisputeEvent::DisputeVote`
-* `DisputeEvent::DisputeLateTimeout`
 * `DisputeEvent::DisputeResolution`
 
 Outputs:
@@ -25,7 +24,7 @@ Outputs:
 * `X::DoubleVoteDetected`
 * `VotesDbMessage::StoreVote`
 * `AvailabilityRecoveryMessage::RecoverAvailableData` recover the `PoV` from the availability store, in order to verify correctness
-* `CandidateValidationMessage::ValidateFromChainState`
+* `CandidateValidationMessage::ValidateFromChainState` verify correctness using runtime validation code
 
 ## Helper Structs
 
@@ -104,7 +103,7 @@ Nothing to store, everything lives in `VotesDB`.
 		1. else:
 			1. iff: result is `Detection`
 				1. Request `AvailableData` via `RecoverAvailableData` to obtain the `PoV`.
-				1. Call `ValidateFromChainState` to validate the `PoV` with the runtime logic
+				1. Call `ValidateFromChainState` to validate the `PoV` with the runtime validation logic
 			1. else iff: result is `Resolution`
 				1. start post resolution timeout
 			1. else iff: result is `Stored`
@@ -113,14 +112,5 @@ Nothing to store, everything lives in `VotesDB`.
 			1. add `DisputeVote` event to transaction events
 			1. craft unsigned transaction with transaction events
 			1. add to transaction pool via `submit_and_watch`
-
-#### Resolution
-
-1. Receive `DisputeParticipationMessage::DisputeResolution`
-1. Craft an unsigned transaction with all votes cast
-  1. includes `CandidateReceipts`
-  1. includes `Vote`s
-1. Store the resolution time.
-1. Start the post resolution timeout.
-
-### Blacklisting bad block and invalid decendants
+				1. `TransactionSource::Local`
+				1. `Extrinsic::IncludeData(scale_encoded)`
