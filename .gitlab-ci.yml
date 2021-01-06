@@ -17,6 +17,7 @@ workflow:
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH
+    - if: $IMAGE_NAME
 
 variables:
   GIT_STRATEGY:                    fetch
@@ -53,7 +54,7 @@ default:
   tags:
     - linux-docker
 
-.compiler_info:                    &compiler_info
+.compiler-info:                    &compiler-info
   before_script:
     - rustup show
     - cargo --version
@@ -109,7 +110,7 @@ test-linux-stable:                 &test
   stage:                           test
   <<:                              *test-refs
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -127,7 +128,7 @@ check-web-wasm:                    &test
   stage:                           test
   <<:                              *test-refs
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   script:
     # WASM support is in progress. As more and more crates support WASM, we
     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
@@ -138,7 +139,7 @@ check-runtime-benchmarks:          &test
   stage:                           test
   <<:                              *test-refs
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
     - ./scripts/gitlab/check_runtime_benchmarks.sh
@@ -161,7 +162,7 @@ build-wasm-release:
   stage:                           build
   <<:                              *collect-artifacts
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   # Note: We likely only want to do this for tagged releases, hence the 'rules:'
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
@@ -176,7 +177,7 @@ build-linux-release:               &build
   stage:                           build
   <<:                              *collect-artifacts
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   rules:
     # .test-refs with manual on PRs
     - if: $CI_PIPELINE_SOURCE == "web"
@@ -186,10 +187,9 @@ build-linux-release:               &build
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       when: manual
       allow_failure: true
-  before_script:
+  script:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-  script:
     - time cargo build --release --verbose
     - sccache -s
   after_script:
@@ -218,6 +218,8 @@ build-linux-rococo:
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
     - if: $IMAGE_NAME == "rococo"
   script:
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - time cargo build --release --verbose --features=real-overseer
     - sccache -s
 
