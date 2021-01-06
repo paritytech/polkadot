@@ -1776,7 +1776,15 @@ mod benchmarking {
 			assert_last_event::<T>(RawEvent::AuctionStarted(auction_counter, lease_period_index, ending).into());
 		}
 
+		// Worst case scenario:
+		// * Parachain already has many bids in the queue, and presents a new one
+		//   which intersects all the old ones. (Passes intersection test)
+		// * There is already a winner of the range being bid on, so we must return
+		//   funds to that user.
+		// * We must bond new funds to make the bid.
+		// *
 		// bid
+
 
 		// bid_renew
 
