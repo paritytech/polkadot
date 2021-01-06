@@ -419,7 +419,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#a60c9056a415de5a9b7a60428c3d74f7afc2b755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c6bef666f3b36916f2c333e21bba4452f3a0e1b8"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -3987,7 +3987,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#a60c9056a415de5a9b7a60428c3d74f7afc2b755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c6bef666f3b36916f2c333e21bba4452f3a0e1b8"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -9729,7 +9729,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.7.3",
+ "rand 0.3.23",
 ]
 
 [[package]]
