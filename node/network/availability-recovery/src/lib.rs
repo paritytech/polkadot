@@ -185,57 +185,59 @@ impl Interaction {
 
 	async fn wait_for_chunks(&mut self) -> error::Result<()> {
 		// Check if the requesting chunks is not empty not to poll to completion.
-		if !self.requesting_chunks.is_empty() {
-			// Poll for new updates from requesting_chunks.
-			while let Some(request_result) = self.requesting_chunks.next().await {
-				match request_result {
-					Some(Ok(Ok((peer_id, chunk)))) => {
-						// Check merkle proofs of any received chunks, and any failures should
-						// lead to issuance of a FromInteraction::ReportPeer message.
-						if let Ok(anticipated_hash) = branch_hash(
-							&self.erasure_root,
-							&chunk.proof,
-							chunk.index as usize,
-						) {
-							let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
+		if self.requesting_chunks.is_empty() {
+			return Ok(());
+		}
 
-							if erasure_chunk_hash != anticipated_hash {
-								self.to_state.send(FromInteraction::ReportPeer(
-										peer_id.clone(),
-										COST_MERKLE_PROOF_INVALID,
-								)).await.map_err(error::Error::ClosedToState)?;
-							}
-						} else {
+		// Poll for new updates from requesting_chunks.
+		while let Some(request_result) = self.requesting_chunks.next().await {
+			match request_result {
+				Some(Ok(Ok((peer_id, chunk)))) => {
+					// Check merkle proofs of any received chunks, and any failures should
+					// lead to issuance of a FromInteraction::ReportPeer message.
+					if let Ok(anticipated_hash) = branch_hash(
+						&self.erasure_root,
+						&chunk.proof,
+						chunk.index as usize,
+					) {
+						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
+
+						if erasure_chunk_hash != anticipated_hash {
 							self.to_state.send(FromInteraction::ReportPeer(
 									peer_id.clone(),
 									COST_MERKLE_PROOF_INVALID,
 							)).await.map_err(error::Error::ClosedToState)?;
 						}
+					} else {
+						self.to_state.send(FromInteraction::ReportPeer(
+								peer_id.clone(),
+								COST_MERKLE_PROOF_INVALID,
+						)).await.map_err(error::Error::ClosedToState)?;
+					}
 
-						self.received_chunks.insert(peer_id, chunk);
-					}
-					Some(Err(e)) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							err = ?e,
-							"A response channel was cacelled while waiting for a chunk",
-						);
-					}
-					Some(Ok(Err(e))) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							err = ?e,
-							"A chunk request ended with an error",
-						);
-					}
-					None => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							"A chunk request has timed out",
-						);
-						// we break here to launch another request.
-						break;
-					}
+					self.received_chunks.insert(peer_id, chunk);
+				}
+				Some(Err(e)) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						err = ?e,
+						"A response channel was cacelled while waiting for a chunk",
+					);
+				}
+				Some(Ok(Err(e))) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						err = ?e,
+						"A chunk request ended with an error",
+					);
+				}
+				None => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"A chunk request has timed out",
+					);
+					// we break here to launch another request.
+					break;
 				}
 			}
 		}
@@ -263,7 +265,7 @@ impl Interaction {
 					self.received_chunks.values().map(|c| (&c.chunk[..], c.index as usize)),
 				) {
 					Ok(data) => {
-						if self.reconstructed_data_matches_root(&data) {
+						if reconstructed_data_matches_root(self.validators.len(), &self.erasure_root, &data) {
 							FromInteraction::Concluded(self.candidate_hash.clone(), Ok(data))
 						} else {
 							FromInteraction::Concluded(
@@ -283,27 +285,28 @@ impl Interaction {
 			}
 		}
 	}
+}
 
-	fn reconstructed_data_matches_root(
-		&self,
-		data: &AvailableData,
-	) -> bool {
-		let chunks = match obtain_chunks_v1(self.validators.len(), data) {
-		    Ok(chunks) => chunks,
-		    Err(e) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					err = ?e,
-					"Failed to obtain chunks",
-				);
-				return false;
-			}
-		};
+fn reconstructed_data_matches_root(
+	n_validators: usize,
+	expected_root: &Hash,
+	data: &AvailableData,
+) -> bool {
+	let chunks = match obtain_chunks_v1(n_validators, data) {
+		Ok(chunks) => chunks,
+		Err(e) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				err = ?e,
+				"Failed to obtain chunks",
+			);
+			return false;
+		}
+	};
 
-		let branches = branches(&chunks);
+	let branches = branches(&chunks);
 
-		branches.root() == self.erasure_root
-	}
+	branches.root() == *expected_root
 }
 
 struct State {
