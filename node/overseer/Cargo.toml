@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.42"
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client-api", git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 futures = "0.3.8"
 futures-timer = "3.0.2"
 oorandom = "11.1.3"

@@ -28,7 +28,7 @@ tracing-futures = "0.2.4"
 frame-benchmarking-cli = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", optional = true }
 sc-cli = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", optional = true }
 sc-service = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745

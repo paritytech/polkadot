@@ -13,8 +13,8 @@ serde = { version = "1.0.118", features = [ "derive" ], optional = true }
 derive_more = "0.99.11"
 
 sp-api = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 sp-io = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 sp-session = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
@@ -28,7 +28,7 @@ pallet-balances = { git = "https://github.com/tomaka/polkadot", branch = "rework
 pallet-session = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 frame-support = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 pallet-staking = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = {git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 pallet-timestamp = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 pallet-vesting = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 pallet-offences = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
@@ -45,7 +45,7 @@ rand_chacha = { version = "0.2.2", default-features = false }
 [dev-dependencies]
 futures = "0.3.8"
 hex-literal = "0.3.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 sp-trie = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 pallet-babe = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 sp-application-crypto = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }

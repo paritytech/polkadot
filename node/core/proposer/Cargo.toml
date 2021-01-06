@@ -21,4 +21,4 @@ sp-core = { git = "https://github.com/tomaka/polkadot", branch = "rework-priorit
 sp-inherents = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
 sp-transaction-pool = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2" }
