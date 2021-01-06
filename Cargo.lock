@@ -9637,12 +9637,12 @@ checksum = "a7f741b240f1a48843f9b8e0444fb55fb2a4ff67293b50a9179dfd5ea67f8d41"
 
 [[package]]
 name = "trie-db"
-version = "0.22.1"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e55f7ace33d6237e14137e386f4e1672e2a5c6bbc97fef9f438581a143971f0"
+checksum = "5cc176c377eb24d652c9c69c832c832019011b6106182bf84276c66b66d5c9a6"
 dependencies = [
  "hash-db",
- "hashbrown 0.8.0",
+ "hashbrown 0.9.1",
  "log",
  "rustc-hex",
  "smallvec 1.6.0",
