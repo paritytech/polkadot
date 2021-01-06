@@ -74,6 +74,7 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use futures_timer::Delay;
+use oorandom::Rand32;
 use streamunordered::{StreamYield, StreamUnordered};
 
 use polkadot_primitives::v1::{Block, BlockNumber, Hash};
@@ -100,8 +101,8 @@ const CHANNEL_CAPACITY: usize = 1024;
 const STOP_DELAY: u64 = 1;
 // Target for logs.
 const LOG_TARGET: &'static str = "overseer";
-// 1 message out of each of this many is timed.
-const MESSAGE_TIMER_METRIC_CAPTURE_RATE: u32 = 256;
+// Rate at which messages are timed.
+const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -326,17 +327,35 @@ pub struct OverseerSubsystemContext<M>{
 	rx: mpsc::Receiver<FromOverseer<M>>,
 	tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
 	metrics: Metrics,
-	capture_each: u32,
-	capture_state: u32,
+	rng: Rand32,
+	threshold: u32,
 }
 
 impl<M> OverseerSubsystemContext<M> {
 	/// Create a new `OverseerSubsystemContext`.
 	///
-	/// `capture_each` determines which messages are timed, i.e. a value of 256 means that every 256th
-	/// message is timed. A value of `0` has a special meaning: no messages are timed.
-	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>, metrics: Metrics, capture_each: u32) -> Self {
-		OverseerSubsystemContext { rx, tx, metrics, capture_each, capture_state: 0 }
+	/// `increment` determines the initial increment of the internal RNG.
+	/// The internal RNG is used to determine which messages are timed.
+	///
+	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
+	/// to the range `0.0..=1.0`.
+	fn new(
+		rx: mpsc::Receiver<FromOverseer<M>>,
+		tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
+		metrics: Metrics,
+		increment: u64,
+		mut capture_rate: f64,
+	) -> Self {
+		let rng = Rand32::new_inc(0, increment);
+
+		if capture_rate < 0.0 {
+			capture_rate = 0.0;
+		} else if capture_rate > 1.0 {
+			capture_rate = 1.0;
+		}
+		let threshold = (capture_rate * u32::MAX as f64) as u32;
+
+		OverseerSubsystemContext { rx, tx, metrics, rng, threshold }
 	}
 
 	/// Create a new `OverseserSubsystemContext` with no metering.
@@ -345,23 +364,11 @@ impl<M> OverseerSubsystemContext<M> {
 	#[allow(unused)]
 	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>) -> Self {
 		let metrics = Metrics::default();
-		OverseerSubsystemContext::new(rx, tx, metrics, 0)
-	}
-
-	fn should_capture(&mut self) -> bool {
-		if self.capture_each == 0 {
-			false
-		} else {
-			self.capture_state += 1;
-			if self.capture_state >= self.capture_each {
-				self.capture_state = 0;
-			}
-			self.capture_state == 0
-		}
+		OverseerSubsystemContext::new(rx, tx, metrics, 0, 0.0)
 	}
 
 	fn maybe_timed<T>(&mut self, t: T) -> MaybeTimed<T> {
-		let timer = if self.should_capture() {
+		let timer = if self.rng.rand_u32() <= self.threshold {
 			self.metrics.time_message_hold()
 		} else {
 			None
@@ -375,24 +382,17 @@ impl<M> OverseerSubsystemContext<M> {
 	///
 	/// This is somewhat more expensive than `self.maybe_timed` because it must clone some stuff.
 	fn make_maybe_timed<T>(&mut self) -> impl FnMut(T) -> MaybeTimed<T> {
+		// We don't want to simply clone this RNG because we don't want to duplicate its state.
+		// It's not ever going to be used for cryptographic purposes, but it's still better to
+		// keep good habits.
+		let (seed, increment) = self.rng.state();
+		let mut rng = Rand32::new_inc(seed, increment + 1);
+
 		let metrics = self.metrics.clone();
-		let capture_each = self.capture_each;
-		let mut capture_state = self.capture_state;
+		let threshold = self.threshold;
 
 		move |t| {
-			let mut should_capture = move || {
-				if capture_each == 0 {
-					false
-				} else {
-					capture_state += 1;
-					if capture_state >= capture_each {
-						capture_state = 0;
-					}
-					capture_state == 0
-				}
-			};
-
-			let timer = if should_capture() {
+			let timer = if rng.rand_u32() <= threshold {
 				metrics.time_message_hold()
 			} else {
 				None
@@ -1292,12 +1292,15 @@ where
 		let mut running_subsystems_rx = StreamUnordered::new();
 		let mut running_subsystems = FuturesUnordered::new();
 
+		let mut seed = 0x533d; // arbitrary
+
 		let candidate_validation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.candidate_validation,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let candidate_backing_subsystem = spawn(
@@ -1306,6 +1309,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.candidate_backing,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let candidate_selection_subsystem = spawn(
@@ -1314,6 +1318,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.candidate_selection,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let statement_distribution_subsystem = spawn(
@@ -1322,6 +1327,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.statement_distribution,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let availability_distribution_subsystem = spawn(
@@ -1330,6 +1336,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.availability_distribution,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let bitfield_signing_subsystem = spawn(
@@ -1338,6 +1345,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.bitfield_signing,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let bitfield_distribution_subsystem = spawn(
@@ -1346,6 +1354,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.bitfield_distribution,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let provisioner_subsystem = spawn(
@@ -1354,6 +1363,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.provisioner,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let pov_distribution_subsystem = spawn(
@@ -1362,6 +1372,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.pov_distribution,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let runtime_api_subsystem = spawn(
@@ -1370,6 +1381,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.runtime_api,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let availability_store_subsystem = spawn(
@@ -1378,6 +1390,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.availability_store,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let network_bridge_subsystem = spawn(
@@ -1386,6 +1399,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.network_bridge,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let chain_api_subsystem = spawn(
@@ -1394,6 +1408,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.chain_api,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let collation_generation_subsystem = spawn(
@@ -1402,6 +1417,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.collation_generation,
 			&metrics,
+			&mut seed,
 		)?;
 
 
@@ -1411,6 +1427,7 @@ where
 			&mut running_subsystems_rx,
 			all_subsystems.collator_protocol,
 			&metrics,
+			&mut seed,
 		)?;
 
 		let leaves = leaves
@@ -1748,11 +1765,15 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	streams: &mut StreamUnordered<mpsc::Receiver<MaybeTimed<ToOverseer>>>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
+	seed: &mut u64,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
 	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
 	let (from_tx, from_rx) = mpsc::channel(CHANNEL_CAPACITY);
-	let ctx = OverseerSubsystemContext::new(to_rx, from_tx, metrics.clone(), MESSAGE_TIMER_METRIC_CAPTURE_RATE);
+	let ctx = OverseerSubsystemContext::new(to_rx, from_tx, metrics.clone(), *seed, MESSAGE_TIMER_METRIC_CAPTURE_RATE);
 	let SpawnedSubsystem { future, name } = s.start(ctx);
+
+	// increment the seed now that it's been used, so the next context will have its own distinct RNG
+	*seed += 1;
 
 	let (tx, rx) = oneshot::channel();
 
