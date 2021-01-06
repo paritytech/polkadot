@@ -143,7 +143,7 @@ impl TestState {
 					tx,
 				)
 			)) => {
-				assert_eq!(relay_parent, self.candidate.descriptor.relay_parent);
+				assert_eq!(relay_parent, self.current);
 				assert_eq!(session_index, self.session_index);
 
 				tx.send(Ok(Some(SessionInfo {
@@ -163,17 +163,6 @@ impl TestState {
 		let mut attempted_to_connect_to = Vec::new();
 
 		for _ in 0..self.validator_public.len() {
-			assert_matches!(
-				overseer_recv(virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::SessionIndexForChild(tx),
-				)) => {
-					assert_eq!(relay_parent, self.candidate.descriptor.relay_parent);
-					tx.send(Ok(self.session_index)).unwrap();
-				}
-			);
-
 			self.test_runtime_api(virtual_overseer).await;
 
 			// Connect to shuffled validators one by one.

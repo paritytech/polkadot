@@ -89,6 +89,8 @@ struct AwaitedChunk {
 
 /// Accumulate all awaiting sides for some particular `AvailableData`.
 struct InteractionHandle {
+	session_index: SessionIndex,
+
 	awaiting: Vec<oneshot::Sender<Result<AvailableData, RecoveryError>>>,
 }
 
@@ -102,7 +104,6 @@ enum FromInteraction {
 	MakeRequest(
 		ValidatorId,
 		CandidateHash,
-		Hash,
 		ValidatorIndex,
 		oneshot::Sender<ChunkResponse>,
 	),
@@ -135,9 +136,6 @@ struct Interaction {
 	/// The root of the erasure encoding of the para block.
 	erasure_root: Hash,
 
-	/// Relay parent of the candidate.
-	relay_parent: Hash,
-
 	/// The chunks that we have received from peers.
 	received_chunks: HashMap<PeerId, ErasureChunk>,
 
@@ -168,7 +166,6 @@ impl Interaction {
 				self.to_state.send(FromInteraction::MakeRequest(
 					self.validators[validator_index as usize].clone(),
 					self.candidate_hash.clone(),
-					self.relay_parent.clone(),
 					validator_index,
 					tx,
 				)).await.map_err(error::Error::ClosedToState)?;
@@ -414,13 +411,13 @@ async fn launch_interaction(
 	let to_state = state.from_interaction_tx.clone();
 	let candidate_hash = receipt.hash();
 	let erasure_root = receipt.descriptor.erasure_root;
-	let relay_parent = receipt.descriptor.relay_parent;
 	let validators = session_info.validators.clone();
 	let mut shuffling: Vec<_> = (0..validators.len() as ValidatorIndex).collect();
 
 	state.interactions.insert(
 		candidate_hash.clone(),
 		InteractionHandle {
+			session_index,
 			awaiting: vec![response_sender],
 		}
 	);
@@ -438,7 +435,6 @@ async fn launch_interaction(
 		threshold,
 		candidate_hash,
 		erasure_root,
-		relay_parent,
 		received_chunks: HashMap::new(),
 		requesting_chunks: FuturesUnordered::new(),
 	};
@@ -492,7 +488,7 @@ async fn handle_recover(
 	}
 
 	let session_info = request_session_info_ctx(
-		receipt.descriptor.relay_parent,
+		state.live_block_hash,
 		session_index,
 		ctx,
 	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
@@ -567,7 +563,22 @@ async fn handle_from_interaction(
 
 			state.availability_lru.put(candidate_hash, result);
 		}
-		FromInteraction::MakeRequest(id, candidate_hash, relay_parent, validator_index, response) => {
+		FromInteraction::MakeRequest(id, candidate_hash, validator_index, response) => {
+			let relay_parent = state.live_block_hash;
+
+			let session_index = match state.interactions.get(&candidate_hash) {
+			    Some(interaction_handle) => interaction_handle.session_index,
+			    None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Interaction under candidate hash {} is missing",
+						candidate_hash,
+					);
+
+					return Ok(());
+				}
+			};
+
 			// Take the validators we are already connecting to and merge them with the
 			// newly requested one to create a new connection request.
 			let new_discovering_validators_set = state.discovering_validators.keys()
@@ -577,10 +588,11 @@ async fn handle_from_interaction(
 
 			// Issue a NetworkBridgeMessage::ConnectToValidators.
 			// Add the stream of connected validator events to state.connecting_validators.
-			match validator_discovery::connect_to_validators(
+			match validator_discovery::connect_to_past_session_validators(
 				ctx,
 				relay_parent,
 				new_discovering_validators_set,
+				session_index,
 			).await {
 				Ok(new_connection_request) => {
 					state.connection_requests.put(relay_parent, new_connection_request);
