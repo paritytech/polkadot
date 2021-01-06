@@ -631,7 +631,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::validator_groups::<Runtime>()
 		}
 
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_impl::availability_cores::<Runtime>()
 		}
 
@@ -739,6 +739,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
+		}
+
+		fn current_epoch() -> babe_primitives::Epoch {
+			Babe::current_epoch()
 		}
 
 		fn generate_key_ownership_proof(

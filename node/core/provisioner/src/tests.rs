@@ -4,13 +4,14 @@ use polkadot_primitives::v1::{OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
-		para_id: para_id.into(),
 		group_responsible: para_id.into(),
 		next_up_on_available: None,
 		occupied_since: 100_u32,
 		time_out_at: 200_u32,
 		next_up_on_time_out: None,
 		availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
+		candidate_descriptor: Default::default(),
+		candidate_hash: Default::default(),
 	})
 }
 

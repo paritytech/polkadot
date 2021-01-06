@@ -105,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1"),
 	authoring_version: 0,
-	spec_version: 10,
+	spec_version: 12,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -328,13 +328,13 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
-	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub ElectionLookahead: BlockNumber = EpochDurationInBlocks::get() / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
 parameter_types! {
-	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
+	pub SessionDuration: BlockNumber = EpochDurationInBlocks::get() as _;
 }
 
 parameter_types! {
@@ -457,12 +457,11 @@ impl pallet_session::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
 impl pallet_babe::Config for Runtime {
-	type EpochDuration = EpochDuration;
+	type EpochDuration = EpochDurationInBlocks;
 	type ExpectedBlockTime = ExpectedBlockTime;
 
 	// session module is the trigger
@@ -691,7 +690,7 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::validator_groups::<Runtime>()
 		}
 
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_api_impl::availability_cores::<Runtime>()
 		}
 
@@ -798,7 +797,7 @@ sp_api::impl_runtime_apis! {
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
-				epoch_length: EpochDuration::get(),
+				epoch_length: EpochDurationInBlocks::get().into(),
 				c: PRIMARY_PROBABILITY,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
@@ -808,6 +807,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
+		}
+
+		fn current_epoch() -> babe_primitives::Epoch {
+			Babe::current_epoch()
 		}
 
 		fn generate_key_ownership_proof(

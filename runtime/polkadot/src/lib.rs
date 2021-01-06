@@ -1122,7 +1122,7 @@ sp_api::impl_runtime_apis! {
 			(Vec::new(), GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 0, now: 0 })
 		}
 
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			Vec::new()
 		}
 
@@ -1229,6 +1229,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
+		}
+
+		fn current_epoch() -> babe_primitives::Epoch {
+			Babe::current_epoch()
 		}
 
 		fn generate_key_ownership_proof(

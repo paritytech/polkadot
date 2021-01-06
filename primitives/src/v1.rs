@@ -576,11 +576,11 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct OccupiedCore<N = BlockNumber> {
-	/// The ID of the para occupying the core.
-	pub para_id: Id,
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq))]
+pub struct OccupiedCore<H = Hash, N = BlockNumber> {
+    // NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	pub next_up_on_available: Option<ScheduledCore>,
@@ -598,11 +598,22 @@ pub struct OccupiedCore<N = BlockNumber> {
 	pub availability: BitVec<bitvec::order::Lsb0, u8>,
 	/// The group assigned to distribute availability pieces of this candidate.
 	pub group_responsible: GroupIndex,
+	/// The hash of the candidate occupying the core.
+	pub candidate_hash: CandidateHash,
+	/// The descriptor of the candidate occupying the core.
+	pub candidate_descriptor: CandidateDescriptor<H>,
+}
+
+impl<H, N> OccupiedCore<H, N> {
+	/// Get the Para currently occupying this core.
+	pub fn para_id(&self) -> Id {
+		self.candidate_descriptor.para_id
+	}
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default))]
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -611,12 +622,12 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
-pub enum CoreState<N = BlockNumber> {
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, PartialEq))]
+pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]
-	Occupied(OccupiedCore<N>),
+	Occupied(OccupiedCore<H, N>),
 	/// The core is currently free, with a para scheduled and given the opportunity
 	/// to occupy.
 	///
@@ -634,7 +645,7 @@ impl<N> CoreState<N> {
 	/// If this core state has a `para_id`, return it.
 	pub fn para_id(&self) -> Option<Id> {
 		match self {
-			Self::Occupied(OccupiedCore { para_id, ..}) => Some(*para_id),
+			Self::Occupied(ref core) => Some(core.para_id()),
 			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
 			Self::Free => None,
 		}
@@ -708,23 +719,45 @@ pub struct SessionInfo {
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
+		// NOTE: Many runtime API are declared with `#[skip_initialize_block]`. This is because without
+		// this attribute before each runtime call, the `initialize_block` runtime API will be called.
+		// That in turns will lead to two things:
+		//
+		// (a) The frame_system module will be initialized to the next block.
+		// (b) Initialization sequences for each runtime module (pallet) will be run.
+		//
+		// (a) is undesirable because the runtime APIs are querying the state against a specific
+		// block state. However, due to that initialization the observed block number would be as if
+		// it was the next block.
+		//
+		// We dont want (b) mainly because block initialization can be very heavy. Upgrade enactment,
+		// storage migration, and whatever other logic exists in `on_initialize` will be executed
+		// if not explicitly opted out with the `#[skip_initialize_block]` attribute.
+		//
+		// Additionally, some runtime APIs may depend on state that is pruned on the `on_initialize`.
+		// At the moment of writing, this is `candidate_events`.
+
 		/// Get the current validators.
+		#[skip_initialize_block]
 		fn validators() -> Vec<ValidatorId>;
 
 		/// Returns the validator groups and rotation info localized based on the block whose state
 		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
 		/// the number of the block.
+		#[skip_initialize_block]
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
 
 		/// Yields information on all availability cores. Cores are either free or occupied. Free
 		/// cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState<N>>;
+		#[skip_initialize_block]
+		fn availability_cores() -> Vec<CoreState<H, N>>;
 
 		/// Yields the full validation data for the given ParaId along with an assumption that
 		/// should be used if the para currently occupieds a core.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		#[skip_initialize_block]
 		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationData<N>>;
 
@@ -733,24 +766,29 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		#[skip_initialize_block]
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
+		#[skip_initialize_block]
 		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
+		#[skip_initialize_block]
 		fn session_index_for_child() -> SessionIndex;
 
 		/// Get the session info for the given session, if stored.
+		#[skip_initialize_block]
 		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode>;
 
@@ -759,26 +797,28 @@ sp_api::decl_runtime_apis! {
 		///
 		/// `context_height` may be no greater than the height of the block in whose
 		/// state the runtime API is executed.
+		#[skip_initialize_block]
 		fn historical_validation_code(para_id: Id, context_height: N)
 			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
+		#[skip_initialize_block]
 		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
 
 		/// Get a vector of events concerning candidates that occurred within a block.
-		// NOTE: this needs to skip block initialization as events are wiped within block
-		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
 
 		/// Get all the pending inbound messages in the downward message queue for a para.
+		#[skip_initialize_block]
 		fn dmq_contents(
 			recipient: Id,
 		) -> Vec<InboundDownwardMessage<N>>;
 
 		/// Get the contents of all channels addressed to the given recipient. Channels that have no
 		/// messages in them are also included.
+		#[skip_initialize_block]
 		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
 	}
 }
@@ -825,10 +865,10 @@ mod tests {
 		assert_eq!(h.as_ref().len(), 32);
 
 		let _payload = collator_signature_payload(
-			&Hash::from([1; 32]),
+			&Hash::repeat_byte(1),
 			&5u32.into(),
-			&Hash::from([2; 32]),
-			&Hash::from([3; 32]),
+			&Hash::repeat_byte(2),
+			&Hash::repeat_byte(3),
 		);
 	}
 }

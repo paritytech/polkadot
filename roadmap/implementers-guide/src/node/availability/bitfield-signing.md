@@ -24,6 +24,6 @@ If not running as a validator, do nothing.
 
 - Begin by waiting a fixed period of time so availability distribution has the chance to make candidates available.
 - Determine our validator index `i`, the set of backed candidates pending availability in `r`, and which bit of the bitfield each corresponds to.
-- Start with an empty bitfield. For each bit in the bitfield, if there is a candidate pending availability, query the [Availability Store](../utility/availability-store.md) for whether we have the availability chunk for our validator index.
+- Start with an empty bitfield. For each bit in the bitfield, if there is a candidate pending availability, query the [Availability Store](../utility/availability-store.md) for whether we have the availability chunk for our validator index. The `OccupiedCore` struct contains the candidate hash so the full candidate does not need to be fetched from runtime.
 - For all chunks we have, set the corresponding bit in the bitfield.
 - Sign the bitfield and dispatch a `BitfieldDistribution::DistributeBitfield` message.
