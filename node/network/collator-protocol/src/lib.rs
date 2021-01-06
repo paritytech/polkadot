@@ -58,6 +58,8 @@ enum Error {
 	UtilError(#[from] util::Error),
 	#[error(transparent)]
 	Prometheus(#[from] prometheus::PrometheusError),
+	#[error(transparent)]
+	ValidatorDiscovery(#[from] pnu_validator_discovery::Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;

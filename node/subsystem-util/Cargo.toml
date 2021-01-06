@@ -21,7 +21,7 @@ pnu-primitives = { path = "../primitives" }
 pnu-subsystem = { path = "../subsystem" }
 pnu-jaeger = { path = "../jaeger" }
 polkadot-primitives = { path = "../../primitives" }
-pnu-metered-channel = { path = "../pnu-metered-channel"}
+pnu-metered-channel = { path = "../util/metered-channel"}
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

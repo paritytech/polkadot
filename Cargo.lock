@@ -3511,15 +3511,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnu-metered-channel"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "futures 0.3.12",
- "futures-timer 3.0.2",
-]
-
-[[package]]
 name = "mick-jaeger"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4917,231 +4908,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
-name = "polkadot"
-version = "0.8.28"
-dependencies = [
- "assert_cmd",
- "color-eyre",
- "futures 0.3.12",
- "nix 0.19.1",
- "parity-util-mem",
- "polkadot-cli",
- "pnu-service",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "pnn-approval-distribution"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "env_logger 0.8.2",
- "futures 0.3.12",
- "log",
- "pnn-protocol",
- "pnu-primitives",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "rand_core 0.5.1",
- "schnorrkel",
- "sp-core",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "pnn-bitfield-distribution"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "bitvec",
- "env_logger 0.8.2",
- "futures 0.3.12",
- "log",
- "maplit",
- "parity-scale-codec",
- "pnn-protocol",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "sp-application-crypto",
- "sp-core",
- "sp-keystore",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "pnn-availability-distribution"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "futures 0.3.12",
- "maplit",
- "parity-scale-codec",
- "polkadot-erasure-coding",
- "pnn-protocol",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "sc-keystore",
- "sp-application-crypto",
- "sp-core",
- "sp-keyring",
- "sp-keystore",
- "sp-tracing",
- "thiserror",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "pnn-availability-recovery"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "env_logger 0.8.2",
- "futures 0.3.12",
- "futures-timer 3.0.2",
- "log",
- "lru",
- "polkadot-erasure-coding",
- "pnn-protocol",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "rand 0.8.3",
- "smallvec 1.6.1",
- "sp-application-crypto",
- "sp-core",
- "sp-keyring",
- "streamunordered",
- "thiserror",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "polkadot-cli"
-version = "0.8.28"
-dependencies = [
- "frame-benchmarking-cli",
- "futures 0.3.12",
- "log",
- "polkadot-parachain",
- "pnu-service",
- "sc-cli",
- "sc-service",
- "sp-core",
- "sp-trie",
- "structopt",
- "substrate-browser-utils",
- "substrate-build-script-utils",
- "thiserror",
- "tracing-futures",
- "wasm-bindgen",
- "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "pnn-collator-protocol"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "env_logger 0.8.2",
- "futures 0.3.12",
- "futures-timer 3.0.2",
- "log",
- "pnn-protocol",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "sp-keyring",
- "thiserror",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "polkadot-core-primitives"
-version = "0.7.30"
-dependencies = [
- "parity-scale-codec",
- "parity-util-mem",
- "sp-core",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "polkadot-erasure-coding"
-version = "0.8.28"
-dependencies = [
- "parity-scale-codec",
- "polkadot-primitives",
- "reed-solomon-erasure",
- "sp-core",
- "sp-trie",
- "thiserror",
-]
-
-[[package]]
-name = "pnn-bridge"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "async-trait",
- "futures 0.3.12",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "pnn-protocol",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "sc-authority-discovery",
- "sc-network",
- "sp-core",
- "sp-keyring",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "pnu-collation-generation"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.12",
- "polkadot-erasure-coding",
- "pnu-primitives",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "thiserror",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
 name = "pnc-approval-voting"
 version = "0.1.0"
 dependencies = [
  "bitvec",
  "futures 0.3.12",
  "parity-scale-codec",
+ "pnc-overseer",
  "pnu-primitives",
  "pnu-subsystem",
- "pnc-overseer",
  "polkadot-primitives",
  "sc-client-api",
  "sp-blockchain",
@@ -5163,39 +4938,15 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "polkadot-erasure-coding",
+ "pnc-overseer",
  "pnu-subsystem",
  "pnu-subsystem-test-helpers",
  "pnu-subsystem-util",
- "pnc-overseer",
+ "polkadot-erasure-coding",
  "polkadot-primitives",
  "sc-service",
  "sp-core",
  "sp-keyring",
- "thiserror",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "pnc-candidate-backing"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "bitvec",
- "futures 0.3.12",
- "polkadot-erasure-coding",
- "pnu-primitives",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "polkadot-statement-table",
- "sc-keystore",
- "sp-application-crypto",
- "sp-core",
- "sp-keyring",
- "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5214,6 +4965,30 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "wasm-timer",
+]
+
+[[package]]
+name = "pnc-candidate-backing"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "bitvec",
+ "futures 0.3.12",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "polkadot-erasure-coding",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sc-keystore",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keyring",
+ "sp-keystore",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5267,13 +5042,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnc-overseer"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "femme",
+ "futures 0.3.12",
+ "futures-timer 3.0.2",
+ "kv-log-macro",
+ "oorandom",
+ "pnn-protocol",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
+ "polkadot-primitives",
+ "sc-client-api",
+ "sp-core",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
 name = "pnc-proposer"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
  "futures-timer 3.0.2",
- "pnu-subsystem",
  "pnc-overseer",
+ "pnu-subsystem",
  "polkadot-primitives",
  "sc-basic-authorship",
  "sc-block-builder",
@@ -5324,18 +5120,164 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnu-jaeger"
+name = "pnn-approval-distribution"
 version = "0.1.0"
 dependencies = [
- "async-std",
- "lazy_static",
+ "assert_matches",
+ "env_logger 0.8.2",
+ "futures 0.3.12",
  "log",
- "mick-jaeger",
- "parking_lot 0.11.1",
+ "pnn-protocol",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
  "polkadot-primitives",
+ "rand_core 0.5.1",
+ "schnorrkel",
+ "sp-core",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnn-availability-distribution"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.12",
+ "maplit",
+ "parity-scale-codec",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "polkadot-erasure-coding",
+ "polkadot-primitives",
+ "sc-keystore",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keyring",
+ "sp-keystore",
+ "sp-tracing",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnn-availability-recovery"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "env_logger 0.8.2",
+ "futures 0.3.12",
+ "futures-timer 3.0.2",
+ "log",
+ "lru",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "polkadot-erasure-coding",
+ "polkadot-primitives",
+ "rand 0.8.3",
+ "smallvec 1.6.1",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keyring",
+ "streamunordered",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnn-bitfield-distribution"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "bitvec",
+ "env_logger 0.8.2",
+ "futures 0.3.12",
+ "log",
+ "maplit",
+ "parity-scale-codec",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "polkadot-primitives",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnn-bridge"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "async-trait",
+ "futures 0.3.12",
+ "parity-scale-codec",
+ "parking_lot 0.11.1",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "polkadot-primitives",
+ "sc-authority-discovery",
  "sc-network",
  "sp-core",
+ "sp-keyring",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnn-collator-protocol"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "env_logger 0.8.2",
+ "futures 0.3.12",
+ "futures-timer 3.0.2",
+ "log",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "pnu-validator-discovery",
+ "polkadot-primitives",
+ "sp-core",
+ "sp-keyring",
  "thiserror",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnn-pov-distribution"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "env_logger 0.8.2",
+ "futures 0.3.12",
+ "log",
+ "pnn-protocol",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "pnu-validator-discovery",
+ "polkadot-primitives",
+ "sp-core",
+ "sp-keyring",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5353,6 +5295,71 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnn-statement-distribution"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.5.2",
+ "assert_matches",
+ "futures 0.3.12",
+ "indexmap",
+ "pnn-protocol",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "polkadot-primitives",
+ "sc-keystore",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keyring",
+ "sp-keystore",
+ "sp-staking",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnu-collation-generation"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.12",
+ "pnu-primitives",
+ "pnu-subsystem",
+ "pnu-subsystem-test-helpers",
+ "pnu-subsystem-util",
+ "polkadot-erasure-coding",
+ "polkadot-primitives",
+ "sp-core",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnu-jaeger"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "lazy_static",
+ "log",
+ "mick-jaeger",
+ "parking_lot 0.11.1",
+ "polkadot-primitives",
+ "sc-network",
+ "sp-core",
+ "thiserror",
+]
+
+[[package]]
+name = "pnu-metered-channel"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.12",
+ "futures-timer 3.0.2",
+]
+
+[[package]]
 name = "pnu-primitives"
 version = "0.1.0"
 dependencies = [
@@ -5364,6 +5371,89 @@ dependencies = [
  "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
+]
+
+[[package]]
+name = "pnu-service"
+version = "0.8.3"
+dependencies = [
+ "env_logger 0.8.2",
+ "frame-benchmarking",
+ "frame-system-rpc-runtime-api",
+ "futures 0.3.12",
+ "hex-literal",
+ "kusama-runtime",
+ "pallet-babe",
+ "pallet-im-online",
+ "pallet-staking",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "pnc-av-store",
+ "pnc-bitfield-signing",
+ "pnc-candidate-backing",
+ "pnc-candidate-selection",
+ "pnc-candidate-validation",
+ "pnc-chain-api",
+ "pnc-overseer",
+ "pnc-proposer",
+ "pnc-provisioner",
+ "pnc-runtime-api",
+ "pnn-approval-distribution",
+ "pnn-availability-distribution",
+ "pnn-availability-recovery",
+ "pnn-bitfield-distribution",
+ "pnn-bridge",
+ "pnn-collator-protocol",
+ "pnn-pov-distribution",
+ "pnn-statement-distribution",
+ "pnu-collation-generation",
+ "pnu-subsystem",
+ "pnu-subsystem-util",
+ "pnu-test-client",
+ "polkadot-parachain",
+ "polkadot-primitives",
+ "polkadot-rpc",
+ "polkadot-runtime",
+ "polkadot-runtime-parachains",
+ "rococo-runtime",
+ "sc-authority-discovery",
+ "sc-block-builder",
+ "sc-chain-spec",
+ "sc-client-api",
+ "sc-client-db",
+ "sc-consensus",
+ "sc-consensus-babe",
+ "sc-consensus-slots",
+ "sc-executor",
+ "sc-finality-grandpa",
+ "sc-finality-grandpa-warp-sync",
+ "sc-network",
+ "sc-service",
+ "sc-telemetry",
+ "sc-transaction-pool",
+ "serde",
+ "sp-api",
+ "sp-authority-discovery",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-transaction-pool",
+ "sp-trie",
+ "substrate-prometheus-endpoint",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
+ "westend-runtime",
 ]
 
 [[package]]
@@ -5382,8 +5472,8 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
- "pnu-jaeger",
  "pnn-protocol",
+ "pnu-jaeger",
  "pnu-primitives",
  "pnu-subsystem-test-helpers",
  "polkadot-primitives",
@@ -5407,10 +5497,10 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
+ "pnc-overseer",
  "pnu-primitives",
  "pnu-subsystem",
  "pnu-subsystem-util",
- "pnc-overseer",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",
@@ -5430,11 +5520,11 @@ dependencies = [
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "log",
- "pnu-metered-channel",
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
  "pnu-jaeger",
+ "pnu-metered-channel",
  "pnu-primitives",
  "pnu-subsystem",
  "pnu-subsystem-test-helpers",
@@ -5451,24 +5541,155 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnc-overseer"
+name = "pnu-test-client"
+version = "0.8.28"
+dependencies = [
+ "parity-scale-codec",
+ "pnu-subsystem",
+ "pnu-test-service",
+ "polkadot-primitives",
+ "polkadot-test-runtime",
+ "sc-block-builder",
+ "sc-consensus",
+ "sc-service",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-timestamp",
+ "substrate-test-client",
+]
+
+[[package]]
+name = "pnu-test-service"
+version = "0.8.28"
+dependencies = [
+ "frame-benchmarking",
+ "frame-system",
+ "futures 0.1.29",
+ "futures 0.3.12",
+ "hex",
+ "pallet-balances",
+ "pallet-staking",
+ "pallet-transaction-payment",
+ "pnc-overseer",
+ "pnu-primitives",
+ "pnu-service",
+ "pnu-subsystem",
+ "polkadot-parachain",
+ "polkadot-primitives",
+ "polkadot-rpc",
+ "polkadot-runtime-common",
+ "polkadot-runtime-parachains",
+ "polkadot-test-runtime",
+ "rand 0.8.3",
+ "sc-authority-discovery",
+ "sc-chain-spec",
+ "sc-cli",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-consensus-babe",
+ "sc-executor",
+ "sc-finality-grandpa",
+ "sc-network",
+ "sc-service",
+ "sc-tracing",
+ "sc-transaction-pool",
+ "serde_json",
+ "sp-arithmetic",
+ "sp-authority-discovery",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-inherents",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-state-machine",
+ "substrate-test-client",
+ "substrate-test-utils",
+ "tempfile",
+ "tokio 0.2.21",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "pnu-validator-discovery"
 version = "0.1.0"
 dependencies = [
- "async-trait",
- "femme",
  "futures 0.3.12",
- "futures-timer 3.0.2",
- "kv-log-macro",
- "oorandom",
- "pnn-protocol",
- "pnu-primitives",
  "pnu-subsystem",
  "pnu-subsystem-util",
  "polkadot-primitives",
- "sc-client-api",
+ "sc-network",
+ "streamunordered",
+ "thiserror",
+]
+
+[[package]]
+name = "polkadot"
+version = "0.8.28"
+dependencies = [
+ "assert_cmd",
+ "color-eyre",
+ "futures 0.3.12",
+ "nix 0.19.1",
+ "parity-util-mem",
+ "pnu-service",
+ "polkadot-cli",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "polkadot-cli"
+version = "0.8.28"
+dependencies = [
+ "frame-benchmarking-cli",
+ "futures 0.3.12",
+ "log",
+ "pnu-service",
+ "polkadot-parachain",
+ "sc-cli",
+ "sc-service",
  "sp-core",
- "tracing",
+ "sp-trie",
+ "structopt",
+ "substrate-browser-utils",
+ "substrate-build-script-utils",
+ "thiserror",
  "tracing-futures",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "polkadot-core-primitives"
+version = "0.7.30"
+dependencies = [
+ "parity-scale-codec",
+ "parity-util-mem",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "polkadot-erasure-coding"
+version = "0.8.28"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-primitives",
+ "reed-solomon-erasure",
+ "sp-core",
+ "sp-trie",
+ "thiserror",
 ]
 
 [[package]]
@@ -5492,26 +5713,6 @@ dependencies = [
  "sp-std",
  "sp-wasm-interface",
  "thiserror",
-]
-
-[[package]]
-name = "pnn-pov-distribution"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "env_logger 0.8.2",
- "futures 0.3.12",
- "log",
- "pnn-protocol",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "sp-keyring",
- "thiserror",
- "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5744,143 +5945,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnu-service"
-version = "0.8.3"
-dependencies = [
- "env_logger 0.8.2",
- "frame-benchmarking",
- "frame-system-rpc-runtime-api",
- "futures 0.3.12",
- "hex-literal",
- "kusama-runtime",
- "pallet-babe",
- "pallet-im-online",
- "pallet-staking",
- "pallet-transaction-payment-rpc-runtime-api",
- "pnn-approval-distribution",
- "pnn-bitfield-distribution",
- "pnn-availability-distribution",
- "pnn-availability-recovery",
- "pnn-collator-protocol",
- "pnn-bridge",
- "pnu-collation-generation",
- "pnc-av-store",
- "pnc-candidate-backing",
- "pnc-bitfield-signing",
- "pnc-candidate-selection",
- "pnc-candidate-validation",
- "pnc-chain-api",
- "pnc-proposer",
- "pnc-provisioner",
- "pnc-runtime-api",
- "pnu-subsystem",
- "pnu-subsystem-util",
- "pnc-overseer",
- "polkadot-parachain",
- "pnn-pov-distribution",
- "polkadot-primitives",
- "polkadot-rpc",
- "polkadot-runtime",
- "polkadot-runtime-parachains",
- "pnn-statement-distribution",
- "pnu-test-client",
- "rococo-runtime",
- "sc-authority-discovery",
- "sc-block-builder",
- "sc-chain-spec",
- "sc-client-api",
- "sc-client-db",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-consensus-slots",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-finality-grandpa-warp-sync",
- "sc-network",
- "sc-service",
- "sc-telemetry",
- "sc-transaction-pool",
- "serde",
- "sp-api",
- "sp-authority-discovery",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-io",
- "sp-keystore",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-state-machine",
- "sp-storage",
- "sp-transaction-pool",
- "sp-trie",
- "substrate-prometheus-endpoint",
- "thiserror",
- "tracing",
- "tracing-futures",
- "westend-runtime",
-]
-
-[[package]]
-name = "pnn-statement-distribution"
-version = "0.1.0"
-dependencies = [
- "arrayvec 0.5.2",
- "assert_matches",
- "futures 0.3.12",
- "indexmap",
- "pnn-protocol",
- "pnu-primitives",
- "pnu-subsystem",
- "pnu-subsystem-test-helpers",
- "pnu-subsystem-util",
- "polkadot-primitives",
- "sc-keystore",
- "sp-application-crypto",
- "sp-core",
- "sp-keyring",
- "sp-keystore",
- "sp-staking",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
 name = "polkadot-statement-table"
 version = "0.8.28"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "sp-core",
-]
-
-[[package]]
-name = "pnu-test-client"
-version = "0.8.28"
-dependencies = [
- "parity-scale-codec",
- "pnu-subsystem",
- "polkadot-primitives",
- "polkadot-test-runtime",
- "pnu-test-service",
- "sc-block-builder",
- "sc-consensus",
- "sc-service",
- "sp-api",
- "sp-blockchain",
- "sp-consensus",
- "sp-core",
- "sp-inherents",
- "sp-keyring",
- "sp-runtime",
- "sp-state-machine",
- "sp-timestamp",
- "substrate-test-client",
 ]
 
 [[package]]
@@ -5940,61 +6010,6 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
-]
-
-[[package]]
-name = "pnu-test-service"
-version = "0.8.28"
-dependencies = [
- "frame-benchmarking",
- "frame-system",
- "futures 0.1.29",
- "futures 0.3.12",
- "hex",
- "pallet-balances",
- "pallet-staking",
- "pallet-transaction-payment",
- "pnu-primitives",
- "pnu-subsystem",
- "pnc-overseer",
- "polkadot-parachain",
- "polkadot-primitives",
- "polkadot-rpc",
- "polkadot-runtime-common",
- "polkadot-runtime-parachains",
- "pnu-service",
- "polkadot-test-runtime",
- "rand 0.8.3",
- "sc-authority-discovery",
- "sc-chain-spec",
- "sc-cli",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-network",
- "sc-service",
- "sc-tracing",
- "sc-transaction-pool",
- "serde_json",
- "sp-arithmetic",
- "sp-authority-discovery",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-keyring",
- "sp-runtime",
- "sp-state-machine",
- "substrate-test-client",
- "substrate-test-utils",
- "tempfile",
- "tokio 0.2.21",
- "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -9185,13 +9200,13 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "polkadot-cli",
  "pnu-primitives",
+ "pnu-service",
  "pnu-subsystem",
+ "pnu-test-service",
+ "polkadot-cli",
  "polkadot-parachain",
  "polkadot-primitives",
- "pnu-service",
- "pnu-test-service",
  "sc-authority-discovery",
  "sc-cli",
  "sc-service",

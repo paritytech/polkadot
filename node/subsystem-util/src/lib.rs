@@ -49,7 +49,6 @@ use std::{
 use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
-pub mod validator_discovery;
 pub use pnu_metered_channel as metered;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.

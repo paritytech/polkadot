@@ -1,0 +1,17 @@
+[package]
+name = "pnu-validator-discovery"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+description = "Validator discovery utilities and helpers"
+
+[dependencies]
+futures = "0.3.8"
+streamunordered = "0.5.1"
+thiserror = "1.0.23"
+
+pnu-subsystem = { path = "../subsystem" }
+pnu-subsystem-util = { path = "../subsystem-util" }
+polkadot-primitives = { path = "../../primitives" }
+
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

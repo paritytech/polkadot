@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::{
-	channel::mpsc,
+	channel::{mpsc, oneshot},
 	task::{Poll, self},
 	stream,
 	StreamExt,
@@ -34,7 +34,35 @@ use pnu_subsystem::{
 };
 use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
 use sc_network::PeerId;
-use crate::Error;
+
+/// Errors which can occur when connecting to validators
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+	/// Attempted to send or receive on a oneshot channel which had been canceled
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+	/// Attempted to send on a MPSC channel which has been canceled
+	#[error(transparent)]
+	Mpsc(#[from] mpsc::SendError),
+	/// An error in the Runtime API.
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
+	/// The type system wants this even though it doesn't make sense
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
+	/// Attempted to convert from an AllMessages to a FromJob, and failed.
+	#[error("AllMessage not relevant to Job")]
+	SenderConversion(String),
+	/// The local node is not a validator.
+	#[error("Node is not a validator")]
+	NotAValidator,
+	/// Already forwarding errors to another sender
+	#[error("AlreadyForwarding")]
+	AlreadyForwarding,
+	/// Subsystem utilities erred
+	#[error(transparent)]
+	SubsystemUtil(#[from] pnu_subsystem_util::Error),
+}
 
 /// Utility function to make it easier to connect to validators.
 pub async fn connect_to_validators<Context: SubsystemContext>(
@@ -42,7 +70,7 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
 ) -> Result<ConnectionRequest, Error> {
-	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
+	let current_index = pnu_subsystem_util::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
 	connect_to_past_session_validators(ctx, relay_parent, validators, current_index).await
 }
 
@@ -53,7 +81,7 @@ pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
 	validators: Vec<ValidatorId>,
 	session_index: SessionIndex,
 ) -> Result<ConnectionRequest, Error> {
-	let session_info = crate::request_session_info_ctx(
+	let session_info = pnu_subsystem_util::request_session_info_ctx(
 		relay_parent,
 		session_index,
 		ctx,

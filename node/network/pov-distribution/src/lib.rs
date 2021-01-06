@@ -33,12 +33,12 @@ use polkadot_subsystem::{
 	},
 };
 use pnu_subsystem_util::{
-	validator_discovery,
 	request_validators_ctx,
 	request_validator_groups_ctx,
 	request_availability_cores_ctx,
 	metrics::{self, prometheus},
 };
+use pnu_validator_discovery as validator_discovery;
 use pnn_protocol::{
 	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, OurView,
 };

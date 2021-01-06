@@ -14,6 +14,7 @@ thiserror = "1.0.23"
 polkadot-primitives = { path = "../../../primitives" }
 pnn-protocol = { path = "../../network/protocol" }
 pnu-subsystem-util = { path = "../../subsystem-util" }
+pnu-validator-discovery = { path = "../../validator-discovery" }
 polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
 
 [dev-dependencies]
