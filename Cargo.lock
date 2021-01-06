@@ -5855,6 +5855,7 @@ dependencies = [
  "sc-finality-grandpa",
  "sc-network",
  "sc-service",
+ "sc-tracing",
  "sc-transaction-pool",
  "serde_json",
  "sp-arithmetic",
@@ -10192,9 +10193,9 @@ dependencies = [
 
 [[package]]
 name = "web-sys"
-version = "0.3.41"
+version = "0.3.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "863539788676619aac1a23e2df3655e96b32b0e05eb72ca34ba045ad573c625d"
+checksum = "222b1ef9334f92a21d3fb53dc3fd80f30836959a90f9274a626d7e06315ba3c3"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

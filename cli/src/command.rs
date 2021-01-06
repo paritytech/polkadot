@@ -252,19 +252,7 @@ pub fn run() -> Result<()> {
 			})
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-<<<<<<< HEAD
-			let _ = sc_cli::GlobalLoggerBuilder::new("").init();
-=======
-			let _ = sc_cli::init_logger(
-				sc_cli::InitLoggerParams {
-					pattern: "".into(),
-					tracing_receiver: Default::default(),
-					tracing_targets: None,
-					disable_log_reloading: false,
-					disable_log_color: true,
-				},
-			);
->>>>>>> 58b7eb5607e8524cd75eb0a400862237e01ab7bf
+			let _ = sc_cli::GlobalLoggerBuilder::new("").with_colors(false).init();
 
 			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
