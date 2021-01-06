@@ -291,7 +291,7 @@ publish-docker-polkadot:           &build-push-docker-image
 publish-docker-rococo:
   <<:                              *build-push-docker-image
   # can't be executed on PRs since registry credentials are protected
-  <<:                              *build-refs
+  <<:                              *test-refs
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
