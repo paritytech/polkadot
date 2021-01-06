@@ -22,12 +22,13 @@ could cause the node to forget the state.
 
 Inputs:
 
-* `VotesDbMessage::DisputeVote`
+* `VotesDbMessage::StoreVote`
 
 Outputs:
 
 * `DisputeParticipationMessage::Detection`
 * `DisputeParticipationMessage::Resolution`
+* `DisputeParticipationMessage::Timeout`
 
 ## Messages
 
@@ -103,6 +104,12 @@ ValidatorId => Vec<(ValidatorIndex, Session)>
 Hash => CommittedCandidateReceipt
 ```
 
+## Constants
+
+Keep a dispute open for an additional time where validators
+can cast their vote.
+`DISPUTE_POST_RESOLUTION_TIME = Duration::from_secs(24 * 60 * 60)`
+
 ## Sequence
 
 ### Incoming message
@@ -132,6 +139,6 @@ Hash => CommittedCandidateReceipt
 1. iff:
     1. store the resolution and keep the resolution
     1. send `DisputeMessage::Resolution` to the overseer
-    1. TODO when to delete stuff from the DB?
+    1. Delete the
 1. else:
     1. Store the new vote including its proof to the DB.

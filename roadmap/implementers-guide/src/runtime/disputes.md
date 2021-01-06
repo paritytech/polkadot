@@ -19,34 +19,34 @@ We account for these requirements by having the validity module handle two kinds
 
 ## Approval
 
-We begin approval checks upon any candidate immediately once it becomes available.  
+We begin approval checks upon any candidate immediately once it becomes available.
 
-Assigning approval checks involve VRF secret keys held by every validator, making it primarily an off-chain process.  All assignment criteria require specific data called "stories" about the relay chain block in which the candidate assigned by that criteria became available.  Among these criteria, the BABE VRF output provides the story for two, and the other's story consists of the candidate's block hash plus external knowledge that a relay chain equivocation exists with a conflicting candidate. 
+Assigning approval checks involve VRF secret keys held by every validator, making it primarily an off-chain process.  All assignment criteria require specific data called "stories" about the relay chain block in which the candidate assigned by that criteria became available.  Among these criteria, the BABE VRF output provides the story for two, and the other's story consists of the candidate's block hash plus external knowledge that a relay chain equivocation exists with a conflicting candidate.
 
-We liberate availability cores when their candidate becomes available of course, but one approval assignment criteria continues associating each candidate with the core number it occupied when it became available. 
+We liberate availability cores when their candidate becomes available of course, but one approval assignment criteria continues associating each candidate with the core number it occupied when it became available.
 
 Assignment proceeds in loosely timed rounds called `DelayTranche`s roughly 12 times faster than block production, in which validators send assignment notices until all candidates have enough checkers assigned.  Assignment tracks when approval votes arrive too and assigns more checkers if some checkers run late.
 
 Approval checks provide more security than backing checks, so polkadot becomes more efficient when validators perform more approval checks per backing check.  If validators run 4 approval checks for every backing check, and run almost one backing check per relay chain block, then validators actually check almost 6 blocks per relay chain block.
 
-We should therefore reward approval checkers correctly because approval checks should actually represent our single largest workload.  It follows that both assignment notices and approval votes should be tracked on-chain.  
+We should therefore reward approval checkers correctly because approval checks should actually represent our single largest workload.  It follows that both assignment notices and approval votes should be tracked on-chain.
 
 We might track the assignments and approvals together as pairs in a simple rewards system.  There are however two reasons to witness approvals on chain by tracking assignments and approvals on-chain, rewards and finality integration.
 
-First, an approval that arrives too slowly prompts assigning extra "no show" replacement checkers.  Yet, we consider a block valid if the earlier checker completes their work, even if the extra checkers never quite finish, which complicates rewarding these extra checkers.  We could support more nuanced rewards for extra checkers if assignments are placed on-chain earlier.  Assignment delay tranches progress 12ish times faster than the relay chain, but no shows could still be witness by the relay chain because the no show delay takes longer than a relay chain slot. 
+First, an approval that arrives too slowly prompts assigning extra "no show" replacement checkers.  Yet, we consider a block valid if the earlier checker completes their work, even if the extra checkers never quite finish, which complicates rewarding these extra checkers.  We could support more nuanced rewards for extra checkers if assignments are placed on-chain earlier.  Assignment delay tranches progress 12ish times faster than the relay chain, but no shows could still be witness by the relay chain because the no show delay takes longer than a relay chain slot.
 
-Second, we know off-chain when the approval process completes based upon all gossiped assignment notices, not just the approving ones.  We need not-yet-approved assignment notices to appear on-chain if the chain should know about the validity of recently approved blocks.  Relay chain blocks become eligible for finality in GRANDPA only once all their included candidates pass approvals checks, meaning all assigned checkers either voted approve or else were declared "no show" and replaced by more assigned checkers.  A purely off-chain approvals scheme complicates GRANDPA with additional objections logic.  
+Second, we know off-chain when the approval process completes based upon all gossiped assignment notices, not just the approving ones.  We need not-yet-approved assignment notices to appear on-chain if the chain should know about the validity of recently approved blocks.  Relay chain blocks become eligible for finality in GRANDPA only once all their included candidates pass approvals checks, meaning all assigned checkers either voted approve or else were declared "no show" and replaced by more assigned checkers.  A purely off-chain approvals scheme complicates GRANDPA with additional objections logic.
 
 Integration with GRANDPA appears simplest if we witness approvals in chain:  Aside from inherents for assignment notices and approval votes, we provide an "Approved" inherent by which a relay chain block declares a past relay chain block approved.  In other words, it trigger the on-chain approval counting logic in a relay chain block `R1` to rerun the assignment and approval tracker logic for some ancestor `R0`, which then declares `R0` approved.  In this case, we could integrate with GRANDPA by gossiping messages that list the descendent `R1`, but then map this into the approved ancestor `R0` for GRANDPA itself.
 
-Approval votes could be recorded on-chain quickly because they represent a major commitments.  
+Approval votes could be recorded on-chain quickly because they represent a major commitments.
 
 Assignment notices should be recorded on-chain only when relevant.  Any sent too early are retained but ignore until relevant by our off-chain assignment system.  Assignments are ignored completely by the dispute system because any dispute immediately escalates into all validators checking, but disputes count existing approval votes of course.
 
 
 ## Local Disputes
 
-There is little overlap between the approval system and the disputes systems since disputes cares only that two validators disagree.  We do however require that disputes count validity votes from elsewhere, both the backing votes and the approval votes.  
+There is little overlap between the approval system and the disputes systems since disputes cares only that two validators disagree.  We do however require that disputes count validity votes from elsewhere, both the backing votes and the approval votes.
 
 We could approve, and even finalize, a relay chain block which then later disputes due to claims of some parachain being invalid.
 
@@ -104,3 +104,83 @@ The goal of the dispute is to garner a `>2/3` (`2f + 1`) supermajority either in
 For remote disputes, it is possible that the parablock disputed has never actually passed any availability process on any chain. In this case, validators will not be able to obtain the PoV of the parablock and there will be relatively few votes. We want to disincentivize voters claiming validity of the block from preventing it from becoming available, so we charge them a small distraction fee for wasting the others' time if the dispute does not garner a 2/3+ supermajority on either side. This fee can take the form of a small slash or a reduction in rewards.
 
 When a supermajority is achieved for the dispute in either the valid or invalid direction, we will penalize non-voters either by issuing a small slash or reducing their rewards. We prevent censorship of the remaining validators by leaving the dispute open for some blocks after resolution in order to accept late votes.
+
+
+
+### Storage
+
+layout:
+
+The set of disputed canddidates
+
+```rust
+decl_storage! {
+  Disputed {
+    /// Set of disputes candidate hashes that
+    /// were not resolved just yet.
+    disputed: Vec<CandidateHash>,
+    /// Set of recent blocks
+    recent: Vec<Hash>,
+    ///
+    resolved: Vec<CandidateHash>,
+  }
+}
+```
+
+### Events
+
+```rust
+decl_event! {
+  pub enum Event {
+    /// Timeout of the post resolution stage where
+    /// incoming votes are still rewarded with a fraction.
+    PostResolutionTimeout(CandidateHash),
+    /// An incoming vote.
+    Vote(CandidateHash, Vote),
+    /// Quorum and supermajority were reached.
+    Resolution {
+      candidate: CandidateHash,
+      offenders: Vec<Vote>,
+      revert: Option<Hash>, // TODO probably easier to resolve inside the runtime
+    },
+  }
+}
+```
+
+### Constants
+
+- `HISTORY_DEPTH`: Number of last included blocks
+- `VOTE_AMOUNT`: The amount being slashed or rewarded for a vote before the resolution.
+- `LATE_VOTE_AMOUNT`: The amount being slashed or rewarded.
+- `TIMEOUT_SLASH`: The amount being slashed for being part of dispute that never resolved.
+- `NO_SHOW_SLASH`: The amount being slashed for a validator not participating in the dispute vote.
+
+### Impl
+
+1. `UnsignedTransaction` from node with `Event`
+1. Execute the subsection accorinding to the `Event` variant
+
+#### Vote
+
+1. Persist the incoming `Vote` entry.
+1. iff the dispute is already resolved:
+  1. iff vote is on the success side:
+    1. reward `LATE_VOTE_AMOUNT`
+  1. else:
+    1. slash `LATE_VOTE_AMOUNT`
+
+#### Resolution
+
+1. Obtain the last `HISTORY_DEPTH` blocks included on this chain
+1. iff successfully disputed blocks are included
+  1. revert to the block before the oldest blacklisted block
+1. create an unsigned transaction that:
+  1. for each validator on the wrong side:
+    1. slashes for `VOTE_AMOUNT`
+  1. for each validator on the winning side:
+    1. reward for `VOTE_AMOUNT`
+
+#### PostResolutionTimeout
+
+1. Slash all no-show validators by `NO_SHOW_SLASH`
+1. Delete all data associated to the `CandidateHash`.

@@ -16,15 +16,19 @@ a need for a very small gossip only containing the `Vote` itself.
 
 Inputs:
 
-* `DisputeGossip::Vote` (votes of other validators)
-* `DisputeParticipationMessage::Detection`
-* `DisputeParticipationMessage::Resolution`
+* `DisputeEvent::Vote`
+* `DisputeParticipationMessage::DisputeDetection`
+* `DisputeParticipationMessage::DisputeResolution`
+* `DisputeParticipationMessage::DisputeTimeout`
 
 Outputs:
 
+* `VotesDbMessage::StoreVote`
+
+Operational Queries:
+
 * `AvailabilityRecoveryMessage::RecoverAvailableData`
 * `CandidateValidationMessage::ValidateFromChainState`
-* `DisputeGossip::Vote` (own vote)
 
 ## Messages
 
@@ -39,17 +43,6 @@ enum DisputeParticipationMessage {
         resolution: Resolution,
         votes: HashMap<ValidatorId, Vote>,
     },
-}
-```
-
-Distribution of our own vote via gossip, but also
-receive them in order to store it to `VotesDB`:
-
-```rust
-enum DisputeGossip {
-    /// A vote by a validator, referenced by session
-    /// index and validator index
-    Vote(SessionIndex, ValidatorIndex, Vote),
 }
 ```
 
@@ -97,7 +90,8 @@ enum Resolution {
 
 ## Session Change
 
-> TODO
+Operation resumes, since the validator set at the time of the dispute
+stays operational, and the validators are still bonded.
 
 ## Storage
 
@@ -105,32 +99,32 @@ Nothing to store, everything lives in `VotesDB`.
 
 ## Sequence
 
-### Detection
+### Persisting
 
-1. Receive `DisputeParticipationMessage::Detection`
+1. Extract imported blocks from `ViewChange` or introduce a new overseer `Event`.
+1. for each imported block:
+  1. Extract the associated dispute _runtime_ events
+  1. Store votes according to the runtime events to the votesdb via `VotesDBMessage::StoreVote`
+
+The `VotesDB` is then responsible for emitting `Detection`, `Resolution` or `Timeout` messages.
+
+#### Detection
+
+The first negative vote will trigger the dispute detection.
+
+1. Receive `DisputeParticipationMessage::DisputeDetection`
 1. Request `AvailableData` via `RecoverAvailableData` to obtain the `PoV`.
 1. Call `ValidateFromChainState` to validate the `PoV` with the `CandidateDescriptor`.
-    1. Cast vote according to the `ValidationResult`.
-    1. Store our vote to the `VotesDB` via `VotesDBMessage::StoreVote`
-    1. Gossip our vote on the network.
+  1. Cast vote according to the `ValidationResult`.
+  1. Store our vote to the `VotesDB` via `VotesDBMessage::StoreVote`
 
-### Resolution
+#### Resolution
 
-1. Receive `DisputeParticipationMessage::Resolution`
+1. Receive `DisputeParticipationMessage::DisputeResolution`
 1. Craft an unsigned transaction with all votes cast
   1. includes `CandidateReceipts`
   1. includes `Vote`s
-1. Delete all relevant data associated with this dispute
+1. Store the resolution time.
+1. Start the post resolution timeout.
 
 ### Blacklisting bad block and invalid decendants
-
-In case a block was disputed successfully, and is now deemed invalid.
-
-1. Query `ChainApiMessage::Descendants` for all descendants of the disputed `Hash`.
-1. Blacklist all descendants of the disputed block `substrate::Client::unsafe_revert`.
-1. Check if the dispute block was finalized
-1. iff:
-    1. put the chain into governance mode
-1. Craft and enqueue an unsigned transaction that does the following:
-    1. reward the validator of the proof
-    1. slash the party or parties identified by the sender as misbehaving
