@@ -11,24 +11,24 @@ async-trait = "0.1.42"
 derive_more = "0.99.11"
 futures = "0.3.12"
 futures-timer = "3.0.2"
-mick-jaeger = "0.1.2"
 lazy_static = "1.4"
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+log = "0.4.13"
+mick-jaeger = "0.1.2"
 parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 parking_lot = "0.11.1"
 pin-project = "1.0.4"
-pnu-primitives = { path = "../primitives" }
 pnn-protocol = { path = "../network/protocol" }
+pnu-jaeger = { path = "../jaeger" }
+pnu-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
-pnu-jaeger = { path = "../jaeger" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 smallvec = "1.6.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.23"
-log = "0.4.13"
+tracing = "0.1.22"
+tracing-futures = "0.2.4"
 
 [dev-dependencies]
 assert_matches = "1.4.0"

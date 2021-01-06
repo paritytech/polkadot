@@ -5345,7 +5345,6 @@ dependencies = [
  "mick-jaeger",
  "parking_lot 0.11.1",
  "polkadot-primitives",
- "sc-network",
  "sp-core",
  "thiserror",
 ]
