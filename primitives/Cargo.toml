@@ -14,7 +14,7 @@ sp-keystore = { git = "https://github.com/tomaka/polkadot", branch = "rework-pri
 sp-api = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 sp-version = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-io = { git = "https://github.com/tomaka/polkadot", default-features = false, branch = "rework-priority-groups-take2" }
 sp-staking = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 sp-arithmetic = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }
 sp-authority-discovery = { git = "https://github.com/tomaka/polkadot", branch = "rework-priority-groups-take2", default-features = false }

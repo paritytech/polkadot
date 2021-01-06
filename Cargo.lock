@@ -1515,11 +1515,11 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "sp-api",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -1537,11 +1537,11 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
  "structopt",
 ]
 
@@ -1554,11 +1554,11 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1568,8 +1568,8 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -1588,13 +1588,13 @@ dependencies = [
  "serde",
  "smallvec 1.6.0",
  "sp-arithmetic",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1640,10 +1640,10 @@ dependencies = [
  "impl-trait-for-tuples 0.1.3",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-version",
 ]
 
@@ -1656,9 +1656,9 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -2720,17 +2720,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
@@ -3911,7 +3911,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-authority-discovery",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3926,7 +3926,7 @@ dependencies = [
  "sp-authorship",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3946,11 +3946,11 @@ dependencies = [
  "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -3965,7 +3965,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3980,7 +3980,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3993,10 +3993,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4009,9 +4009,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4026,7 +4026,7 @@ dependencies = [
  "serde",
  "sp-npos-elections",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4042,12 +4042,12 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4061,9 +4061,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4079,11 +4079,11 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4096,11 +4096,11 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-keyring",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4112,9 +4112,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4127,10 +4127,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4142,9 +4142,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4159,7 +4159,7 @@ dependencies = [
  "serde",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4180,7 +4180,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4193,10 +4193,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4209,7 +4209,7 @@ dependencies = [
  "parity-scale-codec",
  "safe-mix",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4222,9 +4222,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4237,9 +4237,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4253,13 +4253,13 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -4275,7 +4275,7 @@ dependencies = [
  "rand 0.7.3",
  "sp-runtime",
  "sp-session",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4289,7 +4289,7 @@ dependencies = [
  "rand_chacha 0.2.2",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4306,11 +4306,11 @@ dependencies = [
  "rand_chacha 0.2.2",
  "serde",
  "sp-application-crypto",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-npos-elections",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -4334,9 +4334,9 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4351,9 +4351,9 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -4369,7 +4369,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4383,10 +4383,10 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "smallvec 1.6.0",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4402,7 +4402,7 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-rpc",
  "sp-runtime",
 ]
@@ -4417,7 +4417,7 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4433,7 +4433,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4446,10 +4446,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4464,7 +4464,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4909,8 +4909,8 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "tracing",
  "tracing-futures",
 ]
@@ -4931,10 +4931,10 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -4950,8 +4950,8 @@ dependencies = [
  "polkadot-service",
  "sc-cli",
  "sc-service",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-trie",
  "structopt",
  "substrate-browser-utils",
  "substrate-build-script-utils",
@@ -4975,7 +4975,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -4987,9 +4987,9 @@ name = "polkadot-core-primitives"
 version = "0.7.30"
 dependencies = [
  "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4999,8 +4999,8 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "reed-solomon-erasure",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -5019,7 +5019,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-authority-discovery",
  "sc-network",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
  "tracing",
  "tracing-futures",
@@ -5036,7 +5036,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5062,7 +5062,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-service",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5084,9 +5084,9 @@ dependencies = [
  "polkadot-statement-table",
  "sc-keystore",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5100,7 +5100,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5115,8 +5115,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5135,7 +5135,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
  "tracing",
  "tracing-futures",
@@ -5152,7 +5152,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5172,7 +5172,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-transaction-pool",
@@ -5191,7 +5191,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-application-crypto",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5207,7 +5207,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5223,7 +5223,7 @@ dependencies = [
  "parking_lot 0.11.1",
  "polkadot-primitives",
  "sc-network",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "thiserror",
 ]
 
@@ -5247,7 +5247,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-statement-table",
  "sp-consensus-vrf",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -5275,7 +5275,7 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.6.0",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
@@ -5300,7 +5300,7 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.6.0",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5325,8 +5325,8 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "streamunordered",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -5350,7 +5350,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-client-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "streamunordered",
  "tracing",
  "tracing-futures",
@@ -5369,12 +5369,12 @@ dependencies = [
  "sc-executor",
  "serde",
  "shared_memory",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
+ "sp-wasm-interface",
  "thiserror",
 ]
 
@@ -5391,7 +5391,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -5414,15 +5414,15 @@ dependencies = [
  "sp-application-crypto",
  "sp-arithmetic",
  "sp-authority-discovery",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
+ "sp-keystore",
  "sp-runtime",
  "sp-serializer",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
+ "sp-trie",
  "sp-version",
 ]
 
@@ -5449,7 +5449,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "sp-runtime",
  "sp-transaction-pool",
  "substrate-frame-rpc-system",
@@ -5512,17 +5512,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
@@ -5562,15 +5562,15 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-keyring",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
+ "sp-trie",
  "static_assertions",
  "trie-db",
  "xcm",
@@ -5611,16 +5611,16 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
+ "sp-trie",
  "sp-version",
  "xcm",
  "xcm-executor",
@@ -5687,18 +5687,18 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
+ "sp-keystore",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-storage",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
@@ -5722,9 +5722,9 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "sp-staking",
  "tracing",
  "tracing-futures",
@@ -5736,7 +5736,7 @@ version = "0.8.27"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5754,11 +5754,11 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-keyring",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
  "sp-timestamp",
  "substrate-test-client",
 ]
@@ -5806,17 +5806,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -5862,12 +5862,12 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-keyring",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
@@ -5893,13 +5893,13 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-keyring",
  "sp-runtime",
  "sp-timestamp",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -6591,14 +6591,14 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
@@ -6766,8 +6766,8 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
@@ -6788,7 +6788,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-transaction-pool",
@@ -6806,10 +6806,10 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -6829,7 +6829,7 @@ dependencies = [
  "serde_json",
  "sp-chain-spec",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -6871,10 +6871,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
+ "sp-panic-handler",
  "sp-runtime",
  "sp-utils",
  "sp-version",
@@ -6916,17 +6916,17 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-externalities",
  "sp-inherents",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-std",
+ "sp-storage",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "sp-utils",
  "sp-version",
  "substrate-prometheus-endpoint",
@@ -6954,11 +6954,11 @@ dependencies = [
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-database",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -7007,10 +7007,10 @@ dependencies = [
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
+ "sp-keystore",
  "sp-runtime",
  "sp-timestamp",
  "sp-utils",
@@ -7037,8 +7037,8 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "sp-runtime",
 ]
 
@@ -7073,11 +7073,11 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -7090,7 +7090,7 @@ dependencies = [
  "sc-client-api",
  "sp-authorship",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
 ]
@@ -7111,16 +7111,16 @@ dependencies = [
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-panic-handler",
+ "sp-runtime-interface",
  "sp-serializer",
  "sp-tasks",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "sp-version",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -7133,9 +7133,9 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "sp-allocator",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-serializer",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-wasm-interface",
  "thiserror",
  "wasmi",
 ]
@@ -7149,9 +7149,9 @@ dependencies = [
  "parity-scale-codec",
  "sc-executor-common",
  "sp-allocator",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -7167,9 +7167,9 @@ dependencies = [
  "sc-executor-common",
  "scoped-tls",
  "sp-allocator",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmtime",
 ]
 
@@ -7201,10 +7201,10 @@ dependencies = [
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -7230,7 +7230,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -7267,8 +7267,8 @@ dependencies = [
  "rand 0.7.3",
  "serde_json",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "subtle 2.2.3",
 ]
 
@@ -7285,10 +7285,10 @@ dependencies = [
  "sc-executor",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -7333,7 +7333,7 @@ dependencies = [
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -7379,7 +7379,7 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-offchain",
  "sp-runtime",
  "sp-utils",
@@ -7430,13 +7430,13 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-chain-spec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "sp-offchain",
  "sp-rpc",
  "sp-runtime",
  "sp-session",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
  "sp-transaction-pool",
  "sp-utils",
  "sp-version",
@@ -7459,7 +7459,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-rpc",
  "sp-runtime",
  "sp-transaction-pool",
@@ -7527,17 +7527,17 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
+ "sp-keystore",
  "sp-runtime",
  "sp-session",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-tracing",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "sp-utils",
  "sp-version",
  "substrate-prometheus-endpoint",
@@ -7559,7 +7559,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.10.2",
  "sc-client-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "thiserror",
 ]
 
@@ -7621,7 +7621,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slog",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-tracing",
  "tracing",
  "tracing-core",
  "tracing-log",
@@ -7642,7 +7642,7 @@ dependencies = [
  "retain_mut",
  "serde",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
  "sp-transaction-pool",
  "sp-utils",
@@ -7666,9 +7666,9 @@ dependencies = [
  "sc-transaction-graph",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -8122,9 +8122,9 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "log",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-std",
+ "sp-wasm-interface",
  "thiserror",
 ]
 
@@ -8136,10 +8136,10 @@ dependencies = [
  "hash-db",
  "parity-scale-codec",
  "sp-api-proc-macro",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-std",
  "sp-version",
  "thiserror",
 ]
@@ -8163,9 +8163,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -8177,8 +8177,8 @@ dependencies = [
  "num-traits 0.2.12",
  "parity-scale-codec",
  "serde",
- "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -8190,7 +8190,7 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8201,7 +8201,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8213,7 +8213,7 @@ dependencies = [
  "sp-api",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8230,7 +8230,7 @@ dependencies = [
  "sp-consensus",
  "sp-database",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
  "thiserror",
 ]
 
@@ -8256,12 +8256,12 @@ dependencies = [
  "parking_lot 0.10.2",
  "serde",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
  "sp-utils",
  "sp-version",
  "substrate-prometheus-endpoint",
@@ -8281,11 +8281,11 @@ dependencies = [
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -8305,53 +8305,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
-]
-
-[[package]]
-name = "sp-core"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder",
- "dyn-clonable",
- "ed25519-dalek",
- "futures 0.3.8",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1",
- "log",
- "merlin",
- "num-traits 0.2.12",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.10.2",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "schnorrkel",
- "secrecy",
- "serde",
- "sha2 0.8.2",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-bip39",
- "thiserror",
- "tiny-bip39",
- "tiny-keccak",
- "twox-hash",
- "wasmi",
- "zeroize",
+ "sp-std",
 ]
 
 [[package]]
@@ -8384,11 +8340,11 @@ dependencies = [
  "secrecy",
  "serde",
  "sha2 0.8.2",
- "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
@@ -8410,16 +8366,6 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "proc-macro2 1.0.24",
- "quote 1.0.7",
- "syn 1.0.48",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "proc-macro2 1.0.24",
@@ -8430,23 +8376,12 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.8.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.8.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -8460,10 +8395,10 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-application-crypto",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-keystore",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8473,33 +8408,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-std",
  "thiserror",
-]
-
-[[package]]
-name = "sp-io"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "futures 0.3.8",
- "hash-db",
- "libsecp256k1",
- "log",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
 ]
 
 [[package]]
@@ -8513,15 +8424,15 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime-interface",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
+ "sp-trie",
+ "sp-wasm-interface",
  "tracing",
  "tracing-core",
 ]
@@ -8532,25 +8443,9 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "lazy_static",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
  "strum",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.8.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "async-trait",
- "derive_more",
- "futures 0.3.8",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "schnorrkel",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -8566,8 +8461,8 @@ dependencies = [
  "parking_lot 0.10.2",
  "schnorrkel",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
 ]
 
 [[package]]
@@ -8579,7 +8474,7 @@ dependencies = [
  "serde",
  "sp-arithmetic",
  "sp-npos-elections-compact",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8599,16 +8494,8 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "backtrace",
 ]
 
 [[package]]
@@ -8625,7 +8512,7 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
 ]
 
 [[package]]
@@ -8644,26 +8531,9 @@ dependencies = [
  "serde",
  "sp-application-crypto",
  "sp-arithmetic",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "impl-trait-for-tuples 0.1.3",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "static_assertions",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -8674,25 +8544,13 @@ dependencies = [
  "impl-trait-for-tuples 0.1.3",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-storage",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "Inflector",
- "proc-macro-crate",
- "proc-macro2 1.0.24",
- "quote 1.0.7",
- "syn 1.0.48",
 ]
 
 [[package]]
@@ -8723,10 +8581,10 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "parity-scale-codec",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8736,29 +8594,7 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.8.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "hash-db",
- "log",
- "num-traits 0.2.12",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "rand 0.7.3",
- "smallvec 1.6.0",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
- "trie-db",
- "trie-root",
+ "sp-std",
 ]
 
 [[package]]
@@ -8773,11 +8609,11 @@ dependencies = [
  "parking_lot 0.10.2",
  "rand 0.7.3",
  "smallvec 1.6.0",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
+ "sp-panic-handler",
+ "sp-std",
+ "sp-trie",
  "thiserror",
  "trie-db",
  "trie-root",
@@ -8786,25 +8622,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-
-[[package]]
-name = "sp-std"
-version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
-
-[[package]]
-name = "sp-storage"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
-]
 
 [[package]]
 name = "sp-storage"
@@ -8815,8 +8633,8 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -8825,11 +8643,11 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "log",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -8842,21 +8660,8 @@ dependencies = [
  "sp-api",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "wasm-timer",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "log",
- "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -8866,7 +8671,7 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "log",
  "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -8891,27 +8696,13 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "trie-db",
- "trie-root",
-]
-
-[[package]]
-name = "sp-trie"
-version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2#30f6573bf466ea10b7aee3566188c68233ad0a77"
 dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-std",
  "trie-db",
  "trie-root",
 ]
@@ -8937,18 +8728,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#89275433863532d797318b75bb5321af098fea7c"
-dependencies = [
- "impl-trait-for-tuples 0.1.3",
- "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "wasmi",
+ "sp-std",
 ]
 
 [[package]]
@@ -8958,7 +8738,7 @@ source = "git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-t
 dependencies = [
  "impl-trait-for-tuples 0.1.3",
  "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "wasmi",
 ]
 
@@ -9135,7 +8915,7 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-runtime",
  "sp-transaction-pool",
 ]
@@ -9174,11 +8954,11 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-keystore",
  "sp-runtime",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -9305,8 +9085,8 @@ dependencies = [
  "dlmalloc",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
+ "sp-std",
  "substrate-wasm-builder",
  "tiny-keccak",
 ]
@@ -9329,7 +9109,7 @@ dependencies = [
  "sc-authority-discovery",
  "sc-cli",
  "sc-service",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-keyring",
  "structopt",
  "substrate-test-utils",
@@ -9350,7 +9130,7 @@ version = "0.7.22"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak",
@@ -10507,17 +10287,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
  "sp-inherents",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-trie",
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
@@ -10623,9 +10403,9 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-arithmetic",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -10638,10 +10418,10 @@ dependencies = [
  "impl-trait-for-tuples 0.2.0",
  "parity-scale-codec",
  "sp-arithmetic",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=rework-priority-groups-take2)",
+ "sp-std",
  "xcm",
 ]
 
