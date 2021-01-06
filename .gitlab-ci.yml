@@ -147,6 +147,8 @@ check-line-width:
 #     - ./scripts/gitlab/check_runtime_benchmarks.sh
 #     - sccache -s
 
+#### stage:                        build
+
 # check-transaction-versions:
 #   image:                          node:15
 #   stage:                          build
@@ -234,6 +236,8 @@ generate-impl-guide:
   script:
     - mdbook build roadmap/implementers-guide
 
+#### stage:                        publish
+
 .publish-build:                    &publish-build
   stage:                           publish
   needs:
@@ -286,7 +290,8 @@ publish-docker-polkadot:           &build-push-docker-image
 
 publish-docker-rococo:
   <<:                              *build-push-docker-image
-  <<:                              *test-refs
+  # can't be executed on PRs since registry credentials are protected
+  <<:                              *build-refs
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
@@ -325,6 +330,8 @@ publish-s3-release:
     - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
 
+#### stage:                        deploy
+
 deploy-polkasync-kusama:
   stage:                           deploy
   <<:                              *build-refs
@@ -342,5 +349,10 @@ check-labels:
   <<:                             *kubernetes-env
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  needs:
+    # due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264
+    # here we should list the non-manual jobs from the previous stage
+    - job:                         generate-impl-guide
+      artifacts:                   false
   script:
     - ./scripts/gitlab/check_labels.sh
