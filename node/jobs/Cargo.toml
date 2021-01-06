@@ -1,0 +1,30 @@
+[package]
+name = "pnu-jobs"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+description = "subsystem job management helpers"
+
+[dependencies]
+futures = "0.3.8"
+pin-project = "1.0.3"
+streamunordered = "0.5.1"
+thiserror = "1.0.23"
+tracing = "0.1.22"
+
+pnu-primitives = { path = "../primitives" }
+pnu-subsystem = { path = "../subsystem" }
+pnu-subsystem-util = { path = "../subsystem-util" }
+pnu-jaeger = { path = "../jaeger" }
+polkadot-primitives = { path = "../../primitives" }
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dev-dependencies]
+assert_matches = "1.4.0"
+async-trait = "0.1.42"
+env_logger = "0.8.2"
+futures = { version = "0.3.8", features = ["thread-pool"] }
+log = "0.4.11"
+parking_lot = "0.11.1"
+pnu-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

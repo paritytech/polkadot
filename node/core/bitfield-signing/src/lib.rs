@@ -22,6 +22,7 @@
 
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
+use pnu_jobs::{JobManager, JobTrait, FromJobCommand};
 use pnu_subsystem::{
 	jaeger, PerLeafSpan, JaegerSpan,
 	messages::{
@@ -31,7 +32,7 @@ use pnu_subsystem::{
 	errors::RuntimeApiError,
 };
 use pnu_subsystem_util::{
-	self as util, JobManager, JobTrait, Validator, FromJobCommand, metrics::{self, prometheus},
+	self as util, Validator, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};

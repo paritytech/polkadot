@@ -11,6 +11,7 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 thiserror = "1.0.23"
 polkadot-primitives = { path = "../../../primitives" }
+pnu-jobs = { path = "../../jobs" }
 pnu-subsystem = { path = "../../subsystem" }
 pnu-subsystem-util = { path = "../../subsystem-util" }
 futures-timer = "3.0.2"

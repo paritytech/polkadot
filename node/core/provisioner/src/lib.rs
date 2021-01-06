@@ -24,6 +24,7 @@ use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
+use pnu_jobs::{delegated_subsystem, FromJobCommand, JobTrait};
 use pnu_subsystem::{
 	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, JaegerSpan,
 	messages::{
@@ -32,8 +33,7 @@ use pnu_subsystem::{
 	},
 };
 use pnu_subsystem_util::{
-	self as util, delegated_subsystem, FromJobCommand,
-	request_availability_cores, request_persisted_validation_data, JobTrait, metrics::{self, prometheus},
+	self as util, request_availability_cores, request_persisted_validation_data, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,

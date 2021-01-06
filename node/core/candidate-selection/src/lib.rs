@@ -33,8 +33,11 @@ use pnu_subsystem::{
 	},
 };
 use pnu_subsystem_util::{
-	self as util, request_from_runtime, request_validator_groups, delegated_subsystem,
-	JobTrait, FromJobCommand, Validator, metrics::{self, prometheus},
+	self as util, request_from_runtime, request_validator_groups,
+	Validator, metrics::{self, prometheus},
+};
+use pnu_jobs::{
+	delegated_subsystem, JobTrait, FromJobCommand,
 };
 use polkadot_primitives::v1::{
 	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
