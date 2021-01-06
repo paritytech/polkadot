@@ -28,7 +28,7 @@ pub mod purchase;
 pub mod slot_range;
 pub mod slots;
 
-use primitives::v1::{BlockNumber, ValidatorId};
+use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
 use frame_support::{
@@ -159,6 +159,35 @@ impl<T: pallet_session::Config>
 	fn on_disabled(_: usize) { }
 }
 
+/// A placeholder since there is currently no provided session key handler for parachain validator
+/// keys.
+pub struct AssignmentSessionKeyPlaceholder<T>(sp_std::marker::PhantomData<T>);
+impl<T> sp_runtime::BoundToRuntimeAppPublic for AssignmentSessionKeyPlaceholder<T> {
+	type Public = AssignmentId;
+}
+
+impl<T: pallet_session::Config>
+	pallet_session::OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
+{
+	type Key = AssignmentId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I) where
+		I: Iterator<Item = (&'a T::AccountId, AssignmentId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I) where
+		I: Iterator<Item = (&'a T::AccountId, AssignmentId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_disabled(_: usize) { }
+}
+
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
@@ -208,6 +237,7 @@ mod multiplier_tests {
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
+		type SS58Prefix = ();
 	}
 
 	type System = frame_system::Module<Runtime>;

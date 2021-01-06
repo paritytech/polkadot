@@ -2,19 +2,18 @@
 #
 # check if line width of rust source files is not beyond x characters
 #
-
+set -e
 
 BASE_BRANCH="origin/master"
 LINE_WIDTH="121"
 GOOD_LINE_WIDTH="101"
 
-
-git diff --name-only ${BASE_BRANCH}...${CI_COMMIT_SHA} \*.rs | ( while read file
+git diff --name-only "${BASE_BRANCH}...${CI_COMMIT_SHA}" -- \*.rs | ( while read -r file
 do
-  if [ ! -f ${file} ];
+  if [ ! -f "${file}" ];
   then
 	echo "Skipping removed file."
-  elif git diff ${BASE_BRANCH}...${CI_COMMIT_SHA} ${file} | grep -q "^+.\{${LINE_WIDTH}\}"
+  elif git diff "${BASE_BRANCH}...${CI_COMMIT_SHA}" -- "${file}" | grep -q "^+.\{${LINE_WIDTH}\}"
   then
     if [ -z "${FAIL}" ]
     then
@@ -26,11 +25,11 @@ do
       FAIL="true"
     fi
     echo "| file: ${file}"
-    git diff ${BASE_BRANCH}...${CI_COMMIT_SHA} ${file} \
+    git diff "${BASE_BRANCH}...${CI_COMMIT_SHA}" -- "${file}" \
       | grep -n "^+.\{${LINE_WIDTH}\}"
     echo "|"
   else
-    if git diff ${BASE_BRANCH}...${CI_COMMIT_SHA} ${file} | grep -q "^+.\{${GOOD_LINE_WIDTH}\}"
+    if git diff "${BASE_BRANCH}...${CI_COMMIT_SHA}" -- "${file}" | grep -q "^+.\{${GOOD_LINE_WIDTH}\}"
     then
       if [ -z "${FAIL}" ]
       then
@@ -41,7 +40,7 @@ do
         echo "|"
       fi
       echo "| file: ${file}"
-      git diff ${BASE_BRANCH}...${CI_COMMIT_SHA} ${file} \
+      git diff "${BASE_BRANCH}...${CI_COMMIT_SHA}" -- "${file}" \
         | grep -n "^+.\{${LINE_WIDTH}\}"
       echo "|"
     fi

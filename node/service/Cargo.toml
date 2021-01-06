@@ -8,7 +8,7 @@ edition = "2018"
 # Substrate Client
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { package = "beefy-primitives", git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "td-bump" }
+beefy-primitives = { package = "beefy-primitives", git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -40,6 +40,7 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Pallets
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -58,6 +59,7 @@ hex-literal = "0.3.1"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 serde = { version = "1.0.118", features = ["derive"] }
+thiserror = "1.0.23"
 
 # Polkadot
 polkadot-node-core-proposer = { path = "../core/proposer" }

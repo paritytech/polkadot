@@ -119,18 +119,31 @@ impl CodeParams {
 			.expect("this struct is not created with invalid shard number; qed")
 	}
 }
-
-fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
+/// Returns the maximum number of allowed, faulty chunks
+/// which does not prevent recovery given all other pieces
+/// are correct.
+const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
 	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
 	if n_validators <= 1 { return Err(Error::NotEnoughValidators) }
 
-	let n_faulty = n_validators.saturating_sub(1) / 3;
+	Ok(n_validators.saturating_sub(1) / 3)
+}
+
+fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
+	let n_faulty = n_faulty(n_validators)?;
 	let n_good = n_validators - n_faulty;
 
 	Ok(CodeParams {
 		data_shards: n_faulty + 1,
 		parity_shards: n_good - 1,
 	})
+}
+
+/// Obtain a threshold of chunks that should be enough to recover the data.
+pub fn recovery_threshold(n_validators: usize) -> Result<usize, Error> {
+	let n_faulty = n_faulty(n_validators)?;
+
+	Ok(n_faulty + 1)
 }
 
 /// Obtain erasure-coded chunks for v0 `AvailableData`, one for each validator.

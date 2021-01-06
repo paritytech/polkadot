@@ -115,6 +115,8 @@ enum ApprovalDistributionMessage {
 	/// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
 	/// the message.
 	DistributeApproval(IndirectSignedApprovalVote),
+	/// An update from the network bridge.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
 }
 ```
 

@@ -126,12 +126,17 @@ impl CollationGenerationSubsystem {
 				// follow the procedure from the guide
 				if let Some(config) = &self.config {
 					let metrics = self.metrics.clone();
-					if let Err(err) =
-						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
-					{
+					if let Err(err) = handle_new_activations(
+						config.clone(),
+						activated.into_iter().map(|v| v.0),
+						ctx,
+						metrics,
+						sender,
+					).await {
 						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations");
-					};
+					}
 				}
+
 				false
 			}
 			Ok(Signal(Conclude)) => true,
@@ -145,7 +150,7 @@ impl CollationGenerationSubsystem {
 				}
 				false
 			}
-			Ok(Signal(BlockFinalized(_))) => false,
+			Ok(Signal(BlockFinalized(..))) => false,
 			Err(err) => {
 				tracing::error!(
 					target: LOG_TARGET,
@@ -164,10 +169,10 @@ where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
+		let future = async move {
 			self.run(ctx).await;
 			Ok(())
-		});
+		}.boxed();
 
 		SpawnedSubsystem {
 			name: "collation-generation-subsystem",
@@ -176,10 +181,10 @@ where
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, metrics, sender), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, metrics, sender, activated), fields(subsystem = LOG_TARGET))]
 async fn handle_new_activations<Context: SubsystemContext>(
 	config: Arc<CollationGenerationConfig>,
-	activated: &[Hash],
+	activated: impl IntoIterator<Item = Hash>,
 	ctx: &mut Context,
 	metrics: Metrics,
 	sender: &mpsc::Sender<AllMessages>,
@@ -189,11 +194,9 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 	let _overall_timer = metrics.time_new_activations();
 
-	for relay_parent in activated.iter().copied() {
+	for relay_parent in activated {
 		let _relay_parent_timer = metrics.time_new_activations_relay_parent();
 
-		// double-future magic happens here: the first layer of requests takes a mutable borrow of the context, and
-		// returns a receiver. The second layer of requests actually polls those receivers to completion.
 		let (availability_cores, validators) = join!(
 			request_availability_cores_ctx(relay_parent, ctx).await?,
 			request_validators_ctx(relay_parent, ctx).await?,
@@ -202,7 +205,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 		let availability_cores = availability_cores??;
 		let n_validators = validators??.len();
 
-		for core in availability_cores {
+		for (core_idx, core) in availability_cores.into_iter().enumerate() {
 			let _availability_core_timer = metrics.time_new_activations_availability_core();
 
 			let (scheduled_core, assumption) = match core {
@@ -211,12 +214,33 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				}
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						relay_parent = ?relay_parent,
+						"core is occupied. Keep going.",
+					);
 					continue;
 				}
-				_ => continue,
+				CoreState::Free => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						"core is free. Keep going.",
+					);
+					continue
+				}
 			};
 
 			if scheduled_core.para_id != config.para_id {
+				tracing::trace!(
+					target: LOG_TARGET,
+					core_idx = %core_idx,
+					relay_parent = ?relay_parent,
+					our_para = %config.para_id,
+					their_para = %scheduled_core.para_id,
+					"core is not assigned to our para. Keep going.",
+				);
 				continue;
 			}
 
@@ -233,7 +257,17 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			.await??
 			{
 				Some(v) => v,
-				None => continue,
+				None => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						relay_parent = ?relay_parent,
+						our_para = %config.para_id,
+						their_para = %scheduled_core.para_id,
+						"validation data is not available",
+					);
+					continue
+				}
 			};
 
 			let task_config = config.clone();
@@ -513,7 +547,7 @@ mod tests {
 			subsystem_test_harness(overseer, |mut ctx| async move {
 				handle_new_activations(
 					test_config(123u32),
-					&subsystem_activated_hashes,
+					subsystem_activated_hashes,
 					&mut ctx,
 					Metrics(None),
 					&tx,
@@ -592,7 +626,7 @@ mod tests {
 			let (tx, _rx) = mpsc::channel(0);
 
 			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(test_config(16), &activated_hashes, &mut ctx, Metrics(None), &tx)
+				handle_new_activations(test_config(16), activated_hashes, &mut ctx, Metrics(None), &tx)
 					.await
 					.unwrap();
 			});
@@ -669,7 +703,7 @@ mod tests {
 			let sent_messages = Arc::new(Mutex::new(Vec::new()));
 			let subsystem_sent_messages = sent_messages.clone();
 			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(subsystem_config, &activated_hashes, &mut ctx, Metrics(None), &tx)
+				handle_new_activations(subsystem_config, activated_hashes, &mut ctx, Metrics(None), &tx)
 					.await
 					.unwrap();
 
