@@ -77,20 +77,3 @@ impl std::fmt::Display for RecoveryError {
 }
 
 impl std::error::Error for RecoveryError {}
-
-/// A description of an error causing the chain API request to be unservable.
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum JaegerError {
-	#[error("Already launched the collector thread")]
-	AlreadyLaunched,
-
-	#[error("Missing jaeger configuration")]
-	MissingConfiguration,
-
-	#[error("Failed to allocate port for UDP transfer to jaeger agent")]
-	PortAllocationError(#[source] std::io::Error),
-
-	#[error("Failed to send jaeger span to agent")]
-	SendError(#[source] std::io::Error),
-}

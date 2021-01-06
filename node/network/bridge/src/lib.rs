@@ -30,23 +30,22 @@ use sc_network::Event as NetworkEvent;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult,
+	SubsystemResult, JaegerSpan,
 };
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
 	CollatorProtocolMessage,
 };
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash, BlockNumber};
 use polkadot_node_network_protocol::{
-	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
+	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1, OurView,
 };
 
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::pin::Pin;
 use std::sync::Arc;
-
 
 mod validator_discovery;
 
@@ -254,6 +253,7 @@ enum Action {
 	ReportPeer(PeerId, ReputationChange),
 
 	ActiveLeaves(ActiveLeavesUpdate),
+	BlockFinalized(BlockNumber),
 
 	PeerConnected(PeerSet, PeerId, ObservedRole),
 	PeerDisconnected(PeerSet, PeerId),
@@ -274,6 +274,8 @@ fn action_from_overseer_message(
 	match res {
 		Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves)))
 			=> Action::ActiveLeaves(active_leaves),
+		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)))
+			=> Action::BlockFinalized(number),
 		Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => Action::Abort,
 		Ok(FromOverseer::Communication { msg }) => match msg {
 			NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
@@ -284,8 +286,6 @@ fn action_from_overseer_message(
 			NetworkBridgeMessage::ConnectToValidators { validator_ids, connected }
 				=> Action::ConnectToValidators { validator_ids, connected },
 		},
-		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
-			=> Action::Nop,
 		Err(e) => {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "Shutting down Network Bridge due to error");
 			Action::Abort
@@ -348,21 +348,25 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 	}
 }
 
-fn construct_view(live_heads: &[Hash]) -> View {
-	View(live_heads.iter().rev().take(MAX_VIEW_HEADS).cloned().collect())
+fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_number: BlockNumber) -> View {
+	View {
+		heads: live_heads.rev().take(MAX_VIEW_HEADS).collect(),
+		finalized_number
+	}
 }
 
 #[tracing::instrument(level = "trace", skip(net, ctx, validation_peers, collation_peers), fields(subsystem = LOG_TARGET))]
-async fn update_view(
+async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
-	live_heads: &[Hash],
+	live_heads: &[(Hash, Arc<JaegerSpan>)],
 	local_view: &mut View,
+	finalized_number: BlockNumber,
 	validation_peers: &HashMap<PeerId, PeerData>,
 	collation_peers: &HashMap<PeerId, PeerData>,
 ) -> SubsystemResult<()> {
-	let new_view = construct_view(live_heads);
-	if *local_view == new_view { return Ok(())  }
+	let new_view = construct_view(live_heads.iter().map(|v| v.0), finalized_number);
+	if *local_view == new_view { return Ok(()) }
 
 	*local_view = new_view.clone();
 
@@ -375,18 +379,14 @@ async fn update_view(
 	send_collation_message(
 		net,
 		collation_peers.keys().cloned(),
-		WireMessage::ViewUpdate(new_view.clone()),
+		WireMessage::ViewUpdate(new_view),
 	).await?;
 
-	dispatch_validation_event_to_all(
-		NetworkBridgeEvent::OurViewChange(new_view.clone()),
-		ctx,
-	).await;
+	let our_view = OurView::new(live_heads.iter().cloned(), finalized_number);
 
-	dispatch_collation_event_to_all(
-		NetworkBridgeEvent::OurViewChange(new_view.clone()),
-		ctx,
-	).await;
+	dispatch_validation_event_to_all(NetworkBridgeEvent::OurViewChange(our_view.clone()), ctx).await;
+
+	dispatch_collation_event_to_all(NetworkBridgeEvent::OurViewChange(our_view), ctx).await;
 
 	Ok(())
 }
@@ -413,7 +413,7 @@ async fn handle_peer_messages<M>(
 	for message in messages {
 		outgoing_messages.push(match message {
 			WireMessage::ViewUpdate(new_view) => {
-				if new_view.0.len() > MAX_VIEW_HEADS {
+				if new_view.heads.len() > MAX_VIEW_HEADS {
 					net.report_peer(
 						peer.clone(),
 						MALFORMED_VIEW_COST,
@@ -579,8 +579,9 @@ where
 	let mut event_stream = network_service.event_stream().fuse();
 
 	// Most recent heads are at the back.
-	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
-	let mut local_view = View(Vec::new());
+	let mut live_heads: Vec<(Hash, Arc<JaegerSpan>)> = Vec::with_capacity(MAX_VIEW_HEADS);
+	let mut local_view = View::default();
+	let mut finalized_number = 0;
 
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
@@ -636,17 +637,28 @@ where
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
-				live_heads.retain(|h| !deactivated.contains(h));
+				live_heads.retain(|h| !deactivated.contains(&h.0));
 
-				update_view(
+				update_our_view(
 					&mut network_service,
 					&mut ctx,
 					&live_heads,
 					&mut local_view,
+					finalized_number,
 					&validation_peers,
 					&collation_peers,
 				).await?;
 			}
+
+			Action::BlockFinalized(number) => {
+				debug_assert!(finalized_number < number);
+
+				// we don't send the view updates here, but delay them until the next `Action::ActiveLeaves`
+				// otherwise it might break assumptions of some of the subsystems
+				// that we never send the same `ActiveLeavesUpdate`
+				// this is fine, we will get `Action::ActiveLeaves` on block finalization anyway
+				finalized_number = number;
+			},
 
 			Action::PeerConnected(peer_set, peer, role) => {
 				let peer_map = match peer_set {
@@ -660,7 +672,7 @@ where
 					hash_map::Entry::Occupied(_) => continue,
 					hash_map::Entry::Vacant(vacant) => {
 						let _ = vacant.insert(PeerData {
-							view: View(Vec::new()),
+							view: View::default(),
 						});
 
 						match peer_set {
@@ -669,7 +681,7 @@ where
 									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
 									NetworkBridgeEvent::PeerViewChange(
 										peer,
-										View(Default::default()),
+										View::default(),
 									),
 								],
 								&mut ctx,
@@ -679,7 +691,7 @@ where
 									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
 									NetworkBridgeEvent::PeerViewChange(
 										peer,
-										View(Default::default()),
+										View::default(),
 									),
 								],
 								&mut ctx,
@@ -753,6 +765,7 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 	};
+	use polkadot_node_network_protocol::view;
 	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
 
@@ -978,15 +991,17 @@ mod tests {
 				ObservedRole::Full,
 			).await;
 
-			let hash_a = Hash::from([1; 32]);
+			let hash_a = Hash::repeat_byte(1);
 
 			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+				))
 			).await;
 
 			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View(vec![hash_a])
+				view![hash_a]
 			).encode();
 
 			assert!(network_actions_contains(
@@ -1021,7 +1036,7 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 
-			let view = View(vec![Hash::from([1u8; 32])]);
+			let view = view![Hash::repeat_byte(1)];
 
 			// bridge will inform about all connected peers.
 			{
@@ -1031,7 +1046,7 @@ mod tests {
 				).await;
 
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1075,7 +1090,7 @@ mod tests {
 				).await;
 
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1140,7 +1155,7 @@ mod tests {
 				).await;
 
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1152,7 +1167,7 @@ mod tests {
 				).await;
 
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1166,15 +1181,17 @@ mod tests {
 
 			// to show that we're still connected on the collation protocol, send a view update.
 
-			let hash_a = Hash::from([1; 32]);
+			let hash_a = Hash::repeat_byte(1);
 
 			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+				))
 			).await;
 
 			let actions = network_handle.next_network_actions(1).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View(vec![hash_a])
+				view![hash_a]
 			).encode();
 
 			assert!(network_actions_contains(
@@ -1210,7 +1227,7 @@ mod tests {
 				).await;
 
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1222,7 +1239,7 @@ mod tests {
 				).await;
 
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1295,7 +1312,7 @@ mod tests {
 				).await;
 
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1307,13 +1324,13 @@ mod tests {
 				).await;
 
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
 
-			let view_a = View(vec![[1; 32].into()]);
-			let view_b = View(vec![[2; 32].into()]);
+			let view_a = view![Hash::repeat_byte(1)];
+			let view_b = view![Hash::repeat_byte(2)];
 
 			network_handle.peer_message(
 				peer.clone(),
@@ -1340,6 +1357,76 @@ mod tests {
 	}
 
 	#[test]
+	fn sent_views_include_finalized_number_update() {
+		test_harness(|test_harness| async move {
+			let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
+
+			let peer_a = PeerId::random();
+
+			network_handle.connect_peer(
+				peer_a.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
+
+			let hash_a = Hash::repeat_byte(1);
+			let hash_b = Hash::repeat_byte(2);
+			let hash_c = Hash::repeat_byte(3);
+
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_a, 1))
+			).await;
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(hash_b, Arc::new(JaegerSpan::Disabled)),
+				))
+			).await;
+
+			let actions = network_handle.next_network_actions(1).await;
+			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+				View {
+					heads: vec![hash_b],
+					finalized_number: 1,
+				}
+			).encode();
+
+			assert!(network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer_a.clone(),
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
+			));
+
+			// view updates are issued even when `ActiveLeavesUpdate` is empty
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_c, 3))
+			).await;
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default()))
+			).await;
+
+			let actions = network_handle.next_network_actions(1).await;
+			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+				View {
+					heads: vec![hash_b],
+					finalized_number: 3,
+				}
+			).encode();
+
+			assert!(network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer_a,
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
+			));
+		});
+	}
+
+	#[test]
 	fn send_messages_to_peers() {
 		test_harness(|test_harness| async move {
 			let TestHarness {
@@ -1360,7 +1447,7 @@ mod tests {
 				).await;
 
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}
@@ -1372,7 +1459,7 @@ mod tests {
 				).await;
 
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
 			}

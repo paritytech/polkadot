@@ -52,6 +52,42 @@ impl UmpSink for () {
 	}
 }
 
+/// A specific implementation of a UmpSink where messages are in the XCM format
+/// and will be forwarded to the XCM Executor.
+pub struct XcmSink<Config>(sp_std::marker::PhantomData<Config>);
+
+impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
+	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
+		use parity_scale_codec::Decode;
+		use xcm::VersionedXcm;
+		use xcm::v0::{Junction, MultiLocation, ExecuteXcm};
+		use xcm_executor::XcmExecutor;
+
+		let weight: Weight = 0;
+
+		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
+			match versioned_xcm_message {
+				VersionedXcm::V0(xcm_message) => {
+					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
+					let xcm_location: MultiLocation = xcm_junction.into();
+					// TODO: Do something with result.
+					let _result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message);
+				}
+			}
+		} else {
+			frame_support::debug::error!(
+				target: "xcm",
+				"Failed to decode versioned XCM from upward message.",
+			);
+		}
+
+		// TODO: to be sound, this implementation must ensure that returned (and thus consumed)
+		// weight is limited to some small portion of the total block weight (as a ballpark, 1/4, 1/8
+		// or lower).
+		weight
+	}
+}
+
 /// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
 pub enum AcceptanceCheckErr {
@@ -134,6 +170,8 @@ decl_storage! {
 		///
 		/// Invariant:
 		/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
+		// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+		// the format will require migration of parachains.
 		RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
 		/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 		///
@@ -869,6 +907,31 @@ mod tests {
 
 				drop(probe);
 			}
+		});
+	}
+
+	#[test]
+	fn verify_relay_dispatch_queue_size_is_externally_accessible() {
+		// Make sure that the relay dispatch queue size storage entry is accessible via well known
+		// keys and is decodable into a (u32, u32).
+
+		use primitives::v1::well_known_keys;
+		use parity_scale_codec::Decode as _;
+
+		let a = ParaId::from(228);
+		let msg = vec![1, 2, 3];
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			queue_upward_msg(a, msg);
+
+			let raw_queue_size = sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a))
+				.expect("enqueing a message should create the dispatch queue\
+				and it should be accessible via the well known keys");
+			let (cnt, size) = <(u32, u32)>::decode(&mut &raw_queue_size[..])
+				.expect("the dispatch queue size should be decodable into (u32, u32)");
+
+			assert_eq!(cnt, 1);
+			assert_eq!(size, 3);
 		});
 	}
 }

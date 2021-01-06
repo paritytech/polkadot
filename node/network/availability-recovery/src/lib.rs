@@ -380,12 +380,12 @@ async fn handle_signal(
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
 			// if activated is non-empty, set state.live_block_hash to the first block in Activated.
 			if let Some(hash) = activated.get(0) {
-				state.live_block_hash = *hash;
+				state.live_block_hash = hash.0;
 			}
 
 			Ok(false)
 		}
-	    OverseerSignal::BlockFinalized(_) => Ok(false)
+	    OverseerSignal::BlockFinalized(_, _) => Ok(false)
 	}
 }
 

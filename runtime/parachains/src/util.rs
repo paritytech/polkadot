@@ -17,37 +17,40 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use sp_runtime::traits::{One, Saturating};
-use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData};
+use sp_runtime::traits::Saturating;
+use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData, Hash};
 
 use crate::{configuration, paras, dmp, hrmp};
 
-/// Make the persisted validation data for a particular parachain.
+/// Make the persisted validation data for a particular parachain, a specified relay-parent and it's
+/// storage root.
 ///
 /// This ties together the storage of several modules.
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
+	relay_parent_number: T::BlockNumber,
+	relay_storage_root: Hash,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
-	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
 
 	Some(PersistedValidationData {
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
 		block_number: relay_parent_number,
+		relay_storage_root,
 		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
 		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
 		max_pov_size: config.max_pov_size,
 	})
 }
 
-/// Make the transient validation data for a particular parachain.
+/// Make the transient validation data for a particular parachain and a specified relay-parent.
 ///
 /// This ties together the storage of several modules.
 pub fn make_transient_validation_data<T: paras::Config + dmp::Config>(
 	para_id: ParaId,
+	relay_parent_number: T::BlockNumber,
 ) -> Option<TransientValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
-	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
 
 	let freq = config.validation_upgrade_frequency;
 	let delay = config.validation_upgrade_delay;

@@ -30,7 +30,7 @@ use polkadot_primitives::v1::{
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers as test_helpers;
-use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
@@ -375,6 +375,7 @@ impl Default for TestState {
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 			max_pov_size: 1024,
+			relay_storage_root: Default::default(),
 		};
 
 		let pov = PoV {
@@ -419,7 +420,7 @@ fn availability_is_recovered() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![test_state.current.clone()],
+				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -479,7 +480,7 @@ fn a_faulty_chunk_leads_to_recovery_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![test_state.current.clone()],
+				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -528,7 +529,7 @@ fn a_wrong_chunk_leads_to_recovery_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![test_state.current.clone()],
+				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;

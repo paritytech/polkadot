@@ -16,11 +16,11 @@ Approval messages should always follow assignments, so we need to be able to dis
   1. Is a particular assignment relevant under a given `View`?
   2. Is a particular approval relevant to any assignment in a set?
 
-It is acceptable for these two queries to yield false negatives with respect to our peers' views. For our own local view, they must not yield false negatives. When applied to our peers' views, it is acceptable for them to yield false negatives. The reason for that is that our peers' views may be beyond ours, and we are not capable of fully evaluating them. Once we have caught up, we can check again for false negatives to continue distributing.
+For our own local view, these two queries  must not yield false negatives. When applied to our peers' views, it is acceptable for them to yield false negatives. The reason for that is that our peers' views may be beyond ours, and we are not capable of fully evaluating them. Once we have caught up, we can check again for false negatives to continue distributing.
 
 For assignments, what we need to be checking is whether we are aware of the (block, candidate) pair that the assignment references. For approvals, we need to be aware of an assignment by the same validator which references the candidate being approved.
 
-However, awareness on its own of a (block, candidate) pair would imply that even ancient candidates all the way back to the genesis are relevant. We are actually not interested in anything before finality. 
+However, awareness on its own of a (block, candidate) pair would imply that even ancient candidates all the way back to the genesis are relevant. We are actually not interested in anything before finality.
 
 
 ## Protocol
@@ -72,7 +72,7 @@ enum ApprovalState {
 }
 
 /// Information about candidates in the context of a particular block they are included in. In other words,
-/// multiple `CandidateEntry`s may exist for the same candidate, if it is included by multiple blocks - this is likely the case 
+/// multiple `CandidateEntry`s may exist for the same candidate, if it is included by multiple blocks - this is likely the case
 /// when there are forks.
 struct CandidateEntry {
   approvals: HashMap<ValidatorIndex, ApprovalState>,
@@ -97,11 +97,11 @@ Invoke `unify_with_peer(peer, view)` to catch them up to messages we have.
 
 We also need to use the `view.finalized_number` to remove the `PeerId` from any blocks that it won't be wanting information about anymore. Note that we have to be on guard for peers doing crazy stuff like jumping their 'finalized_number` forward 10 trillion blocks to try and get us stuck in a loop for ages.
 
-One of the safeguards we can implement is to reject view updates from peers where the new `finalized_number` is less than the previous. 
+One of the safeguards we can implement is to reject view updates from peers where the new `finalized_number` is less than the previous.
 
 We augment that by defining `constrain(x)` to output the x bounded by the first and last numbers in `state.blocks_by_number`.
 
-From there, we can loop backwards from `constrain(view.finalized_number)` until `constrain(last_view.finalized_number)` is reached, removing the `PeerId` from all `BlockEntry`s referenced at that height. We can break the loop early if we ever exit the bound supplied by the first block in `state.blocks_by_number`. 
+From there, we can loop backwards from `constrain(view.finalized_number)` until `constrain(last_view.finalized_number)` is reached, removing the `PeerId` from all `BlockEntry`s referenced at that height. We can break the loop early if we ever exit the bound supplied by the first block in `state.blocks_by_number`.
 
 #### `NetworkBridgeEvent::OurViewChange`
 
@@ -142,15 +142,15 @@ enum MessageSource {
 
 #### `import_and_circulate_assignment(source: MessageSource, assignment: IndirectAssignmentCert, claimed_candidate_index: u32)`
 
-Imports an assignment cert referenced by block hash and candidate index. As a postcondition, if the cert is valid, it will have distributed the cert to all peers who have the block in their view, with the exclusion of the peer referenced by the `MessageSource`. 
+Imports an assignment cert referenced by block hash and candidate index. As a postcondition, if the cert is valid, it will have distributed the cert to all peers who have the block in their view, with the exclusion of the peer referenced by the `MessageSource`.
 
   * Load the BlockEntry using `assignment.block_hash`. If it does not exist, report the source if it is `MessageSource::Peer` and return.
-  * Compute a fingerprint for the `assignment` using `claimed_candidate_index`. 
+  * Compute a fingerprint for the `assignment` using `claimed_candidate_index`.
   * If the source is `MessageSource::Peer(sender)`:
     * check if `peer` appears under `known_by` and whether the fingerprint is in the `known_messages` of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the knowledge contains the fingerprint, report for providing replicate data and return.
     * If the message fingerprint appears under the `BlockEntry`'s `Knowledge`, give the peer a small positive reputation boost and return. Note that we must do this after checking for out-of-view to avoid being spammed. If we did this check earlier, a peer could provide data out-of-view repeatedly and be rewarded for it.
     * Dispatch `ApprovalVotingMessage::CheckAndImportAssignment(assignment)` and wait for the response.
-    * If the result is `AssignmentCheckResult::Accepted` or `AssignmentCheckResult::AcceptedDuplicate` 
+    * If the result is `AssignmentCheckResult::Accepted` or `AssignmentCheckResult::AcceptedDuplicate`
       * If the vote was accepted but not duplicate, give the peer a positive reputation boost
       * add the fingerprint to both our and the peer's knowledge in the `BlockEntry`. Note that we only doing this after making sure we have the right fingerprint.
     * If the result is `AssignmentCheckResult::TooFarInFuture`, mildly punish the peer and return.
@@ -182,7 +182,7 @@ Imports an approval signature referenced by block hash and candidate index.
   * Dispatch a `ApprovalDistributionV1Message::Approval(approval)` to all peers in the `BlockEntry`'s `known_by` set, excluding the peer in the `source`, if `source` has kind `MessageSource::Peer`. Add the fingerprint of the assignment to the knowledge of each peer. Note that this obeys the politeness conditions:
     * We guarantee elsewhere that all peers within `known_by` are aware of all assignments relative to the block.
     * We've checked that this specific approval has a corresponding assignment within the `BlockEntry`.
-    * Thus, all peers are aware of the assignment or have a message to them in-flight which will make them so. 
+    * Thus, all peers are aware of the assignment or have a message to them in-flight which will make them so.
 
 
 #### `unify_with_peer(peer: PeerId, view)`:

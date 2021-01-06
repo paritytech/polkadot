@@ -25,8 +25,7 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	jaeger,
+	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, JaegerSpan,
 	messages::{
 		AllMessages, CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage,
@@ -40,7 +39,7 @@ use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{pin::Pin, collections::BTreeMap};
+use std::{pin::Pin, collections::BTreeMap, sync::Arc};
 use thiserror::Error;
 use futures_timer::Delay;
 
@@ -140,9 +139,10 @@ impl JobTrait for ProvisioningJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	#[tracing::instrument(skip(_run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(span, _run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
+		span: Arc<JaegerSpan>,
 		_run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
@@ -155,12 +155,8 @@ impl JobTrait for ProvisioningJob {
 				sender,
 				receiver,
 			);
-			
-			let span = jaeger::hash_span(&relay_parent, "provisioner");
 
-			// it isn't necessary to break run_loop into its own function,
-			// but it's convenient to separate the concerns in this way
-			job.run_loop(&span).await
+			job.run_loop(PerLeafSpan::new(span, "provisioner")).await
 		}
 		.boxed()
 	}
@@ -186,7 +182,7 @@ impl ProvisioningJob {
 		}
 	}
 
-	async fn run_loop(mut self, span: &jaeger::JaegerSpan) -> Result<(), Error> {
+	async fn run_loop(mut self, span: PerLeafSpan) -> Result<(), Error> {
 		use ProvisionerMessage::{
 			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
 		};
@@ -194,7 +190,7 @@ impl ProvisioningJob {
 			futures::select! {
 				msg = self.receiver.next().fuse() => match msg {
 					Some(RequestInherentData(_, return_sender)) => {
-						let _span = span.child("req inherent data");
+						let _span = span.child("req-inherent-data");
 						let _timer = self.metrics.time_request_inherent_data();
 
 						if self.inherent_after.is_ready() {
@@ -204,11 +200,11 @@ impl ProvisioningJob {
 						}
 					}
 					Some(RequestBlockAuthorshipData(_, sender)) => {
-						let _span = span.child("req block authorship");
+						let _span = span.child("req-block-authorship");
 						self.provisionable_data_channels.push(sender)
 					}
 					Some(ProvisionableData(_, data)) => {
-						let _span = span.child("provisionable data");
+						let _span = span.child("provisionable-data");
 						let _timer = self.metrics.time_provisionable_data();
 
 						let mut bad_indices = Vec::new();
@@ -246,7 +242,7 @@ impl ProvisioningJob {
 					None => break,
 				},
 				_ = self.inherent_after.ready().fuse() => {
-					let _span = span.child("send inherent data");
+					let _span = span.child("send-inherent-data");
 					let return_senders = std::mem::take(&mut self.awaiting_inherent);
 					if !return_senders.is_empty() {
 						self.send_inherent_data(return_senders).await;

@@ -120,6 +120,9 @@ impl CodeParams {
 	}
 }
 
+/// Returns the maximum number of allowed, faulty chunks
+/// which does not prevent recovery given all other pieces
+/// are correct.
 const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
 	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
 	if n_validators <= 1 { return Err(Error::NotEnoughValidators) }
