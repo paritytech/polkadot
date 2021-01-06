@@ -340,7 +340,7 @@ impl<M> OverseerSubsystemContext<M> {
 	/// to the range `0.0..=1.0`.
 	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>, metrics: Metrics, mut capture_rate: f64) -> Self {
 		use rand_chacha::rand_core::SeedableRng;
-		let rng = Rng::from_entropy();
+		let rng = Rng::from_rng(rand::thread_rng()).expect("can fail only if the inner RNG is fallible; thread_rng is infallible; qed");
 
 		if capture_rate < 0.0 {
 			capture_rate = 0.0;
@@ -357,8 +357,13 @@ impl<M> OverseerSubsystemContext<M> {
 	/// Intended for tests.
 	#[allow(unused)]
 	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>) -> Self {
+		use rand_chacha::rand_core::SeedableRng;
+		let rng = Rng::seed_from_u64(0);
+
 		let metrics = Metrics::default();
-		Self::new(rx, tx, metrics, 0.0)
+		let distribution = rand::distributions::Bernoulli::new(0.0).expect("input is within valid range; qed");
+
+		OverseerSubsystemContext { rx, tx, metrics, rng, distribution }
 	}
 
 	fn maybe_timed<T>(&mut self, t: T) -> MaybeTimed<T> {
