@@ -345,7 +345,7 @@ impl AvailabilityStoreSubsystem {
 			);
 		}
 
-		put_pov_pruning(&self.inner, Some(tx), pov_pruning)?;
+		put_pov_pruning(&self.inner, Some(tx), pov_pruning, &self.metrics)?;
 
 		Ok(())
 	}
@@ -372,7 +372,7 @@ impl AvailabilityStoreSubsystem {
 			);
 		}
 
-		put_chunk_pruning(&self.inner, Some(tx), chunk_pruning)?;
+		put_chunk_pruning(&self.inner, Some(tx), chunk_pruning, &self.metrics)?;
 
 		Ok(())
 	}
@@ -599,7 +599,7 @@ async fn process_block_finalized(
 			}
 		}
 
-		put_pov_pruning(db, None, pov_pruning)?;
+		put_pov_pruning(db, None, pov_pruning, &subsystem.metrics)?;
 	}
 
 	if let Some(mut chunk_pruning) = chunk_pruning(db) {
@@ -618,7 +618,7 @@ async fn process_block_finalized(
 			}
 		}
 
-		put_chunk_pruning(db, None, chunk_pruning)?;
+		put_chunk_pruning(db, None, chunk_pruning, &subsystem.metrics)?;
 	}
 
 	Ok(())
@@ -668,7 +668,7 @@ where
 
 		pov_pruning.sort();
 
-		put_pov_pruning(db, None, pov_pruning)?;
+		put_pov_pruning(db, None, pov_pruning, metrics)?;
 	}
 
 	if let Some(mut chunk_pruning) = chunk_pruning(db) {
@@ -681,7 +681,7 @@ where
 
 		chunk_pruning.sort();
 
-		put_chunk_pruning(db, None, chunk_pruning)?;
+		put_chunk_pruning(db, None, chunk_pruning, metrics)?;
 	}
 
 	Ok(())
@@ -811,13 +811,16 @@ fn chunk_pruning(db: &Arc<dyn KeyValueDB>) -> Option<Vec<ChunkPruningRecord>> {
 	query_inner(db, columns::META, &CHUNK_PRUNING_KEY)
 }
 
-#[tracing::instrument(level = "trace", skip(db, tx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(db, tx, metrics), fields(subsystem = LOG_TARGET))]
 fn put_pov_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
 	mut pov_pruning: Vec<PoVPruningRecord>,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let mut tx = tx.unwrap_or_default();
+
+	metrics.block_pruning_records_size(pov_pruning.len());
 
 	pov_pruning.sort();
 
@@ -852,13 +855,16 @@ fn put_pov_pruning(
 	Ok(())
 }
 
-#[tracing::instrument(level = "trace", skip(db, tx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(db, tx, metrics), fields(subsystem = LOG_TARGET))]
 fn put_chunk_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
 	mut chunk_pruning: Vec<ChunkPruningRecord>,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let mut tx = tx.unwrap_or_default();
+
+	metrics.chunk_pruning_records_size(chunk_pruning.len());
 
 	chunk_pruning.sort();
 
@@ -1119,6 +1125,8 @@ fn get_chunks(data: &AvailableData, n_validators: usize, metrics: &Metrics) -> R
 #[derive(Clone)]
 struct MetricsInner {
 	received_availability_chunks_total: prometheus::Counter<prometheus::U64>,
+	chunk_pruning_records_total: prometheus::Gauge<prometheus::U64>,
+	block_pruning_records_total: prometheus::Gauge<prometheus::U64>,
 	prune_povs: prometheus::Histogram,
 	prune_chunks: prometheus::Histogram,
 	process_block_finalized: prometheus::Histogram,
@@ -1140,6 +1148,22 @@ impl Metrics {
 			// assume usize fits into u64
 			let by = u64::try_from(count).unwrap_or_default();
 			metrics.received_availability_chunks_total.inc_by(by);
+		}
+	}
+
+	fn chunk_pruning_records_size(&self, count: usize) {
+		if let Some(metrics) = &self.0 {
+			use core::convert::TryFrom as _;
+			let total = u64::try_from(count).unwrap_or_default();
+			metrics.chunk_pruning_records_total.set(total);
+		}
+	}
+
+	fn block_pruning_records_size(&self, count: usize) {
+		if let Some(metrics) = &self.0 {
+			use core::convert::TryFrom as _;
+			let total = u64::try_from(count).unwrap_or_default();
+			metrics.block_pruning_records_total.set(total);
 		}
 	}
 
@@ -1191,6 +1215,20 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_received_availability_chunks_total",
 					"Number of availability chunks received.",
+				)?,
+				registry,
+			)?,
+			chunk_pruning_records_total: prometheus::register(
+				prometheus::Gauge::new(
+					"parachain_chunk_pruning_records_total",
+					"Number of chunk pruning records kept by the storage.",
+				)?,
+				registry,
+			)?,
+			block_pruning_records_total: prometheus::register(
+				prometheus::Gauge::new(
+					"parachain_block_pruning_records_total",
+					"Number of block pruning records kept by the storage.",
 				)?,
 				registry,
 			)?,
