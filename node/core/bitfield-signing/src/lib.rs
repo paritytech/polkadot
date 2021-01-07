@@ -246,7 +246,7 @@ impl JobTrait for BitfieldSigningJob {
 			let _timer = metrics.time_run();
 
 			drop(_span);
-			let span_availability = span.child("availablity");
+			let span_availability = span.child("availability");
 
 			let bitfield =
 				match construct_availability_bitfield(
