@@ -10,7 +10,7 @@ futures01 = { package = "futures", version = "0.1.29" }
 hex = "0.4.2"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
-rand = "0.7.3"
+rand = "0.8.1"
 tempfile = "3.1.0"
 
 # Polkadot dependencies
