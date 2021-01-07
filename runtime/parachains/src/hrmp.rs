@@ -1123,8 +1123,9 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
+		new_test_ext, Test, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
 	};
+	use frame_support::{assert_err, traits::Currency as _};
 	use primitives::v1::BlockNumber;
 	use std::collections::{BTreeMap, HashSet};
 
@@ -1162,6 +1163,7 @@ mod tests {
 		}
 	}
 
+	#[derive(Debug)]
 	struct GenesisConfigBuilder {
 		hrmp_channel_max_capacity: u32,
 		hrmp_channel_max_message_size: u32,
@@ -1171,6 +1173,9 @@ mod tests {
 		hrmp_max_parachain_inbound_channels: u32,
 		hrmp_max_message_num_per_candidate: u32,
 		hrmp_channel_max_total_size: u32,
+		hrmp_sender_deposit: Balance,
+		hrmp_recipient_deposit: Balance,
+		hrmp_open_request_ttl: u32,
 	}
 
 	impl Default for GenesisConfigBuilder {
@@ -1184,6 +1189,9 @@ mod tests {
 				hrmp_max_parachain_inbound_channels: 2,
 				hrmp_max_message_num_per_candidate: 2,
 				hrmp_channel_max_total_size: 16,
+				hrmp_sender_deposit: 100,
+				hrmp_recipient_deposit: 100,
+				hrmp_open_request_ttl: 3,
 			}
 		}
 	}
@@ -1201,6 +1209,9 @@ mod tests {
 			config.hrmp_max_parachain_inbound_channels = self.hrmp_max_parachain_inbound_channels;
 			config.hrmp_max_message_num_per_candidate = self.hrmp_max_message_num_per_candidate;
 			config.hrmp_channel_max_total_size = self.hrmp_channel_max_total_size;
+			config.hrmp_sender_deposit = self.hrmp_sender_deposit;
+			config.hrmp_recipient_deposit = self.hrmp_recipient_deposit;
+			config.hrmp_open_request_ttl = self.hrmp_open_request_ttl;
 			genesis
 		}
 	}
@@ -1217,7 +1228,7 @@ mod tests {
 		}
 	}
 
-	fn register_parachain(id: ParaId) {
+	fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 		Paras::schedule_para_initialize(
 			id,
 			crate::paras::ParaGenesisArgs {
@@ -1226,10 +1237,16 @@ mod tests {
 				validation_code: vec![1].into(),
 			},
 		);
+		<Test as Config>::Currency::make_free_balance_be(&id.into_account(), balance);
+	}
+
+	fn register_parachain(id: ParaId) {
+		register_parachain_with_balance(id, 1000);
 	}
 
 	fn deregister_parachain(id: ParaId) {
 		Paras::schedule_para_cleanup(id);
+		Hrmp::schedule_para_cleanup(id);
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
@@ -1663,6 +1680,169 @@ mod tests {
 			assert_eq!(
 				egress_index,
 				vec![para_b],
+			);
+		});
+	}
+
+	#[test]
+	fn charging_deposits() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			register_parachain_with_balance(para_a, 0);
+			register_parachain(para_b);
+			run_to_block(5, Some(vec![5]));
+
+			assert_err!(
+				Hrmp::init_open_channel(para_a, para_b, 2, 8),
+				pallet_balances::Error::<Test, _>::InsufficientBalance
+			);
+		});
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			register_parachain(para_a);
+			register_parachain_with_balance(para_b, 0);
+			run_to_block(5, Some(vec![5]));
+
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+
+			assert_err!(
+				Hrmp::accept_open_channel(para_b, para_a),
+				pallet_balances::Error::<Test, _>::InsufficientBalance
+			);
+		});
+	}
+
+	#[test]
+	fn refund_deposit_on_normal_closure() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_sender_deposit = 20;
+		genesis.hrmp_recipient_deposit = 15;
+		new_test_ext(genesis.build()).execute_with(|| {
+			// Register two parachains funded with different amounts of funds and arrange a channel.
+			register_parachain_with_balance(para_a, 100);
+			register_parachain_with_balance(para_b, 110);
+			run_to_block(5, Some(vec![5]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				95
+			);
+			run_to_block(8, Some(vec![8]));
+
+			// Now, we close the channel and wait until the next session.
+			Hrmp::close_channel(
+				para_b,
+				HrmpChannelId {
+					sender: para_a,
+					recipient: para_b,
+				},
+			)
+			.unwrap();
+			run_to_block(10, Some(vec![10]));
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				100
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				110
+			);
+		});
+	}
+
+	#[test]
+	fn refund_deposit_on_request_expiry() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_sender_deposit = 20;
+		genesis.hrmp_recipient_deposit = 15;
+		genesis.hrmp_open_request_ttl = 2;
+		new_test_ext(genesis.build()).execute_with(|| {
+			// Register two parachains funded with different amounts of funds, send an open channel
+			// request but do not accept it.
+			register_parachain_with_balance(para_a, 100);
+			register_parachain_with_balance(para_b, 110);
+			run_to_block(5, Some(vec![5]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				110
+			);
+
+			// Request age is 1 out of 2
+			run_to_block(10, Some(vec![10]));
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+
+			// Request age is 2 out of 2. The request should expire.
+			run_to_block(20, Some(vec![20]));
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				100
+			);
+		});
+	}
+
+	#[test]
+	fn refund_deposit_on_offboarding() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_sender_deposit = 20;
+		genesis.hrmp_recipient_deposit = 15;
+		new_test_ext(genesis.build()).execute_with(|| {
+			// Register two parachains and open a channel between them.
+			register_parachain_with_balance(para_a, 100);
+			register_parachain_with_balance(para_b, 110);
+			run_to_block(5, Some(vec![5]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				95
+			);
+			run_to_block(8, Some(vec![8]));
+			assert!(channel_exists(para_a, para_b));
+
+			// Then deregister one parachain.
+			deregister_parachain(para_a);
+			run_to_block(10, Some(vec![10]));
+
+			// The channel should be removed.
+			assert!(!Paras::is_valid_para(para_a));
+			assert!(!channel_exists(para_a, para_b));
+			assert_storage_consistency_exhaustive();
+
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				100
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				110
 			);
 		});
 	}
