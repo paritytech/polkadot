@@ -554,7 +554,7 @@ async fn dispatch_validation_events_to_all<I>(
 		a.chain(b).chain(p).chain(s).filter_map(|x| x)
 	};
 
-	let _ = ctx.send_messages(events.into_iter().flat_map(messages_for)).await;
+	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
@@ -572,7 +572,7 @@ async fn dispatch_collation_events_to_all<I>(
 		))
 	};
 
-	let _ = ctx.send_messages(events.into_iter().flat_map(messages_for)).await;
+	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
 #[tracing::instrument(skip(network_service, authority_discovery_service, ctx), fields(subsystem = LOG_TARGET))]

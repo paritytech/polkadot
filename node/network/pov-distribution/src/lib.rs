@@ -487,9 +487,7 @@ async fn report_peer(
 	peer: PeerId,
 	rep: Rep,
 ) {
-	let _ = ctx.send_message(
-		AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))
-	).await;
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
 }
 
 /// Handle a notification from a peer that they are awaiting some PoVs.

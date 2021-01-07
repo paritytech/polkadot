@@ -828,7 +828,7 @@ where
 		ctx: &mut Context,
 	) -> SubsystemResult<()> {
 		match outgoing.expect("the Jobs stream never ends; qed") {
-			FromJobCommand::SendMessage(msg) => { let _ = ctx.send_message(msg).await; }
+			FromJobCommand::SendMessage(msg) => ctx.send_message(msg).await,
 			FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await?,
 			FromJobCommand::SpawnBlocking(name, task) => ctx.spawn_blocking(name, task).await?,
 		}
