@@ -9,7 +9,7 @@ as well as passing on information to the runtime.
 that allows easy retrieval and evaluates the state of particular
 disputes and generates `StoreVoteResult`s.
 
-`Participation` uses runtime `Events` to facility information
+`Participation` uses runtime `Events` to facilitate information
 distribution via the transaction gossip.
 As such it queries all `DisputeEvents` on view change
 and extracts `Vote`s on which it operates on.
