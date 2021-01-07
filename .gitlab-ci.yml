@@ -82,7 +82,6 @@ check-runtime:
   <<:                              *kubernetes-env
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $IMAGE == "rococo"
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -209,6 +208,7 @@ build-linux-release:               &build
 
 build-linux-rococo:
   <<:                              *build
+  stage:                           test
   rules:
     # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
     # build job so that publish-docker-rococo would "needs" this job. This leads either to blocked
@@ -283,6 +283,7 @@ publish-docker-polkadot:           &build-push-docker-image
 
 publish-docker-rococo:
   <<:                              *build-push-docker-image
+  stage:                           build
   rules:
     - if: $IMAGE == "rococo"
   needs:
