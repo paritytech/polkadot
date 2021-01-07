@@ -149,16 +149,16 @@ check-line-width:
 
 #### stage:                        build
 
-check-transaction-versions:
-  image:                           node:15
-  stage:                           build
-  needs:
-    - job:                         test-linux-stable
-      artifacts:                   false
-  before_script:
-    - npm install -g @polkadot/metadata-cmp
-    - git fetch origin release
-  script: "scripts/gitlab/check_extrinsics_ordering.sh"
+# check-transaction-versions:
+#   image:                           node:15
+#   stage:                           build
+#   needs:
+#     - job:                         test-linux-stable
+#       artifacts:                   false
+#   before_script:
+#     - npm install -g @polkadot/metadata-cmp
+#     - git fetch origin release
+#   script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
 build-wasm-release:
   stage:                           build
