@@ -726,10 +726,11 @@ mod tests {
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
-	use crate::mock::{new_test_ext, Configuration, Paras, System, Scheduler, GenesisConfig as MockGenesisConfig};
+	use crate::mock::{new_test_ext, Configuration, Paras, System, Scheduler, GenesisConfig as MockGenesisConfig, Test};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
 	use crate::paras::ParaGenesisArgs;
+	use crate::runtime_api_impl::v1::availability_cores;
 
 	fn run_to_block(
 		to: BlockNumber,
@@ -746,19 +747,31 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
+			Paras::initializer_initialize(b + 1);
+			Scheduler::initializer_initialize(b + 1);
+
 			if let Some(notification) = new_session(b + 1) {
 				Paras::initializer_on_new_session(&notification);
 				Scheduler::initializer_on_new_session(&notification);
 			}
-
-			Paras::initializer_initialize(b + 1);
-			Scheduler::initializer_initialize(b + 1);
 		}
 	}
 
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		HostConfiguration {
 			parathread_cores: 3,
+			group_rotation_frequency: 10,
+			chain_availability_period: 3,
+			thread_availability_period: 5,
+			scheduling_lookahead: 2,
+			parathread_retries: 1,
+			..Default::default()
+		}
+	}
+
+	fn no_parathread_cores_config() -> HostConfiguration<BlockNumber> {
+		HostConfiguration {
+			parathread_cores: 0,
 			group_rotation_frequency: 10,
 			chain_availability_period: 3,
 			thread_availability_period: 5,
@@ -2034,6 +2047,121 @@ mod tests {
 						para_id: chain_a,
 						collator: None,
 					}
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn no_panic_without_parathread_cores() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: no_parathread_cores_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			// register 2 parachains
+			schedule_blank_para(chain_a, true);
+			schedule_blank_para(chain_b, true);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: no_parathread_cores_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			run_to_block(2, |_| None);
+
+			assert_eq!(Scheduler::scheduled().len(), 2);
+
+			// cores 0, 1, and 2 should be occupied. mark them as such.
+			Scheduler::occupied(&[CoreIndex(0), CoreIndex(1)]);
+
+			{
+				let cores = AvailabilityCores::get();
+
+				assert!(cores[0].is_some());
+				assert!(cores[1].is_some());
+
+				assert!(Scheduler::scheduled().is_empty());
+			}
+
+			run_to_block(3, |_| None);
+
+			// now note that cores 0 and 1 were freed.
+			Scheduler::schedule(vec![
+				(CoreIndex(0), FreedReason::Concluded),
+				(CoreIndex(1), FreedReason::Concluded),
+			]);
+
+			// clear up chain_a
+			Paras::schedule_para_cleanup(chain_a);
+			assert_eq!(Paras::outgoing_paras(), vec![chain_a]);
+			assert_eq!(AvailabilityCores::get().len(), 2);
+
+			run_to_block(4, |number| match number {
+				4 => Some(SessionChangeNotification {
+					new_config: no_parathread_cores_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			assert_eq!(Paras::parachains(), vec![chain_b]);
+
+			{
+				assert_eq!(AvailabilityCores::get().len(), 1);
+
+				let scheduled = Scheduler::scheduled();
+
+				assert_eq!(scheduled.len(), 2);
+				assert_eq!(scheduled[0], CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				});
+				assert_eq!(scheduled[1], CoreAssignment {
+					core: CoreIndex(1),
+					para_id: chain_b,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(1),
+				});
+
+				assert_eq!(
+					availability_cores::<Test>(),
+					vec![primitives::v1::CoreState::Scheduled(
+						ScheduledCore{ para_id: chain_a, collator: None }
+					)]
 				);
 			}
 		});
