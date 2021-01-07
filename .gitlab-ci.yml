@@ -243,65 +243,65 @@ generate-impl-guide:
 
 #### stage:                        publish
 
-.build-push-docker-image:          &build-push-docker-image
-  <<:                              *kubernetes-env
-  <<:                              *collect-artifacts
-  image:                           quay.io/buildah/stable
-  before_script:                   &unpack-artifacts
-    - test -s ./artifacts/VERSION || exit 1
-    - test -s ./artifacts/EXTRATAG || exit 1
-    - VERSION="$(cat ./artifacts/VERSION)"
-    - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
-    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-  script:
-    - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
-        ( echo "no docker credentials provided"; exit 1 )
-    - cd ./artifacts
-    - buildah bud
-        --format=docker
-        --build-arg VCS_REF="${CI_COMMIT_SHA}"
-        --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-        --tag "$IMAGE_NAME:$VERSION"
-        --tag "$IMAGE_NAME:$EXTRATAG" .
-    - echo "$Docker_Hub_Pass_Parity" |
-      buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
-    - buildah info
-    - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
-    - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
-  after_script:
-    - buildah logout "$IMAGE_NAME"
-    # only VERSION information is needed for the deployment
-    - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
+# .build-push-docker-image:          &build-push-docker-image
+#   <<:                              *kubernetes-env
+#   <<:                              *collect-artifacts
+#   image:                           quay.io/buildah/stable
+#   before_script:                   &unpack-artifacts
+#     - test -s ./artifacts/VERSION || exit 1
+#     - test -s ./artifacts/EXTRATAG || exit 1
+#     - VERSION="$(cat ./artifacts/VERSION)"
+#     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
+#     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+#   script:
+#     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
+#         ( echo "no docker credentials provided"; exit 1 )
+#     - cd ./artifacts
+#     - buildah bud
+#         --format=docker
+#         --build-arg VCS_REF="${CI_COMMIT_SHA}"
+#         --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+#         --tag "$IMAGE_NAME:$VERSION"
+#         --tag "$IMAGE_NAME:$EXTRATAG" .
+#     - echo "$Docker_Hub_Pass_Parity" |
+#       buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
+#     - buildah info
+#     - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
+#     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
+#   after_script:
+#     - buildah logout "$IMAGE_NAME"
+#     # only VERSION information is needed for the deployment
+#     - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
 
-publish-docker-polkadot:
-  stage:                           publish
-  <<:                              *build-push-docker-image
-  # Don't run on releases - this is handled by the Github Action here:
-  # .github/workflows/publish-docker-release.yml
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-  needs:
-    - job:                         build-linux-release
-      artifacts:                   true
-  variables:
-    GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
-    IMAGE_NAME:                    docker.io/parity/polkadot
+# publish-docker-polkadot:
+#   stage:                           publish
+#   <<:                              *build-push-docker-image
+#   # Don't run on releases - this is handled by the Github Action here:
+#   # .github/workflows/publish-docker-release.yml
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "web"
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#     - if: $CI_COMMIT_REF_NAME == "master"
+#   needs:
+#     - job:                         build-linux-release
+#       artifacts:                   true
+#   variables:
+#     GIT_STRATEGY:                  none
+#     # DOCKERFILE:                  scripts/docker/Dockerfile
+#     IMAGE_NAME:                    docker.io/parity/polkadot
 
-publish-docker-rococo:
-  stage:                           build
-  <<:                              *build-push-docker-image
-  rules:
-    - if: $PIPELIN3 == "rococo"
-  # needs:
-  #   - job:                         build-linux-rococo
-  #     artifacts:                   true
-  variables:
-    GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
-    IMAGE_NAME:                    docker.io/parity/rococo
+# publish-docker-rococo:
+#   stage:                           build
+#   <<:                              *build-push-docker-image
+#   rules:
+#     - if: $PIPELIN3 == "rococo"
+#   # needs:
+#   #   - job:                         build-linux-rococo
+#   #     artifacts:                   true
+#   variables:
+#     GIT_STRATEGY:                  none
+#     # DOCKERFILE:                  scripts/docker/Dockerfile
+#     IMAGE_NAME:                    docker.io/parity/rococo
 
 publish-s3-release:
   stage:                           publish
