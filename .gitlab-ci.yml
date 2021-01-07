@@ -219,7 +219,7 @@ build-linux-release:               &build-linux
 
 build-linux-rococo:
   <<:                              *build-linux
-  stage:                           build
+  stage:                           test
   rules:
     - if: $PIPELINE == "rococo"
   script:
@@ -290,7 +290,7 @@ publish-docker-polkadot:           &build-push-docker-image
 
 publish-docker-rococo:
   <<:                              *build-push-docker-image
-  stage:                           publish
+  stage:                           build
   rules:
     - if: $PIPELINE == "rococo"
   needs:
