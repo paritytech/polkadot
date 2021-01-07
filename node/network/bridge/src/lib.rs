@@ -80,12 +80,28 @@ pub enum WireMessage<M> {
 	ViewUpdate(View),
 }
 
-/// Information about the notifications protocol. Should be used during network configuration
-/// or shortly after startup to register the protocol with the network service.
-pub fn notifications_protocol_info() -> Vec<std::borrow::Cow<'static, str>> {
+/// Information about the extra peers set. Should be used during network configuration
+/// to register the protocol with the network service.
+pub fn peers_sets_info() -> Vec<sc_network::config::NonDefaultSetConfig> {
 	vec![
-		VALIDATION_PROTOCOL_NAME.into(),
-		COLLATION_PROTOCOL_NAME.into(),
+		sc_network::config::NonDefaultSetConfig {
+			notifications_protocol: VALIDATION_PROTOCOL_NAME.into(),
+			set_config: sc_network::config::SetConfig {
+				in_peers: 25,
+				out_peers: 0,
+				reserved_nodes: Vec::new(),
+				non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+			},
+		},
+		sc_network::config::NonDefaultSetConfig {
+			notifications_protocol: COLLATION_PROTOCOL_NAME.into(),
+			set_config: sc_network::config::SetConfig {
+				in_peers: 25,
+				out_peers: 0,
+				reserved_nodes: Vec::new(),
+				non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+			},
+		}
 	]
 }
 
@@ -202,7 +218,7 @@ impl<N, AD> NetworkBridge<N, AD> {
 	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
-	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
+	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
 	pub fn new(network_service: N, authority_discovery_service: AD) -> Self {
 		NetworkBridge {
 			network_service,
@@ -300,7 +316,9 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 			tracing::info!(target: LOG_TARGET, "Shutting down Network Bridge: underlying event stream concluded");
 			Action::Abort
 		}
-		Some(NetworkEvent::Dht(_)) => Action::Nop,
+		Some(NetworkEvent::Dht(_)) |
+		Some(NetworkEvent::SyncConnected { .. }) |
+		Some(NetworkEvent::SyncDisconnected { .. }) => Action::Nop,
 		Some(NetworkEvent::NotificationStreamOpened { remote, protocol, role }) => {
 			let role = role.into();
 			match protocol {
@@ -755,6 +773,7 @@ mod tests {
 	use futures::channel::mpsc;
 	use futures::executor;
 
+	use std::borrow::Cow;
 	use std::sync::Arc;
 	use std::collections::HashSet;
 	use async_trait::async_trait;
@@ -829,11 +848,11 @@ mod tests {
 
 	#[async_trait]
 	impl validator_discovery::Network for TestNetwork {
-		async fn add_to_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 
-		async fn remove_from_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 	}
