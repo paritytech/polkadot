@@ -58,20 +58,35 @@ default:
     - cargo --version
     - sccache -s
 
-.build-refs:                       &build-refs
+.rules-build:                      &rules-build
   rules:
+    # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
+    # build job so that publish-docker-rococo would "needs" build-linux-rococo job. This leads
+    # either to blocked or to forever running pipeline. It was decided to run these jobs from UI
+    # and on schedule.
+    #
+    # $PIPELINE should be passed in https://gitlab.parity.io/parity/polkadot/-/pipeline_schedules
+    # or other trigger to avoid running these jobs.
+    - if: $PIPELINE == "rococo"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
-.test-refs:                        &test-refs
+.rules-test:                       &rules-test
+  # these jobs run always*
   rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $PIPELINE == "rococo"
+      when: never
+    - when: always
+
+.pr-only:                          &rules-pr-only
+  # these jobs run only on PRs
+  rules:
+    - if: $PIPELINE == "rococo"
+      when: never
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 #### stage:                        test
 
@@ -79,8 +94,7 @@ check-runtime:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *rules-pr-only
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -92,8 +106,7 @@ check-line-width:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *rules-pr-only
   script:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
@@ -104,9 +117,9 @@ check-line-width:
 #   script:
 #     - ./scripts/gitlab/test_deterministic_wasm.sh
 
-# test-linux-stable:                 &test
+# test-linux-stable:
 #   stage:                           test
-#   <<:                              *test-refs
+#   <<:                              *rules-test
 #   <<:                              *docker-env
 #   <<:                              *compiler-info
 #   variables:
@@ -122,9 +135,9 @@ check-line-width:
 #     - ./scripts/gitlab/test_linux_stable.sh
 #     - sccache -s
 
-# check-web-wasm:                    &test
+# check-web-wasm:
 #   stage:                           test
-#   <<:                              *test-refs
+#   <<:                              *rules-test
 #   <<:                              *docker-env
 #   <<:                              *compiler-info
 #   script:
@@ -133,9 +146,9 @@ check-line-width:
 #     - ./scripts/gitlab/check_web_wasm.sh
 #     - sccache -s
 
-# check-runtime-benchmarks:          &test
+# check-runtime-benchmarks:
 #   stage:                           test
-#   <<:                              *test-refs
+#   <<:                              *rules-test
 #   <<:                              *docker-env
 #   <<:                              *compiler-info
 #   script:
@@ -160,7 +173,7 @@ build-wasm-release:
   stage:                           build
   <<:                              *collect-artifacts
   <<:                              *docker-env
-  <<:                              *build-refs
+  <<:                              *rules-build
   <<:                              *compiler-info
   script:
     - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
@@ -169,20 +182,19 @@ build-wasm-release:
     - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
     - mv ./polkadot_cli* ../../artifacts/wasm/.
 
-build-linux-release:               &build
+build-linux-release:               &build-linux
   stage:                           build
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
   rules:
-    # .test-refs with manual on PRs
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+    # .rules-test with manual on PRs
+    - if: $PIPELINE == "rococo"
+      when: never
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       when: manual
       allow_failure: true
+    - when: always
   script:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
@@ -204,12 +216,9 @@ build-linux-release:               &build
     - cp -r scripts/docker/* ./artifacts
 
 build-linux-rococo:
-  <<:                              *build
+  <<:                              *build-linux
   stage:                           build
   rules:
-    # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
-    # build job so that publish-docker-rococo would "needs" this job. This leads either to blocked
-    # or to forever running pipeline. It was decided to run these jobs from UI and on schedule.
     - if: $PIPELINE == "rococo"
   script:
     - mkdir -p ./artifacts
@@ -219,6 +228,7 @@ build-linux-rococo:
 
 generate-impl-guide:
   stage:                           build
+  # <<:                              *rules-test
   <<:                              *docker-env
   image:
     name: michaelfbryan/mdbook-docker-image:latest
@@ -241,7 +251,7 @@ publish-docker-polkadot:           &build-push-docker-image
   needs:
     - job:                         build-linux-release
       artifacts:                   true
-  <<:                              *build-refs
+  <<:                              *rules-build
   <<:                              *kubernetes-env
   <<:                              *publish-build
   image:                           quay.io/buildah/stable
@@ -250,7 +260,7 @@ publish-docker-polkadot:           &build-push-docker-image
   # .github/workflows/publish-docker-release.yml
   rules:
     - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
   variables:
     GIT_STRATEGY:                  none
@@ -296,7 +306,7 @@ publish-s3-release:
       artifacts:                   true
     - job:                         build-wasm-release
       artifacts:                   true
-  <<:                              *build-refs
+  <<:                              *rules-build
   <<:                              *kubernetes-env
   <<:                              *publish-build
   image:                           paritytech/awscli:latest
@@ -331,7 +341,7 @@ publish-s3-release:
 
 deploy-polkasync-kusama:
   stage:                           deploy
-  <<:                              *build-refs
+  <<:                              *rules-build
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
@@ -344,7 +354,6 @@ check-labels:
   stage:                           .post
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *rules-pr-only
   script:
     - ./scripts/gitlab/check_labels.sh
