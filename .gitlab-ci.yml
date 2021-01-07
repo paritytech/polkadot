@@ -273,31 +273,31 @@ generate-impl-guide:
     # only VERSION information is needed for the deployment
     - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
 
-# publish-docker-polkadot:
-#   stage:                           publish
-#   <<:                              *build-push-docker-image
-#   # Don't run on releases - this is handled by the Github Action here:
-#   # .github/workflows/publish-docker-release.yml
-#   rules:
-#     - if: $CI_PIPELINE_SOURCE == "web"
-#     - if: $CI_PIPELINE_SOURCE == "schedule"
-#     - if: $CI_COMMIT_REF_NAME == "master"
-#   needs:
-#     - job:                         build-linux-release
-#       artifacts:                   true
-#   variables:
-#     GIT_STRATEGY:                  none
-#     # DOCKERFILE:                  scripts/docker/Dockerfile
-#     IMAGE_NAME:                    docker.io/parity/polkadot
+publish-docker-polkadot:
+  stage:                           publish
+  <<:                              *build-push-docker-image
+  # Don't run on releases - this is handled by the Github Action here:
+  # .github/workflows/publish-docker-release.yml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $PIPELIN3 != "rococo"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+  variables:
+    GIT_STRATEGY:                  none
+    # DOCKERFILE:                  scripts/docker/Dockerfile
+    IMAGE_NAME:                    docker.io/parity/polkadot
 
 publish-docker-rococo:
   stage:                           publish
   <<:                              *build-push-docker-image
   rules:
     - if: $PIPELIN3 == "rococo"
-  # needs:
-  #   - job:                         build-linux-rococo
-  #     artifacts:                   true
+  needs:
+    - job:                         build-linux-rococo
+      artifacts:                   true
   variables:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
