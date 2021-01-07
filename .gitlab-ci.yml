@@ -114,9 +114,8 @@ default:
 build-linux-rococo:
   stage:                           test
   <<:                              *build-linux
-  only:
-    variables:
-      - $PIPELIN3 == "rococo"
+  rules:
+    - if: $PIPELIN3 == "rococo"
   script:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
