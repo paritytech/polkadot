@@ -293,18 +293,18 @@ publish-docker-polkadot:
     # DOCKERFILE:                  scripts/docker/Dockerfile
     IMAGE_NAME:                    docker.io/parity/polkadot
 
-publish-docker-rococo:
-  stage:                           build
-  <<:                              *build-push-docker-image
-  rules:
-    - if: $PIPELINE == "rococo"
-  # needs:
-  #   - job:                         build-linux-rococo
-  #     artifacts:                   true
-  variables:
-    GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
-    IMAGE_NAME:                    docker.io/parity/rococo
+# publish-docker-rococo:
+#   stage:                           build
+#   <<:                              *build-push-docker-image
+#   rules:
+#     - if: $PIPELINE == "rococo"
+#   # needs:
+#   #   - job:                         build-linux-rococo
+#   #     artifacts:                   true
+#   variables:
+#     GIT_STRATEGY:                  none
+#     # DOCKERFILE:                  scripts/docker/Dockerfile
+#     IMAGE_NAME:                    docker.io/parity/rococo
 
 publish-s3-release:
   stage:                           publish
