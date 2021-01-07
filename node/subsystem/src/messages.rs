@@ -206,7 +206,7 @@ pub enum NetworkBridgeMessage {
 	/// Send a batch of validation messages.
 	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
 
-	/// Send a batcn of collation messages.
+	/// Send a batch of collation messages.
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Connect to peers who represent the given `validator_ids`.
