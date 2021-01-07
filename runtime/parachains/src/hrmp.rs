@@ -429,19 +429,24 @@ impl<T: Config> Module<T> {
 		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
 		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&outgoing_para);
 
-		// close all channels where the outgoing para acts as the recipient.
-		for sender in <Self as Store>::HrmpIngressChannelsIndex::take(&outgoing_para) {
-			Self::close_hrmp_channel(&HrmpChannelId {
+		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(&outgoing_para)
+			.into_iter()
+			.map(|sender| HrmpChannelId {
 				sender,
 				recipient: outgoing_para.clone(),
 			});
-		}
-		// close all channels where the outgoing para acts as the sender.
-		for recipient in <Self as Store>::HrmpEgressChannelsIndex::take(&outgoing_para) {
-			Self::close_hrmp_channel(&HrmpChannelId {
+		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(&outgoing_para)
+			.into_iter()
+			.map(|recipient| HrmpChannelId {
 				sender: outgoing_para.clone(),
 				recipient,
 			});
+		let mut to_close = ingress.chain(egress).collect::<Vec<_>>();
+		to_close.sort();
+		to_close.dedup();
+
+		for channel in to_close {
+			Self::close_hrmp_channel(&channel);
 		}
 	}
 
@@ -553,30 +558,31 @@ impl<T: Config> Module<T> {
 		for condemned_ch_id in close_reqs {
 			<Self as Store>::HrmpCloseChannelRequests::remove(&condemned_ch_id);
 			Self::close_hrmp_channel(&condemned_ch_id);
-
-			// clean up the indexes.
-			<Self as Store>::HrmpEgressChannelsIndex::mutate(&condemned_ch_id.sender, |v| {
-				if let Ok(i) = v.binary_search(&condemned_ch_id.recipient) {
-					v.remove(i);
-				}
-			});
-			<Self as Store>::HrmpIngressChannelsIndex::mutate(&condemned_ch_id.recipient, |v| {
-				if let Ok(i) = v.binary_search(&condemned_ch_id.sender) {
-					v.remove(i);
-				}
-			});
 		}
 	}
 
 	/// Close and remove the designated HRMP channel.
 	///
-	/// This includes returning the deposits. However, it doesn't include updating the ingress/egress
-	/// indicies.
+	/// This includes returning the deposits.
+	///
+	/// This function is indempotent, meaning that after the first application it should have no
+	/// effect (i.e. it won't return the deposits twice).
 	fn close_hrmp_channel(channel_id: &HrmpChannelId) {
 		// TODO: return deposit https://github.com/paritytech/polkadot/issues/1907
 
 		<Self as Store>::HrmpChannels::remove(channel_id);
 		<Self as Store>::HrmpChannelContents::remove(channel_id);
+
+		<Self as Store>::HrmpEgressChannelsIndex::mutate(&channel_id.sender, |v| {
+			if let Ok(i) = v.binary_search(&channel_id.recipient) {
+				v.remove(i);
+			}
+		});
+		<Self as Store>::HrmpIngressChannelsIndex::mutate(&channel_id.recipient, |v| {
+			if let Ok(i) = v.binary_search(&channel_id.sender) {
+				v.remove(i);
+			}
+		});
 	}
 
 	/// Check that the candidate of the given recipient controls the HRMP watermark properly.

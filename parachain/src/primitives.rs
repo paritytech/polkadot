@@ -231,7 +231,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 /// that we use the first item tuple for the sender and the second for the recipient. Only one channel
 /// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
 /// identified by `(A, B)`.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
 	/// The para that acts as the sender in this channel.
