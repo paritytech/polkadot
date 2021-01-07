@@ -315,7 +315,7 @@ impl PartialOrd for ChunkPruningRecord {
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	inner: Arc<dyn KeyValueDB>,
-	chunks_cache: Option<HashMap<CandidateHash, HashMap<u32, ErasureChunk>>>,
+	chunks_cache: HashMap<CandidateHash, HashMap<u32, ErasureChunk>>,
 	metrics: Metrics,
 }
 
@@ -337,9 +337,7 @@ impl AvailabilityStoreSubsystem {
 		for record in pov_pruning.drain(..outdated_records_count) {
 			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
 
-			if let Some(ref mut cache) = self.chunks_cache {
-				cache.remove(&record.candidate_hash);
-			}
+			self.chunks_cache.remove(&record.candidate_hash);
 			tx.delete(
 				columns::DATA,
 				available_data_key(&record.candidate_hash).as_slice(),
@@ -353,7 +351,7 @@ impl AvailabilityStoreSubsystem {
 
 	// Perform pruning of chunks.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn prune_chunks(&self) -> Result<(), Error> {
+	fn prune_chunks(&mut self) -> Result<(), Error> {
 		let _timer = self.metrics.time_prune_chunks();
 
 		let mut tx = DBTransaction::new();
@@ -367,6 +365,8 @@ impl AvailabilityStoreSubsystem {
 
 		for record in chunk_pruning.drain(..outdated_records_count) {
 			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
+
+			self.chunks_cache.remove(&record.candidate_hash);
 			tx.delete(
 				columns::DATA,
 				erasure_chunk_key(&record.candidate_hash, record.chunk_index).as_slice(),
@@ -473,7 +473,7 @@ impl AvailabilityStoreSubsystem {
 		Ok(Self {
 			pruning_config: PruningConfig::default(),
 			inner: Arc::new(db),
-			chunks_cache: Some(HashMap::new()),
+			chunks_cache: HashMap::new(),
 			metrics,
 		})
 	}
@@ -483,10 +483,7 @@ impl AvailabilityStoreSubsystem {
 		Self {
 			pruning_config,
 			inner,
-			// In testing we would want to test actual deletions from DB,
-			// the values in the cache will prevent that so here cache size is
-			// set to `0`.
-			chunks_cache: None,
+			chunks_cache: HashMap::new(),
 			metrics: Metrics(None),
 		}
 	}
@@ -659,10 +656,8 @@ where
 		}
 	}
 
-	if let Some(ref mut cache) = subsystem.chunks_cache {
-		for included in &included {
-			cache.remove(&included);
-		}
+	for included in &included {
+		subsystem.chunks_cache.remove(&included);
 	}
 
 	if let Some(mut pov_pruning) = pov_pruning(db) {
@@ -997,9 +992,7 @@ fn store_chunks(
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
 
 	for chunk in chunks {
-		if let Some(ref mut cache) = subsystem.chunks_cache {
-			cache.entry(*candidate_hash).or_default().insert(chunk.index, chunk.clone());
-		}
+		subsystem.chunks_cache.entry(*candidate_hash).or_default().insert(chunk.index, chunk.clone());
 
 		let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
 		if let Some(delay) = prune_at.as_duration() {
@@ -1051,11 +1044,9 @@ fn get_chunk(
 ) -> Result<Option<ErasureChunk>, Error> {
 	let _timer = subsystem.metrics.time_get_chunk();
 
-	if let Some(ref cache) = subsystem.chunks_cache {
-		if let Some(entry) = cache.get(candidate_hash) {
-			if let Some(chunk) = entry.get(&index) {
-				return Ok(Some(chunk.clone()));
-			}
+	if let Some(entry) = subsystem.chunks_cache.get(candidate_hash) {
+		if let Some(chunk) = entry.get(&index) {
+			return Ok(Some(chunk.clone()));
 		}
 	}
 
