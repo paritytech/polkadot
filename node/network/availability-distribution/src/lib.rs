@@ -757,11 +757,9 @@ where
 
 	drop(span);
 	// gossip that message to interested peers
-	{
-		let mut batch = Vec::new();
-		add_tracked_messages_to_batch(&mut batch, candidate_entry, metrics, peers, iter::once(message));
-		send_batch_to_network(ctx, batch).await;
-	}
+	let mut batch = Vec::new();
+	add_tracked_messages_to_batch(&mut batch, candidate_entry, metrics, peers, iter::once(message));
+	send_batch_to_network(ctx, batch).await;
 
 	Ok(())
 }
