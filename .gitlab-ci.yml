@@ -243,19 +243,16 @@ generate-impl-guide:
 
 #### stage:                        publish
 
-.unpack-artifacts:                 &unpack-artifacts
-  - test -s ./artifacts/VERSION || exit 1
-  - test -s ./artifacts/EXTRATAG || exit 1
-  - VERSION="$(cat ./artifacts/VERSION)"
-  - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
-  - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-
 .build-push-docker-image:          &build-push-docker-image
   <<:                              *kubernetes-env
   <<:                              *collect-artifacts
   image:                           quay.io/buildah/stable
-  before_script:
-    - *unpack-artifacts
+  before_script:                   &unpack-artifacts
+    - test -s ./artifacts/VERSION || exit 1
+    - test -s ./artifacts/EXTRATAG || exit 1
+    - VERSION="$(cat ./artifacts/VERSION)"
+    - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
+    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
   script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
         ( echo "no docker credentials provided"; exit 1 )
