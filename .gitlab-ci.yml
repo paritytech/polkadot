@@ -201,45 +201,45 @@ check-line-width:
 #     - git fetch origin release
 #   script: "scripts/gitlab/check_extrinsics_ordering.sh"
 
-# build-wasm-release:
-#   stage:                           build
-#   <<:                              *collect-artifacts
-#   <<:                              *docker-env
-#   <<:                              *rules-build
-#   <<:                              *compiler-info
-#   script:
-#     - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
-#     - mkdir -p ./artifacts/wasm
-#     - cd ./cli/wasm/
-#     - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
-#     - mv ./polkadot_cli* ../../artifacts/wasm/.
+build-wasm-release:
+  stage:                           build
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *rules-build
+  <<:                              *compiler-info
+  script:
+    - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
+    - mkdir -p ./artifacts/wasm
+    - cd ./cli/wasm/
+    - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
+    - mv ./polkadot_cli* ../../artifacts/wasm/.
 
-# build-linux-release:
-#   stage:                           build
-#   <<:                              *build-linux
-#   rules:
-#     # .rules-test with manual on PRs
-#     - if: $PIPELIN3 == "rococo"
-#       when: never
-#     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-#       when: manual
-#       allow_failure: true
-#     - when: always
-#   script:
-#     - mkdir -p ./artifacts
-#     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-#     - time cargo build --release --verbose
-#     - sccache -s
+build-linux-release:
+  stage:                           build
+  <<:                              *build-linux
+  rules:
+    # .rules-test with manual on PRs
+    - if: $PIPELIN3 == "rococo"
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      when: manual
+      allow_failure: true
+    - when: always
+  script:
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - time cargo build --release --verbose
+    - sccache -s
 
-# generate-impl-guide:
-#   stage:                           build
-#   <<:                              *rules-test
-#   <<:                              *docker-env
-#   image:
-#     name: michaelfbryan/mdbook-docker-image:latest
-#     entrypoint: [""]
-#   script:
-#     - mdbook build roadmap/implementers-guide
+generate-impl-guide:
+  stage:                           build
+  <<:                              *rules-test
+  <<:                              *docker-env
+  image:
+    name: michaelfbryan/mdbook-docker-image:latest
+    entrypoint: [""]
+  script:
+    - mdbook build roadmap/implementers-guide
 
 # #### stage:                        publish
 
