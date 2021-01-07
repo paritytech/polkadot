@@ -30,11 +30,12 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 };
 use polkadot_primitives::v1::{
-	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header
+	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
+	CandidateReceipt, CoreIndex, GroupIndex,
 };
 use polkadot_node_primitives::approval::{
 	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
-	BlockApprovalMeta,
+	BlockApprovalMeta, RelayVRFStory,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
@@ -50,6 +51,7 @@ use std::time::{Duration, SystemTime};
 use std::sync::Arc;
 
 use aux_schema::{TrancheEntry, ApprovalEntry, CandidateEntry, BlockEntry};
+use criteria::OurAssignment;
 
 mod aux_schema;
 mod criteria;
@@ -334,6 +336,212 @@ async fn determine_new_blocks(
 	Ok(ancestry)
 }
 
+// When inspecting a new import notification, updates the session info cache to match
+// the session of the imported block.
+//
+// this only needs to be called on heads where we are directly notified about import, as sessions do
+// not change often and import notifications are expected to be typically increasing in session number.
+//
+// some backwards drift in session index is acceptable.
+async fn cache_session_info_for_head(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl AuxStore>,
+	block_hash: Hash,
+	block_header: &Header,
+) -> SubsystemResult<()> {
+	let session_index = {
+		let (s_tx, s_rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			block_header.parent_hash,
+			RuntimeApiRequest::SessionIndexForChild(s_tx),
+		).into()).await;
+
+		match s_rx.await {
+			Ok(Ok(s)) => s,
+			Ok(Err(_)) => return Ok(()),
+			Err(_) => return Ok(()),
+		}
+	};
+
+	if session_index >= state.earliest_session {
+		// Update the window of sessions.
+		if session_index > state.latest_session() {
+			let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
+			let old_window_end = state.latest_session();
+			tracing::info!(
+				target: LOG_TARGET, "Moving approval window from session {}..={} to {}..={}",
+				state.earliest_session, old_window_end,
+				window_start, session_index,
+			);
+
+			// keep some of the old window, if applicable.
+			let old_window_start = std::mem::replace(&mut state.earliest_session, window_start);
+			let overlap_start = session_index - old_window_end;
+			state.session_info.drain(..overlap_start as usize);
+
+			// load the end of the window.
+			for i in state.session_info.len() as SessionIndex + window_start ..= session_index {
+				let (tx, rx)= oneshot::channel();
+				ctx.send_message(RuntimeApiMessage::Request(
+					block_hash,
+					RuntimeApiRequest::SessionInfo(i, tx),
+				).into()).await;
+
+				let session_info = match rx.await {
+					Ok(Ok(Some(s))) => s,
+					Ok(Ok(None)) => unimplemented!(), // indicates a runtime error.
+					Ok(Err(_)) => unimplemented!(), // TODO [now]: what to do if unavailable?
+					Err(_) => unimplemented!(),
+				};
+
+				state.session_info.push(session_info);
+			}
+		}
+	}
+
+	Ok(())
+}
+
+struct ImportedBlockInfo {
+	included_candidates: Vec<(CandidateHash, CandidateReceipt, CoreIndex, GroupIndex)>,
+	session_index: SessionIndex,
+	assignments: HashMap<CoreIndex, OurAssignment>,
+	n_validators: usize,
+	relay_vrf_story: RelayVRFStory,
+	slot: SlotNumber,
+}
+
+// Computes information about the imported block. Returns `None` if the info couldn't be extracted -
+// failure to communicate with overseer,
+async fn imported_block_info(
+	ctx: &mut impl SubsystemContext,
+	state: &'_ State<impl AuxStore>,
+	block_hash: Hash,
+	block_header: &Header,
+) -> SubsystemResult<Option<ImportedBlockInfo>> {
+	// Ignore any runtime API errors - that means these blocks are old and finalized.
+	// Only unfinalized blocks factor into the approval voting process.
+
+	// fetch candidates
+	let included_candidates: Vec<_> = {
+		let (c_tx, c_rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			block_hash,
+			RuntimeApiRequest::CandidateEvents(c_tx),
+		).into()).await;
+
+		let events: Vec<CandidateEvent> = match c_rx.await {
+			Ok(Ok(events)) => events,
+			Ok(Err(_)) => return Ok(None),
+			Err(_) => return Ok(None),
+		};
+
+		events.into_iter().filter_map(|e| match e {
+			CandidateEvent::CandidateIncluded(receipt, _, core, group)
+				=> Some((receipt.hash(), receipt, core, group)),
+			_ => None,
+		}).collect()
+	};
+
+	// fetch session. ignore blocks that are too old, but unless sessions are really
+	// short, that shouldn't happen.
+	let session_index = {
+		let (s_tx, s_rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			block_header.parent_hash,
+			RuntimeApiRequest::SessionIndexForChild(s_tx),
+		).into()).await;
+
+		let session_index = match s_rx.await {
+			Ok(Ok(s)) => s,
+			Ok(Err(_)) => return Ok(None),
+			Err(_) => return Ok(None),
+		};
+
+		if session_index < state.earliest_session {
+			tracing::debug!(target: LOG_TARGET, "Block {} is from ancient session {}. Skipping",
+				block_hash, session_index);
+
+			return Ok(None);
+		}
+
+		session_index
+	};
+
+	let babe_epoch = {
+		let (s_tx, s_rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			block_hash,
+			RuntimeApiRequest::CurrentBabeEpoch(s_tx),
+		).into()).await;
+
+		match s_rx.await {
+			Ok(Ok(s)) => s,
+			Ok(Err(_)) => return Ok(None),
+			Err(_) => return Ok(None),
+		}
+	};
+
+	let session_info = match state.session_info(session_index) {
+		Some(s) => s,
+		None => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Session info unavailable for block {}",
+				block_hash,
+			);
+
+			return Ok(None);
+		}
+	};
+
+	let (assignments, slot, relay_vrf_story) = {
+		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
+
+		match unsafe_vrf {
+			Some(unsafe_vrf) => {
+				let slot = unsafe_vrf.slot_number();
+
+				match unsafe_vrf.compute_randomness(
+					&babe_epoch.authorities,
+					&babe_epoch.randomness,
+					babe_epoch.epoch_index,
+				) {
+					Ok(relay_vrf) => {
+						let assignments = criteria::compute_assignments(
+							&state.keystore,
+							relay_vrf.clone(),
+							session_info,
+							included_candidates.iter().map(|(_, _, core, _)| *core),
+						);
+
+						(assignments, slot, relay_vrf)
+					},
+					Err(_) => return Ok(None),
+				}
+			}
+			None => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"BABE VRF info unavailable for block {}",
+					block_hash,
+				);
+
+				return Ok(None);
+			}
+		}
+	};
+
+	Ok(Some(ImportedBlockInfo {
+		included_candidates,
+		session_index,
+		assignments,
+		n_validators: session_info.validators.len(),
+		relay_vrf_story,
+		slot,
+	}))
+}
+
 async fn handle_new_head(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
@@ -342,58 +550,7 @@ async fn handle_new_head(
 	// Update session info based on most recent head.
 	let header: Header = unimplemented!();
 
-	{
-
-		let session_index = {
-			let (s_tx, s_rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				header.parent_hash,
-				RuntimeApiRequest::SessionIndexForChild(s_tx),
-			).into()).await;
-
-			match s_rx.await {
-				Ok(Ok(s)) => s,
-				Ok(Err(_)) => return Ok(()),
-				Err(_) => return Ok(()),
-			}
-		};
-
-		if session_index >= state.earliest_session {
-			// Update the window of sessions.
-			if session_index > state.latest_session() {
-				let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
-				let old_window_end = state.latest_session();
-				tracing::info!(
-					target: LOG_TARGET, "Moving approval window from session {}..={} to {}..={}",
-					state.earliest_session, old_window_end,
-					window_start, session_index,
-				);
-
-				// keep some of the old window, if applicable.
-				let old_window_start = std::mem::replace(&mut state.earliest_session, window_start);
-				let overlap_start = session_index - old_window_end;
-				state.session_info.drain(..overlap_start as usize);
-
-				// load the end of the window.
-				for i in state.session_info.len() as SessionIndex + window_start ..= session_index {
-					let (tx, rx)= oneshot::channel();
-					ctx.send_message(RuntimeApiMessage::Request(
-						head,
-						RuntimeApiRequest::SessionInfo(i, tx),
-					).into()).await;
-
-					let session_info = match rx.await {
-						Ok(Ok(Some(s))) => s,
-						Ok(Ok(None)) => unimplemented!(), // indicates a runtime error.
-						Ok(Err(_)) => unimplemented!(), // TODO [now]: what to do if unavailable?
-						Err(_) => unimplemented!(),
-					};
-
-					state.session_info.push(session_info);
-				}
-			}
-		}
-	}
+	cache_session_info_for_head(ctx, state, head, &header).await?;
 
 	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
@@ -403,120 +560,18 @@ async fn handle_new_head(
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
 	for (block_hash, block_header) in new_blocks.into_iter().rev() {
-		// Ignore any runtime API errors - that means these blocks are old and finalized.
-		// Only unfinalized blocks factor into the approval voting process.
-
-		// fetch candidates
-		let included_candidates: Vec<_> = {
-			let (c_tx, c_rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				block_hash,
-				RuntimeApiRequest::CandidateEvents(c_tx),
-			).into()).await;
-
-			let events: Vec<CandidateEvent> = match c_rx.await {
-				Ok(Ok(events)) => events,
-				Ok(Err(_)) => continue,
-				Err(_) => continue,
-			};
-
-			events.into_iter().filter_map(|e| match e {
-				CandidateEvent::CandidateIncluded(receipt, _, core, group)
-					=> Some((receipt.hash(), receipt, core, group)),
-				_ => None,
-			}).collect()
+		let ImportedBlockInfo {
+			included_candidates,
+			session_index,
+			assignments,
+			n_validators,
+			relay_vrf_story,
+			slot,
+		} = match imported_block_info(ctx, &*state, block_hash, &block_header).await? {
+			Some(i) => i,
+			None => continue,
 		};
 
-		// fetch session. ignore blocks that are too old, but unless sessions are really
-		// short, that shouldn't happen.
-		let session_index = {
-			let (s_tx, s_rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				block_header.parent_hash,
-				RuntimeApiRequest::SessionIndexForChild(s_tx),
-			).into()).await;
-
-			let session_index = match s_rx.await {
-				Ok(Ok(s)) => s,
-				Ok(Err(_)) => continue,
-				Err(_) => continue,
-			};
-
-			if session_index < state.earliest_session {
-				tracing::debug!(target: LOG_TARGET, "Block {} is from ancient session {}. Skipping",
-					block_hash, session_index);
-
-				continue;
-			}
-
-			session_index
-		};
-
-		let babe_epoch = {
-			let (s_tx, s_rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				block_hash,
-				RuntimeApiRequest::CurrentBabeEpoch(s_tx),
-			).into()).await;
-
-			match s_rx.await {
-				Ok(Ok(s)) => s,
-				Ok(Err(_)) => continue,
-				Err(_) => continue,
-			}
-		};
-
-		let session_info = match state.session_info(session_index) {
-			Some(s) => s,
-			None => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Session info unavailable for block {}",
-					block_hash,
-				);
-
-				continue;
-			}
-		};
-
-		let (assignments, slot, relay_vrf) = {
-			let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
-
-			match unsafe_vrf {
-				Some(unsafe_vrf) => {
-					let slot = unsafe_vrf.slot_number();
-
-					match unsafe_vrf.compute_randomness(
-						&babe_epoch.authorities,
-						&babe_epoch.randomness,
-						babe_epoch.epoch_index,
-					) {
-						Ok(relay_vrf) => {
-							let assignments = criteria::compute_assignments(
-								&state.keystore,
-								relay_vrf.clone(),
-								session_info,
-								included_candidates.iter().map(|(_, _, core, _)| *core),
-							);
-
-							(assignments, slot, relay_vrf)
-						},
-						Err(_) => continue,
-					}
-				}
-				_None=> {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"BABE VRF info unavailable for block {}",
-						block_hash,
-					);
-
-					continue;
-				}
-			}
-		};
-
-		let n_validators = session_info.validators.len();
 		aux_schema::add_block_entry(
 			&*state.db,
 			block_header.parent_hash,
@@ -525,7 +580,7 @@ async fn handle_new_head(
 				block_hash: block_hash,
 				session: session_index,
 				slot,
-				relay_vrf_story: relay_vrf,
+				relay_vrf_story,
 				candidates: included_candidates.iter()
 					.map(|(hash, _, core, _)| (*core, *hash)).collect(),
 				approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
