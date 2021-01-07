@@ -18,9 +18,10 @@
 
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::borrow::Cow;
+use strum::{EnumIter, IntoEnumIterator};
 
 /// The peer-sets and thus the protocols which are used for the network.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
 pub enum PeerSet {
 	/// The validation peer-set is responsible for all messages related to candidate validation and communication among validators.
 	Validation,
@@ -88,4 +89,12 @@ impl PeerSet {
 			_ => None,
 		}
 	}
+}
+
+/// Get `NonDefaultSetConfig`s for all available peer sets.
+///
+/// Should be used during network configuration (added to [`NetworkConfiguration::extra_sets`])
+/// or shortly after startup to register the protocols with the network service.
+pub fn peer_sets_info() -> Vec<sc_network::config::NonDefaultSetConfig> {
+	PeerSet::iter().map(PeerSet::get_info).collect()
 }
