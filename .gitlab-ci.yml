@@ -283,8 +283,8 @@ publish-docker-polkadot:           &build-push-docker-image
 publish-docker-rococo:
   <<:                              *build-push-docker-image
   stage:                           build
-  rules:
-    - if: $IMAGE == "rococo"
+  # rules:
+  #   - if: $IMAGE == "rococo"
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
