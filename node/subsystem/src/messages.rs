@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
 use polkadot_node_primitives::{
-	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
+	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
@@ -39,6 +39,7 @@ use polkadot_primitives::v1::{
 	ValidationCode, ValidatorId, ValidationData, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
+use polkadot_statement_table::v1::Misbehavior;
 use std::{sync::Arc, collections::btree_map::BTreeMap};
 
 /// Subsystem messages where each message is always bound to a relay parent.
@@ -495,7 +496,7 @@ pub enum ProvisionableData {
 	/// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
 	BackedCandidate(CandidateReceipt),
 	/// Misbehavior reports are self-contained proofs of validator misbehavior.
-	MisbehaviorReport(Hash, MisbehaviorReport),
+	MisbehaviorReport(Hash, Misbehavior),
 	/// Disputes trigger a broad dispute resolution process.
 	Dispute(Hash, ValidatorSignature),
 }

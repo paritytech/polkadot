@@ -111,6 +111,17 @@ pub enum DoubleSign<Candidate, Digest, Signature> {
 	Invalidity(Digest, Signature, Signature),
 }
 
+impl<Candidate, Digest, Signature> DoubleSign<Candidate, Digest, Signature> {
+	/// Get the pair of contradicting signatures, regardless of what precisely was signed.
+	pub fn contradiction(&self) -> (&Signature, &Signature) {
+		match self {
+			Self::Candidate(_, a, b) => (a, b),
+			Self::Validity(_, a, b) => (a, b),
+			Self::Invalidity(_, a, b) => (a, b),
+		}
+	}
+}
+
 /// Misbehavior: declaring multiple candidates.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct MultipleCandidates<Candidate, Signature> {
@@ -435,12 +446,14 @@ impl<Ctx: Context> Table<Ctx> {
 		&self.detected_misbehavior
 	}
 
-	/// Create a draining iterator of misbehaviors for a particular authority.
+	/// Create a draining iterator of misbehaviors.
 	///
-	/// This removes them from the list of misbehaviors for that authority, even if the iterator
-	/// was not fully consumed.
-	pub fn drain_misbehaviors_for(&mut self, authority: Ctx::AuthorityId) -> std::vec::Drain<'_, MisbehaviorFor<Ctx>> {
-		self.detected_misbehavior.entry(authority).or_default().drain(..)
+	/// This consumes all detected misbehaviors, even if the iterator is not completely consumed.
+	pub fn drain_misbehaviors(&mut self) -> impl '_ + Iterator<Item = MisbehaviorFor<Ctx>> {
+		self.detected_misbehavior
+			.drain()
+			.map(|(_authority, report)| report.into_iter())
+			.flatten()
 	}
 
 	/// Get the current number of parachains with includable candidates.

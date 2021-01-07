@@ -19,7 +19,6 @@
 #![deny(unused_crate_dependencies)]
 
 use std::collections::{HashMap, HashSet};
-use std::convert::TryFrom;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -34,7 +33,7 @@ use polkadot_primitives::v1::{
 	CoreState, CoreIndex, CollatorId, ValidityAttestation, CandidateCommitments,
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
+	Statement, SignedFullStatement, ValidationResult,
 };
 use polkadot_subsystem::{
 	JaegerSpan, PerLeafSpan,
@@ -60,8 +59,9 @@ use statement_table::{
 	Context as TableContextTrait,
 	Table,
 	v1::{
+		SignedStatement as TableSignedStatement,
 		Statement as TableStatement,
-		SignedStatement as TableSignedStatement, Summary as TableSummary,
+		Summary as TableSummary,
 	},
 };
 use thiserror::Error;
@@ -145,8 +145,6 @@ struct CandidateBackingJob {
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
 	backed: HashSet<CandidateHash>,
-	/// We have already reported misbehaviors for these validators.
-	reported_misbehavior_for: HashSet<ValidatorIndex>,
 	keystore: SyncCryptoStorePtr,
 	table: Table<TableContext>,
 	table_context: TableContext,
@@ -633,36 +631,17 @@ impl CandidateBackingJob {
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	///
-	/// TODO: Report multiple misbehaviors (https://github.com/paritytech/polkadot/issues/1387)
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn issue_new_misbehaviors(&mut self) -> Result<(), Error> {
-		let mut reports = Vec::new();
-
-		for (k, v) in self.table.get_misbehavior().iter() {
-			if !self.reported_misbehavior_for.contains(k) {
-				self.reported_misbehavior_for.insert(*k);
-
-				let f = FromTableMisbehavior {
-					id: *k,
-					report: v.clone(),
-					signing_context: self.table_context.signing_context.clone(),
-					key: self.table_context.validators[*k as usize].clone(),
-				};
-
-				if let Ok(report) = MisbehaviorReport::try_from(f) {
-					let message = ProvisionerMessage::ProvisionableData(
-						self.parent,
-						ProvisionableData::MisbehaviorReport(self.parent, report),
-					);
-
-					reports.push(message);
-				}
-			}
-		}
-
-		for report in reports.drain(..) {
-			self.send_to_provisioner(report).await?
+		// collect the misbehaviors to avoid double mutable self borrow issues
+		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
+		for report in misbehaviors {
+			self.send_to_provisioner(
+				ProvisionerMessage::ProvisionableData(
+					self.parent,
+					ProvisionableData::MisbehaviorReport(self.parent, report)
+				)
+			).await?
 		}
 
 		Ok(())
@@ -1056,7 +1035,6 @@ impl util::JobTrait for CandidateBackingJob {
 				seconded: None,
 				unbacked_candidates: HashMap::new(),
 				backed: HashSet::new(),
-				reported_misbehavior_for: HashSet::new(),
 				keystore,
 				table: Table::default(),
 				table_context,
@@ -1181,6 +1159,7 @@ mod tests {
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStore};
+	use statement_table::v1::Misbehavior;
 	use std::collections::HashMap;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -1930,10 +1909,11 @@ mod tests {
 						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
-							MisbehaviorReport::SelfContradiction(_, s1, s2),
+							Misbehavior::DoubleSign(double_sign), // TODO: which inner variant?
 						)
 					)
 				) if relay_parent == test_state.relay_parent => {
+					let (s1, s2) = double_sign.contradiction();
 					s1.check_signature(
 						&test_state.signing_context,
 						&test_state.validator_public[s1.validator_index() as usize],
@@ -1959,10 +1939,11 @@ mod tests {
 						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
-							MisbehaviorReport::SelfContradiction(_, s1, s2),
+							Misbehavior::DoubleSign(double_sign), // TODO: which inner variant?
 						)
 					)
 				) if relay_parent == test_state.relay_parent => {
+					let (s1, s2) = double_sign.contradiction();
 					s1.check_signature(
 						&test_state.signing_context,
 						&test_state.validator_public[s1.validator_index() as usize],
@@ -2444,6 +2425,7 @@ mod tests {
 	#[test]
 	fn candidate_backing_reorders_votes() {
 		use sp_core::Encode;
+		use std::convert::TryFrom;
 
 		let relay_parent = [1; 32].into();
 		let para_id = ParaId::from(10);
