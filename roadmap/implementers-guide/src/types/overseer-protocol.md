@@ -320,7 +320,11 @@ enum NetworkBridgeMessage {
 	/// Send a message to one or more peers on the validation peerset.
 	SendValidationMessage([PeerId], ValidationProtocolV1),
 	/// Send a message to one or more peers on the collation peerset.
-	SendCollationMessage([PeerId], ValidationProtocolV1),
+	SendCollationMessage([PeerId], CollationProtocolV1),
+	/// Send multiple validation messages.
+	SendValidationMessages([([PeerId, ValidationProtocolV1])]),
+	/// Send multiple collation messages.
+	SendCollationMessages([([PeerId, ValidationProtocolV1])]),
 	/// Connect to peers who represent the given `validator_ids`.
 	///
 	/// Also ask the network to stay connected to these peers at least

@@ -260,8 +260,8 @@ struct PeerData {
 
 #[derive(Debug)]
 enum Action {
-	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
-	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
+	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
+	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 	ConnectToValidators {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
@@ -296,9 +296,13 @@ fn action_from_overseer_message(
 		Ok(FromOverseer::Communication { msg }) => match msg {
 			NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
 			NetworkBridgeMessage::SendValidationMessage(peers, msg)
-				=> Action::SendValidationMessage(peers, msg),
+				=> Action::SendValidationMessages(vec![(peers, msg)]),
 			NetworkBridgeMessage::SendCollationMessage(peers, msg)
-				=> Action::SendCollationMessage(peers, msg),
+				=> Action::SendCollationMessages(vec![(peers, msg)]),
+			NetworkBridgeMessage::SendValidationMessages(msgs)
+				=> Action::SendValidationMessages(msgs),
+			NetworkBridgeMessage::SendCollationMessages(msgs)
+				=> Action::SendCollationMessages(msgs),
 			NetworkBridgeMessage::ConnectToValidators { validator_ids, connected }
 				=> Action::ConnectToValidators { validator_ids, connected },
 		},
@@ -623,19 +627,27 @@ where
 			Action::Nop => {}
 			Action::Abort => return Ok(()),
 
-			Action::SendValidationMessage(peers, msg) => send_message(
-					&mut network_service,
-					peers,
-					PeerSet::Validation,
-					WireMessage::ProtocolMessage(msg),
-			).await?,
+			Action::SendValidationMessages(msgs) => {
+				for (peers, msg) in msgs {
+					send_message(
+							&mut network_service,
+							peers,
+							PeerSet::Validation,
+							WireMessage::ProtocolMessage(msg),
+					).await?
+				}
+			}
 
-			Action::SendCollationMessage(peers, msg) => send_message(
-					&mut network_service,
-					peers,
-					PeerSet::Collation,
-					WireMessage::ProtocolMessage(msg),
-			).await?,
+			Action::SendCollationMessages(msgs) => {
+				for (peers, msg) in msgs {
+					send_message(
+							&mut network_service,
+							peers,
+							PeerSet::Collation,
+							WireMessage::ProtocolMessage(msg),
+					).await?
+				}
+			}
 
 			Action::ConnectToValidators {
 				validator_ids,

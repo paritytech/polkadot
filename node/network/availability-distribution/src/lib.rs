@@ -394,6 +394,7 @@ where
 	}
 
 	// handle all candidates
+	let mut messages_out = Vec::new();
 	for candidate_hash in state.cached_live_candidates_unioned(view.difference(&old_view)) {
 		// If we are not a validator for this candidate, let's skip it.
 		match state.per_candidate.get(&candidate_hash) {
@@ -475,12 +476,15 @@ where
 				.cloned()
 				.collect::<Vec<_>>();
 
-			send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await;
+			add_tracked_messages_to_batch(&mut messages_out, per_candidate, metrics, peers, iter::once(message));
 		}
 
 		// traces are better if we wait until the loop is done to drop.
 		per_candidate.drop_span_after_own_availability();
 	}
+
+	// send all batched messages out.
+	send_batch_to_network(ctx, messages_out).await;
 
 	// cleanup the removed relay parents and their states
 	old_view.difference(&view).for_each(|r| state.remove_relay_parent(r));
@@ -489,17 +493,15 @@ where
 	Ok(())
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, metrics, message_iter), fields(subsystem = LOG_TARGET))]
-async fn send_tracked_gossip_messages_to_peers<Context>(
-	ctx: &mut Context,
+// After this function is invoked, the state reflects the messages as having been sent to a peer.
+#[tracing::instrument(level = "trace", skip(batch, metrics, message_iter), fields(subsystem = LOG_TARGET))]
+fn add_tracked_messages_to_batch(
+	batch: &mut Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>,
 	per_candidate: &mut PerCandidate,
 	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
-)
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
+) {
 	for message in message_iter {
 		for peer in peers.iter() {
 			per_candidate
@@ -510,13 +512,22 @@ where
 		}
 
 		if !peers.is_empty() {
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			batch.push((
 				peers.clone(),
 				protocol_v1::ValidationProtocol::AvailabilityDistribution(message.into()),
-			).into()).await;
+			));
 
 			metrics.on_chunk_distributed();
 		}
+	}
+}
+
+async fn send_batch_to_network(
+	ctx: &mut impl SubsystemContext,
+	batch: Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>,
+) {
+	if !batch.is_empty() {
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessages(batch).into()).await
 	}
 }
 
@@ -544,6 +555,7 @@ where
 	let added_candidates = state.cached_live_candidates_unioned(added.iter());
 
 	// Send all messages we've seen before and the peer is now interested in.
+	let mut batch = Vec::new();
 	for candidate_hash in added_candidates {
 		let per_candidate = match state.per_candidate.get_mut(&candidate_hash) {
 			Some(p) => p,
@@ -564,8 +576,10 @@ where
 			.cloned()
 			.collect::<HashSet<_>>();
 
-		send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![origin.clone()], messages).await;
+		add_tracked_messages_to_batch(&mut batch, per_candidate, metrics, vec![origin.clone()], messages);
 	}
+
+	send_batch_to_network(ctx, batch).await;
 }
 
 /// Obtain the first key which has a signing key.
@@ -753,7 +767,9 @@ where
 
 	drop(span);
 	// gossip that message to interested peers
-	send_tracked_gossip_messages_to_peers(ctx, candidate_entry, metrics, peers, iter::once(message)).await;
+	let mut batch = Vec::new();
+	add_tracked_messages_to_batch(&mut batch, candidate_entry, metrics, peers, iter::once(message));
+	send_batch_to_network(ctx, batch).await;
 
 	Ok(())
 }

@@ -203,6 +203,12 @@ pub enum NetworkBridgeMessage {
 	/// Send a message to one or more peers on the collation peer-set.
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
+	/// Send a batch of validation messages.
+	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
+
+	/// Send a batch of collation messages.
+	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
+
 	/// Connect to peers who represent the given `validator_ids`.
 	///
 	/// Also ask the network to stay connected to these peers at least
@@ -225,6 +231,8 @@ impl NetworkBridgeMessage {
 			Self::ReportPeer(_, _) => None,
 			Self::SendValidationMessage(_, _) => None,
 			Self::SendCollationMessage(_, _) => None,
+			Self::SendValidationMessages(_) => None,
+			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
 		}
 	}

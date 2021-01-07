@@ -372,28 +372,32 @@ fn derive_erasure_chunks_with_proofs(
 
 async fn expect_chunks_network_message(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
-	peers: &[PeerId],
+	peers: &[Vec<PeerId>],
 	candidates: &[CandidateHash],
 	chunks: &[ErasureChunk],
 ) {
-	for _ in 0..chunks.len() {
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
-					send_peers,
+	if chunks.is_empty() { return }
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendValidationMessages(msgs)
+		) => {
+			assert_eq!(msgs.len(), chunks.len());
+			for (send_peers, msg) in msgs {
+				assert_matches!(
+					msg,
 					protocol_v1::ValidationProtocol::AvailabilityDistribution(
-						protocol_v1::AvailabilityDistributionMessage::Chunk(send_candidate, send_chunk),
-					),
-				)
-			) => {
-				assert!(candidates.contains(&send_candidate), format!("Could not find candidate: {:?}", send_candidate));
-				assert!(chunks.iter().any(|c| c == &send_chunk), format!("Could not find chunk: {:?}", send_chunk));
-				assert_eq!(peers.len(), send_peers.len());
-				assert!(peers.iter().all(|p| send_peers.contains(p)));
+						protocol_v1::AvailabilityDistributionMessage::Chunk(send_candidate, send_chunk)
+					) => {
+						let i = chunks.iter().position(|c| c == &send_chunk).unwrap();
+						assert!(candidates.contains(&send_candidate), format!("Could not find candidate: {:?}", send_candidate));
+						assert_eq!(&peers[i], &send_peers);
+					}
+				);
 			}
-		);
-	}
+		}
+	)
 }
 
 async fn change_our_view(
@@ -464,6 +468,9 @@ async fn change_our_view(
 		);
 	}
 
+	let mut send_peers = Vec::new();
+	let mut send_chunks = Vec::new();
+	let mut candidates = Vec::new();
 	for _ in 0..data_availability.len() {
 		let (available, candidate_hash) = assert_matches!(
 			overseer_recv(virtual_overseer).await,
@@ -485,6 +492,7 @@ async fn change_our_view(
 			continue;
 		}
 
+		candidates.push(candidate_hash);
 		if let Some((pov, persisted)) = chunk_data_per_candidate.get(&candidate_hash) {
 			let chunks = make_erasure_chunks(persisted.clone(), validator_public.len(), pov.clone());
 
@@ -506,11 +514,15 @@ async fn change_our_view(
 				);
 
 				if let Some(peers) = send_chunks_to.get(&candidate_hash) {
-					expect_chunks_network_message(virtual_overseer, &peers, &[candidate_hash], &[chunk]).await;
+					send_peers.push(peers.clone());
+					send_chunks.push(chunk);
 				}
 			}
+
 		}
 	}
+
+	expect_chunks_network_message(virtual_overseer, &send_peers, &candidates, &send_chunks).await;
 }
 
 async fn setup_peer_with_view(
@@ -725,17 +737,19 @@ fn reputation_verification() {
 			// Both peers send us this chunk already
 			chunks.remove(2);
 
-			expect_chunks_network_message(&mut virtual_overseer, &[peer_a.clone()], &[candidates[0].hash()], &chunks).await;
+			let send_peers = chunks.iter().map(|_| vec![peer_a.clone()]).collect::<Vec<_>>();
+			expect_chunks_network_message(&mut virtual_overseer, &send_peers, &[candidates[0].hash()], &chunks).await;
 
 			overseer_send(&mut virtual_overseer, NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![current])).await;
 
-			expect_chunks_network_message(&mut virtual_overseer, &[peer_b.clone()], &[candidates[0].hash()], &chunks).await;
+			let send_peers = chunks.iter().map(|_| vec![peer_b.clone()]).collect::<Vec<_>>();
+			expect_chunks_network_message(&mut virtual_overseer, &send_peers, &[candidates[0].hash()], &chunks).await;
 
 			peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			expect_chunks_network_message(
 				&mut virtual_overseer,
-				&[peer_b.clone()],
+				&[vec![peer_b.clone()]],
 				&[candidates[1].hash()],
 				&[valid.erasure_chunk.clone()],
 			).await;
@@ -901,9 +915,10 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 			validator_public.len(),
 			pov_blocks[0].clone(),
 		);
+		let send_peers = chunks.iter().map(|_| vec![peer_a.clone()]).collect::<Vec<_>>();
 		expect_chunks_network_message(
 			&mut virtual_overseer,
-			&[peer_a],
+			&send_peers,
 			&[candidates[0].hash()],
 			&chunks,
 		).await;
@@ -1253,9 +1268,11 @@ fn new_peer_gets_all_chunks_send() {
 
 		chunks.push(valid.erasure_chunk);
 
+		let send_peers = chunks.iter().map(|_| vec![peer_a.clone()]).collect::<Vec<_>>();
+
 		expect_chunks_network_message(
 			&mut virtual_overseer,
-			&[peer_a],
+			&send_peers,
 			&[candidates[0].hash(), candidates[1].hash()],
 			&chunks,
 		).await;
