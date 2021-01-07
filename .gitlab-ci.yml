@@ -344,23 +344,23 @@ publish-s3-release:
     - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
 
-#### stage:                        deploy
+# #### stage:                        deploy
 
-deploy-polkasync-kusama:
-  stage:                           deploy
-  <<:                              *rules-build
-  variables:
-    POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
-    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
-  allow_failure:                   true
-  trigger:                         "parity/infrastructure/parity-testnet"
+# deploy-polkasync-kusama:
+#   stage:                           deploy
+#   <<:                              *rules-build
+#   variables:
+#     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
+#     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
+#   allow_failure:                   true
+#   trigger:                         "parity/infrastructure/parity-testnet"
 
-#### stage:                        .post
+# #### stage:                        .post
 
-check-labels:
-  stage:                           .post
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
-  script:
-    - ./scripts/gitlab/check_labels.sh
+# check-labels:
+#   stage:                           .post
+#   image:                           paritytech/tools:latest
+#   <<:                              *kubernetes-env
+#   <<:                              *rules-pr-only
+#   script:
+#     - ./scripts/gitlab/check_labels.sh
