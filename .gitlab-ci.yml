@@ -281,9 +281,9 @@ publish-docker-rococo:
   stage:                           build
   # rules:
   #   - if: $IMAGE == "rococo"
-  # needs:
-  #   - job:                         build-linux-rococo
-  #     artifacts:                   true
+  needs:
+    - job:                         build-linux-rococo
+      artifacts:                   true
   variables:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
