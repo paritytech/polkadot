@@ -435,6 +435,14 @@ impl<Ctx: Context> Table<Ctx> {
 		&self.detected_misbehavior
 	}
 
+	/// Create a draining iterator of misbehaviors for a particular authority.
+	///
+	/// This removes them from the list of misbehaviors for that authority, even if the iterator
+	/// was not fully consumed.
+	pub fn drain_misbehaviors_for(&mut self, authority: Ctx::AuthorityId) -> std::vec::Drain<'_, MisbehaviorFor<Ctx>> {
+		self.detected_misbehavior.entry(authority).or_default().drain(..)
+	}
+
 	/// Get the current number of parachains with includable candidates.
 	pub fn includable_count(&self) -> usize {
 		self.includable_count.len()
