@@ -49,7 +49,6 @@ default:
       - unknown_failure
       - api_failure
   interruptible:                   true
-  dependencies:                    []
   tags:
     - linux-docker
 
