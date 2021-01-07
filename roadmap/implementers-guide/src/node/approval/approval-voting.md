@@ -219,7 +219,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * If so, set `n_tranches = tranches_to_approve(approval_entry, tranche_now(block.slot, now()))`.
     * If `check_approval(block_entry, candidate_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
 
-#### `tranches_to_approve(approval_entry, tranche_now) -> RequiredTranches`
+#### `tranches_to_approve(approval_entry, approvals, tranche_now, block_tick, no_show_duration, needed_approvals) -> RequiredTranches`
 
 ```rust
 enum RequiredTranches {
@@ -233,7 +233,6 @@ enum RequiredTranches {
 }
 ```
 
-  * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry.
   * Ignore all tranches beyond `tranche_now`.
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
     * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take another non-empty tranche for each no-show, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
@@ -267,7 +266,7 @@ enum RequiredTranches {
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
 
-#### `launch_approval(SessionIndex, CandidateReceipt, ValidatorIndex, block_hash, candidate_index)`:
+#### `launch_approval(SessionIndex, SessionInfo, CandidateReceipt, ValidatorIndex, block_hash, candidate_index)`:
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, response_sender)`
   * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::HistoricalValidationCode(`descriptor.para_id`, `descriptor.relay_parent`)` against the state of `block_hash`.
