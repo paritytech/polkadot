@@ -184,7 +184,7 @@ impl JaegerSpan {
 		}
 	}
 
-	/// Adds the `FollowsFrom` relation ship to this span in respect to the given one.
+	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
 			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
