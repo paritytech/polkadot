@@ -293,7 +293,7 @@ pub type ImportResult<Ctx> = Result<
 /// Stores votes
 pub struct Table<Ctx: Context> {
 	authority_data: HashMap<Ctx::AuthorityId, AuthorityData<Ctx>>,
-	detected_misbehavior: HashMap<Ctx::AuthorityId, MisbehaviorFor<Ctx>>,
+	detected_misbehavior: HashMap<Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>>,
 	candidate_votes: HashMap<Ctx::Digest, CandidateData<Ctx>>,
 	includable_count: HashMap<Ctx::GroupId, usize>,
 }
@@ -416,8 +416,8 @@ impl<Ctx: Context> Table<Ctx> {
 			Ok(maybe_summary) => maybe_summary,
 			Err(misbehavior) => {
 				// all misbehavior in agreement is provable and actively malicious.
-				// punishments are not cumulative.
-				self.detected_misbehavior.insert(signer, misbehavior);
+				// punishments may be cumulative.
+				self.detected_misbehavior.entry(signer).or_default().push(misbehavior);
 				None
 			}
 		}
@@ -430,7 +430,7 @@ impl<Ctx: Context> Table<Ctx> {
 
 	/// Access all witnessed misbehavior.
 	pub fn get_misbehavior(&self)
-		-> &HashMap<Ctx::AuthorityId, MisbehaviorFor<Ctx>>
+		-> &HashMap<Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>>
 	{
 		&self.detected_misbehavior
 	}
@@ -723,8 +723,8 @@ mod tests {
 
 		table.import_statement(&context, statement_b);
 		assert_eq!(
-			table.detected_misbehavior.get(&AuthorityId(1)).unwrap(),
-			&Misbehavior::MultipleCandidates(MultipleCandidates {
+			table.detected_misbehavior[&AuthorityId(1)][0],
+			Misbehavior::MultipleCandidates(MultipleCandidates {
 				first: (Candidate(2, 100), Signature(1)),
 				second: (Candidate(2, 999), Signature(1)),
 			})
@@ -751,8 +751,8 @@ mod tests {
 		table.import_statement(&context, statement);
 
 		assert_eq!(
-			table.detected_misbehavior.get(&AuthorityId(1)).unwrap(),
-			&Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
+			table.detected_misbehavior[&AuthorityId(1)][0],
+			Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
 				statement: SignedStatement {
 					statement: Statement::Candidate(Candidate(2, 100)),
 					signature: Signature(1),
@@ -795,8 +795,8 @@ mod tests {
 		table.import_statement(&context, bad_validity_vote);
 
 		assert_eq!(
-			table.detected_misbehavior.get(&AuthorityId(2)).unwrap(),
-			&Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
+			table.detected_misbehavior[&AuthorityId(2)][0],
+			Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
 				statement: SignedStatement {
 					statement: Statement::Valid(candidate_a_digest),
 					signature: Signature(2),
@@ -846,8 +846,8 @@ mod tests {
 		table.import_statement(&context, invalid_statement);
 
 		assert_eq!(
-			table.detected_misbehavior.get(&AuthorityId(2)).unwrap(),
-			&Misbehavior::ValidityDoubleVote(ValidityDoubleVote::ValidityAndInvalidity(
+			table.detected_misbehavior[&AuthorityId(2)][0],
+			Misbehavior::ValidityDoubleVote(ValidityDoubleVote::ValidityAndInvalidity(
 				Candidate(2, 100),
 				Signature(2),
 				Signature(2),
@@ -980,8 +980,8 @@ mod tests {
 
 		table.import_statement(&context, extra_vote);
 		assert_eq!(
-			table.detected_misbehavior.get(&AuthorityId(1)).unwrap(),
-			&Misbehavior::ValidityDoubleVote(ValidityDoubleVote::IssuedAndValidity(
+			table.detected_misbehavior[&AuthorityId(1)][0],
+			Misbehavior::ValidityDoubleVote(ValidityDoubleVote::IssuedAndValidity(
 				(Candidate(2, 100), Signature(1)),
 				(Digest(100), Signature(1)),
 			))
