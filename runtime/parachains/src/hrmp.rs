@@ -538,6 +538,8 @@ impl<T: Config> Module<T> {
 
 					let _ = open_req_channels.swap_remove(idx);
 					<Self as Store>::HrmpOpenChannelRequests::remove(&channel_id);
+				} else {
+					<Self as Store>::HrmpOpenChannelRequests::insert(&channel_id, request);
 				}
 			}
 		}
