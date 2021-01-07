@@ -226,7 +226,6 @@ decl_storage! {
 		/// The entries are sorted ascending by the para id.
 		OutgoingParas: Vec<ParaId>;
 
-
 		/// The set of pending HRMP open channel requests.
 		///
 		/// The set is accompanied by a list for iteration.
@@ -280,7 +279,7 @@ decl_storage! {
 		// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 		// the format will require migration of parachains.
 		HrmpEgressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
-	
+
 		/// Storage for the messages for each channel.
 		/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
 		HrmpChannelContents: map hasher(twox_64_concat) HrmpChannelId => Vec<InboundHrmpMessage<T::BlockNumber>>;
@@ -423,7 +422,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Remove all storage entries associated with the given para.
-	pub(super) fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
+	fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
 		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&outgoing_para);
 
@@ -447,7 +446,7 @@ impl<T: Config> Module<T> {
 	///
 	/// - prune the stale requests
 	/// - enact the confirmed requests
-	pub(super) fn process_hrmp_open_channel_requests(config: &HostConfiguration<T::BlockNumber>) {
+	fn process_hrmp_open_channel_requests(config: &HostConfiguration<T::BlockNumber>) {
 		let mut open_req_channels = <Self as Store>::HrmpOpenChannelRequestsList::get();
 		if open_req_channels.is_empty() {
 			return;
@@ -528,7 +527,6 @@ impl<T: Config> Module<T> {
 				request.age += 1;
 				if request.age == config.hrmp_open_request_ttl {
 					// got stale
-
 					<Self as Store>::HrmpOpenChannelRequestCount::mutate(&channel_id.sender, |v| {
 						*v -= 1;
 					});
@@ -545,7 +543,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Iterate over all close channel requests unconditionally closing the channels.
-	pub(super) fn process_hrmp_close_channel_requests() {
+	fn process_hrmp_close_channel_requests() {
 		let close_reqs = <Self as Store>::HrmpCloseChannelRequestsList::take();
 		for condemned_ch_id in close_reqs {
 			<Self as Store>::HrmpCloseChannelRequests::remove(&condemned_ch_id);
@@ -569,7 +567,7 @@ impl<T: Config> Module<T> {
 	///
 	/// This includes returning the deposits. However, it doesn't include updating the ingress/egress
 	/// indicies.
-	pub(super) fn close_hrmp_channel(channel_id: &HrmpChannelId) {
+	fn close_hrmp_channel(channel_id: &HrmpChannelId) {
 		// TODO: return deposit https://github.com/paritytech/polkadot/issues/1907
 
 		<Self as Store>::HrmpChannels::remove(channel_id);
@@ -936,9 +934,8 @@ impl<T: Config> Module<T> {
 
 	/// Accept a pending open channel request from the given sender.
 	///
-	/// Basically the same as [`hrmp_accept_open_channel`](Module::hrmp_accept_open_channel) but intendend for calling directly from
-	/// other pallets rather than dispatched.
-	pub fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
+	/// Basically the same as [`hrmp_accept_open_channel`](Module::hrmp_accept_open_channel) but
+	/// intendend for calling directly from other pallets rather than dispatched.
 		let channel_id = HrmpChannelId {
 			sender,
 			recipient: origin,
