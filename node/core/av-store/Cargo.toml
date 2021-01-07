@@ -21,6 +21,7 @@ polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+lru = "0.6.3"
 
 [dev-dependencies]
 log = "0.4.11"

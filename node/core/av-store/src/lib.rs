@@ -29,6 +29,7 @@ use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 use parity_scale_codec::{Encode, Decode};
 use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
 use futures_timer::Delay;
+use lru::LruCache;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
@@ -46,6 +47,8 @@ use polkadot_subsystem::messages::{
 };
 
 const LOG_TARGET: &str = "availability";
+
+const CHUNK_CACHE_SIZE: usize = 32;
 
 mod columns {
 	pub const DATA: u32 = 0;
@@ -315,6 +318,7 @@ impl PartialOrd for ChunkPruningRecord {
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	inner: Arc<dyn KeyValueDB>,
+	chunks_cache: LruCache<(CandidateHash, u32), ErasureChunk>,
 	metrics: Metrics,
 }
 
@@ -468,6 +472,7 @@ impl AvailabilityStoreSubsystem {
 		Ok(Self {
 			pruning_config: PruningConfig::default(),
 			inner: Arc::new(db),
+			chunks_cache: LruCache::new(CHUNK_CACHE_SIZE),
 			metrics,
 		})
 	}
@@ -477,6 +482,10 @@ impl AvailabilityStoreSubsystem {
 		Self {
 			pruning_config,
 			inner,
+			// In testing we would want to test actual deletions from DB,
+			// the values in the cache will prevent that so here cache size is
+			// set to `0`.
+			chunks_cache: LruCache::new(0),
 			metrics: Metrics(None),
 		}
 	}
@@ -975,6 +984,8 @@ fn store_chunks(
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
 
 	for chunk in chunks {
+		subsystem.chunks_cache.put((*candidate_hash, chunk.index), chunk.clone());
+
 		let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
 		if let Some(delay) = prune_at.as_duration() {
 			tx.put_vec(
@@ -1024,6 +1035,10 @@ fn get_chunk(
 	index: u32,
 ) -> Result<Option<ErasureChunk>, Error> {
 	let _timer = subsystem.metrics.time_get_chunk();
+
+	if let Some(chunk) = subsystem.chunks_cache.get(&(*candidate_hash, index)) {
+		return Ok(Some(chunk.clone()));
+	}
 
 	if let Some(chunk) = query_inner(
 		&subsystem.inner,
