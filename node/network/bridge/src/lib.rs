@@ -42,6 +42,11 @@ use polkadot_node_network_protocol::{
 	ObservedRole, ReputationChange, PeerId, peer_set::PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1, OurView,
 };
 
+/// Peer set infos for network initialization.
+///
+/// To be added to [`NetworkConfiguration::extra_sets`].
+pub use polkadot_node_network_protocol::peer_set::peer_sets_info;
+
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::pin::Pin;
