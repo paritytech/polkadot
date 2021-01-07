@@ -44,6 +44,7 @@ use sp_consensus_babe::Epoch as BabeEpoch;
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
+use bitvec::vec::BitVec;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use std::collections::{BTreeMap, HashMap};
@@ -674,7 +675,7 @@ fn check_approval(
 
 fn tranches_to_approve(
 	approval_entry: &ApprovalEntry,
-	candidate_entry: &CandidateEntry,
+	approvals: &BitVec<BitOrderLsb0, u8>,
 	tranche_now: DelayTranche,
 	block_tick: Tick,
 	no_show_duration: Tick,
@@ -745,7 +746,7 @@ fn tranches_to_approve(
 			// after a fixed duration.
 			let no_shows = tranche.assignments.iter().filter(|(v_index, tick)| {
 				tick + no_show_duration >= tick_now
-					&& *candidate_entry.approvals.get(*v_index as usize).unwrap_or(&true)
+					&& *approvals.get(*v_index as usize).unwrap_or(&true)
 			}).count();
 
 			*state = Some(match s {
@@ -758,9 +759,12 @@ fn tranches_to_approve(
 							// as we will return `RequiredTranches::Exact`.
 							State::InitialCount(total_assignments, 0)
 						} else {
+							// We reached our desired assignment count, but had no-shows.
+							// Begin covering them.
 							State::CoverNoShows(total_assignments, 0, no_shows, 0)
 						}
 					} else {
+						// Keep counting
 						State::InitialCount(total_assignments, no_shows)
 					}
 				}
@@ -824,17 +828,88 @@ async fn process_wakeup(
 		_ => return Ok(()),
 	};
 
-	let mut approval_entry = match candidate_entry.block_assignments.get_mut(&relay_block) {
-		Some(e) => e,
-		None => return Ok(()),
-	};
-
 	let session_info = match state.session_info(block_entry.session) {
 		Some(i) => i,
 		None => return Ok(()), // TODO [now]: log?
 	};
 
-	// TODO [now]: determine required tranches, broadcast own assignment, and schedule next wakeup.
+	let should_broadcast = {
+		let approval_entry = match candidate_entry.block_assignments.get(&relay_block) {
+			Some(e) => e,
+			None => return Ok(()),
+		};
+
+		let tranches_to_approve = tranches_to_approve(
+			&approval_entry,
+			&candidate_entry.approvals,
+			tranche_now(state.slot_duration_millis, block_entry.slot),
+			slot_number_to_tick(state.slot_duration_millis, block_entry.slot),
+			slot_number_to_tick(state.slot_duration_millis, session_info.no_show_slots as _),
+			session_info.needed_approvals as _,
+		);
+
+		match approval_entry.our_assignment {
+			None => false,
+			Some(ref assignment) if assignment.triggered() => false,
+			Some(ref assignment) => {
+				match tranches_to_approve {
+					RequiredTranches::All => check_approval(
+						&block_entry,
+						&candidate_entry,
+						&approval_entry,
+						RequiredTranches::All,
+					),
+					RequiredTranches::Pending(max) => assignment.tranche() <= max,
+					RequiredTranches::Exact(_, _) => {
+						// indicates that no new assignments are needed at the moment.
+						false
+					}
+				}
+			}
+		}
+	};
+
+	let maybe_cert = if should_broadcast {
+		let maybe_cert = {
+			let approval_entry = candidate_entry.block_assignments.get_mut(&relay_block)
+				.expect("should_broadcast only true if this fetched earlier; qed");
+
+			approval_entry.trigger_our_assignment(tick_now())
+		};
+
+		aux_schema::write_candidate_entry(&*state.db, &candidate_hash, &candidate_entry)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+		maybe_cert
+	} else {
+		None
+	};
+
+	if let Some((cert, val_index)) = maybe_cert {
+		let indirect_cert = IndirectAssignmentCert {
+			block_hash: relay_block,
+			validator: val_index,
+			cert,
+		};
+
+		let index_in_candidate = block_entry.candidates.iter()
+			.position(|(_, h)| &candidate_hash == h);
+
+		if let Some(i) = index_in_candidate {
+			// sanity: should always be present.
+			ctx.send_message(
+				ApprovalDistributionMessage::DistributeAssignment(indirect_cert, i as u32).into()
+			).await;
+		}
+	}
+
+	// TODO [now]: schedule a new wakeup. launch approval work.
 
 	Ok(())
+}
+
+async fn launch_approval(
+
+) -> SubsystemResult<()> {
+	unimplemented!()
 }

@@ -34,7 +34,7 @@
 #![allow(unused)]
 
 use sc_client_api::backend::AuxStore;
-use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory};
+use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
 	BlockNumber, Hash, CandidateHash,
@@ -69,9 +69,6 @@ pub(crate) struct TrancheEntry {
 pub(crate) struct ApprovalEntry {
 	pub tranches: Vec<TrancheEntry>,
 	pub backing_group: GroupIndex,
-	// When the next wakeup for this entry should occur. This is either to
-	// check a no-show or to check if we need to broadcast an assignment.
-	pub next_wakeup: Tick,
 	pub our_assignment: Option<OurAssignment>,
 	// `n_validators` bits.
 	pub assignments: BitVec<BitOrderLsb0, u8>,
@@ -79,6 +76,45 @@ pub(crate) struct ApprovalEntry {
 }
 
 impl ApprovalEntry {
+	// Note that our assignment is triggered. No-op if already triggered.
+	pub(crate) fn trigger_our_assignment(&mut self, tick_now: Tick)
+		-> Option<(AssignmentCert, ValidatorIndex)>
+	{
+		let tranches = &mut self.tranches;
+		let assignments = &mut self.assignments;
+		self.our_assignment.as_mut().and_then(|a| {
+			if a.triggered() { return None }
+			a.mark_triggered();
+
+			// linear search probably faster than binary. not many tranches typically.
+			let idx = match tranches.iter().position(|t| t.tranche >= a.tranche()) {
+				Some(pos) => {
+					if tranches[pos].tranche > a.tranche() {
+						tranches.insert(pos, TrancheEntry {
+							tranche: a.tranche(),
+							assignments: Vec::new(),
+						});
+					}
+
+					pos
+				}
+				None => {
+					tranches.push(TrancheEntry {
+						tranche: a.tranche(),
+						assignments: Vec::new(),
+					});
+
+					tranches.len() - 1
+				}
+			};
+
+			tranches[idx].assignments.push((a.validator_index(), tick_now));
+			assignments.set(a.validator_index() as _, true);
+
+			Some((a.cert().clone(), a.validator_index()))
+		})
+	}
+
 	// Produce a bitvec indicating the assignments of all validators up to and
 	// including `tranche`.
 	pub(crate) fn assignments_up_to(&self, tranche: DelayTranche) -> BitVec<BitOrderLsb0, u8> {
@@ -444,7 +480,6 @@ pub(crate) fn add_block_entry(
 				ApprovalEntry {
 					tranches: Vec::new(),
 					backing_group,
-					next_wakeup: 0,
 					our_assignment,
 					assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 					approved: false,
@@ -487,6 +522,17 @@ pub(crate) fn add_block_entry(
 	store.insert_aux(&all_keys_and_values, &[])?;
 
 	Ok(())
+}
+
+/// Write a candidate entry to the store.
+pub(crate) fn write_candidate_entry(store: &impl AuxStore, candidate_hash: &CandidateHash, entry: &CandidateEntry)
+	-> sp_blockchain::Result<()>
+{
+	let k = candidate_entry_key(candidate_hash);
+	let v = entry.encode();
+	let kv = (&k[..], &v[..]);
+
+	store.insert_aux(std::iter::once(&kv), &[])
 }
 
 /// Load the stored-blocks key from the state.
