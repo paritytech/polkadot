@@ -61,14 +61,14 @@ default:
 .build-refs:                       &build-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 .test-refs:                        &test-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
@@ -177,7 +177,7 @@ build-linux-release:               &build
   rules:
     # .test-refs with manual on PRs
     - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
@@ -205,12 +205,12 @@ build-linux-release:               &build
 
 build-linux-rococo:
   <<:                              *build
-  stage:                           test
+  stage:                           build
   rules:
     # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
     # build job so that publish-docker-rococo would "needs" this job. This leads either to blocked
     # or to forever running pipeline. It was decided to run these jobs from UI and on schedule.
-    - if: $IMAGE == "rococo"
+    - if: $PIPELINE == "rococo"
   script:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
@@ -250,7 +250,7 @@ publish-docker-polkadot:           &build-push-docker-image
   # .github/workflows/publish-docker-release.yml
   rules:
     - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $PIPELINE == "nightly" && $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
   variables:
     GIT_STRATEGY:                  none
@@ -278,9 +278,9 @@ publish-docker-polkadot:           &build-push-docker-image
 
 publish-docker-rococo:
   <<:                              *build-push-docker-image
-  stage:                           build
-  # rules:
-  #   - if: $IMAGE == "rococo"
+  stage:                           publish
+  rules:
+    - if: $PIPELINE == "rococo"
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
