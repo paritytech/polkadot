@@ -84,6 +84,7 @@ check-runtime:
   <<:                              *kubernetes-env
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $IMAGE == "rococo"
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -101,50 +102,50 @@ check-line-width:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
 
-test-deterministic-wasm:
-  stage:                           test
-  <<:                              *docker-env
-  script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
+# test-deterministic-wasm:
+#   stage:                           test
+#   <<:                              *docker-env
+#   script:
+#     - ./scripts/gitlab/test_deterministic_wasm.sh
 
-test-linux-stable:                 &test
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  variables:
-    RUST_TOOLCHAIN: stable
-    # Enable debug assertions since we are running optimized builds for testing
-    # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
-    TARGET: native
-  artifacts:
-    paths:
-      - ./target/release/polkadot
-  script:
-    - ./scripts/gitlab/test_linux_stable.sh
-    - sccache -s
+# test-linux-stable:                 &test
+#   stage:                           test
+#   <<:                              *test-refs
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   variables:
+#     RUST_TOOLCHAIN: stable
+#     # Enable debug assertions since we are running optimized builds for testing
+#     # but still want to have debug assertions.
+#     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+#     TARGET: native
+#   artifacts:
+#     paths:
+#       - ./target/release/polkadot
+#   script:
+#     - ./scripts/gitlab/test_linux_stable.sh
+#     - sccache -s
 
-check-web-wasm:                    &test
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # WASM support is in progress. As more and more crates support WASM, we
-    # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
-    - sccache -s
+# check-web-wasm:                    &test
+#   stage:                           test
+#   <<:                              *test-refs
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     # WASM support is in progress. As more and more crates support WASM, we
+#     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
+#     - ./scripts/gitlab/check_web_wasm.sh
+#     - sccache -s
 
-check-runtime-benchmarks:          &test
-  stage:                           test
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - ./scripts/gitlab/check_runtime_benchmarks.sh
-    - sccache -s
+# check-runtime-benchmarks:          &test
+#   stage:                           test
+#   <<:                              *test-refs
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     # Check that the node will compile with `runtime-benchmarks` feature flag.
+#     - ./scripts/gitlab/check_runtime_benchmarks.sh
+#     - sccache -s
 
 #### stage:                        build
 
@@ -214,7 +215,7 @@ build-linux-rococo:
     # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
     # build job so that publish-docker-rococo would "needs" this job. This leads either to blocked
     # or to forever running pipeline. It was decided to run these jobs from UI and on schedule.
-    - if: $IMAGE_NAME == "rococo"
+    - if: $IMAGE == "rococo"
   needs:                           []
   script:
     - mkdir -p ./artifacts
@@ -286,7 +287,7 @@ publish-docker-polkadot:           &build-push-docker-image
 publish-docker-rococo:
   <<:                              *build-push-docker-image
   rules:
-    - if: $IMAGE_NAME == "rococo"
+    - if: $IMAGE == "rococo"
   needs:
     - job:                         build-linux-rococo
       artifacts:                   true
