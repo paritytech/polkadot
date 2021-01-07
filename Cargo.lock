@@ -5647,6 +5647,7 @@ dependencies = [
  "pnu-subsystem-util",
  "polkadot-primitives",
  "sc-network",
+ "sp-core",
  "streamunordered",
  "thiserror",
 ]

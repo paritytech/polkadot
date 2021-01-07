@@ -15,3 +15,6 @@ pnu-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
