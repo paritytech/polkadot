@@ -309,8 +309,6 @@ pub enum AvailabilityStoreMessage {
 		candidate_hash: CandidateHash,
 		/// A relevant relay parent.
 		relay_parent: Hash,
-		/// The index of the validator this chunk belongs to.
-		validator_index: ValidatorIndex,
 		/// The chunk itself.
 		chunk: ErasureChunk,
 		/// Sending side of the channel to send result to.

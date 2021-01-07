@@ -235,7 +235,6 @@ fn store_chunk_works() {
 		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
 			relay_parent,
-			validator_index,
 			chunk: chunk.clone(),
 			tx,
 		};
@@ -385,7 +384,6 @@ fn stored_but_not_included_chunk_is_pruned() {
 		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
 			relay_parent,
-			validator_index,
 			chunk: chunk.clone(),
 			tx,
 		};
@@ -589,7 +587,6 @@ fn stored_chunk_kept_until_finalized() {
 		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
 			relay_parent,
-			validator_index,
 			chunk: chunk.clone(),
 			tx,
 		};
