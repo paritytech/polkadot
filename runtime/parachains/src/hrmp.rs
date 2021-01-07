@@ -28,7 +28,7 @@ use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
 };
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
+use sp_runtime::traits::{UniqueSaturatedInto, AccountIdConversion, BlakeTwo256, Hash as HashT};
 use sp_std::{
 	mem, fmt,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -220,6 +220,10 @@ pub trait Config: frame_system::Config + configuration::Config + paras::Config +
 		+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
 
 	/// An interface for reserving deposits for opening channels.
+	///
+	/// NOTE that this Currency instance will be charged with the amounts defined in the `Configuration`
+	/// module. Specifically, that means that the `Balance` of the `Currency` implementation should
+	/// be the same as `Balance` as used in the `Configuration`.
 	type Currency: ReservableCurrency<Self::AccountId>;
 }
 
@@ -539,10 +543,15 @@ impl<T: Config> Module<T> {
 						*v -= 1;
 					});
 
-					// TODO: return deposit https://github.com/paritytech/polkadot/issues/1907
-
 					let _ = open_req_channels.swap_remove(idx);
-					<Self as Store>::HrmpOpenChannelRequests::remove(&channel_id);
+					if let Some(HrmpOpenChannelRequest { sender_deposit, .. }) =
+						<Self as Store>::HrmpOpenChannelRequests::take(&channel_id)
+					{
+						T::Currency::unreserve(
+							&channel_id.sender.into_account(),
+							sender_deposit.unique_saturated_into(),
+						);
+					}
 				} else {
 					<Self as Store>::HrmpOpenChannelRequests::insert(&channel_id, request);
 				}
@@ -568,9 +577,22 @@ impl<T: Config> Module<T> {
 	/// This function is indempotent, meaning that after the first application it should have no
 	/// effect (i.e. it won't return the deposits twice).
 	fn close_hrmp_channel(channel_id: &HrmpChannelId) {
-		// TODO: return deposit https://github.com/paritytech/polkadot/issues/1907
+		if let Some(HrmpChannel {
+			sender_deposit,
+			recipient_deposit,
+			..
+		}) = <Self as Store>::HrmpChannels::take(channel_id)
+		{
+			T::Currency::unreserve(
+				&channel_id.sender.into_account(),
+				sender_deposit.unique_saturated_into(),
+			);
+			T::Currency::unreserve(
+				&channel_id.recipient.into_account(),
+				recipient_deposit.unique_saturated_into(),
+			);
+		}
 
-		<Self as Store>::HrmpChannels::remove(channel_id);
 		<Self as Store>::HrmpChannelContents::remove(channel_id);
 
 		<Self as Store>::HrmpEgressChannelsIndex::mutate(&channel_id.sender, |v| {
@@ -854,7 +876,7 @@ impl<T: Config> Module<T> {
 		recipient: ParaId,
 		proposed_max_capacity: u32,
 		proposed_max_message_size: u32,
-	) -> Result<(), Error<T>> {
+	) -> DispatchResult {
 		ensure!(origin != recipient, Error::<T>::OpenHrmpChannelToSelf);
 		ensure!(
 			<paras::Module<T>>::is_valid_para(recipient),
@@ -905,7 +927,10 @@ impl<T: Config> Module<T> {
 			Error::<T>::OpenHrmpChannelLimitExceeded,
 		);
 
-		// TODO: Deposit https://github.com/paritytech/polkadot/issues/1907
+		T::Currency::reserve(
+			&origin.into_account(),
+			config.hrmp_sender_deposit.unique_saturated_into(),
+		)?;
 
 		<Self as Store>::HrmpOpenChannelRequestCount::insert(&origin, open_req_cnt + 1);
 		<Self as Store>::HrmpOpenChannelRequests::insert(
@@ -947,6 +972,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Basically the same as [`hrmp_accept_open_channel`](Module::hrmp_accept_open_channel) but
 	/// intendend for calling directly from other pallets rather than dispatched.
+	pub fn accept_open_channel(origin: ParaId, sender: ParaId) -> DispatchResult {
 		let channel_id = HrmpChannelId {
 			sender,
 			recipient: origin,
@@ -974,7 +1000,10 @@ impl<T: Config> Module<T> {
 			Error::<T>::AcceptHrmpChannelLimitExceeded,
 		);
 
-		// TODO: Deposit https://github.com/paritytech/polkadot/issues/1907
+		T::Currency::reserve(
+			&origin.into_account(),
+			config.hrmp_recipient_deposit.unique_saturated_into(),
+		)?;
 
 		// persist the updated open channel request and then increment the number of accepted
 		// channels.
