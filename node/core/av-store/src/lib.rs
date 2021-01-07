@@ -534,7 +534,7 @@ where
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })
 				) => {
-					for activated in activated.into_iter() {
+					for (activated, _span) in activated.into_iter() {
 						process_block_activated(ctx, &subsystem.inner, activated, &subsystem.metrics).await?;
 					}
 				}

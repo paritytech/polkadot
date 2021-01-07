@@ -98,11 +98,13 @@ where
 		// data to be moved into the future
 		let overseer = self.overseer.clone();
 		let parent_header_hash = parent_header.hash();
+		let parent_header = parent_header.clone();
 
 		async move {
 			Ok(Proposer {
 				inner: proposer?,
 				overseer,
+				parent_header,
 				parent_header_hash,
 			})
 		}.boxed()
@@ -116,6 +118,7 @@ where
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
 	overseer: OverseerHandler,
+	parent_header: Header,
 	parent_header_hash: Hash,
 }
 
@@ -209,9 +212,14 @@ where
 
 			drop(_span);
 
+			let inclusion_inherent_data = (
+				provisioner_data.0,
+				provisioner_data.1,
+				self.parent_header,
+			);
 			inherent_data.put_data(
 				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
-				&provisioner_data,
+				&inclusion_inherent_data,
 			)?;
 
 			let _span = span.child("authorship-propose");
