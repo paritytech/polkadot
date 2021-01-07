@@ -35,9 +35,9 @@ const LOG_TARGET: &str = "validator_discovery";
 #[async_trait]
 pub trait Network: Send + 'static {
 	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
-	async fn add_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 	/// Remove the peers from the priority group.
-	async fn remove_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	async fn remove_peers_from_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 }
 
 /// An abstraction over the authority discovery service.
@@ -51,12 +51,12 @@ pub trait AuthorityDiscovery: Send + 'static {
 
 #[async_trait]
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
-	async fn add_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::add_peers_set_reserved(&**self, protocol, multiaddresses)
+	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_peers_set_reserved(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::remove_peers_set_reserved(&**self, protocol, multiaddresses)
+	async fn remove_peers_from_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::remove_peers_from_reserved_set(&**self, protocol, multiaddresses)
 	}
 }
 
@@ -275,24 +275,24 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
-		if let Err(e) = network_service.add_peers_set_reserved(
+		if let Err(e) = network_service.add_peers_to_reserved_set(
 			super::COLLATION_PROTOCOL_NAME.into(),
 			multiaddr_to_add.clone(),
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
-		if let Err(e) = network_service.add_peers_set_reserved(
+		if let Err(e) = network_service.add_peers_to_reserved_set(
 			super::VALIDATION_PROTOCOL_NAME.into(),
 			multiaddr_to_add,
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
-		let _ = network_service.remove_peers_set_reserved(
+		let _ = network_service.remove_peers_from_reserved_set(
 			super::COLLATION_PROTOCOL_NAME.into(),
 			multiaddr_to_remove.clone()
 		).await;
-		let _ = network_service.remove_peers_set_reserved(
+		let _ = network_service.remove_peers_from_reserved_set(
 			super::VALIDATION_PROTOCOL_NAME.into(),
 			multiaddr_to_remove
 		).await;
@@ -380,12 +380,12 @@ mod tests {
 
 	#[async_trait]
 	impl Network for TestNetwork {
-		async fn add_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			self.peers_set.extend(multiaddresses.into_iter());
 			Ok(())
 		}
 
-		async fn remove_peers_set_reserved(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			self.peers_set.retain(|elem| !multiaddresses.contains(elem));
 			Ok(())
 		}
