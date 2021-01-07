@@ -51,9 +51,6 @@ struct OurAssignment {
 struct ApprovalEntry {
     tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
     backing_group: GroupIndex,
-    // When the next wakeup for this entry should occur. This is either to
-    // check a no-show or to check if we need to broadcast an assignment.
-    next_wakeup: Tick,
     our_assignment: Option<OurAssignment>,
     assignments: Bitfield, // n_validators bits
     approved: bool,
