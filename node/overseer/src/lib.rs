@@ -70,7 +70,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::{
 	poll, select,
 	future::BoxFuture,
-	stream::{self, FuturesUnordered},
+	stream::FuturesUnordered,
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use futures_timer::Delay;
@@ -112,9 +112,6 @@ const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`Overseer`]: struct.Overseer.html
 enum ToOverseer {
-	/// This is a message sent by a `Subsystem`.
-	SubsystemMessage(AllMessages),
-
 	/// A message that wraps something the `Subsystem` is desiring to
 	/// spawn on the overseer and a `oneshot::Sender` to signal the result
 	/// of the spawn.
@@ -277,9 +274,6 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 impl Debug for ToOverseer {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			ToOverseer::SubsystemMessage(msg) => {
-				write!(f, "OverseerMessage::SubsystemMessage({:?})", msg)
-			}
 			ToOverseer::SpawnJob { .. } => write!(f, "OverseerMessage::Spawn(..)"),
 			ToOverseer::SpawnBlockingJob { .. } => write!(f, "OverseerMessage::SpawnBlocking(..)")
 		}
@@ -290,7 +284,9 @@ impl Debug for ToOverseer {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M> {
-	tx: mpsc::Sender<FromOverseer<M>>,
+	tx_signal: mpsc::Sender<OverseerSignal>,
+	tx_message: mpsc::Sender<MessagePacket<M>>,
+	signals_received: usize,
 	name: &'static str,
 }
 
@@ -314,6 +310,103 @@ impl<T> From<T> for MaybeTimed<T> {
 	}
 }
 
+#[derive(Debug)]
+struct MessagePacket<T> {
+	signals_received: usize,
+	message: MaybeTimed<T>,
+}
+
+// The channels held by every subsystem to communicate with every other subsystem.
+#[derive(Debug, Clone)]
+struct ChannelsOut {
+	candidate_validation: mpsc::Sender<MessagePacket<CandidateValidationMessage>>,
+	candidate_backing: mpsc::Sender<MessagePacket<CandidateBackingMessage>>,
+	candidate_selection: mpsc::Sender<MessagePacket<CandidateSelectionMessage>>,
+	statement_distribution: mpsc::Sender<MessagePacket<StatementDistributionMessage>>,
+	availability_distribution: mpsc::Sender<MessagePacket<AvailabilityDistributionMessage>>,
+	bitfield_signing: mpsc::Sender<MessagePacket<BitfieldSigningMessage>>,
+	bitfield_distribution: mpsc::Sender<MessagePacket<BitfieldDistributionMessage>>,
+	provisioner: mpsc::Sender<MessagePacket<ProvisionerMessage>>,
+	pov_distribution: mpsc::Sender<MessagePacket<PoVDistributionMessage>>,
+	runtime_api: mpsc::Sender<MessagePacket<RuntimeApiMessage>>,
+	availability_store: mpsc::Sender<MessagePacket<AvailabilityStoreMessage>>,
+	network_bridge: mpsc::Sender<MessagePacket<NetworkBridgeMessage>>,
+	chain_api: mpsc::Sender<MessagePacket<ChainApiMessage>>,
+	collation_generation: mpsc::Sender<MessagePacket<CollationGenerationMessage>>,
+	collator_protocol: mpsc::Sender<MessagePacket<CollatorProtocolMessage>>,
+}
+
+impl ChannelsOut {
+	async fn send_and_log_error(
+		&mut self,
+		t: MaybeTimer,
+		signals_received: usize,
+		message: AllMessages,
+	) {
+		fn make_packet<T>(timer: MaybeTimer, signals_received: usize, message: T) -> MessagePacket<T> {
+			MessagePacket {
+				signals_received,
+				message: MaybeTimed { timer, t: message },
+			}
+		}
+
+		let res = match message {
+			AllMessages::CandidateValidation(msg) => {
+				self.candidate_validation.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::CandidateBacking(msg) => {
+				self.candidate_backing.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::CandidateSelection(msg) => {
+				self.candidate_selection.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::StatementDistribution(msg) => {
+				self.statement_distribution.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::AvailabilityDistribution(msg) => {
+				self.availability_distribution.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::BitfieldDistribution(msg) => {
+				self.bitfield_distribution.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::BitfieldSigning(msg) => {
+				self.bitfield_signing.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::Provisioner(msg) => {
+				self.provisioner.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::PoVDistribution(msg) => {
+				self.pov_distribution.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::RuntimeApi(msg) => {
+				self.runtime_api.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::AvailabilityStore(msg) => {
+				self.availability_store.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::NetworkBridge(msg) => {
+				self.network_bridge.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::ChainApi(msg) => {
+				self.chain_api.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::CollationGeneration(msg) => {
+				self.collation_generation.send(make_packet(t, signals_received, msg)).await
+			},
+			AllMessages::CollatorProtocol(msg) => {
+				self.collator_protocol.send(make_packet(t, signals_received, msg)).await
+			},
+		};
+
+		if res.is_err() {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Failed to send a message to another subsystem",
+			);
+		}
+	}
+}
+
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or to spawn it's [`SubsystemJob`]s.
@@ -323,8 +416,12 @@ impl<T> From<T> for MaybeTimed<T> {
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 #[derive(Debug)]
 pub struct OverseerSubsystemContext<M>{
-	rx: mpsc::Receiver<FromOverseer<M>>,
-	tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
+	signals: mpsc::Receiver<OverseerSignal>,
+	messages: mpsc::Receiver<MessagePacket<M>>,
+	to_subsystems: ChannelsOut,
+	to_overseer: mpsc::Sender<MaybeTimed<ToOverseer>>,
+	signals_received: usize,
+	pending_incoming: Option<(usize, MaybeTimed<M>)>,
 	metrics: Metrics,
 	rng: Rand32,
 	threshold: u32,
@@ -339,8 +436,10 @@ impl<M> OverseerSubsystemContext<M> {
 	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
 	/// to the range `0.0..=1.0`.
 	fn new(
-		rx: mpsc::Receiver<FromOverseer<M>>,
-		tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
+		signals: mpsc::Receiver<OverseerSignal>,
+		messages: mpsc::Receiver<MessagePacket<M>>,
+		to_subsystems: ChannelsOut,
+		to_overseer: mpsc::Sender<MaybeTimed<ToOverseer>>,
 		metrics: Metrics,
 		increment: u64,
 		mut capture_rate: f64,
@@ -354,51 +453,43 @@ impl<M> OverseerSubsystemContext<M> {
 		}
 		let threshold = (capture_rate * u32::MAX as f64) as u32;
 
-		OverseerSubsystemContext { rx, tx, metrics, rng, threshold }
+		OverseerSubsystemContext {
+			signals,
+			messages,
+			to_subsystems,
+			to_overseer,
+			signals_received: 0,
+			pending_incoming: None,
+			metrics,
+			rng,
+			threshold,
+		 }
 	}
 
 	/// Create a new `OverseserSubsystemContext` with no metering.
 	///
 	/// Intended for tests.
 	#[allow(unused)]
-	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>) -> Self {
+	fn new_unmetered(
+		signals: mpsc::Receiver<OverseerSignal>,
+		messages: mpsc::Receiver<MessagePacket<M>>,
+		to_subsystems: ChannelsOut,
+		to_overseer: mpsc::Sender<MaybeTimed<ToOverseer>>,
+	) -> Self {
 		let metrics = Metrics::default();
-		OverseerSubsystemContext::new(rx, tx, metrics, 0, 0.0)
+		OverseerSubsystemContext::new(signals, messages, to_subsystems, to_overseer, metrics, 0, 0.0)
 	}
 
-	fn maybe_timed<T>(&mut self, t: T) -> MaybeTimed<T> {
-		let timer = if self.rng.rand_u32() <= self.threshold {
+	fn maybe_timer(&mut self) -> MaybeTimer {
+		if self.rng.rand_u32() <= self.threshold {
 			self.metrics.time_message_hold()
 		} else {
 			None
-		};
-
-		MaybeTimed { timer, t }
+		}
 	}
 
-	/// Make a standalone function which can construct a `MaybeTimed` wrapper around some `T`
-	/// without borrowing `self`.
-	///
-	/// This is somewhat more expensive than `self.maybe_timed` because it must clone some stuff.
-	fn make_maybe_timed<T>(&mut self) -> impl FnMut(T) -> MaybeTimed<T> {
-		// We don't want to simply clone this RNG because we don't want to duplicate its state.
-		// It's not ever going to be used for cryptographic purposes, but it's still better to
-		// keep good habits.
-		let (seed, increment) = self.rng.state();
-		let mut rng = Rand32::new_inc(seed, increment + 1);
-
-		let metrics = self.metrics.clone();
-		let threshold = self.threshold;
-
-		move |t| {
-			let timer = if rng.rand_u32() <= threshold {
-				metrics.time_message_hold()
-			} else {
-				None
-			};
-
-			MaybeTimed { timer, t }
-		}
+	fn maybe_timed<T>(&mut self, t: T) -> MaybeTimed<T> {
+		MaybeTimed { timer: self.maybe_timer(), t }
 	}
 }
 
@@ -407,25 +498,74 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	type Message = M;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
-		match poll!(self.rx.next()) {
-			Poll::Ready(Some(msg)) => Ok(Some(msg)),
-			Poll::Ready(None) => Err(()),
+		match poll!(self.recv()) {
+			Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
 			Poll::Pending => Ok(None),
 		}
 	}
 
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
-		self.rx.next().await
-			.ok_or(SubsystemError::Context(
-				"No more messages in rx queue to process"
-				.to_owned()
-			))
+		loop {
+			// If we have a message pending an overseer signal, we only poll for signals
+			// in the meantime.
+			if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
+				if needs_signals_received <= self.signals_received {
+					return Ok(FromOverseer::Communication { msg: msg.into_inner() });
+				} else {
+					self.pending_incoming = Some((needs_signals_received, msg));
+
+					// wait for next signal.
+					let signal = self.signals.next().await
+						.ok_or(SubsystemError::Context(
+							"No more messages in rx queue to process"
+							.to_owned()
+						))?;
+
+					self.signals_received += 1;
+					return Ok(FromOverseer::Signal(signal))
+				}
+			}
+
+			let mut await_message = self.messages.next().fuse();
+			let mut await_signal = self.signals.next().fuse();
+			let signals_received = &mut self.signals_received;
+			let pending_incoming = &mut self.pending_incoming;
+
+			// Otherwise, wait for the next signal or incoming message.
+			futures::select! {
+				msg = await_message => {
+					let packet = msg
+						.ok_or(SubsystemError::Context(
+							"No more messages in rx queue to process"
+							.to_owned()
+						))?;
+
+					if packet.signals_received > *signals_received {
+						// wait until we've received enough signals to return this message.
+						*pending_incoming = Some((packet.signals_received, packet.message));
+					} else {
+						// we know enough to return this message.
+						return Ok(FromOverseer::Communication { msg: packet.message.into_inner() });
+					}
+				}
+				signal = await_signal => {
+					let signal = signal
+						.ok_or(SubsystemError::Context(
+							"No more messages in rx queue to process"
+							.to_owned()
+						))?;
+
+					*signals_received += 1;
+					return Ok(FromOverseer::Signal(signal))
+				}
+			}
+		}
 	}
 
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.send_timed(ToOverseer::SpawnJob {
+		self.send_timed_to_overseer(ToOverseer::SpawnJob {
 			name,
 			s,
 		}).await.map_err(Into::into)
@@ -434,61 +574,35 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.send_timed(ToOverseer::SpawnBlockingJob {
+		self.send_timed_to_overseer(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
 		}).await.map_err(Into::into)
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) {
-		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
+		let timer = self.maybe_timer();
+		self.to_subsystems.send_and_log_error(timer, self.signals_received, msg).await;
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
 	{
-		self.send_all_timed_or_log(msgs).await
+		// This can definitely be optimized if necessary.
+		for msg in msgs {
+			self.send_message(msg).await;
+		}
 	}
 }
 
 impl<M> OverseerSubsystemContext<M> {
-	async fn send_and_log_error(&mut self, msg: ToOverseer) {
-		if self.send_timed(msg).await.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				msg_type = std::any::type_name::<M>(),
-				"Failed to send a message to Overseer",
-			);
-		}
-	}
-
-	async fn send_timed(&mut self, msg: ToOverseer) -> Result<
+	async fn send_timed_to_overseer(&mut self, msg: ToOverseer) -> Result<
 		(),
 		<mpsc::Sender<MaybeTimed<ToOverseer>> as futures::Sink<MaybeTimed<ToOverseer>>>::Error
 	>
 	{
 		let msg = self.maybe_timed(msg);
-		self.tx.send(msg).await
-	}
-
-	async fn send_all_timed_or_log<Msg, Msgs>(&mut self, msgs: Msgs)
-	where
-		Msgs: IntoIterator<Item = Msg> + Send,
-		Msgs::IntoIter: Send,
-		Msg: Into<AllMessages> + Send,
-	{
-		let mut maybe_timed = self.make_maybe_timed();
-		let mut msgs = stream::iter(
-			msgs.into_iter()
-				.map(move |msg| Ok(maybe_timed(ToOverseer::SubsystemMessage(msg.into()))))
-		);
-		if self.tx.send_all(&mut msgs).await.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				msg_type = std::any::type_name::<M>(),
-				"Failed to send messages to Overseer",
-			);
-		}
+		self.to_overseer.send(msg).await
 	}
 }
 
@@ -511,9 +625,13 @@ impl<M> OverseenSubsystem<M> {
 		const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 
 		if let Some(ref mut instance) = self.instance {
-			match instance.tx.send(
-				FromOverseer::Communication { msg }
-			).timeout(MESSAGE_TIMEOUT).await
+			match instance.tx_message.send(MessagePacket {
+				signals_received: instance.signals_received,
+				message: MaybeTimed {
+					timer: None,
+					t: msg,
+				},
+			}).timeout(MESSAGE_TIMEOUT).await
 			{
 				None => {
 					tracing::error!(target: LOG_TARGET, "Subsystem {} appears unresponsive.", instance.name);
@@ -533,12 +651,18 @@ impl<M> OverseenSubsystem<M> {
 		const SIGNAL_TIMEOUT: Duration = Duration::from_secs(10);
 
 		if let Some(ref mut instance) = self.instance {
-			match instance.tx.send(FromOverseer::Signal(signal)).timeout(SIGNAL_TIMEOUT).await {
+			match instance.tx_signal.send(signal).timeout(SIGNAL_TIMEOUT).await {
 				None => {
 					tracing::error!(target: LOG_TARGET, "Subsystem {} appears unresponsive.", instance.name);
 					Err(SubsystemError::SubsystemStalled(instance.name))
 				}
-				Some(res) => res.map_err(Into::into),
+				Some(res) => {
+					let res = res.map_err(Into::into);
+					if res.is_ok() {
+						instance.signals_received += 1;
+					}
+					res
+				}
 			}
 		} else {
 			Ok(())
@@ -1296,140 +1420,218 @@ where
 
 		let mut seed = 0x533d; // arbitrary
 
+		let (candidate_validation_tx, candidate_validation_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (candidate_backing_tx, candidate_backing_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (candidate_selection_tx, candidate_selection_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (statement_distribution_tx, statement_distribution_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (availability_distribution_tx, availability_distribution_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (bitfield_signing_tx, bitfield_signing_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (bitfield_distribution_tx, bitfield_distribution_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (provisioner_tx, provisioner_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (pov_distribution_tx, pov_distribution_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (runtime_api_tx, runtime_api_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (availability_store_tx, availability_store_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (network_bridge_tx, network_bridge_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (chain_api_tx, chain_api_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (collator_protocol_tx, collator_protocol_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (collation_generation_tx, collation_generation_rx) = mpsc::channel(CHANNEL_CAPACITY);
+
+		let channels_out = ChannelsOut {
+			candidate_validation: candidate_validation_tx.clone(),
+			candidate_backing: candidate_backing_tx.clone(),
+			candidate_selection: candidate_selection_tx.clone(),
+			statement_distribution: statement_distribution_tx.clone(),
+			availability_distribution: availability_distribution_tx.clone(),
+			bitfield_signing: bitfield_signing_tx.clone(),
+			bitfield_distribution: bitfield_distribution_tx.clone(),
+			provisioner: provisioner_tx.clone(),
+			pov_distribution: pov_distribution_tx.clone(),
+			runtime_api: runtime_api_tx.clone(),
+			availability_store: availability_store_tx.clone(),
+			network_bridge: network_bridge_tx.clone(),
+			chain_api: chain_api_tx.clone(),
+			collator_protocol: collator_protocol_tx.clone(),
+			collation_generation: collation_generation_tx.clone(),
+		};
+
 		let candidate_validation_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			candidate_validation_tx,
+			candidate_validation_rx,
+			channels_out.clone(),
 			all_subsystems.candidate_validation,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let candidate_backing_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			candidate_backing_tx,
+			candidate_backing_rx,
+			channels_out.clone(),
 			all_subsystems.candidate_backing,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let candidate_selection_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			candidate_selection_tx,
+			candidate_selection_rx,
+			channels_out.clone(),
 			all_subsystems.candidate_selection,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let statement_distribution_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			statement_distribution_tx,
+			statement_distribution_rx,
+			channels_out.clone(),
 			all_subsystems.statement_distribution,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let availability_distribution_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			availability_distribution_tx,
+			availability_distribution_rx,
+			channels_out.clone(),
 			all_subsystems.availability_distribution,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let bitfield_signing_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			bitfield_signing_tx,
+			bitfield_signing_rx,
+			channels_out.clone(),
 			all_subsystems.bitfield_signing,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let bitfield_distribution_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			bitfield_distribution_tx,
+			bitfield_distribution_rx,
+			channels_out.clone(),
 			all_subsystems.bitfield_distribution,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let provisioner_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			provisioner_tx,
+			provisioner_rx,
+			channels_out.clone(),
 			all_subsystems.provisioner,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let pov_distribution_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			pov_distribution_tx,
+			pov_distribution_rx,
+			channels_out.clone(),
 			all_subsystems.pov_distribution,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let runtime_api_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			runtime_api_tx,
+			runtime_api_rx,
+			channels_out.clone(),
 			all_subsystems.runtime_api,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let availability_store_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			availability_store_tx,
+			availability_store_rx,
+			channels_out.clone(),
 			all_subsystems.availability_store,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let network_bridge_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			network_bridge_tx,
+			network_bridge_rx,
+			channels_out.clone(),
 			all_subsystems.network_bridge,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let chain_api_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			chain_api_tx,
+			chain_api_rx,
+			channels_out.clone(),
 			all_subsystems.chain_api,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let collation_generation_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			collation_generation_tx,
+			collation_generation_rx,
+			channels_out.clone(),
 			all_subsystems.collation_generation,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
-
 
 		let collator_protocol_subsystem = spawn(
 			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			collator_protocol_tx,
+			collator_protocol_rx,
+			channels_out.clone(),
 			all_subsystems.collator_protocol,
 			&metrics,
 			&mut seed,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
 		)?;
 
 		let leaves = leaves
@@ -1545,17 +1747,16 @@ where
 					}
 				},
 				msg = self.running_subsystems_rx.next().fuse() => {
-					let MaybeTimed { timer, t: msg } = if let Some((StreamYield::Item(msg), _)) = msg {
-						msg
-					} else {
-						continue
+					let msg = match msg {
+						Some((StreamYield::Item(msg), _)) => msg.t,
+						Some((StreamYield::Finished(finished), _)) => {
+							finished.remove(Pin::new(&mut self.running_subsystems_rx));
+							continue
+						}
+						_ => continue,
 					};
 
 					match msg {
-						ToOverseer::SubsystemMessage(msg) => {
-							let msg = MaybeTimed { timer, t: msg };
-							self.route_message(msg).await?
-						},
 						ToOverseer::SpawnJob { name, s } => {
 							self.spawn_job(name, s);
 						}
@@ -1760,15 +1961,28 @@ where
 
 fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
-	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-	streams: &mut StreamUnordered<mpsc::Receiver<MaybeTimed<ToOverseer>>>,
+	message_tx: mpsc::Sender<MessagePacket<M>>,
+	message_rx: mpsc::Receiver<MessagePacket<M>>,
+	to_subsystems: ChannelsOut,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
 	seed: &mut u64,
+	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
+	streams: &mut StreamUnordered<mpsc::Receiver<MaybeTimed<ToOverseer>>>,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
-	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
-	let (from_tx, from_rx) = mpsc::channel(CHANNEL_CAPACITY);
-	let ctx = OverseerSubsystemContext::new(to_rx, from_tx, metrics.clone(), *seed, MESSAGE_TIMER_METRIC_CAPTURE_RATE);
+	let (to_overseer_tx, to_overseer_rx) = mpsc::channel(CHANNEL_CAPACITY);
+
+	let (signal_tx, signal_rx) = mpsc::channel(CHANNEL_CAPACITY);
+	let ctx = OverseerSubsystemContext::new(
+		signal_rx,
+		message_rx,
+		to_subsystems,
+		to_overseer_tx,
+		metrics.clone(),
+		*seed,
+		MESSAGE_TIMER_METRIC_CAPTURE_RATE,
+	);
+
 	let SpawnedSubsystem { future, name } = s.start(ctx);
 
 	// increment the seed now that it's been used, so the next context will have its own distinct RNG
@@ -1787,11 +2001,13 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	spawner.spawn(name, fut);
 
-	let _ = streams.push(from_rx);
+	let _ = streams.push(to_overseer_rx);
 	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
-		tx: to_tx,
+		tx_signal: signal_tx,
+		tx_message: message_tx,
+		signals_received: 0,
 		name,
 	});
 
