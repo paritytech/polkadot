@@ -473,6 +473,7 @@ impl parachains_ump::Config for Runtime {
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_scheduler::Config for Runtime {}

@@ -435,6 +435,7 @@ mod tests {
 
 	impl hrmp::Config for Test {
 		type Origin = Origin;
+		type Currency = pallet_balances::Module<Test>;
 	}
 
 	impl pallet_session::historical::Config for Test {

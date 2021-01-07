@@ -21,8 +21,8 @@ use crate::{
 };
 use parity_scale_codec::{Decode, Encode};
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure, traits::Get, weights::Weight, StorageMap,
-	StorageValue, dispatch::DispatchResult,
+	decl_storage, decl_module, decl_error, ensure, traits::{Get, ReservableCurrency}, weights::Weight,
+	StorageMap, StorageValue, dispatch::DispatchResult,
 };
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
@@ -218,6 +218,9 @@ pub trait Config: frame_system::Config + configuration::Config + paras::Config +
 	type Origin: From<crate::Origin>
 		+ From<<Self as frame_system::Config>::Origin>
 		+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
+
+	/// An interface for reserving deposits for opening channels.
+	type Currency: ReservableCurrency<Self::AccountId>;
 }
 
 decl_storage! {
