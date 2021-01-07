@@ -57,25 +57,25 @@ const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct TrancheEntry {
-	tranche: DelayTranche,
+	pub tranche: DelayTranche,
 	// Assigned validators, and the instant we received their assignment, rounded
 	// to the nearest tick.
-	assignments: Vec<(ValidatorIndex, Tick)>,
+	pub assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct ApprovalEntry {
-	tranches: Vec<TrancheEntry>,
-	backing_group: GroupIndex,
+	pub tranches: Vec<TrancheEntry>,
+	pub backing_group: GroupIndex,
 	// When the next wakeup for this entry should occur. This is either to
 	// check a no-show or to check if we need to broadcast an assignment.
-	next_wakeup: Tick,
-	our_assignment: Option<OurAssignment>,
+	pub next_wakeup: Tick,
+	pub our_assignment: Option<OurAssignment>,
 	// `n_validators` bits.
-	assignments: BitVec<BitOrderLsb0, u8>,
-	approved: bool,
+	pub assignments: BitVec<BitOrderLsb0, u8>,
+	pub approved: bool,
 }
 
 impl ApprovalEntry {
@@ -97,12 +97,12 @@ impl ApprovalEntry {
 /// Metadata regarding approval of a particular candidate.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub(crate) struct CandidateEntry {
-	candidate: CandidateReceipt,
-	session: SessionIndex,
+	pub candidate: CandidateReceipt,
+	pub session: SessionIndex,
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
-	block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	approvals: BitVec<BitOrderLsb0, u8>,
+	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
+	pub approvals: BitVec<BitOrderLsb0, u8>,
 }
 
 impl CandidateEntry {

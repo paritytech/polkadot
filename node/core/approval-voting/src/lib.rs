@@ -596,7 +596,6 @@ async fn handle_new_head(
 					})
 			}
 		).map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
 		approval_meta.push(BlockApprovalMeta {
 			hash: block_hash,
 			number: block_header.number,
@@ -607,6 +606,9 @@ async fn handle_new_head(
 	}
 
 	ctx.send_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into()).await;
+
+	// TODO [now]: schedule wakeup for each imported block. May issue trigger of assignment and broadcast
+	// of messages, so we need to have already notified distribution about the new blocks.
 
 	Ok(())
 }
@@ -668,4 +670,171 @@ fn check_approval(
 			n_approved + no_shows >= n_assigned
 		}
 	}
+}
+
+fn tranches_to_approve(
+	approval_entry: &ApprovalEntry,
+	candidate_entry: &CandidateEntry,
+	tranche_now: DelayTranche,
+	block_tick: Tick,
+	no_show_duration: Tick,
+	needed_approvals: usize,
+) -> RequiredTranches {
+	// This function progresses through a series of states while looping over the tranches
+	// that we are aware of. First, we perform an initial count of the number of assignments
+	// until we reach the number of needed assignments for approval. As we progress, we count the
+	// number of no-shows in each tranche.
+	//
+	// Then, if there are any no-shows, we proceed into a series of subsequent states for covering
+	// no-shows.
+	//
+	// We cover each no-show by a non-empty tranche, keeping track of the amount of further
+	// no-shows encountered along the way. Once all of the no-shows we were previously aware
+	// of are covered, we then progress to cover the no-shows we encountered while covering those,
+	// and so on.
+	enum State {
+		// (assignments, no-shows)
+		InitialCount(usize, usize),
+		// (assignments, covered no-shows, covering no-shows, uncovered no-shows),
+		CoverNoShows(usize, usize, usize, usize),
+	}
+
+	impl State {
+		fn output(
+			&self,
+			tranche: DelayTranche,
+			needed_approvals: usize,
+			n_validators: usize,
+		) -> RequiredTranches {
+			match *self {
+				State::InitialCount(assignments, no_shows) =>
+					if assignments >= needed_approvals && no_shows == 0 {
+						RequiredTranches::Exact(tranche, 0)
+					} else {
+						// If we have no-shows pending before we have seen enough assignments,
+						// this can happen. In this case we want assignments to broadcast based
+						// on timer, so we treat it as though there are no uncovered no-shows.
+						RequiredTranches::Pending(tranche)
+					},
+				State::CoverNoShows(total_assignments, covered, covering, uncovered) =>
+					if covering == 0 && uncovered == 0 {
+						RequiredTranches::Exact(tranche, covered)
+					} else if total_assignments + covering + uncovered >= n_validators  {
+						RequiredTranches::All
+					} else {
+						RequiredTranches::Pending(tranche + (covering + uncovered) as DelayTranche)
+					},
+			}
+		}
+	}
+
+	let tick_now = tranche_now as Tick + block_tick;
+	let n_validators = approval_entry.assignments.len();
+
+	approval_entry.tranches.iter()
+		.take_while(|t| t.tranche <= tranche_now)
+		.scan(Some(State::InitialCount(0, 0)), |state, tranche| {
+			let s = match state.take() {
+				None => return None,
+				Some(s) => s,
+			};
+
+			let n_assignments = tranche.assignments.len();
+
+			// count no-shows. An assignment is a no-show if there is no corresponding approval vote
+			// after a fixed duration.
+			let no_shows = tranche.assignments.iter().filter(|(v_index, tick)| {
+				tick + no_show_duration >= tick_now
+					&& *candidate_entry.approvals.get(*v_index as usize).unwrap_or(&true)
+			}).count();
+
+			*state = Some(match s {
+				State::InitialCount(total_assignments, no_shows_so_far) => {
+					let no_shows = no_shows + no_shows_so_far;
+					let total_assignments = total_assignments + n_assignments;
+					if total_assignments >= needed_approvals {
+						if no_shows == 0 {
+							// Note that this state will never be advanced
+							// as we will return `RequiredTranches::Exact`.
+							State::InitialCount(total_assignments, 0)
+						} else {
+							State::CoverNoShows(total_assignments, 0, no_shows, 0)
+						}
+					} else {
+						State::InitialCount(total_assignments, no_shows)
+					}
+				}
+				State::CoverNoShows(total_assignments, covered, covering, uncovered) => {
+					let uncovered = no_shows + uncovered;
+					let total_assignments = total_assignments + n_assignments;
+
+					if n_assignments == 0 {
+						// no-shows are only covered by non-empty tranches.
+						State::CoverNoShows(total_assignments, covered, covering, uncovered)
+					} else if covering == 1 {
+						// Progress onto another round of covering uncovered no-shows.
+						// Note that if `uncovered` is 0, this state will never be advanced
+						// as we will return `RequiredTranches::Exact`.
+						State::CoverNoShows(total_assignments, covered + 1, uncovered, 0)
+					} else {
+						// we covered one no-show with a non-empty tranche. continue doing so.
+						State::CoverNoShows(total_assignments, covered + 1, covering - 1, uncovered)
+					}
+				}
+			});
+
+			let output = s.output(tranche.tranche, needed_approvals, n_validators);
+			match output {
+				RequiredTranches::Exact(_, _) | RequiredTranches::All => {
+					// Wipe the state clean so the next iteration of this closure will terminate
+					// the iterator. This guarantees that we can call `last` further down to see
+					// either a `Finished` or `Pending` result
+					*state = None;
+				}
+				RequiredTranches::Pending(_) => {
+					// Pending results are only interesting when they are the last result of the iterator
+					// i.e. we never achieve a satisfactory level of assignment.
+				}
+			}
+
+			Some(output)
+		})
+		.last()
+		// The iterator is empty only when we are aware of no assignments up to the current tranche.
+		// Any assignments up to now should be broadcast. Typically this will happen when
+		// `tranche_now == 0`.
+		.unwrap_or(RequiredTranches::Pending(tranche_now))
+}
+
+async fn process_wakeup(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl AuxStore>,
+	relay_block: Hash,
+	candidate_hash: CandidateHash,
+) -> SubsystemResult<()> {
+	let block_entry = aux_schema::load_block_entry(&*state.db, &relay_block)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+	let candidate_entry = aux_schema::load_candidate_entry(&*state.db, &candidate_hash)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
+	let (mut block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
+		(Some(b), Some(c)) => (b, c),
+		_ => return Ok(()),
+	};
+
+	let mut approval_entry = match candidate_entry.block_assignments.get_mut(&relay_block) {
+		Some(e) => e,
+		None => return Ok(()),
+	};
+
+	let session_info = match state.session_info(block_entry.session) {
+		Some(i) => i,
+		None => return Ok(()), // TODO [now]: log?
+	};
+
+	// TODO [now]: determine required tranches, broadcast own assignment, and schedule next wakeup.
+
+	Ok(())
 }
