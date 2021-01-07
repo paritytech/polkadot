@@ -86,6 +86,8 @@ default:
   rules:
     - if: $PIPELINE == "rococo"
       when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
 #### stage:                        test
@@ -228,7 +230,7 @@ build-linux-rococo:
 
 generate-impl-guide:
   stage:                           build
-  # <<:                              *rules-test
+  <<:                              *rules-test
   <<:                              *docker-env
   image:
     name: michaelfbryan/mdbook-docker-image:latest
