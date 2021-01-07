@@ -19,8 +19,8 @@
 #![warn(missing_docs)]
 
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::time::Duration;
+use std::pin::Pin;
 
 use futures::{channel::{oneshot, mpsc}, prelude::*, stream::FuturesUnordered};
 use futures_timer::Delay;
@@ -83,6 +83,9 @@ struct AwaitedChunk {
 
 	/// The hash of the candidate the chunks belongs to.
 	candidate_hash: CandidateHash,
+
+	/// Token to cancel the connection request to the validator.
+	token: usize,
 
 	/// Result sender.
 	response: oneshot::Sender<ChunkResponse>,
@@ -575,13 +578,14 @@ async fn handle_from_interaction(
 
 			ctx.send_message(AllMessages::NetworkBridge(message)).await;
 
+			let token = state.connecting_validators.push(rx);
+
 			state.discovering_validators.entry(id).or_default().push(AwaitedChunk {
 				validator_index,
 				candidate_hash,
+				token,
 				response,
 			});
-
-			state.connecting_validators.push(rx);
 		}
 		FromInteraction::ReportPeer(peer_id, rep) => {
 			report_peer(ctx, peer_id, rep).await;
@@ -713,9 +717,21 @@ async fn handle_validator_connected(
 /// periodically since there is no way `Interaction` can communicate
 /// a timedout request.
 fn cleanup_awaited_chunks(state: &mut State) {
+	let mut removed_tokens = Vec::new();
+
 	for (_, v) in state.discovering_validators.iter_mut() {
-		v.retain(|e| !e.response.is_canceled());
+		v.retain(|e| if !e.response.is_canceled() {
+			removed_tokens.push(e.token);
+			false
+		} else {
+			true
+		});
 	}
+
+	for token in removed_tokens {
+		Pin::new(&mut state.connecting_validators).remove(token);
+	}
+
 	state.discovering_validators.retain(|_, v| !v.is_empty());
 	state.live_chunk_requests.retain(|_, v| !v.1.response.is_canceled());
 }
