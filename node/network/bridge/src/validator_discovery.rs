@@ -28,6 +28,7 @@ use sc_network::multiaddr::{Multiaddr, Protocol};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
+use polkadot_node_network_protocol::peer_set::PeerSet;
 
 const LOG_TARGET: &str = "validator_discovery";
 
@@ -276,24 +277,24 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service.add_peers_to_reserved_set(
-			super::COLLATION_PROTOCOL_NAME.into(),
+			PeerSet::Collation.into_protocol_name(),
 			multiaddr_to_add.clone(),
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		if let Err(e) = network_service.add_peers_to_reserved_set(
-			super::VALIDATION_PROTOCOL_NAME.into(),
+			PeerSet::Validation.into_protocol_name(),
 			multiaddr_to_add,
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
 		let _ = network_service.remove_peers_from_reserved_set(
-			super::COLLATION_PROTOCOL_NAME.into(),
+			PeerSet::Collation.into_protocol_name(),
 			multiaddr_to_remove.clone()
 		).await;
 		let _ = network_service.remove_peers_from_reserved_set(
-			super::VALIDATION_PROTOCOL_NAME.into(),
+			PeerSet::Validation.into_protocol_name(),
 			multiaddr_to_remove
 		).await;
 

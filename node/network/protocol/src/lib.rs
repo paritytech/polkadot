@@ -29,6 +29,10 @@ pub use polkadot_node_jaeger::JaegerSpan;
 #[doc(hidden)]
 pub use std::sync::Arc;
 
+
+/// Peer-sets and protocols used for parachains.
+pub mod peer_set;
+
 /// A unique identifier of a request.
 pub type RequestId = u64;
 
@@ -46,15 +50,6 @@ impl fmt::Display for WrongVariant {
 }
 
 impl std::error::Error for WrongVariant {}
-
-/// The peer-sets that the network manages. Different subsystems will use different peer-sets.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PeerSet {
-	/// The validation peer-set is responsible for all messages related to candidate validation and communication among validators.
-	Validation,
-	/// The collation peer-set is used for validator<>collator communication.
-	Collation,
-}
 
 /// The advertised role of a node.
 #[derive(Debug, Clone, Copy, PartialEq)]
