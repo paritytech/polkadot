@@ -610,6 +610,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
 	use polkadot_primitives::v1::Hash;
+	use pnu_subsystem_util::TimeoutExt;
 	use pnu_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 	use std::{pin::Pin, time::Duration, sync::Arc};
 
