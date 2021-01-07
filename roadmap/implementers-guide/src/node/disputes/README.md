@@ -5,7 +5,7 @@ votes to notifications of other peers and subsystems about the resolution
 as well as passing on information to the runtime.
 
 
-`VotesDB` is soley responsible for data persistance in a manner,
+`VotesDB` is solely responsible for data persistence in a manner
 that allows easy retrieval and evaluates the state of particular
 disputes and generates `StoreVoteResult`s.
 
