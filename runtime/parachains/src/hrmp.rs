@@ -1131,6 +1131,7 @@ mod tests {
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		use frame_support::traits::{OnFinalize as _, OnInitialize as _};
 
+		let config = Configuration::config();
 		while System::block_number() < to {
 			let b = System::block_number();
 
@@ -1144,9 +1145,15 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				let notification = crate::initializer::SessionChangeNotification {
+					prev_config: config.clone(),
+					new_config: config.clone(),
+					..Default::default()
+				};
+
 				// NOTE: this is in initialization order.
-				Paras::initializer_on_new_session(&Default::default());
-				Hrmp::initializer_on_new_session(&Default::default());
+				Paras::initializer_on_new_session(&notification);
+				Hrmp::initializer_on_new_session(&notification);
 			}
 
 			// NOTE: this is in initialization order.
