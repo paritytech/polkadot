@@ -25,7 +25,7 @@ use sp_runtime::traits::{
 use parity_scale_codec::{Encode, Decode, Codec};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
-	traits::{Currency, ReservableCurrency, WithdrawReasons, ExistenceRequirement, Get, Randomness},
+	traits::{Currency, ReservableCurrency, WithdrawReasons, ExistenceRequirement, Get, Randomness, Imbalance},
 	weights::{DispatchClass, Weight},
 };
 use primitives::v1::{
@@ -625,15 +625,29 @@ impl<T: Config> Module<T> {
 		for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
 			match maybe_new_deploy {
 				Some(bidder) => {
-					// For new deployments we ensure the full amount is deducted. This should always
-					// succeed as we just unreserved the same amount above.
-					if T::Currency::withdraw(
+					// Transfer funds to the parachain and reserve them. These operations should
+					// never fail because we just unreserved the same amount above.
+					match T::Currency::withdraw(
 						&bidder.who,
 						amount,
 						WithdrawReasons::FEE,
 						ExistenceRequirement::AllowDeath
-					).is_err() {
-						continue;
+					) {
+						Ok(withdrawn) => {
+							let para_account = para_id.into_account();
+							let created = T::Currency::deposit_creating(
+								&para_account,
+								withdrawn.peek(),
+							);
+							let _ = T::Currency::reserve(
+								&para_account,
+								created.peek(),
+							);
+							drop(created.offset(withdrawn));
+						}
+						Err(_) => {
+							continue
+						},
 					}
 
 					// Add para IDs of any chains that will be newly deployed to our set of managed
@@ -659,16 +673,14 @@ impl<T: Config> Module<T> {
 					<Onboarding<T>>::insert(&para_id, entry);
 				}
 				None => {
-					// For renewals, reserve any extra on top of what we already have held
-					// on deposit for their chain.
+					// For renewals, reserve as much as we need for this deposit or any future deposit.
+					let deposit_held = Self::deposit_held(&para_id);
 					let extra = if let Some(additional) =
-						amount.checked_sub(&Self::deposit_held(&para_id))
+						amount.checked_sub(&deposit_held)
 					{
-						if T::Currency::withdraw(
+						if T::Currency::reserve(
 							&para_id.into_account(),
-							additional,
-							WithdrawReasons::FEE,
-							ExistenceRequirement::AllowDeath
+							amount.max(deposit_held),
 						).is_err() {
 							continue;
 						}
@@ -740,7 +752,18 @@ impl<T: Config> Module<T> {
 							let _ = T::Parachains::deregister_para(id.clone());
 						}
 						// Return the full deposit to the off-boarding account.
-						T::Currency::deposit_creating(&<Offboarding<T>>::take(id), d[0]);
+						// Have to hack around the API to make sure that balances can be transferred no matter what.
+						let (slashed, _) = T::Currency::slash_reserved(
+							&id.into_account(),
+							d[0],
+						);
+						let minted = T::Currency::deposit_creating(
+							&<Offboarding<T>>::take(id),
+							slashed.peek(),
+						);
+
+						drop(slashed.offset(minted));
+
 						// Remove the now-empty deposits set and don't keep the ID around.
 						<Deposits<T>>::remove(id);
 						false
@@ -757,7 +780,7 @@ impl<T: Config> Module<T> {
 						// If this is less than what we were holding previously, then return it
 						// to the parachain itself.
 						if let Some(rebate) = outgoing.checked_sub(&new_held) {
-							T::Currency::deposit_creating(
+							T::Currency::unreserve(
 								&id.into_account(),
 								rebate
 							);
@@ -1485,6 +1508,7 @@ mod tests {
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
+			assert_eq!(Balances::total_balance(&ParaId::from(0u32).into_account()), 5);
 			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 1);
 		});
 	}
