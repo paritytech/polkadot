@@ -94,7 +94,7 @@ impl Error {
 }
 
 /// A wrapper type for delays.
-#[derive(Debug, Decode, Encode, Eq)]
+#[derive(Clone, Debug, Decode, Encode, Eq)]
 enum PruningDelay {
 	/// This pruning should be triggered after this `Duration` from UNIX_EPOCH.
 	In(Duration),
@@ -753,11 +753,11 @@ where
 
 			tx.send(result?).map_err(|_| oneshot::Canceled)?;
 		}
-		StoreChunk { candidate_hash, relay_parent, chunk, tx, .. } => {
+		StoreChunk { candidate_hash, relay_parent, chunk, tx } => {
 			let chunk_index = chunk.index;
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
-			let result = store_chunks(subsystem, &candidate_hash, &[chunk], block_number);
+			let result = store_chunks(subsystem, &candidate_hash, vec![chunk], block_number);
 
 			tracing::trace!(
 				target: LOG_TARGET,
@@ -931,7 +931,7 @@ fn store_available_data(
 	store_chunks(
 		subsystem,
 		candidate_hash,
-		&chunks,
+		chunks,
 		block_number,
 	)?;
 
@@ -983,7 +983,7 @@ fn store_available_data(
 fn store_chunks(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
-	chunks: &[ErasureChunk],
+	chunks: Vec<ErasureChunk>,
 	block_number: BlockNumber,
 ) -> Result<(), Error> {
 	let _timer = subsystem.metrics.time_store_chunks();
@@ -991,24 +991,24 @@ fn store_chunks(
 	let mut tx = DBTransaction::new();
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
 
+	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
+	if let Some(delay) = prune_at.clone().as_duration() {
+		tx.put_vec(
+			columns::META,
+			&NEXT_CHUNK_PRUNING,
+			NextChunkPruning(delay).encode(),
+		);
+	}
+
 	for chunk in chunks {
 		subsystem.chunks_cache.entry(*candidate_hash).or_default().insert(chunk.index, chunk.clone());
-
-		let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
-		if let Some(delay) = prune_at.as_duration() {
-			tx.put_vec(
-				columns::META,
-				&NEXT_CHUNK_PRUNING,
-				NextChunkPruning(delay).encode(),
-			);
-		}
 
 		let pruning_record = ChunkPruningRecord {
 			candidate_hash: candidate_hash.clone(),
 			block_number,
 			candidate_state: CandidateState::Stored,
 			chunk_index: chunk.index,
-			prune_at,
+			prune_at: prune_at.clone(),
 		};
 
 		let idx = chunk_pruning.binary_search(&pruning_record).unwrap_or_else(|insert_idx| insert_idx);
@@ -1029,7 +1029,6 @@ fn store_chunks(
 		&CHUNK_PRUNING_KEY,
 		chunk_pruning.encode(),
 	);
-
 
 	subsystem.inner.write(tx)?;
 
@@ -1064,7 +1063,7 @@ fn get_chunk(
 		store_chunks(
 			subsystem,
 			candidate_hash,
-			&chunks,
+			chunks,
 			data.data.validation_data.block_number,
 		)?;
 		return Ok(desired_chunk);

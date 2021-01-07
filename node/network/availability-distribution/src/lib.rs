@@ -1024,7 +1024,6 @@ where
 		AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
 			relay_parent,
-			validator_index,
 			chunk: erasure_chunk,
 			tx,
 		}
