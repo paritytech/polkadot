@@ -61,32 +61,32 @@ pub trait Context {
 
 /// Statements circulated among peers.
 #[derive(PartialEq, Eq, Debug, Clone, Encode, Decode)]
-pub enum Statement<C, D> {
+pub enum Statement<Candidate, Digest> {
 	/// Broadcast by an authority to indicate that this is his candidate for
 	/// inclusion.
 	///
 	/// Broadcasting two different candidate messages per round is not allowed.
 	#[codec(index = "1")]
-	Candidate(C),
+	Candidate(Candidate),
 	/// Broadcast by a authority to attest that the candidate with given digest
 	/// is valid.
 	#[codec(index = "2")]
-	Valid(D),
+	Valid(Digest),
 	/// Broadcast by a authority to attest that the candidate with given digest
 	/// is invalid.
 	#[codec(index = "3")]
-	Invalid(D),
+	Invalid(Digest),
 }
 
 /// A signed statement.
 #[derive(PartialEq, Eq, Debug, Clone, Encode, Decode)]
-pub struct SignedStatement<C, D, V, S> {
+pub struct SignedStatement<Candidate, Digest, AuthorityId, Signature> {
 	/// The statement.
-	pub statement: Statement<C, D>,
+	pub statement: Statement<Candidate, Digest>,
 	/// The signature.
-	pub signature: S,
+	pub signature: Signature,
 	/// The sender.
-	pub sender: V,
+	pub sender: AuthorityId,
 }
 
 /// Misbehavior: voting more than one way on candidate validity.
@@ -94,77 +94,77 @@ pub struct SignedStatement<C, D, V, S> {
 /// Since there are three possible ways to vote, a double vote is possible in
 /// three possible combinations (unordered)
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum ValidityDoubleVote<C, D, S> {
+pub enum ValidityDoubleVote<Candidate, Digest, Signature> {
 	/// Implicit vote by issuing and explicitly voting validity.
-	IssuedAndValidity((C, S), (D, S)),
+	IssuedAndValidity((Candidate, Signature), (Digest, Signature)),
 	/// Implicit vote by issuing and explicitly voting invalidity
-	IssuedAndInvalidity((C, S), (D, S)),
+	IssuedAndInvalidity((Candidate, Signature), (Digest, Signature)),
 	/// Direct votes for validity and invalidity
-	ValidityAndInvalidity(C, S, S),
+	ValidityAndInvalidity(Candidate, Signature, Signature),
 }
 
 /// Misbehavior: multiple signatures on same statement.
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum DoubleSign<C, D, S> {
+pub enum DoubleSign<Candidate, Digest, Signature> {
 	/// On candidate.
-	Candidate(C, S, S),
+	Candidate(Candidate, Signature, Signature),
 	/// On validity.
-	Validity(D, S, S),
+	Validity(Digest, Signature, Signature),
 	/// On invalidity.
-	Invalidity(D, S, S),
+	Invalidity(Digest, Signature, Signature),
 }
 
 /// Misbehavior: declaring multiple candidates.
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct MultipleCandidates<C, S> {
+pub struct MultipleCandidates<Candidate, Signature> {
 	/// The first candidate seen.
-	pub first: (C, S),
+	pub first: (Candidate, Signature),
 	/// The second candidate seen.
-	pub second: (C, S),
+	pub second: (Candidate, Signature),
 }
 
 /// Misbehavior: submitted statement for wrong group.
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct UnauthorizedStatement<C, D, V, S> {
+pub struct UnauthorizedStatement<Candidate, Digest, AuthorityId, Signature> {
 	/// A signed statement which was submitted without proper authority.
-	pub statement: SignedStatement<C, D, V, S>,
+	pub statement: SignedStatement<Candidate, Digest, AuthorityId, Signature>,
 }
 
 /// Different kinds of misbehavior. All of these kinds of malicious misbehavior
 /// are easily provable and extremely disincentivized.
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum Misbehavior<C, D, V, S> {
+pub enum Misbehavior<Candidate, Digest, AuthorityId, Signature> {
 	/// Voted invalid and valid on validity.
-	ValidityDoubleVote(ValidityDoubleVote<C, D, S>),
+	ValidityDoubleVote(ValidityDoubleVote<Candidate, Digest, Signature>),
 	/// Submitted multiple candidates.
-	MultipleCandidates(MultipleCandidates<C, S>),
+	MultipleCandidates(MultipleCandidates<Candidate, Signature>),
 	/// Submitted a message that was unauthorized.
-	UnauthorizedStatement(UnauthorizedStatement<C, D, V, S>),
+	UnauthorizedStatement(UnauthorizedStatement<Candidate, Digest, AuthorityId, Signature>),
 	/// Submitted two valid signatures for the same message.
-	DoubleSign(DoubleSign<C, D, S>),
+	DoubleSign(DoubleSign<Candidate, Digest, Signature>),
 }
 
 /// Type alias for misbehavior corresponding to context type.
-pub type MisbehaviorFor<C> = Misbehavior<<C as Context>::Candidate, <C as Context>::Digest, <C as Context>::AuthorityId, <C as Context>::Signature>;
+pub type MisbehaviorFor<Candidate> = Misbehavior<<Candidate as Context>::Candidate, <Candidate as Context>::Digest, <Candidate as Context>::AuthorityId, <Candidate as Context>::Signature>;
 
 // kinds of votes for validity
 #[derive(Clone, PartialEq, Eq)]
-enum ValidityVote<S: Eq + Clone> {
+enum ValidityVote<Signature: Eq + Clone> {
 	// implicit validity vote by issuing
-	Issued(S),
+	Issued(Signature),
 	// direct validity vote
-	Valid(S),
+	Valid(Signature),
 	// direct invalidity vote
-	Invalid(S),
+	Invalid(Signature),
 }
 
 /// A summary of import of a statement.
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Summary<D, G> {
+pub struct Summary<Digest, Group> {
 	/// The digest of the candidate referenced.
-	pub candidate: D,
+	pub candidate: Digest,
 	/// The group that the candidate is in.
-	pub group_id: G,
+	pub group_id: Group,
 	/// How many validity votes are currently witnessed.
 	pub validity_votes: usize,
 	/// Whether this has been signalled bad by at least one participant.
@@ -173,13 +173,13 @@ pub struct Summary<D, G> {
 
 /// A validity attestation.
 #[derive(Clone, PartialEq, Decode, Encode)]
-pub enum ValidityAttestation<S> {
+pub enum ValidityAttestation<Signature> {
 	/// implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
-	Implicit(S),
+	Implicit(Signature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
-	Explicit(S),
+	Explicit(Signature),
 }
 
 impl Into<PrimitiveValidityAttestation> for ValidityAttestation<ValidatorSignature> {
@@ -203,14 +203,14 @@ pub struct AttestedCandidate<Group, Candidate, AuthorityId, Signature> {
 }
 
 /// Stores votes and data about a candidate.
-pub struct CandidateData<C: Context> {
-	group_id: C::GroupId,
-	candidate: C::Candidate,
-	validity_votes: HashMap<C::AuthorityId, ValidityVote<C::Signature>>,
-	indicated_bad_by: Vec<C::AuthorityId>,
+pub struct CandidateData<Candidate: Context> {
+	group_id: Candidate::GroupId,
+	candidate: Candidate::Candidate,
+	validity_votes: HashMap<Candidate::AuthorityId, ValidityVote<Candidate::Signature>>,
+	indicated_bad_by: Vec<Candidate::AuthorityId>,
 }
 
-impl<C: Context> CandidateData<C> {
+impl<Candidate: Context> CandidateData<Candidate> {
 	/// whether this has been indicated bad by anyone.
 	pub fn indicated_bad(&self) -> bool {
 		!self.indicated_bad_by.is_empty()
@@ -220,7 +220,7 @@ impl<C: Context> CandidateData<C> {
 	/// If the candidate can be included, it will return `Some`.
 	pub fn attested(&self, validity_threshold: usize)
 		-> Option<AttestedCandidate<
-			C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
+			Candidate::GroupId, Candidate::Candidate, Candidate::AuthorityId, Candidate::Signature,
 		>>
 	{
 		if self.can_be_included(validity_threshold) {
@@ -259,7 +259,7 @@ impl<C: Context> CandidateData<C> {
 		self.validity_votes.len() >= validity_threshold
 	}
 
-	fn summary(&self, digest: C::Digest) -> Summary<C::Digest, C::GroupId> {
+	fn summary(&self, digest: Candidate::Digest) -> Summary<Candidate::Digest, Candidate::GroupId> {
 		Summary {
 			candidate: digest,
 			group_id: self.group_id.clone(),
@@ -270,11 +270,11 @@ impl<C: Context> CandidateData<C> {
 }
 
 // authority metadata
-struct AuthorityData<C: Context> {
-	proposal: Option<(C::Digest, C::Signature)>,
+struct AuthorityData<Candidate: Context> {
+	proposal: Option<(Candidate::Digest, Candidate::Signature)>,
 }
 
-impl<C: Context> Default for AuthorityData<C> {
+impl<Candidate: Context> Default for AuthorityData<Candidate> {
 	fn default() -> Self {
 		AuthorityData {
 			proposal: None,
@@ -283,20 +283,20 @@ impl<C: Context> Default for AuthorityData<C> {
 }
 
 /// Type alias for the result of a statement import.
-pub type ImportResult<C> = Result<
-	Option<Summary<<C as Context>::Digest, <C as Context>::GroupId>>,
-	MisbehaviorFor<C>
+pub type ImportResult<Candidate> = Result<
+	Option<Summary<<Candidate as Context>::Digest, <Candidate as Context>::GroupId>>,
+	MisbehaviorFor<Candidate>
 >;
 
 /// Stores votes
-pub struct Table<C: Context> {
-	authority_data: HashMap<C::AuthorityId, AuthorityData<C>>,
-	detected_misbehavior: HashMap<C::AuthorityId, MisbehaviorFor<C>>,
-	candidate_votes: HashMap<C::Digest, CandidateData<C>>,
-	includable_count: HashMap<C::GroupId, usize>,
+pub struct Table<Candidate: Context> {
+	authority_data: HashMap<Candidate::AuthorityId, AuthorityData<Candidate>>,
+	detected_misbehavior: HashMap<Candidate::AuthorityId, MisbehaviorFor<Candidate>>,
+	candidate_votes: HashMap<Candidate::Digest, CandidateData<Candidate>>,
+	includable_count: HashMap<Candidate::GroupId, usize>,
 }
 
-impl<C: Context> Default for Table<C> {
+impl<Candidate: Context> Default for Table<Candidate> {
 	fn default() -> Self {
 		Table {
 			authority_data: HashMap::new(),
@@ -307,15 +307,15 @@ impl<C: Context> Default for Table<C> {
 	}
 }
 
-impl<C: Context> Table<C> {
+impl<Candidate: Context> Table<Candidate> {
 	/// Produce a set of proposed candidates.
 	///
 	/// This will be at most one per group, consisting of the
 	/// best candidate for each group with requisite votes for inclusion.
 	///
 	/// The vector is sorted in ascending order by group id.
-	pub fn proposed_candidates(&self, context: &C) -> Vec<AttestedCandidate<
-		C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
+	pub fn proposed_candidates(&self, context: &Candidate) -> Vec<AttestedCandidate<
+		Candidate::GroupId, Candidate::Candidate, Candidate::AuthorityId, Candidate::Signature,
 	>> {
 		use std::collections::BTreeMap;
 		use std::collections::btree_map::Entry as BTreeEntry;
@@ -354,7 +354,7 @@ impl<C: Context> Table<C> {
 	}
 
 	/// Whether a candidate can be included.
-	pub fn candidate_includable(&self, digest: &C::Digest, context: &C) -> bool {
+	pub fn candidate_includable(&self, digest: &Candidate::Digest, context: &Candidate) -> bool {
 		self.candidate_votes.get(digest).map_or(false, |data| {
 			let v_threshold = context.requisite_votes(&data.group_id);
 			data.can_be_included(v_threshold)
@@ -364,9 +364,9 @@ impl<C: Context> Table<C> {
 	/// Get the attested candidate for `digest`.
 	///
 	/// Returns `Some(_)` if the candidate exists and is includable.
-	pub fn attested_candidate(&self, digest: &C::Digest, context: &C)
+	pub fn attested_candidate(&self, digest: &Candidate::Digest, context: &Candidate)
 		-> Option<AttestedCandidate<
-			C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
+			Candidate::GroupId, Candidate::Candidate, Candidate::AuthorityId, Candidate::Signature,
 		>>
 	{
 		self.candidate_votes.get(digest).and_then(|data| {
@@ -384,9 +384,9 @@ impl<C: Context> Table<C> {
 	/// If this returns `None`, the statement was either duplicate or invalid.
 	pub fn import_statement(
 		&mut self,
-		context: &C,
-		statement: SignedStatement<C::Candidate, C::Digest, C::AuthorityId, C::Signature>,
-	) -> Option<Summary<C::Digest, C::GroupId>> {
+		context: &Candidate,
+		statement: SignedStatement<Candidate::Candidate, Candidate::Digest, Candidate::AuthorityId, Candidate::Signature>,
+	) -> Option<Summary<Candidate::Digest, Candidate::GroupId>> {
 		let SignedStatement { statement, signature, sender: signer } = statement;
 
 		let res = match statement {
@@ -422,13 +422,13 @@ impl<C: Context> Table<C> {
 	}
 
 	/// Get a candidate by digest.
-	pub fn get_candidate(&self, digest: &C::Digest) -> Option<&C::Candidate> {
+	pub fn get_candidate(&self, digest: &Candidate::Digest) -> Option<&Candidate::Candidate> {
 		self.candidate_votes.get(digest).map(|d| &d.candidate)
 	}
 
 	/// Access all witnessed misbehavior.
 	pub fn get_misbehavior(&self)
-		-> &HashMap<C::AuthorityId, MisbehaviorFor<C>>
+		-> &HashMap<Candidate::AuthorityId, MisbehaviorFor<Candidate>>
 	{
 		&self.detected_misbehavior
 	}
@@ -440,12 +440,12 @@ impl<C: Context> Table<C> {
 
 	fn import_candidate(
 		&mut self,
-		context: &C,
-		from: C::AuthorityId,
-		candidate: C::Candidate,
-		signature: C::Signature,
-	) -> ImportResult<C> {
-		let group = C::candidate_group(&candidate);
+		context: &Candidate,
+		from: Candidate::AuthorityId,
+		candidate: Candidate::Candidate,
+		signature: Candidate::Signature,
+	) -> ImportResult<Candidate> {
+		let group = Candidate::candidate_group(&candidate);
 		if !context.is_member_of(&from, &group) {
 			return Err(Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
 				statement: SignedStatement {
@@ -457,7 +457,7 @@ impl<C: Context> Table<C> {
 		}
 
 		// check that authority hasn't already specified another candidate.
-		let digest = C::candidate_digest(&candidate);
+		let digest = Candidate::candidate_digest(&candidate);
 
 		let new_proposal = match self.authority_data.entry(from.clone()) {
 			Entry::Occupied(mut occ) => {
@@ -518,11 +518,11 @@ impl<C: Context> Table<C> {
 
 	fn validity_vote(
 		&mut self,
-		context: &C,
-		from: C::AuthorityId,
-		digest: C::Digest,
-		vote: ValidityVote<C::Signature>,
-	) -> ImportResult<C> {
+		context: &Candidate,
+		from: Candidate::AuthorityId,
+		digest: Candidate::Digest,
+		vote: ValidityVote<Candidate::Signature>,
+	) -> ImportResult<Candidate> {
 		let votes = match self.candidate_votes.get_mut(&digest) {
 			None => return Ok(None),
 			Some(votes) => votes,
@@ -608,9 +608,9 @@ impl<C: Context> Table<C> {
 	}
 }
 
-fn update_includable_count<G: Hash + Eq + Clone>(
-	map: &mut HashMap<G, usize>,
-	group_id: &G,
+fn update_includable_count<Group: Hash + Eq + Clone>(
+	map: &mut HashMap<Group, usize>,
+	group_id: &Group,
 	was_includable: bool,
 	is_includable: bool,
 ) {
@@ -633,7 +633,7 @@ mod tests {
 	use super::*;
 	use std::collections::HashMap;
 
-	fn create<C: Context>() -> Table<C> {
+	fn create<Candidate: Context>() -> Table<Candidate> {
 		Table::default()
 	}
 
