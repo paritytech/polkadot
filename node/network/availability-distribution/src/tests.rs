@@ -1005,9 +1005,14 @@ fn clean_up_receipts_cache_unions_ancestors_and_view() {
 	state.per_relay_parent.insert(hash_a, PerRelayParent {
 		ancestors: vec![hash_b],
 		live_candidates: HashSet::new(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	});
 
-	state.per_relay_parent.insert(hash_c, PerRelayParent::default());
+	state.per_relay_parent.insert(hash_c, PerRelayParent {
+		ancestors: Vec::new(),
+		live_candidates: HashSet::new(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
+	});
 
 	state.clean_up_live_under_cache();
 
@@ -1030,11 +1035,13 @@ fn remove_relay_parent_only_removes_per_candidate_if_final() {
 	state.per_relay_parent.insert(hash_a, PerRelayParent {
 		ancestors: vec![],
 		live_candidates: std::iter::once(candidate_hash_a).collect(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	});
 
 	state.per_relay_parent.insert(hash_b, PerRelayParent {
 		ancestors: vec![],
 		live_candidates: std::iter::once(candidate_hash_a).collect(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	});
 
 	state.per_candidate.insert(candidate_hash_a, {
@@ -1079,6 +1086,7 @@ fn add_relay_parent_includes_all_live_candidates() {
 		None,
 		candidates,
 		vec![ancestor_a],
+		PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	);
 
 	assert!(

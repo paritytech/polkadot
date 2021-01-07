@@ -1510,7 +1510,7 @@ where
 
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			let span = self.on_head_activated(&hash);
+			let span = self.on_head_activated(&hash, None);
 			update.activated.push((hash, span));
 		}
 
@@ -1589,7 +1589,7 @@ where
 			}
 		};
 
-		let span = self.on_head_activated(&block.hash);
+		let span = self.on_head_activated(&block.hash, Some(block.parent_hash));
 		let mut update = ActiveLeavesUpdate::start_work(block.hash, span);
 
 		if let Some(number) = self.active_leaves.remove(&block.parent_hash) {
@@ -1705,7 +1705,7 @@ where
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn on_head_activated(&mut self, hash: &Hash) -> Arc<JaegerSpan> {
+	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>) -> Arc<JaegerSpan> {
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			for listener in listeners {
@@ -1714,7 +1714,13 @@ where
 			}
 		}
 
-		let span = Arc::new(jaeger::hash_span(hash, "leave activated"));
+		let mut span = jaeger::hash_span(hash, "leaf-activated");
+
+		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
+			span.add_follows_from(&*parent_span);
+		}
+
+		let span = Arc::new(span);
 		self.span_per_active_leaf.insert(*hash, span.clone());
 		span
 	}
