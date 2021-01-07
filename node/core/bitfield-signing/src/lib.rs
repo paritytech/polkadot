@@ -246,12 +246,12 @@ impl JobTrait for BitfieldSigningJob {
 			let _timer = metrics.time_run();
 
 			drop(_span);
-			let _span = span.child("availablity");
+			let span_availability = span.child("availablity");
 
 			let bitfield =
 				match construct_availability_bitfield(
 					relay_parent,
-					&span,
+					&span_availability,
 					validator.index(),
 					&mut sender,
 				).await
@@ -265,7 +265,7 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
-			drop(_span);
+			drop(span_availability);
 			let _span = span.child("signing");
 
 			let signed_bitfield = validator
