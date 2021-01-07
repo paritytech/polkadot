@@ -243,19 +243,19 @@ generate-impl-guide:
 
 #### stage:                        publish
 
-.publish-build:                    &publish-build
-  before_script:
-    - test -s ./artifacts/VERSION || exit 1
-    - test -s ./artifacts/EXTRATAG || exit 1
-    - VERSION="$(cat ./artifacts/VERSION)"
-    - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
-    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+.unpack-artifacts:                 &unpack-artifacts
+  - test -s ./artifacts/VERSION || exit 1
+  - test -s ./artifacts/EXTRATAG || exit 1
+  - VERSION="$(cat ./artifacts/VERSION)"
+  - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
+  - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
 
 .build-push-docker-image:          &build-push-docker-image
   <<:                              *kubernetes-env
   <<:                              *collect-artifacts
-  <<:                              *publish-build
   image:                           quay.io/buildah/stable
+  before_script:
+    - *unpack-artifacts
   script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
         ( echo "no docker credentials provided"; exit 1 )
@@ -293,18 +293,18 @@ publish-docker-polkadot:
     # DOCKERFILE:                  scripts/docker/Dockerfile
     IMAGE_NAME:                    docker.io/parity/polkadot
 
-# publish-docker-rococo:
-#   stage:                           build
-#   <<:                              *build-push-docker-image
-#   rules:
-#     - if: $PIPELIN3 == "rococo"
-#   # needs:
-#   #   - job:                         build-linux-rococo
-#   #     artifacts:                   true
-#   variables:
-#     GIT_STRATEGY:                  none
-#     # DOCKERFILE:                  scripts/docker/Dockerfile
-#     IMAGE_NAME:                    docker.io/parity/rococo
+publish-docker-rococo:
+  stage:                           build
+  <<:                              *build-push-docker-image
+  rules:
+    - if: $PIPELIN3 == "rococo"
+  # needs:
+  #   - job:                         build-linux-rococo
+  #     artifacts:                   true
+  variables:
+    GIT_STRATEGY:                  none
+    # DOCKERFILE:                  scripts/docker/Dockerfile
+    IMAGE_NAME:                    docker.io/parity/rococo
 
 publish-s3-release:
   stage:                           publish
@@ -315,12 +315,13 @@ publish-s3-release:
       artifacts:                   true
   <<:                              *rules-build
   <<:                              *kubernetes-env
-  <<:                              *publish-build
   image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
     BUCKET:                        "releases.parity.io"
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
+  before_script:
+    - *unpack-artifacts
   script:
     - echo "uploading objects to https://${BUCKET}/${PREFIX}/${VERSION}"
     - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
