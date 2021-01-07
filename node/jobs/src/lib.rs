@@ -19,13 +19,12 @@
 #![warn(missing_docs)]
 
 use pnu_subsystem::{
-	errors::RuntimeApiError,
 	messages::{AllMessages, BoundToRelayParent},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 use pnu_subsystem_util::metrics::Metrics;
 use pnu_jaeger::JaegerSpan;
-use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
+use futures::{channel::mpsc, prelude::*, select, stream::Stream};
 use pin_project::pin_project;
 use polkadot_primitives::v1::Hash;
 use sp_core::traits::SpawnNamed;
@@ -53,27 +52,12 @@ pub mod reexports {
 /// Job management errors
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
 	/// Attempted to send on a MPSC channel which has been canceled
 	#[error(transparent)]
 	Mpsc(#[from] mpsc::SendError),
 	/// A subsystem error
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
-	/// An error in the Runtime API.
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-	/// The type system wants this even though it doesn't make sense
-	#[error(transparent)]
-	Infallible(#[from] std::convert::Infallible),
-	/// Attempted to convert from an AllMessages to a FromJob, and failed.
-	#[error("AllMessage not relevant to Job")]
-	SenderConversion(String),
-	/// The local node is not a validator.
-	#[error("Node is not a validator")]
-	NotAValidator,
 	/// Already forwarding errors to another sender
 	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
