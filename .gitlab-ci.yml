@@ -90,37 +90,7 @@ default:
       when: never
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
-.build-linux:                      &build-linux
-  # <<:                              *collect-artifacts
-  <<:                              *docker-env
-  # <<:                              *compiler-info
-  after_script:
-    - mv ./target/release/polkadot ./artifacts/.
-    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
-    - if [ "${CI_COMMIT_TAG}" ]; then
-        EXTRATAG="latest";
-      else
-        EXTRATAG="$(./artifacts/polkadot --version |
-          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
-        EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
-      fi
-    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-    - echo -n ${VERSION} > ./artifacts/VERSION
-    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
-    - cp -r scripts/docker/* ./artifacts
-
 #### stage:                        test
-
-build-linux-rococo:
-  stage:                           test
-  <<:                              *build-linux
-  rules:
-    - if: $PIPELIN3 == "rococo"
-  script:
-    - mkdir -p ./artifacts
-    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-    - time cargo build --release --verbose --features=real-overseer
-    - sccache -s
 
 check-runtime:
   stage:                           test
@@ -214,6 +184,25 @@ build-wasm-release:
     - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
     - mv ./polkadot_cli* ../../artifacts/wasm/.
 
+.build-linux:                      &build-linux
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  after_script:
+    - mv ./target/release/polkadot ./artifacts/.
+    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+    - if [ "${CI_COMMIT_TAG}" ]; then
+        EXTRATAG="latest";
+      else
+        EXTRATAG="$(./artifacts/polkadot --version |
+          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
+        EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
+      fi
+    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+    - echo -n ${VERSION} > ./artifacts/VERSION
+    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+    - cp -r scripts/docker/* ./artifacts
+
 build-linux-release:
   stage:                           build
   <<:                              *build-linux
@@ -229,6 +218,17 @@ build-linux-release:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - time cargo build --release --verbose
+    - sccache -s
+
+build-linux-rococo:
+  stage:                           build
+  <<:                              *build-linux
+  rules:
+    - if: $PIPELIN3 == "rococo"
+  script:
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - time cargo build --release --verbose --features=real-overseer
     - sccache -s
 
 generate-impl-guide:
@@ -291,7 +291,7 @@ generate-impl-guide:
 #     IMAGE_NAME:                    docker.io/parity/polkadot
 
 publish-docker-rococo:
-  stage:                           build
+  stage:                           publish
   <<:                              *build-push-docker-image
   rules:
     - if: $PIPELIN3 == "rococo"
