@@ -12,7 +12,7 @@ thiserror = "1.0.23"
 
 pnu-subsystem = { path = "../subsystem" }
 pnu-subsystem-util = { path = "../subsystem-util" }
-polkadot-primitives = { path = "../../primitives" }
+pdot-primitives = { path = "../../primitives" }
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

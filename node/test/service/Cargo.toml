@@ -15,15 +15,15 @@ tempfile = "3.2.0"
 
 # Polkadot dependencies
 pnc-overseer = { path = "../../overseer" }
-polkadot-primitives = { path = "../../../primitives" }
-polkadot-parachain = { path = "../../../parachain" }
-polkadot-rpc = { path = "../../../rpc" }
-polkadot-runtime-common = { path = "../../../runtime/common" }
+pdot-primitives = { path = "../../../primitives" }
+pdot-parachain = { path = "../../../parachain" }
+pdot-rpc = { path = "../../../rpc" }
+pdot-runtime-common = { path = "../../../runtime/common" }
 pnu-service = { path = "../../service" }
 pnu-subsystem = { path = "../../subsystem" }
 pnu-primitives = { path = "../../primitives" }
-polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
-polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
+runtime-polkadot-test = { path = "../../../runtime/test-runtime" }
+pdot-runtime-parachains = { path = "../../../runtime/parachains" }
 
 # Substrate dependencies
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -30,12 +30,12 @@ use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_erasure_coding::branch_hash;
+use pdot_erasure_coding::branch_hash;
 use pnn_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View, OurView,
 };
 use pnu_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	BlakeTwo256, CoreState, ErasureChunk, Hash, HashT,
 	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID, CandidateHash,
 	CandidateDescriptor,

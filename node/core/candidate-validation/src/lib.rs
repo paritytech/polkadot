@@ -34,14 +34,14 @@ use polkadot_subsystem::{
 use pnu_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
 use pnu_primitives::{ValidationResult, InvalidCandidate};
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
-use polkadot_parachain::wasm_executor::{
+use pdot_parachain::wasm_executor::{
 	self, IsolationStrategy, ValidationError, InvalidCandidate as WasmInvalidCandidate
 };
-use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
+use pdot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
 use sp_core::traits::SpawnNamed;
@@ -570,7 +570,7 @@ impl metrics::Metrics for Metrics {
 mod tests {
 	use super::*;
 	use pnu_subsystem_test_helpers as test_helpers;
-	use polkadot_primitives::v1::{HeadData, BlockData, UpwardMessage};
+	use pdot_primitives::v1::{HeadData, BlockData, UpwardMessage};
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;
@@ -597,7 +597,7 @@ mod tests {
 
 	fn collator_sign(descriptor: &mut CandidateDescriptor, collator: Sr25519Keyring) {
 		descriptor.collator = collator.public().into();
-		let payload = polkadot_primitives::v1::collator_signature_payload(
+		let payload = pdot_primitives::v1::collator_signature_payload(
 			&descriptor.relay_parent,
 			&descriptor.para_id,
 			&descriptor.persisted_validation_data_hash,

@@ -26,7 +26,7 @@ use pnu_subsystem_util::metrics::Metrics;
 use pnu_jaeger::JaegerSpan;
 use futures::{channel::mpsc, prelude::*, select, stream::Stream};
 use pin_project::pin_project;
-use polkadot_primitives::v1::Hash;
+use pdot_primitives::v1::Hash;
 use sp_core::traits::SpawnNamed;
 use std::{
 	collections::{HashMap, hash_map::Entry}, convert::TryFrom, marker::Unpin, pin::Pin, task::{Poll, Context},
@@ -609,7 +609,7 @@ mod tests {
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
-	use polkadot_primitives::v1::Hash;
+	use pdot_primitives::v1::Hash;
 	use pnu_subsystem_util::TimeoutExt;
 	use pnu_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 	use std::{pin::Pin, time::Duration, sync::Arc};

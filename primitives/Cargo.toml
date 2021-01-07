@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-primitives"
+name = "pdot-primitives"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -19,8 +19,8 @@ sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-polkadot-parachain = { path = "../parachain", default-features = false }
-polkadot-core-primitives = { path = "../core-primitives", default-features = false }
+pdot-parachain = { path = "../parachain", default-features = false }
+pdot-core-primitives = { path = "../core-primitives", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -50,8 +50,8 @@ std = [
 	"runtime_primitives/std",
 	"serde",
 	"parity-util-mem",
-	"polkadot-parachain/std",
-	"polkadot-core-primitives/std",
+	"pdot-parachain/std",
+	"pdot-core-primitives/std",
 	"bitvec/std",
 	"frame-system/std",
 ]

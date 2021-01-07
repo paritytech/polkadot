@@ -17,8 +17,8 @@ log = "0.4.13"
 structopt = "0.3.21"
 
 test-parachain-adder = { path = ".." }
-polkadot-primitives = { path = "../../../../primitives" }
-polkadot-cli = { path = "../../../../cli" }
+pdot-primitives = { path = "../../../../primitives" }
+pdot-cli = { path = "../../../../cli" }
 pnu-service = { path = "../../../../node/service" }
 pnu-primitives = { path = "../../../../node/primitives" }
 pnu-subsystem = { path = "../../../../node/subsystem" }
@@ -29,7 +29,7 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-polkadot-parachain = { path = "../../.." }
+pdot-parachain = { path = "../../.." }
 pnu-test-service = { path = "../../../../node/test/service" }
 
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

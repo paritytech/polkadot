@@ -25,7 +25,7 @@ use pnu_subsystem::{
 	messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError,
 };
 use pnc_overseer::OverseerHandler;
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
@@ -218,7 +218,7 @@ where
 				self.parent_header,
 			);
 			inherent_data.put_data(
-				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
+				pdot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
 				&inclusion_inherent_data,
 			)?;
 

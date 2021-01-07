@@ -1,5 +1,5 @@
 [package]
-name = "rococo-runtime"
+name = "runtime-rococo"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -49,10 +49,10 @@ authority-discovery-primitives = { package = "sp-authority-discovery", git = "ht
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
-primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-polkadot-parachain = { path = "../../parachain", default-features = false }
-runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
+runtime-common = { package = "pdot-runtime-common", path = "../common", default-features = false }
+primitives = { package = "pdot-primitives", path = "../../primitives", default-features = false }
+pdot-parachain = { path = "../../parachain", default-features = false }
+runtime-parachains = { package = "pdot-runtime-parachains", path = "../parachains", default-features = false }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -79,7 +79,7 @@ std = [
 	"pallet-im-online/std",
 	"inherents/std",
 	"frame-support/std",
-	"polkadot-parachain/std",
+	"pdot-parachain/std",
 	"primitives/std",
 	"runtime-common/std",
 	"runtime-parachains/std",

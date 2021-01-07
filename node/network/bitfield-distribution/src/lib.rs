@@ -31,7 +31,7 @@ use polkadot_subsystem::{
 	SubsystemResult,
 };
 use pnu_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
+use pdot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use pnn_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange, OurView};
 use std::collections::{HashMap, HashSet};
 
@@ -776,7 +776,7 @@ mod test {
 	use bitvec::bitvec;
 	use futures::executor;
 	use maplit::hashmap;
-	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
+	use pdot_primitives::v1::{Signed, AvailabilityBitfield};
 	use pnu_subsystem_test_helpers::make_subsystem_context;
 	use pnu_subsystem_util::TimeoutExt;
 	use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};

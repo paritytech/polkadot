@@ -9,7 +9,7 @@ futures = "0.3.12"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
 pnu-subsystem-util = { path = "../../subsystem-util" }
 

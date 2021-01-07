@@ -20,7 +20,7 @@
 
 mod block_builder;
 
-use polkadot_primitives::v1::Block;
+use pdot_primitives::v1::Block;
 use sc_service::client;
 use sp_core::storage::Storage;
 use sp_runtime::BuildStorage;
@@ -30,7 +30,7 @@ pub use substrate_test_client::*;
 pub use pnu_test_service::{
 	Client, construct_extrinsic, construct_transfer_extrinsic, PolkadotTestExecutor, FullBackend,
 };
-pub use polkadot_test_runtime as runtime;
+pub use runtime_polkadot_test as runtime;
 
 /// Test client executor.
 pub type Executor = client::LocalCallExecutor<FullBackend, sc_executor::NativeExecutor<PolkadotTestExecutor>>;

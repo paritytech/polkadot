@@ -12,7 +12,7 @@ thiserror = "1.0.23"
 
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 pnu-jobs = { path = "../../jobs" }
 pnu-subsystem = { path = "../../subsystem" }
 pnu-subsystem-util = { path = "../../subsystem-util" }

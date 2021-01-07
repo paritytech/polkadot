@@ -26,7 +26,7 @@ use bitvec::vec::BitVec;
 use futures::{channel::{mpsc, oneshot}, Future, FutureExt, SinkExt, StreamExt};
 
 use sp_keystore::SyncCryptoStorePtr;
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	AvailableData, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
 	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
@@ -291,7 +291,7 @@ async fn make_pov_available(
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
-	validation_data: polkadot_primitives::v1::PersistedValidationData,
+	validation_data: pdot_primitives::v1::PersistedValidationData,
 	expected_erasure_root: Hash,
 	span: Option<&JaegerSpan>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
@@ -1175,7 +1175,7 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use futures::{future, Future};
-	use polkadot_primitives::v1::{BlockData, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
+	use pdot_primitives::v1::{BlockData, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,

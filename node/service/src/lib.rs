@@ -32,7 +32,7 @@ use {
 	pnc_av_store::Error as AvailabilityError,
 	pnc_proposer::ProposerFactory,
 	pnc_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
-	polkadot_primitives::v1::ParachainHost,
+	pdot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
 	sp_keystore::SyncCryptoStorePtr,
@@ -55,8 +55,8 @@ use telemetry::TelemetryConnectionNotifier;
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
-pub use polkadot_parachain::wasm_executor::IsolationStrategy;
-pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
+pub use pdot_parachain::wasm_executor::IsolationStrategy;
+pub use pdot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
 pub use sc_executor::NativeExecutionDispatch;
@@ -69,36 +69,36 @@ pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sp_api::{ApiRef, Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::{DigestFor, HashFor, NumberFor, Block as BlockT, self as runtime_traits, BlakeTwo256};
 
-pub use kusama_runtime;
-pub use polkadot_runtime;
-pub use rococo_runtime;
-pub use westend_runtime;
+pub use runtime_kusama;
+pub use runtime_polkadot;
+pub use runtime_rococo;
+pub use runtime_westend;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
-	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version,
+	runtime_polkadot::api::dispatch,
+	runtime_polkadot::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 native_executor_instance!(
 	pub KusamaExecutor,
-	kusama_runtime::api::dispatch,
-	kusama_runtime::native_version,
+	runtime_kusama::api::dispatch,
+	runtime_kusama::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 native_executor_instance!(
 	pub WestendExecutor,
-	westend_runtime::api::dispatch,
-	westend_runtime::native_version,
+	runtime_westend::api::dispatch,
+	runtime_westend::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 native_executor_instance!(
 	pub RococoExecutor,
-	rococo_runtime::api::dispatch,
-	rococo_runtime::native_version,
+	runtime_rococo::api::dispatch,
+	runtime_rococo::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -205,9 +205,9 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
 			impl Fn(
-				polkadot_rpc::DenyUnsafe,
-				polkadot_rpc::SubscriptionTaskExecutor,
-			) -> polkadot_rpc::RpcExtension,
+				pdot_rpc::DenyUnsafe,
+				pdot_rpc::SubscriptionTaskExecutor,
+			) -> pdot_rpc::RpcExtension,
 			(
 				babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
@@ -302,19 +302,19 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
 
-		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
-			let deps = polkadot_rpc::FullDeps {
+		move |deny_unsafe, subscription_executor| -> pdot_rpc::RpcExtension {
+			let deps = pdot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
 				select_chain: select_chain.clone(),
 				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
-				babe: polkadot_rpc::BabeDeps {
+				babe: pdot_rpc::BabeDeps {
 					babe_config: babe_config.clone(),
 					shared_epoch_changes: shared_epoch_changes.clone(),
 					keystore: keystore.clone(),
 				},
-				grandpa: polkadot_rpc::GrandpaDeps {
+				grandpa: pdot_rpc::GrandpaDeps {
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
@@ -323,7 +323,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 				},
 			};
 
-			polkadot_rpc::create_full(deps)
+			pdot_rpc::create_full(deps)
 		}
 	};
 
@@ -906,14 +906,14 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		);
 	}
 
-	let light_deps = polkadot_rpc::LightDeps {
+	let light_deps = pdot_rpc::LightDeps {
 		remote_blockchain: backend.remote_blockchain(),
 		fetcher: on_demand.clone(),
 		client: client.clone(),
 		pool: transaction_pool.clone(),
 	};
 
-	let rpc_extensions = polkadot_rpc::create_light(light_deps);
+	let rpc_extensions = pdot_rpc::create_light(light_deps);
 
 	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		on_demand: Some(on_demand),
@@ -951,19 +951,19 @@ pub fn new_chain_ops(mut config: &mut Configuration, jaeger_agent: Option<std::n
 	config.keystore = service::config::KeystoreConfig::InMemory;
 	if config.chain_spec.is_rococo() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<rococo_runtime::RuntimeApi, RococoExecutor>(config, jaeger_agent)?;
+			= new_partial::<runtime_rococo::RuntimeApi, RococoExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Rococo(client)), backend, import_queue, task_manager))
 	} else if config.chain_spec.is_kusama() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<kusama_runtime::RuntimeApi, KusamaExecutor>(config, jaeger_agent)?;
+			= new_partial::<runtime_kusama::RuntimeApi, KusamaExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Kusama(client)), backend, import_queue, task_manager))
 	} else if config.chain_spec.is_westend() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<westend_runtime::RuntimeApi, WestendExecutor>(config, jaeger_agent)?;
+			= new_partial::<runtime_westend::RuntimeApi, WestendExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Westend(client)), backend, import_queue, task_manager))
 	} else {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-			= new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config, jaeger_agent)?;
+			= new_partial::<runtime_polkadot::RuntimeApi, PolkadotExecutor>(config, jaeger_agent)?;
 		Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
 	}
 }
@@ -975,13 +975,13 @@ pub fn build_light(config: Configuration) -> Result<(
 	Option<TelemetryConnectionNotifier>,
 ), Error> {
 	if config.chain_spec.is_rococo() {
-		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
+		new_light::<runtime_rococo::RuntimeApi, RococoExecutor>(config)
 	} else if config.chain_spec.is_kusama() {
-		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
+		new_light::<runtime_kusama::RuntimeApi, KusamaExecutor>(config)
 	} else if config.chain_spec.is_westend() {
-		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
+		new_light::<runtime_westend::RuntimeApi, WestendExecutor>(config)
 	} else {
-		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
+		new_light::<runtime_polkadot::RuntimeApi, PolkadotExecutor>(config)
 	}
 }
 
@@ -993,7 +993,7 @@ pub fn build_full(
 	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
-		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
+		new_full::<runtime_rococo::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1001,7 +1001,7 @@ pub fn build_full(
 			Default::default(),
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
-		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
+		new_full::<runtime_kusama::RuntimeApi, KusamaExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1009,7 +1009,7 @@ pub fn build_full(
 			Default::default(),
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
-		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+		new_full::<runtime_westend::RuntimeApi, WestendExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1017,7 +1017,7 @@ pub fn build_full(
 			Default::default(),
 		).map(|full| full.with_client(Client::Westend))
 	} else {
-		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
+		new_full::<runtime_polkadot::RuntimeApi, PolkadotExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,

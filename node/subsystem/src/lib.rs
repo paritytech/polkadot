@@ -28,7 +28,7 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::v1::{Hash, BlockNumber};
+use pdot_primitives::v1::{Hash, BlockNumber};
 use async_trait::async_trait;
 use smallvec::SmallVec;
 

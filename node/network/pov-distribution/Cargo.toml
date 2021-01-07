@@ -10,7 +10,7 @@ thiserror = "1.0.23"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
 pnu-subsystem-util = { path = "../../subsystem-util" }
 pnu-validator-discovery = { path = "../../validator-discovery" }

@@ -19,7 +19,7 @@
 pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
 pub use sp_consensus_slots::Slot;
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature, CoreIndex,
 	BlockNumber, CandidateIndex,
 };

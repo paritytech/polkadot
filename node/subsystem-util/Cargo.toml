@@ -18,7 +18,7 @@ tracing = "0.1.22"
 pnu-metered-channel = { path = "../util/metered-channel"}
 pnu-primitives = { path = "../primitives" }
 pnu-subsystem = { path = "../subsystem" }
-polkadot-primitives = { path = "../../primitives" }
+pdot-primitives = { path = "../../primitives" }
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

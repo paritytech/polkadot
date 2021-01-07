@@ -27,7 +27,7 @@ pub enum Error {
 	#[error(transparent)]
 	Util(#[from] pnu_subsystem_util::Error),
 	#[error(transparent)]
-	Erasure(#[from] polkadot_erasure_coding::Error),
+	Erasure(#[from] pdot_erasure_coding::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -25,17 +25,17 @@ use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::Encode;
 
-use polkadot_runtime_parachains::configuration as parachains_configuration;
-use polkadot_runtime_parachains::inclusion as parachains_inclusion;
-use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
-use polkadot_runtime_parachains::initializer as parachains_initializer;
-use polkadot_runtime_parachains::session_info as parachains_session_info;
-use polkadot_runtime_parachains::paras as parachains_paras;
-use polkadot_runtime_parachains::dmp as parachains_dmp;
-use polkadot_runtime_parachains::ump as parachains_ump;
-use polkadot_runtime_parachains::hrmp as parachains_hrmp;
-use polkadot_runtime_parachains::scheduler as parachains_scheduler;
-use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
+use pdot_runtime_parachains::configuration as parachains_configuration;
+use pdot_runtime_parachains::inclusion as parachains_inclusion;
+use pdot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use pdot_runtime_parachains::initializer as parachains_initializer;
+use pdot_runtime_parachains::session_info as parachains_session_info;
+use pdot_runtime_parachains::paras as parachains_paras;
+use pdot_runtime_parachains::dmp as parachains_dmp;
+use pdot_runtime_parachains::ump as parachains_ump;
+use pdot_runtime_parachains::hrmp as parachains_hrmp;
+use pdot_runtime_parachains::scheduler as parachains_scheduler;
+use pdot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
@@ -73,7 +73,7 @@ use frame_support::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
-use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
+use pdot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -94,8 +94,8 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version (Test).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("polkadot-test-runtime"),
-	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
+	spec_name: create_runtime_str!("runtime-polkadot-test"),
+	impl_name: create_runtime_str!("parity-runtime-polkadot-test"),
 	authoring_version: 2,
 	spec_version: 1055,
 	impl_version: 0,

@@ -35,7 +35,7 @@ use pnu_subsystem::{
 use pnu_subsystem_util::{
 	self as util, request_availability_cores, request_persisted_validation_data, metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };

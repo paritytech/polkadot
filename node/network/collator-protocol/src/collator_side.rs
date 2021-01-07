@@ -20,7 +20,7 @@ use super::{LOG_TARGET,  Result};
 
 use futures::{select, FutureExt};
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
 };
 use polkadot_subsystem::{
@@ -741,7 +741,7 @@ mod tests {
 	use sp_core::crypto::Pair;
 	use sp_keyring::Sr25519Keyring;
 
-	use polkadot_primitives::v1::{
+	use pdot_primitives::v1::{
 		BlockData, CandidateDescriptor, CollatorPair, ScheduledCore,
 		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
 		SessionIndex, SessionInfo,

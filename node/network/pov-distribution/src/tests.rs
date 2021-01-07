@@ -24,7 +24,7 @@ use tracing::trace;
 
 use sp_keyring::Sr25519Keyring;
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId,
 	ScheduledCore, ValidatorIndex, SessionIndex, SessionInfo,
 };

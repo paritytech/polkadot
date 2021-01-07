@@ -6,7 +6,7 @@ edition = "2018"
 description = "Primitives types for the Node-side"
 
 [dependencies]
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 pnu-primitives = { path = "../../primitives" }
 pnu-jaeger = { path = "../../jaeger" }
 parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }

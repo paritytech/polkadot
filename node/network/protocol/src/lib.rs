@@ -19,7 +19,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{Hash, BlockNumber};
+use pdot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::{convert::TryFrom, fmt, collections::HashMap};
 
@@ -209,7 +209,7 @@ impl std::ops::Deref for OurView {
 ///
 /// ```
 /// # use pnn_protocol::our_view;
-/// # use polkadot_primitives::v1::Hash;
+/// # use pdot_primitives::v1::Hash;
 /// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -242,7 +242,7 @@ pub struct View {
 ///
 /// ```
 /// # use pnn_protocol::view;
-/// # use polkadot_primitives::v1::Hash;
+/// # use pdot_primitives::v1::Hash;
 /// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -280,7 +280,7 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{
+	use pdot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
 		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex,
 	};
@@ -473,7 +473,7 @@ pub mod v1 {
 
 #[cfg(test)]
 mod tests {
-	use polkadot_primitives::v1::PoV;
+	use pdot_primitives::v1::PoV;
 	use super::v1::{CompressedPoV, CompressedPoVError};
 
 	#[test]

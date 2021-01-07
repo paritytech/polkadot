@@ -20,9 +20,9 @@ use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
-use polkadot_primitives::v1::{ValidatorId, AccountId, AssignmentId};
+use pdot_primitives::v1::{ValidatorId, AccountId, AssignmentId};
 use pnu_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
-use polkadot_test_runtime::constants::currency::DOTS;
+use runtime_polkadot_test::constants::currency::DOTS;
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_core::sr25519;
 use sp_runtime::Perbill;
@@ -31,7 +31,7 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// The `ChainSpec` parametrized for polkadot test runtime.
 pub type PolkadotChainSpec =
-	service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
+	service::GenericChainSpec<runtime_polkadot_test::GenesisConfig, Extensions>;
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
@@ -49,7 +49,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 }
 
 /// Local testnet genesis config (multivalidator Alice + Bob)
-pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig {
+pub fn polkadot_local_testnet_genesis() -> runtime_polkadot_test::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
 			get_authority_keys_from_seed("Alice"),
@@ -105,8 +105,8 @@ fn polkadot_testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> polkadot_test_runtime::GenesisConfig {
-	use polkadot_test_runtime as runtime;
+) -> runtime_polkadot_test::GenesisConfig {
+	use runtime_polkadot_test as runtime;
 
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
@@ -172,7 +172,7 @@ fn polkadot_testnet_genesis(
 		pallet_vesting: Some(runtime::VestingConfig { vesting: vec![] }),
 		pallet_sudo: Some(runtime::SudoConfig { key: root_key }),
 		parachains_configuration: Some(runtime::ParachainsConfigurationConfig {
-			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+			config: pdot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 10u32,
 				validation_upgrade_delay: 5,
 				acceptance_period: 1200,

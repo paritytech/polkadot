@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{Client, FullBackend};
-use polkadot_test_runtime::{GetLastTimestamp, UncheckedExtrinsic};
-use polkadot_primitives::v1::Block;
+use runtime_polkadot_test::{GetLastTimestamp, UncheckedExtrinsic};
+use pdot_primitives::v1::Block;
 use sp_runtime::generic::BlockId;
 use sp_api::ProvideRuntimeApi;
 use sc_block_builder::{BlockBuilderProvider, BlockBuilder};
@@ -63,7 +63,7 @@ impl InitPolkadotBlockBuilder for Client {
 
 		// `MinimumPeriod` is a storage parameter type that requires externalities to access the value.
 		let minimum_period = BasicExternalities::new_empty()
-			.execute_with(|| polkadot_test_runtime::MinimumPeriod::get());
+			.execute_with(|| runtime_polkadot_test::MinimumPeriod::get());
 
 		let timestamp = last_timestamp + minimum_period;
 
@@ -82,7 +82,7 @@ impl InitPolkadotBlockBuilder for Client {
 		);
 		inherent_data
 			.put_data(
-				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
+				pdot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
 				&inclusion_inherent_data,
 			)
 			.expect("Put inclusion inherent data");

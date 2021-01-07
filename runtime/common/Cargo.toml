@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-runtime-common"
+name = "pdot-runtime-common"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -35,9 +35,9 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", 
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
-primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+primitives = { package = "pdot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
-runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
+runtime-parachains = { package = "pdot-runtime-parachains", path = "../parachains", default-features = false }
 
 xcm = { path = "../../xcm", default-features = false }
 

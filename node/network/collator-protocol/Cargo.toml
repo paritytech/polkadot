@@ -11,7 +11,7 @@ tracing-futures = "0.2.4"
 thiserror = "1.0.23"
 
 
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 pnn-protocol = { path = "../../network/protocol" }
 pnu-subsystem-util = { path = "../../subsystem-util" }
 pnu-validator-discovery = { path = "../../validator-discovery" }

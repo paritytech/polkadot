@@ -32,7 +32,7 @@ use polkadot_subsystem::{
 };
 use pnu_subsystem_util::metrics::{self, prometheus};
 use node_primitives::SignedFullStatement;
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use pnn_protocol::{
@@ -1113,7 +1113,7 @@ mod tests {
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use node_primitives::Statement;
-	use polkadot_primitives::v1::CommittedCandidateReceipt;
+	use pdot_primitives::v1::CommittedCandidateReceipt;
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};

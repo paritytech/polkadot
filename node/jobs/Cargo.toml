@@ -16,7 +16,7 @@ pnu-primitives = { path = "../primitives" }
 pnu-subsystem = { path = "../subsystem" }
 pnu-subsystem-util = { path = "../subsystem-util" }
 pnu-jaeger = { path = "../jaeger" }
-polkadot-primitives = { path = "../../primitives" }
+pdot-primitives = { path = "../../primitives" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

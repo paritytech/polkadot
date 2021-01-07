@@ -12,8 +12,8 @@ thiserror = "1.0.21"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 
-polkadot-erasure-coding = { path = "../../../erasure-coding" }
-polkadot-primitives = { path = "../../../primitives" }
+pdot-erasure-coding = { path = "../../../erasure-coding" }
+pdot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
 pnu-subsystem-util = { path = "../../subsystem-util" }
 pnn-protocol = { path = "../../network/protocol" }

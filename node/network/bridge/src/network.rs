@@ -27,7 +27,7 @@ use sc_network::Event as NetworkEvent;
 
 use super::LOG_TARGET;
 use pnn_protocol::{peer_set::PeerSet, PeerId, ReputationChange};
-use polkadot_primitives::v1::{Block, Hash};
+use pdot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
 /// Send a message to the network.

@@ -9,7 +9,7 @@ edition = "2018"
 tiny-keccak = "2.0.2"
 parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 
-parachain = { package = "polkadot-parachain", path = ".." }
+parachain = { package = "pdot-parachain", path = ".." }
 adder = { package = "test-parachain-adder", path = "adder" }
 halt = { package = "test-parachain-halt", path = "halt" }
 

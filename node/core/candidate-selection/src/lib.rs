@@ -39,7 +39,7 @@ use pnu_subsystem_util::{
 use pnu_jobs::{
 	delegated_subsystem, JobTrait, FromJobCommand,
 };
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
 };
 use std::{pin::Pin, sync::Arc};
@@ -449,7 +449,7 @@ delegated_subsystem!(CandidateSelectionJob(SyncCryptoStorePtr, Metrics) <- Candi
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_primitives::v1::BlockData;
+	use pdot_primitives::v1::BlockData;
 	use sp_core::crypto::Public;
 	use std::sync::Arc;
 

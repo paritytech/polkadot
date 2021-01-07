@@ -30,14 +30,14 @@ use application_crypto::KeyTypeId;
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 // Export some core primitives.
-pub use polkadot_core_primitives::v1::{
+pub use pdot_core_primitives::v1::{
 	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex, ChainId, Hash, Nonce,
 	Balance, Header, Block, BlockId, UncheckedExtrinsic, Remark, DownwardMessage,
 	InboundDownwardMessage, CandidateHash, InboundHrmpMessage, OutboundHrmpMessage,
 };
 
-// Export some polkadot-parachain primitives
-pub use polkadot_parachain::primitives::{
+// Export some pdot-parachain primitives
+pub use pdot_parachain::primitives::{
 	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, BlockData, ValidationCode,
 };
 

@@ -28,7 +28,7 @@ use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 use streamunordered::{StreamUnordered, StreamYield};
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, CandidateReceipt, CandidateHash,
 	Hash, ErasureChunk, ValidatorId, ValidatorIndex,
 	SessionInfo, SessionIndex, BlakeTwo256, HashT,
@@ -48,7 +48,7 @@ use pnu_subsystem_util::{
 	Timeout, TimeoutExt,
 	request_session_info_ctx,
 };
-use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
+use pdot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
 mod error;
 
 #[cfg(test)]
@@ -266,7 +266,7 @@ impl Interaction {
 			// break and issue a FromInteraction::Concluded(RecoveryError::Invalid).
 			// Otherwise, issue a FromInteraction::Concluded(Ok(())).
 			if self.received_chunks.len() >= self.threshold {
-				let concluded = match polkadot_erasure_coding::reconstruct_v1(
+				let concluded = match pdot_erasure_coding::reconstruct_v1(
 					self.validators.len(),
 					self.received_chunks.values().map(|c| (&c.chunk[..], c.index as usize)),
 				) {

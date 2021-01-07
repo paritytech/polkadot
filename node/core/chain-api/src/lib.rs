@@ -38,7 +38,7 @@ use polkadot_subsystem::{
 use pnu_subsystem_util::{
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{Block, BlockId};
+use pdot_primitives::v1::{Block, BlockId};
 use sp_blockchain::HeaderBackend;
 use std::sync::Arc;
 
@@ -278,7 +278,7 @@ mod tests {
 	use std::collections::BTreeMap;
 	use futures::{future::BoxFuture, channel::oneshot};
 
-	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
+	use pdot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
 	use pnu_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 	use sp_blockchain::Info as BlockInfo;
 	use sp_core::testing::TaskExecutor;

@@ -22,7 +22,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Hash, PoV, CandidateDescriptor, ValidatorId, Id as ParaId, CoreIndex, CoreState,
 };
 use polkadot_subsystem::{

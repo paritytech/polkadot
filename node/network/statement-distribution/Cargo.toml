@@ -9,7 +9,7 @@ edition = "2018"
 futures = "0.3.12"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "pnu-primitives", path = "../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }

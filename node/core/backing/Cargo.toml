@@ -7,13 +7,13 @@ edition = "2018"
 [dependencies]
 futures = "0.3.12"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 pnu-primitives = { path = "../../primitives" }
 pnu-jobs = { path = "../../jobs" }
 polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
 pnu-subsystem-util = { path = "../../subsystem-util" }
-erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
-statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
+erasure-coding = { package = "pdot-erasure-coding", path = "../../../erasure-coding" }
+statement-table = { package = "pdot-statement-table", path = "../../../statement-table" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 tracing = "0.1.22"
 tracing-futures = "0.2.4"

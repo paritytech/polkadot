@@ -34,7 +34,7 @@ use pnu_subsystem::{
 use pnu_subsystem_util::{
 	self as util, Validator, metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
+use pdot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};
 use wasm_timer::{Delay, Instant};
 
@@ -298,7 +298,7 @@ pub type BitfieldSigningSubsystem<Spawner, Context> = JobManager<Spawner, Contex
 mod tests {
 	use super::*;
 	use futures::{pin_mut, executor::block_on};
-	use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
+	use pdot_primitives::v1::{CandidateHash, OccupiedCore};
 
 	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
 		CoreState::Occupied(OccupiedCore {

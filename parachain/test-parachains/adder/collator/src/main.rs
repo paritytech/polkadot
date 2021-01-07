@@ -18,8 +18,8 @@
 
 use pnu_primitives::CollationGenerationConfig;
 use pnu_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
-use polkadot_primitives::v1::Id as ParaId;
-use polkadot_cli::{Error, Result};
+use pdot_primitives::v1::Id as ParaId;
+use pdot_cli::{Error, Result};
 use sc_cli::{Error as SubstrateCliError, Role, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_adder_collator::Collator;

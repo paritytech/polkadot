@@ -12,8 +12,8 @@ tracing-futures = "0.2.4"
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
 parity-scale-codec = { version = "1.3.6", default-features = false, features = ["bit-vec", "derive"] }
 
-polkadot-primitives = { path = "../../../primitives" }
-polkadot-parachain = { path = "../../../parachain" }
+pdot-primitives = { path = "../../../primitives" }
+pdot-parachain = { path = "../../../parachain" }
 pnu-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "pnu-subsystem", path = "../../subsystem" }
 pnu-subsystem-util = { path = "../../subsystem-util" }

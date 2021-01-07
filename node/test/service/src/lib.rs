@@ -23,19 +23,19 @@ pub mod chain_spec;
 pub use chain_spec::*;
 use futures::future::Future;
 use pnc_overseer::OverseerHandler;
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
 };
-use polkadot_runtime_common::BlockHashCount;
+use pdot_runtime_common::BlockHashCount;
 use pnu_service::{
 	Error, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
 };
 use pnu_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
-use polkadot_test_runtime::{
+use runtime_polkadot_test::{
 	Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, SudoCall, UncheckedExtrinsic,
 };
 use pnu_primitives::{CollatorFn, CollationGenerationConfig};
-use polkadot_runtime_parachains::paras::ParaGenesisArgs;
+use pdot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
 use sc_executor::native_executor_instance;
@@ -58,13 +58,13 @@ use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionO
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
-	polkadot_test_runtime::api::dispatch,
-	polkadot_test_runtime::native_version,
+	runtime_polkadot_test::api::dispatch,
+	runtime_polkadot_test::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
 /// The client type being used by the test service.
-pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>;
+pub type Client = FullClient<runtime_polkadot_test::RuntimeApi, PolkadotTestExecutor>;
 
 pub use pnu_service::FullBackend;
 
@@ -77,12 +77,12 @@ pub fn new_full(
 	NewFull<Arc<Client>>,
 	Error,
 > {
-	pnu_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+	pnu_service::new_full::<runtime_polkadot_test::RuntimeApi, PolkadotTestExecutor>(
 		config,
 		is_collator,
 		None,
 		None,
-		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
+		pdot_parachain::wasm_executor::IsolationStrategy::InProcess,
 	)
 }
 
@@ -288,7 +288,7 @@ impl PolkadotTestNode {
 	/// Send an extrinsic to this node.
 	pub async fn send_extrinsic(
 		&self,
-		function: impl Into<polkadot_test_runtime::Call>,
+		function: impl Into<runtime_polkadot_test::Call>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
 		let extrinsic = construct_extrinsic(&*self.client, function, caller);
@@ -347,7 +347,7 @@ impl PolkadotTestNode {
 /// Construct an extrinsic that can be applied to the test runtime.
 pub fn construct_extrinsic(
 	client: &Client,
-	function: impl Into<polkadot_test_runtime::Call>,
+	function: impl Into<runtime_polkadot_test::Call>,
 	caller: Sr25519Keyring,
 ) -> UncheckedExtrinsic {
 	let function = function.into();
@@ -385,8 +385,8 @@ pub fn construct_extrinsic(
 	let signature = raw_payload.using_encoded(|e| caller.sign(e));
 	UncheckedExtrinsic::new_signed(
 		function.clone(),
-		polkadot_test_runtime::Address::Id(caller.public().into()),
-		polkadot_primitives::v0::Signature::Sr25519(signature.clone()),
+		runtime_polkadot_test::Address::Id(caller.public().into()),
+		pdot_primitives::v0::Signature::Sr25519(signature.clone()),
 		extra.clone(),
 	)
 }
@@ -398,7 +398,7 @@ pub fn construct_transfer_extrinsic(
 	dest: sp_keyring::AccountKeyring,
 	value: Balance,
 ) -> UncheckedExtrinsic {
-	let function = polkadot_test_runtime::Call::Balances(
+	let function = runtime_polkadot_test::Call::Balances(
 		pallet_balances::Call::transfer(
 			MultiSigner::from(dest.public()).into_account().into(),
 			value,

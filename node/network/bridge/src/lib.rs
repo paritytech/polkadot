@@ -32,7 +32,7 @@ use polkadot_subsystem::messages::{
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
 	CollatorProtocolMessage, ApprovalDistributionMessage,
 };
-use polkadot_primitives::v1::{Hash, BlockNumber};
+use pdot_primitives::v1::{Hash, BlockNumber};
 use pnn_protocol::{
 	ReputationChange, PeerId, peer_set::PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1, OurView,
 };
@@ -563,7 +563,7 @@ mod tests {
 	use pnn_protocol::view;
 	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
-	use polkadot_primitives::v1::AuthorityDiscoveryId;
+	use pdot_primitives::v1::AuthorityDiscoveryId;
 	use pnn_protocol::ObservedRole;
 
 	use crate::network::{Network, NetworkAction};

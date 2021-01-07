@@ -24,7 +24,7 @@ use futures::{
 	stream::FuturesUnordered,
 };
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
 };
 use polkadot_subsystem::{
@@ -796,7 +796,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures_timer::Delay;
 
-	use polkadot_primitives::v1::{BlockData, CollatorPair};
+	use pdot_primitives::v1::{BlockData, CollatorPair};
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use pnn_protocol::our_view;
 

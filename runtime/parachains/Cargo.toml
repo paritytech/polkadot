@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-runtime-parachains"
+name = "pdot-runtime-parachains"
 version = "0.8.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -36,7 +36,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
-primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+primitives = { package = "pdot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
 
 rand = { version = "0.8.3", default-features = false }

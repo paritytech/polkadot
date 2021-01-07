@@ -110,6 +110,6 @@ impl SubstrateCli for Cli {
 	fn native_runtime_version(
 		_spec: &Box<dyn pnu_service::ChainSpec>,
 	) -> &'static RuntimeVersion {
-		&pnu_service::rococo_runtime::VERSION
+		&pnu_service::runtime_rococo::VERSION
 	}
 }

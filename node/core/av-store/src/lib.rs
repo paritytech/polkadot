@@ -31,7 +31,7 @@ use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
 	CandidateReceipt,
 };

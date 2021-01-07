@@ -1,6 +1,6 @@
 use super::*;
 use bitvec::bitvec;
-use polkadot_primitives::v1::{OccupiedCore, ScheduledCore};
+use pdot_primitives::v1::{OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -45,7 +45,7 @@ mod select_availability_bitfields {
 	use super::{default_bitvec, occupied_core};
 	use futures::executor::block_on;
 	use std::sync::Arc;
-	use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
+	use pdot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, testing::KeyStore};
 
@@ -198,7 +198,7 @@ mod select_candidates {
 		AllMessages, RuntimeApiMessage,
 		RuntimeApiRequest::{AvailabilityCores, PersistedValidationData as PersistedValidationDataReq},
 	};
-	use polkadot_primitives::v1::{
+	use pdot_primitives::v1::{
 		BlockNumber, CandidateDescriptor, PersistedValidationData, CommittedCandidateReceipt, CandidateCommitments,
 	};
 

@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-cli"
+name = "pdot-cli"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
@@ -22,7 +22,7 @@ wasm-bindgen-futures = { version = "0.4.19", optional = true }
 futures = "0.3.12"
 
 service = { package = "pnu-service", path = "../node/service", default-features = false, optional = true }
-polkadot-parachain = { path = "../parachain", optional = true }
+pdot-parachain = { path = "../parachain", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tracing-futures = "0.2.4"
@@ -39,8 +39,8 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]
-wasmtime = [ "sc-cli/wasmtime", "polkadot-parachain/wasmtime" ]
+default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "pdot-parachain" ]
+wasmtime = [ "sc-cli/wasmtime", "pdot-parachain/wasmtime" ]
 db = [ "service/db" ]
 cli = [
 	"structopt",

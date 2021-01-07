@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-parachain"
+name = "pdot-parachain"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
@@ -15,7 +15,7 @@ sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", d
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-polkadot-core-primitives = { path = "../core-primitives", default-features = false }
+pdot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
 
 # all optional crates.
@@ -49,6 +49,6 @@ std = [
 	"sp-externalities",
 	"sc-executor",
 	"sp-io",
-	"polkadot-core-primitives/std",
+	"pdot-core-primitives/std",
 	"futures",
 ]

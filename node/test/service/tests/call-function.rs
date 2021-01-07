@@ -22,7 +22,7 @@ use sp_keyring::Sr25519Keyring::{Alice, Bob};
 async fn call_function_actually_work(task_executor: TaskExecutor) {
 	let alice = run_validator_node(task_executor, Alice, || {}, Vec::new());
 
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
+	let function = runtime_polkadot_test::Call::Balances(pallet_balances::Call::transfer(
 		Default::default(),
 		1,
 	));

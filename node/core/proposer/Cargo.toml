@@ -10,7 +10,7 @@ futures-timer = "3.0.2"
 tracing = "0.1.22"
 pnu-subsystem = { path = "../../subsystem" }
 pnc-overseer = { path = "../../overseer" }
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }

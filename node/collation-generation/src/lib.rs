@@ -36,7 +36,7 @@ use pnu_subsystem_util::{
 	request_validators_ctx,
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	collator_signature_payload, AvailableData, CandidateCommitments,
 	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, PoV,
@@ -367,8 +367,8 @@ fn erasure_root(
 		pov: Arc::new(pov),
 	};
 
-	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
-	Ok(polkadot_erasure_coding::branches(&chunks).root())
+	let chunks = pdot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
+	Ok(pdot_erasure_coding::branches(&chunks).root())
 }
 
 #[derive(Clone)]
@@ -464,7 +464,7 @@ mod tests {
 		use pnu_subsystem_test_helpers::{
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
-		use polkadot_primitives::v1::{
+		use pdot_primitives::v1::{
 			BlockData, BlockNumber, CollatorPair, Id as ParaId,
 			PersistedValidationData, PoV, ScheduledCore,
 		};

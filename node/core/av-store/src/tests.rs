@@ -24,7 +24,7 @@ use futures::{
 	Future,
 };
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	AvailableData, BlockData, CandidateDescriptor, CandidateReceipt, HeadData,
 	PersistedValidationData, PoV, Id as ParaId, CandidateHash, Header, ValidatorId,
 };

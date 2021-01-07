@@ -18,7 +18,7 @@
 
 use futures_timer::Delay;
 use pnu_primitives::{Collation, CollatorFn};
-use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
+use pdot_primitives::v1::{CollatorId, CollatorPair, PoV};
 use parity_scale_codec::{Encode, Decode};
 use sp_core::Pair;
 use std::{
@@ -195,8 +195,8 @@ mod tests {
 	use super::*;
 
 	use futures::executor::block_on;
-	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
-	use polkadot_primitives::v1::PersistedValidationData;
+	use pdot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
+	use pdot_primitives::v1::PersistedValidationData;
 
 	#[test]
 	fn collator_works() {
@@ -225,7 +225,7 @@ mod tests {
 	}
 
 	fn validate_collation(collator: &Collator, parent_head: HeadData, collation: Collation) {
-		let ret = polkadot_parachain::wasm_executor::validate_candidate(
+		let ret = pdot_parachain::wasm_executor::validate_candidate(
 			collator.validation_code(),
 			ValidationParams {
 				parent_head: parent_head.encode().into(),

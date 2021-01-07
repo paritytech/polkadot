@@ -8,9 +8,9 @@ edition = "2018"
 parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 
 # Polkadot dependencies
-polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
+runtime-polkadot-test = { path = "../../../runtime/test-runtime" }
 pnu-test-service = { path = "../service" }
-polkadot-primitives = { path = "../../../primitives" }
+pdot-primitives = { path = "../../../primitives" }
 pnu-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies

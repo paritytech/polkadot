@@ -34,7 +34,7 @@ use polkadot_subsystem::{
 use pnn_protocol::{
 	PeerId, ReputationChange as Rep,
 };
-use polkadot_primitives::v1::CollatorId;
+use pdot_primitives::v1::CollatorId;
 use pnu_subsystem_util::{
 	self as util,
 	metrics::prometheus,

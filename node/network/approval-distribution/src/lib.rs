@@ -26,7 +26,7 @@ mod tests;
 
 use std::collections::{BTreeMap, HashMap, HashSet, hash_map};
 use futures::{channel::oneshot, FutureExt as _};
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Hash, BlockNumber, ValidatorIndex, ValidatorSignature, CandidateIndex,
 };
 use pnu_primitives::{

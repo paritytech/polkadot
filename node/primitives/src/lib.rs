@@ -16,7 +16,7 @@
 
 //! Primitive types used on the node-side.
 //!
-//! Unlike the `polkadot-primitives` crate, these primitives are only used on the node-side,
+//! Unlike the `pdot-primitives` crate, these primitives are only used on the node-side,
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
@@ -24,7 +24,7 @@
 
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement,
 	EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, PoV,
 	Signed, UpwardMessage, ValidationCode,
@@ -139,7 +139,7 @@ pub enum ValidationResult {
 /// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
-pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
+pub struct Collation<BlockNumber = pdot_primitives::v1::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The horizontal messages sent by the parachain.

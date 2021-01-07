@@ -32,7 +32,7 @@ use pnu_subsystem::{
 	messages::{AllMessages, NetworkBridgeMessage},
 	SubsystemContext,
 };
-use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
+use pdot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
 use sc_network::PeerId;
 
 /// Errors which can occur when connecting to validators
@@ -253,7 +253,7 @@ impl stream::Stream for ConnectionRequest {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v1::ValidatorPair;
+	use pdot_primitives::v1::ValidatorPair;
 	use sp_core::{Pair, Public};
 
 	use futures::{executor, poll, SinkExt};
