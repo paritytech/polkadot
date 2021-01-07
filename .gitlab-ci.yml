@@ -160,10 +160,8 @@ build-wasm-release:
   stage:                           build
   <<:                              *collect-artifacts
   <<:                              *docker-env
+  <<:                              *build-refs
   <<:                              *compiler-info
-  # Note: We likely only want to do this for tagged releases, hence the 'rules:'
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   script:
     - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
     - mkdir -p ./artifacts/wasm
@@ -231,14 +229,6 @@ generate-impl-guide:
 #### stage:                        publish
 
 .publish-build:                    &publish-build
-  stage:                           publish
-  needs:
-    - job:                         build-linux-release
-      artifacts:                   true
-    - job:                         build-wasm-release
-      artifacts:                   true
-  <<:                              *build-refs
-  <<:                              *kubernetes-env
   before_script:
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
@@ -247,6 +237,12 @@ generate-impl-guide:
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
 
 publish-docker-polkadot:           &build-push-docker-image
+  stage:                           publish
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+  <<:                              *build-refs
+  <<:                              *kubernetes-env
   <<:                              *publish-build
   image:                           quay.io/buildah/stable
   <<:                              *collect-artifacts
@@ -294,6 +290,14 @@ publish-docker-rococo:
     IMAGE_NAME:                    docker.io/parity/rococo
 
 publish-s3-release:
+  stage:                           publish
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+    - job:                         build-wasm-release
+      artifacts:                   true
+  <<:                              *build-refs
+  <<:                              *kubernetes-env
   <<:                              *publish-build
   image:                           paritytech/awscli:latest
   variables:
