@@ -184,24 +184,10 @@ build-wasm-release:
     - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
     - mv ./polkadot_cli* ../../artifacts/wasm/.
 
-build-linux-release:               &build-linux
-  stage:                           build
+.build-linux:                      &build-linux
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    # .rules-test with manual on PRs
-    - if: $PIPELINE == "rococo"
-      when: never
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-      when: manual
-      allow_failure: true
-    - when: always
-  script:
-    - mkdir -p ./artifacts
-    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-    - time cargo build --release --verbose
-    - sccache -s
   after_script:
     - mv ./target/release/polkadot ./artifacts/.
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
@@ -217,9 +203,26 @@ build-linux-release:               &build-linux
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
 
-build-linux-rococo:
+build-linux-release:
+  stage:                           build
   <<:                              *build-linux
+  rules:
+    # .rules-test with manual on PRs
+    - if: $PIPELINE == "rococo"
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      when: manual
+      allow_failure: true
+    - when: always
+  script:
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - time cargo build --release --verbose
+    - sccache -s
+
+build-linux-rococo:
   stage:                           test
+  <<:                              *build-linux
   rules:
     - if: $PIPELINE == "rococo"
   script:
@@ -248,26 +251,11 @@ generate-impl-guide:
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
 
-publish-docker-polkadot:           &build-push-docker-image
-  stage:                           publish
-  needs:
-    - job:                         build-linux-release
-      artifacts:                   true
-  <<:                              *rules-build
+.build-push-docker-image:          &build-push-docker-image
   <<:                              *kubernetes-env
+  <<:                              *collect-artifacts
   <<:                              *publish-build
   image:                           quay.io/buildah/stable
-  <<:                              *collect-artifacts
-  # Don't run on releases - this is handled by the Github Action here:
-  # .github/workflows/publish-docker-release.yml
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-  variables:
-    GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
-    IMAGE_NAME:                    docker.io/parity/polkadot
   script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
         ( echo "no docker credentials provided"; exit 1 )
@@ -288,9 +276,26 @@ publish-docker-polkadot:           &build-push-docker-image
     # only VERSION information is needed for the deployment
     - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
 
-publish-docker-rococo:
+publish-docker-polkadot:
+  stage:                           publish
   <<:                              *build-push-docker-image
+  # Don't run on releases - this is handled by the Github Action here:
+  # .github/workflows/publish-docker-release.yml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+  variables:
+    GIT_STRATEGY:                  none
+    # DOCKERFILE:                  scripts/docker/Dockerfile
+    IMAGE_NAME:                    docker.io/parity/polkadot
+
+publish-docker-rococo:
   stage:                           build
+  <<:                              *build-push-docker-image
   rules:
     - if: $PIPELINE == "rococo"
   needs:
