@@ -29,7 +29,6 @@ use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 use parity_scale_codec::{Encode, Decode};
 use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
 use futures_timer::Delay;
-use lru::LruCache;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
@@ -47,8 +46,6 @@ use polkadot_subsystem::messages::{
 };
 
 const LOG_TARGET: &str = "availability";
-
-const CHUNK_CACHE_SIZE: usize = 32;
 
 mod columns {
 	pub const DATA: u32 = 0;
@@ -318,14 +315,14 @@ impl PartialOrd for ChunkPruningRecord {
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	inner: Arc<dyn KeyValueDB>,
-	chunks_cache: LruCache<(CandidateHash, u32), ErasureChunk>,
+	chunks_cache: Option<HashMap<CandidateHash, HashMap<u32, ErasureChunk>>>,
 	metrics: Metrics,
 }
 
 impl AvailabilityStoreSubsystem {
 	// Perform pruning of PoVs
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn prune_povs(&self) -> Result<(), Error> {
+	fn prune_povs(&mut self) -> Result<(), Error> {
 		let _timer = self.metrics.time_prune_povs();
 
 		let mut tx = DBTransaction::new();
@@ -339,6 +336,10 @@ impl AvailabilityStoreSubsystem {
 
 		for record in pov_pruning.drain(..outdated_records_count) {
 			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
+
+			if let Some(ref mut cache) = self.chunks_cache {
+				cache.remove(&record.candidate_hash);
+			}
 			tx.delete(
 				columns::DATA,
 				available_data_key(&record.candidate_hash).as_slice(),
@@ -472,7 +473,7 @@ impl AvailabilityStoreSubsystem {
 		Ok(Self {
 			pruning_config: PruningConfig::default(),
 			inner: Arc::new(db),
-			chunks_cache: LruCache::new(CHUNK_CACHE_SIZE),
+			chunks_cache: Some(HashMap::new()),
 			metrics,
 		})
 	}
@@ -485,7 +486,7 @@ impl AvailabilityStoreSubsystem {
 			// In testing we would want to test actual deletions from DB,
 			// the values in the cache will prevent that so here cache size is
 			// set to `0`.
-			chunks_cache: LruCache::new(0),
+			chunks_cache: None,
 			metrics: Metrics(None),
 		}
 	}
@@ -544,7 +545,7 @@ where
 					ActiveLeavesUpdate { activated, .. })
 				) => {
 					for (activated, _span) in activated.into_iter() {
-						process_block_activated(ctx, &subsystem.inner, activated, &subsystem.metrics).await?;
+						process_block_activated(ctx, subsystem, activated).await?;
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
@@ -624,17 +625,17 @@ async fn process_block_finalized(
 	Ok(())
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, db, metrics), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn process_block_activated<Context>(
 	ctx: &mut Context,
-	db: &Arc<dyn KeyValueDB>,
+	subsystem: &mut AvailabilityStoreSubsystem,
 	hash: Hash,
-	metrics: &Metrics,
 ) -> Result<(), Error>
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
-	let _timer = metrics.time_block_activated();
+	let _timer = subsystem.metrics.time_block_activated();
+	let db = &subsystem.inner;
 
 	let events = match request_candidate_events(ctx, hash).await {
 		Ok(events) => events,
@@ -658,6 +659,12 @@ where
 		}
 	}
 
+	if let Some(ref mut cache) = subsystem.chunks_cache {
+		for included in &included {
+			cache.remove(&included);
+		}
+	}
+
 	if let Some(mut pov_pruning) = pov_pruning(db) {
 		for record in pov_pruning.iter_mut() {
 			if included.contains(&record.candidate_hash) {
@@ -668,7 +675,7 @@ where
 
 		pov_pruning.sort();
 
-		put_pov_pruning(db, None, pov_pruning, metrics)?;
+		put_pov_pruning(db, None, pov_pruning, &subsystem.metrics)?;
 	}
 
 	if let Some(mut chunk_pruning) = chunk_pruning(db) {
@@ -681,7 +688,7 @@ where
 
 		chunk_pruning.sort();
 
-		put_chunk_pruning(db, None, chunk_pruning, metrics)?;
+		put_chunk_pruning(db, None, chunk_pruning, &subsystem.metrics)?;
 	}
 
 	Ok(())
@@ -990,7 +997,9 @@ fn store_chunks(
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
 
 	for chunk in chunks {
-		subsystem.chunks_cache.put((*candidate_hash, chunk.index), chunk.clone());
+		if let Some(ref mut cache) = subsystem.chunks_cache {
+			cache.entry(*candidate_hash).or_default().insert(chunk.index, chunk.clone());
+		}
 
 		let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
 		if let Some(delay) = prune_at.as_duration() {
@@ -1042,8 +1051,12 @@ fn get_chunk(
 ) -> Result<Option<ErasureChunk>, Error> {
 	let _timer = subsystem.metrics.time_get_chunk();
 
-	if let Some(chunk) = subsystem.chunks_cache.get(&(*candidate_hash, index)) {
-		return Ok(Some(chunk.clone()));
+	if let Some(ref cache) = subsystem.chunks_cache {
+		if let Some(entry) = cache.get(candidate_hash) {
+			if let Some(chunk) = entry.get(&index) {
+				return Ok(Some(chunk.clone()));
+			}
+		}
 	}
 
 	if let Some(chunk) = query_inner(
