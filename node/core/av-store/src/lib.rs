@@ -742,11 +742,11 @@ where
 
 			tx.send(result?).map_err(|_| oneshot::Canceled)?;
 		}
-		StoreChunk { candidate_hash, relay_parent, validator_index, chunk, tx } => {
+		StoreChunk { candidate_hash, relay_parent, chunk, tx, .. } => {
 			let chunk_index = chunk.index;
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
-			let result = store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number);
+			let result = store_chunks(subsystem, &candidate_hash, &[chunk], block_number);
 
 			tracing::trace!(
 				target: LOG_TARGET,
@@ -910,16 +910,13 @@ fn store_available_data(
 
 	let block_number = available_data.validation_data.block_number;
 
-	if let Some(index) = id {
-		let chunks = get_chunks(&available_data, n_validators as usize, &subsystem.metrics)?;
-		store_chunk(
-			subsystem,
-			candidate_hash,
-			n_validators,
-			chunks[index as usize].clone(),
-			block_number,
-		)?;
-	}
+	let chunks = get_chunks(&available_data, n_validators as usize, &subsystem.metrics)?;
+	store_chunks(
+		subsystem,
+		candidate_hash,
+		&chunks,
+		block_number,
+	)?;
 
 	let stored_data = StoredAvailableData {
 		data: available_data,
@@ -966,53 +963,54 @@ fn store_available_data(
 }
 
 #[tracing::instrument(level = "trace", skip(subsystem), fields(subsystem = LOG_TARGET))]
-fn store_chunk(
+fn store_chunks(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	candidate_hash: &CandidateHash,
-	_n_validators: u32,
-	chunk: ErasureChunk,
+	chunks: &[ErasureChunk],
 	block_number: BlockNumber,
 ) -> Result<(), Error> {
-	let _timer = subsystem.metrics.time_store_chunk();
+	let _timer = subsystem.metrics.time_store_chunks();
 
 	let mut tx = DBTransaction::new();
-
-	let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
-
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
-	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
 
-	if let Some(delay) = prune_at.as_duration() {
+	for chunk in chunks {
+		let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
+		if let Some(delay) = prune_at.as_duration() {
+			tx.put_vec(
+				columns::META,
+				&NEXT_CHUNK_PRUNING,
+				NextChunkPruning(delay).encode(),
+			);
+		}
+
+		let pruning_record = ChunkPruningRecord {
+			candidate_hash: candidate_hash.clone(),
+			block_number,
+			candidate_state: CandidateState::Stored,
+			chunk_index: chunk.index,
+			prune_at,
+		};
+
+		let idx = chunk_pruning.binary_search(&pruning_record).unwrap_or_else(|insert_idx| insert_idx);
+
+		chunk_pruning.insert(idx, pruning_record);
+
+		let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
+
 		tx.put_vec(
-			columns::META,
-			&NEXT_CHUNK_PRUNING,
-			NextChunkPruning(delay).encode(),
+			columns::DATA,
+			&dbkey,
+			chunk.encode(),
 		);
 	}
-
-	let pruning_record = ChunkPruningRecord {
-		candidate_hash: candidate_hash.clone(),
-		block_number,
-		candidate_state: CandidateState::Stored,
-		chunk_index: chunk.index,
-		prune_at,
-	};
-
-	let idx = chunk_pruning.binary_search(&pruning_record).unwrap_or_else(|insert_idx| insert_idx);
-
-	chunk_pruning.insert(idx, pruning_record);
-
-	tx.put_vec(
-		columns::DATA,
-		&dbkey,
-		chunk.encode(),
-	);
 
 	tx.put_vec(
 		columns::META,
 		&CHUNK_PRUNING_KEY,
 		chunk_pruning.encode(),
 	);
+
 
 	subsystem.inner.write(tx)?;
 
@@ -1036,17 +1034,14 @@ fn get_chunk(
 	}
 
 	if let Some(data) = available_data(&subsystem.inner, candidate_hash) {
-		let mut chunks = get_chunks(&data.data, data.n_validators as usize, &subsystem.metrics)?;
+		let chunks = get_chunks(&data.data, data.n_validators as usize, &subsystem.metrics)?;
 		let desired_chunk = chunks.get(index as usize).cloned();
-		for chunk in chunks.drain(..) {
-			store_chunk(
-				subsystem,
-				candidate_hash,
-				data.n_validators,
-				chunk,
-				data.data.validation_data.block_number,
-			)?;
-		}
+		store_chunks(
+			subsystem,
+			candidate_hash,
+			&chunks,
+			data.data.validation_data.block_number,
+		)?;
 		return Ok(desired_chunk);
 	}
 
@@ -1115,7 +1110,7 @@ struct MetricsInner {
 	block_activated: prometheus::Histogram,
 	process_message: prometheus::Histogram,
 	store_available_data: prometheus::Histogram,
-	store_chunk: prometheus::Histogram,
+	store_chunks: prometheus::Histogram,
 	get_chunk: prometheus::Histogram,
 }
 
@@ -1164,8 +1159,8 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `store_chunk` which observes on drop.
-	fn time_store_chunk(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.store_chunk.start_timer())
+	fn time_store_chunks(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.store_chunks.start_timer())
 	}
 
 	/// Provide a timer for `get_chunk` which observes on drop.
@@ -1238,11 +1233,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			store_chunk: prometheus::register(
+			store_chunks: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_av_store_store_chunk",
-						"Time spent within `av_store::store_chunk`",
+						"parachain_av_store_store_chunks",
+						"Time spent within `av_store::store_chunks`",
 					)
 				)?,
 				registry,
