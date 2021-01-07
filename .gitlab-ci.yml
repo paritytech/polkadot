@@ -223,8 +223,9 @@ build-linux-release:
 build-linux-rococo:
   stage:                           test
   <<:                              *build-linux
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $PIPELINE == "rococo"
+  only:
+    variables:
+      - $PIPELINE == "rococo"
   script:
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
