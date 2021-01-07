@@ -31,7 +31,7 @@ use polkadot_subsystem::{
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex,
+	CandidateReceipt, CoreIndex, GroupIndex, AvailableData,
 };
 use polkadot_node_primitives::approval::{
 	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
@@ -900,16 +900,78 @@ async fn process_wakeup(
 			ctx.send_message(
 				ApprovalDistributionMessage::DistributeAssignment(indirect_cert, i as u32).into()
 			).await;
+
+			launch_approval(
+				ctx,
+				state.approval_vote_tx.clone(),
+				block_entry.session,
+				&candidate_entry.candidate,
+				val_index,
+				relay_block,
+				i as u32,
+			).await?;
 		}
 	}
 
-	// TODO [now]: schedule a new wakeup. launch approval work.
+	// TODO [now]: schedule a new wakeup.
 
 	Ok(())
 }
 
 async fn launch_approval(
-
+	ctx: &mut impl SubsystemContext,
+	approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
+	session_index: SessionIndex,
+	candidate: &CandidateReceipt,
+	validator_index: ValidatorIndex,
+	block_hash: Hash,
+	candidate_index: u32,
 ) -> SubsystemResult<()> {
-	unimplemented!()
+	let (_a_tx, a_rx) = oneshot::channel::<AvailableData>();
+	let (code_tx, code_rx) = oneshot::channel();
+	let (context_num_tx, context_num_rx) = oneshot::channel();
+
+	// TODO [now]
+	// ctx.send_message(
+	// 	AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, a_tx).into()
+	// ).await?;
+
+	ctx.send_message(
+		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
+	).await;
+
+	let in_context_number = match context_num_rx.await? {
+		Ok(Ok(n)) => n,
+		Ok(Err(_)) => return Ok(()),
+	};
+
+	ctx.send_message(
+		RuntimeApiMessage::Request(
+			block_hash,
+			RuntimeApiRequest::HistoricalValidationCode(
+				candidate.descriptor.para_id,
+				in_context_number,
+				code_tx,
+			),
+		).into()
+	).await;
+
+	let background = async move {
+		let available_data = match a_rx.await {
+			Err(_) => return,
+			Ok(a) => a,
+		};
+
+		let validation_code = match code_rx.await {
+			Err(_) => return,
+			Ok(Err(_)) => return,
+			Ok(code) => code,
+		};
+
+		// TODO [now]: issue a `CandidateValidationMessage::ValidateFromExhaustive`.
+
+		// TODO [now]: issue an `approval_vote_tx` message.
+	};
+
+	Ok(())
 }
