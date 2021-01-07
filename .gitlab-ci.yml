@@ -298,9 +298,9 @@ publish-docker-rococo:
   <<:                              *build-push-docker-image
   rules:
     - if: $PIPELINE == "rococo"
-  needs:
-    - job:                         build-linux-rococo
-      artifacts:                   true
+  # needs:
+  #   - job:                         build-linux-rococo
+  #     artifacts:                   true
   variables:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
