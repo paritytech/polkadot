@@ -19,6 +19,7 @@
 #![warn(missing_docs)]
 
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::time::Duration;
 
 use futures::{channel::{oneshot, mpsc}, prelude::*, stream::FuturesUnordered};
@@ -743,18 +744,25 @@ impl AvailabilityRecoverySubsystem {
 					cleanup_awaited_chunks(&mut state);
 				}
 				v = state.connecting_validators.next() => {
-					if let Some((StreamYield::Item(v), _)) = v {
-						if let Err(e) = handle_validator_connected(
-							&mut state,
-							&mut ctx,
-							v.0,
-							v.1,
-						).await {
-							tracing::warn!(
-								target: LOG_TARGET,
-								err = ?e,
-								"Failed to handle a newly connected validator",
-							);
+					if let Some((v, token)) = v {
+						match v {
+							StreamYield::Item(v) => {
+								if let Err(e) = handle_validator_connected(
+									&mut state,
+									&mut ctx,
+									v.0,
+									v.1,
+								).await {
+									tracing::warn!(
+										target: LOG_TARGET,
+										err = ?e,
+										"Failed to handle a newly connected validator",
+									);
+								}
+							}
+							StreamYield::Finished(_) => {
+								Pin::new(&mut state.connecting_validators).remove(token);
+							}
 						}
 					}
 				}
