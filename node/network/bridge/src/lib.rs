@@ -1501,31 +1501,6 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
-
-			// view updates are issued even when `ActiveLeavesUpdate` is empty
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_c, 3))
-			).await;
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default()))
-			).await;
-
-			let actions = network_handle.next_network_actions(1).await;
-			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View {
-					heads: vec![hash_b],
-					finalized_number: 3,
-				}
-			).encode();
-
-			assert_network_actions_contains(
-				&actions,
-				&NetworkAction::WriteNotification(
-					peer_a,
-					PeerSet::Validation,
-					wire_message.clone(),
-				),
-			);
 		});
 	}
 
