@@ -59,7 +59,7 @@ digraph {
 }
 ```
 
-## Database Schema.
+## Database Schema
 
 We use an underlying Key-Value database where we assume we have the following operations available:
   * `write(key, value)`
@@ -91,7 +91,8 @@ enum State {
   /// Candidate data was first observed at the given time but is not available in any block.
   Unavailable(Timestamp),
   /// The candidate was first observed at the given time and was included in the given list of unfinalized blocks, which may be
-  /// empty. The timestamp here is not used for pruning.
+  /// empty. The timestamp here is not used for pruning. Either one of these blocks will be finalized or the state will regress to
+  /// `State::Unavailable`, in which case the same timestamp will be reused.
   Unfinalized(Timestamp, Vec<(BlockNumber, BlockHash)>),
   /// Candidate data has appeared in a finalized block and did so at the given time.
   Finalized(Timestamp)
@@ -173,13 +174,16 @@ On `StoreAvailableData` message:
 
 Every 5 minutes, run a pruning routine:
 
-  - for each key in `iter_by_prefix(("prune_by_time", 0u32)):
+  - for each key in `iter_by_prefix(("prune_by_time", 0u32))`:
     - If the key is beyond ("prune_by_time", now), return.
     - Remove the key.
     - Extract `candidate_hash` from the key.
     - Load and remove the `("meta", candidate_hash)`
     - For each erasure chunk bit set, remove `("chunk", candidate_hash, bit_index)`.
     - If `data_available`, remove `("available", candidate_hash)
+
+  This is O(n * m) in the amount of candidates and average size of the data stored. This is probably the most expensive operation but does not need
+  to be run very often.
 
 ## Basic scenarios to test
 
