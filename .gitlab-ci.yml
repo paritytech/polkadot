@@ -69,7 +69,7 @@ default:
     # and on schedule.
     #
     # $PIPELINE should be passed in https://gitlab.parity.io/parity/polkadot/-/pipeline_schedules
-    # or other trigger to avoid running these jobs and run just those allowing this variable
+    # or other trigger to avoid running these jobs and run just those allowing this variable.
     - if: $PIPELINE == "rococo"
       when: never
     - if: $CI_PIPELINE_SOURCE == "web"
@@ -148,8 +148,8 @@ check-web-wasm:
   <<:                              *docker-env
   <<:                              *compiler-info
   script:
-    # WASM support is in progress. As more and more crates support WASM, we
-    # should add entries here. See https://github.com/paritytech/polkadot/issues/625
+    # WASM support is in progress. As more and more crates support WASM, we should
+    # add entries here. See https://github.com/paritytech/polkadot/issues/625
     - ./scripts/gitlab/check_web_wasm.sh
     - sccache -s
 
