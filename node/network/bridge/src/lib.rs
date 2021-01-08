@@ -62,7 +62,7 @@ pub const COLLATION_PROTOCOL_NAME: &'static str = "/polkadot/collation/1";
 const MALFORMED_MESSAGE_COST: ReputationChange = ReputationChange::new(-500, "Malformed Network-bridge message");
 const UNCONNECTED_PEERSET_COST: ReputationChange = ReputationChange::new(-50, "Message sent to un-connected peer-set");
 const MALFORMED_VIEW_COST: ReputationChange = ReputationChange::new(-500, "Malformed view");
-const EMPTY_VIEW_COST: ReputationChange = ReputationChange::new(-500, "Peer send us an empty view");
+const EMPTY_VIEW_COST: ReputationChange = ReputationChange::new(-500, "Peer sent us an empty view");
 
 // network bridge log target
 const LOG_TARGET: &'static str = "network_bridge";
