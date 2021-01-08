@@ -15,14 +15,14 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Tracked variant of channels for better metrics.
-
+//!
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use futures::channel::mpsc;
 use futures::task::Poll;
 use futures::task::Context;
 use futures::sink::SinkExt;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
 
 use std::result;
 use std::sync::Arc;
@@ -47,7 +47,7 @@ pub fn channel<T>(capacity: usize, name: &'static str) -> (TrackedSender<T>, Tra
 	(tx, rx)
 }
 
-
+/// A receiver tracking the messages consumed by itself.
 #[derive(Debug)]
 pub struct TrackedReceiver<T> {
 	// count currently contained messages
@@ -74,7 +74,7 @@ impl<T> Stream for TrackedReceiver<T> {
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		match mpsc::Receiver::poll_next(Pin::new(&mut self.inner), cx) {
 			Poll::Ready(x) => {
-				// FIXME run over should be cought I guess
+				// always use Ordering::SeqCst to avoid underflows
 				self.fill.fetch_sub(1, Ordering::SeqCst);
 				Poll::Ready(x)
 			},
@@ -82,17 +82,22 @@ impl<T> Stream for TrackedReceiver<T> {
 		}
 	}
 
+	/// Don't rely on the unreliable size hint.
 	fn size_hint(&self) -> (usize, Option<usize>) {
 		self.inner.size_hint()
 	}
 }
 
 impl<T> TrackedReceiver<T> {
+	/// Count the number of items queued up inside the channel.
 	pub fn queue_count(&self) -> usize {
+		// when obtaining we don't care much about off by one
+		// accuracy
 		self.fill.load(Ordering::Relaxed)
 	}
 
-	fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
+	/// Attempt to receive the next item.
+	pub fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
 		match self.inner.try_next()? {
 			Some(x) => {
 				self.fill.fetch_sub(1, Ordering::SeqCst);
@@ -103,6 +108,8 @@ impl<T> TrackedReceiver<T> {
 	}
 }
 
+/// The sender component, tracking the number of items
+/// sent across it.
 #[derive(Debug,Clone)]
 pub struct TrackedSender<T> {
 	fill: Arc<AtomicUsize>,
@@ -124,11 +131,13 @@ impl<T> std::ops::DerefMut for TrackedSender<T> {
 }
 
 impl<T> TrackedSender<T> {
+	/// Count the number of items already queued up for consumption on
+	/// on the rx side.
 	pub fn queue_count(&self) -> usize {
 		self.fill.load(Ordering::Relaxed)
 	}
 
-
+	/// Send message, wait until capacity is available.
 	pub async fn send(&mut self, item: T) -> result::Result<(), mpsc::SendError> where Self: Unpin {
 		self.fill.fetch_add(1, Ordering::SeqCst);
 		let fut = self.inner.send(item);
@@ -136,6 +145,7 @@ impl<T> TrackedSender<T> {
 		fut.await
 	}
 
+	/// Attempt to send message or fail immediately.
 	pub fn try_send(&mut self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
 		self.inner.try_send(msg)?;
 		self.fill.fetch_add(1, Ordering::SeqCst);
@@ -146,8 +156,8 @@ impl<T> TrackedSender<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::{pin_mut, executor::block_on};
-
+	use futures::executor::block_on;
+	use futures::StreamExt;
 
 	#[derive(Clone, Copy, Debug, Default)]
 	struct Msg {
@@ -216,7 +226,6 @@ mod tests {
 		block_on(async move {
 			futures::join!(
 				async move {
-					let msg = Msg::default();
 					for i in 0..15 {
 						println!("Sent #{} with a backlog of {} items", i+1, tx.queue_count());
 						let msg = Msg { val: i as u8 + 1u8};
