@@ -18,9 +18,7 @@
 
 use sp_core::H256;
 use sp_std::prelude::*;
-use frame_support::{
-	decl_error, decl_module, RuntimeDebug,
-};
+use frame_support::{decl_error, decl_module, decl_storage, RuntimeDebug,};
 use pallet_mmr::primitives::LeafDataProvider;
 use parity_scale_codec::{Encode, Decode};
 use runtime_parachains::paras;
@@ -71,6 +69,13 @@ decl_error! {
 	}
 }
 
+decl_storage! {
+	trait Store for Module<T: Config> as Beefy {
+		/// The merkle root of next BEEFY authority set.
+		pub BeefyAuthoritiesRoot get(fn beefy_authorities_root): MerkleRootOf<T>;
+	}
+}
+
 decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
@@ -108,10 +113,41 @@ impl<T: Config> Module<T> where
 	/// callback, cause we know it will only change every session - in future it should be optimized
 	/// to change every era instead.
 	fn beefy_authority_set_merkle_root() -> MerkleRootOf<T> {
+		Self::beefy_authorities_root()
+	}
+
+	fn update_beefy_authorities() {
 		let beefy_public_keys = pallet_beefy::Module::<T>::next_authorities()
 			.into_iter()
 			.map(|authority_id| authority_id.encode())
 			.collect::<Vec<_>>();
-		sp_io::trie::keccak_256_ordered_root(beefy_public_keys).into()
+		let merkle_root: MerkleRootOf<T> = sp_io::trie
+			::keccak_256_ordered_root(beefy_public_keys).into();
+		BeefyAuthoritiesRoot::<T>::put(merkle_root)
 	}
+}
+
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
+	type Public = <T as pallet_beefy::Config>::AuthorityId;
+}
+
+impl<T: Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> where
+	T: pallet_session::Config,
+	MerkleRootOf<T>: From<H256>,
+{
+	type Key = <T as pallet_beefy::Config>::AuthorityId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I) where
+		I: Iterator<Item=(&'a T::AccountId, Self::Key)>, Self::Key: 'a
+	{
+		Self::update_beefy_authorities();
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued_validators: I) where
+		I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		Self::update_beefy_authorities();
+	}
+
+	fn on_disabled(_validator_index: usize) {}
 }
