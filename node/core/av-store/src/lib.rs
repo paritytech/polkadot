@@ -34,6 +34,7 @@ use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
 	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
+	CandidateReceipt,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -200,6 +201,16 @@ fn load_meta(
 	let key = (META_PREFIX, hash).encode();
 
 	query_inner(db, columns::META, &key)
+}
+
+fn write_meta(
+	tx: &mut DBTransaction,
+	hash: &CandidateHash,
+	meta: &CandidateMeta,
+) {
+	let key = (META_PREFIX, hash) .encode();
+
+	tx.put_vec(columns::META, &key, meta.encode());
 }
 
 fn delete_unfinalized_block(
@@ -454,7 +465,147 @@ async fn process_block_activated(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
 ) -> Result<(), Error> {
-	unimplemented!()
+	let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+
+	let candidate_events = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(
+			RuntimeApiMessage::Request(activated, RuntimeApiRequest::CandidateEvents(tx)).into()
+		).await;
+
+		rx.await??
+	};
+
+	let block_number = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(
+			ChainApiMessage::BlockNumber(activated, tx).into()
+		).await;
+
+		match rx.await?? {
+			None => return Ok(()),
+			Some(n) => n,
+		}
+	};
+
+	let n_validators = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(
+			RuntimeApiMessage::Request(activated, RuntimeApiRequest::Validators(tx)).into()
+		).await;
+
+		rx.await??.len()
+	};
+
+	let mut tx = DBTransaction::new();
+
+	for event in candidate_events {
+		match event {
+			CandidateEvent::CandidateBacked(receipt, head) => {
+				note_block_backed(
+					&subsystem.inner,
+					&mut tx,
+					&subsystem.pruning_config,
+					now,
+					n_validators,
+					receipt,
+				)?;
+			}
+			CandidateEvent::CandidateIncluded(receipt, head) => {
+				note_block_included(
+					&subsystem.inner,
+					&mut tx,
+					&subsystem.pruning_config,
+					now,
+					(block_number, activated),
+					receipt,
+				)?;
+			}
+			_ => {}
+		}
+	}
+
+	subsystem.inner.write(tx)?;
+
+	Ok(())
+}
+
+fn note_block_backed(
+	db: &Arc<dyn KeyValueDB>,
+	db_transaction: &mut DBTransaction,
+	pruning_config: &PruningConfig,
+	now: Duration,
+	n_validators: usize,
+	candidate: CandidateReceipt,
+) -> Result<(), Error> {
+	let candidate_hash = candidate.hash();
+
+	if load_meta(db, &candidate_hash).is_none() {
+		let meta = CandidateMeta {
+			state: State::Unavailable(now.into()),
+			data_available: false,
+			chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+		};
+
+		let prune_at = now + pruning_config.keep_unavailable_for;
+
+		write_pruning_key(db_transaction, prune_at, &candidate_hash);
+		write_meta(db_transaction, &candidate_hash, &meta);
+	}
+
+	Ok(())
+}
+
+fn note_block_included(
+	db: &Arc<dyn KeyValueDB>,
+	db_transaction: &mut DBTransaction,
+	pruning_config:&PruningConfig,
+	now: Duration,
+	block: (BlockNumber, Hash),
+	candidate: CandidateReceipt,
+) -> Result<(), Error> {
+	let candidate_hash = candidate.hash();
+
+	let be_block = (BEBlockNumber(block.0), block.1);
+	match load_meta(db, &candidate_hash) {
+		None => {
+			// This is alarming. We've observed a block being included without ever seeing it backed.
+			// Warn and ignore.
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Candidate {}, included without being backed?",
+				candidate_hash,
+			);
+		}
+		Some(mut meta) => {
+			meta.state = match meta.state {
+				State::Unavailable(at) => {
+					let at_d: Duration = at.clone().into();
+					let prune_at = at_d + pruning_config.keep_unavailable_for;
+					delete_pruning_key(db_transaction, prune_at, &candidate_hash);
+
+					State::Unfinalized(at, vec![be_block])
+				}
+				State::Unfinalized(at, mut within) => {
+					if let Err(i) = within.binary_search(&be_block) {
+						within.insert(i, be_block);
+					}
+
+					State::Unfinalized(at, within)
+				}
+				State::Finalized(at) => {
+					// This should never happen as a candidate would have to be included after
+					// finality.
+					return Ok(())
+				}
+			};
+
+			write_unfinalized_block_contains(db_transaction, block.0, &block.1, &candidate_hash);
+			write_meta(db_transaction, &candidate_hash, &meta);
+		}
+	}
+
+	Ok(())
 }
 
 async fn process_block_finalized(
