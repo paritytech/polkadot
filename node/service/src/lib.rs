@@ -38,6 +38,7 @@ use {
 	sp_keystore::SyncCryptoStorePtr,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
+	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 };
 
 use sp_core::traits::SpawnNamed;
@@ -197,7 +198,10 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: Option<std::net::SocketAddr>) -> Result<
+fn new_partial<RuntimeApi, Executor>(
+	config: &mut Configuration,
+	jaeger_agent: Option<std::net::SocketAddr>,
+) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
@@ -212,7 +216,8 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
-				babe::BabeLink<Block>
+				babe::BabeLink<Block>,
+				beefy_gadget::notification::BeefySignedCommitmentSender<Block, BeefySignature>,
 			),
 			grandpa::SharedVoterState,
 		)
@@ -301,7 +306,8 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
 
-		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|-> polkadot_rpc::RpcExtension
+		{
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -317,7 +323,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
-					subscription_executor: subscription_executor,
+					subscription_executor: subscription_executor.clone(),
 					finality_provider: finality_proof_provider.clone(),
 				},
 				beefy: polkadot_rpc::BeefyDeps {
@@ -594,7 +600,6 @@ pub fn new_full<RuntimeApi, Executor>(
 	}
 
 	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
-	let (beefy_sender, beefy_stream) = beefy_gadget::notification::BeefySignedCommitmentStream::channel();
 
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
 
@@ -737,13 +742,13 @@ pub fn new_full<RuntimeApi, Executor>(
 	// Start BEEFY
 	if role.is_authority() {
 		let sync_oracle = network.clone();
-		let beefy = beefy_gadget::start_beefy_gadget(
+		let beefy = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
 			keystore_container.sync_keystore(),
 			network.clone(),
 			beefy_link,
 			sync_oracle,
-		)?;
+		);
 		task_manager.spawn_essential_handle().spawn_blocking("beefy", beefy);
 	}
 

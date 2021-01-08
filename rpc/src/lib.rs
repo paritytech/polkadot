@@ -114,6 +114,7 @@ pub fn create_full<C, P, SC, B, BS>(deps: FullDeps<C, P, SC, B, BS>) -> RpcExten
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
+	BS: Clone + Send + parity_scale_codec::Encode + 'static,
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
