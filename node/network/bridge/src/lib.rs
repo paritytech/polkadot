@@ -1474,7 +1474,6 @@ mod tests {
 
 			let hash_a = Hash::repeat_byte(1);
 			let hash_b = Hash::repeat_byte(2);
-			let hash_c = Hash::repeat_byte(3);
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_a, 1))
