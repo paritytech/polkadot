@@ -111,8 +111,11 @@ pub trait Config: slots::Config {
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
 
+	/// The Signer type for contribution validation.
 	type ContributionSigner: IdentifyAccount<AccountId = Self::AccountId>;
-	type ContributionVerifier: Verify<Signer = Self::ContributionSigner> + Parameter;
+
+	/// The Signature type for contribution validation.
+	type ContributionSignature: Verify<Signer = Self::ContributionSigner> + Parameter;
 }
 
 /// Simple index for identifying a fund.
@@ -321,8 +324,15 @@ decl_module! {
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is unable to be purchased and the timeout expires.
+		/// A valid signature maybe required in order to accept the contribution.
 		#[weight = 0]
-		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>, return_to: T::AccountId, signature: Option<T::ContributionVerifier>) {
+		fn contribute(
+			origin,
+			#[compact] index: FundIndex,
+			#[compact] value: BalanceOf<T>,
+			return_to: T::AccountId,
+			signature: Option<T::ContributionSignature>
+		) {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
