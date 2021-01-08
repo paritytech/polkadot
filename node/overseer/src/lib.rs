@@ -627,10 +627,7 @@ impl<M> OverseenSubsystem<M> {
 		if let Some(ref mut instance) = self.instance {
 			match instance.tx_message.send(MessagePacket {
 				signals_received: instance.signals_received,
-				message: MaybeTimed {
-					timer: None,
-					t: msg,
-				},
+				message: msg.into()
 			}).timeout(MESSAGE_TIMEOUT).await
 			{
 				None => {
