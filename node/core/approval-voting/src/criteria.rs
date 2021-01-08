@@ -25,7 +25,6 @@ use parity_scale_codec::{Encode, Decode};
 use sp_application_crypto::Public;
 
 use merlin::Transcript;
-use byteorder::{ByteOrder, LE};
 use schnorrkel::vrf::VRFInOut;
 
 use std::collections::HashMap;
@@ -84,7 +83,7 @@ fn relay_vrf_modulo_core(
 	let bytes: [u8; 4] = vrf_in_out.make_bytes(approval_types::CORE_RANDOMNESS_CONTEXT);
 
 	// interpret as little-endian u32.
-	let random_core = LE::read_u32(&bytes) % n_cores;
+	let random_core = u32::from_le_bytes(bytes) % n_cores;
 	CoreIndex(random_core)
 }
 
@@ -106,7 +105,7 @@ fn relay_vrf_delay_tranche(
 	let bytes: [u8; 4] = vrf_in_out.make_bytes(approval_types::TRANCHE_RANDOMNESS_CONTEXT);
 
 	// interpret as little-endian u32 and reduce by the number of tranches.
-	let wide_tranche = LE::read_u32(&bytes) % (num_delay_tranches + zeroth_delay_tranche_width);
+	let wide_tranche = u32::from_le_bytes(bytes) % (num_delay_tranches + zeroth_delay_tranche_width);
 
 	// Consolidate early results to tranche zero so tranche zero is extra wide.
 	wide_tranche.saturating_sub(zeroth_delay_tranche_width)
