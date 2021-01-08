@@ -5,8 +5,8 @@
 # pipelines can be triggered manually in the web
 # setting DEPLOY_TAG will only deploy the tagged image
 #
-# Please do not add new jobs without "rules:" there are &rules-test
-# for all, &rules-pr-only and &rules-build presets.
+# please do not add new jobs without "rules:" there are
+# &rules-test for all, &rules-pr-only and &rules-build presets
 
 stages:
   - test
@@ -69,7 +69,7 @@ default:
     # and on schedule.
     #
     # $PIPELINE should be passed in https://gitlab.parity.io/parity/polkadot/-/pipeline_schedules
-    # or other trigger to avoid running these jobs.
+    # or other trigger to avoid running these jobs and run just those allowing this variable
     - if: $PIPELINE == "rococo"
       when: never
     - if: $CI_PIPELINE_SOURCE == "web"
@@ -168,6 +168,7 @@ check-runtime-benchmarks:
 check-transaction-versions:
   image:                           node:15
   stage:                           build
+  <<:                              *rules-test
   needs:
     - job:                         test-linux-stable
       artifacts:                   false
@@ -269,7 +270,7 @@ generate-impl-guide:
         --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         --tag "$IMAGE_NAME:$VERSION"
         --tag "$IMAGE_NAME:$EXTRATAG" .
-    # The job will succeed only on the protected branch
+    # The job will success only on the protected branch
     - echo "$Docker_Hub_Pass_Parity" |
       buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
     - buildah info
@@ -286,9 +287,10 @@ publish-docker-polkadot:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
   rules:
+    - if: $PIPELINE == "rococo"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
-    # without this "&&" the pipeline scheduled with variable won't start 
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $PIPELINE != "rococo"
     - if: $CI_COMMIT_REF_NAME == "master"
   needs:
     - job:                         build-linux-release
@@ -313,12 +315,12 @@ publish-docker-rococo:
 
 publish-s3-release:
   stage:                           publish
+  <<:                              *rules-build
   needs:
     - job:                         build-linux-release
       artifacts:                   true
     - job:                         build-wasm-release
       artifacts:                   true
-  <<:                              *rules-build
   <<:                              *kubernetes-env
   image:                           paritytech/awscli:latest
   variables:
@@ -370,7 +372,7 @@ deploy-polkasync-kusama:
 check-labels:
   stage:                           .post
   image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
   <<:                              *rules-pr-only
+  <<:                              *kubernetes-env
   script:
     - ./scripts/gitlab/check_labels.sh
