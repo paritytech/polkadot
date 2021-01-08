@@ -388,8 +388,10 @@ async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Contex
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
+	let mut next_pruning = Delay::new(PRUNING_INTERVAL).fuse();
+
 	loop {
-		let res = run_iteration(&mut subsystem, &mut ctx).await;
+		let res = run_iteration(&mut ctx, &mut subsystem, &mut next_pruning).await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -408,13 +410,15 @@ where
 }
 
 #[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
-async fn run_iteration<Context>(subsystem: &mut AvailabilityStoreSubsystem, ctx: &mut Context)
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	subsystem: &mut AvailabilityStoreSubsystem,
+	mut next_pruning: &mut future::Fuse<Delay>,
+)
 	-> Result<bool, Error>
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	let mut next_pruning = Delay::new(PRUNING_INTERVAL).fuse();
-
 	select! {
 		incoming = ctx.recv().fuse() => {
 			match incoming? {
@@ -423,27 +427,53 @@ where
 					ActiveLeavesUpdate { activated, .. })
 				) => {
 					for (activated, _span) in activated.into_iter() {
-						// TODO [now]
-						// process_block_activated(ctx, subsystem, activated).await?;
+						process_block_activated(ctx, subsystem, activated).await?;
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					// TODO [now]
-					// process_block_finalized(subsystem, &subsystem.inner, number).await?;
+					process_block_finalized(subsystem, number).await?;
 				}
 				FromOverseer::Communication { msg } => {
-					// TODO [now]
-					// process_message(subsystem, ctx, msg).await?;
+					process_message(ctx, subsystem, msg).await?;
 				}
 			}
 		}
 		_ = next_pruning => {
-			// TODO [now]: pruning.
-			next_pruning = Delay::new(PRUNING_INTERVAL).fuse();
+			// It's important to set the delay before calling `prune_all` because an error in `prune_all`
+			// could lead to the delay not being set again. Then we would never prune anything anymore.
+			*next_pruning = Delay::new(PRUNING_INTERVAL).fuse();
+			prune_all(&subsystem.inner)?;
 		}
 	}
 
 	Ok(false)
+}
+
+async fn process_block_activated(
+	ctx: &mut impl SubsystemContext,
+	subsystem: &mut AvailabilityStoreSubsystem,
+	activated: Hash,
+) -> Result<(), Error> {
+	unimplemented!()
+}
+
+async fn process_block_finalized(
+	subsystem: &mut AvailabilityStoreSubsystem,
+	finalized_number: BlockNumber,
+) -> Result<(), Error> {
+	unimplemented!()
+}
+
+async fn process_message(
+	ctx: &mut impl SubsystemContext,
+	subsystem: &mut AvailabilityStoreSubsystem,
+	msg: AvailabilityStoreMessage,
+) -> Result<(), Error> {
+	unimplemented!()
+}
+
+fn prune_all(db: &Arc<dyn KeyValueDB>) -> Result<(), Error> {
+	unimplemented!()
 }
 
 #[derive(Clone)]
