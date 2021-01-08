@@ -69,7 +69,7 @@ use std::collections::{hash_map, HashMap};
 use futures::channel::{mpsc, oneshot};
 use futures::{
 	poll, select,
-	future::{BoxFuture},
+	future::BoxFuture,
 	stream::{FuturesUnordered, Fuse},
 	Future, FutureExt, SinkExt, StreamExt,
 };
