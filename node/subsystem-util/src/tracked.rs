@@ -72,7 +72,7 @@ impl<T> std::ops::DerefMut for TrackedReceiver<T> {
 impl<T> Stream for TrackedReceiver<T> {
     type Item = T;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match mpsc::Receiver::poll_next_unpin(&mut self.inner, cx) {
+        match mpsc::Receiver::poll_next(Pin::new(&mut self.inner), cx) {
             Poll::Ready(x) => {
                 // FIXME run over should be cought I guess
                 self.fill.fetch_sub(1, Ordering::SeqCst);
