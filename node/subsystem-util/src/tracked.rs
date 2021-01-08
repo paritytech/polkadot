@@ -88,6 +88,10 @@ impl<T> Stream for TrackedReceiver<T> {
 }
 
 impl<T> TrackedReceiver<T> {
+    pub fn queue_count(&self) -> usize {
+        self.fill.load(Ordering::Relaxed)
+    }
+
     fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
         match self.inner.try_next()? {
             Some(x) => {
@@ -120,6 +124,11 @@ impl<T> std::ops::DerefMut for TrackedSender<T> {
 }
 
 impl<T> TrackedSender<T> {
+    pub fn queue_count(&self) -> usize {
+        self.fill.load(Ordering::Relaxed)
+    }
+
+
     pub async fn send(&mut self, item: T) -> result::Result<(), mpsc::SendError> where Self: Unpin {
         self.fill.fetch_add(1, Ordering::SeqCst);
         let fut = self.inner.send(item);
@@ -137,9 +146,44 @@ impl<T> TrackedSender<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::{pin_mut, executor::block_on};
+
+
+    #[derive(Clone, Copy, Debug, Default)]
+    struct Msg {
+        val: u8,
+    }
 
     #[test]
-    fn simple_counter_many_tasks() {
+    fn try_send_try_next() {
+        block_on(async move {
+            let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
+            let msg = Msg::default();
+            assert_eq!(tx.queue_count(), 0);
+            tx.try_send(msg).unwrap();
+            assert_eq!(tx.queue_count(), 1);
+            tx.try_send(msg).unwrap();
+            tx.try_send(msg).unwrap();
+            tx.try_send(msg).unwrap();
+            assert_eq!(tx.queue_count(), 4);
+            rx.try_next().unwrap();
+            assert_eq!(tx.queue_count(), 3);
+            rx.try_next().unwrap();
+            rx.try_next().unwrap();
+            assert_eq!(tx.queue_count(), 1);
+            rx.try_next().unwrap();
+            assert_eq!(tx.queue_count(), 0);
+            assert!(rx.try_next().is_err());
+        });
+    }
 
+    #[test]
+    fn with_tasks() {
+    }
+
+
+
+    #[test]
+    fn stream_and_sink() {
     }
 }
