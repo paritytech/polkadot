@@ -68,14 +68,14 @@
 
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure,
-	storage::child,
+	storage::child, Parameter,
 	traits::{
 		Currency, Get, OnUnbalanced, WithdrawReasons, ExistenceRequirement::AllowDeath
 	},
 };
 use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
-	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
+	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Verify, IdentifyAccount}
 };
 use crate::slots;
 use parity_scale_codec::{Encode, Decode};
@@ -110,6 +110,9 @@ pub trait Config: slots::Config {
 
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
+
+	type ContributionSigner: IdentifyAccount<AccountId = Self::AccountId>;
+	type ContributionVerifier: Verify<Signer = Self::ContributionSigner> + Parameter;
 }
 
 /// Simple index for identifying a fund.
@@ -140,6 +143,8 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	parachain: Option<ParaId>,
 	/// The owning account who placed the deposit.
 	owner: AccountId,
+	/// An optional verifier. If exists, contributions must be signed by verifier.
+	verifier: Option<AccountId>,
 	/// The amount of deposit placed.
 	deposit: Balance,
 	/// The total amount raised.
@@ -256,6 +261,8 @@ decl_error! {
 		HasActiveParachain,
 		/// The retirement period has not ended.
 		InRetirementPeriod,
+		/// Invalid signature
+		InvalidSignature,
 	}
 }
 
@@ -273,7 +280,8 @@ decl_module! {
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
 			#[compact] last_slot: T::BlockNumber,
-			#[compact] end: T::BlockNumber
+			#[compact] end: T::BlockNumber,
+			verifier: Option<T::AccountId>,
 		) {
 			let owner = ensure_signed(origin)?;
 
@@ -296,6 +304,7 @@ decl_module! {
 			<Funds<T>>::insert(index, FundInfo {
 				parachain: None,
 				owner,
+				verifier,
 				deposit,
 				raised: Zero::zero(),
 				end,
@@ -313,13 +322,20 @@ decl_module! {
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is unable to be purchased and the timeout expires.
 		#[weight = 0]
-		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>, return_to: T::AccountId) {
+		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>, return_to: T::AccountId, signature: Option<T::ContributionVerifier>) {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			fund.raised  = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
 			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
+
+			if let Some(ref verifier) = fund.verifier {
+				let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
+				let payload = (index, value, &return_to);
+				let valid = payload.using_encoded(|encoded| signature.verify(encoded, verifier));
+				ensure!(valid, Error::<T>::InvalidSignature);
+			}
 
 			// Make sure crowdloan has not ended
 			let now = <frame_system::Module<T>>::block_number();
