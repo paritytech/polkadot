@@ -137,7 +137,7 @@ enum ToOverseer {
 /// This structure exists solely for the purposes of decoupling
 /// `Overseer` code from the client code and the necessity to call
 /// `HeaderBackend::block_number_from_id()`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockInfo {
 	/// hash of the block.
 	pub hash: Hash,
@@ -1514,7 +1514,9 @@ where
 			update.activated.push((hash, span));
 		}
 
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		if !update.is_empty() {
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		}
 
 		loop {
 			select! {
@@ -1620,10 +1622,14 @@ where
 			self.on_head_deactivated(deactivated)
 		}
 
-
 		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
-		// broadcast `ActiveLeavesUpdate` even if empty to issue view updates
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+
+		// If there are no leaves being deactivated, we don't need to send an update.
+		//
+		// Our peers will be informed about our finalized block the next time we activating/deactivating some leaf.
+		if !update.is_empty() {
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		}
 
 		Ok(())
 	}
@@ -1898,9 +1904,9 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem4;
+	struct ReturnOnStart;
 
-	impl<C> Subsystem<C> for TestSubsystem4
+	impl<C> Subsystem<C> for ReturnOnStart
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
 		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
@@ -2043,29 +2049,22 @@ mod tests {
 
 	// Spawn a subsystem that immediately exits.
 	//
-	// Should immediately conclude the overseer itself with an error.
+	// Should immediately conclude the overseer itself.
 	#[test]
-	fn overseer_panics_on_subsystem_exit() {
+	fn overseer_ends_on_subsystem_exit() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, _) = mpsc::channel(64);
 			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_validation(TestSubsystem1(s1_tx))
-				.replace_candidate_backing(TestSubsystem4);
+				.replace_candidate_backing(ReturnOnStart);
 			let (overseer, _handle) = Overseer::new(
 				vec![],
 				all_subsystems,
 				None,
 				spawner,
 			).unwrap();
-			let overseer_fut = overseer.run().fuse();
-			pin_mut!(overseer_fut);
 
-			select! {
-				res = overseer_fut => assert!(res.is_err()),
-				complete => (),
-			}
+			overseer.run().await.unwrap();
 		})
 	}
 
@@ -2309,9 +2308,8 @@ mod tests {
 					complete => break,
 				}
 
-				if ss5_results.len() == expected_heartbeats.len() &&
-					ss6_results.len() == expected_heartbeats.len() {
-						handler.stop().await;
+				if ss5_results.len() == expected_heartbeats.len() && ss6_results.len() == expected_heartbeats.len() {
+					handler.stop().await;
 				}
 			}
 
@@ -2323,6 +2321,79 @@ mod tests {
 			for expected in expected_heartbeats {
 				assert!(ss5_results.contains(&expected));
 				assert!(ss6_results.contains(&expected));
+			}
+		});
+	}
+
+	#[test]
+	fn do_not_send_empty_leaves_update_on_block_finalization() {
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		executor::block_on(async move {
+			let imported_block = BlockInfo {
+				hash: Hash::random(),
+				parent_hash: Hash::random(),
+				number: 1,
+			};
+
+			let finalized_block = BlockInfo {
+				hash: Hash::random(),
+				parent_hash: Hash::random(),
+				number: 1,
+			};
+
+			let (tx_5, mut rx_5) = mpsc::channel(64);
+
+			let all_subsystems = AllSubsystems::<()>::dummy()
+				.replace_candidate_backing(TestSubsystem6(tx_5));
+
+			let (overseer, mut handler) = Overseer::new(
+				Vec::new(),
+				all_subsystems,
+				None,
+				spawner,
+			).unwrap();
+
+			let overseer_fut = overseer.run().fuse();
+			pin_mut!(overseer_fut);
+
+			let mut ss5_results = Vec::new();
+
+			handler.block_finalized(finalized_block.clone()).await;
+			handler.block_imported(imported_block.clone()).await;
+
+			let expected_heartbeats = vec![
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [
+						(imported_block.hash, Arc::new(JaegerSpan::Disabled)),
+					].as_ref().into(),
+					..Default::default()
+				}),
+				OverseerSignal::BlockFinalized(finalized_block.hash, 1),
+			];
+
+			loop {
+				select! {
+					res = overseer_fut => {
+						assert!(res.is_ok());
+						break;
+					},
+					res = rx_5.next() => {
+						if let Some(res) = dbg!(res) {
+							ss5_results.push(res);
+						}
+					}
+				}
+
+				if ss5_results.len() == expected_heartbeats.len() {
+					handler.stop().await;
+				}
+			}
+
+			assert_eq!(ss5_results.len(), expected_heartbeats.len());
+
+			for expected in expected_heartbeats {
+				assert!(ss5_results.contains(&expected));
 			}
 		});
 	}
@@ -2542,7 +2613,7 @@ mod tests {
 
 					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// x2 because of broadcast_signal on startup
-					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), 2 * NUM_SUBSYSTEMS);
+					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// -1 for BitfieldSigning
 					assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS - 1);
 
