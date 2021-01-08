@@ -279,13 +279,16 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 	)?;
 
+	let (beefy_link, beefy_commitment_stream) =
+		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
+
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 	let finality_proof_provider =
 		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
-	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
+	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone(), beefy_link);
 	let rpc_setup = shared_voter_state.clone();
 
 	let babe_config = babe_link.config().clone();
@@ -314,8 +317,12 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
-					subscription_executor,
+					subscription_executor: subscription_executor,
 					finality_provider: finality_proof_provider.clone(),
+				},
+				beefy: polkadot_rpc::BeefyDeps {
+					beefy_commitment_stream: beefy_commitment_stream.clone(),
+					subscription_executor,
 				},
 			};
 
@@ -584,6 +591,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	}
 
 	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
+	let (beefy_sender, beefy_stream) = beefy_gadget::notification::BeefySignedCommitmentStream::channel();
 
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
 
@@ -603,7 +611,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		system_rpc_tx,
 	})?;
 
-	let (block_import, link_half, babe_link) = import_setup;
+	let (block_import, link_half, babe_link, beefy_link) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
@@ -692,6 +700,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		Some(overseer_handler)
 	} else { None };
 
+	// Start Babe
 	if role.is_authority() {
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
@@ -720,6 +729,19 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		let babe = babe::start_babe(babe_config)?;
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
+	}
+
+	// Start BEEFY
+	if role.is_authority() {
+		let sync_oracle = network.clone();
+		let beefy = beefy_gadget::start_beefy_gadget(
+			client.clone(),
+			keystore_container.sync_keystore(),
+			network.clone(),
+			beefy_link,
+			sync_oracle,
+		)?;
+		task_manager.spawn_essential_handle().spawn_blocking("beefy", beefy);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't

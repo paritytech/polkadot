@@ -74,6 +74,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -697,6 +698,13 @@ sp_api::impl_runtime_apis! {
 			recipient: ParaId,
 		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
 			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
+		}
+	}
+
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+		fn authorities() -> Vec<BeefyId> {
+			// dummy implementation due to lack of BEEFY pallet.
+			Vec::new()
 		}
 	}
 

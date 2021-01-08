@@ -66,6 +66,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
 use static_assertions::const_assert;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -1179,6 +1180,13 @@ sp_api::impl_runtime_apis! {
 			BTreeMap::new()
 		}
 
+	}
+
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+		fn authorities() -> Vec<BeefyId> {
+			// dummy implementation due to lack of BEEFY pallet.
+			Vec::new()
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

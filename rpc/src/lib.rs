@@ -74,8 +74,16 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+/// Dependencies for BEEFY
+pub struct BeefyDeps<BeefySignature> {
+	/// Receives notifications about signed commitment events from BEEFY.
+	pub beefy_commitment_stream: beefy_gadget::notification::BeefySignedCommitmentStream<Block, BeefySignature>,
+	/// Executor to drive the subscription manager in the BEEFY RPC handler.
+	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
+}
+
 /// Full client dependencies
-pub struct FullDeps<C, P, SC, B> {
+pub struct FullDeps<C, P, SC, B, BS> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -90,10 +98,12 @@ pub struct FullDeps<C, P, SC, B> {
 	pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
+	/// BEEFY specific dependencies.
+	pub beefy: BeefyDeps<BS>,
 }
 
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, SC, B>(deps: FullDeps<C, P, SC, B>) -> RpcExtension where
+pub fn create_full<C, P, SC, B, BS>(deps: FullDeps<C, P, SC, B, BS>) -> RpcExtension where
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore +
 		HeaderMetadata<Block, Error=BlockChainError> + Send + Sync + 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
@@ -119,6 +129,7 @@ pub fn create_full<C, P, SC, B>(deps: FullDeps<C, P, SC, B>) -> RpcExtension whe
 		deny_unsafe,
 		babe,
 		grandpa,
+		beefy,
 	} = deps;
 	let BabeDeps {
 		keystore,
@@ -169,6 +180,14 @@ pub fn create_full<C, P, SC, B>(deps: FullDeps<C, P, SC, B>) -> RpcExtension whe
 			deny_unsafe,
 		))
 	);
+
+	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
+		beefy_gadget_rpc::BeefyRpcHandler::new(
+			beefy.beefy_commitment_stream,
+			beefy.subscription_executor,
+		),
+	));
+
 	io
 }
 
