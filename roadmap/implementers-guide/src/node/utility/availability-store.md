@@ -74,9 +74,11 @@ We use this database to encode the following schema:
 ("chunk", CandidateHash, u32) -> Option<ErasureChunk>
 ("meta", CandidateHash) -> Option<CandidateMeta>
 
-("appears_in_unfinalized", BlockNumber, BlockHash, CandidateHash) -> Option<()>
+("unfinalized", BlockNumber, BlockHash, CandidateHash) -> Option<()>
 ("prune_by_time", Timestamp, CandidateHash) -> Option<()>
 ```
+
+Timestamps are the wall-clock seconds since unix epoch. Timestamps and block numbers are both encoded as big-endian so lexicographic order is ascending.
 
 The meta information that we track per-candidate is defined as the `CandidateMeta` struct
 
@@ -101,7 +103,7 @@ enum State {
 
 We maintain the invariant that if a candidate has a meta entry, its available data exists on disk if `data_available` is true. All chunks mentioned in the meta entry are available.
 
-Additionally, there is exactly one `prune_by_time` entry which holds the candidate hash unless the state if `Unfinalized`. There may be zero, one, or many "appears_in_unfinalized" keys with the given candidate, and this will correspond to the `state` of the meta entry.
+Additionally, there is exactly one `prune_by_time` entry which holds the candidate hash unless the state if `Unfinalized`. There may be zero, one, or many "unfinalized" keys with the given candidate, and this will correspond to the `state` of the meta entry.
 
 ## Protocol
 
@@ -120,16 +122,16 @@ For each head in the `activated` list:
   - TODO: load all ancestors of the head back to the finalized block so we don't miss anything if import notifications are missed. If a `StoreChunk` message is received for a candidate which has no entry, then we will prematurely lose the data.
 
 On `OverseerSignal::BlockFinalized(finalized)` events:
-  - for each key in `iter_by_prefix(("appears_in_unfinalized", last_finalized))`
-    - Stop if the key is beyond `("appears_in_unfinalized, finalized)`
+  - for each key in `iter_by_prefix(("unfinalized", last_finalized))`
+    - Stop if the key is beyond `("unfinalized, finalized)`
     - For each block number f that we encounter, load the finalized hash for that block.
       - For each candidate that we encounter under `f` and the finalized block hash,
-        - Update the `CandidateMeta` to have `State::Finalized`. Remove the existing `"prune_by_time"` entry. If the previous state was `Unfinalized`, remove all `"appears_in_unfinalized"` entries.
+        - Update the `CandidateMeta` to have `State::Finalized`. Remove the existing `"prune_by_time"` entry. If the previous state was `Unfinalized`, remove all `"unfinalized"` entries.
         - Register a `"prune_by_time"` entry for the candidate based on the current time + 1 day + 1 hour.
       - For each candidate that we encounter under `f` which is not under the finalized block hash,
         - Remove all entries under `f` in the `CandidateMeta`.
         - If the `CandidateMeta` has state `Unfinalized` with an empty list of blocks, downgrade to `Unavailable` and 
-      - Remove all `"appears_in_unfinalized"` keys under `f`.  
+      - Remove all `"unfinalized"` keys under `f`.  
   - Update last_finalized = finalized.
 
   This is roughly `O(n * m)` where n is the number of blocks finalized since the last update, and `m` is the number of parachains.
