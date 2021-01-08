@@ -5335,6 +5335,7 @@ dependencies = [
 name = "polkadot-overseer"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "femme",
  "futures 0.3.8",

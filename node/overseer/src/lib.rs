@@ -2029,6 +2029,7 @@ mod tests {
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
 
 	use sp_core::crypto::Pair as _;
+	use assert_matches::assert_matches;
 
 	use super::*;
 
@@ -2761,5 +2762,80 @@ mod tests {
 				complete => (),
 			}
 		});
+	}
+
+	#[test]
+	fn context_holds_onto_message_until_enough_signals_received() {
+		let (candidate_validation_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (candidate_backing_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (candidate_selection_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (statement_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (availability_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (bitfield_signing_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (bitfield_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (provisioner_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (pov_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (runtime_api_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (availability_store_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (network_bridge_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (chain_api_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (collator_protocol_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (collation_generation_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+
+		let channels_out = ChannelsOut {
+			candidate_validation: candidate_validation_tx.clone(),
+			candidate_backing: candidate_backing_tx.clone(),
+			candidate_selection: candidate_selection_tx.clone(),
+			statement_distribution: statement_distribution_tx.clone(),
+			availability_distribution: availability_distribution_tx.clone(),
+			bitfield_signing: bitfield_signing_tx.clone(),
+			bitfield_distribution: bitfield_distribution_tx.clone(),
+			provisioner: provisioner_tx.clone(),
+			pov_distribution: pov_distribution_tx.clone(),
+			runtime_api: runtime_api_tx.clone(),
+			availability_store: availability_store_tx.clone(),
+			network_bridge: network_bridge_tx.clone(),
+			chain_api: chain_api_tx.clone(),
+			collator_protocol: collator_protocol_tx.clone(),
+			collation_generation: collation_generation_tx.clone(),
+		};
+
+		let (mut signal_tx, signal_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (mut messages_tx, messages_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (to_overseer_tx, _to_overseer_rx) = mpsc::channel(CHANNEL_CAPACITY);
+
+		let mut ctx = OverseerSubsystemContext::<()>::new_unmetered(
+			signal_rx,
+			messages_rx,
+			channels_out,
+			to_overseer_tx,
+		);
+
+		assert_eq!(ctx.signals_received, 0);
+
+		let test_fut = async move {
+			signal_tx.send(OverseerSignal::Conclude).await.unwrap();
+			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
+
+			assert_eq!(ctx.signals_received, 1);
+			messages_tx.send(MessagePacket {
+				signals_received: 2,
+				message: MaybeTimed { timer: None, t: () },
+			}).await.unwrap();
+
+			match poll!(ctx.recv()) {
+				Poll::Pending => {}
+				Poll::Ready(_) => panic!("ready too early"),
+			};
+
+			assert!(ctx.pending_incoming.is_some());
+
+			signal_tx.send(OverseerSignal::Conclude).await.unwrap();
+			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
+			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
+			assert!(ctx.pending_incoming.is_none());
+		};
+
+		futures::executor::block_on(test_fut);
 	}
 }

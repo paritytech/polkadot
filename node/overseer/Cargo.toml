@@ -25,3 +25,4 @@ futures = { version = "0.3.8", features = ["thread-pool"] }
 futures-timer = "3.0.2"
 femme = "2.1.1"
 kv-log-macro = "1.0.7"
+assert_matches = "1.4.0"
