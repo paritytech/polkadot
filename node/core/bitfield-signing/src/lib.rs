@@ -78,7 +78,7 @@ async fn get_core_availability(
 	span: &jaeger::JaegerSpan,
 ) -> Result<bool, Error> {
 	if let CoreState::Occupied(core) = core {
-		let _span = span.child("query chunk availability");
+		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -246,12 +246,12 @@ impl JobTrait for BitfieldSigningJob {
 			let _timer = metrics.time_run();
 
 			drop(_span);
-			let _span = span.child("availablity");
+			let span_availability = span.child("availability");
 
 			let bitfield =
 				match construct_availability_bitfield(
 					relay_parent,
-					&span,
+					&span_availability,
 					validator.index(),
 					&mut sender,
 				).await
@@ -265,7 +265,7 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
-			drop(_span);
+			drop(span_availability);
 			let _span = span.child("signing");
 
 			let signed_bitfield = validator
