@@ -507,6 +507,10 @@ where
 		match res {
 			Err(e) => {
 				e.trace();
+
+				if let Error::Subsystem(SubsystemError::Context(_)) = e {
+					break;
+				}
 			}
 			Ok(true) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
