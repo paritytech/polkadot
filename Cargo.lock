@@ -5072,6 +5072,7 @@ dependencies = [
  "assert_matches",
  "bitvec",
  "futures 0.3.8",
+ "futures-timer 3.0.2",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",

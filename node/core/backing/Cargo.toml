@@ -24,5 +24,6 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.8", features = ["thread-pool"] }
+futures-timer = { version = "3.0" }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

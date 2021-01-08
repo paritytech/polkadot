@@ -159,7 +159,7 @@ mod tests {
 		block_on(async move {
 			let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
 			let msg = Msg::default();
-			assert_eq!(tx.queue_count(), 0);
+			assert_eq!(rx.queue_count(), 0);
 			tx.try_send(msg).unwrap();
 			assert_eq!(tx.queue_count(), 1);
 			tx.try_send(msg).unwrap();
@@ -167,23 +167,77 @@ mod tests {
 			tx.try_send(msg).unwrap();
 			assert_eq!(tx.queue_count(), 4);
 			rx.try_next().unwrap();
-			assert_eq!(tx.queue_count(), 3);
+			assert_eq!(rx.queue_count(), 3);
 			rx.try_next().unwrap();
 			rx.try_next().unwrap();
 			assert_eq!(tx.queue_count(), 1);
 			rx.try_next().unwrap();
-			assert_eq!(tx.queue_count(), 0);
+			assert_eq!(rx.queue_count(), 0);
 			assert!(rx.try_next().is_err());
 		});
 	}
 
 	#[test]
 	fn with_tasks() {
+		let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
+		block_on(async move {
+			futures::join!(
+				async move {
+					let msg = Msg::default();
+					assert_eq!(tx.queue_count(), 0);
+					tx.try_send(msg).unwrap();
+					assert_eq!(tx.queue_count(), 1);
+					tx.try_send(msg).unwrap();
+					tx.try_send(msg).unwrap();
+					tx.try_send(msg).unwrap();
+				},
+				async move {
+					assert_eq!(rx.queue_count(), 4);
+					rx.try_next().unwrap();
+					assert_eq!(rx.queue_count(), 3);
+					rx.try_next().unwrap();
+					rx.try_next().unwrap();
+					assert_eq!(rx.queue_count(), 1);
+					rx.try_next().unwrap();
+					assert_eq!(dbg!(rx.queue_count()), 0);
+				}
+			)
+		}
+		);
 	}
 
-
+	use std::time::Duration;
+	use futures_timer::Delay;
 
 	#[test]
 	fn stream_and_sink() {
+		let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
+
+		block_on(async move {
+			futures::join!(
+				async move {
+					let msg = Msg::default();
+					for i in 0..15 {
+						println!("Sent #{} with a backlog of {} items", i+1, tx.queue_count());
+						let msg = Msg { val: i as u8 + 1u8};
+						tx.send(msg).await.unwrap();
+						assert!(tx.queue_count() > 0usize);
+						Delay::new(Duration::from_millis(20)).await;
+					}
+					()
+				},
+				async move {
+					// rx.for_each(|x| async move {
+					// 	println!("rx'd one {}", x.val);
+					// 	Delay::new(Duration::from_millis(100)).await;
+					// }).await;
+
+					while let Some(msg) = rx.next().await {
+						println!("rx'd one {} with {} backlogged", msg.val, rx.queue_count());
+						Delay::new(Duration::from_millis(29)).await;
+					}
+				}
+			)
+		});
 	}
 }
