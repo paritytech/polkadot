@@ -1904,9 +1904,9 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem4;
+	struct ReturnOnStart;
 
-	impl<C> Subsystem<C> for TestSubsystem4
+	impl<C> Subsystem<C> for ReturnOnStart
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
 		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
@@ -2049,29 +2049,22 @@ mod tests {
 
 	// Spawn a subsystem that immediately exits.
 	//
-	// Should immediately conclude the overseer itself with an error.
+	// Should immediately conclude the overseer itself.
 	#[test]
-	fn overseer_panics_on_subsystem_exit() {
+	fn overseer_ends_on_subsystem_exit() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, _) = mpsc::channel(64);
 			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_validation(TestSubsystem1(s1_tx))
-				.replace_candidate_backing(TestSubsystem4);
+				.replace_candidate_backing(ReturnOnStart);
 			let (overseer, _handle) = Overseer::new(
 				vec![],
 				all_subsystems,
 				None,
 				spawner,
 			).unwrap();
-			let overseer_fut = overseer.run().fuse();
-			pin_mut!(overseer_fut);
 
-			select! {
-				res = overseer_fut => assert!(res.is_err()),
-				complete => (),
-			}
+			overseer.run().await.unwrap();
 		})
 	}
 
@@ -2620,7 +2613,7 @@ mod tests {
 
 					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// x2 because of broadcast_signal on startup
-					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), 2 * NUM_SUBSYSTEMS);
+					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// -1 for BitfieldSigning
 					assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS - 1);
 
