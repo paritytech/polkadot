@@ -853,7 +853,23 @@ fn process_message(
 			}
 		}
 		AvailabilityStoreMessage::StoreAvailableData(candidate, our_index, n_validators, available_data, tx) => {
-			unimplemented!()
+			let res = store_available_data(
+				&subsystem.inner,
+				&subsystem.pruning_config,
+				candidate,
+				n_validators as _,
+				available_data,
+			);
+
+			match res {
+				Ok(()) => {
+					let _ = tx.send(Ok(()));
+				}
+				Err(e) => {
+					let _ = tx.send(Err(()));
+					return Err(e)
+				}
+			}
 		}
 	}
 
@@ -886,6 +902,63 @@ fn store_chunk(
 
 	db.write(tx)?;
 	Ok(true)
+}
+
+// Ok(true) on success, Ok(false) on failure, and Err on internal error.
+fn store_available_data(
+	db: &Arc<dyn KeyValueDB>,
+	pruning_config: &PruningConfig,
+	candidate_hash: CandidateHash,
+	n_validators: usize,
+	available_data: AvailableData,
+) -> Result<(), Error> {
+	let mut tx = DBTransaction::new();
+
+	let mut meta = match load_meta(db, &candidate_hash) {
+		Some(m) => {
+			if m.data_available {
+				return Ok(()); // already stored.
+			}
+
+			m
+		},
+		None => {
+			let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+
+			// Write a pruning record.
+			write_pruning_key(&mut tx, now + pruning_config.keep_unavailable_for, &candidate_hash);
+
+			CandidateMeta {
+				state: State::Unavailable(now.into()),
+				data_available: false,
+				chunks_stored: BitVec::new(),
+			}
+		}
+	};
+
+	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
+	let branches = erasure::branches(chunks.as_ref());
+
+	let erasure_chunks = chunks.iter()
+		.zip(branches.map(|(proof, _)| proof))
+		.enumerate()
+		.map(|(index, (chunk, proof))| ErasureChunk {
+			chunk: chunk.clone(),
+			proof,
+			index: index as u32,
+		});
+
+	for chunk in erasure_chunks {
+		write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
+	}
+
+	meta.data_available = true;
+	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
+
+	write_meta(&mut tx, &candidate_hash, &meta);
+
+	db.write(tx)?;
+	Ok(())
 }
 
 fn prune_all(db: &Arc<dyn KeyValueDB>) -> Result<(), Error> {
