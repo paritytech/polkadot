@@ -81,7 +81,7 @@ const KEEP_FINALIZED_FOR: Duration = Duration::from_secs(25 * 60 * 60);
 /// The pruning interval.
 const PRUNING_INTERVAL: Duration = Duration::from_secs(60 * 5);
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 struct BETimestamp(u64);
 
 impl Encode for BETimestamp {
@@ -175,6 +175,13 @@ fn load_last_finalized(
 	query_inner(db, columns::META, LAST_FINALIZED_KEY)
 }
 
+fn write_last_finalized(
+	tx: &mut DBTransaction,
+	finalized: BlockNumber,
+) {
+	tx.put_vec(columns::META, LAST_FINALIZED_KEY, finalized.encode());
+}
+
 fn load_available_data(
 	db: &Arc<dyn KeyValueDB>,
 	hash: &CandidateHash,
@@ -213,7 +220,7 @@ fn write_meta(
 	tx.put_vec(columns::META, &key, meta.encode());
 }
 
-fn delete_unfinalized_block(
+fn delete_unfinalized_height(
 	tx: &mut DBTransaction,
 	block_number: BlockNumber,
 ) {
@@ -221,14 +228,37 @@ fn delete_unfinalized_block(
 	tx.delete_prefix(columns::META, &prefix);
 }
 
-fn delete_pruning_key(tx: &mut DBTransaction, t: Duration, h: &CandidateHash) {
-	let key = (PRUNE_BY_TIME_PREFIX, BETimestamp::from(t), h).encode();
+fn delete_unfinalized_inclusion(
+	tx: &mut DBTransaction,
+	block_number: BlockNumber,
+	block_hash: &Hash,
+	candidate_hash: &CandidateHash,
+) {
+	let key = (
+		UNFINALIZED_PREFIX,
+		BEBlockNumber(block_number),
+		block_hash,
+		candidate_hash,
+	).encode();
+
+	tx.delete(columns::META, &key[..]);
+}
+
+fn delete_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &CandidateHash) {
+	let key = (PRUNE_BY_TIME_PREFIX, t.into(), h).encode();
 	tx.delete(columns::META, &key);
 }
 
-fn write_pruning_key(tx: &mut DBTransaction, t: Duration, h: &CandidateHash) {
-	let key = (PRUNE_BY_TIME_PREFIX, BETimestamp::from(t), h).encode();
+fn write_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &CandidateHash) {
+	let key = (PRUNE_BY_TIME_PREFIX, t.into(), h).encode();
 	tx.put(columns::META, &key, TOMBSTONE_VALUE);
+}
+
+fn finalized_block_range(last_finalized: BlockNumber, finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
+	let start = (UNFINALIZED_PREFIX, BEBlockNumber(last_finalized)).encode();
+	let end = (UNFINALIZED_PREFIX, BEBlockNumber(finalized + 1)).encode();
+
+	(start, end)
 }
 
 fn write_unfinalized_block_contains(
@@ -441,8 +471,14 @@ where
 						process_block_activated(ctx, subsystem, activated).await?;
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					process_block_finalized(subsystem, number).await?;
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+					process_block_finalized(
+						ctx,
+						&subsystem.inner,
+						&subsystem.pruning_config,
+						hash,
+						number,
+					).await?;
 				}
 				FromOverseer::Communication { msg } => {
 					process_message(ctx, subsystem, msg).await?;
@@ -580,7 +616,7 @@ fn note_block_included(
 		Some(mut meta) => {
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
-					let at_d: Duration = at.clone().into();
+					let at_d: Duration = at.into();
 					let prune_at = at_d + pruning_config.keep_unavailable_for;
 					delete_pruning_key(db_transaction, prune_at, &candidate_hash);
 
@@ -609,10 +645,161 @@ fn note_block_included(
 }
 
 async fn process_block_finalized(
-	subsystem: &mut AvailabilityStoreSubsystem,
+	ctx: &mut impl SubsystemContext,
+	db: &Arc<dyn KeyValueDB>,
+	pruning_config: &PruningConfig,
+	finalized_hash: Hash,
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
-	unimplemented!()
+	let mut db_transaction = DBTransaction::new();
+	let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+
+	let last_finalized = load_last_finalized(db).unwrap_or(0);
+
+	let (start_prefix, end_prefix) = finalized_block_range(last_finalized, finalized_number);
+
+	let mut iter = db.iter_with_prefix(columns::META, &start_prefix)
+		.take_while(|(k, _)| &k[..] < &end_prefix[..])
+		.peekable();
+
+	macro_rules! peek_num {
+		() => {
+			match iter.peek() {
+				Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
+				None => None
+			}
+		}
+	}
+
+	loop {
+		let batch_num = match peek_num!() {
+			None => break, // end of iterator.
+			Some(n) => n,
+		};
+
+		let batch_finalized_hash = if batch_num == finalized_number {
+			finalized_hash
+		} else {
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx).into()).await;
+
+			match rx.await?? {
+				None => {
+					tracing::warn!(target: LOG_TARGET,
+						"Availability store was informed that block #{} is finalized, \
+						but chain API has no finalized hash.",
+						batch_num,
+					);
+
+					break
+				}
+				Some(h) => h,
+			}
+		};
+
+		// maps candidate hashes to true if finalized, false otherwise.
+		let mut candidates = HashMap::new();
+
+		// Load all candidates that were included at this height.
+		loop {
+			match peek_num!() {
+				None => break, // end of iterator.
+				Some(n) if n != batch_num => break, // end of batch.
+				_ => {}
+			}
+
+			let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed");
+			let (_, block_hash, candidate_hash) = decode_unfinalized_key(&k[..])
+				.expect("`peek_num` checks validity of key; qed");
+
+			if block_hash == batch_finalized_hash {
+				candidates.insert(candidate_hash, true);
+			} else {
+				candidates.entry(candidate_hash).or_insert(false);
+			}
+		}
+
+		// Now that we've iterated over the entire batch at this finalized height,
+		// update the meta.
+
+		delete_unfinalized_height(&mut db_transaction, batch_num);
+
+		for (candidate_hash, is_finalized) in candidates {
+			let mut meta = match load_meta(db, &candidate_hash) {
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Dangling candidate metadata for {}",
+						candidate_hash,
+					);
+
+					continue;
+				}
+				Some(c) => c,
+			};
+
+			if is_finalized {
+				// Clear everything else related to this block. We're finalized now!
+				match meta.state {
+					State::Finalized(_) => continue, // sanity
+					State::Unavailable(at) => {
+						delete_pruning_key(&mut db_transaction, at, &candidate_hash);
+					}
+					State::Unfinalized(_, blocks) => {
+						for (block_num, block_hash) in blocks.iter().cloned() {
+							// this exact height is all getting cleared out anyway.
+							if block_num.0 != batch_num {
+								delete_unfinalized_inclusion(
+									&mut db_transaction,
+									block_num.0,
+									&block_hash,
+									&candidate_hash,
+								);
+							}
+						}
+					}
+				}
+
+				meta.state = State::Finalized(now.into());
+
+				// Write the meta and a pruning record.
+				write_meta(&mut db_transaction, &candidate_hash, &meta);
+				write_pruning_key(
+					&mut db_transaction,
+					now + pruning_config.keep_finalized_for,
+					&candidate_hash,
+				);
+			} else {
+				meta.state = match meta.state {
+					State::Finalized(_) => continue, // sanity.
+					State::Unavailable(_) => continue, // sanity.
+					State::Unfinalized(at, mut blocks) => {
+						// Clear out everything at this height.
+						blocks.retain(|(n, _)| n.0 != batch_num);
+
+						// If empty, we need to go back to being unavailable as we aren't
+						// aware of any blocks this is included in.
+						if blocks.is_empty() {
+							let at_d: Duration = at.into();
+							let prune_at = at_d + pruning_config.keep_unavailable_for;
+							write_pruning_key(&mut db_transaction, prune_at, &candidate_hash);
+							State::Unavailable(at)
+						} else {
+							State::Unfinalized(at, blocks)
+						}
+					}
+				};
+
+				// Update the meta entry.
+				write_meta(&mut db_transaction, &candidate_hash, &meta)
+			}
+		}
+	}
+
+	write_last_finalized(&mut db_transaction, finalized_number);
+	db.write(db_transaction)?;
+
+	Ok(())
 }
 
 async fn process_message(
