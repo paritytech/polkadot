@@ -33,7 +33,7 @@ digraph {
 	st -> inc [label = "Block\nincluded"]
 	st -> prn [label = "Stored block\ntimed out"]
 	inc -> fin [label = "Block\nfinalized"]
-  inc -> st [label = "Competing blocks\nfinalized"]
+	inc -> st [label = "Competing blocks\nfinalized"]
 	fin -> prn [label = "Block keep time\n(1 day + 1 hour) elapsed"]
 }
 ```
