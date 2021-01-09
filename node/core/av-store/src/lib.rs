@@ -191,12 +191,21 @@ fn load_available_data(
 	query_inner(db, columns::DATA, &key)
 }
 
+fn delete_available_data(
+	tx: &mut DBTransaction,
+	hash: &CandidateHash,
+) {
+	let key = (AVAILABLE_PREFIX, hash).encode();
+
+	tx.delete(columns::DATA, &key[..])
+}
+
 fn load_chunk(
 	db: &Arc<dyn KeyValueDB>,
-	hash: &CandidateHash,
+	candidate_hash: &CandidateHash,
 	chunk_index: ValidatorIndex,
 ) -> Option<ErasureChunk> {
-	let key = (CHUNK_PREFIX, hash, chunk_index).encode();
+	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
 
 	query_inner(db, columns::DATA, &key)
 }
@@ -207,9 +216,19 @@ fn write_chunk(
 	chunk_index: ValidatorIndex,
 	erasure_chunk: &ErasureChunk,
 ) {
-	let key = (CHUNK_PREFIX, candidate_hash, chunk_index, erasure_chunk).encode();
+	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
 
 	tx.put_vec(columns::DATA, &key, erasure_chunk.encode());
+}
+
+fn delete_chunk(
+	tx: &mut DBTransaction,
+	candidate_hash: &CandidateHash,
+	chunk_index: ValidatorIndex,
+) {
+	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
+
+	tx.delete(columns::DATA, &key[..]);
 }
 
 fn load_meta(
@@ -226,9 +245,14 @@ fn write_meta(
 	hash: &CandidateHash,
 	meta: &CandidateMeta,
 ) {
-	let key = (META_PREFIX, hash) .encode();
+	let key = (META_PREFIX, hash).encode();
 
 	tx.put_vec(columns::META, &key, meta.encode());
+}
+
+fn delete_meta(tx: &mut DBTransaction, hash: &CandidateHash) {
+	let key = (META_PREFIX, hash).encode();
+	tx.delete(columns::META, &key[..])
 }
 
 fn delete_unfinalized_height(
@@ -280,6 +304,13 @@ fn write_unfinalized_block_contains(
 ) {
 	let key = (UNFINALIZED_PREFIX, BEBlockNumber(n), h, ch).encode();
 	tx.put(columns::META, &key, TOMBSTONE_VALUE);
+}
+
+fn pruning_range(now: impl Into<BETimestamp>) -> (Vec<u8>, Vec<u8>) {
+	let start = (PRUNE_BY_TIME_PREFIX, BETimestamp(0)).encode();
+	let end = (PRUNE_BY_TIME_PREFIX, BETimestamp(now.into().0 + 1)).encode();
+
+	(start, end)
 }
 
 fn decode_unfinalized_key(s: &[u8]) -> Result<(BlockNumber, Hash, CandidateHash), CodecError> {
@@ -977,7 +1008,54 @@ fn store_available_data(
 }
 
 fn prune_all(db: &Arc<dyn KeyValueDB>) -> Result<(), Error> {
-	unimplemented!()
+	let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+	let (range_start, range_end) = pruning_range(now);
+
+	let mut tx = DBTransaction::new();
+	let iter = db.iter_with_prefix(columns::META, &range_start[..])
+		.take_while(|(k, _)| &k[..] < &range_end[..]);
+
+	for (k, _v) in iter {
+		tx.delete(columns::META, &k[..]);
+
+		let (_, candidate_hash) = match decode_pruning_key(&k[..]) {
+			Ok(m) => m,
+			Err(_) => continue, // sanity
+		};
+
+		delete_meta(&mut tx, &candidate_hash);
+
+		// Clean up all attached data of the candidate.
+		if let Some(meta) = load_meta(db, &candidate_hash) {
+			// delete available data.
+			if meta.data_available {
+				delete_available_data(&mut tx, &candidate_hash)
+			}
+
+			// delete chunks.
+			for (i, b) in meta.chunks_stored.iter().enumerate() {
+				if *b {
+					delete_chunk(&mut tx, &candidate_hash, i as _);
+				}
+			}
+
+			// delete unfinalized block references. Pruning references don't need to be
+			// manually taken care of as we are deleting them as we go in the outer loop.
+			if let State::Unfinalized(_, blocks) = meta.state {
+				for (block_number, block_hash) in blocks {
+					delete_unfinalized_inclusion(
+						&mut tx,
+						block_number.0,
+						&block_hash,
+						&candidate_hash,
+					);
+				}
+			}
+		}
+	}
+
+	db.write(tx)?;
+	Ok(())
 }
 
 #[derive(Clone)]
