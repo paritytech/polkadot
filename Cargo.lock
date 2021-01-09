@@ -5351,7 +5351,6 @@ dependencies = [
  "polkadot-primitives",
  "sc-client-api",
  "sp-core",
- "streamunordered",
  "tracing",
  "tracing-futures",
 ]
