@@ -481,7 +481,7 @@ where
 					).await?;
 				}
 				FromOverseer::Communication { msg } => {
-					process_message(ctx, subsystem, msg).await?;
+					process_message(ctx, subsystem, msg)?;
 				}
 			}
 		}
@@ -802,12 +802,41 @@ async fn process_block_finalized(
 	Ok(())
 }
 
-async fn process_message(
+fn process_message(
 	ctx: &mut impl SubsystemContext,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	msg: AvailabilityStoreMessage,
 ) -> Result<(), Error> {
-	unimplemented!()
+	match msg {
+		AvailabilityStoreMessage::QueryAvailableData(candidate, tx) => {
+			let _ = tx.send(load_available_data(&subsystem.inner, &candidate));
+		}
+		AvailabilityStoreMessage::QueryDataAvailability(candidate, tx) => {
+			let a = load_meta(&subsystem.inner, &candidate).map_or(false, |m| m.data_available);
+			let _ = tx.send(a);
+		}
+		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
+			let _ = tx.send(load_chunk(&subsystem.inner, &candidate, validator_index));
+		}
+		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
+			let a = load_meta(&subsystem.inner, &candidate)
+				.map_or(false, |m| *m.chunks_stored.get(validator_index as usize).unwrap_or(&false));
+			let _ = tx.send(a);
+		}
+		AvailabilityStoreMessage::StoreChunk {
+			candidate_hash,
+			relay_parent,
+			chunk,
+			tx,
+		} => {
+			unimplemented!()
+		}
+		AvailabilityStoreMessage::StoreAvailableData(candidate, our_index, n_validators, available_data, tx) => {
+			unimplemented!()
+		}
+	}
+
+	Ok(())
 }
 
 fn prune_all(db: &Arc<dyn KeyValueDB>) -> Result<(), Error> {
