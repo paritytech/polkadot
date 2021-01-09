@@ -1265,7 +1265,7 @@ mod tests {
 			// Add lots of contributors, beyond what we can delete in one go.
 			for i in 0 .. 30 {
 				Balances::make_free_balance_be(&i, 300);
-				assert_ok!(Crowdloan::contribute(Origin::signed(i), 0, 100, i));
+				assert_ok!(Crowdloan::contribute(Origin::signed(i), 0, 100));
 				assert_eq!(Crowdloan::contribution_get(0, &i), 100);
 			}
 
@@ -1494,7 +1494,7 @@ mod benchmarking {
 	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
 		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
-		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, who.clone()));
+		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
 	}
 
 	fn worst_validation_code<T: Config>() -> Vec<u8> {
@@ -1576,7 +1576,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, caller.clone())
+		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution)
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
 			assert!(!NewRaise::get().is_empty());
@@ -1665,7 +1665,7 @@ mod benchmarking {
 				let contributor: T::AccountId = account("contributor", i, 0);
 				let contribution = T::MinContribution::get() * (i + 1).into();
 				T::Currency::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
-				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, Default::default())?;
+				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution)?;
 			}
 
 			let lease_period_index = end_block / T::LeasePeriod::get();
