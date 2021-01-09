@@ -17,11 +17,11 @@ There is also the case where a validator commits to make a PoV available, but th
 
 There may be multiple competing blocks all ending the availability phase for a particular candidate. Until finality, it will be unclear which of those is actually the canonical chain, so the pruning records for PoVs and Availability chunks should keep track of all such blocks.
 
-## Lifetime of the PoV in the storage
+## Lifetime of the block data and chunks in storage
 
 ```dot process
 digraph {
-	label = "Block life FSM\n\n\n";
+	label = "Block data FSM\n\n\n";
 	labelloc = "t";
 	rankdir="LR";
 
@@ -33,28 +33,7 @@ digraph {
 	st -> inc [label = "Block\nincluded"]
 	st -> prn [label = "Stored block\ntimed out"]
 	inc -> fin [label = "Block\nfinalized"]
-	fin -> prn [label = "Block keep time\n(1 day) elapsed"]
-}
-```
-
-## Lifetime of the chunk in the storage
-
-```dot process
-digraph {
-	label = "Chunk life FSM\n\n\n";
-	labelloc = "t";
-	rankdir="LR";
-
-	chst [label = "Chunk\nStored"; shape = circle]
-	st [label = "Block\nStored"; shape = circle]
-	inc [label = "Included"; shape = circle]
-	fin [label = "Finalized"; shape = circle]
-	prn [label = "Pruned"; shape = circle]
-
-	chst -> inc [label = "Block\nincluded"]
-	st -> inc [label = "Block\nincluded"]
-	st -> prn [label = "Stored block\ntimed out"]
-	inc -> fin [label = "Block\nfinalized"]
+  inc -> st [label = "Competing blocks\nfinalized"]
 	fin -> prn [label = "Block keep time\n(1 day + 1 hour) elapsed"]
 }
 ```
@@ -64,12 +43,11 @@ digraph {
 We use an underlying Key-Value database where we assume we have the following operations available:
   * `write(key, value)`
   * `read(key) -> Option<value>`
-  * `iter_by_prefix(prefix) -> Iterator<(key, value)>` - gives all keys and values in lexicographical order starting from `prefix`
+  * `iter_by_prefix(prefix) -> Iterator<(key, value)>` - gives all keys and values in lexicographical order starting with `prefix`
 
 We use this database to encode the following schema:
 
 ```
-"LastFinalized" -> BlockNumber
 ("available", CandidateHash) -> Option<AvailableData>
 ("chunk", CandidateHash, u32) -> Option<ErasureChunk>
 ("meta", CandidateHash) -> Option<CandidateMeta>
@@ -122,7 +100,7 @@ For each head in the `activated` list:
   - TODO: load all ancestors of the head back to the finalized block so we don't miss anything if import notifications are missed. If a `StoreChunk` message is received for a candidate which has no entry, then we will prematurely lose the data.
 
 On `OverseerSignal::BlockFinalized(finalized)` events:
-  - for each key in `iter_by_prefix(("unfinalized", last_finalized))`
+  - for each key in `iter_by_prefix("unfinalized")`
     - Stop if the key is beyond `("unfinalized, finalized)`
     - For each block number f that we encounter, load the finalized hash for that block.
       - For each candidate that we encounter under `f` and the finalized block hash,
@@ -176,7 +154,7 @@ On `StoreAvailableData` message:
 
 Every 5 minutes, run a pruning routine:
 
-  - for each key in `iter_by_prefix(("prune_by_time", 0u32))`:
+  - for each key in `iter_by_prefix("prune_by_time")`:
     - If the key is beyond ("prune_by_time", now), return.
     - Remove the key.
     - Extract `candidate_hash` from the key.
