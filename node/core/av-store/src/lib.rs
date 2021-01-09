@@ -153,16 +153,16 @@ fn query_inner<D: Decode>(
 	db: &Arc<dyn KeyValueDB>,
 	column: u32,
 	key: &[u8],
-) -> Option<D> {
+) -> Result<Option<D>, Error> {
 	match db.get(column, key) {
 		Ok(Some(raw)) => {
-			let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
-			Some(res)
+			let res = D::decode(&mut &raw[..])?;
+			Ok(Some(res))
 		}
-		Ok(None) => None,
+		Ok(None) => Ok(None),
 		Err(e) => {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
-			None
+			Err(e.into())
 		}
 	}
 }
@@ -180,7 +180,7 @@ fn write_available_data(
 fn load_available_data(
 	db: &Arc<dyn KeyValueDB>,
 	hash: &CandidateHash,
-) -> Option<AvailableData> {
+) -> Result<Option<AvailableData>, Error> {
 	let key = (AVAILABLE_PREFIX, hash).encode();
 
 	query_inner(db, columns::DATA, &key)
@@ -199,7 +199,7 @@ fn load_chunk(
 	db: &Arc<dyn KeyValueDB>,
 	candidate_hash: &CandidateHash,
 	chunk_index: ValidatorIndex,
-) -> Option<ErasureChunk> {
+) -> Result<Option<ErasureChunk>, Error> {
 	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
 
 	query_inner(db, columns::DATA, &key)
@@ -229,7 +229,7 @@ fn delete_chunk(
 fn load_meta(
 	db: &Arc<dyn KeyValueDB>,
 	hash: &CandidateHash,
-) -> Option<CandidateMeta> {
+) -> Result<Option<CandidateMeta>, Error> {
 	let key = (META_PREFIX, hash).encode();
 
 	query_inner(db, columns::META, &key)
@@ -350,6 +350,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
+
+	#[error(transparent)]
+	Codec(#[from] CodecError),
 
 	#[error("Custom databases are not supported")]
 	CustomDatabase,
@@ -670,7 +673,7 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	if load_meta(db, &candidate_hash).is_none() {
+	if load_meta(db, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
 			state: State::Unavailable(now.into()),
 			data_available: false,
@@ -695,7 +698,7 @@ fn note_block_included(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	match load_meta(db, &candidate_hash) {
+	match load_meta(db, &candidate_hash)? {
 		None => {
 			// This is alarming. We've observed a block being included without ever seeing it backed.
 			// Warn and ignore.
@@ -828,7 +831,7 @@ async fn process_block_finalized(
 		delete_unfinalized_height(&mut db_transaction, batch_num);
 
 		for (candidate_hash, is_finalized) in candidates {
-			let mut meta = match load_meta(&subsystem.db, &candidate_hash) {
+			let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
 				None => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -912,18 +915,18 @@ fn process_message(
 ) -> Result<(), Error> {
 	match msg {
 		AvailabilityStoreMessage::QueryAvailableData(candidate, tx) => {
-			let _ = tx.send(load_available_data(&subsystem.db, &candidate));
+			let _ = tx.send(load_available_data(&subsystem.db, &candidate)?);
 		}
 		AvailabilityStoreMessage::QueryDataAvailability(candidate, tx) => {
-			let a = load_meta(&subsystem.db, &candidate).map_or(false, |m| m.data_available);
+			let a = load_meta(&subsystem.db, &candidate)?.map_or(false, |m| m.data_available);
 			let _ = tx.send(a);
 		}
 		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
 			let _timer = subsystem.metrics.time_get_chunk();
-			let _ = tx.send(load_chunk(&subsystem.db, &candidate, validator_index));
+			let _ = tx.send(load_chunk(&subsystem.db, &candidate, validator_index)?);
 		}
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
-			let a = load_meta(&subsystem.db, &candidate)
+			let a = load_meta(&subsystem.db, &candidate)?
 				.map_or(false, |m| *m.chunks_stored.get(validator_index as usize).unwrap_or(&false));
 			let _ = tx.send(a);
 		}
@@ -984,7 +987,7 @@ fn store_chunk(
 ) -> Result<bool, Error> {
 	let mut tx = DBTransaction::new();
 
-	let mut meta = match load_meta(db, &candidate_hash) {
+	let mut meta = match load_meta(db, &candidate_hash)? {
 		Some(m) => m,
 		None => return Ok(false), // we weren't informed of this candidate by import events.
 	};
@@ -1013,7 +1016,7 @@ fn store_available_data(
 ) -> Result<(), Error> {
 	let mut tx = DBTransaction::new();
 
-	let mut meta = match load_meta(&subsystem.db, &candidate_hash) {
+	let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
 		Some(m) => {
 			if m.data_available {
 				return Ok(()); // already stored.
@@ -1081,7 +1084,7 @@ fn prune_all(db: &Arc<dyn KeyValueDB>, clock: &dyn Clock) -> Result<(), Error> {
 		delete_meta(&mut tx, &candidate_hash);
 
 		// Clean up all attached data of the candidate.
-		if let Some(meta) = load_meta(db, &candidate_hash) {
+		if let Some(meta) = load_meta(db, &candidate_hash)? {
 			// delete available data.
 			if meta.data_available {
 				delete_available_data(&mut tx, &candidate_hash)
