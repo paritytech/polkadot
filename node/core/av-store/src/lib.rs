@@ -535,10 +535,25 @@ async fn process_block_activated(
 		}
 	};
 
+	let block_header = {
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(
+			ChainApiMessage::BlockHeader(activated, tx).into()
+		).await;
+
+		match rx.await?? {
+			None => return Ok(()),
+			Some(n) => n,
+		}
+	};
+
+	// We need to request the number of validators based on the parent state, as that is the number of validators
+	// used to create this block.
 	let n_validators = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(
-			RuntimeApiMessage::Request(activated, RuntimeApiRequest::Validators(tx)).into()
+			RuntimeApiMessage::Request(block_header.parent_hash, RuntimeApiRequest::Validators(tx)).into()
 		).await;
 
 		rx.await??.len()
