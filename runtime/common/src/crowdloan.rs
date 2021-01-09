@@ -449,8 +449,8 @@ decl_module! {
 
 		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
 		#[weight = 0]
-		fn withdraw(origin, #[compact] index: FundIndex) {
-			let who = ensure_signed(origin)?;
+		fn withdraw(origin, who: T::AccountId, #[compact] index: FundIndex) {
+			let _ = ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			ensure!(fund.parachain.is_none(), Error::<T>::FundNotRetired);
@@ -1181,14 +1181,14 @@ mod tests {
 			// Skip all the way to the end
 			run_to_block(50);
 
-			// User can withdraw their full balance without fees
-			assert_ok!(Crowdloan::withdraw(Origin::signed(1), 0));
+			// Anyone can trigger withdraw of a user's balance without fees
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 1, 0));
 			assert_eq!(Balances::free_balance(1), 999);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 2, 0));
 			assert_eq!(Balances::free_balance(2), 2000);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(3), 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 3, 0));
 			assert_eq!(Balances::free_balance(3), 3000);
 		});
 	}
@@ -1206,14 +1206,14 @@ mod tests {
 			run_to_block(5);
 
 			// Cannot withdraw before fund ends
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1), 0), Error::<Test>::FundNotEnded);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 1, 0), Error::<Test>::FundNotEnded);
 
 			run_to_block(10);
 
 			// Cannot withdraw if they did not contribute
-			assert_noop!(Crowdloan::withdraw(Origin::signed(2), 0), Error::<Test>::NoContributions);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 0), Error::<Test>::NoContributions);
 			// Cannot withdraw from a non-existent fund
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 1), Error::<Test>::InvalidFundIndex);
 		});
 	}
 
@@ -1629,11 +1629,12 @@ mod benchmarking {
 		withdraw {
 			let fund_index = create_fund::<T>(100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
-			contribute_fund::<T>(&caller, fund_index);
+			let contributor = account("contributor", 0, 0);
+			contribute_fund::<T>(&contributor, fund_index);
 			frame_system::Module::<T>::set_block_number(200u32.into());
-		}: _(RawOrigin::Signed(caller.clone()), fund_index)
+		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
-			assert_last_event::<T>(RawEvent::Withdrew(caller, fund_index, T::MinContribution::get()).into());
+			assert_last_event::<T>(RawEvent::Withdrew(contributor, fund_index, T::MinContribution::get()).into());
 		}
 
 		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
