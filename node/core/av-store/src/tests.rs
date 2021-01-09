@@ -34,6 +34,7 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
+use parking_lot::Mutex;
 
 struct TestHarness {
 	virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
@@ -61,9 +62,41 @@ impl TestCandidateBuilder {
 	}
 }
 
+#[derive(Clone)]
+struct TestClock {
+	inner: Arc<Mutex<Duration>>,
+}
+
+impl TestClock {
+	fn now(&self) -> Duration {
+		self.inner.lock().clone()
+	}
+
+	fn inc(&self, by: Duration) {
+		*self.inner.lock() += by;
+	}
+}
+
+impl Clock for TestClock {
+	fn now(&self) -> Result<Duration, Error> {
+		Ok(TestClock::now(self))
+	}
+}
+
+
+#[derive(Clone)]
 struct TestState {
 	persisted_validation_data: PersistedValidationData,
 	pruning_config: PruningConfig,
+	clock: TestClock,
+}
+
+impl TestState {
+	// pruning is only polled periodically, so we sometimes need to delay until
+	// we're sure the subsystem has done pruning.
+	async fn wait_for_pruning(&self) {
+		Delay::new(self.pruning_config.pruning_interval * 2).await
+	}
 }
 
 impl Default for TestState {
@@ -83,15 +116,21 @@ impl Default for TestState {
 			pruning_interval: Duration::from_millis(250),
 		};
 
+		let clock = TestClock {
+			inner: Arc::new(Mutex::new(Duration::from_secs(0))),
+		};
+
 		Self {
 			persisted_validation_data,
 			pruning_config,
+			clock,
 		}
 	}
 }
 
+
 fn test_harness<T: Future<Output=()>>(
-	pruning_config: PruningConfig,
+	state: TestState,
 	store: Arc<dyn KeyValueDB>,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
@@ -110,7 +149,12 @@ fn test_harness<T: Future<Output=()>>(
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let subsystem = AvailabilityStoreSubsystem::new_in_memory(store, pruning_config);
+	let subsystem = AvailabilityStoreSubsystem::new_in_memory(
+		store,
+		state.pruning_config.clone(),
+		Box::new(state.clock),
+	);
+
 	let subsystem = run(subsystem, context);
 
 	let test_fut = test(TestHarness {
@@ -181,7 +225,7 @@ fn with_tx(db: &Arc<impl KeyValueDB>, f: impl FnOnce(&mut DBTransaction)) {
 fn runtime_api_error_does_not_stop_the_subsystem() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 
-	test_harness(PruningConfig::default(), store, |test_harness| async move {
+	test_harness(TestState::default(), store, |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let new_leaf = Hash::repeat_byte(0x01);
 
@@ -225,7 +269,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 #[test]
 fn store_chunk_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
-	test_harness(PruningConfig::default(), store.clone(), |test_harness| async move {
+	test_harness(TestState::default(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let relay_parent = Hash::repeat_byte(32);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
@@ -277,7 +321,7 @@ fn store_chunk_works() {
 #[test]
 fn store_chunk_does_nothing_if_no_entry_already() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
-	test_harness(PruningConfig::default(), store.clone(), |test_harness| async move {
+	test_harness(TestState::default(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let relay_parent = Hash::repeat_byte(32);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
@@ -317,7 +361,7 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 #[test]
 fn query_chunk_checks_meta() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
-	test_harness(PruningConfig::default(), store.clone(), |test_harness| async move {
+	test_harness(TestState::default(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = 5;
@@ -363,7 +407,7 @@ fn query_chunk_checks_meta() {
 fn store_block_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
-	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
+	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let validator_index = 5;
@@ -375,7 +419,7 @@ fn store_block_works() {
 
 		let available_data = AvailableData {
 			pov: Arc::new(pov),
-			validation_data: test_state.persisted_validation_data,
+			validation_data: test_state.persisted_validation_data.clone(),
 		};
 
 
@@ -416,7 +460,7 @@ fn store_pov_and_query_chunk_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
+	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let n_validators = 10;
@@ -427,7 +471,7 @@ fn store_pov_and_query_chunk_works() {
 
 		let available_data = AvailableData {
 			pov: Arc::new(pov),
-			validation_data: test_state.persisted_validation_data,
+			validation_data: test_state.persisted_validation_data.clone(),
 		};
 
 		let chunks_expected = erasure::obtain_chunks_v1(n_validators as _, &available_data).unwrap();
@@ -458,7 +502,7 @@ fn stored_but_not_included_data_is_pruned() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
+	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let n_validators = 10;
@@ -469,7 +513,7 @@ fn stored_but_not_included_data_is_pruned() {
 
 		let available_data = AvailableData {
 			pov: Arc::new(pov),
-			validation_data: test_state.persisted_validation_data,
+			validation_data: test_state.persisted_validation_data.clone(),
 		};
 
 		let (tx, rx) = oneshot::channel();
@@ -491,8 +535,9 @@ fn stored_but_not_included_data_is_pruned() {
 			available_data,
 		);
 
-		// Wait for twice as long as the stored block kept for.
-		Delay::new(test_state.pruning_config.keep_unavailable_for * 2).await;
+		// Wait until pruning.
+		test_state.clock.inc(test_state.pruning_config.keep_unavailable_for);
+		test_state.wait_for_pruning().await;
 
 		// The block was not included by this point so it should be pruned now.
 		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none());
@@ -504,7 +549,7 @@ fn stored_data_kept_until_finalized() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
+	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let n_validators = 10;
 
@@ -523,7 +568,7 @@ fn stored_data_kept_until_finalized() {
 
 		let available_data = AvailableData {
 			pov: Arc::new(pov),
-			validation_data: test_state.persisted_validation_data,
+			validation_data: test_state.persisted_validation_data.clone(),
 		};
 
 		let parent = Hash::repeat_byte(2);
@@ -556,7 +601,9 @@ fn stored_data_kept_until_finalized() {
 			(0..n_validators).map(|_| Sr25519Keyring::Alice.public().into()).collect(),
 		).await;
 
-		Delay::new(test_state.pruning_config.keep_unavailable_for * 10).await;
+		// Wait until unavailable data would definitely be pruned.
+		test_state.clock.inc(test_state.pruning_config.keep_unavailable_for * 10);
+		test_state.wait_for_pruning().await;
 
 		// At this point data should _still_ be in the store.
 		assert_eq!(
@@ -567,19 +614,15 @@ fn stored_data_kept_until_finalized() {
 		assert!(
 			query_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, true).await
 		);
-
-		// So we only finalize the one block.
-		with_tx(&store, |tx| {
-			write_last_finalized(tx, block_number - 1);
-		});
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::BlockFinalized(new_leaf, 10)
+			OverseerSignal::BlockFinalized(new_leaf, block_number)
 		).await;
 
-		// Wait for a half of the time finalized data should be available for
-		Delay::new(test_state.pruning_config.keep_finalized_for / 2).await;
+		// Wait until unavailable data would definitely be pruned.
+		test_state.clock.inc(test_state.pruning_config.keep_finalized_for / 2);
+		test_state.wait_for_pruning().await;
 
 		// At this point data should _still_ be in the store.
 		assert_eq!(
@@ -591,8 +634,9 @@ fn stored_data_kept_until_finalized() {
 			query_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, true).await
 		);
 
-		// Wait until it is should be gone.
-		Delay::new(test_state.pruning_config.keep_finalized_for).await;
+		// Wait until it definitely should be gone.
+		test_state.clock.inc(test_state.pruning_config.keep_finalized_for);
+		test_state.wait_for_pruning().await;
 
 		// At this point data should be gone from the store.
 		assert!(
@@ -610,7 +654,7 @@ fn forkfullness_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
+	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let n_validators = 10;
 		let block_number_1 = 5;
@@ -652,7 +696,7 @@ fn forkfullness_works() {
 
 		let available_data_2 = AvailableData {
 			pov: Arc::new(pov_2),
-			validation_data: test_state.persisted_validation_data,
+			validation_data: test_state.persisted_validation_data.clone(),
 		};
 
 		let (tx, rx) = oneshot::channel();
@@ -707,10 +751,6 @@ fn forkfullness_works() {
 			validators.clone(),
 		).await;
 
-		with_tx(&store, |tx| {
-			write_last_finalized(tx, block_number_1 - 1);
-		});
-
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::BlockFinalized(new_leaf_1, block_number_1)
@@ -736,7 +776,8 @@ fn forkfullness_works() {
 		);
 
 		// Candidate 2 should now be considered unavailable and will be pruned.
-		Delay::new(test_state.pruning_config.keep_unavailable_for + Duration::from_millis(500)).await;
+		test_state.clock.inc(test_state.pruning_config.keep_unavailable_for);
+		test_state.wait_for_pruning().await;
 
 		assert_eq!(
 			query_available_data(&mut virtual_overseer, candidate_1_hash).await.unwrap(),
@@ -756,7 +797,8 @@ fn forkfullness_works() {
 		);
 
 		// Wait for longer than finalized blocks should be kept for
-		Delay::new(test_state.pruning_config.keep_finalized_for).await;
+		test_state.clock.inc(test_state.pruning_config.keep_finalized_for);
+		test_state.wait_for_pruning().await;
 
 		// Everything should be pruned now.
 		assert!(
