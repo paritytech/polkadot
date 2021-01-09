@@ -390,6 +390,9 @@ struct PruningConfig {
 
 	/// How long finalized data should be kept.
 	keep_finalized_for: Duration,
+
+	/// How often to perform data pruning.
+	pruning_interval: Duration,
 }
 
 impl Default for PruningConfig {
@@ -397,6 +400,7 @@ impl Default for PruningConfig {
 		Self {
 			keep_unavailable_for: KEEP_UNAVAILABLE_FOR,
 			keep_finalized_for: KEEP_FINALIZED_FOR,
+			pruning_interval: PRUNING_INTERVAL,
 		}
 	}
 }
@@ -493,7 +497,7 @@ async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Contex
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	let mut next_pruning = Delay::new(PRUNING_INTERVAL).fuse();
+	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 	loop {
 		let res = run_iteration(&mut ctx, &mut subsystem, &mut next_pruning).await;
@@ -556,7 +560,7 @@ where
 		_ = next_pruning => {
 			// It's important to set the delay before calling `prune_all` because an error in `prune_all`
 			// could lead to the delay not being set again. Then we would never prune anything anymore.
-			*next_pruning = Delay::new(PRUNING_INTERVAL).fuse();
+			*next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 			let _timer = subsystem.metrics.time_pruning();
 			prune_all(&subsystem.inner)?;
