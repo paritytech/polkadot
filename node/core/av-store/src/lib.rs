@@ -849,6 +849,9 @@ async fn process_block_finalized(
 				match meta.state {
 					State::Finalized(_) => continue, // sanity
 					State::Unavailable(at) => {
+						// This is also not going to happen; the very fact that we are
+						// iterating over the candidate here indicates that `State` should
+						// be `Unfinalized`.
 						delete_pruning_key(&mut db_transaction, at, &candidate_hash);
 					}
 					State::Unfinalized(_, blocks) => {
