@@ -1616,7 +1616,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-		}: _(RawOrigin::Signed(caller), cap, first_slot, last_slot, end)
+		}: _(RawOrigin::Signed(caller), cap, first_slot, last_slot, end, None)
 		verify {
 			assert_last_event::<T>(RawEvent::Created(FundCount::get() - 1).into())
 		}
@@ -1627,7 +1627,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, caller.clone())
+		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, caller.clone(), None)
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
 			assert!(!NewRaise::get().is_empty());
