@@ -70,7 +70,7 @@ use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure,
 	storage::child,
 	traits::{
-		Currency, Get, OnUnbalanced, WithdrawReasons, ExistenceRequirement::AllowDeath
+		Currency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
 	},
 };
 use frame_system::ensure_signed;
