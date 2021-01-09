@@ -626,6 +626,7 @@ mod tests {
 	use sp_runtime::{
 		Permill, testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
+		testing::{UintAuthorityId, TestSignature},
 	};
 	use crate::slots::Registrar;
 
@@ -799,6 +800,8 @@ mod tests {
 		type OrphanedFunds = Treasury;
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
+		type ContributionSigner = UintAuthorityId;
+		type ContributionSignature = TestSignature;
 	}
 
 	type System = frame_system::Module<Test>;
@@ -853,12 +856,13 @@ mod tests {
 	fn create_works() {
 		new_test_ext().execute_with(|| {
 			// Now try to create a crowdloan campaign
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Crowdloan::fund_count(), 1);
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
 				parachain: None,
 				owner: 1,
+				verifier: None,
 				deposit: 1,
 				raised: 0,
 				// 5 blocks length + 3 block ending period + 1 starting block
@@ -885,17 +889,17 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Cannot create a crowdloan with bad slots
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1), 1000, 4, 1, 9),
+				Crowdloan::create(Origin::signed(1), 1000, 4, 1, 9, None),
 				Error::<Test>::LastSlotBeforeFirstSlot
 			);
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1), 1000, 1, 5, 9),
+				Crowdloan::create(Origin::signed(1), 1000, 1, 5, 9, None),
 				Error::<Test>::LastSlotTooFarInFuture
 			);
 
 			// Cannot create a crowdloan without some deposit funds
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1337), 1000, 1, 3, 9),
+				Crowdloan::create(Origin::signed(1337), 1000, 1, 3, 9, None),
 				BalancesError::<Test, _>::InsufficientBalance
 			);
 		});
@@ -905,7 +909,7 @@ mod tests {
 	fn contribute_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Balances::free_balance(1), 999);
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
 
@@ -913,7 +917,7 @@ mod tests {
 			assert_eq!(Crowdloan::contribution_get(0, &1), 0);
 
 			// User 1 contributes to their own crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
@@ -935,22 +939,22 @@ mod tests {
 	fn contribute_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot contribute to non-existing fund
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None), Error::<Test>::InvalidFundIndex);
 			// Cannot contribute below minimum contribution
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 9, 1), Error::<Test>::ContributionTooSmall);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 9, 1, None), Error::<Test>::ContributionTooSmall);
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 101, 1));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 101, 1, None));
 
 			// Cannot contribute past the limit
-			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0, 900, 2), Error::<Test>::CapExceeded);
+			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0, 900, 2, None), Error::<Test>::CapExceeded);
 
 			// Move past end date
 			run_to_block(10);
 
 			// Cannot contribute to ended fund
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1), Error::<Test>::ContributionPeriodOver);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None), Error::<Test>::ContributionPeriodOver);
 		});
 	}
 
@@ -958,7 +962,7 @@ mod tests {
 	fn fix_deploy_data_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -988,7 +992,7 @@ mod tests {
 	fn fix_deploy_data_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Cannot set deploy data by non-owner
@@ -1036,7 +1040,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -1049,7 +1053,7 @@ mod tests {
 			));
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
 
 			run_to_block(10);
 
@@ -1072,11 +1076,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
 
 			run_to_block(10);
 
@@ -1110,7 +1114,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -1123,7 +1127,7 @@ mod tests {
 			));
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
 
 			run_to_block(10);
 
@@ -1153,7 +1157,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Add deploy data
@@ -1166,7 +1170,7 @@ mod tests {
 			));
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
 
 			run_to_block(10);
 
@@ -1198,11 +1202,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3, None));
 
 			// Skip all the way to the end
 			run_to_block(50);
@@ -1225,11 +1229,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 4));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 4));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 4));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 4, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 4, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 4, None));
 
 			// Skip all the way to the end
 			run_to_block(50);
@@ -1245,9 +1249,9 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None));
 			assert_eq!(Balances::free_balance(1), 950);
 
 			run_to_block(5);
@@ -1269,11 +1273,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3, None));
 
 			// Skip all the way to the end
 			run_to_block(50);
@@ -1307,12 +1311,12 @@ mod tests {
 		ext.execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 100_000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 100_000, 1, 4, 9, None));
 
 			// Add lots of contributors, beyond what we can delete in one go.
 			for i in 0 .. 30 {
 				Balances::make_free_balance_be(&i, 300);
-				assert_ok!(Crowdloan::contribute(Origin::signed(i), 0, 100, i));
+				assert_ok!(Crowdloan::contribute(Origin::signed(i), 0, 100, i, None));
 				assert_eq!(Crowdloan::contribution_get(0, &i), 100);
 			}
 
@@ -1372,11 +1376,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3, None));
 
 			// Cannot dissolve an invalid fund index
 			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
@@ -1404,9 +1408,9 @@ mod tests {
 	fn fund_before_auction_works() {
 		new_test_ext().execute_with(|| {
 			// Create a crowdloan before an auction is created
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Users can already contribute
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None));
 			// Fund added to NewRaise
 			assert_eq!(Crowdloan::new_raise(), vec![0]);
 
@@ -1446,12 +1450,12 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Create two competing crowdloans, with end dates across multiple auctions
 			// Each crowdloan is competing for the same slots, so only one can win
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 30));
-			assert_ok!(Crowdloan::create(Origin::signed(2), 1000, 1, 4, 30));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 30, None));
+			assert_ok!(Crowdloan::create(Origin::signed(2), 1000, 1, 4, 30, None));
 
 			// Contribute to all, but more money to 0, less to 1
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 300, 1));
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 200, 1));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 300, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 200, 1, None));
 
 			// Add deploy data to all
 			assert_ok!(Crowdloan::fix_deploy_data(
@@ -1483,7 +1487,7 @@ mod tests {
 			// Create a second auction
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Contribute to existing funds add to NewRaise
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 10, 1));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 10, 1, None));
 
 			// End the current auction, fund 1 wins!
 			run_to_block(20);
