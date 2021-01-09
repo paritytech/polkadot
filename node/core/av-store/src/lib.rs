@@ -420,7 +420,6 @@ impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	inner: Arc<dyn KeyValueDB>,
-	chunks_cache: HashMap<CandidateHash, HashMap<u32, ErasureChunk>>,
 	metrics: Metrics,
 }
 
