@@ -526,10 +526,13 @@ where
 					ActiveLeavesUpdate { activated, .. })
 				) => {
 					for (activated, _span) in activated.into_iter() {
+						let _timer = subsystem.metrics.time_block_activated();
 						process_block_activated(ctx, subsystem, activated).await?;
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+					let _timer = subsystem.metrics.time_process_block_finalized();
+
 					process_block_finalized(
 						ctx,
 						&subsystem.inner,
@@ -539,6 +542,7 @@ where
 					).await?;
 				}
 				FromOverseer::Communication { msg } => {
+					let _timer = subsystem.metrics.time_process_message();
 					process_message(subsystem, msg)?;
 				}
 			}
@@ -547,6 +551,8 @@ where
 			// It's important to set the delay before calling `prune_all` because an error in `prune_all`
 			// could lead to the delay not being set again. Then we would never prune anything anymore.
 			*next_pruning = Delay::new(PRUNING_INTERVAL).fuse();
+
+			let _timer = subsystem.metrics.time_pruning();
 			prune_all(&subsystem.inner)?;
 		}
 	}
@@ -899,6 +905,7 @@ fn process_message(
 			let _ = tx.send(a);
 		}
 		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
+			let _timer = subsystem.metrics.time_get_chunk();
 			let _ = tx.send(load_chunk(&subsystem.inner, &candidate, validator_index));
 		}
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
@@ -912,6 +919,9 @@ fn process_message(
 			chunk,
 			tx,
 		} => {
+			subsystem.metrics.on_chunks_received(1);
+			let _timer = subsystem.metrics.time_store_chunk();
+
 			match store_chunk(&subsystem.inner, candidate_hash, chunk) {
 				Ok(true) => {
 					let _ = tx.send(Ok(()));
@@ -926,6 +936,10 @@ fn process_message(
 			}
 		}
 		AvailabilityStoreMessage::StoreAvailableData(candidate, our_index, n_validators, available_data, tx) => {
+			subsystem.metrics.on_chunks_received(n_validators as _);
+
+			let _timer = subsystem.metrics.time_store_available_data();
+
 			let res = store_available_data(
 				&subsystem.inner,
 				&subsystem.pruning_config,
@@ -1088,15 +1102,12 @@ fn prune_all(db: &Arc<dyn KeyValueDB>) -> Result<(), Error> {
 #[derive(Clone)]
 struct MetricsInner {
 	received_availability_chunks_total: prometheus::Counter<prometheus::U64>,
-	chunk_pruning_records_total: prometheus::Gauge<prometheus::U64>,
-	block_pruning_records_total: prometheus::Gauge<prometheus::U64>,
-	prune_povs: prometheus::Histogram,
-	prune_chunks: prometheus::Histogram,
+	pruning: prometheus::Histogram,
 	process_block_finalized: prometheus::Histogram,
 	block_activated: prometheus::Histogram,
 	process_message: prometheus::Histogram,
 	store_available_data: prometheus::Histogram,
-	store_chunks: prometheus::Histogram,
+	store_chunk: prometheus::Histogram,
 	get_chunk: prometheus::Histogram,
 }
 
@@ -1114,30 +1125,9 @@ impl Metrics {
 		}
 	}
 
-	fn chunk_pruning_records_size(&self, count: usize) {
-		if let Some(metrics) = &self.0 {
-			use core::convert::TryFrom as _;
-			let total = u64::try_from(count).unwrap_or_default();
-			metrics.chunk_pruning_records_total.set(total);
-		}
-	}
-
-	fn block_pruning_records_size(&self, count: usize) {
-		if let Some(metrics) = &self.0 {
-			use core::convert::TryFrom as _;
-			let total = u64::try_from(count).unwrap_or_default();
-			metrics.block_pruning_records_total.set(total);
-		}
-	}
-
 	/// Provide a timer for `prune_povs` which observes on drop.
-	fn time_prune_povs(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.prune_povs.start_timer())
-	}
-
-	/// Provide a timer for `prune_chunks` which observes on drop.
-	fn time_prune_chunks(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.prune_chunks.start_timer())
+	fn time_pruning(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.pruning.start_timer())
 	}
 
 	/// Provide a timer for `process_block_finalized` which observes on drop.
@@ -1161,8 +1151,8 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `store_chunk` which observes on drop.
-	fn time_store_chunks(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.store_chunks.start_timer())
+	fn time_store_chunk(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.store_chunk.start_timer())
 	}
 
 	/// Provide a timer for `get_chunk` which observes on drop.
@@ -1181,34 +1171,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			chunk_pruning_records_total: prometheus::register(
-				prometheus::Gauge::new(
-					"parachain_chunk_pruning_records_total",
-					"Number of chunk pruning records kept by the storage.",
-				)?,
-				registry,
-			)?,
-			block_pruning_records_total: prometheus::register(
-				prometheus::Gauge::new(
-					"parachain_block_pruning_records_total",
-					"Number of block pruning records kept by the storage.",
-				)?,
-				registry,
-			)?,
-			prune_povs: prometheus::register(
+			pruning: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_av_store_prune_povs",
-						"Time spent within `av_store::prune_povs`",
-					)
-				)?,
-				registry,
-			)?,
-			prune_chunks: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_prune_chunks",
-						"Time spent within `av_store::prune_chunks`",
+						"parachain_av_store_pruning",
+						"Time spent within `av_store::prune_all`",
 					)
 				)?,
 				registry,
@@ -1217,7 +1184,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"parachain_av_store_process_block_finalized",
-						"Time spent within `av_store::block_finalized`",
+						"Time spent within `av_store::process_block_finalized`",
 					)
 				)?,
 				registry,
@@ -1226,7 +1193,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"parachain_av_store_block_activated",
-						"Time spent within `av_store::block_activated`",
+						"Time spent within `av_store::process_block_activated`",
 					)
 				)?,
 				registry,
@@ -1249,11 +1216,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			store_chunks: prometheus::register(
+			store_chunk: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_av_store_store_chunks",
-						"Time spent within `av_store::store_chunks`",
+						"parachain_av_store_store_chunk",
+						"Time spent within `av_store::store_chunk`",
 					)
 				)?,
 				registry,
@@ -1262,7 +1229,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"parachain_av_store_get_chunk",
-						"Time spent within `av_store::get_chunk`",
+						"Time spent fetching requested chunks.`",
 					)
 				)?,
 				registry,
