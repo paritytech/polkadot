@@ -17,7 +17,7 @@
 use super::*;
 use assert_matches::assert_matches;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_network_protocol::{view, ObservedRole};
+use polkadot_node_network_protocol::{view, ObservedRole, our_view};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
@@ -48,6 +48,19 @@ fn chunk_protocol_message(
 		message.candidate_hash,
 		message.erasure_chunk,
 	)
+}
+
+fn make_per_candidate() -> PerCandidate {
+	PerCandidate {
+		live_in: HashSet::new(),
+		message_vault: HashMap::new(),
+		received_messages: HashMap::new(),
+		sent_messages: HashMap::new(),
+		validators: Vec::new(),
+		validator_index: None,
+		descriptor: Default::default(),
+		span: jaeger::JaegerSpan::Disabled,
+	}
 }
 
 struct TestHarness {
@@ -192,6 +205,7 @@ impl Default for TestState {
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 			max_pov_size: 1024,
+			relay_storage_root: Default::default(),
 		};
 
 		let pov_block_a = PoV {
@@ -358,33 +372,37 @@ fn derive_erasure_chunks_with_proofs(
 
 async fn expect_chunks_network_message(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
-	peers: &[PeerId],
+	peers: &[Vec<PeerId>],
 	candidates: &[CandidateHash],
 	chunks: &[ErasureChunk],
 ) {
-	for _ in 0..chunks.len() {
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
-					send_peers,
+	if chunks.is_empty() { return }
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendValidationMessages(msgs)
+		) => {
+			assert_eq!(msgs.len(), chunks.len());
+			for (send_peers, msg) in msgs {
+				assert_matches!(
+					msg,
 					protocol_v1::ValidationProtocol::AvailabilityDistribution(
-						protocol_v1::AvailabilityDistributionMessage::Chunk(send_candidate, send_chunk),
-					),
-				)
-			) => {
-				assert!(candidates.contains(&send_candidate), format!("Could not find candidate: {:?}", send_candidate));
-				assert!(chunks.iter().any(|c| c == &send_chunk), format!("Could not find chunk: {:?}", send_chunk));
-				assert_eq!(peers.len(), send_peers.len());
-				assert!(peers.iter().all(|p| send_peers.contains(p)));
+						protocol_v1::AvailabilityDistributionMessage::Chunk(send_candidate, send_chunk)
+					) => {
+						let i = chunks.iter().position(|c| c == &send_chunk).unwrap();
+						assert!(candidates.contains(&send_candidate), format!("Could not find candidate: {:?}", send_candidate));
+						assert_eq!(&peers[i], &send_peers);
+					}
+				);
 			}
-		);
-	}
+		}
+	)
 }
 
 async fn change_our_view(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
-	view: View,
+	view: OurView,
 	validator_public: &[ValidatorId],
 	ancestors: Vec<Hash>,
 	session_per_relay_parent: HashMap<Hash, SessionIndex>,
@@ -450,6 +468,9 @@ async fn change_our_view(
 		);
 	}
 
+	let mut send_peers = Vec::new();
+	let mut send_chunks = Vec::new();
+	let mut candidates = Vec::new();
 	for _ in 0..data_availability.len() {
 		let (available, candidate_hash) = assert_matches!(
 			overseer_recv(virtual_overseer).await,
@@ -471,6 +492,7 @@ async fn change_our_view(
 			continue;
 		}
 
+		candidates.push(candidate_hash);
 		if let Some((pov, persisted)) = chunk_data_per_candidate.get(&candidate_hash) {
 			let chunks = make_erasure_chunks(persisted.clone(), validator_public.len(), pov.clone());
 
@@ -492,11 +514,15 @@ async fn change_our_view(
 				);
 
 				if let Some(peers) = send_chunks_to.get(&candidate_hash) {
-					expect_chunks_network_message(virtual_overseer, &peers, &[candidate_hash], &[chunk]).await;
+					send_peers.push(peers.clone());
+					send_chunks.push(chunk);
 				}
 			}
+
 		}
 	}
+
+	expect_chunks_network_message(virtual_overseer, &send_peers, &candidates, &send_chunks).await;
 }
 
 async fn setup_peer_with_view(
@@ -560,7 +586,7 @@ fn check_views() {
 		let genesis = Hash::repeat_byte(0xAA);
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0], genesis],
 			hashmap! { current => 1, genesis => 1 },
@@ -627,7 +653,7 @@ fn check_views() {
 					peer_b_2 => view![ancestors[0]],
 				},
 			);
-			assert_eq!(view, view![current]);
+			assert_eq!(view, our_view![current]);
 		}
 	};
 }
@@ -662,7 +688,7 @@ fn reputation_verification() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -711,17 +737,19 @@ fn reputation_verification() {
 			// Both peers send us this chunk already
 			chunks.remove(2);
 
-			expect_chunks_network_message(&mut virtual_overseer, &[peer_a.clone()], &[candidates[0].hash()], &chunks).await;
+			let send_peers = chunks.iter().map(|_| vec![peer_a.clone()]).collect::<Vec<_>>();
+			expect_chunks_network_message(&mut virtual_overseer, &send_peers, &[candidates[0].hash()], &chunks).await;
 
 			overseer_send(&mut virtual_overseer, NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![current])).await;
 
-			expect_chunks_network_message(&mut virtual_overseer, &[peer_b.clone()], &[candidates[0].hash()], &chunks).await;
+			let send_peers = chunks.iter().map(|_| vec![peer_b.clone()]).collect::<Vec<_>>();
+			expect_chunks_network_message(&mut virtual_overseer, &send_peers, &[candidates[0].hash()], &chunks).await;
 
 			peer_send_message(&mut virtual_overseer, peer_a.clone(), valid.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
 			expect_chunks_network_message(
 				&mut virtual_overseer,
-				&[peer_b.clone()],
+				&[vec![peer_b.clone()]],
 				&[candidates[1].hash()],
 				&[valid.erasure_chunk.clone()],
 			).await;
@@ -754,7 +782,7 @@ fn not_a_live_candidate_is_detected() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -802,7 +830,7 @@ fn peer_change_view_before_us() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -849,7 +877,7 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![ancestors[0]],
+			our_view![ancestors[0]],
 			&validator_public,
 			vec![ancestors[1]],
 			hashmap! { ancestors[0] => 1 },
@@ -865,7 +893,7 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -887,9 +915,10 @@ fn candidate_chunks_are_put_into_message_vault_when_candidate_is_first_seen() {
 			validator_public.len(),
 			pov_blocks[0].clone(),
 		);
+		let send_peers = chunks.iter().map(|_| vec![peer_a.clone()]).collect::<Vec<_>>();
 		expect_chunks_network_message(
 			&mut virtual_overseer,
-			&[peer_a],
+			&send_peers,
 			&[candidates[0].hash()],
 			&chunks,
 		).await;
@@ -991,9 +1020,14 @@ fn clean_up_receipts_cache_unions_ancestors_and_view() {
 	state.per_relay_parent.insert(hash_a, PerRelayParent {
 		ancestors: vec![hash_b],
 		live_candidates: HashSet::new(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	});
 
-	state.per_relay_parent.insert(hash_c, PerRelayParent::default());
+	state.per_relay_parent.insert(hash_c, PerRelayParent {
+		ancestors: Vec::new(),
+		live_candidates: HashSet::new(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
+	});
 
 	state.clean_up_live_under_cache();
 
@@ -1016,16 +1050,19 @@ fn remove_relay_parent_only_removes_per_candidate_if_final() {
 	state.per_relay_parent.insert(hash_a, PerRelayParent {
 		ancestors: vec![],
 		live_candidates: std::iter::once(candidate_hash_a).collect(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	});
 
 	state.per_relay_parent.insert(hash_b, PerRelayParent {
 		ancestors: vec![],
 		live_candidates: std::iter::once(candidate_hash_a).collect(),
+		span: PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	});
 
-	state.per_candidate.insert(candidate_hash_a, PerCandidate {
-		live_in: vec![hash_a, hash_b].into_iter().collect(),
-		..Default::default()
+	state.per_candidate.insert(candidate_hash_a, {
+		let mut per_candidate = make_per_candidate();
+		per_candidate.live_in = vec![hash_a, hash_b].into_iter().collect();
+		per_candidate
 	});
 
 	state.remove_relay_parent(&hash_a);
@@ -1051,6 +1088,8 @@ fn add_relay_parent_includes_all_live_candidates() {
 	let candidate_hash_a = CandidateHash([10u8; 32].into());
 	let candidate_hash_b = CandidateHash([11u8; 32].into());
 
+	state.per_candidate.insert(candidate_hash_b, make_per_candidate());
+
 	let candidates = vec![
 		(candidate_hash_a, FetchedLiveCandidate::Fresh(Default::default())),
 		(candidate_hash_b, FetchedLiveCandidate::Cached),
@@ -1062,6 +1101,7 @@ fn add_relay_parent_includes_all_live_candidates() {
 		None,
 		candidates,
 		vec![ancestor_a],
+		PerLeafSpan::new(Arc::new(jaeger::JaegerSpan::Disabled), "test"),
 	);
 
 	assert!(
@@ -1201,7 +1241,7 @@ fn new_peer_gets_all_chunks_send() {
 
 		change_our_view(
 			&mut virtual_overseer,
-			view![current],
+			our_view![current],
 			&validator_public,
 			vec![ancestors[0]],
 			hashmap! { current => 1 },
@@ -1228,9 +1268,11 @@ fn new_peer_gets_all_chunks_send() {
 
 		chunks.push(valid.erasure_chunk);
 
+		let send_peers = chunks.iter().map(|_| vec![peer_a.clone()]).collect::<Vec<_>>();
+
 		expect_chunks_network_message(
 			&mut virtual_overseer,
-			&[peer_a],
+			&send_peers,
 			&[candidates[0].hash(), candidates[1].hash()],
 			&chunks,
 		).await;

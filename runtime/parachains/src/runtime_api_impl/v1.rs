@@ -24,7 +24,7 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage,
+	InboundDownwardMessage, InboundHrmpMessage, Hash,
 };
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
@@ -190,18 +190,24 @@ fn with_assumption<Config, T, F>(
 pub fn full_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-)
-	-> Option<ValidationData<T::BlockNumber>>
-{
+) -> Option<ValidationData<T::BlockNumber>> {
+	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	with_assumption::<T, _, _>(
-		para_id,
-		assumption,
-		|| Some(ValidationData {
-			persisted: crate::util::make_persisted_validation_data::<T>(para_id, relay_parent_number)?,
-			transient: crate::util::make_transient_validation_data::<T>(para_id, relay_parent_number)?,
-		}),
-	)
+	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+		.expect("storage root must decode to the Hash type; qed");
+	with_assumption::<T, _, _>(para_id, assumption, || {
+		Some(ValidationData {
+			persisted: crate::util::make_persisted_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+				relay_storage_root,
+			)?,
+			transient: crate::util::make_transient_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+			)?,
+		})
+	})
 }
 
 /// Implementation for the `persisted_validation_data` function of the runtime API.
@@ -209,12 +215,17 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
+	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	with_assumption::<T, _, _>(
-		para_id,
-		assumption,
-		|| crate::util::make_persisted_validation_data::<T>(para_id, relay_parent_number),
-	)
+	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+		.expect("storage root must decode to the Hash type; qed");
+	with_assumption::<T, _, _>(para_id, assumption, || {
+		crate::util::make_persisted_validation_data::<T>(
+			para_id,
+			relay_parent_number,
+			relay_storage_root,
+		)
+	})
 }
 
 /// Implementation for the `check_validation_outputs` function of the runtime API.

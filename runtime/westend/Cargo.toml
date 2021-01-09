@@ -12,7 +12,7 @@ log = { version = "0.4.11", optional = true }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.118", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
-smallvec = "1.5.1"
+smallvec = "1.6.0"
 static_assertions = "1.1.0"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

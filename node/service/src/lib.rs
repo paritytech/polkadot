@@ -562,9 +562,12 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let shared_voter_state = rpc_setup;
 
+	// Note: GrandPa is pushed before the Polkadot-specific protocols. This doesn't change
+	// anything in terms of behaviour, but makes the logs more consistent with the other
+	// Substrate nodes.
+	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 	#[cfg(feature = "real-overseer")]
-	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
-	config.network.notifications_protocols.push(grandpa::GRANDPA_PROTOCOL_NAME.into());
+	config.network.extra_sets.extend(polkadot_network_bridge::peers_sets_info());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
