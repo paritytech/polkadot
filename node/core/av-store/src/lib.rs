@@ -181,6 +181,16 @@ fn write_last_finalized(
 	tx.put_vec(columns::META, LAST_FINALIZED_KEY, finalized.encode());
 }
 
+fn write_available_data(
+	tx: &mut DBTransaction,
+	hash: &CandidateHash,
+	available_data: &AvailableData,
+) {
+	let key = (AVAILABLE_PREFIX, hash).encode();
+
+	tx.put_vec(columns::DATA, &key[..], available_data.encode());
+}
+
 fn load_available_data(
 	db: &Arc<dyn KeyValueDB>,
 	hash: &CandidateHash,
@@ -1037,6 +1047,7 @@ fn store_available_data(
 	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
 
 	write_meta(&mut tx, &candidate_hash, &meta);
+	write_available_data(&mut tx, &candidate_hash, &available_data);
 
 	db.write(tx)?;
 	Ok(())
