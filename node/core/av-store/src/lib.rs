@@ -59,8 +59,6 @@ mod columns {
 
 /// The following constants are used under normal conditions:
 
-const LAST_FINALIZED_KEY: &[u8; 13] = b"LastFinalized";
-
 const AVAILABLE_PREFIX: &[u8; 9] = b"available";
 const CHUNK_PREFIX: &[u8; 5] = b"chunk";
 const META_PREFIX: &[u8; 4] = b"meta";
@@ -167,19 +165,6 @@ fn query_inner<D: Decode>(
 			None
 		}
 	}
-}
-
-fn load_last_finalized(
-	db: &Arc<dyn KeyValueDB>,
-) -> Option<BlockNumber> {
-	query_inner(db, columns::META, LAST_FINALIZED_KEY)
-}
-
-fn write_last_finalized(
-	tx: &mut DBTransaction,
-	finalized: BlockNumber,
-) {
-	tx.put_vec(columns::META, LAST_FINALIZED_KEY, finalized.encode());
 }
 
 fn write_available_data(
@@ -432,11 +417,25 @@ impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
 	}
 }
 
+trait Clock: Send + Sync {
+	// Returns time since unix epoch.
+	fn now(&self) -> Result<Duration, Error>;
+}
+
+struct SystemClock;
+
+impl Clock for SystemClock {
+	fn now(&self) -> Result<Duration, Error> {
+		SystemTime::now().duration_since(UNIX_EPOCH).map_err(Into::into)
+	}
+}
+
 /// An implementation of the Availability Store subsystem.
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	db: Arc<dyn KeyValueDB>,
 	metrics: Metrics,
+	clock: Box<dyn Clock>,
 }
 
 impl AvailabilityStoreSubsystem {
@@ -465,15 +464,21 @@ impl AvailabilityStoreSubsystem {
 			pruning_config: PruningConfig::default(),
 			db: Arc::new(db),
 			metrics,
+			clock: Box::new(SystemClock),
 		})
 	}
 
 	#[cfg(test)]
-	fn new_in_memory(db: Arc<dyn KeyValueDB>, pruning_config: PruningConfig) -> Self {
+	fn new_in_memory(
+		db: Arc<dyn KeyValueDB>,
+		pruning_config: PruningConfig,
+		clock: Box<dyn Clock>,
+	) -> Self {
 		Self {
 			pruning_config,
 			db,
 			metrics: Metrics(None),
+			clock,
 		}
 	}
 }
@@ -547,8 +552,7 @@ where
 
 					process_block_finalized(
 						ctx,
-						&subsystem.db,
-						&subsystem.pruning_config,
+						&subsystem,
 						hash,
 						number,
 					).await?;
@@ -565,7 +569,7 @@ where
 			*next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 			let _timer = subsystem.metrics.time_pruning();
-			prune_all(&subsystem.db)?;
+			prune_all(&subsystem.db, &*subsystem.clock)?;
 		}
 	}
 
@@ -577,7 +581,7 @@ async fn process_block_activated(
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
 ) -> Result<(), Error> {
-	let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+	let now = subsystem.clock.now()?;
 
 	let candidate_events = {
 		let (tx, rx) = oneshot::channel();
@@ -736,14 +740,11 @@ fn note_block_included(
 
 async fn process_block_finalized(
 	ctx: &mut impl SubsystemContext,
-	db: &Arc<dyn KeyValueDB>,
-	pruning_config: &PruningConfig,
+	subsystem: &AvailabilityStoreSubsystem,
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
-	let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
-
-	let last_finalized = load_last_finalized(db).unwrap_or(0);
+	let now = subsystem.clock.now()?;
 
 	macro_rules! peek_num {
 		($iter:ident) => {
@@ -754,7 +755,7 @@ async fn process_block_finalized(
 		}
 	}
 
-	let mut next_possible_batch = last_finalized + 1;
+	let mut next_possible_batch = 0;
 	loop {
 		let mut db_transaction = DBTransaction::new();
 		let (start_prefix, end_prefix) = finalized_block_range(finalized_number);
@@ -763,7 +764,7 @@ async fn process_block_finalized(
 		// as it is not `Send`. That is why we create the iterator once within this loop, drop it,
 		// do an asynchronous request, and then instantiate the exact same iterator again.
 		let batch_num = {
-			let mut iter = db.iter_with_prefix(columns::META, &start_prefix)
+			let mut iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
 				.take_while(|(k, _)| &k[..] < &end_prefix[..])
 				.peekable();
 
@@ -795,7 +796,7 @@ async fn process_block_finalized(
 			}
 		};
 
-		let mut iter = db.iter_with_prefix(columns::META, &start_prefix)
+		let mut iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
 			.take_while(|(k, _)| &k[..] < &end_prefix[..])
 			.peekable();
 
@@ -827,7 +828,7 @@ async fn process_block_finalized(
 		delete_unfinalized_height(&mut db_transaction, batch_num);
 
 		for (candidate_hash, is_finalized) in candidates {
-			let mut meta = match load_meta(db, &candidate_hash) {
+			let mut meta = match load_meta(&subsystem.db, &candidate_hash) {
 				None => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -868,7 +869,7 @@ async fn process_block_finalized(
 				write_meta(&mut db_transaction, &candidate_hash, &meta);
 				write_pruning_key(
 					&mut db_transaction,
-					now + pruning_config.keep_finalized_for,
+					now + subsystem.pruning_config.keep_finalized_for,
 					&candidate_hash,
 				);
 			} else {
@@ -883,7 +884,7 @@ async fn process_block_finalized(
 						// aware of any blocks this is included in.
 						if blocks.is_empty() {
 							let at_d: Duration = at.into();
-							let prune_at = at_d + pruning_config.keep_unavailable_for;
+							let prune_at = at_d + subsystem.pruning_config.keep_unavailable_for;
 							write_pruning_key(&mut db_transaction, prune_at, &candidate_hash);
 							State::Unavailable(at)
 						} else {
@@ -899,12 +900,8 @@ async fn process_block_finalized(
 
 		// We need to write at the end of the loop so the prefix iterator doesn't pick up the same values again
 		// in the next iteration. Another unfortunate effect of having to re-initialize the iterator.
-		db.write(db_transaction)?;
+		subsystem.db.write(db_transaction)?;
 	}
-
-	let mut db_transaction = DBTransaction::new();
-	write_last_finalized(&mut db_transaction, finalized_number);
-	db.write(db_transaction)?;
 
 	Ok(())
 }
@@ -958,8 +955,7 @@ fn process_message(
 			let _timer = subsystem.metrics.time_store_available_data();
 
 			let res = store_available_data(
-				&subsystem.db,
-				&subsystem.pruning_config,
+				&subsystem,
 				candidate,
 				n_validators as _,
 				available_data,
@@ -1010,15 +1006,14 @@ fn store_chunk(
 
 // Ok(true) on success, Ok(false) on failure, and Err on internal error.
 fn store_available_data(
-	db: &Arc<dyn KeyValueDB>,
-	pruning_config: &PruningConfig,
+	subsystem: &AvailabilityStoreSubsystem,
 	candidate_hash: CandidateHash,
 	n_validators: usize,
 	available_data: AvailableData,
 ) -> Result<(), Error> {
 	let mut tx = DBTransaction::new();
 
-	let mut meta = match load_meta(db, &candidate_hash) {
+	let mut meta = match load_meta(&subsystem.db, &candidate_hash) {
 		Some(m) => {
 			if m.data_available {
 				return Ok(()); // already stored.
@@ -1027,10 +1022,11 @@ fn store_available_data(
 			m
 		},
 		None => {
-			let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+			let now = subsystem.clock.now()?;
 
 			// Write a pruning record.
-			write_pruning_key(&mut tx, now + pruning_config.keep_unavailable_for, &candidate_hash);
+			let prune_at = now + subsystem.pruning_config.keep_unavailable_for;
+			write_pruning_key(&mut tx, prune_at, &candidate_hash);
 
 			CandidateMeta {
 				state: State::Unavailable(now.into()),
@@ -1062,12 +1058,12 @@ fn store_available_data(
 	write_meta(&mut tx, &candidate_hash, &meta);
 	write_available_data(&mut tx, &candidate_hash, &available_data);
 
-	db.write(tx)?;
+	subsystem.db.write(tx)?;
 	Ok(())
 }
 
-fn prune_all(db: &Arc<dyn KeyValueDB>) -> Result<(), Error> {
-	let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+fn prune_all(db: &Arc<dyn KeyValueDB>, clock: &dyn Clock) -> Result<(), Error> {
+	let now = clock.now()?;
 	let (range_start, range_end) = pruning_range(now);
 
 	let mut tx = DBTransaction::new();
