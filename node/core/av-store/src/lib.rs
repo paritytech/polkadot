@@ -46,8 +46,8 @@ use polkadot_subsystem::messages::{
 };
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &str = "availability";
 
@@ -448,7 +448,6 @@ impl AvailabilityStoreSubsystem {
 		Ok(Self {
 			pruning_config: PruningConfig::default(),
 			inner: Arc::new(db),
-			chunks_cache: HashMap::new(),
 			metrics,
 		})
 	}
@@ -458,7 +457,6 @@ impl AvailabilityStoreSubsystem {
 		Self {
 			pruning_config,
 			inner,
-			chunks_cache: HashMap::new(),
 			metrics: Metrics(None),
 		}
 	}
