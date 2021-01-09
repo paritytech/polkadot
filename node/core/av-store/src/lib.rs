@@ -466,6 +466,22 @@ impl AvailabilityStoreSubsystem {
 	}
 }
 
+impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = run(self, ctx)
+			.map(|_| Ok(()))
+			.boxed();
+
+		SpawnedSubsystem {
+			name: "availability-store-subsystem",
+			future,
+		}
+	}
+}
+
 #[tracing::instrument(skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
@@ -713,26 +729,33 @@ async fn process_block_finalized(
 
 	let last_finalized = load_last_finalized(db).unwrap_or(0);
 
-	let (start_prefix, end_prefix) = finalized_block_range(last_finalized, finalized_number);
-
-	let mut iter = db.iter_with_prefix(columns::META, &start_prefix)
-		.take_while(|(k, _)| &k[..] < &end_prefix[..])
-		.peekable();
-
 	macro_rules! peek_num {
-		() => {
-			match iter.peek() {
+		($iter:ident) => {
+			match $iter.peek() {
 				Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
 				None => None
 			}
 		}
 	}
 
+	let mut next_possible_batch = last_finalized + 1;
 	loop {
-		let batch_num = match peek_num!() {
-			None => break, // end of iterator.
-			Some(n) => n,
+		let (start_prefix, end_prefix) = finalized_block_range(next_possible_batch, finalized_number);
+
+		// We have to do some juggling here of the `iter` to make sure it doesn't cross the `.await` boundary
+		// as it is not `Send`. That is why we create the iterator once within this loop, drop it,
+		// do an asynchronous request, and then instantiate the exact same iterator again.
+		let batch_num = {
+			let mut iter = db.iter_with_prefix(columns::META, &start_prefix)
+				.take_while(|(k, _)| &k[..] < &end_prefix[..])
+				.peekable();
+
+			match peek_num!(iter) {
+				None => break, // end of iterator.
+				Some(n) => n,
+			}
 		};
+		next_possible_batch = batch_num + 1;
 
 		let batch_finalized_hash = if batch_num == finalized_number {
 			finalized_hash
@@ -754,12 +777,16 @@ async fn process_block_finalized(
 			}
 		};
 
+		let mut iter = db.iter_with_prefix(columns::META, &start_prefix)
+			.take_while(|(k, _)| &k[..] < &end_prefix[..])
+			.peekable();
+
 		// maps candidate hashes to true if finalized, false otherwise.
 		let mut candidates = HashMap::new();
 
 		// Load all candidates that were included at this height.
 		loop {
-			match peek_num!() {
+			match peek_num!(iter) {
 				None => break, // end of iterator.
 				Some(n) if n != batch_num => break, // end of batch.
 				_ => {}
