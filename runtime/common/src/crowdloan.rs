@@ -75,7 +75,7 @@ use frame_support::{
 };
 use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
-	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
+	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
 };
 use crate::slots;
 use parity_scale_codec::{Encode, Decode};
@@ -281,17 +281,12 @@ decl_module! {
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
-			let deposit = T::SubmissionDeposit::get();
-			let transfer = WithdrawReasons::TRANSFER;
-			let imb = T::Currency::withdraw(&owner, deposit, transfer, AllowDeath)?;
-
 			let index = FundCount::get();
 			let next_index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			FundCount::put(next_index);
 
-			// No fees are paid here if we need to create this account; that's why we don't just
-			// use the stock `transfer`.
-			T::Currency::resolve_creating(&Self::fund_account_id(index), imb);
+			let deposit = T::SubmissionDeposit::get();
+			T::Currency::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
+			FundCount::put(next_index);
 
 			<Funds<T>>::insert(index, FundInfo {
 				parachain: None,
@@ -463,10 +458,8 @@ decl_module! {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			let fund_account = &Self::fund_account_id(index);
-			let transfer = WithdrawReasons::TRANSFER;
-			let imbalance = T::Currency::withdraw(fund_account, balance, transfer, AllowDeath)?;
-			let _ = T::Currency::resolve_into_existing(&who, imbalance);
+			let fund_account = Self::fund_account_id(index);
+			T::Currency::transfer(&fund_account, &who, balance, AllowDeath)?;
 
 			Self::contribution_kill(index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
@@ -495,13 +488,10 @@ decl_module! {
 			match Self::crowdloan_kill(index) {
 				child::KillOutcome::AllRemoved => {
 					let account = Self::fund_account_id(index);
+					T::Currency::transfer(&account, &fund.owner, fund.deposit, AllowDeath)?;
 
-					// Avoid using transfer to ensure we don't pay any fees.
-					let transfer = WithdrawReasons::TRANSFER;
-					let imbalance = T::Currency::withdraw(&account, fund.deposit, transfer, AllowDeath)?;
-					let _ = T::Currency::resolve_into_existing(&fund.owner, imbalance);
-
-					let imbalance = T::Currency::withdraw(&account, fund.raised, transfer, AllowDeath)?;
+					// Remove all other balance from the account into orphaned funds.
+					let (imbalance, _) = T::Currency::slash(&account, BalanceOf::<T>::max_value());
 					T::OrphanedFunds::on_unbalanced(imbalance);
 
 					<Funds<T>>::remove(index);
