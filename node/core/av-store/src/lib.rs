@@ -19,15 +19,14 @@
 #![recursion_limit="256"]
 #![warn(missing_docs)]
 
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use parity_scale_codec::{Encode, Decode, Input, Error as CodecError};
-use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
+use futures::{select, channel::oneshot, future, FutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
@@ -43,7 +42,7 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
-	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
+	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
@@ -616,7 +615,7 @@ async fn process_block_activated(
 
 	for event in candidate_events {
 		match event {
-			CandidateEvent::CandidateBacked(receipt, head) => {
+			CandidateEvent::CandidateBacked(receipt, _head) => {
 				note_block_backed(
 					&subsystem.inner,
 					&mut tx,
@@ -626,12 +625,11 @@ async fn process_block_activated(
 					receipt,
 				)?;
 			}
-			CandidateEvent::CandidateIncluded(receipt, head) => {
+			CandidateEvent::CandidateIncluded(receipt, _head) => {
 				note_block_included(
 					&subsystem.inner,
 					&mut tx,
 					&subsystem.pruning_config,
-					now,
 					(block_number, activated),
 					receipt,
 				)?;
@@ -675,7 +673,6 @@ fn note_block_included(
 	db: &Arc<dyn KeyValueDB>,
 	db_transaction: &mut DBTransaction,
 	pruning_config:&PruningConfig,
-	now: Duration,
 	block: (BlockNumber, Hash),
 	candidate: CandidateReceipt,
 ) -> Result<(), Error> {
@@ -708,7 +705,7 @@ fn note_block_included(
 
 					State::Unfinalized(at, within)
 				}
-				State::Finalized(at) => {
+				State::Finalized(_at) => {
 					// This should never happen as a candidate would have to be included after
 					// finality.
 					return Ok(())
@@ -915,7 +912,7 @@ fn process_message(
 		}
 		AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
-			relay_parent,
+			relay_parent: _,
 			chunk,
 			tx,
 		} => {
@@ -935,7 +932,7 @@ fn process_message(
 				}
 			}
 		}
-		AvailabilityStoreMessage::StoreAvailableData(candidate, our_index, n_validators, available_data, tx) => {
+		AvailabilityStoreMessage::StoreAvailableData(candidate, _our_index, n_validators, available_data, tx) => {
 			subsystem.metrics.on_chunks_received(n_validators as _);
 
 			let _timer = subsystem.metrics.time_store_available_data();
