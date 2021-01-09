@@ -201,6 +201,17 @@ fn load_chunk(
 	query_inner(db, columns::DATA, &key)
 }
 
+fn write_chunk(
+	tx: &mut DBTransaction,
+	candidate_hash: &CandidateHash,
+	chunk_index: ValidatorIndex,
+	erasure_chunk: &ErasureChunk,
+) {
+	let key = (CHUNK_PREFIX, candidate_hash, chunk_index, erasure_chunk).encode();
+
+	tx.put_vec(columns::DATA, &key, erasure_chunk.encode());
+}
+
 fn load_meta(
 	db: &Arc<dyn KeyValueDB>,
 	hash: &CandidateHash,
@@ -481,7 +492,7 @@ where
 					).await?;
 				}
 				FromOverseer::Communication { msg } => {
-					process_message(ctx, subsystem, msg)?;
+					process_message(subsystem, msg)?;
 				}
 			}
 		}
@@ -803,7 +814,6 @@ async fn process_block_finalized(
 }
 
 fn process_message(
-	ctx: &mut impl SubsystemContext,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	msg: AvailabilityStoreMessage,
 ) -> Result<(), Error> {
@@ -829,7 +839,18 @@ fn process_message(
 			chunk,
 			tx,
 		} => {
-			unimplemented!()
+			match store_chunk(&subsystem.inner, candidate_hash, chunk) {
+				Ok(true) => {
+					let _ = tx.send(Ok(()));
+				}
+				Ok(false) => {
+					let _ = tx.send(Err(()));
+				}
+				Err(e) => {
+					let _ = tx.send(Err(()));
+					return Err(e)
+				}
+			}
 		}
 		AvailabilityStoreMessage::StoreAvailableData(candidate, our_index, n_validators, available_data, tx) => {
 			unimplemented!()
@@ -837,6 +858,34 @@ fn process_message(
 	}
 
 	Ok(())
+}
+
+// Ok(true) on success, Ok(false) on failure, and Err on internal error.
+fn store_chunk(
+	db: &Arc<dyn KeyValueDB>,
+	candidate_hash: CandidateHash,
+	chunk: ErasureChunk,
+) -> Result<bool, Error> {
+	let mut tx = DBTransaction::new();
+
+	let mut meta = match load_meta(db, &candidate_hash) {
+		Some(m) => m,
+		None => return Ok(false), // we weren't informed of this candidate by import events.
+	};
+
+	match meta.chunks_stored.get(chunk.index as usize).map(|b| *b) {
+		Some(true) => return Ok(true), // already stored.
+		Some(false) => {
+			meta.chunks_stored.set(chunk.index as usize, true);
+
+			write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
+			write_meta(&mut tx, &candidate_hash, &meta);
+		}
+		None => return Ok(false), // out of bounds.
+	}
+
+	db.write(tx)?;
+	Ok(true)
 }
 
 fn prune_all(db: &Arc<dyn KeyValueDB>) -> Result<(), Error> {
