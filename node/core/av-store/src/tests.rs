@@ -736,7 +736,7 @@ fn forkfullness_works() {
 		);
 
 		// Candidate 2 should now be considered unavailable and will be pruned.
-		Delay::new(test_state.pruning_config.keep_unavailable_for).await;
+		Delay::new(test_state.pruning_config.keep_unavailable_for + Duration::from_millis(500)).await;
 
 		assert_eq!(
 			query_available_data(&mut virtual_overseer, candidate_1_hash).await.unwrap(),

@@ -136,7 +136,8 @@ enum State {
 	Unavailable(BETimestamp),
 	/// The candidate was first observed at the given time and was included in the given list of unfinalized blocks, which may be
 	/// empty. The timestamp here is not used for pruning. Either one of these blocks will be finalized or the state will regress to
-	/// `State::Unavailable`, in which case the same timestamp will be reused.
+	/// `State::Unavailable`, in which case the same timestamp will be reused. Blocks are sorted ascending first by block number and
+	/// then hash.
 	Unfinalized(BETimestamp, Vec<(BEBlockNumber, Hash)>),
 	/// Candidate data has appeared in a finalized block and did so at the given time.
 	Finalized(BETimestamp)
@@ -434,7 +435,7 @@ impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
 /// An implementation of the Availability Store subsystem.
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
-	inner: Arc<dyn KeyValueDB>,
+	db: Arc<dyn KeyValueDB>,
 	metrics: Metrics,
 }
 
@@ -462,16 +463,16 @@ impl AvailabilityStoreSubsystem {
 
 		Ok(Self {
 			pruning_config: PruningConfig::default(),
-			inner: Arc::new(db),
+			db: Arc::new(db),
 			metrics,
 		})
 	}
 
 	#[cfg(test)]
-	fn new_in_memory(inner: Arc<dyn KeyValueDB>, pruning_config: PruningConfig) -> Self {
+	fn new_in_memory(db: Arc<dyn KeyValueDB>, pruning_config: PruningConfig) -> Self {
 		Self {
 			pruning_config,
-			inner,
+			db,
 			metrics: Metrics(None),
 		}
 	}
@@ -546,7 +547,7 @@ where
 
 					process_block_finalized(
 						ctx,
-						&subsystem.inner,
+						&subsystem.db,
 						&subsystem.pruning_config,
 						hash,
 						number,
@@ -564,7 +565,7 @@ where
 			*next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 			let _timer = subsystem.metrics.time_pruning();
-			prune_all(&subsystem.inner)?;
+			prune_all(&subsystem.db)?;
 		}
 	}
 
@@ -629,7 +630,7 @@ async fn process_block_activated(
 		match event {
 			CandidateEvent::CandidateBacked(receipt, _head) => {
 				note_block_backed(
-					&subsystem.inner,
+					&subsystem.db,
 					&mut tx,
 					&subsystem.pruning_config,
 					now,
@@ -639,7 +640,7 @@ async fn process_block_activated(
 			}
 			CandidateEvent::CandidateIncluded(receipt, _head) => {
 				note_block_included(
-					&subsystem.inner,
+					&subsystem.db,
 					&mut tx,
 					&subsystem.pruning_config,
 					(block_number, activated),
@@ -650,7 +651,7 @@ async fn process_block_activated(
 		}
 	}
 
-	subsystem.inner.write(tx)?;
+	subsystem.db.write(tx)?;
 
 	Ok(())
 }
@@ -690,7 +691,6 @@ fn note_block_included(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	let be_block = (BEBlockNumber(block.0), block.1);
 	match load_meta(db, &candidate_hash) {
 		None => {
 			// This is alarming. We've observed a block being included without ever seeing it backed.
@@ -702,6 +702,8 @@ fn note_block_included(
 			);
 		}
 		Some(mut meta) => {
+			let be_block = (BEBlockNumber(block.0), block.1);
+
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
 					let at_d: Duration = at.into();
@@ -913,18 +915,18 @@ fn process_message(
 ) -> Result<(), Error> {
 	match msg {
 		AvailabilityStoreMessage::QueryAvailableData(candidate, tx) => {
-			let _ = tx.send(load_available_data(&subsystem.inner, &candidate));
+			let _ = tx.send(load_available_data(&subsystem.db, &candidate));
 		}
 		AvailabilityStoreMessage::QueryDataAvailability(candidate, tx) => {
-			let a = load_meta(&subsystem.inner, &candidate).map_or(false, |m| m.data_available);
+			let a = load_meta(&subsystem.db, &candidate).map_or(false, |m| m.data_available);
 			let _ = tx.send(a);
 		}
 		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
 			let _timer = subsystem.metrics.time_get_chunk();
-			let _ = tx.send(load_chunk(&subsystem.inner, &candidate, validator_index));
+			let _ = tx.send(load_chunk(&subsystem.db, &candidate, validator_index));
 		}
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
-			let a = load_meta(&subsystem.inner, &candidate)
+			let a = load_meta(&subsystem.db, &candidate)
 				.map_or(false, |m| *m.chunks_stored.get(validator_index as usize).unwrap_or(&false));
 			let _ = tx.send(a);
 		}
@@ -937,7 +939,7 @@ fn process_message(
 			subsystem.metrics.on_chunks_received(1);
 			let _timer = subsystem.metrics.time_store_chunk();
 
-			match store_chunk(&subsystem.inner, candidate_hash, chunk) {
+			match store_chunk(&subsystem.db, candidate_hash, chunk) {
 				Ok(true) => {
 					let _ = tx.send(Ok(()));
 				}
@@ -956,7 +958,7 @@ fn process_message(
 			let _timer = subsystem.metrics.time_store_available_data();
 
 			let res = store_available_data(
-				&subsystem.inner,
+				&subsystem.db,
 				&subsystem.pruning_config,
 				candidate,
 				n_validators as _,
