@@ -1538,14 +1538,14 @@ mod benchmarking {
 		let caller = account("fund_creator", 0, 0);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end));
+		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end, None));
 		FundCount::get() - 1
 	}
 
 	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
 		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
-		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, who.clone()));
+		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, who.clone(), None));
 	}
 
 	fn worst_validation_code<T: Config>() -> Vec<u8> {
@@ -1716,7 +1716,7 @@ mod benchmarking {
 				let contributor: T::AccountId = account("contributor", i, 0);
 				let contribution = T::MinContribution::get() * (i + 1).into();
 				T::Currency::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
-				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, Default::default())?;
+				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, Default::default(), None)?;
 			}
 
 			let lease_period_index = end_block / T::LeasePeriod::get();
