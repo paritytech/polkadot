@@ -59,13 +59,13 @@ mod columns {
 
 /// The following constants are used under normal conditions:
 
-const LAST_FINALIZED_KEY: &[u8] = &*b"LastFinalized";
+const LAST_FINALIZED_KEY: &[u8; 13] = b"LastFinalized";
 
-const AVAILABLE_PREFIX: &[u8] = &*b"available";
-const CHUNK_PREFIX: &[u8] = &*b"chunk";
-const META_PREFIX: &[u8] = &*b"meta";
-const UNFINALIZED_PREFIX: &[u8] = &*b"unfinalized";
-const PRUNE_BY_TIME_PREFIX: &[u8] = &*b"prune_by_time";
+const AVAILABLE_PREFIX: &[u8; 9] = b"available";
+const CHUNK_PREFIX: &[u8; 5] = b"chunk";
+const META_PREFIX: &[u8; 4] = b"meta";
+const UNFINALIZED_PREFIX: &[u8; 11] = b"unfinalized";
+const PRUNE_BY_TIME_PREFIX: &[u8; 13] = b"prune_by_time";
 
 // We have some keys we want to map to empty values because existence of the key is enough. We use this because
 // rocksdb doesn't support empty values.
@@ -294,12 +294,13 @@ fn delete_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &Can
 }
 
 fn write_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &CandidateHash) {
-	let key = (PRUNE_BY_TIME_PREFIX, t.into(), h).encode();
+	let t = t.into();
+	let key = (PRUNE_BY_TIME_PREFIX, t, h).encode();
 	tx.put(columns::META, &key, TOMBSTONE_VALUE);
 }
 
-fn finalized_block_range(last_finalized: BlockNumber, finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
-	let start = (UNFINALIZED_PREFIX, BEBlockNumber(last_finalized)).encode();
+fn finalized_block_range(finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
+	let start = UNFINALIZED_PREFIX.encode();
 	let end = (UNFINALIZED_PREFIX, BEBlockNumber(finalized + 1)).encode();
 
 	(start, end)
@@ -316,7 +317,7 @@ fn write_unfinalized_block_contains(
 }
 
 fn pruning_range(now: impl Into<BETimestamp>) -> (Vec<u8>, Vec<u8>) {
-	let start = (PRUNE_BY_TIME_PREFIX, BETimestamp(0)).encode();
+	let start = PRUNE_BY_TIME_PREFIX.encode();
 	let end = (PRUNE_BY_TIME_PREFIX, BETimestamp(now.into().0 + 1)).encode();
 
 	(start, end)
@@ -738,7 +739,6 @@ async fn process_block_finalized(
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
-	let mut db_transaction = DBTransaction::new();
 	let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
 
 	let last_finalized = load_last_finalized(db).unwrap_or(0);
@@ -754,7 +754,8 @@ async fn process_block_finalized(
 
 	let mut next_possible_batch = last_finalized + 1;
 	loop {
-		let (start_prefix, end_prefix) = finalized_block_range(next_possible_batch, finalized_number);
+		let mut db_transaction = DBTransaction::new();
+		let (start_prefix, end_prefix) = finalized_block_range(finalized_number);
 
 		// We have to do some juggling here of the `iter` to make sure it doesn't cross the `.await` boundary
 		// as it is not `Send`. That is why we create the iterator once within this loop, drop it,
@@ -769,6 +770,7 @@ async fn process_block_finalized(
 				Some(n) => n,
 			}
 		};
+		if batch_num < next_possible_batch { continue } // sanity.
 		next_possible_batch = batch_num + 1;
 
 		let batch_finalized_hash = if batch_num == finalized_number {
@@ -892,8 +894,13 @@ async fn process_block_finalized(
 				write_meta(&mut db_transaction, &candidate_hash, &meta)
 			}
 		}
+
+		// We need to write at the end of the loop so the prefix iterator doesn't pick up the same values again
+		// in the next iteration. Another unfortunate effect of having to re-initialize the iterator.
+		db.write(db_transaction)?;
 	}
 
+	let mut db_transaction = DBTransaction::new();
 	write_last_finalized(&mut db_transaction, finalized_number);
 	db.write(db_transaction)?;
 

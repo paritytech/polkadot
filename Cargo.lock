@@ -5061,6 +5061,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-service",
  "sp-core",
+ "sp-keyring",
  "thiserror",
  "tracing",
  "tracing-futures",
