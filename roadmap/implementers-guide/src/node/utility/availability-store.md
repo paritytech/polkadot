@@ -81,7 +81,7 @@ enum State {
 
 We maintain the invariant that if a candidate has a meta entry, its available data exists on disk if `data_available` is true. All chunks mentioned in the meta entry are available.
 
-Additionally, there is exactly one `prune_by_time` entry which holds the candidate hash unless the state if `Unfinalized`. There may be zero, one, or many "unfinalized" keys with the given candidate, and this will correspond to the `state` of the meta entry.
+Additionally, there is exactly one `prune_by_time` entry which holds the candidate hash unless the state is `Unfinalized`. There may be zero, one, or many "unfinalized" keys with the given candidate, and this will correspond to the `state` of the meta entry.
 
 ## Protocol
 
