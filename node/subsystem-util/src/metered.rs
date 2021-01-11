@@ -102,10 +102,7 @@ pub struct MeteredSender<T> {
 
 impl<T> Clone for MeteredSender<T> {
 	fn clone(&self) -> Self {
-		Self {
-			meter: self.meter.clone(),
-			inner: self.inner.clone(),
-		}
+		Self { meter: self.meter.clone(), inner: self.inner.clone() }
 	}
 }
 
@@ -146,7 +143,6 @@ impl<T> MeteredSender<T> {
 		Ok(())
 	}
 }
-
 
 pub use unbounded::*;
 
@@ -231,10 +227,7 @@ mod unbounded {
 
 	impl<T> Clone for UnboundedMeteredSender<T> {
 		fn clone(&self) -> Self {
-			Self {
-				meter: self.meter.clone(),
-				inner: self.inner.clone(),
-			}
+			Self { meter: self.meter.clone(), inner: self.inner.clone() }
 		}
 	}
 
