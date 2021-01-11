@@ -14,36 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tracked variant of channels for better metrics.
-//!
+//! Tracked variant of mpsc channels to be able to extract metrics.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use futures::channel::mpsc;
-use futures::task::Poll;
-use futures::task::Context;
-use futures::sink::SinkExt;
-use futures::stream::Stream;
+use futures::{channel::mpsc, task::Poll, task::Context, sink::SinkExt, stream::Stream};
 
 use std::result;
 use std::sync::Arc;
 use std::pin::Pin;
 
-
 /// Create a wrapped `mpsc::channel` pair of `TrackedSender` and `TrackedReceiver`.
 pub fn channel<T>(capacity: usize, name: &'static str) -> (TrackedSender<T>, TrackedReceiver<T>) {
 	let (tx, rx) = mpsc::channel(capacity);
-	let shared_cntr = Arc::new(AtomicUsize::default());
+	let shared_meter = Meter::default();
 
-	let tx = TrackedSender {
-		fill: Arc::clone(&shared_cntr),
-		inner: tx,
-		name,
-	};
-	let rx = TrackedReceiver {
-		fill: shared_cntr,
-		inner: rx,
-		name,
-	};
+	let tx = TrackedSender { meter: shared_meter.clone(), inner: tx, name };
+	let rx = TrackedReceiver { meter: shared_meter, inner: rx, name };
 	(tx, rx)
 }
 
@@ -51,7 +38,7 @@ pub fn channel<T>(capacity: usize, name: &'static str) -> (TrackedSender<T>, Tra
 #[derive(Debug)]
 pub struct TrackedReceiver<T> {
 	// count currently contained messages
-	fill: Arc<AtomicUsize>,
+	meter: Meter,
 	inner: mpsc::Receiver<T>,
 	name: &'static str,
 }
@@ -75,9 +62,9 @@ impl<T> Stream for TrackedReceiver<T> {
 		match mpsc::Receiver::poll_next(Pin::new(&mut self.inner), cx) {
 			Poll::Ready(x) => {
 				// always use Ordering::SeqCst to avoid underflows
-				self.fill.fetch_sub(1, Ordering::SeqCst);
+				self.meter.fill.fetch_sub(1, Ordering::SeqCst);
 				Poll::Ready(x)
-			},
+			}
 			other => other,
 		}
 	}
@@ -89,20 +76,18 @@ impl<T> Stream for TrackedReceiver<T> {
 }
 
 impl<T> TrackedReceiver<T> {
-	/// Count the number of items queued up inside the channel.
-	pub fn queue_count(&self) -> usize {
-		// when obtaining we don't care much about off by one
-		// accuracy
-		self.fill.load(Ordering::Relaxed)
+	/// Get an updated accessor object for all metrics collected.
+	pub fn meter(&self) -> &Meter {
+		&self.meter
 	}
 
 	/// Attempt to receive the next item.
 	pub fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
 		match self.inner.try_next()? {
 			Some(x) => {
-				self.fill.fetch_sub(1, Ordering::SeqCst);
+				self.meter.fill.fetch_sub(1, Ordering::SeqCst);
 				Ok(Some(x))
-			},
+			}
 			None => Ok(None),
 		}
 	}
@@ -110,9 +95,9 @@ impl<T> TrackedReceiver<T> {
 
 /// The sender component, tracking the number of items
 /// sent across it.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct TrackedSender<T> {
-	fill: Arc<AtomicUsize>,
+	meter: Meter,
 	inner: mpsc::Sender<T>,
 	name: &'static str,
 }
@@ -131,15 +116,17 @@ impl<T> std::ops::DerefMut for TrackedSender<T> {
 }
 
 impl<T> TrackedSender<T> {
-	/// Count the number of items already queued up for consumption on
-	/// on the rx side.
-	pub fn queue_count(&self) -> usize {
-		self.fill.load(Ordering::Relaxed)
+	/// Get an updated accessor object for all metrics collected.
+	pub fn meter(&self) -> &Meter {
+		&self.meter
 	}
 
 	/// Send message, wait until capacity is available.
-	pub async fn send(&mut self, item: T) -> result::Result<(), mpsc::SendError> where Self: Unpin {
-		self.fill.fetch_add(1, Ordering::SeqCst);
+	pub async fn send(&mut self, item: T) -> result::Result<(), mpsc::SendError>
+	where
+		Self: Unpin,
+	{
+		self.meter.fill.fetch_add(1, Ordering::SeqCst);
 		let fut = self.inner.send(item);
 		futures::pin_mut!(fut);
 		fut.await
@@ -148,8 +135,24 @@ impl<T> TrackedSender<T> {
 	/// Attempt to send message or fail immediately.
 	pub fn try_send(&mut self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
 		self.inner.try_send(msg)?;
-		self.fill.fetch_add(1, Ordering::SeqCst);
+		self.meter.fill.fetch_add(1, Ordering::SeqCst);
 		Ok(())
+	}
+}
+
+/// A peek into the inner state of a meter.
+#[derive(Debug, Clone, Default)]
+pub struct Meter {
+	// fill state of the channel
+	fill: Arc<AtomicUsize>,
+}
+
+impl Meter {
+	/// Count the number of items queued up inside the channel.
+	pub fn queue_count(&self) -> usize {
+		// when obtaining we don't care much about off by one
+		// accuracy
+		self.fill.load(Ordering::Relaxed)
 	}
 }
 
@@ -169,20 +172,20 @@ mod tests {
 		block_on(async move {
 			let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
 			let msg = Msg::default();
-			assert_eq!(rx.queue_count(), 0);
+			assert_eq!(rx.meter().queue_count(), 0);
 			tx.try_send(msg).unwrap();
-			assert_eq!(tx.queue_count(), 1);
+			assert_eq!(tx.meter().queue_count(), 1);
 			tx.try_send(msg).unwrap();
 			tx.try_send(msg).unwrap();
 			tx.try_send(msg).unwrap();
-			assert_eq!(tx.queue_count(), 4);
+			assert_eq!(tx.meter().queue_count(), 4);
 			rx.try_next().unwrap();
-			assert_eq!(rx.queue_count(), 3);
+			assert_eq!(rx.meter().queue_count(), 3);
 			rx.try_next().unwrap();
 			rx.try_next().unwrap();
-			assert_eq!(tx.queue_count(), 1);
+			assert_eq!(tx.meter().queue_count(), 1);
 			rx.try_next().unwrap();
-			assert_eq!(rx.queue_count(), 0);
+			assert_eq!(rx.meter().queue_count(), 0);
 			assert!(rx.try_next().is_err());
 		});
 	}
@@ -194,26 +197,25 @@ mod tests {
 			futures::join!(
 				async move {
 					let msg = Msg::default();
-					assert_eq!(tx.queue_count(), 0);
+					assert_eq!(tx.meter().queue_count(), 0);
 					tx.try_send(msg).unwrap();
-					assert_eq!(tx.queue_count(), 1);
+					assert_eq!(tx.meter().queue_count(), 1);
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
 				},
 				async move {
-					assert_eq!(rx.queue_count(), 4);
+					assert_eq!(rx.meter().queue_count(), 4);
 					rx.try_next().unwrap();
-					assert_eq!(rx.queue_count(), 3);
+					assert_eq!(rx.meter().queue_count(), 3);
 					rx.try_next().unwrap();
 					rx.try_next().unwrap();
-					assert_eq!(rx.queue_count(), 1);
+					assert_eq!(rx.meter().queue_count(), 1);
 					rx.try_next().unwrap();
-					assert_eq!(dbg!(rx.queue_count()), 0);
+					assert_eq!(dbg!(rx.meter().queue_count()), 0);
 				}
 			)
-		}
-		);
+		});
 	}
 
 	use std::time::Duration;
@@ -227,22 +229,17 @@ mod tests {
 			futures::join!(
 				async move {
 					for i in 0..15 {
-						println!("Sent #{} with a backlog of {} items", i+1, tx.queue_count());
-						let msg = Msg { val: i as u8 + 1u8};
+						println!("Sent #{} with a backlog of {} items", i + 1, tx.meter().queue_count());
+						let msg = Msg { val: i as u8 + 1u8 };
 						tx.send(msg).await.unwrap();
-						assert!(tx.queue_count() > 0usize);
+						assert!(tx.meter().queue_count() > 0usize);
 						Delay::new(Duration::from_millis(20)).await;
 					}
 					()
 				},
 				async move {
-					// rx.for_each(|x| async move {
-					// 	println!("rx'd one {}", x.val);
-					// 	Delay::new(Duration::from_millis(100)).await;
-					// }).await;
-
 					while let Some(msg) = rx.next().await {
-						println!("rx'd one {} with {} backlogged", msg.val, rx.queue_count());
+						println!("rx'd one {} with {} backlogged", msg.val, rx.meter().queue_count());
 						Delay::new(Duration::from_millis(29)).await;
 					}
 				}

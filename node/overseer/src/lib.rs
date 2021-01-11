@@ -102,6 +102,8 @@ const LOG_TARGET: &'static str = "overseer";
 // Rate at which messages are timed.
 const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
 
+
+
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
 /// It wraps a system-wide [`AllMessages`] type that represents all possible
@@ -418,7 +420,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) {
-		self.send_and_log_error(ToOverseer::SubsystemMessage(msg))
+		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
