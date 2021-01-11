@@ -5044,6 +5044,7 @@ name = "polkadot-node-core-av-store"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "bitvec",
  "env_logger 0.8.2",
  "futures 0.3.8",
  "futures-timer 3.0.2",
@@ -5052,6 +5053,7 @@ dependencies = [
  "kvdb-rocksdb",
  "log",
  "parity-scale-codec",
+ "parking_lot 0.11.1",
  "polkadot-erasure-coding",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -5060,6 +5062,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-service",
  "sp-core",
+ "sp-keyring",
  "thiserror",
  "tracing",
  "tracing-futures",
