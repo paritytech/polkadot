@@ -31,18 +31,15 @@ use polkadot_subsystem::{
 		ValidationFailed, RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
-	OccupiedCoreAssumption, Hash, ValidationOutputs,
+	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
 use polkadot_parachain::wasm_executor::{
-	self, ValidationPool, ExecutionMode, ValidationError,
-	InvalidCandidate as WasmInvalidCandidate,
+	self, IsolationStrategy, ValidationError, InvalidCandidate as WasmInvalidCandidate
 };
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
@@ -60,57 +57,16 @@ const LOG_TARGET: &'static str = "candidate_validation";
 pub struct CandidateValidationSubsystem<S> {
 	spawn: S,
 	metrics: Metrics,
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	validation_requests: prometheus::CounterVec<prometheus::U64>,
-}
-
-/// Candidate validation metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
-		if let Some(metrics) = &self.0 {
-			match event {
-				Ok(ValidationResult::Valid(_, _)) => {
-					metrics.validation_requests.with_label_values(&["valid"]).inc();
-				},
-				Ok(ValidationResult::Invalid(_)) => {
-					metrics.validation_requests.with_label_values(&["invalid"]).inc();
-				},
-				Err(_) => {
-					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
-				},
-			}
-		}
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			validation_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"parachain_validation_requests_total",
-						"Number of validation requests served.",
-					),
-					&["validity"],
-				)?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
+	isolation_strategy: IsolationStrategy,
 }
 
 impl<S> CandidateValidationSubsystem<S> {
-	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
-	pub fn new(spawn: S, metrics: Metrics) -> Self {
-		CandidateValidationSubsystem { spawn, metrics }
+	/// Create a new `CandidateValidationSubsystem` with the given task spawner and isolation
+	/// strategy.
+	///
+	/// Check out [`IsolationStrategy`] to get more details.
+	pub fn new(spawn: S, metrics: Metrics, isolation_strategy: IsolationStrategy) -> Self {
+		CandidateValidationSubsystem { spawn, metrics, isolation_strategy }
 	}
 }
 
@@ -119,9 +75,8 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run(ctx, self.spawn, self.metrics)
+		let future = run(ctx, self.spawn, self.metrics, self.isolation_strategy)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-			.map(|_| ())
 			.boxed();
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
@@ -130,15 +85,13 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
 	metrics: Metrics,
-)
-	-> SubsystemResult<()>
-{
-	let execution_mode = ExecutionMode::ExternalProcessSelfHost(ValidationPool::new());
-
+	isolation_strategy: IsolationStrategy,
+) -> SubsystemResult<()> {
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
@@ -150,12 +103,15 @@ async fn run(
 					pov,
 					response_sender,
 				) => {
+					let _timer = metrics.time_validate_from_chain_state();
+
 					let res = spawn_validate_from_chain_state(
 						&mut ctx,
-						execution_mode.clone(),
+						isolation_strategy.clone(),
 						descriptor,
 						pov,
 						spawn.clone(),
+						&metrics,
 					).await;
 
 					match res {
@@ -173,21 +129,24 @@ async fn run(
 					pov,
 					response_sender,
 				) => {
+					let _timer = metrics.time_validate_from_exhaustive();
+
 					let res = spawn_validate_exhaustive(
 						&mut ctx,
-						execution_mode.clone(),
+						isolation_strategy.clone(),
 						persisted_validation_data,
 						validation_code,
 						descriptor,
 						pov,
 						spawn.clone(),
+						&metrics,
 					).await;
 
 					match res {
 						Ok(x) => {
 							metrics.on_validation_event(&x);
 							if let Err(_e) = response_sender.send(x) {
-								log::warn!(
+								tracing::warn!(
 									target: LOG_TARGET,
 									"Requester of candidate validation dropped",
 								)
@@ -212,7 +171,7 @@ async fn runtime_api_request<T>(
 			relay_parent,
 			request,
 		))
-	).await?;
+	).await;
 
 	receiver.await.map_err(Into::into)
 }
@@ -224,6 +183,7 @@ enum AssumptionCheckOutcome {
 	BadRequest,
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn check_assumption_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -259,7 +219,7 @@ async fn check_assumption_validation_data(
 			descriptor.relay_parent,
 			RuntimeApiRequest::ValidationCode(
 				descriptor.para_id,
-				OccupiedCoreAssumption::Included,
+				assumption,
 				code_tx,
 			),
 			code_rx,
@@ -274,6 +234,7 @@ async fn check_assumption_validation_data(
 	})
 }
 
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn find_assumed_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -286,31 +247,33 @@ async fn find_assumed_validation_data(
 	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
 		OccupiedCoreAssumption::Included,
 		OccupiedCoreAssumption::TimedOut,
-		// TODO: Why don't we check `Free`? The guide assumes there are only two possible assumptions.
-		//
-		// Source that info and leave a comment here.
+		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the same
+		// for our purposes here. In other words, if `TimedOut` matched then the `Free` must be
+		// matched as well.
 	];
 
 	// Consider running these checks in parallel to reduce validation latency.
 	for assumption in ASSUMPTIONS {
 		let outcome = check_assumption_validation_data(ctx, descriptor, *assumption).await?;
 
-		let () = match outcome {
+		match outcome {
 			AssumptionCheckOutcome::Matches(_, _) => return Ok(outcome),
 			AssumptionCheckOutcome::BadRequest => return Ok(outcome),
 			AssumptionCheckOutcome::DoesNotMatch => continue,
-		};
+		}
 	}
 
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
+	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (validation_data, validation_code) =
 		match find_assumed_validation_data(ctx, &descriptor).await? {
@@ -330,12 +293,13 @@ async fn spawn_validate_from_chain_state(
 
 	let validation_result = spawn_validate_exhaustive(
 		ctx,
-		execution_mode,
+		isolation_strategy,
 		validation_data,
 		validation_code,
 		descriptor.clone(),
 		pov,
 		spawn,
+		metrics,
 	)
 	.await;
 
@@ -364,24 +328,28 @@ async fn spawn_validate_from_chain_state(
 	validation_result
 }
 
+#[tracing::instrument(level = "trace", skip(ctx, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
+	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (tx, rx) = oneshot::channel();
+	let metrics = metrics.clone();
 	let fut = async move {
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
-			execution_mode,
+			isolation_strategy,
 			persisted_validation_data,
 			validation_code,
 			descriptor,
 			pov,
 			spawn,
+			&metrics,
 		);
 
 		let _ = tx.send(res);
@@ -393,18 +361,17 @@ async fn spawn_validate_exhaustive(
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
 /// are passed, `Err` otherwise.
+#[tracing::instrument(level = "trace", skip(pov), fields(subsystem = LOG_TARGET))]
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
-	max_block_data_size: Option<u64>,
+	max_pov_size: u32,
 	pov: &PoV,
 ) -> Result<(), InvalidCandidate> {
 	let encoded_pov = pov.encode();
 	let hash = pov.hash();
 
-	if let Some(max_size) = max_block_data_size {
-		if encoded_pov.len() as u64 > max_size {
-			return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
-		}
+	if encoded_pov.len() > max_pov_size as usize {
+		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
 	}
 
 	if hash != candidate.pov_hash {
@@ -432,10 +399,10 @@ trait ValidationBackend {
 struct RealValidationBackend;
 
 impl ValidationBackend for RealValidationBackend {
-	type Arg = ExecutionMode;
+	type Arg = IsolationStrategy;
 
 	fn validate<S: SpawnNamed + 'static>(
-		execution_mode: ExecutionMode,
+		isolation_strategy: IsolationStrategy,
 		validation_code: &ValidationCode,
 		params: ValidationParams,
 		spawn: S,
@@ -443,7 +410,7 @@ impl ValidationBackend for RealValidationBackend {
 		wasm_executor::validate_candidate(
 			&validation_code.0,
 			params,
-			&execution_mode,
+			&isolation_strategy,
 			spawn,
 		)
 	}
@@ -452,6 +419,7 @@ impl ValidationBackend for RealValidationBackend {
 /// Validates the candidate from exhaustive parameters.
 ///
 /// Sends the result of validation on the channel once complete.
+#[tracing::instrument(level = "trace", skip(backend_arg, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,
@@ -459,8 +427,11 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: S,
+	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed> {
-	if let Err(e) = perform_basic_checks(&descriptor, None, &*pov) {
+	let _timer = metrics.time_validate_candidate_exhaustive();
+
+	if let Err(e) = perform_basic_checks(&descriptor, persisted_validation_data.max_pov_size, &*pov) {
 		return Ok(ValidationResult::Invalid(e))
 	}
 
@@ -487,14 +458,106 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let outputs = ValidationOutputs {
+			let outputs = CandidateCommitments {
 				head_data: res.head_data,
 				upward_messages: res.upward_messages,
+				horizontal_messages: res.horizontal_messages,
 				new_validation_code: res.new_validation_code,
 				processed_downward_messages: res.processed_downward_messages,
+				hrmp_watermark: res.hrmp_watermark,
 			};
 			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	validation_requests: prometheus::CounterVec<prometheus::U64>,
+	validate_from_chain_state: prometheus::Histogram,
+	validate_from_exhaustive: prometheus::Histogram,
+	validate_candidate_exhaustive: prometheus::Histogram,
+}
+
+/// Candidate validation metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
+		if let Some(metrics) = &self.0 {
+			match event {
+				Ok(ValidationResult::Valid(_, _)) => {
+					metrics.validation_requests.with_label_values(&["valid"]).inc();
+				},
+				Ok(ValidationResult::Invalid(_)) => {
+					metrics.validation_requests.with_label_values(&["invalid"]).inc();
+				},
+				Err(_) => {
+					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
+				},
+			}
+		}
+	}
+
+	/// Provide a timer for `validate_from_chain_state` which observes on drop.
+	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
+	}
+
+	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
+	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
+	}
+
+	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
+	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			validation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_validation_requests_total",
+						"Number of validation requests served.",
+					),
+					&["validity"],
+				)?,
+				registry,
+			)?,
+			validate_from_chain_state: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_chain_state",
+						"Time spent within `candidate_validation::validate_from_chain_state`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_from_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_exhaustive",
+						"Time spent within `candidate_validation::validate_from_exhaustive`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_candidate_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_candidate_exhaustive",
+						"Time spent within `candidate_validation::validate_candidate_exhaustive`",
+					)
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
 	}
 }
 
@@ -502,7 +565,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers as test_helpers;
-	use polkadot_primitives::v1::{HeadData, BlockData};
+	use polkadot_primitives::v1::{HeadData, BlockData, UpwardMessage};
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;
@@ -649,7 +712,7 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -757,7 +820,7 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -820,7 +883,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_ok_is_ok() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -828,13 +891,15 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data: HeadData(vec![1, 1, 1]),
 			new_validation_code: Some(vec![2, 2, 2].into()),
 			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
 			processed_downward_messages: 0,
+			hrmp_watermark: 0,
 		};
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
@@ -844,19 +909,22 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
-			assert_eq!(outputs.upward_messages, Vec::new());
+			assert_eq!(outputs.upward_messages, Vec::<UpwardMessage>::new());
+			assert_eq!(outputs.horizontal_messages, Vec::new());
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+			assert_eq!(outputs.hrmp_watermark, 0);
 			assert_eq!(used_validation_data, validation_data);
 		});
 	}
 
 	#[test]
 	fn candidate_validation_bad_return_is_invalid() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -864,7 +932,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -877,6 +945,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::BadReturn));
@@ -884,7 +953,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_timeout_is_internal_error() {
-		let validation_data: PersistedValidationData = Default::default();
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -892,7 +961,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -905,6 +974,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		);
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));

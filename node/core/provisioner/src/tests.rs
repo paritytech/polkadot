@@ -10,7 +10,7 @@ pub fn occupied_core(para_id: u32) -> CoreState {
 		occupied_since: 100_u32,
 		time_out_at: 200_u32,
 		next_up_on_time_out: None,
-		availability: default_bitvec(),
+		availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
 	})
 }
 
@@ -28,8 +28,8 @@ where
 	CoreState::Occupied(core)
 }
 
-pub fn default_bitvec() -> CoreAvailability {
-	bitvec![bitvec::order::Lsb0, u8; 0; 32]
+pub fn default_bitvec(n_cores: usize) -> CoreAvailability {
+	bitvec![bitvec::order::Lsb0, u8; 0; n_cores]
 }
 
 pub fn scheduled_core(id: u32) -> ScheduledCore {
@@ -46,8 +46,7 @@ mod select_availability_bitfields {
 	use std::sync::Arc;
 	use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
 	use sp_application_crypto::AppKey;
-	use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
-	use sc_keystore::LocalKeystore;
+	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, testing::KeyStore};
 
 	async fn signed_bitfield(
 		keystore: &SyncCryptoStorePtr,
@@ -68,12 +67,10 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn not_more_than_one_per_validator() {
-		// Configure filesystem-based keystore as generating keys without seed
-		// would trigger the key to be generated on the filesystem.
-		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
-			.expect("Creates keystore"));
-		let bitvec = default_bitvec();
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let mut bitvec = default_bitvec(2);
+		bitvec.set(0, true);
+		bitvec.set(1, true);
 
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
@@ -96,71 +93,113 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn each_corresponds_to_an_occupied_core() {
-		// Configure filesystem-based keystore as generating keys without seed
-		// would trigger the key to be generated on the filesystem.
-		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
-			.expect("Creates keystore"));
-		let bitvec = default_bitvec();
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let bitvec = default_bitvec(3);
 
-		let cores = vec![CoreState::Free, CoreState::Scheduled(Default::default())];
+		// invalid: bit on free core
+		let mut bitvec0 = bitvec.clone();
+		bitvec0.set(0, true);
 
-		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 0)),
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 1)),
-			block_on(signed_bitfield(&keystore, bitvec, 1)),
+		// invalid: bit on scheduled core
+		let mut bitvec1 = bitvec.clone();
+		bitvec1.set(1, true);
+
+		// valid: bit on occupied core.
+		let mut bitvec2 = bitvec.clone();
+		bitvec2.set(2, true);
+
+		let cores = vec![
+			CoreState::Free,
+			CoreState::Scheduled(Default::default()),
+			occupied_core(2),
 		];
 
-		let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
-		selected_bitfields.sort_by_key(|bitfield| bitfield.validator_index());
+		let bitfields = vec![
+			block_on(signed_bitfield(&keystore, bitvec0, 0)),
+			block_on(signed_bitfield(&keystore, bitvec1, 1)),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
+		];
 
-		// bitfields not corresponding to occupied cores are not selected
-		assert!(selected_bitfields.is_empty());
+		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+
+		// selects only the valid bitfield
+		assert_eq!(selected_bitfields.len(), 1);
+		assert_eq!(selected_bitfields[0].payload().0, bitvec2);
 	}
 
 	#[test]
 	fn more_set_bits_win_conflicts() {
-		// Configure filesystem-based keystore as generating keys without seed
-		// would trigger the key to be generated on the filesystem.
-		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
-			.expect("Creates keystore"));
-		let bitvec_zero = default_bitvec();
-		let bitvec_one = {
-			let mut bitvec = bitvec_zero.clone();
-			bitvec.set(0, true);
-			bitvec
-		};
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let mut bitvec = default_bitvec(2);
+		bitvec.set(0, true);
 
-		let cores = vec![occupied_core(0)];
+		let mut bitvec1 = bitvec.clone();
+		bitvec1.set(1, true);
+
+		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec_zero, 0)),
-			block_on(signed_bitfield(&keystore, bitvec_one.clone(), 0)),
+			block_on(signed_bitfield(&keystore, bitvec, 1)),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
 		];
 
-		// this test is probablistic: chances are excellent that it does what it claims to.
-		// it cannot fail unless things are broken.
-		// however, there is a (very small) chance that it passes when things are broken.
-		for _ in 0..64 {
-			let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
-			assert_eq!(selected_bitfields.len(), 1);
-			assert_eq!(selected_bitfields[0].payload().0, bitvec_one);
-		}
+		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		assert_eq!(selected_bitfields.len(), 1);
+		assert_eq!(selected_bitfields[0].payload().0, bitvec1.clone());
+	}
+
+	#[test]
+	fn more_complex_bitfields() {
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+
+		let cores = vec![occupied_core(0), occupied_core(1), occupied_core(2), occupied_core(3)];
+
+		let mut bitvec0 = default_bitvec(4);
+		bitvec0.set(0, true);
+		bitvec0.set(2, true);
+
+		let mut bitvec1 = default_bitvec(4);
+		bitvec1.set(1, true);
+
+		let mut bitvec2 = default_bitvec(4);
+		bitvec2.set(2, true);
+
+		let mut bitvec3 = default_bitvec(4);
+		bitvec3.set(0, true);
+		bitvec3.set(1, true);
+		bitvec3.set(2, true);
+		bitvec3.set(3, true);
+
+		// these are out of order but will be selected in order. The better
+		// bitfield for 3 will be selected.
+		let bitfields = vec![
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), 3)),
+			block_on(signed_bitfield(&keystore, bitvec3.clone(), 3)),
+			block_on(signed_bitfield(&keystore, bitvec0.clone(), 0)),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+		];
+
+		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		assert_eq!(selected_bitfields.len(), 4);
+		assert_eq!(selected_bitfields[0].payload().0, bitvec0);
+		assert_eq!(selected_bitfields[1].payload().0, bitvec1);
+		assert_eq!(selected_bitfields[2].payload().0, bitvec2);
+		assert_eq!(selected_bitfields[3].payload().0, bitvec3);
 	}
 }
 
 mod select_candidates {
 	use futures_timer::Delay;
 	use super::super::*;
-	use super::{build_occupied_core, default_bitvec, occupied_core, scheduled_core};
-	use polkadot_node_subsystem::messages::RuntimeApiRequest::{
-		AvailabilityCores, PersistedValidationData as PersistedValidationDataReq,
+	use super::{build_occupied_core, occupied_core, scheduled_core, default_bitvec};
+	use polkadot_node_subsystem::messages::{
+		AllMessages, RuntimeApiMessage,
+		RuntimeApiRequest::{AvailabilityCores, PersistedValidationData as PersistedValidationDataReq},
 	};
 	use polkadot_primitives::v1::{
-		BlockNumber, CandidateDescriptor, CommittedCandidateReceipt, PersistedValidationData,
+		BlockNumber, CandidateDescriptor, PersistedValidationData, CommittedCandidateReceipt, CandidateCommitments,
 	};
-	use FromJob::{ChainApi, Runtime};
 
 	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 
@@ -168,9 +207,9 @@ mod select_candidates {
 		overseer_factory: OverseerFactory,
 		test_factory: TestFactory,
 	) where
-		OverseerFactory: FnOnce(mpsc::Receiver<FromJob>) -> Overseer,
+		OverseerFactory: FnOnce(mpsc::Receiver<FromJobCommand>) -> Overseer,
 		Overseer: Future<Output = ()>,
-		TestFactory: FnOnce(mpsc::Sender<FromJob>) -> Test,
+		TestFactory: FnOnce(mpsc::Sender<FromJobCommand>) -> Test,
 		Test: Future<Output = ()>,
 	{
 		let (tx, rx) = mpsc::channel(64);
@@ -258,38 +297,42 @@ mod select_candidates {
 		]
 	}
 
-	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJob>) {
+	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJobCommand>, expected: Vec<BackedCandidate>) {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
 
 		while let Some(from_job) = receiver.next().await {
 			match from_job {
-				ChainApi(BlockNumber(_relay_parent, tx)) => {
+				FromJobCommand::SendMessage(AllMessages::ChainApi(BlockNumber(_relay_parent, tx))) => {
 					tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
 				}
-				Runtime(Request(
+				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(
 					_parent_hash,
 					PersistedValidationDataReq(_para_id, _assumption, tx),
-				)) => tx.send(Ok(Some(Default::default()))).unwrap(),
-				Runtime(Request(_parent_hash, AvailabilityCores(tx))) => {
+				))) => tx.send(Ok(Some(Default::default()))).unwrap(),
+				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx)))) => {
 					tx.send(Ok(mock_availability_cores())).unwrap()
 				}
-				// non-exhaustive matches are fine for testing
-				_ => unimplemented!(),
+				FromJobCommand::SendMessage(
+					AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(_, _, sender))
+				) => {
+					let _ = sender.send(expected.clone());
+				}
+				_ => panic!("Unexpected message: {:?}", from_job),
 			}
 		}
 	}
 
 	#[test]
 	fn handles_overseer_failure() {
-		let overseer = |rx: mpsc::Receiver<FromJob>| async move {
+		let overseer = |rx: mpsc::Receiver<FromJobCommand>| async move {
 			// drop the receiver so it closes and the sender can't send, then just sleep long enough that
 			// this is almost certainly not the first of the two futures to complete
 			std::mem::drop(rx);
 			Delay::new(std::time::Duration::from_secs(1)).await;
 		};
 
-		let test = |mut tx: mpsc::Sender<FromJob>| async move {
+		let test = |mut tx: mpsc::Sender<FromJobCommand>| async move {
 			// wait so that the overseer can drop the rx before we attempt to send
 			Delay::new(std::time::Duration::from_millis(50)).await;
 			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
@@ -302,10 +345,8 @@ mod select_candidates {
 
 	#[test]
 	fn can_succeed() {
-		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
-			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
-			println!("{:?}", result);
-			assert!(result.is_ok());
+		test_harness(|r| mock_overseer(r, Vec::new()), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+			select_candidates(&[], &[], &[], Default::default(), &mut tx).await.unwrap();
 		})
 	}
 
@@ -315,26 +356,23 @@ mod select_candidates {
 	#[test]
 	fn selects_correct_candidates() {
 		let mock_cores = mock_availability_cores();
+		let n_cores = mock_cores.len();
 
 		let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
 
-		let candidate_template = BackedCandidate {
-			candidate: CommittedCandidateReceipt {
-				descriptor: CandidateDescriptor {
-					persisted_validation_data_hash: empty_hash,
-					..Default::default()
-				},
+		let candidate_template = CandidateReceipt {
+			descriptor: CandidateDescriptor {
+				persisted_validation_data_hash: empty_hash,
 				..Default::default()
 			},
-			validity_votes: Vec::new(),
-			validator_indices: default_bitvec(),
+			commitments_hash: CandidateCommitments::default().hash(),
 		};
 
 		let candidates: Vec<_> = std::iter::repeat(candidate_template)
 			.take(mock_cores.len())
 			.enumerate()
 			.map(|(idx, mut candidate)| {
-				candidate.candidate.descriptor.para_id = idx.into();
+				candidate.descriptor.para_id = idx.into();
 				candidate
 			})
 			.cycle()
@@ -346,12 +384,12 @@ mod select_candidates {
 					candidate
 				} else if idx < mock_cores.len() * 2 {
 					// for the second repetition of the candidates, give them the wrong hash
-					candidate.candidate.descriptor.persisted_validation_data_hash
+					candidate.descriptor.persisted_validation_data_hash
 						= Default::default();
 					candidate
 				} else {
 					// third go-around: right hash, wrong para_id
-					candidate.candidate.descriptor.para_id = idx.into();
+					candidate.descriptor.para_id = idx.into();
 					candidate
 				}
 			})
@@ -363,15 +401,28 @@ mod select_candidates {
 			.map(|&idx| candidates[idx].clone())
 			.collect();
 
-		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
+		let expected_backed = expected_candidates
+			.iter()
+			.map(|c| BackedCandidate {
+				candidate: CommittedCandidateReceipt { descriptor: c.descriptor.clone(), ..Default::default() },
+				validity_votes: Vec::new(),
+				validator_indices: default_bitvec(n_cores),
+			})
+			.collect();
+
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: mpsc::Sender<FromJobCommand>| async move {
 			let result =
 				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
-					.await;
+					.await.unwrap();
 
-			if result.is_err() {
-				println!("{:?}", result);
-			}
-			assert_eq!(result.unwrap(), expected_candidates);
+			result.into_iter()
+				.for_each(|c|
+					assert!(
+						expected_candidates.iter().any(|c2| c.candidate.corresponds_to(c2)),
+						"Failed to find candidate: {:?}",
+						c,
+					)
+				);
 		})
 	}
 }

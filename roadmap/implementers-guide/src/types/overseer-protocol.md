@@ -10,6 +10,8 @@ Signals from the overseer to a subsystem to request change in execution that has
 enum OverseerSignal {
   /// Signal about a change in active leaves.
   ActiveLeavesUpdate(ActiveLeavesUpdate),
+  /// Signal about a new best finalized block.
+  BlockFinalized(Hash),
   /// Conclude all operation.
   Conclude,
 }
@@ -30,6 +32,89 @@ Indicates a change in active leaves. Activated leaves should have jobs, whereas 
 struct ActiveLeavesUpdate {
 	activated: [Hash], // in practice, these should probably be a SmallVec
 	deactivated: [Hash],
+}
+```
+
+## Approval Voting
+
+Messages received by the approval voting subsystem.
+
+```rust
+enum AssignmentCheckResult {
+	// The vote was accepted and should be propagated onwards.
+	Accepted,
+	// The vote was valid but duplicate and should not be propagated onwards.
+	AcceptedDuplicate,
+	// The vote was valid but too far in the future to accept right now.
+	TooFarInFuture,
+	// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+}
+
+enum ApprovalCheckResult {
+	// The vote was accepted and should be propagated onwards.
+	Accepted,
+	// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+}
+
+enum ApprovalVotingMessage {
+	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	/// Should not be sent unless the block hash is known.
+	CheckAndImportAssignment(
+		IndirectAssignmentCert,
+		ResponseChannel<AssignmentCheckResult>,
+	),
+	/// Check if the approval vote is valid and can be accepted by our view of the
+	/// protocol.
+	///
+	/// Should not be sent unless the block hash within the indirect vote is known.
+	CheckAndImportApproval(
+		IndirectSignedApprovalVote,
+		ResponseChannel<ApprovalCheckResult>,
+	),
+	/// Returns the highest possible ancestor hash of the provided block hash which is
+	/// acceptable to vote on finality for.
+	/// The `BlockNumber` provided is the number of the block's ancestor which is the
+	/// earliest possible vote.
+	///
+	/// It can also return the same block hash, if that is acceptable to vote upon.
+	/// Return `None` if the input hash is unrecognized.
+	ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
+}
+```
+
+## Approval Distribution
+
+Messages received by the approval Distribution subsystem.
+
+```rust
+/// Metadata about a block which is now live in the approval protocol.
+struct BlockApprovalMeta {
+	/// The hash of the block.
+	hash: Hash,
+	/// The number of the block.
+	number: BlockNumber,
+	/// The candidates included by the block. Note that these are not the same as the candidates that appear within the
+	/// block body.
+	candidates: Vec<CandidateHash>,
+	/// The consensus slot number of the block.
+	slot_number: SlotNumber,
+}
+
+enum ApprovalDistributionMessage {
+	/// Notify the `ApprovalDistribution` subsystem about new blocks and the candidates contained within
+	/// them.
+	NewBlocks(Vec<BlockApprovalMeta>),
+	/// Distribute an assignment cert from the local validator. The cert is assumed
+	/// to be valid, relevant, and for the given relay-parent and validator index.
+	///
+	/// The `u32` param is the candidate index in the fully-included list.
+	DistributeAssignment(IndirectAssignmentCert, u32),
+	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
+	/// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
+	/// the message.
+	DistributeApproval(IndirectSignedApprovalVote),
 }
 ```
 
@@ -55,6 +140,25 @@ enum AvailabilityDistributionMessage {
 }
 ```
 
+## Availability Recovery Message
+
+Messages received by the availability recovery subsystem.
+
+```rust
+enum RecoveryError {
+	Invalid,
+	Unavailable,
+}
+enum AvailabilityRecoveryMessage {
+	/// Recover available data from validators on the network.
+	RecoverAvailableData(
+		CandidateReceipt,
+		SessionIndex,
+		ResponseChannel<Result<AvailableData, RecoveryError>>,
+	),
+}
+```
+
 ## Availability Store Message
 
 Messages to and from the availability store.
@@ -62,18 +166,18 @@ Messages to and from the availability store.
 ```rust
 enum AvailabilityStoreMessage {
 	/// Query the `AvailableData` of a candidate by hash.
-	QueryAvailableData(Hash, ResponseChannel<Option<AvailableData>>),
+	QueryAvailableData(CandidateHash, ResponseChannel<Option<AvailableData>>),
 	/// Query whether an `AvailableData` exists within the AV Store.
-	QueryDataAvailability(Hash, ResponseChannel<bool>),
+	QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(Hash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
+	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
-	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+	StoreChunk(CandidateHash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
 	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
 	/// `AvailabilityChunkAndProof`.
-	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
+	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
 
@@ -107,7 +211,7 @@ enum BitfieldSigningMessage { }
 enum CandidateBackingMessage {
   /// Requests a set of backable candidates that could be backed in a child of the given
   /// relay-parent, referenced by its hash.
-  GetBackedCandidates(Hash, ResponseChannel<Vec<NewBackedCandidate>>),
+  GetBackedCandidates(Hash, Vec<CandidateHash>, ResponseChannel<Vec<BackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
   /// The PoV is expected to match the `pov_hash` in the descriptor.
@@ -219,6 +323,7 @@ enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
+	/// This can be done by dropping the receiver.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -226,13 +331,6 @@ enum NetworkBridgeMessage {
 		/// the validators as they are connected.
 		/// The response is sent immediately for already connected peers.
 		connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
-		/// By revoking the request the caller allows the network to
-		/// free some peer slots thus freeing the resources.
-		/// It doesn't necessarily lead to peers disconnection though.
-		/// The revokation is enacted on in the next connection request.
-		///
-		/// This can be done by sending to the channel or dropping the sender.
-		revoke: ReceiverChannel<()>,
 	},
 }
 ```
@@ -286,7 +384,7 @@ enum ProvisionableData {
   /// This bitfield indicates the availability of various candidate blocks.
   Bitfield(Hash, SignedAvailabilityBitfield),
   /// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
-  BackedCandidate(BackedCandidate),
+  BackedCandidate(CandidateReceipt),
   /// Misbehavior reports are self-contained proofs of validator misbehavior.
   MisbehaviorReport(Hash, MisbehaviorReport),
   /// Disputes trigger a broad dispute resolution process.
@@ -330,12 +428,8 @@ enum RuntimeApiRequest {
 	Validators(ResponseChannel<Vec<ValidatorId>>),
 	/// Get the validator groups and rotation info.
 	ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
-	/// Get the session index for children of the block. This can be used to construct a signing
-	/// context.
-	SessionIndex(ResponseChannel<SessionIndex>),
-	/// Get the validation code for a specific para, using the given occupied core assumption.
-	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Get the persisted validation data at the state of a given block for a specific para,
+	/// Get information about all availability cores.
+	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
 	/// with the given occupied core assumption.
 	PersistedValidationData(
 		ParaId,
@@ -354,12 +448,25 @@ enum RuntimeApiRequest {
 		CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
-	/// Get information about all availability cores.
-	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
+	/// Get the session index for children of the block. This can be used to construct a signing
+	/// context.
+	SessionIndexForChild(ResponseChannel<SessionIndex>),
+	/// Get the validation code for a specific para, using the given occupied core assumption.
+	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
+	/// Fetch the historical validation code used by a para for candidates executed in
+	/// the context of a given block height in the current chain.
+	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
 	/// Get a committed candidate receipt for all candidates pending availability.
 	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates in the last block.
 	CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
+	/// Get the session info for the given session, if stored.
+	SessionInfo(SessionIndex, ResponseChannel<Option<SessionInfo>>),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(ParaId, ResponseChannel<Vec<InboundDownwardMessage<BlockNumber>>>),
+	/// Get the contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
 }
 
 enum RuntimeApiMessage {
@@ -400,7 +507,7 @@ Various modules request that the [Candidate Validation subsystem](../node/utilit
 enum ValidationResult {
 	/// Candidate is valid, and here are the outputs and the validation data used to form inputs.
 	/// In practice, this should be a shared type so that validation caching can be done.
-	Valid(ValidationOutputs, PersistedValidationData),
+	Valid(CandidateCommitments, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid,
 }

@@ -191,15 +191,14 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 		Ok(())
 	}
 
-	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
+	async fn send_message(&mut self, msg: AllMessages) {
 		self.tx
 			.send(msg)
 			.await
 			.expect("test overseer no longer live");
-		Ok(())
 	}
 
-	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+	async fn send_messages<T>(&mut self, msgs: T)
 	where
 		T: IntoIterator<Item = AllMessages> + Send,
 		T::IntoIter: Send,
@@ -209,8 +208,6 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 			.send_all(&mut iter)
 			.await
 			.expect("test overseer no longer live");
-
-		Ok(())
 	}
 }
 
@@ -303,11 +300,11 @@ impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for F
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Ok(FromOverseer::Communication { msg }) => {
 						let _ = self.0.send(msg).await;
 					},
-					Err(_) => return,
+					Err(_) => return Ok(()),
 					_ => (),
 				}
 			}
@@ -341,7 +338,7 @@ mod tests {
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 
-		block_on(handler.send_msg(CandidateSelectionMessage::Invalid(Default::default(), Default::default()))).unwrap();
+		block_on(handler.send_msg(CandidateSelectionMessage::Invalid(Default::default(), Default::default())));
 		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CandidateSelectionMessage::Invalid(_, _)));
 	}
 }

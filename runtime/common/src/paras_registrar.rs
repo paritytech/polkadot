@@ -17,8 +17,8 @@
 //! Module to handle parathread/parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
+use crate::WASM_MAGIC;
 use sp_std::{prelude::*, result};
-
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure,
 	dispatch::DispatchResult,
@@ -33,21 +33,21 @@ use runtime_parachains::{
 		self,
 		ParaGenesisArgs,
 	},
-	router,
+	dmp, ump, hrmp,
 	ensure_parachain,
 	Origin,
 };
 
 type BalanceOf<T> =
-	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-pub trait Trait: paras::Trait + router::Trait {
+pub trait Config: paras::Config + dmp::Config + ump::Config + hrmp::Config {
 	/// The aggregated origin type must support the `parachains` origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
 	/// clause everywhere.
-	type Origin: From<<Self as frame_system::Trait>::Origin>
-		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
+	type Origin: From<<Self as frame_system::Config>::Origin>
+		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
 	/// The system's currency for parathread payment.
 	type Currency: ReservableCurrency<Self::AccountId>;
@@ -57,7 +57,7 @@ pub trait Trait: paras::Trait + router::Trait {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Registrar {
+	trait Store for Module<T: Config> as Registrar {
 		/// Whether parathreads are enabled or not.
 		ParathreadsRegistrationEnabled: bool;
 
@@ -73,7 +73,7 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Parachain already exists.
 		ParaAlreadyExists,
 		/// Invalid parachain ID.
@@ -86,17 +86,19 @@ decl_error! {
 		HeadDataTooLarge,
 		/// Parathreads registration is disabled.
 		ParathreadsRegistrationDisabled,
+		/// The validation code provided doesn't start with the Wasm file magic string.
+		DefinitelyNotWasm,
 	}
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		/// Register a parathread with given code for immediate use.
 		///
 		/// Must be sent from a Signed origin that is able to have `ParathreadDeposit` reserved.
-		/// `gensis_head` and `validation_code` are used to initalize the parathread's state.
+		/// `genesis_head` and `validation_code` are used to initalize the parathread's state.
 		#[weight = 0]
 		fn register_parathread(
 			origin,
@@ -107,6 +109,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 
 			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
+			ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
 			ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 
@@ -114,7 +117,7 @@ decl_module! {
 
 			ensure!(outgoing.binary_search(&id).is_err(), Error::<T>::ParaAlreadyExists);
 
-			<T as Trait>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
+			<T as Config>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
 			<Debtors<T>>::insert(id, who);
 
 			Paras::insert(id, false);
@@ -125,7 +128,7 @@ decl_module! {
 				parachain: false,
 			};
 
-			<paras::Module<T>>::schedule_para_initialize(id, genesis);
+			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 
 			Ok(())
 		}
@@ -139,7 +142,7 @@ decl_module! {
 		/// governance intervention).
 		#[weight = 0]
 		fn deregister_parathread(origin) -> DispatchResult {
-			let id = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 
 			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
 
@@ -148,10 +151,9 @@ decl_module! {
 			ensure!(!is_parachain, Error::<T>::InvalidThreadId);
 
 			let debtor = <Debtors<T>>::take(id);
-			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
+			let _ = <T as Config>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
-			<paras::Module<T>>::schedule_para_cleanup(id);
-			<router::Module::<T>>::schedule_para_cleanup(id);
+			runtime_parachains::schedule_para_cleanup::<T>(id);
 
 			Ok(())
 		}
@@ -185,7 +187,7 @@ decl_module! {
 		/// and the auction deposit are switched.
 		#[weight = 0]
 		fn swap(origin, other: ParaId) {
-			let id = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 
 			if PendingSwap::get(other) == Some(id) {
 				// Remove intention to swap.
@@ -209,7 +211,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Register a parachain with given code. Must be called by root.
 	/// Fails if given ID is already used.
 	pub fn register_parachain(
@@ -218,6 +220,7 @@ impl<T: Trait> Module<T> {
 		validation_code: ValidationCode,
 	) -> DispatchResult {
 		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
+		ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
 		let outgoing = <paras::Module<T>>::outgoing_paras();
 
@@ -231,7 +234,7 @@ impl<T: Trait> Module<T> {
 			parachain: true,
 		};
 
-		<paras::Module<T>>::schedule_para_initialize(id, genesis);
+		runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 
 		Ok(())
 	}
@@ -242,8 +245,7 @@ impl<T: Trait> Module<T> {
 
 		ensure!(is_parachain, Error::<T>::InvalidChainId);
 
-		<paras::Module<T>>::schedule_para_cleanup(id);
-		<router::Module::<T>>::schedule_para_cleanup(id);
+		runtime_parachains::schedule_para_cleanup::<T>(id);
 
 		Ok(())
 	}
@@ -260,14 +262,15 @@ mod tests {
 		}, testing::{UintAuthorityId, TestXt}, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::v1::{
-		Balance, BlockNumber, Header, Signature,
+		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId,
 	};
+	use frame_system::limits;
 	use frame_support::{
 		traits::{Randomness, OnInitialize, OnFinalize},
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
-	use runtime_parachains::{initializer, configuration, inclusion, router, scheduler};
+	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp};
 	use pallet_session::OneSessionHandler;
 
 	impl_outer_origin! {
@@ -297,14 +300,16 @@ mod tests {
 
 	#[derive(Clone, Eq, PartialEq)]
 	pub struct Test;
+	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
-		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
-		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+		pub BlockWeights: limits::BlockWeights =
+			limits::BlockWeights::with_sensible_defaults(4 * 1024 * 1024, NORMAL_RATIO);
+		pub BlockLength: limits::BlockLength =
+			limits::BlockLength::max_with_normal_ratio(4 * 1024 * 1024, NORMAL_RATIO);
 	}
 
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -317,13 +322,9 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
 		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ();
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
+		type BlockWeights = BlockWeights;
+		type BlockLength = BlockLength;
 		type Version = ();
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u128>;
@@ -343,7 +344,7 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 1;
 	}
 
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u128;
 		type DustRemoval = ();
 		type Event = ();
@@ -369,7 +370,7 @@ mod tests {
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
-	impl pallet_session::Trait for Test {
+	impl pallet_session::Config for Test {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
@@ -393,7 +394,7 @@ mod tests {
 		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
-	impl pallet_staking::Trait for Test {
+	impl pallet_staking::Config for Test {
 		type RewardRemainder = ();
 		type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
 		type Event = ();
@@ -414,20 +415,28 @@ mod tests {
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
-		type OffchainSolutionWeightLimit = MaximumBlockWeight;
+		type OffchainSolutionWeightLimit = ();
 		type WeightInfo = ();
 	}
 
-	impl pallet_timestamp::Trait for Test {
+	impl pallet_timestamp::Config for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
 		type WeightInfo = ();
 	}
 
-	impl router::Trait for Test { }
+	impl dmp::Config for Test {}
 
-	impl pallet_session::historical::Trait for Test {
+	impl ump::Config for Test {
+		type UmpSink = ();
+	}
+
+	impl hrmp::Config for Test {
+		type Origin = Origin;
+	}
+
+	impl pallet_session::historical::Config for Test {
 		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
 		type FullIdentificationOf = pallet_staking::ExposureOf<Self>;
 	}
@@ -457,15 +466,23 @@ mod tests {
 		pub type ReporterId = app::Public;
 	}
 
-	impl paras::Trait for Test {
+	impl paras::Config for Test {
 		type Origin = Origin;
 	}
 
-	impl configuration::Trait for Test { }
+	impl configuration::Config for Test { }
 
-	impl inclusion::Trait for Test {
+	impl inclusion::Config for Test {
 		type Event = ();
 	}
+
+	impl session_info::AuthorityDiscoveryConfig for Test {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			Vec::new()
+		}
+	}
+
+	impl session_info::Config for Test { }
 
 	pub struct TestRandomness;
 
@@ -475,11 +492,11 @@ mod tests {
 		}
 	}
 
-	impl initializer::Trait for Test {
+	impl initializer::Config for Test {
 		type Randomness = TestRandomness;
 	}
 
-	impl scheduler::Trait for Test { }
+	impl scheduler::Config for Test { }
 
 	type Extrinsic = TestXt<Call, ()>;
 
@@ -489,8 +506,8 @@ mod tests {
 		fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 			call: Call,
 			_public: test_keys::ReporterId,
-			_account: <Test as frame_system::Trait>::AccountId,
-			nonce: <Test as frame_system::Trait>::Index,
+			_account: <Test as frame_system::Config>::AccountId,
+			nonce: <Test as frame_system::Config>::Index,
 		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
@@ -507,7 +524,7 @@ mod tests {
 		pub const MaxRetries: u32 = 3;
 	}
 
-	impl Trait for Test {
+	impl Config for Test {
 		type Origin = Origin;
 		type Currency = pallet_balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;
@@ -603,7 +620,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				2u32.into(),
 				vec![3; 3].into(),
-				vec![3; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			let orig_bal = Balances::free_balance(&3u64);
@@ -613,7 +630,7 @@ mod tests {
 				Origin::signed(3u64),
 				8u32.into(),
 				vec![3; 3].into(),
-				vec![3; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			// deposit should be taken (reserved)
@@ -652,13 +669,13 @@ mod tests {
 				Origin::signed(1),
 				8u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			assert_ok!(Registrar::register_parachain(
 				2u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			run_to_block(9);
@@ -686,7 +703,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 
 			run_to_block(4);
@@ -697,7 +714,7 @@ mod tests {
 			assert!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			).is_err());
 
 			run_to_block(6);
@@ -705,7 +722,7 @@ mod tests {
 			assert_ok!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),
-				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
 			));
 		});
 	}

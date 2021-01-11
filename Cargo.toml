@@ -6,21 +6,22 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.8.26"
+version = "0.8.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-color-eyre = "0.5.6"
-futures = "0.3.4"
+color-eyre = "0.5.10"
+thiserror = "1.0.22"
+futures = "0.3.8"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
-assert_cmd = "0.12"
-nix = "0.17"
+assert_cmd = "1.0.2"
+nix = "0.19.1"
 tempfile = "3.1.0"
 
 [workspace]
@@ -33,7 +34,7 @@ members = [
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
-	"runtime/rococo-v1",
+	"runtime/rococo",
 	"runtime/westend",
 	"runtime/test-runtime",
 	"statement-table",
@@ -68,6 +69,7 @@ members = [
 	"node/test/service",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
+	"parachain/test-parachains/adder/collator",
 ]
 
 [badges]
@@ -84,6 +86,7 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
+real-overseer=["cli/real-overseer"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

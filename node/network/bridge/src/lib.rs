@@ -16,7 +16,7 @@
 
 //! The Network Bridge Subsystem - protocol multiplexer for Polkadot.
 
-#![deny(unused_crate_dependencies, unused_results)]
+#![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
 
@@ -24,10 +24,9 @@ use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 
 use sc_network::Event as NetworkEvent;
-use sp_runtime::ConsensusEngineId;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
@@ -56,12 +55,8 @@ mod validator_discovery;
 /// We use the same limit to compute the view sent to peers locally.
 const MAX_VIEW_HEADS: usize = 5;
 
-/// The engine ID of the validation protocol.
-pub const VALIDATION_PROTOCOL_ID: ConsensusEngineId = *b"pvn1";
 /// The protocol name for the validation peer-set.
 pub const VALIDATION_PROTOCOL_NAME: &'static str = "/polkadot/validation/1";
-/// The engine ID of the collation protocol.
-pub const COLLATION_PROTOCOL_ID: ConsensusEngineId = *b"pcn1";
 /// The protocol name for the collation peer-set.
 pub const COLLATION_PROTOCOL_NAME: &'static str = "/polkadot/collation/1";
 
@@ -73,7 +68,7 @@ const MALFORMED_VIEW_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed view");
 
 // network bridge log target
-const TARGET: &'static str = "network_bridge";
+const LOG_TARGET: &'static str = "network_bridge";
 
 /// Messages received on the network.
 #[derive(Debug, Encode, Decode, Clone)]
@@ -88,10 +83,10 @@ pub enum WireMessage<M> {
 
 /// Information about the notifications protocol. Should be used during network configuration
 /// or shortly after startup to register the protocol with the network service.
-pub fn notifications_protocol_info() -> Vec<(ConsensusEngineId, std::borrow::Cow<'static, str>)> {
+pub fn notifications_protocol_info() -> Vec<std::borrow::Cow<'static, str>> {
 	vec![
-		(VALIDATION_PROTOCOL_ID, VALIDATION_PROTOCOL_NAME.into()),
-		(COLLATION_PROTOCOL_ID, COLLATION_PROTOCOL_NAME.into()),
+		VALIDATION_PROTOCOL_NAME.into(),
+		COLLATION_PROTOCOL_NAME.into(),
 	]
 }
 
@@ -108,8 +103,8 @@ pub enum NetworkAction {
 pub trait Network: Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
-	/// to the [`VALIDATION_PROTOCOL_ID`](VALIDATION_PROTOCOL_ID)
-	/// or [`COLLATION_PROTOCOL_ID`](COLLATION_PROTOCOL_ID)
+	/// to the [`VALIDATION_PROTOCOL_NAME`](VALIDATION_PROTOCOL_NAME)
+	/// or [`COLLATION_PROTOCOL_NAME`](COLLATION_PROTOCOL_NAME)
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
 
 	/// Get access to an underlying sink for all network actions.
@@ -141,6 +136,7 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		sc_network::NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn action_sink<'a>(&'a mut self)
 		-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
 	{
@@ -158,20 +154,23 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 
 			fn start_send(self: Pin<&mut Self>, action: NetworkAction) -> SubsystemResult<()> {
 				match action {
-					NetworkAction::ReputationChange(peer, cost_benefit) => self.0.report_peer(
-						peer,
-						cost_benefit,
-					),
+					NetworkAction::ReputationChange(peer, cost_benefit) => {
+						tracing::debug!(target: LOG_TARGET, "Changing reputation: {:?} for {}", cost_benefit, peer);
+						self.0.report_peer(
+							peer,
+							cost_benefit,
+						)
+					}
 					NetworkAction::WriteNotification(peer, peer_set, message) => {
 						match peer_set {
 							PeerSet::Validation => self.0.write_notification(
 								peer,
-								VALIDATION_PROTOCOL_ID,
+								VALIDATION_PROTOCOL_NAME.into(),
 								message,
 							),
 							PeerSet::Collation => self.0.write_notification(
 								peer,
-								COLLATION_PROTOCOL_ID,
+								COLLATION_PROTOCOL_NAME.into(),
 								message,
 							),
 						}
@@ -231,7 +230,6 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 			.map_err(|e| {
 				SubsystemError::with_origin("network-bridge", e)
 			})
-			.map(|_| ())
 			.boxed();
 		SpawnedSubsystem {
 			name: "network-bridge-subsystem",
@@ -252,7 +250,6 @@ enum Action {
 	ConnectToValidators {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
-		revoke: oneshot::Receiver<()>,
 	},
 	ReportPeer(PeerId, ReputationChange),
 
@@ -270,6 +267,7 @@ enum Action {
 	Nop,
 }
 
+#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn action_from_overseer_message(
 	res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
 ) -> Action {
@@ -283,50 +281,48 @@ fn action_from_overseer_message(
 				=> Action::SendValidationMessage(peers, msg),
 			NetworkBridgeMessage::SendCollationMessage(peers, msg)
 				=> Action::SendCollationMessage(peers, msg),
-			NetworkBridgeMessage::ConnectToValidators {
-				validator_ids,
-				connected,
-				revoke,
-			} => Action::ConnectToValidators { validator_ids, connected, revoke },
+			NetworkBridgeMessage::ConnectToValidators { validator_ids, connected }
+				=> Action::ConnectToValidators { validator_ids, connected },
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
 		Err(e) => {
-			log::warn!(target: TARGET, "Shutting down Network Bridge due to error {:?}", e);
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Shutting down Network Bridge due to error");
 			Action::Abort
 		}
 	}
 }
 
+#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 	match event {
 		None => {
-			log::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
+			tracing::info!(target: LOG_TARGET, "Shutting down Network Bridge: underlying event stream concluded");
 			Action::Abort
 		}
 		Some(NetworkEvent::Dht(_)) => Action::Nop,
-		Some(NetworkEvent::NotificationStreamOpened { remote, engine_id, role }) => {
+		Some(NetworkEvent::NotificationStreamOpened { remote, protocol, role }) => {
 			let role = role.into();
-			match engine_id {
-				x if x == VALIDATION_PROTOCOL_ID
+			match protocol {
+				x if x == VALIDATION_PROTOCOL_NAME
 					=> Action::PeerConnected(PeerSet::Validation, remote, role),
-				x if x == COLLATION_PROTOCOL_ID
+				x if x == COLLATION_PROTOCOL_NAME
 					=> Action::PeerConnected(PeerSet::Collation, remote, role),
 				_ => Action::Nop,
 			}
 		}
-		Some(NetworkEvent::NotificationStreamClosed { remote, engine_id }) => {
-			match engine_id {
-				x if x == VALIDATION_PROTOCOL_ID
+		Some(NetworkEvent::NotificationStreamClosed { remote, protocol }) => {
+			match protocol {
+				x if x == VALIDATION_PROTOCOL_NAME
 					=> Action::PeerDisconnected(PeerSet::Validation, remote),
-				x if x == COLLATION_PROTOCOL_ID
+				x if x == COLLATION_PROTOCOL_NAME
 					=> Action::PeerDisconnected(PeerSet::Collation, remote),
 				_ => Action::Nop,
 			}
 		}
 		Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
 			let v_messages: Result<Vec<_>, _> = messages.iter()
-				.filter(|(engine_id, _)| engine_id == &VALIDATION_PROTOCOL_ID)
+				.filter(|(protocol, _)| protocol == &VALIDATION_PROTOCOL_NAME)
 				.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
 				.collect();
 
@@ -336,7 +332,7 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 			};
 
 			let c_messages: Result<Vec<_>, _> = messages.iter()
-				.filter(|(engine_id, _)| engine_id == &COLLATION_PROTOCOL_ID)
+				.filter(|(protocol, _)| protocol == &COLLATION_PROTOCOL_NAME)
 				.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
 				.collect();
 
@@ -356,6 +352,7 @@ fn construct_view(live_heads: &[Hash]) -> View {
 	View(live_heads.iter().rev().take(MAX_VIEW_HEADS).cloned().collect())
 }
 
+#[tracing::instrument(level = "trace", skip(net, ctx, validation_peers, collation_peers), fields(subsystem = LOG_TARGET))]
 async fn update_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
@@ -381,27 +378,22 @@ async fn update_view(
 		WireMessage::ViewUpdate(new_view.clone()),
 	).await?;
 
-	if let Err(e) = dispatch_validation_event_to_all(
+	dispatch_validation_event_to_all(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
-	).await {
-		log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-		return Err(e)
-	}
+	).await;
 
-	if let Err(e) = dispatch_collation_event_to_all(
+	dispatch_collation_event_to_all(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
-	).await {
-		log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-		return Err(e)
-	}
+	).await;
 
 	Ok(())
 }
 
 // Handle messages on a specific peer-set. The peer is expected to be connected on that
 // peer-set.
+#[tracing::instrument(level = "trace", skip(peers, messages, net), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_messages<M>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
@@ -448,6 +440,7 @@ async fn handle_peer_messages<M>(
 	Ok(outgoing_messages)
 }
 
+#[tracing::instrument(level = "trace", skip(net, peers), fields(subsystem = LOG_TARGET))]
 async fn send_validation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -460,6 +453,7 @@ async fn send_validation_message<I>(
 	send_message(net, peers, PeerSet::Validation, message).await
 }
 
+#[tracing::instrument(level = "trace", skip(net, peers), fields(subsystem = LOG_TARGET))]
 async fn send_collation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -511,21 +505,22 @@ async fn send_message<M, I>(
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()> {
+) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()> {
+) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
+#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()>
+)
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
 		I::IntoIter: Send,
@@ -553,10 +548,11 @@ async fn dispatch_validation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
+#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()>
+)
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::CollationProtocol>>,
 		I::IntoIter: Send,
@@ -570,6 +566,7 @@ async fn dispatch_collation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
+#[tracing::instrument(skip(network_service, authority_discovery_service, ctx), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	mut network_service: N,
 	mut authority_discovery_service: AD,
@@ -624,12 +621,10 @@ where
 			Action::ConnectToValidators {
 				validator_ids,
 				connected,
-				revoke,
 			} => {
 				let (ns, ads) = validator_discovery.on_request(
 					validator_ids,
 					connected,
-					revoke,
 					network_service,
 					authority_discovery_service,
 				).await;
@@ -668,7 +663,7 @@ where
 							view: View(Vec::new()),
 						});
 
-						let res = match peer_set {
+						match peer_set {
 							PeerSet::Validation => dispatch_validation_events_to_all(
 								vec![
 									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
@@ -689,11 +684,6 @@ where
 								],
 								&mut ctx,
 							).await,
-						};
-
-						if let Err(e) = res {
-							log::warn!("Aborting - Failure to dispatch messages to overseer");
-							return Err(e);
 						}
 					}
 				}
@@ -704,10 +694,10 @@ where
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				validator_discovery.on_peer_disconnected(&peer, &mut authority_discovery_service).await;
+				validator_discovery.on_peer_disconnected(&peer);
 
 				if peer_map.remove(&peer).is_some() {
-					let res = match peer_set {
+					match peer_set {
 						PeerSet::Validation => dispatch_validation_event_to_all(
 							NetworkBridgeEvent::PeerDisconnected(peer),
 							&mut ctx,
@@ -716,14 +706,6 @@ where
 							NetworkBridgeEvent::PeerDisconnected(peer),
 							&mut ctx,
 						).await,
-					};
-
-					if let Err(e) = res {
-						log::warn!(
-							target: TARGET,
-							"Aborting - Failure to dispatch messages to overseer",
-						);
-						return Err(e)
 					}
 				}
 			},
@@ -736,16 +718,7 @@ where
 						&mut network_service,
 					).await?;
 
-					if let Err(e) = dispatch_validation_events_to_all(
-						events,
-						&mut ctx,
-					).await {
-						log::warn!(
-							target: TARGET,
-							"Aborting - Failure to dispatch messages to overseer",
-						);
-						return Err(e)
-					}
+					dispatch_validation_events_to_all(events, &mut ctx).await;
 				}
 
 				if !c_messages.is_empty() {
@@ -756,16 +729,7 @@ where
 						&mut network_service,
 					).await?;
 
-					if let Err(e) = dispatch_collation_events_to_all(
-						events,
-						&mut ctx,
-					).await {
-						log::warn!(
-							target: TARGET,
-							"Aborting - Failure to dispatch messages to overseer",
-						);
-						return Err(e)
-					}
+					dispatch_collation_events_to_all(events, &mut ctx).await;
 				}
 			},
 		}
@@ -828,10 +792,10 @@ mod tests {
 		)
 	}
 
-	fn peer_set_engine_id(peer_set: PeerSet) -> ConsensusEngineId {
+	fn peer_set_protocol(peer_set: PeerSet) -> std::borrow::Cow<'static, str> {
 		match peer_set {
-			PeerSet::Validation => VALIDATION_PROTOCOL_ID,
-			PeerSet::Collation => COLLATION_PROTOCOL_ID,
+			PeerSet::Validation => VALIDATION_PROTOCOL_NAME.into(),
+			PeerSet::Collation => COLLATION_PROTOCOL_NAME.into(),
 		}
 	}
 
@@ -891,7 +855,7 @@ mod tests {
 		async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
 			self.send_network_event(NetworkEvent::NotificationStreamOpened {
 				remote: peer,
-				engine_id: peer_set_engine_id(peer_set),
+				protocol: peer_set_protocol(peer_set),
 				role: role.into(),
 			}).await;
 		}
@@ -899,14 +863,14 @@ mod tests {
 		async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
 			self.send_network_event(NetworkEvent::NotificationStreamClosed {
 				remote: peer,
-				engine_id: peer_set_engine_id(peer_set),
+				protocol: peer_set_protocol(peer_set),
 			}).await;
 		}
 
 		async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
 			self.send_network_event(NetworkEvent::NotificationsReceived {
 				remote: peer,
-				messages: vec![(peer_set_engine_id(peer_set), message.into())],
+				messages: vec![(peer_set_protocol(peer_set), message.into())],
 			}).await;
 		}
 

@@ -17,7 +17,7 @@
 //! Support datastructures for `MultiLocation`, primarily the `Junction` datatype.
 
 use alloc::vec::Vec;
-use codec::{self, Encode, Decode};
+use parity_scale_codec::{self, Encode, Decode};
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]

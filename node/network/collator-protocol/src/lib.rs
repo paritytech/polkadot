@@ -18,10 +18,10 @@
 //! This subsystem implements both sides of the collator protocol.
 
 #![deny(missing_docs, unused_crate_dependencies)]
+#![recursion_limit="256"]
 
 use std::time::Duration;
-use futures::{channel::oneshot, FutureExt};
-use log::trace;
+use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use thiserror::Error;
 
 use polkadot_subsystem::{
@@ -43,7 +43,7 @@ use polkadot_node_subsystem_util::{
 mod collator_side;
 mod validator_side;
 
-const TARGET: &'static str = "colp";
+const LOG_TARGET: &'static str = "collator_protocol";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Error)]
@@ -58,16 +58,6 @@ enum Error {
 	UtilError(#[from] util::Error),
 	#[error(transparent)]
 	Prometheus(#[from] prometheus::PrometheusError),
-}
-
-impl From<util::validator_discovery::Error> for Error {
-	fn from(me: util::validator_discovery::Error) -> Self {
-		match me {
-			util::validator_discovery::Error::Subsystem(s) => Error::Subsystem(s),
-			util::validator_discovery::Error::RuntimeApi(ra) => Error::RuntimeApi(ra),
-			util::validator_discovery::Error::Oneshot(c) => Error::Oneshot(c),
-		}
-	}
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -96,17 +86,18 @@ impl CollatorProtocolSubsystem {
 		}
 	}
 
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-		    ProtocolSide::Validator(metrics) => validator_side::run(
+			ProtocolSide::Validator(metrics) => validator_side::run(
 				ctx,
 				REQUEST_TIMEOUT,
 				metrics,
 			).await,
-		    ProtocolSide::Collator(id, metrics) => collator_side::run(
+			ProtocolSide::Collator(id, metrics) => collator_side::run(
 				ctx,
 				id,
 				metrics,
@@ -122,26 +113,32 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = self
+			.run(ctx)
+			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+			.boxed();
+
 		SpawnedSubsystem {
 			name: "collator-protocol-subsystem",
-			future: self.run(ctx).map(|_| ()).boxed(),
+			future,
 		}
 	}
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
-	trace!(
-		target: TARGET,
-		"Reputation change of {:?} for peer {:?}", rep, peer,
+	tracing::trace!(
+		target: LOG_TARGET,
+		rep = ?rep,
+		peer_id = %peer,
+		"reputation change for peer",
 	);
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
-	)).await?;
-
-	Ok(())
+	)).await;
 }

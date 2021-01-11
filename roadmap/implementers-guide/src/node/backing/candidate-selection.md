@@ -16,7 +16,6 @@ Input: [`CandidateSelectionMessage`](../../types/overseer-protocol.md#candidate-
 
 Output:
 
-- Validation requests to Validation subsystem
 - [`CandidateBackingMessage`](../../types/overseer-protocol.md#candidate-backing-message)`::Second`
 - Peer set manager: report peers (collators who have misbehaved)
 

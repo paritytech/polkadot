@@ -26,14 +26,14 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
 use sp_runtime::traits::One;
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	paras, router, scheduler, inclusion,
+	paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
 /// Information about a session change that has just occurred.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
@@ -49,6 +49,19 @@ pub struct SessionChangeNotification<BlockNumber> {
 	pub session_index: sp_staking::SessionIndex,
 }
 
+impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
+	fn default() -> Self {
+		Self {
+			validators: Vec::new(),
+			queued: Vec::new(),
+			prev_config: HostConfiguration::default(),
+			new_config: HostConfiguration::default(),
+			random_seed: Default::default(),
+			session_index: Default::default(),
+		}
+	}
+}
+
 #[derive(Encode, Decode)]
 struct BufferedSessionChange<N> {
 	apply_at: N,
@@ -57,20 +70,23 @@ struct BufferedSessionChange<N> {
 	session_index: sp_staking::SessionIndex,
 }
 
-pub trait Trait:
-	frame_system::Trait
-	+ configuration::Trait
-	+ paras::Trait
-	+ scheduler::Trait
-	+ inclusion::Trait
-	+ router::Trait
+pub trait Config:
+	frame_system::Config
+	+ configuration::Config
+	+ paras::Config
+	+ scheduler::Config
+	+ inclusion::Config
+	+ session_info::Config
+	+ dmp::Config
+	+ ump::Config
+	+ hrmp::Config
 {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash>;
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Initializer {
+	trait Store for Module<T: Config> as Initializer {
 		/// Whether the parachains modules have been initialized within this block.
 		///
 		/// Semantically a bool, but this guarantees it should never hit the trie,
@@ -92,12 +108,12 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The initializer module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
@@ -121,13 +137,19 @@ decl_module! {
 			// - Paras
 			// - Scheduler
 			// - Inclusion
+			// - SessionInfo
 			// - Validity
-			// - Router
+			// - DMP
+			// - UMP
+			// - HRMP
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
-				router::Module::<T>::initializer_initialize(now);
+				session_info::Module::<T>::initializer_initialize(now) +
+				dmp::Module::<T>::initializer_initialize(now) +
+				ump::Module::<T>::initializer_initialize(now) +
+				hrmp::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -137,7 +159,10 @@ decl_module! {
 		fn on_finalize() {
 			// reverse initialization order.
 
-			router::Module::<T>::initializer_finalize();
+			hrmp::Module::<T>::initializer_finalize();
+			ump::Module::<T>::initializer_finalize();
+			dmp::Module::<T>::initializer_finalize();
+			session_info::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
@@ -147,7 +172,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	fn apply_new_session(
 		session_index: sp_staking::SessionIndex,
 		validators: Vec<ValidatorId>,
@@ -181,7 +206,10 @@ impl<T: Trait> Module<T> {
 		paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
-		router::Module::<T>::initializer_on_new_session(&notification);
+		session_info::Module::<T>::initializer_on_new_session(&notification);
+		dmp::Module::<T>::initializer_on_new_session(&notification);
+		ump::Module::<T>::initializer_on_new_session(&notification);
+		hrmp::Module::<T>::initializer_on_new_session(&notification);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
@@ -210,11 +238,11 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)

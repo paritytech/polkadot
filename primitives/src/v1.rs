@@ -17,27 +17,28 @@
 //! V1 Primitives.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
-use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating};
+use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 // Export some core primitives.
 pub use polkadot_core_primitives::v1::{
-	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex,
-	ChainId, Hash, Nonce, Balance, Header, Block, BlockId, UncheckedExtrinsic,
-	Remark, DownwardMessage, InboundDownwardMessage,
+	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex, ChainId, Hash, Nonce,
+	Balance, Header, Block, BlockId, UncheckedExtrinsic, Remark, DownwardMessage,
+	InboundDownwardMessage, CandidateHash, InboundHrmpMessage, OutboundHrmpMessage,
 };
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
-	ValidationCode,
+	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, BlockData, ValidationCode,
 };
 
 // Export some basic parachain primitives from v0.
@@ -56,6 +57,34 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+
+
+/// The key type ID for a parachain approval voting key.
+pub const APPROVAL_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"aprv");
+
+mod approval_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::APPROVAL_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for approval voting
+/// on included parachain candidates.
+pub type ApprovalId = approval_app::Public;
+
+/// The key type ID for parachain assignment key.
+pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
+
+// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+mod assigment_app {
+	use application_crypto::{app_crypto, sr25519};
+	app_crypto!(sr25519, super::ASSIGNMENT_KEY_TYPE_ID);
+}
+
+/// The public key of a keypair used by a validator for determining assignments
+/// to approve included parachain candidates.
+pub type AssignmentId = assigment_app::Public;
+
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
@@ -113,6 +142,8 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov.
 	pub pov_hash: Hash,
+	/// The root of a block's erasure encoding Merkle tree.
+	pub erasure_root: Hash,
 	/// Signature on blake2-256 of components of this receipt:
 	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
 	pub signature: CollatorSignature,
@@ -149,8 +180,8 @@ impl<H> CandidateReceipt<H> {
 	}
 
 	/// Computes the blake2-256 hash of the receipt.
-	pub fn hash(&self) -> Hash where H: Encode {
-		BlakeTwo256::hash_of(self)
+	pub fn hash(&self) -> CandidateHash where H: Encode {
+		CandidateHash(BlakeTwo256::hash_of(self))
 	}
 }
 
@@ -197,8 +228,13 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	///
 	/// This computes the canonical hash, not the hash of the directly encoded data.
 	/// Thus this is a shortcut for `candidate.to_plain().hash()`.
-	pub fn hash(&self) -> Hash where H: Encode {
+	pub fn hash(&self) -> CandidateHash where H: Encode {
 		self.to_plain().hash()
+	}
+
+	/// Does this committed candidate receipt corrensponds to the given [`CandidateReceipt`]?
+	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool where H: PartialEq {
+		receipt.descriptor == self.descriptor && receipt.commitments_hash == self.commitments.hash()
 	}
 }
 
@@ -271,6 +307,8 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
 	/// passed by the collator.
 	pub dmq_mqc_head: Hash,
+	/// The maximum legal size of a POV block, in bytes.
+	pub max_pov_size: u32,
 }
 
 impl<N: Encode> PersistedValidationData<N> {
@@ -310,34 +348,22 @@ pub struct TransientValidationData<N = BlockNumber> {
 	pub dmq_length: u32,
 }
 
-/// Outputs of validating a candidate.
-#[derive(Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
-pub struct ValidationOutputs {
-	/// The head-data produced by validation.
-	pub head_data: HeadData,
-	/// Upward messages to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// The new validation code submitted by the execution, if any.
-	pub new_validation_code: Option<ValidationCode>,
-	/// The number of messages processed from the DMQ.
-	pub processed_downward_messages: u32,
-}
-
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
-pub struct CandidateCommitments {
+pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
-	/// The root of a block's erasure encoding Merkle tree.
-	pub erasure_root: Hash,
+	/// Horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: N,
 }
 
 impl CandidateCommitments {
@@ -395,6 +421,16 @@ impl<H> BackedCandidate<H> {
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.candidate.descriptor
 	}
+
+	/// Compute this candidate's hash.
+	pub fn hash(&self) -> CandidateHash where H: Clone + Encode {
+		self.candidate.hash()
+	}
+
+	/// Get this candidate's receipt.
+	pub fn receipt(&self) -> CandidateReceipt<H> where H: Clone {
+		self.candidate.to_plain()
+	}
 }
 
 /// Verify the backing of the given candidate.
@@ -422,7 +458,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 	}
 
 	// this is known, even in runtime, to be blake2-256.
-	let hash: Hash = backed.candidate.hash();
+	let hash = backed.candidate.hash();
 
 	let mut signed = 0;
 	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()
@@ -459,8 +495,8 @@ impl From<u32> for CoreIndex {
 }
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy)]
-#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, Debug))]
+#[derive(Encode, Decode, Default, Clone, Copy, Debug)]
+#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq))]
 pub struct GroupIndex(pub u32);
 
 impl From<u32> for GroupIndex {
@@ -495,11 +531,11 @@ pub enum CoreOccupied {
 }
 
 /// This is the data we keep available for each candidate included in the relay chain.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg(feature = "std")]
+#[derive(Clone, Encode, Decode, PartialEq, Debug)]
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
-	pub pov: PoV,
+	pub pov: std::sync::Arc<PoV>,
 	/// The persisted validation data needed for secondary checks.
 	pub validation_data: PersistedValidationData,
 }
@@ -537,11 +573,7 @@ impl GroupRotationInfo {
 impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 	/// Returns the block number of the next rotation after the current block. If the current block
 	/// is 10 and the rotation frequency is 5, this should return 15.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn next_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
-
 		let cycle_once = self.now + self.group_rotation_frequency;
 		cycle_once - (
 			cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency
@@ -550,10 +582,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 
 	/// Returns the block number of the last rotation before or including the current block. If the
 	/// current block is 10 and the rotation frequency is 5, this should return 10.
-	///
-	/// If the group rotation frequency is 0, returns 0.
 	pub fn last_rotation_at(&self) -> N {
-		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
 		self.now - (
 			self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency
 		)
@@ -561,8 +590,8 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct OccupiedCore<N = BlockNumber> {
 	/// The ID of the para occupying the core.
 	pub para_id: Id,
@@ -586,8 +615,8 @@ pub struct OccupiedCore<N = BlockNumber> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug, Default))]
+#[derive(Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -596,8 +625,8 @@ pub struct ScheduledCore {
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreState<N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]
@@ -623,6 +652,11 @@ impl<N> CoreState<N> {
 			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
 			Self::Free => None,
 		}
+	}
+
+	/// Is this core state `Self::Occupied`?
+	pub fn is_occupied(&self) -> bool {
+		matches!(self, Self::Occupied(_))
 	}
 }
 
@@ -656,9 +690,38 @@ pub enum CandidateEvent<H = Hash> {
 	CandidateTimedOut(CandidateReceipt<H>, HeadData),
 }
 
+/// Information about validator sets of a session.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default))]
+pub struct SessionInfo {
+	/// Validators in canonical ordering.
+	pub validators: Vec<ValidatorId>,
+	/// Validators' authority discovery keys for the session in canonical ordering.
+	pub discovery_keys: Vec<AuthorityDiscoveryId>,
+	/// The assignment and approval keys for validators.
+	pub approval_keys: Vec<(ApprovalId, AssignmentId)>,
+	/// Validators in shuffled ordering - these are the validator groups as produced
+	/// by the `Scheduler` module for the session and are typically referred to by
+	/// `GroupIndex`.
+	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// The number of availability cores used by the protocol during this session.
+	pub n_cores: u32,
+	/// The zeroth delay tranche width.
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of samples we do of relay_vrf_modulo.
+	pub relay_vrf_modulo_samples: u32,
+	/// The number of delay tranches in total.
+	pub n_delay_tranches: u32,
+	/// How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
+	/// no-show.
+	pub no_show_slots: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode = Hash, N: Decode = BlockNumber> {
+	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
@@ -687,20 +750,30 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
-		// TODO: Adding a Runtime API should be backwards compatible... right?
 		/// Checks if the given validation outputs pass the acceptance criteria.
-		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
+		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
 
+		/// Get the session info for the given session, if stored.
+		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
+
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode>;
+
+		/// Fetch the historical validation code used by a para for candidates executed in the
+		/// context of a given block height in the current chain.
+		///
+		/// `context_height` may be no greater than the height of the block in whose
+		/// state the runtime API is executed.
+		fn historical_validation_code(para_id: Id, context_height: N)
 			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
@@ -713,17 +786,14 @@ sp_api::decl_runtime_apis! {
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
 
-		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-		/// Currently this request is limited to validators in the current session.
-		///
-		/// We assume that every validator runs authority discovery,
-		/// which would allow us to establish point-to-point connection to given validators.
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
-
 		/// Get all the pending inbound messages in the downward message queue for a para.
 		fn dmq_contents(
 			recipient: Id,
 		) -> Vec<InboundDownwardMessage<N>>;
+
+		/// Get the contents of all channels addressed to the given recipient. Channels that have no
+		/// messages in them are also included.
+		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
 	}
 }
 
@@ -760,15 +830,6 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 20);
 		assert_eq!(info.last_rotation_at(), 15);
-
-		let info = GroupRotationInfo {
-			session_start_block: 10u32,
-			now: 11,
-			group_rotation_frequency: 0,
-		};
-
-		assert_eq!(info.next_rotation_at(), 0);
-		assert_eq!(info.last_rotation_at(), 0);
 	}
 
 	#[test]

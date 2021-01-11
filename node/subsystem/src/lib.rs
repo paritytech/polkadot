@@ -58,12 +58,17 @@ pub struct ActiveLeavesUpdate {
 impl ActiveLeavesUpdate {
 	/// Create a ActiveLeavesUpdate with a single activated hash
 	pub fn start_work(hash: Hash) -> Self {
-		Self { activated: [hash].as_ref().into(), ..Default::default() }
+		Self { activated: [hash][..].into(), ..Default::default() }
 	}
 
 	/// Create a ActiveLeavesUpdate with a single deactivated hash
 	pub fn stop_work(hash: Hash) -> Self {
-		Self { deactivated: [hash].as_ref().into(), ..Default::default() }
+		Self { deactivated: [hash][..].into(), ..Default::default() }
+	}
+
+	/// Is this update empty and doesn't contain any information?
+	pub fn is_empty(&self) -> bool {
+		self.activated.is_empty() && self.deactivated.is_empty()
 	}
 }
 
@@ -72,9 +77,9 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		use std::collections::HashSet;
-		self.activated.iter().collect::<HashSet<_>>() == other.activated.iter().collect::<HashSet<_>>() &&
-			self.deactivated.iter().collect::<HashSet<_>>() == other.deactivated.iter().collect::<HashSet<_>>()
+		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len() 
+			&& self.activated.iter().all(|a| other.activated.contains(a))
+			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
 	}
 }
 
@@ -164,7 +169,7 @@ pub struct SpawnedSubsystem {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
 	/// The task of the subsystem being spawned.
-	pub future: BoxFuture<'static, ()>,
+	pub future: BoxFuture<'static, SubsystemResult<()>>,
 }
 
 /// A `Result` type that wraps [`SubsystemError`].
@@ -204,10 +209,10 @@ pub trait SubsystemContext: Send + 'static {
 	) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
+	async fn send_message(&mut self, msg: AllMessages);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
 }
 
@@ -228,14 +233,24 @@ pub trait Subsystem<C: SubsystemContext> {
 /// types of messages. Used for tests or as a placeholder.
 pub struct DummySubsystem;
 
-impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem
+where
+	C::Message: std::fmt::Debug
+{
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
-					Err(_) => return,
-					_ => continue,
+					Err(_) => return Ok(()),
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(overseer_msg) => {
+						tracing::debug!(
+							target: "dummy-subsystem",
+							"Discarding a message sent from overseer {:?}",
+							overseer_msg
+						);
+						continue;
+					}
 				}
 			}
 		});
