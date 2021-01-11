@@ -41,9 +41,7 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, Filter},
-	weights::Weight,
+	parameter_types, construct_runtime, debug, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -64,7 +62,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
-use frame_system::EnsureRoot;
+use frame_system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use runtime_common::{paras_sudo_wrapper, paras_registrar};
 
 use runtime_parachains::origin as parachains_origin;
@@ -91,10 +89,11 @@ use xcm_builder::{
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 };
+use constants::{time::*, currency::*, fee::*};
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*, fee::*};
+mod propose_parachain;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -208,6 +207,9 @@ construct_runtime! {
 
 		// Sudo
 		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
+
+		// Propose parachain pallet.
+		ProposeParachain: propose_parachain::{Module, Call, Storage, Event},
 	}
 }
 
@@ -451,7 +453,7 @@ impl pallet_session::Config for Runtime {
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ProposeParachain>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -619,6 +621,41 @@ impl paras_registrar::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+}
+
+/// Priviledged origin used by propose parachain.
+pub struct PriviledgedOrigin;
+
+impl EnsureOrigin<Origin> for PriviledgedOrigin {
+	type Success = ();
+
+	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
+		let allowed = [
+			hex_literal::hex!("b44c58e50328768ac06ed44b842bfa69d86ea10f60bc36156c9ffc5e00867220"),
+			hex_literal::hex!("762a6a38ba72b139cba285a39a6766e02046fb023f695f5ecf7f48b037c0dd6b")
+		];
+
+		let origin = o.clone();
+		match EnsureSigned::try_origin(o) {
+			Ok(who) if allowed.iter().any(|a| a == &who.as_ref()) => Ok(()),
+			_ => Err(origin),
+		}
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> Origin { Origin::root() }
+}
+
+parameter_types! {
+	pub const ProposeDeposit: Balance = 1000 * DOLLARS;
+	pub const MaxNameLength: u32 = 20;
+}
+
+impl propose_parachain::Config for Runtime {
+	type Event = Event;
+	type MaxNameLength = MaxNameLength;
+	type ProposeDeposit = ProposeDeposit;
+	type PriviledgedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PriviledgedOrigin>;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
