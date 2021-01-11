@@ -334,9 +334,11 @@ decl_module! {
 			fund.raised  = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
 			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
 
+			let old_balance = Self::contribution_get(index, &who);
+
 			if let Some(ref verifier) = fund.verifier {
 				let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
-				let payload = (index, value);
+				let payload = (index, &who, old_balance, value);
 				let valid = payload.using_encoded(|encoded| signature.verify(encoded, verifier));
 				ensure!(valid, Error::<T>::InvalidSignature);
 			}
@@ -347,8 +349,7 @@ decl_module! {
 
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
-			let balance = Self::contribution_get(index, &who);
-			let balance = balance.saturating_add(value);
+			let balance = old_balance.saturating_add(value);
 			Self::contribution_put(index, &who, &balance);
 
 			if <slots::Module<T>>::is_ending(now).is_some() {
