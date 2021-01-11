@@ -5886,7 +5886,6 @@ dependencies = [
  "sc-client-api",
  "sc-finality-grandpa",
  "sp-api",
- "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
