@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Tracked variant of mpsc channels to be able to extract metrics.
+//! Metered variant of mpsc channels to be able to extract metrics.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -24,39 +24,39 @@ use std::result;
 use std::sync::Arc;
 use std::pin::Pin;
 
-/// Create a wrapped `mpsc::channel` pair of `TrackedSender` and `TrackedReceiver`.
-pub fn channel<T>(capacity: usize, name: &'static str) -> (TrackedSender<T>, TrackedReceiver<T>) {
+/// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
+pub fn channel<T>(capacity: usize, name: &'static str) -> (MeteredSender<T>, MeteredReceiver<T>) {
 	let (tx, rx) = mpsc::channel(capacity);
 	let shared_meter = Meter::default();
 
-	let tx = TrackedSender { meter: shared_meter.clone(), inner: tx, name };
-	let rx = TrackedReceiver { meter: shared_meter, inner: rx, name };
+	let tx = MeteredSender { meter: shared_meter.clone(), inner: tx, name };
+	let rx = MeteredReceiver { meter: shared_meter, inner: rx, name };
 	(tx, rx)
 }
 
 /// A receiver tracking the messages consumed by itself.
 #[derive(Debug)]
-pub struct TrackedReceiver<T> {
+pub struct MeteredReceiver<T> {
 	// count currently contained messages
 	meter: Meter,
 	inner: mpsc::Receiver<T>,
 	name: &'static str,
 }
 
-impl<T> std::ops::Deref for TrackedReceiver<T> {
+impl<T> std::ops::Deref for MeteredReceiver<T> {
 	type Target = mpsc::Receiver<T>;
 	fn deref(&self) -> &Self::Target {
 		&self.inner
 	}
 }
 
-impl<T> std::ops::DerefMut for TrackedReceiver<T> {
+impl<T> std::ops::DerefMut for MeteredReceiver<T> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.inner
 	}
 }
 
-impl<T> Stream for TrackedReceiver<T> {
+impl<T> Stream for MeteredReceiver<T> {
 	type Item = T;
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		match mpsc::Receiver::poll_next(Pin::new(&mut self.inner), cx) {
@@ -75,7 +75,7 @@ impl<T> Stream for TrackedReceiver<T> {
 	}
 }
 
-impl<T> TrackedReceiver<T> {
+impl<T> MeteredReceiver<T> {
 	/// Get an updated accessor object for all metrics collected.
 	pub fn meter(&self) -> &Meter {
 		&self.meter
@@ -96,26 +96,26 @@ impl<T> TrackedReceiver<T> {
 /// The sender component, tracking the number of items
 /// sent across it.
 #[derive(Debug, Clone)]
-pub struct TrackedSender<T> {
+pub struct MeteredSender<T> {
 	meter: Meter,
 	inner: mpsc::Sender<T>,
 	name: &'static str,
 }
 
-impl<T> std::ops::Deref for TrackedSender<T> {
+impl<T> std::ops::Deref for MeteredSender<T> {
 	type Target = mpsc::Sender<T>;
 	fn deref(&self) -> &Self::Target {
 		&self.inner
 	}
 }
 
-impl<T> std::ops::DerefMut for TrackedSender<T> {
+impl<T> std::ops::DerefMut for MeteredSender<T> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.inner
 	}
 }
 
-impl<T> TrackedSender<T> {
+impl<T> MeteredSender<T> {
 	/// Get an updated accessor object for all metrics collected.
 	pub fn meter(&self) -> &Meter {
 		&self.meter
