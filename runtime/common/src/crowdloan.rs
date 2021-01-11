@@ -1513,7 +1513,7 @@ mod benchmarking {
 	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
 		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
-		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
+		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, None));
 	}
 
 	fn worst_validation_code<T: Config>() -> Vec<u8> {
