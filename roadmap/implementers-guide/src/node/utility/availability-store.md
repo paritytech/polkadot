@@ -43,7 +43,7 @@ digraph {
 We use an underlying Key-Value database where we assume we have the following operations available:
   * `write(key, value)`
   * `read(key) -> Option<value>`
-  * `iter_by_prefix(prefix) -> Iterator<(key, value)>` - gives all keys and values in lexicographical order starting with `prefix`
+  * `iter_with_prefix(prefix) -> Iterator<(key, value)>` - gives all keys and values in lexicographical order where the key starts with `prefix`.
 
 We use this database to encode the following schema:
 
@@ -100,7 +100,7 @@ For each head in the `activated` list:
   - TODO: load all ancestors of the head back to the finalized block so we don't miss anything if import notifications are missed. If a `StoreChunk` message is received for a candidate which has no entry, then we will prematurely lose the data.
 
 On `OverseerSignal::BlockFinalized(finalized)` events:
-  - for each key in `iter_by_prefix("unfinalized")`
+  - for each key in `iter_with_prefix("unfinalized")`
     - Stop if the key is beyond `("unfinalized, finalized)`
     - For each block number f that we encounter, load the finalized hash for that block.
       - The state of each `CandidateMeta` we encounter here must be `Unfinalized`, since we loaded the candidate from an `"unfinalized"` key.
@@ -155,7 +155,7 @@ On `StoreAvailableData` message:
 
 Every 5 minutes, run a pruning routine:
 
-  - for each key in `iter_by_prefix("prune_by_time")`:
+  - for each key in `iter_with_prefix("prune_by_time")`:
     - If the key is beyond ("prune_by_time", now), return.
     - Remove the key.
     - Extract `candidate_hash` from the key.

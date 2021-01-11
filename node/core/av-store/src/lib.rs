@@ -131,13 +131,16 @@ impl Decode for BEBlockNumber {
 #[derive(Debug, Encode, Decode)]
 enum State {
 	/// Candidate data was first observed at the given time but is not available in any block.
+	#[codec(index = "0")]
 	Unavailable(BETimestamp),
 	/// The candidate was first observed at the given time and was included in the given list of unfinalized blocks, which may be
 	/// empty. The timestamp here is not used for pruning. Either one of these blocks will be finalized or the state will regress to
 	/// `State::Unavailable`, in which case the same timestamp will be reused. Blocks are sorted ascending first by block number and
 	/// then hash.
+	#[codec(index = "1")]
 	Unfinalized(BETimestamp, Vec<(BEBlockNumber, Hash)>),
 	/// Candidate data has appeared in a finalized block and did so at the given time.
+	#[codec(index = "2")]
 	Finalized(BETimestamp)
 }
 
@@ -286,6 +289,7 @@ fn write_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &Cand
 }
 
 fn finalized_block_range(finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
+	// We use big-endian encoding to iterate in ascending order.
 	let start = UNFINALIZED_PREFIX.encode();
 	let end = (UNFINALIZED_PREFIX, BEBlockNumber(finalized + 1)).encode();
 
@@ -741,6 +745,15 @@ fn note_block_included(
 	Ok(())
 }
 
+macro_rules! peek_num {
+	($iter:ident) => {
+		match $iter.peek() {
+			Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
+			None => None
+		}
+	}
+}
+
 async fn process_block_finalized(
 	ctx: &mut impl SubsystemContext,
 	subsystem: &AvailabilityStoreSubsystem,
@@ -748,15 +761,6 @@ async fn process_block_finalized(
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
-
-	macro_rules! peek_num {
-		($iter:ident) => {
-			match $iter.peek() {
-				Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
-				None => None
-			}
-		}
-	}
 
 	let mut next_possible_batch = 0;
 	loop {
@@ -776,6 +780,7 @@ async fn process_block_finalized(
 				Some(n) => n,
 			}
 		};
+
 		if batch_num < next_possible_batch { continue } // sanity.
 		next_possible_batch = batch_num + 1;
 
@@ -799,114 +804,144 @@ async fn process_block_finalized(
 			}
 		};
 
-		let mut iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
+		let iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
 			.take_while(|(k, _)| &k[..] < &end_prefix[..])
 			.peekable();
 
-		// maps candidate hashes to true if finalized, false otherwise.
-		let mut candidates = HashMap::new();
-
-		// Load all candidates that were included at this height.
-		loop {
-			match peek_num!(iter) {
-				None => break, // end of iterator.
-				Some(n) if n != batch_num => break, // end of batch.
-				_ => {}
-			}
-
-			let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed");
-			let (_, block_hash, candidate_hash) = decode_unfinalized_key(&k[..])
-				.expect("`peek_num` checks validity of key; qed");
-
-			if block_hash == batch_finalized_hash {
-				candidates.insert(candidate_hash, true);
-			} else {
-				candidates.entry(candidate_hash).or_insert(false);
-			}
-		}
+		let batch = load_all_at_finalized_height(iter, batch_num, batch_finalized_hash);
 
 		// Now that we've iterated over the entire batch at this finalized height,
 		// update the meta.
 
 		delete_unfinalized_height(&mut db_transaction, batch_num);
 
-		for (candidate_hash, is_finalized) in candidates {
-			let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
-				None => {
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Dangling candidate metadata for {}",
-						candidate_hash,
-					);
-
-					continue;
-				}
-				Some(c) => c,
-			};
-
-			if is_finalized {
-				// Clear everything else related to this block. We're finalized now!
-				match meta.state {
-					State::Finalized(_) => continue, // sanity
-					State::Unavailable(at) => {
-						// This is also not going to happen; the very fact that we are
-						// iterating over the candidate here indicates that `State` should
-						// be `Unfinalized`.
-						delete_pruning_key(&mut db_transaction, at, &candidate_hash);
-					}
-					State::Unfinalized(_, blocks) => {
-						for (block_num, block_hash) in blocks.iter().cloned() {
-							// this exact height is all getting cleared out anyway.
-							if block_num.0 != batch_num {
-								delete_unfinalized_inclusion(
-									&mut db_transaction,
-									block_num.0,
-									&block_hash,
-									&candidate_hash,
-								);
-							}
-						}
-					}
-				}
-
-				meta.state = State::Finalized(now.into());
-
-				// Write the meta and a pruning record.
-				write_meta(&mut db_transaction, &candidate_hash, &meta);
-				write_pruning_key(
-					&mut db_transaction,
-					now + subsystem.pruning_config.keep_finalized_for,
-					&candidate_hash,
-				);
-			} else {
-				meta.state = match meta.state {
-					State::Finalized(_) => continue, // sanity.
-					State::Unavailable(_) => continue, // sanity.
-					State::Unfinalized(at, mut blocks) => {
-						// Clear out everything at this height.
-						blocks.retain(|(n, _)| n.0 != batch_num);
-
-						// If empty, we need to go back to being unavailable as we aren't
-						// aware of any blocks this is included in.
-						if blocks.is_empty() {
-							let at_d: Duration = at.into();
-							let prune_at = at_d + subsystem.pruning_config.keep_unavailable_for;
-							write_pruning_key(&mut db_transaction, prune_at, &candidate_hash);
-							State::Unavailable(at)
-						} else {
-							State::Unfinalized(at, blocks)
-						}
-					}
-				};
-
-				// Update the meta entry.
-				write_meta(&mut db_transaction, &candidate_hash, &meta)
-			}
-		}
+		update_blocks_at_finalized_height(
+			&subsystem,
+			&mut db_transaction,
+			batch,
+			batch_num,
+			now,
+		)?;
 
 		// We need to write at the end of the loop so the prefix iterator doesn't pick up the same values again
 		// in the next iteration. Another unfortunate effect of having to re-initialize the iterator.
 		subsystem.db.write(db_transaction)?;
+	}
+
+	Ok(())
+}
+
+// loads all candidates at the finalized height and maps them to `true` if finalized
+// and `false` if unfinalized.
+fn load_all_at_finalized_height(
+	mut iter: std::iter::Peekable<impl Iterator<Item = (Box<[u8]>, Box<[u8]>)>>,
+	block_number: BlockNumber,
+	finalized_hash: Hash,
+) -> impl IntoIterator<Item = (CandidateHash, bool)> {
+	// maps candidate hashes to true if finalized, false otherwise.
+	let mut candidates = HashMap::new();
+
+	// Load all candidates that were included at this height.
+	loop {
+		match peek_num!(iter) {
+			None => break, // end of iterator.
+			Some(n) if n != block_number => break, // end of batch.
+			_ => {}
+		}
+
+		let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed");
+		let (_, block_hash, candidate_hash) = decode_unfinalized_key(&k[..])
+			.expect("`peek_num` checks validity of key; qed");
+
+		if block_hash == finalized_hash {
+			candidates.insert(candidate_hash, true);
+		} else {
+			candidates.entry(candidate_hash).or_insert(false);
+		}
+	}
+
+	candidates
+}
+
+fn update_blocks_at_finalized_height(
+	subsystem: &AvailabilityStoreSubsystem,
+	db_transaction: &mut DBTransaction,
+	candidates: impl IntoIterator<Item = (CandidateHash, bool)>,
+	block_number: BlockNumber,
+	now: Duration,
+) -> Result<(), Error> {
+	for (candidate_hash, is_finalized) in candidates {
+		let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Dangling candidate metadata for {}",
+					candidate_hash,
+				);
+
+				continue;
+			}
+			Some(c) => c,
+		};
+
+		if is_finalized {
+			// Clear everything else related to this block. We're finalized now!
+			match meta.state {
+				State::Finalized(_) => continue, // sanity
+				State::Unavailable(at) => {
+					// This is also not going to happen; the very fact that we are
+					// iterating over the candidate here indicates that `State` should
+					// be `Unfinalized`.
+					delete_pruning_key(db_transaction, at, &candidate_hash);
+				}
+				State::Unfinalized(_, blocks) => {
+					for (block_num, block_hash) in blocks.iter().cloned() {
+						// this exact height is all getting cleared out anyway.
+						if block_num.0 != block_number {
+							delete_unfinalized_inclusion(
+								db_transaction,
+								block_num.0,
+								&block_hash,
+								&candidate_hash,
+							);
+						}
+					}
+				}
+			}
+
+			meta.state = State::Finalized(now.into());
+
+			// Write the meta and a pruning record.
+			write_meta(db_transaction, &candidate_hash, &meta);
+			write_pruning_key(
+				db_transaction,
+				now + subsystem.pruning_config.keep_finalized_for,
+				&candidate_hash,
+			);
+		} else {
+			meta.state = match meta.state {
+				State::Finalized(_) => continue, // sanity.
+				State::Unavailable(_) => continue, // sanity.
+				State::Unfinalized(at, mut blocks) => {
+					// Clear out everything at this height.
+					blocks.retain(|(n, _)| n.0 != block_number);
+
+					// If empty, we need to go back to being unavailable as we aren't
+					// aware of any blocks this is included in.
+					if blocks.is_empty() {
+						let at_d: Duration = at.into();
+						let prune_at = at_d + subsystem.pruning_config.keep_unavailable_for;
+						write_pruning_key(db_transaction, prune_at, &candidate_hash);
+						State::Unavailable(at)
+					} else {
+						State::Unfinalized(at, blocks)
+					}
+				}
+			};
+
+			// Update the meta entry.
+			write_meta(db_transaction, &candidate_hash, &meta)
+		}
 	}
 
 	Ok(())
