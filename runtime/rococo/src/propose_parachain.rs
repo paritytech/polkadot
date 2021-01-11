@@ -175,7 +175,7 @@ decl_module! {
 		/// - `balance`: The initial balance of the parachain on the relay chain.
 		///
 		/// It will reserve a deposit from the sender account over the lifetime of the chain.
-		#[weight = 1000_000]
+		#[weight = 1_000_000]
 		fn propose_parachain(
 			origin,
 			para_id: ParaId,
