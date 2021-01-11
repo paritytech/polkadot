@@ -1283,7 +1283,6 @@ mod tests {
 			// Partially dissolve the crowdloan, again
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), 0));
 			for i in 0 .. 20 {
-				println!("{:?}", i);
 				assert_eq!(Crowdloan::contribution_get(0, &i), 0);
 			}
 			for i in 20 .. 30 {
