@@ -15,7 +15,7 @@ consensus = { package = "sp-consensus", git = "https://github.com/paritytech/sub
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.8"
 log = "0.4.11"
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -9,7 +9,7 @@ edition = "2018"
 # note: special care is taken to avoid inclusion of `sp-io` externals when compiling
 # this crate for WASM. This is critical to avoid forcing all parachain WASM into implementing
 # various unnecessary Substrate-specific endpoints.
-parity-scale-codec = { version = "1.3.5", default-features = false, features = [ "derive" ] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = [ "derive" ] }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

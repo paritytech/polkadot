@@ -10,7 +10,7 @@ name = "adder-collator"
 path = "src/main.rs"
 
 [dependencies]
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 futures = "0.3.8"
 futures-timer = "3.0.2"
 log = "0.4.11"
