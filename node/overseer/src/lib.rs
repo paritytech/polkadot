@@ -420,7 +420,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) {
-		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
+		self.send_and_log_error(ToOverseer::SubsystemMessage(msg))
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
