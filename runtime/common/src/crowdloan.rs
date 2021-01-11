@@ -70,12 +70,12 @@ use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure,
 	storage::child, Parameter,
 	traits::{
-		Currency, Get, OnUnbalanced, WithdrawReasons, ExistenceRequirement::AllowDeath
+		Currency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
 	},
 };
 use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
-	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Verify, IdentifyAccount}
+	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded, Verify, IdentifyAccount}
 };
 use crate::slots;
 use parity_scale_codec::{Encode, Decode};
@@ -292,17 +292,12 @@ decl_module! {
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
-			let deposit = T::SubmissionDeposit::get();
-			let transfer = WithdrawReasons::TRANSFER;
-			let imb = T::Currency::withdraw(&owner, deposit, transfer, AllowDeath)?;
-
 			let index = FundCount::get();
 			let next_index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			FundCount::put(next_index);
 
-			// No fees are paid here if we need to create this account; that's why we don't just
-			// use the stock `transfer`.
-			T::Currency::resolve_creating(&Self::fund_account_id(index), imb);
+			let deposit = T::SubmissionDeposit::get();
+			T::Currency::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
+			FundCount::put(next_index);
 
 			<Funds<T>>::insert(index, FundInfo {
 				parachain: None,
@@ -330,7 +325,6 @@ decl_module! {
 			origin,
 			#[compact] index: FundIndex,
 			#[compact] value: BalanceOf<T>,
-			return_to: T::AccountId,
 			signature: Option<T::ContributionSignature>
 		) {
 			let who = ensure_signed(origin)?;
@@ -342,7 +336,7 @@ decl_module! {
 
 			if let Some(ref verifier) = fund.verifier {
 				let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
-				let payload = (index, value, &return_to);
+				let payload = (index, value);
 				let valid = payload.using_encoded(|encoded| signature.verify(encoded, verifier));
 				ensure!(valid, Error::<T>::InvalidSignature);
 			}
@@ -353,9 +347,9 @@ decl_module! {
 
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
-			let balance = Self::contribution_get(index, &return_to);
+			let balance = Self::contribution_get(index, &who);
 			let balance = balance.saturating_add(value);
-			Self::contribution_put(index, &return_to, &balance);
+			Self::contribution_put(index, &who, &balance);
 
 			if <slots::Module<T>>::is_ending(now).is_some() {
 				match fund.last_contribution {
@@ -387,7 +381,7 @@ decl_module! {
 
 			<Funds<T>>::insert(index, &fund);
 
-			Self::deposit_event(RawEvent::Contributed(return_to, index, value));
+			Self::deposit_event(RawEvent::Contributed(who, index, value));
 		}
 
 		/// Set the deploy data of the funded parachain if not already set. Once set, this cannot
@@ -475,8 +469,8 @@ decl_module! {
 
 		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
 		#[weight = 0]
-		fn withdraw(origin, #[compact] index: FundIndex) {
-			let who = ensure_signed(origin)?;
+		fn withdraw(origin, who: T::AccountId, #[compact] index: FundIndex) {
+			let _ = ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			ensure!(fund.parachain.is_none(), Error::<T>::FundNotRetired);
@@ -489,10 +483,8 @@ decl_module! {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			let fund_account = &Self::fund_account_id(index);
-			let transfer = WithdrawReasons::TRANSFER;
-			let imbalance = T::Currency::withdraw(fund_account, balance, transfer, AllowDeath)?;
-			let _ = T::Currency::resolve_into_existing(&who, imbalance);
+			let fund_account = Self::fund_account_id(index);
+			T::Currency::transfer(&fund_account, &who, balance, AllowDeath)?;
 
 			Self::contribution_kill(index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
@@ -521,13 +513,10 @@ decl_module! {
 			match Self::crowdloan_kill(index) {
 				child::KillOutcome::AllRemoved => {
 					let account = Self::fund_account_id(index);
+					T::Currency::transfer(&account, &fund.owner, fund.deposit, AllowDeath)?;
 
-					// Avoid using transfer to ensure we don't pay any fees.
-					let transfer = WithdrawReasons::TRANSFER;
-					let imbalance = T::Currency::withdraw(&account, fund.deposit, transfer, AllowDeath)?;
-					let _ = T::Currency::resolve_into_existing(&fund.owner, imbalance);
-
-					let imbalance = T::Currency::withdraw(&account, fund.raised, transfer, AllowDeath)?;
+					// Remove all other balance from the account into orphaned funds.
+					let (imbalance, _) = T::Currency::slash(&account, BalanceOf::<T>::max_value());
 					T::OrphanedFunds::on_unbalanced(imbalance);
 
 					<Funds<T>>::remove(index);
@@ -917,7 +906,7 @@ mod tests {
 			assert_eq!(Crowdloan::contribution_get(0, &1), 0);
 
 			// User 1 contributes to their own crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, None));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
@@ -939,22 +928,22 @@ mod tests {
 	fn contribute_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot contribute to non-existing fund
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, None), Error::<Test>::InvalidFundIndex);
 			// Cannot contribute below minimum contribution
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 9, 1, None), Error::<Test>::ContributionTooSmall);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 9, None), Error::<Test>::ContributionTooSmall);
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 101, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 101, None));
 
 			// Cannot contribute past the limit
-			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0, 900, 2, None), Error::<Test>::CapExceeded);
+			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0, 900, None), Error::<Test>::CapExceeded);
 
 			// Move past end date
 			run_to_block(10);
 
 			// Cannot contribute to ended fund
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None), Error::<Test>::ContributionPeriodOver);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, None), Error::<Test>::ContributionPeriodOver);
 		});
 	}
 
@@ -1053,7 +1042,7 @@ mod tests {
 			));
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, None));
 
 			run_to_block(10);
 
@@ -1080,7 +1069,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(1), 999);
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, None));
 
 			run_to_block(10);
 
@@ -1127,7 +1116,7 @@ mod tests {
 			));
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, None));
 
 			run_to_block(10);
 
@@ -1170,7 +1159,7 @@ mod tests {
 			));
 
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, 2, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000, None));
 
 			run_to_block(10);
 
@@ -1204,43 +1193,22 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, None));
 
 			// Skip all the way to the end
 			run_to_block(50);
 
-			// User can withdraw their full balance without fees
-			assert_ok!(Crowdloan::withdraw(Origin::signed(1), 0));
+			// Anyone can trigger withdraw of a user's balance without fees
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 1, 0));
 			assert_eq!(Balances::free_balance(1), 999);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 2, 0));
 			assert_eq!(Balances::free_balance(2), 2000);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(3), 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 3, 0));
 			assert_eq!(Balances::free_balance(3), 3000);
-		});
-	}
-
-	#[test]
-	fn withdraw_other_works() {
-		// User will contribute on behalf of another user
-		new_test_ext().execute_with(|| {
-			// Set up a crowdloan
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
-			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 4, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 4, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 4, None));
-
-			// Skip all the way to the end
-			run_to_block(50);
-
-			// User can withdraw their full balance without fees
-			assert_ok!(Crowdloan::withdraw(Origin::signed(4), 0));
-			assert_eq!(Balances::free_balance(4), 4600);
 		});
 	}
 
@@ -1251,20 +1219,20 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, None));
 			assert_eq!(Balances::free_balance(1), 950);
 
 			run_to_block(5);
 
 			// Cannot withdraw before fund ends
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1), 0), Error::<Test>::FundNotEnded);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 1, 0), Error::<Test>::FundNotEnded);
 
 			run_to_block(10);
 
 			// Cannot withdraw if they did not contribute
-			assert_noop!(Crowdloan::withdraw(Origin::signed(2), 0), Error::<Test>::NoContributions);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 0), Error::<Test>::NoContributions);
 			// Cannot withdraw from a non-existent fund
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 1), Error::<Test>::InvalidFundIndex);
 		});
 	}
 
@@ -1275,9 +1243,9 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, None));
 
 			// Skip all the way to the end
 			run_to_block(50);
@@ -1316,7 +1284,7 @@ mod tests {
 			// Add lots of contributors, beyond what we can delete in one go.
 			for i in 0 .. 30 {
 				Balances::make_free_balance_be(&i, 300);
-				assert_ok!(Crowdloan::contribute(Origin::signed(i), 0, 100, i, None));
+				assert_ok!(Crowdloan::contribute(Origin::signed(i), 0, 100, None));
 				assert_eq!(Crowdloan::contribution_get(0, &i), 100);
 			}
 
@@ -1378,9 +1346,9 @@ mod tests {
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, 1, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, 2, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, 3, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300, None));
 
 			// Cannot dissolve an invalid fund index
 			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
@@ -1410,7 +1378,7 @@ mod tests {
 			// Create a crowdloan before an auction is created
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, None));
 			// Users can already contribute
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, None));
 			// Fund added to NewRaise
 			assert_eq!(Crowdloan::new_raise(), vec![0]);
 
@@ -1454,8 +1422,8 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(2), 1000, 1, 4, 30, None));
 
 			// Contribute to all, but more money to 0, less to 1
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 300, 1, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 200, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 300, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 200, None));
 
 			// Add deploy data to all
 			assert_ok!(Crowdloan::fix_deploy_data(
@@ -1487,7 +1455,7 @@ mod tests {
 			// Create a second auction
 			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Contribute to existing funds add to NewRaise
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 10, 1, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 1, 10, None));
 
 			// End the current auction, fund 1 wins!
 			run_to_block(20);
@@ -1545,7 +1513,7 @@ mod benchmarking {
 	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
 		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
-		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, who.clone(), None));
+		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
 	}
 
 	fn worst_validation_code<T: Config>() -> Vec<u8> {
@@ -1627,7 +1595,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, caller.clone(), None)
+		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, None)
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
 			assert!(!NewRaise::get().is_empty());
@@ -1680,11 +1648,12 @@ mod benchmarking {
 		withdraw {
 			let fund_index = create_fund::<T>(100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
-			contribute_fund::<T>(&caller, fund_index);
+			let contributor = account("contributor", 0, 0);
+			contribute_fund::<T>(&contributor, fund_index);
 			frame_system::Module::<T>::set_block_number(200u32.into());
-		}: _(RawOrigin::Signed(caller.clone()), fund_index)
+		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
-			assert_last_event::<T>(RawEvent::Withdrew(caller, fund_index, T::MinContribution::get()).into());
+			assert_last_event::<T>(RawEvent::Withdrew(contributor, fund_index, T::MinContribution::get()).into());
 		}
 
 		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
@@ -1716,7 +1685,7 @@ mod benchmarking {
 				let contributor: T::AccountId = account("contributor", i, 0);
 				let contribution = T::MinContribution::get() * (i + 1).into();
 				T::Currency::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
-				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, Default::default(), None)?;
+				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, None)?;
 			}
 
 			let lease_period_index = end_block / T::LeasePeriod::get();
