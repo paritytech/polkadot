@@ -147,6 +147,129 @@ impl<T> MeteredSender<T> {
 	}
 }
 
+
+pub use unbounded::*;
+
+mod unbounded {
+	use super::*;
+
+	/// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
+	pub fn unbounded<T>(name: &'static str) -> (UnboundedMeteredSender<T>, UnboundedMeteredReceiver<T>) {
+		let (tx, rx) = mpsc::unbounded();
+		let mut shared_meter = Meter::default();
+		shared_meter.name = name;
+		let tx = UnboundedMeteredSender { meter: shared_meter.clone(), inner: tx };
+		let rx = UnboundedMeteredReceiver { meter: shared_meter, inner: rx };
+		(tx, rx)
+	}
+
+	/// A receiver tracking the messages consumed by itself.
+	#[derive(Debug)]
+	pub struct UnboundedMeteredReceiver<T> {
+		// count currently contained messages
+		meter: Meter,
+		inner: mpsc::UnboundedReceiver<T>,
+	}
+
+	impl<T> std::ops::Deref for UnboundedMeteredReceiver<T> {
+		type Target = mpsc::UnboundedReceiver<T>;
+		fn deref(&self) -> &Self::Target {
+			&self.inner
+		}
+	}
+
+	impl<T> std::ops::DerefMut for UnboundedMeteredReceiver<T> {
+		fn deref_mut(&mut self) -> &mut Self::Target {
+			&mut self.inner
+		}
+	}
+
+	impl<T> Stream for UnboundedMeteredReceiver<T> {
+		type Item = T;
+		fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+			match mpsc::UnboundedReceiver::poll_next(Pin::new(&mut self.inner), cx) {
+				Poll::Ready(x) => {
+					// always use Ordering::SeqCst to avoid underflows
+					self.meter.fill.fetch_sub(1, Ordering::SeqCst);
+					Poll::Ready(x)
+				}
+				other => other,
+			}
+		}
+
+		/// Don't rely on the unreliable size hint.
+		fn size_hint(&self) -> (usize, Option<usize>) {
+			self.inner.size_hint()
+		}
+	}
+
+	impl<T> UnboundedMeteredReceiver<T> {
+		/// Get an updated accessor object for all metrics collected.
+		pub fn meter(&self) -> &Meter {
+			&self.meter
+		}
+
+		/// Attempt to receive the next item.
+		pub fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
+			match self.inner.try_next()? {
+				Some(x) => {
+					self.meter.fill.fetch_sub(1, Ordering::SeqCst);
+					Ok(Some(x))
+				}
+				None => Ok(None),
+			}
+		}
+	}
+
+	/// The sender component, tracking the number of items
+	/// sent across it.
+	#[derive(Debug)]
+	pub struct UnboundedMeteredSender<T> {
+		meter: Meter,
+		inner: mpsc::UnboundedSender<T>,
+	}
+
+	impl<T> Clone for UnboundedMeteredSender<T> {
+		fn clone(&self) -> Self {
+			Self {
+				meter: self.meter.clone(),
+				inner: self.inner.clone(),
+			}
+		}
+	}
+
+	impl<T> std::ops::Deref for UnboundedMeteredSender<T> {
+		type Target = mpsc::UnboundedSender<T>;
+		fn deref(&self) -> &Self::Target {
+			&self.inner
+		}
+	}
+
+	impl<T> std::ops::DerefMut for UnboundedMeteredSender<T> {
+		fn deref_mut(&mut self) -> &mut Self::Target {
+			&mut self.inner
+		}
+	}
+
+	impl<T> UnboundedMeteredSender<T> {
+		/// Get an updated accessor object for all metrics collected.
+		pub fn meter(&self) -> &Meter {
+			&self.meter
+		}
+
+		/// Send message, wait until capacity is available.
+		pub async fn send(&mut self, item: T) -> result::Result<(), mpsc::SendError>
+		where
+			Self: Unpin,
+		{
+			self.meter.fill.fetch_add(1, Ordering::SeqCst);
+			let fut = self.inner.send(item);
+			futures::pin_mut!(fut);
+			fut.await
+		}
+	}
+}
+
 /// A peek into the inner state of a meter.
 #[derive(Debug, Clone, Default)]
 pub struct Meter {
@@ -164,6 +287,7 @@ impl Meter {
 		self.fill.load(Ordering::Relaxed)
 	}
 
+	/// Obtain the name of the channel `Sender` and `Receiver` pair.
 	pub fn name(&self) -> &'static str {
 		self.name
 	}

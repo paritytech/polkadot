@@ -71,7 +71,7 @@ use futures::{
 	poll, select,
 	future::BoxFuture,
 	stream::{FuturesUnordered, Fuse},
-	Future, FutureExt, SinkExt, StreamExt,
+	Future, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
 use oorandom::Rand32;
