@@ -550,6 +550,10 @@ where
 
 	*current = view;
 
+	if added.is_empty() {
+		return
+	}
+
 	// only contains the intersection of what we are interested and
 	// the union of all relay parent's candidates.
 	let added_candidates = state.cached_live_candidates_unioned(added.iter());

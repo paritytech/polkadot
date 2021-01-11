@@ -59,12 +59,10 @@ pub const VALIDATION_PROTOCOL_NAME: &'static str = "/polkadot/validation/1";
 /// The protocol name for the collation peer-set.
 pub const COLLATION_PROTOCOL_NAME: &'static str = "/polkadot/collation/1";
 
-const MALFORMED_MESSAGE_COST: ReputationChange
-	= ReputationChange::new(-500, "Malformed Network-bridge message");
-const UNCONNECTED_PEERSET_COST: ReputationChange
-	= ReputationChange::new(-50, "Message sent to un-connected peer-set");
-const MALFORMED_VIEW_COST: ReputationChange
-	= ReputationChange::new(-500, "Malformed view");
+const MALFORMED_MESSAGE_COST: ReputationChange = ReputationChange::new(-500, "Malformed Network-bridge message");
+const UNCONNECTED_PEERSET_COST: ReputationChange = ReputationChange::new(-50, "Message sent to un-connected peer-set");
+const MALFORMED_VIEW_COST: ReputationChange = ReputationChange::new(-500, "Malformed view");
+const EMPTY_VIEW_COST: ReputationChange = ReputationChange::new(-500, "Peer sent us an empty view");
 
 // network bridge log target
 const LOG_TARGET: &'static str = "network_bridge";
@@ -388,7 +386,11 @@ async fn update_our_view(
 	collation_peers: &HashMap<PeerId, PeerData>,
 ) -> SubsystemResult<()> {
 	let new_view = construct_view(live_heads.iter().map(|v| v.0), finalized_number);
-	if *local_view == new_view { return Ok(()) }
+
+	// We only want to send a view update when the heads changed, not when only the finalized block changed.
+	if local_view.heads == new_view.heads {
+		return Ok(())
+	}
 
 	*local_view = new_view.clone();
 
@@ -439,6 +441,13 @@ async fn handle_peer_messages<M>(
 					net.report_peer(
 						peer.clone(),
 						MALFORMED_VIEW_COST,
+					).await?;
+
+					continue
+				} else if new_view.heads.is_empty() {
+					net.report_peer(
+						peer.clone(),
+						EMPTY_VIEW_COST,
 					).await?;
 
 					continue
@@ -923,10 +932,11 @@ mod tests {
 		}
 	}
 
-	// network actions are sensitive to ordering of `PeerId`s within a `HashMap`, so
-	// we need to use this to prevent fragile reliance on peer ordering.
-	fn network_actions_contains(actions: &[NetworkAction], action: &NetworkAction) -> bool {
-		actions.iter().find(|&x| x == action).is_some()
+	/// Assert that the given actions contain the given `action`.
+	fn assert_network_actions_contains(actions: &[NetworkAction], action: &NetworkAction) {
+		if !actions.iter().any(|x| x == action) {
+			panic!("Could not find `{:?}` in `{:?}`", action, actions);
+		}
 	}
 
 	struct TestHarness {
@@ -1035,23 +1045,85 @@ mod tests {
 				view![hash_a]
 			).encode();
 
-			assert!(network_actions_contains(
+			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::WriteNotification(
 					peer_a,
 					PeerSet::Validation,
 					wire_message.clone(),
 				),
-			));
+			);
 
-			assert!(network_actions_contains(
+			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::WriteNotification(
 					peer_b,
 					PeerSet::Validation,
 					wire_message.clone(),
 				),
-			));
+			);
+		});
+	}
+
+	#[test]
+	fn do_not_send_view_update_when_only_finalized_block_changed() {
+		test_harness(|test_harness| async move {
+			let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
+
+			let peer_a = PeerId::random();
+			let peer_b = PeerId::random();
+
+			network_handle.connect_peer(
+				peer_a.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
+			network_handle.connect_peer(
+				peer_b.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
+
+			let hash_a = Hash::repeat_byte(1);
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::BlockFinalized(Hash::random(), 5))).await;
+
+			// Send some empty active leaves update
+			//
+			// This should not trigger a view update to our peers.
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default()))
+			).await;
+
+			// This should trigger the view update to our peers.
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+				))
+			).await;
+
+			let actions = network_handle.next_network_actions(2).await;
+			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+				View { heads: vec![hash_a], finalized_number: 5 }
+			).encode();
+
+			assert_network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer_a,
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
+			);
+
+			assert_network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer_b,
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
+			);
 		});
 	}
 
@@ -1225,14 +1297,14 @@ mod tests {
 				view![hash_a]
 			).encode();
 
-			assert!(network_actions_contains(
+			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::WriteNotification(
 					peer.clone(),
 					PeerSet::Collation,
 					wire_message.clone(),
 				),
-			));
+			);
 		});
 	}
 
@@ -1292,13 +1364,13 @@ mod tests {
 			).await;
 
 			let actions = network_handle.next_network_actions(1).await;
-			assert!(network_actions_contains(
+			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::ReputationChange(
 					peer_a.clone(),
 					UNCONNECTED_PEERSET_COST,
 				),
-			));
+			);
 
 			// peer B has the message relayed.
 
@@ -1402,7 +1474,6 @@ mod tests {
 
 			let hash_a = Hash::repeat_byte(1);
 			let hash_b = Hash::repeat_byte(2);
-			let hash_c = Hash::repeat_byte(3);
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_a, 1))
@@ -1421,39 +1492,14 @@ mod tests {
 				}
 			).encode();
 
-			assert!(network_actions_contains(
+			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::WriteNotification(
 					peer_a.clone(),
 					PeerSet::Validation,
 					wire_message.clone(),
 				),
-			));
-
-			// view updates are issued even when `ActiveLeavesUpdate` is empty
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_c, 3))
-			).await;
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default()))
-			).await;
-
-			let actions = network_handle.next_network_actions(1).await;
-			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View {
-					heads: vec![hash_b],
-					finalized_number: 3,
-				}
-			).encode();
-
-			assert!(network_actions_contains(
-				&actions,
-				&NetworkAction::WriteNotification(
-					peer_a,
-					PeerSet::Validation,
-					wire_message.clone(),
-				),
-			));
+			);
 		});
 	}
 
