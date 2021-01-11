@@ -1285,7 +1285,6 @@ where
 
 		let (to_overseer_tx, to_overseer_rx) = metered::unbounded("to_overseer");
 
-
 		{
 			let meter_from_overseer = events_rx.meter().clone();
 			let meter_to_overseer = to_overseer_rx.meter().clone();
