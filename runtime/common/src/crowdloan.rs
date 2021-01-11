@@ -397,7 +397,7 @@ decl_module! {
 			#[compact] index: FundIndex,
 			#[compact] para_id: ParaId
 		) {
-			let _ = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			let DeployData { code_hash, code_size, initial_head_data }
@@ -423,7 +423,7 @@ decl_module! {
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
 		#[weight = 0]
 		fn begin_retirement(origin, #[compact] index: FundIndex) {
-			let _ = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			let parachain_id = fund.parachain.take().ok_or(Error::<T>::NotParachain)?;
@@ -445,7 +445,7 @@ decl_module! {
 		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
 		#[weight = 0]
 		fn withdraw(origin, who: T::AccountId, #[compact] index: FundIndex) {
-			let _ = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			ensure!(fund.parachain.is_none(), Error::<T>::FundNotRetired);
@@ -474,7 +474,7 @@ decl_module! {
 		/// withdrawn into the treasury.
 		#[weight = 0]
 		fn dissolve(origin, #[compact] index: FundIndex) {
-			let _ = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			ensure!(fund.parachain.is_none(), Error::<T>::HasActiveParachain);
