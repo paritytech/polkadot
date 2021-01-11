@@ -78,6 +78,7 @@ const KEEP_FINALIZED_FOR: Duration = Duration::from_secs(25 * 60 * 60);
 /// The pruning interval.
 const PRUNING_INTERVAL: Duration = Duration::from_secs(60 * 5);
 
+/// Unix time wrapper with big-endian encoding.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 struct BETimestamp(u64);
 
@@ -109,6 +110,7 @@ impl Into<Duration> for BETimestamp {
 	}
 }
 
+/// [`BlockNumber`] wrapper with big-endian encoding.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct BEBlockNumber(BlockNumber);
 
