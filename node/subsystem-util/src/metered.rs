@@ -94,16 +94,10 @@ impl<T> MeteredReceiver<T> {
 
 /// The sender component, tracking the number of items
 /// sent across it.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MeteredSender<T> {
 	meter: Meter,
 	inner: mpsc::Sender<T>,
-}
-
-impl<T> Clone for MeteredSender<T> {
-	fn clone(&self) -> Self {
-		Self { meter: self.meter.clone(), inner: self.inner.clone() }
-	}
 }
 
 impl<T> std::ops::Deref for MeteredSender<T> {
@@ -219,16 +213,10 @@ mod unbounded {
 
 	/// The sender component, tracking the number of items
 	/// sent across it.
-	#[derive(Debug)]
+	#[derive(Debug, Clone)]
 	pub struct UnboundedMeteredSender<T> {
 		meter: Meter,
 		inner: mpsc::UnboundedSender<T>,
-	}
-
-	impl<T> Clone for UnboundedMeteredSender<T> {
-		fn clone(&self) -> Self {
-			Self { meter: self.meter.clone(), inner: self.inner.clone() }
-		}
 	}
 
 	impl<T> std::ops::Deref for UnboundedMeteredSender<T> {
