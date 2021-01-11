@@ -362,13 +362,10 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 	}
 }
 
-impl<T: Config>
-	pallet_session::historical::SessionManager<T::ValidatorId, pallet_staking::Exposure<T::AccountId, BalanceOf<T>>>
-	for Module<T>
-{
+impl<T: Config> pallet_session::historical::SessionManager<T::ValidatorId, ()> for Module<T> {
 	fn new_session(
 		new_index: SessionIndex,
-	) -> Option<Vec<(T::ValidatorId, pallet_staking::Exposure<T::AccountId, BalanceOf<T>>)>> {
+	) -> Option<Vec<(T::ValidatorId, ())>> {
 		<Self as pallet_session::SessionManager<_>>::new_session(new_index)
 			.map(|r| r.into_iter().map(|v| (v, Default::default())).collect())
 	}
