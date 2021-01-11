@@ -25,15 +25,11 @@ use futures::{
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
-use kv_log_macro as log;
 
 use polkadot_primitives::v1::{BlockData, PoV};
 use polkadot_overseer::{Overseer, AllSubsystems};
 
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, DummySubsystem,
-	SpawnedSubsystem, FromOverseer,
-};
+use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage, AllMessages,
 };
@@ -46,13 +42,13 @@ impl Subsystem1 {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
 					if let FromOverseer::Communication { msg } = msg {
-						log::info!("msg {:?}", msg);
+						tracing::info!("msg {:?}", msg);
 					}
 					continue;
 				}
 				Ok(None) => (),
 				Err(_) => {
-					log::info!("exiting");
+					tracing::info!("exiting");
 					return;
 				}
 			}
@@ -68,7 +64,7 @@ impl Subsystem1 {
 					}.into(),
 					tx,
 				)
-			)).await.unwrap();
+			)).await;
 		}
 	}
 }
@@ -76,11 +72,10 @@ impl Subsystem1 {
 impl<C> Subsystem<C> for Subsystem1
 	where C: SubsystemContext<Message=CandidateBackingMessage>
 {
-	type Metrics = (); // no Prometheus metrics
-
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
+			Ok(())
 		});
 
 		SpawnedSubsystem {
@@ -98,7 +93,7 @@ impl Subsystem2 {
 			"subsystem-2-job",
 			Box::pin(async {
 				loop {
-					log::info!("Job tick");
+					tracing::info!("Job tick");
 					Delay::new(Duration::from_secs(1)).await;
 				}
 			}),
@@ -107,12 +102,12 @@ impl Subsystem2 {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					log::info!("Subsystem2 received message {:?}", msg);
+					tracing::info!("Subsystem2 received message {:?}", msg);
 					continue;
 				}
 				Ok(None) => { pending!(); }
 				Err(_) => {
-					log::info!("exiting");
+					tracing::info!("exiting");
 					return;
 				},
 			}
@@ -123,11 +118,10 @@ impl Subsystem2 {
 impl<C> Subsystem<C> for Subsystem2
 	where C: SubsystemContext<Message=CandidateValidationMessage>
 {
-	type Metrics = (); // no Prometheus metrics
-
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
+			Ok(())
 		});
 
 		SpawnedSubsystem {
@@ -145,23 +139,9 @@ fn main() {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
-		let all_subsystems = AllSubsystems {
-			candidate_validation: Subsystem2,
-			candidate_backing: Subsystem1,
-			candidate_selection: DummySubsystem,
-			statement_distribution: DummySubsystem,
-			availability_distribution: DummySubsystem,
-			bitfield_signing: DummySubsystem,
-			bitfield_distribution: DummySubsystem,
-			provisioner: DummySubsystem,
-			pov_distribution: DummySubsystem,
-			runtime_api: DummySubsystem,
-			availability_store: DummySubsystem,
-			network_bridge: DummySubsystem,
-			chain_api: DummySubsystem,
-			collation_generation: DummySubsystem,
-			collator_protocol: DummySubsystem,
-		};
+		let all_subsystems = AllSubsystems::<()>::dummy()
+			.replace_candidate_validation(Subsystem2)
+			.replace_candidate_backing(Subsystem1);
 		let (overseer, _handler) = Overseer::new(
 			vec![],
 			all_subsystems,
@@ -178,7 +158,7 @@ fn main() {
 			select! {
 				_ = overseer_fut => break,
 				_ = timer_stream.next() => {
-					log::info!("tick");
+					tracing::info!("tick");
 				}
 				complete => break,
 			}

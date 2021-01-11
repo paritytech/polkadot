@@ -23,12 +23,16 @@ use std::sync::Arc;
 use polkadot_primitives::v0::{Block, BlockNumber, AccountId, Nonce, Balance, Hash};
 use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
+use sp_block_builder::BlockBuilder;
 use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockChainError};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
+use sp_keystore::SyncCryptoStorePtr;
+use sc_client_api::AuxStore;
 use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
-use sp_block_builder::BlockBuilder;
+use sc_finality_grandpa::FinalityProofProvider;
+use sc_sync_state_rpc::{SyncStateRpcApi, SyncStateRpcHandler};
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
 
 /// A type representing all RPC extensions.
@@ -53,48 +57,53 @@ pub struct BabeDeps {
 	/// BABE pending epoch changes.
 	pub shared_epoch_changes: sc_consensus_epochs::SharedEpochChanges<Block, Epoch>,
 	/// The keystore that manages the keys of the node.
-	pub keystore: sc_keystore::KeyStorePtr,
+	pub keystore: SyncCryptoStorePtr,
 }
 
 /// Dependencies for GRANDPA
-pub struct GrandpaDeps {
+pub struct GrandpaDeps<B> {
 	/// Voting round info.
 	pub shared_voter_state: sc_finality_grandpa::SharedVoterState,
 	/// Authority set info.
 	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
 	/// Receives notifications about justification events from Grandpa.
 	pub justification_stream: sc_finality_grandpa::GrandpaJustificationStream<Block>,
-	/// Subscription manager to keep track of pubsub subscribers.
+	/// Executor to drive the subscription manager in the Grandpa RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
+	/// Finality proof provider.
+	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
 /// Full client dependencies
-pub struct FullDeps<C, P, SC> {
+pub struct FullDeps<C, P, SC, B> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
 	pub pool: Arc<P>,
 	/// The SelectChain Strategy
 	pub select_chain: SC,
+	/// A copy of the chain spec.
+	pub chain_spec: Box<dyn sc_chain_spec::ChainSpec>,
 	/// Whether to deny unsafe calls
 	pub deny_unsafe: DenyUnsafe,
 	/// BABE specific dependencies.
 	pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
-	pub grandpa: GrandpaDeps,
+	pub grandpa: GrandpaDeps<B>,
 }
 
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
-	C: ProvideRuntimeApi<Block>,
-	C: HeaderBackend<Block> + HeaderMetadata<Block, Error=BlockChainError>,
-	C: Send + Sync + 'static,
+pub fn create_full<C, P, SC, B>(deps: FullDeps<C, P, SC, B>) -> RpcExtension where
+	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore +
+		HeaderMetadata<Block, Error=BlockChainError> + Send + Sync + 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	P: TransactionPool + Sync + Send + 'static,
 	SC: SelectChain<Block> + 'static,
+	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
+	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
@@ -106,6 +115,7 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 		client,
 		pool,
 		select_chain,
+		chain_spec,
 		deny_unsafe,
 		babe,
 		grandpa,
@@ -120,6 +130,7 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 		shared_authority_set,
 		justification_stream,
 		subscription_executor,
+		finality_provider,
 	} = grandpa;
 
 	io.extend_with(
@@ -131,8 +142,8 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	io.extend_with(
 		sc_consensus_babe_rpc::BabeApi::to_delegate(
 			BabeRpcHandler::new(
-				client,
-				shared_epoch_changes,
+				client.clone(),
+				shared_epoch_changes.clone(),
 				keystore,
 				babe_config,
 				select_chain,
@@ -142,10 +153,20 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	);
 	io.extend_with(
 		GrandpaApi::to_delegate(GrandpaRpcHandler::new(
-			shared_authority_set,
+			shared_authority_set.clone(),
 			shared_voter_state,
 			justification_stream,
 			subscription_executor,
+			finality_provider,
+		))
+	);
+	io.extend_with(
+		SyncStateRpcApi::to_delegate(SyncStateRpcHandler::new(
+			chain_spec,
+			client,
+			shared_authority_set,
+			shared_epoch_changes,
+			deny_unsafe,
 		))
 	);
 	io

@@ -26,20 +26,28 @@ The downward message queue doesn't have a cap on its size and it is up to the re
 that prevent spamming in place.
 
 Upward Message Passing (UMP) is a mechanism responsible for delivering messages in the opposite direction:
-from a parachain up to the relay chain. Upward messages can serve different purposes and can be of different
- kinds.
+from a parachain up to the relay chain. Upward messages are essentially byte blobs. However, they are interpreted
+by the relay-chain according to the XCM standard.
 
-One kind of message is `Dispatchable`. They could be thought of similarly to extrinsics sent to a relay chain: they also
-invoke exposed runtime entrypoints, they consume weight and require fees. The difference is that they originate from
-a parachain. Each parachain has a queue of dispatchables to be executed. There can be only so many dispatchables at a time.
+The XCM standard is a common vocabulary of messages. The XCM standard doesn't require a particular interpretation of
+a message. However, the parachains host (e.g. Polkadot) guarantees certain semantics for those.
+
+Moreover, while most XCM messages are handled by the on-chain XCM interpreter, some of the messages are special
+cased. Specifically, those messages can be checked during the acceptance criteria and thus invalid
+messages would lead to rejecting the candidate itself.
+
+One kind of such a message is `Xcm::Transact`. This upward message can be seen as a way for a parachain
+to execute arbitrary entrypoints on the relay-chain. `Xcm::Transact` messages resemble regular extrinsics with the exception that they
+originate from a parachain.
+
+The payload of `Xcm::Transact` messages is referred as to `Dispatchable`. When a candidate with such a message is enacted
+the dispatchables are put into a queue corresponding to the parachain. There can be only so many dispatchables in that queue at once.
 The weight that processing of the dispatchables can consume is limited by a preconfigured value. Therefore, it is possible
 that some dispatchables will be left for later blocks. To make the dispatching more fair, the queues are processed turn-by-turn
 in a round robin fashion.
 
-Upward messages are also used by a parachain to request opening and closing HRMP channels (HRMP will be described below).
-
-Other kinds of upward messages can be introduced in the future as well. Potential candidates are
-new validation code signalling, or other requests to the relay chain.
+The second category of special cased XCM messages are for horizontal messaging channel management,
+namely messages meant to request opening and closing HRMP channels (HRMP will be described below).
 
 ## Horizontal Message Passing
 

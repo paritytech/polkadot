@@ -1,21 +1,46 @@
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! The proposer proposes new blocks to include
+
+#![deny(unused_crate_dependencies, unused_results)]
+
 use futures::prelude::*;
 use futures::select;
-use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError,
+};
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sp_core::traits::SpawnNamed;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{Proposal, RecordProof};
 use sp_inherents::InherentData;
 use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
+use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
 /// How long proposal can take before we give up and err out
-const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_secs(2);
+const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(2500);
 
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {
@@ -25,15 +50,18 @@ pub struct ProposerFactory<TxPool, Backend, Client> {
 
 impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 	pub fn new(
+		spawn_handle: impl SpawnNamed + 'static,
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
+		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
+				spawn_handle,
 				client,
 				transaction_pool,
-				None,
+				prometheus,
 			),
 			overseer,
 		}
@@ -70,11 +98,13 @@ where
 		// data to be moved into the future
 		let overseer = self.overseer.clone();
 		let parent_header_hash = parent_header.hash();
+		let parent_header = parent_header.clone();
 
 		async move {
 			Ok(Proposer {
 				inner: proposer?,
 				overseer,
+				parent_header,
 				parent_header_hash,
 			})
 		}.boxed()
@@ -88,6 +118,7 @@ where
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
 	overseer: OverseerHandler,
+	parent_header: Header,
 	parent_header_hash: Hash,
 }
 
@@ -111,38 +142,29 @@ where
 	/// Get provisioner inherent data
 	///
 	/// This function has a constant timeout: `PROPOSE_TIMEOUT`.
-	fn get_provisioner_data(&self) -> impl Future<Output = Result<ProvisionerInherentData, Error>> {
+	async fn get_provisioner_data(&self) -> Result<ProvisionerInherentData, Error> {
 		// clone this (lightweight) data because we're going to move it into the future
 		let mut overseer = self.overseer.clone();
 		let parent_header_hash = self.parent_header_hash.clone();
 
-		let mut provisioner_inherent_data = async move {
+		let pid = async {
 			let (sender, receiver) = futures::channel::oneshot::channel();
-
-			overseer.wait_for_activation(parent_header_hash, sender).await?;
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)?;
+			overseer.wait_for_activation(parent_header_hash, sender).await;
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
-			// strictly speaking, we don't _have_ to .await this send_msg before opening the
-			// receiver; it's possible that the response there would be ready slightly before
-			// this call completes. IMO it's not worth the hassle or overhead of spawning a
-			// distinct task for that kind of miniscule efficiency improvement.
 			overseer.send_msg(AllMessages::Provisioner(
 				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-			)).await?;
+			)).await;
 
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)
-		}
-		.boxed()
-		.fuse();
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingInherentData)
+		};
 
-		let mut timeout = wasm_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
+		let mut timeout = futures_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
 
-		async move {
-			select! {
-				pid = provisioner_inherent_data => pid,
-				_ = timeout => Err(Error::Timeout),
-			}
+		select! {
+			pid = pid.fuse() => pid,
+			_ = timeout => Err(Error::Timeout),
 		}
 	}
 }
@@ -176,22 +198,31 @@ where
 		max_duration: time::Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
-		let provisioner_data = self.get_provisioner_data();
-
 		async move {
-			let provisioner_data = match provisioner_data.await {
+			let span = jaeger::hash_span(&self.parent_header_hash, "propose");
+			let _span = span.child("get-provisioner");
+
+			let provisioner_data = match self.get_provisioner_data().await {
 				Ok(pd) => pd,
 				Err(err) => {
-					log::warn!("could not get provisioner inherent data; injecting default data: {}", err);
+					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
 					Default::default()
 				}
 			};
 
+			drop(_span);
+
+			let inclusion_inherent_data = (
+				provisioner_data.0,
+				provisioner_data.1,
+				self.parent_header,
+			);
 			inherent_data.put_data(
 				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
-				&provisioner_data,
+				&inclusion_inherent_data,
 			)?;
 
+			let _span = span.child("authorship-propose");
 			self.inner
 				.propose(inherent_data, inherent_digests, max_duration, record_proof)
 				.await
@@ -203,7 +234,7 @@ where
 
 // It would have been more ergonomic to use thiserror to derive the
 // From implementations, Display, and std::error::Error, but unfortunately
-// two of the wrapped errors (sp_inherents::Error, SubsystemError) also
+// one of the wrapped errors (sp_inherents::Error) also
 // don't impl std::error::Error, which breaks the thiserror derive.
 #[derive(Debug)]
 pub enum Error {
@@ -211,7 +242,8 @@ pub enum Error {
 	Blockchain(sp_blockchain::Error),
 	Inherent(sp_inherents::Error),
 	Timeout,
-	ClosedChannelFromProvisioner(futures::channel::oneshot::Canceled),
+	ClosedChannelAwaitingActivation,
+	ClosedChannelAwaitingInherentData,
 	Subsystem(SubsystemError)
 }
 
@@ -246,7 +278,8 @@ impl fmt::Display for Error {
 			Self::Blockchain(err) => write!(f, "blockchain error: {}", err),
 			Self::Inherent(err) => write!(f, "inherent error: {:?}", err),
 			Self::Timeout => write!(f, "timeout: provisioner did not return inherent data after {:?}", PROPOSE_TIMEOUT),
-			Self::ClosedChannelFromProvisioner(err) => write!(f, "provisioner closed inherent data channel before sending: {}", err),
+			Self::ClosedChannelAwaitingActivation => write!(f, "closed channel from overseer when awaiting activation"),
+			Self::ClosedChannelAwaitingInherentData => write!(f, "closed channel from provisioner when awaiting inherent data"),
 			Self::Subsystem(err) => write!(f, "subsystem error: {:?}", err),
 		}
 	}
@@ -257,7 +290,7 @@ impl std::error::Error for Error {
 		match self {
 			Self::Consensus(err) => Some(err),
 			Self::Blockchain(err) => Some(err),
-			Self::ClosedChannelFromProvisioner(err) => Some(err),
+			Self::Subsystem(err) => Some(err),
 			_ => None
 		}
 	}

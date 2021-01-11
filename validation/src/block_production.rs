@@ -28,6 +28,7 @@ use std::{
 use sp_blockchain::HeaderBackend;
 use block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use consensus::{Proposal, RecordProof};
+use primitives::traits::SpawnNamed;
 use polkadot_primitives::v0::{NEW_HEADS_IDENTIFIER, Block, Header, AttestedCandidate};
 use runtime_primitives::traits::{DigestFor, HashFor};
 use txpool_api::TransactionPool;
@@ -47,11 +48,13 @@ pub struct ProposerFactory<Client, TxPool, Backend> {
 impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 	/// Create a new proposer factory.
 	pub fn new(
+		spawn_handle: Box<dyn SpawnNamed>,
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		let factory = sc_basic_authorship::ProposerFactory::new(
+			spawn_handle,
 			client,
 			transaction_pool,
 			prometheus,

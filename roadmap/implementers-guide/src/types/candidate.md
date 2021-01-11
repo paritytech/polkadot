@@ -80,6 +80,8 @@ struct CandidateDescriptor {
 	persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
+	/// The root of a block's erasure encoding Merkle tree.
+	erasure_root: Hash,
 	/// Signature on blake2-256 of components of this receipt:
 	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
 	signature: CollatorSignature,
@@ -125,6 +127,8 @@ struct PersistedValidationData {
 	parent_head: HeadData,
 	/// The relay-chain block number this is in the context of. This informs the collator.
 	block_number: BlockNumber,
+	/// The relay-chain block storage root this is in the context of.
+	relay_storage_root: Hash,
 	/// The MQC head for the DMQ.
 	///
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
@@ -247,14 +251,10 @@ The execution and validation of parachain or parathread candidates produces a nu
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 struct CandidateCommitments {
-	/// Fees paid from the chain to the relay chain validators.
-	fees: Balance,
 	/// Messages directed to other paras routed via the relay chain.
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	upward_messages: Vec<UpwardMessage>,
-	/// The root of a block's erasure encoding Merkle tree.
-	erasure_root: Hash,
 	/// New validation code.
 	new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
@@ -276,30 +276,5 @@ struct SigningContext {
 	parent_hash: Hash,
 	/// The session index this signature is in the context of.
 	session_index: SessionIndex,
-}
-```
-
-## Validation Outputs
-
-This struct encapsulates the outputs of candidate validation.
-
-```rust
-struct ValidationOutputs {
-	/// The head-data produced by validation.
-	head_data: HeadData,
-	/// The validation data, persisted.
-	validation_data: PersistedValidationData,
-	/// Messages directed to other paras routed via the relay chain.
-	horizontal_messages: Vec<OutboundHrmpMessage>,
-	/// Upwards messages to the relay chain.
-	upwards_messages: Vec<UpwardsMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	fees: Balance,
-	/// The new validation code submitted by the execution, if any.
-	new_validation_code: Option<ValidationCode>,
-	/// The number of messages processed from the DMQ.
-	processed_downward_messages: u32,
-	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
-	hrmp_watermark: BlockNumber,
 }
 ```

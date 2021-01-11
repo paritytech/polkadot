@@ -69,7 +69,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, frame_system::MaximumBlockWeight]
+	///   - [0, MAXIMUM_BLOCK_WEIGHT]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
@@ -95,16 +95,16 @@ pub mod fee {
 #[cfg(test)]
 mod tests {
 	use frame_support::weights::WeightToFeePolynomial;
-	use runtime_common::{MaximumBlockWeight, ExtrinsicBaseWeight};
+	use runtime_common::{MAXIMUM_BLOCK_WEIGHT, ExtrinsicBaseWeight};
 	use super::fee::WeightToFee;
 	use super::currency::{CENTS, DOLLARS, MILLICENTS};
 
 	#[test]
-	// This function tests that the fee for `MaximumBlockWeight` of weight is correct
+	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
 	fn full_block_fee_is_correct() {
 		// A full block should cost 16 DOLLARS
 		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&MaximumBlockWeight::get());
+		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
 		let y = 16 * DOLLARS;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}

@@ -15,13 +15,32 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
-#[cfg(not(feature = "service-rewr"))]
 use service::{IdentifyVariant, self};
-#[cfg(feature = "service-rewr")]
-use service_new::{IdentifyVariant, self as service};
-use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
+use sc_cli::{SubstrateCli, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
-use std::sync::Arc;
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+	#[error(transparent)]
+	PolkadotService(#[from] service::Error),
+
+	#[error(transparent)]
+	SubstrateCli(#[from] sc_cli::Error),
+
+	#[error(transparent)]
+	SubstrateService(#[from] sc_service::Error),
+
+	#[error("Other: {0}")]
+	Other(String),
+}
+
+impl std::convert::From<String> for Error {
+	fn from(s: String) -> Self {
+		Self::Other(s)
+	}
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 fn get_exec_name() -> Option<String> {
 	std::env::current_exe()
@@ -48,7 +67,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
 			let n = get_exec_name().unwrap_or_default();
-			["polkadot", "kusama", "westend"].iter()
+			["polkadot", "kusama", "westend", "rococo"].iter()
 				.cloned()
 				.find(|&chain| n.starts_with(chain))
 				.unwrap_or("polkadot")
@@ -66,6 +85,9 @@ impl SubstrateCli for Cli {
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
+			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
+			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
+			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -75,7 +97,9 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_kusama || starts_with("kusama") {
+				if self.run.force_rococo || starts_with("rococo") {
+					Box::new(service::RococoChainSpec::from_json_file(path)?)
+				} else if self.run.force_kusama || starts_with("kusama") {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
 				} else if self.run.force_westend || starts_with("westend") {
 					Box::new(service::WestendChainSpec::from_json_file(path)?)
@@ -91,6 +115,8 @@ impl SubstrateCli for Cli {
 			&service::kusama_runtime::VERSION
 		} else if spec.is_westend() {
 			&service::westend_runtime::VERSION
+		} else if spec.is_rococo() {
+			&service::rococo_runtime::VERSION
 		} else {
 			&service::polkadot_runtime::VERSION
 		}
@@ -122,7 +148,6 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -137,56 +162,29 @@ pub fn run() -> Result<()> {
 				info!("----------------------------");
 			}
 
-			runner.run_node_until_exit(|config| {
+			let jaeger_agent = cli.run.jaeger_agent;
+
+			Ok(runner.run_node_until_exit(move |config| async move {
 				let role = config.role.clone();
 
-				match role {
-					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+				let task_manager = match role {
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager)
+					.map_err(|e| sc_service::Error::Other(e.to_string())),
 					_ => service::build_full(
 						config,
-						None,
-						authority_discovery_enabled,
+						service::IsCollator::No,
 						grandpa_pause,
-					).map(|r| r.0),
-				}
-			})
+						jaeger_agent,
+					).map(|full| full.task_manager)
+					.map_err(|e| sc_service::Error::Other(e.to_string()) )
+				};
+				task_manager
+			}).map_err(|e| -> sc_cli::Error { e.into() })?)
+
 		},
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
-		},
-		Some(Subcommand::BuildSyncSpec(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
-
-			set_default_ss58_version(chain_spec);
-
-			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
-			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
-				None
-			} else {
-				Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
-			};
-
-			if chain_spec.is_kusama() {
-				info!("----------------------------");
-				info!("This chain is not in any way");
-				info!("      endorsed by the       ");
-				info!("     KUSAMA FOUNDATION      ");
-				info!("----------------------------");
-			}
-
-			runner.async_run(|config| {
-				let chain_spec = config.chain_spec.cloned_box();
-				let network_config = config.network.clone();
-				let service::NewFull { task_manager, client, network_status_sinks, .. }
-					= service::new_full_nongeneric(
-						config, None, authority_discovery_enabled, grandpa_pause, false,
-					)?;
-				let client = Arc::new(client);
-
-				Ok((cmd.run(chain_spec, network_config, client, network_status_sinks), task_manager))
-			})
+			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
 		},
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -195,7 +193,8 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -206,7 +205,8 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
@@ -217,7 +217,8 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
@@ -228,13 +229,15 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
 		Some(Subcommand::PurgeChain(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.sync_run(|config| cmd.run(config.database))
+			Ok(runner.sync_run(|config| cmd.run(config.database))
+				.map_err(|e| sc_service::Error::Other(e.to_string()))?)
 		},
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -243,18 +246,27 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config)?;
+				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)
+					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
 				Ok((cmd.run(client, backend), task_manager))
 			})
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-			sc_cli::init_logger("");
+			let _ = sc_cli::init_logger(
+				sc_cli::InitLoggerParams {
+					pattern: "".into(),
+					tracing_receiver: Default::default(),
+					tracing_targets: None,
+					disable_log_reloading: false,
+					disable_log_color: true,
+				},
+			);
 
-			if cfg!(feature = "browser") {
+			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
-				#[cfg(all(not(feature = "browser"), not(feature = "service-rewr")))]
-				service::run_validation_worker(&cmd.mem_id)?;
+				#[cfg(not(any(target_os = "android", feature = "browser")))]
+				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
 				Ok(())
 			}
 		},
@@ -268,5 +280,7 @@ pub fn run() -> Result<()> {
 				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 			})
 		},
-	}
+		Some(Subcommand::Key(cmd)) => cmd.run(&cli),
+	}?;
+	Ok(())
 }

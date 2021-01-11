@@ -39,7 +39,7 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 ### On Receiving `CandidateBackingMessage`
 
 * If the message is a [`CandidateBackingMessage`][CBM]`::GetBackedCandidates`, get all backable candidates from the statement table and send them back.
-* If the message is a [`CandidateBackingMessage`][CBM]`::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request.
+* If the message is a [`CandidateBackingMessage`][CBM]`::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request. After successfully dispatching the `Seconded` statement we have to distribute the PoV.
 * If the message is a [`CandidateBackingMessage`][CBM]`::Statement`, count the statement to the quorum. If the statement in the message is `Seconded` and it contains a candidate that belongs to our assignment, request the corresponding `PoV` from the `PoVDistribution` and launch validation. Issue our own `Valid` or `Invalid` statement as a result.
 
 > big TODO: "contextual execution"
@@ -67,26 +67,28 @@ The goal of a Candidate Backing Job is to produce as many backable candidates as
 
 ```rust
 match msg {
-  CetBackedCandidates(hash, tx) => {
+  GetBackedCandidates(hashes, tx) => {
     // Send back a set of backable candidates.
   }
   CandidateBackingMessage::Second(hash, candidate) => {
     if candidate is unknown and in local assignment {
-      spawn_validation_work(candidate, parachain head, validation function)
+      if spawn_validation_work(candidate, parachain head, validation function).await == Valid {
+        send(DistributePoV(pov))
+      }
     }
   }
   CandidateBackingMessage::Statement(hash, statement) => {
     // count to the votes on this candidate
-	if let Statement::Seconded(candidate) = statement {
-	  if candidate.parachain_id == our_assignment {
-	    spawn_validation_work(candidate, parachain head, validation function)
-	  }
-	}
+    if let Statement::Seconded(candidate) = statement {
+      if candidate.parachain_id == our_assignment {
+        spawn_validation_work(candidate, parachain head, validation function)
+      }
+    }
   }
 }
 ```
 
-Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(BackedCandidate))` message.
+Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(CandidateReceipt))` message.
 `Invalid` statements that conflict with already witnessed `Seconded` and `Valid` statements for the given candidate, statements that are double-votes, self-contradictions and so on, should result in issuing a [`ProvisionerMessage`][PM]`::MisbehaviorReport` message for each newly detected case of this kind.
 
 ### Validating Candidates.
@@ -110,14 +112,18 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
 ### Fetch Pov Block
 
 Create a `(sender, receiver)` pair.
-Dispatch a [`PoVDistributionMessage`][PDM]`::FecthPoV(relay_parent, candidate_hash, sender)` and listen on the receiver for a response.
+Dispatch a [`PoVDistributionMessage`][PDM]`::FetchPoV(relay_parent, candidate_hash, sender)` and listen on the receiver for a response.
+
+### Distribute Pov Block
+
+Dispatch a [`PoVDistributionMessage`][PDM]`::DistributePoV(relay_parent, candidate_descriptor, pov)`.
 
 ### Validate PoV Block
 
 Create a `(sender, receiver)` pair.
 Dispatch a `CandidateValidationMessage::Validate(validation function, candidate, pov, sender)` and listen on the receiver for a response.
 
-### Distribute Signed Statemnet
+### Distribute Signed Statement
 
 Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFullStatement)`.
 

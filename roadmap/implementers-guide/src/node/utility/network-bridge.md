@@ -61,6 +61,10 @@ The `activated` and `deactivated` lists determine the evolution of our local vie
 
 If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.
 
+### Overseer Signal: BlockFinalized
+
+We update our view's `finalized_number` to the provided one and delay `ProtocolMessage::ViewUpdate` and `NetworkBridgeEvent::OurViewChange` till the next `ActiveLeavesUpdate`.
+
 ### Network Event: Peer Connected
 
 Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer.
@@ -82,11 +86,11 @@ Map the message onto the corresponding [Event Handler](#event-handlers) based on
 
 - Adjust peer reputation according to cost or benefit provided
 
-### SendValidationMessage
+### SendValidationMessage / SendValidationMessages
 
 - Issue a corresponding `ProtocolMessage` to each listed peer on the validation peer-set.
 
-### SendCollationMessage
+### SendCollationMessage / SendCollationMessages
 
 - Issue a corresponding `ProtocolMessage` to each listed peer on the collation peer-set.
 
@@ -94,8 +98,8 @@ Map the message onto the corresponding [Event Handler](#event-handlers) based on
 
 - Determine the DHT keys to use for each validator based on the relay-chain state and Runtime API.
 - Recover the Peer IDs of the validators from the DHT. There may be more than one peer ID per validator.
-- Accumulate all `(ValidatorId, PeerId)` pairs and send on the response channel.
-- Feed all Peer IDs to peer set manager the underlying network provides, indicating the expected peer-set.
+- Send all `(ValidatorId, PeerId)` pairs on the response channel.
+- Feed all Peer IDs to peer set manager the underlying network provides.
 
 ## Event Handlers
 

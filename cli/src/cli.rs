@@ -24,9 +24,6 @@ pub enum Subcommand {
 	/// Build a chain specification.
 	BuildSpec(sc_cli::BuildSpecCmd),
 
-	/// Build a chain specification with a light client sync state.
-	BuildSyncSpec(sc_cli::BuildSyncSpecCmd),
-
 	/// Validate blocks.
 	CheckBlock(sc_cli::CheckBlockCmd),
 
@@ -55,6 +52,9 @@ pub enum Subcommand {
 		about = "Benchmark runtime pallets."
 	)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	/// Key management cli utilities
+	Key(sc_cli::KeySubcommand),
 }
 
 #[allow(missing_docs)]
@@ -79,19 +79,9 @@ pub struct RunCmd {
 	#[structopt(long = "force-westend")]
 	pub force_westend: bool,
 
-	/// Enable the authority discovery module on validator or sentry nodes.
-	///
-	/// When enabled:
-	///
-	/// (1) As a validator node: Make oneself discoverable by publishing either
-	///     ones own network addresses, or the ones of ones sentry nodes
-	///     (configured via the `sentry-nodes` flag).
-	///
-	/// (2) As a validator or sentry node: Discover addresses of validators or
-	///     addresses of their sentry nodes and maintain a permanent connection
-	///     to a subset.
-	#[structopt(long = "enable-authority-discovery")]
-	pub authority_discovery_enabled: bool,
+	/// Force using Rococo native runtime.
+	#[structopt(long = "force-rococo")]
+	pub force_rococo: bool,
 
 	/// Setup a GRANDPA scheduled voting pause.
 	///
@@ -101,6 +91,13 @@ pub struct RunCmd {
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
+
+	/// Add the destination address to the jaeger agent.
+	///
+	/// Must be valid socket address, of format `IP:Port`
+	/// commonly `127.0.0.1:6831`.
+	#[structopt(long)]
+	pub jaeger_agent: Option<std::net::SocketAddr>,
 }
 
 #[allow(missing_docs)]
@@ -108,7 +105,6 @@ pub struct RunCmd {
 pub struct Cli {
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
-
 	#[structopt(flatten)]
 	pub run: RunCmd,
 }

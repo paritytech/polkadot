@@ -24,12 +24,13 @@
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::v0::{self, Hash as H256, BlakeTwo256, HashT};
 use primitives::v1;
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
+use thiserror::Error;
 
 use self::wrapped_shard::WrappedShard;
 
@@ -39,34 +40,42 @@ mod wrapped_shard;
 const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
 
 /// Errors in erasure coding.
-#[derive(Debug, Clone, PartialEq, derive_more::Display)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum Error {
 	/// Returned when there are too many validators.
+	#[error("There are too many validators")]
 	TooManyValidators,
-	/// Cannot encode something for no validators
-	EmptyValidators,
+	/// Cannot encode something for zero or one validator
+	#[error("Expected at least 2 validators")]
+	NotEnoughValidators,
 	/// Cannot reconstruct: wrong number of validators.
+	#[error("Validator count mismatches between encoding and decoding")]
 	WrongValidatorCount,
 	/// Not enough chunks present.
+	#[error("Not enough chunks to reconstruct message")]
 	NotEnoughChunks,
 	/// Too many chunks present.
+	#[error("Too many chunks present")]
 	TooManyChunks,
 	/// Chunks not of uniform length or the chunks are empty.
+	#[error("Chunks are not unform, mismatch in length or are zero sized")]
 	NonUniformChunks,
 	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
+	#[error("Uneven length is not valid for field GF(2^16)")]
 	UnevenLength,
 	/// Chunk index out of bounds.
-	#[display(fmt = "Chunk is out of bounds: {} {}", _0, _1)]
-	ChunkIndexOutOfBounds(usize, usize),
+	#[error("Chunk is out of bounds: {chunk_index} not included in 0..{n_validators}")]
+	ChunkIndexOutOfBounds{ chunk_index: usize, n_validators: usize },
 	/// Bad payload in reconstructed bytes.
+	#[error("Reconstructed payload invalid")]
 	BadPayload,
 	/// Invalid branch proof.
+	#[error("Invalid branch proof")]
 	InvalidBranchProof,
 	/// Branch out of bounds.
+	#[error("Branch is out of bounds")]
 	BranchOutOfBounds,
 }
-
-impl std::error::Error for Error { }
 
 #[derive(Debug, PartialEq)]
 struct CodeParams {
@@ -110,18 +119,31 @@ impl CodeParams {
 			.expect("this struct is not created with invalid shard number; qed")
 	}
 }
+/// Returns the maximum number of allowed, faulty chunks
+/// which does not prevent recovery given all other pieces
+/// are correct.
+const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
+	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
+	if n_validators <= 1 { return Err(Error::NotEnoughValidators) }
+
+	Ok(n_validators.saturating_sub(1) / 3)
+}
 
 fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
-	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
-	if n_validators == 0 { return Err(Error::EmptyValidators) }
-
-	let n_faulty = n_validators.saturating_sub(1) / 3;
+	let n_faulty = n_faulty(n_validators)?;
 	let n_good = n_validators - n_faulty;
 
 	Ok(CodeParams {
 		data_shards: n_faulty + 1,
 		parity_shards: n_good - 1,
 	})
+}
+
+/// Obtain a threshold of chunks that should be enough to recover the data.
+pub fn recovery_threshold(n_validators: usize) -> Result<usize, Error> {
+	let n_faulty = n_faulty(n_validators)?;
+
+	Ok(n_faulty + 1)
 }
 
 /// Obtain erasure-coded chunks for v0 `AvailableData`, one for each validator.
@@ -206,7 +228,7 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 	let mut shard_len = None;
 	for (chunk_data, chunk_idx) in chunks.into_iter().take(n_validators) {
 		if chunk_idx >= n_validators {
-			return Err(Error::ChunkIndexOutOfBounds(chunk_idx, n_validators));
+			return Err(Error::ChunkIndexOutOfBounds{ chunk_index: chunk_idx, n_validators });
 		}
 
 		let shard_len = shard_len.get_or_insert_with(|| chunk_data.len());
@@ -343,12 +365,12 @@ struct ShardInput<'a, I> {
 	cur_shard: Option<(&'a [u8], usize)>,
 }
 
-impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
+impl<'a, I: Iterator<Item=&'a [u8]>> parity_scale_codec::Input for ShardInput<'a, I> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
 		Ok(Some(self.remaining_len))
 	}
 
-	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
+	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
 		let mut read_bytes = 0;
 
 		loop {
@@ -397,12 +419,9 @@ mod tests {
 
 	#[test]
 	fn test_code_params() {
-		assert_eq!(code_params(0), Err(Error::EmptyValidators));
+		assert_eq!(code_params(0), Err(Error::NotEnoughValidators));
 
-		assert_eq!(code_params(1), Ok(CodeParams {
-			data_shards: 1,
-			parity_shards: 0,
-		}));
+		assert_eq!(code_params(1), Err(Error::NotEnoughValidators));
 
 		assert_eq!(code_params(2), Ok(CodeParams {
 			data_shards: 1,
@@ -476,6 +495,15 @@ mod tests {
 		).unwrap();
 
 		assert_eq!(reconstructed, available_data);
+	}
+
+	#[test]
+	fn reconstruct_does_not_panic_on_low_validator_count() {
+		let reconstructed = reconstruct_v1(
+			1,
+			[].iter().cloned(),
+		);
+		assert_eq!(reconstructed, Err(Error::NotEnoughValidators));
 	}
 
 	#[test]

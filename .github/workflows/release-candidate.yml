@@ -1,0 +1,57 @@
+name: Release-candidate automation
+on:
+  push:
+    branches:
+      - release-v[0-9]+.[0-9]+.[0-9]+
+jobs:
+  tag_rc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - id: compute_tag
+        name: Compute next rc tag
+        shell: bash
+        run: |
+          # Get last rc tag if exists, else set it to {version}-rc1
+          version=${GITHUB_REF#refs/heads/release-}
+          echo "$version"
+          echo "::set-output name=version::$version"
+          git tag -l
+          last_rc=$(git tag -l "$version-rc*" | sort -V | tail -n 1)
+          if [ -n "$last_rc" ]; then
+            suffix=$(echo "$last_rc" | grep -Eo '[0-9]+$')
+            echo $suffix
+            ((suffix++))
+            echo $suffix
+            echo "::set-output name=new_tag::$version-rc$suffix"
+            echo "::set-output name=first_rc::false"
+          else
+            echo "::set-output name=new_tag::$version-rc1"
+            echo "::set-output name=first_rc::true"
+          fi
+      - name: Apply new tag
+        uses: tvdias/github-tagger@v0.0.2
+        with:
+          # We can't use the normal GITHUB_TOKEN for the following reason:
+          # https://docs.github.com/en/actions/reference/events-that-trigger-workflows#triggering-new-workflows-using-a-personal-access-token
+          # RELEASE_BRANCH_TOKEN requires public_repo OAuth scope
+          repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
+          tag: ${{ steps.compute_tag.outputs.new_tag }}
+      - id: create-issue
+        uses: JasonEtco/create-an-issue@v2
+        # Only create the issue if it's the first release candidate
+        if: steps.compute_tag.outputs.first_rc == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.compute_tag.outputs.version }}
+        with:
+          filename: .github/ISSUE_TEMPLATE/release.md
+      - uses: s3krit/matrix-message-action@v0.0.2
+        if: steps.create-issue.outputs.url != ''
+        with:
+          room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
+          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+          server: "matrix.parity.io"
+          message: "Release process for polkadot ${{ steps.compute_tag.outputs.version }} has been started. Tracking issue: ${{ steps.create-issue.outputs.url }}"

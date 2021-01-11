@@ -19,11 +19,13 @@
 use sp_std::{prelude::*, fmt::Debug};
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{
-	decl_event, decl_storage, decl_module, decl_error, ensure, dispatch::IsSubType,
-	traits::{Currency, Get, VestingSchedule, EnsureOrigin}, weights::{Pays, DispatchClass}
+	decl_event, decl_storage, decl_module, decl_error, ensure,
+	traits::{Currency, Get, VestingSchedule, EnsureOrigin, IsSubType},
+	weights::{Weight, Pays, DispatchClass},
+	pallet_prelude::DispatchResultWithPostInfo,
 };
 use frame_system::{ensure_signed, ensure_root, ensure_none};
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
 #[cfg(feature = "std")]
@@ -37,16 +39,34 @@ use sp_runtime::{
 };
 use primitives::v1::ValidityError;
 
-type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as frame_system::Trait>::AccountId>>::Currency;
-type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type CurrencyOf<T> = <<T as Config>::VestingSchedule as VestingSchedule<<T as frame_system::Config>::AccountId>>::Currency;
+type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Configuration trait.
-pub trait Trait: frame_system::Trait {
+pub trait Config: frame_system::Config {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
 	type MoveClaimOrigin: EnsureOrigin<Self::Origin>;
+	type WeightInfo: WeightInfo;
+}
+
+pub trait WeightInfo {
+	fn claim() -> Weight;
+	fn mint_claim() -> Weight;
+	fn claim_attest() -> Weight;
+	fn attest() -> Weight;
+	fn move_claim() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn claim() -> Weight { 0 }
+	fn mint_claim() -> Weight { 0 }
+	fn claim_attest() -> Weight { 0 }
+	fn attest() -> Weight { 0 }
+	fn move_claim() -> Weight { 0 }
 }
 
 /// The kind of a statement an account needs to make for a claim to be valid.
@@ -130,7 +150,7 @@ impl sp_std::fmt::Debug for EcdsaSignature {
 decl_event!(
 	pub enum Event<T> where
 		Balance = BalanceOf<T>,
-		AccountId = <T as frame_system::Trait>::AccountId
+		AccountId = <T as frame_system::Config>::AccountId
 	{
 		/// Someone claimed some DOTs. [who, ethereum_address, amount]
 		Claimed(AccountId, EthereumAddress, Balance),
@@ -138,7 +158,7 @@ decl_event!(
 );
 
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		/// Invalid Ethereum signature.
 		InvalidEthereumSignature,
 		/// Ethereum address has no claim.
@@ -159,7 +179,7 @@ decl_storage! {
 	// A macro for the Storage trait, and its implementation, for this module.
 	// This allows for type-safe usage of the Substrate storage database, so you can
 	// keep things around between blocks.
-	trait Store for Module<T: Trait> as Claims {
+	trait Store for Module<T: Config> as Claims {
 		Claims get(fn claims) build(|config: &GenesisConfig<T>| {
 			config.claims.iter().map(|(a, b, _, _)| (a.clone(), b.clone())).collect::<Vec<_>>()
 		}): map hasher(identity) EthereumAddress => Option<BalanceOf<T>>;
@@ -194,7 +214,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		/// The Prefix that is used in signed Ethereum messages for this network
@@ -223,25 +243,11 @@ decl_module! {
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
-		/// - One `eth_recover` operation which involves a keccak hash and a
-		///   ecdsa recover.
-		/// - Three storage reads to check if a claim exists for the user, to
-		///   get the current pot size, to see if there exists a vesting schedule.
-		/// - Up to one storage write for adding a new vesting schedule.
-		/// - One `deposit_creating` Currency call.
-		/// - One storage write to update the total.
-		/// - Two storage removals for vesting and claims information.
-		/// - One deposit event.
+		/// Weight includes logic to validate unsigned `claim` call.
 		///
 		/// Total Complexity: O(1)
-		/// ----------------------------
-		/// Base Weight: 269.7 µs
-		/// DB Weight:
-		/// - Read: Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
-		/// Validate Unsigned: +188.7 µs
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(7, 7) + 270_000_000 + 190_000_000]
+		#[weight = T::WeightInfo::claim()]
 		fn claim(origin, dest: T::AccountId, ethereum_signature: EcdsaSignature) {
 			ensure_none(origin)?;
 
@@ -264,24 +270,11 @@ decl_module! {
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
-		/// - One storage mutate to increase the total claims available.
-		/// - One storage write to add a new claim.
-		/// - Up to one storage write to add a new vesting schedule.
+		/// We assume worst case that both vesting and statement is being inserted.
 		///
 		/// Total Complexity: O(1)
-		/// ---------------------
-		/// Base Weight: 10.46 µs
-		/// DB Weight:
-		/// - Reads: Total
-		/// - Writes: Total, Claims
-		/// - Maybe Write: Vesting, Statement
 		/// </weight>
-		#[weight =
-			T::DbWeight::get().reads_writes(1, 2)
-			+ T::DbWeight::get().writes(vesting_schedule.is_some().into())
-			+ T::DbWeight::get().writes(statement.is_some().into())
-			+ 10_000_000
-		]
+		#[weight = T::WeightInfo::mint_claim()]
 		fn mint_claim(origin,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -322,26 +315,11 @@ decl_module! {
 		///
 		/// <weight>
 		/// The weight of this call is invariant over the input parameters.
-		/// - One `eth_recover` operation which involves a keccak hash and a
-		///   ecdsa recover.
-		/// - Four storage reads to check if a claim exists for the user, to
-		///   get the current pot size, to see if there exists a vesting schedule, to get the
-		///   required statement.
-		/// - Up to one storage write for adding a new vesting schedule.
-		/// - One `deposit_creating` Currency call.
-		/// - One storage write to update the total.
-		/// - Two storage removals for vesting and claims information.
-		/// - One deposit event.
+		/// Weight includes logic to validate unsigned `claim_attest` call.
 		///
 		/// Total Complexity: O(1)
-		/// ----------------------------
-		/// Base Weight: 270.2 µs
-		/// DB Weight:
-		/// - Read: Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing
-		/// Validate Unsigned: +190.1 µs
 		/// </weight>
-		#[weight = T::DbWeight::get().reads_writes(7, 7) + 270_000_000 + 190_000_000]
+		#[weight = T::WeightInfo::claim_attest()]
 		fn claim_attest(origin,
 			dest: T::AccountId,
 			ethereum_signature: EcdsaSignature,
@@ -370,16 +348,13 @@ decl_module! {
 		/// - `statement`: The identity of the statement which is being attested to in the signature.
 		///
 		/// <weight>
+		/// The weight of this call is invariant over the input parameters.
+		/// Weight includes logic to do pre-validation on `attest` call.
+		///
 		/// Total Complexity: O(1)
-		/// ----------------------------
-		/// Base Weight: 93.3 µs
-		/// DB Weight:
-		/// - Read: Preclaims, Signing, Claims, Total, Claims Vesting, Vesting Vesting, Balance Lock, Account
-		/// - Write: Vesting Vesting, Account, Balance Lock, Total, Claim, Claims Vesting, Signing, Preclaims
-		/// Validate PreValidateAttests: +8.631 µs
 		/// </weight>
 		#[weight = (
-			T::DbWeight::get().reads_writes(8, 8) + 90_000_000 + 10_000_000,
+			T::WeightInfo::attest(),
 			DispatchClass::Normal,
 			Pays::No
 		)]
@@ -393,16 +368,12 @@ decl_module! {
 			Preclaims::<T>::remove(&who);
 		}
 
-		#[weight = (
-			T::DbWeight::get().reads_writes(4, 4) + 100_000_000_000,
-			DispatchClass::Normal,
-			Pays::No
-		)]
+		#[weight = T::WeightInfo::move_claim()]
 		fn move_claim(origin,
 			old: EthereumAddress,
 			new: EthereumAddress,
 			maybe_preclaim: Option<T::AccountId>,
-		) {
+		) -> DispatchResultWithPostInfo {
 			T::MoveClaimOrigin::try_origin(origin).map(|_| ()).or_else(ensure_root)?;
 
 			Claims::<T>::take(&old).map(|c| Claims::<T>::insert(&new, c));
@@ -411,6 +382,7 @@ decl_module! {
 			maybe_preclaim.map(|preclaim| Preclaims::<T>::mutate(&preclaim, |maybe_o|
 				if maybe_o.as_ref().map_or(false, |o| o == &old) { *maybe_o = Some(new) }
 			));
+			Ok(Pays::No.into())
 		}
 	}
 }
@@ -426,7 +398,7 @@ fn to_ascii_hex(data: &[u8]) -> Vec<u8> {
 	r
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
 	fn ethereum_signable_message(what: &[u8], extra: &[u8]) -> Vec<u8> {
 		let prefix = T::Prefix::get();
@@ -487,7 +459,7 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
+impl<T: Config> sp_runtime::traits::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
@@ -495,16 +467,14 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 
 		let (maybe_signer, maybe_statement) = match call {
 			// <weight>
-			// Base Weight: 188.7 µs (includes the full logic of `validate_unsigned`)
-			// DB Weight: 2 Read (Claims, Signing)
+			// The weight of this logic is included in the `claim` dispatchable.
 			// </weight>
 			Call::claim(account, ethereum_signature) => {
 				let data = account.using_encoded(to_ascii_hex);
 				(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
 			}
 			// <weight>
-			// Base Weight: 190.1 µs (includes the full logic of `validate_unsigned`)
-			// DB Weight: 2 Read (Claims, Signing)
+			// The weight of this logic is included in the `claim_attest` dispatchable.
 			// </weight>
 			Call::claim_attest(account, ethereum_signature, statement) => {
 				let data = account.using_encoded(to_ascii_hex);
@@ -538,11 +508,11 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 /// Validate `attest` calls prior to execution. Needed to avoid a DoS attack since they are
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
-pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>;
+pub struct PrevalidateAttests<T: Config + Send + Sync>(sp_std::marker::PhantomData<T>) where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>;
 
-impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+impl<T: Config + Send + Sync> Debug for PrevalidateAttests<T> where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	#[cfg(feature = "std")]
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
@@ -555,8 +525,8 @@ impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
 	}
 }
 
-impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+impl<T: Config + Send + Sync> PrevalidateAttests<T> where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	/// Create new `SignedExtension` to check runtime version.
 	pub fn new() -> Self {
@@ -564,11 +534,11 @@ impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
 	}
 }
 
-impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
-	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
+impl<T: Config + Send + Sync> SignedExtension for PrevalidateAttests<T> where
+	<T as frame_system::Config>::Call: IsSubType<Call<T>>
 {
 	type AccountId = T::AccountId;
-	type Call = <T as frame_system::Trait>::Call;
+	type Call = <T as frame_system::Config>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
 	const IDENTIFIER: &'static str = "PrevalidateAttests";
@@ -578,8 +548,7 @@ impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
 	}
 
 	// <weight>
-	// Base Weight: 8.631 µs
-	// DB Weight: 2 Read (Preclaims, Signing)
+	// The weight of this logic is included in the `attest` dispatchable.
 	// </weight>
 	fn validate(
 		&self,
@@ -615,7 +584,7 @@ mod secp_utils {
 		res.0.copy_from_slice(&keccak_256(&public(secret).serialize()[1..65])[12..]);
 		res
 	}
-	pub fn sig<T: Trait>(secret: &secp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
+	pub fn sig<T: Config>(secret: &secp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
 		let msg = keccak_256(&<super::Module<T>>::ethereum_signable_message(&to_ascii_hex(what)[..], extra));
 		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
 		let mut r = [0u8; 65];
@@ -633,10 +602,10 @@ mod tests {
 	use secp_utils::*;
 
 	use sp_core::H256;
-	use codec::Encode;
+	use parity_scale_codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
+	use sp_runtime::{traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, assert_noop, parameter_types,
 		ord_parameter_types, weights::{Pays, GetDispatchInfo}, traits::ExistenceRequirement,
@@ -661,12 +630,12 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
-		pub const MaximumBlockWeight: u32 = 4 * 1024 * 1024;
-		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl frame_system::Trait for Test {
+	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
+		type BlockWeights = ();
+		type BlockLength = ();
+		type DbWeight = ();
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
@@ -678,37 +647,34 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
-		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ();
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
-		type ModuleToIndex = ();
+		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
+		type SS58Prefix = ();
 	}
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
-		pub const CreationFee: u64 = 0;
-		pub const MinVestedTransfer: u64 = 0;
 	}
 
-	impl pallet_balances::Trait for Test {
+	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type MaxLocks = ();
 		type WeightInfo = ();
 	}
 
-	impl pallet_vesting::Trait for Test {
+	parameter_types! {
+		pub const MinVestedTransfer: u64 = 0;
+	}
+
+	impl pallet_vesting::Config for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
@@ -723,11 +689,12 @@ mod tests {
 		pub const Six: u64 = 6;
 	}
 
-	impl Trait for Test {
+	impl Config for Test {
 		type Event = ();
 		type VestingSchedule = Vesting;
 		type Prefix = Prefix;
 		type MoveClaimOrigin = frame_system::EnsureSignedBy<Six, u64>;
+		type WeightInfo = TestWeightInfo;
 	}
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
@@ -1045,7 +1012,7 @@ mod tests {
 	fn claiming_while_vested_doesnt_work() {
 		new_test_ext().execute_with(|| {
 			// A user is already vested
-			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(&69, total_claims(), 100, 10));
+			assert_ok!(<Test as Config>::VestingSchedule::add_vesting_schedule(&69, total_claims(), 100, 10));
 			CurrencyOf::<Test>::make_free_balance_be(&69, total_claims());
 			assert_eq!(Balances::free_balance(69), total_claims());
 			assert_ok!(Claims::mint_claim(Origin::root(), eth(&bob()), 200, Some((50, 10, 1)), None));
@@ -1178,18 +1145,18 @@ mod benchmarking {
 	const MAX_CLAIMS: u32 = 10_000;
 	const VALUE: u32 = 1_000_000;
 
-	fn create_claim<T: Trait>(input: u32) -> DispatchResult {
+	fn create_claim<T: Config>(input: u32) -> DispatchResult {
 		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
-		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 		Ok(())
 	}
 
-	fn create_claim_attest<T: Trait>(input: u32) -> DispatchResult {
+	fn create_claim_attest<T: Config>(input: u32) -> DispatchResult {
 		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
-		let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Module::<T>::mint_claim(
 			RawOrigin::Root.into(),
 			eth_address,
@@ -1201,109 +1168,98 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		_ {
-			// Create claims in storage. Two are created at a time!
-			let c in 0 .. MAX_CLAIMS / 2 => {
+		// Benchmark `claim` including `validate_unsigned` logic.
+		claim {
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
 				create_claim_attest::<T>(u32::max_value() - c)?;
-			};
-		}
+			}
 
-		// Benchmark `claim` for different users.
-		claim {
-			let u in 0 .. 1000;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&u.encode())).unwrap();
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", u, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let account: T::AccountId = account("user", c, SEED);
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-		}: _(RawOrigin::None, account, signature)
+			let source = sp_runtime::transaction_validity::TransactionSource::External;
+			let call = Call::<T>::claim(account.clone(), signature.clone());
+		}: {
+			super::Module::<T>::validate_unsigned(source, &call)?;
+			super::Module::<T>::claim(RawOrigin::None.into(), account, signature)?;
+		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
 		}
 
 		// Benchmark `mint_claim` when there already exists `c` claims in storage.
 		mint_claim {
-			let c in ...;
-			let eth_address = account("eth_address", c, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			let eth_address = account("eth_address", 0, SEED);
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 		}: _(RawOrigin::Root, eth_address, VALUE.into(), vesting, Some(statement))
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 		}
 
-		// Benchmark `claim_attest` for different users.
+		// Benchmark `claim_attest` including `validate_unsigned` logic.
 		claim_attest {
-			let u in 0 .. 1000;
-			let attest_u = u32::max_value() - u;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			// Crate signature
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", u, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let account: T::AccountId = account("user", c, SEED);
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-		}: _(RawOrigin::None, account, signature, statement.to_text().to_vec())
+			let call = Call::<T>::claim_attest(account.clone(), signature.clone(), StatementKind::Regular.to_text().to_vec());
+			let source = sp_runtime::transaction_validity::TransactionSource::External;
+		}: {
+			super::Module::<T>::validate_unsigned(source, &call)?;
+			super::Module::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
+		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
 		}
 
-		// Benchmark `attest` for different users.
+		// Benchmark `attest` including prevalidate logic.
 		attest {
-			let u in 0 .. 1000;
-			let attest_u = u32::max_value() - u;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_u.encode())).unwrap();
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", u, SEED);
-			let vesting = Some((100_000.into(), 1_000.into(), 100.into()));
+			let account: T::AccountId = account("user", c, SEED);
+			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 			let statement = StatementKind::Regular;
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Module::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
 			Preclaims::<T>::insert(&account, eth_address);
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-		}: _(RawOrigin::Signed(account), statement.to_text().to_vec())
-		verify {
-			assert_eq!(Claims::<T>::get(eth_address), None);
-		}
 
-		// Benchmark the time it takes to execute `validate_unsigned` for `claim`
-		validate_unsigned_claim {
-			let c in ...;
-			// Crate signature
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
-			let account: T::AccountId = account("user", c, SEED);
-			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
-			let call = Call::<T>::claim(account, signature);
-			let source = sp_runtime::transaction_validity::TransactionSource::External;
-		}: {
-			super::Module::<T>::validate_unsigned(source, &call)?
-		}
-
-		// Benchmark the time it takes to execute `validate_unsigned` for `claim_attest`
-		validate_unsigned_claim_attest {
-			let c in ...;
-			// Crate signature
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
-			let account: T::AccountId = account("user", c, SEED);
-			let signature = sig::<T>(&secret_key, &account.encode(), StatementKind::Regular.to_text());
-			let call = Call::<T>::claim_attest(account, signature, StatementKind::Regular.to_text().to_vec());
-			let source = sp_runtime::transaction_validity::TransactionSource::External;
-		}: {
-			super::Module::<T>::validate_unsigned(source, &call)?
-		}
-
-		validate_prevalidate_attests {
-			let c in ...;
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
-			let eth_address = eth(&secret_key);
-			let account: T::AccountId = account("user", c, SEED);
-			Preclaims::<T>::insert(&account, eth_address);
 			let call = super::Call::attest(StatementKind::Regular.to_text().to_vec());
 			// We have to copy the validate statement here because of trait issues... :(
 			let validate = |who: &T::AccountId, call: &super::Call<T>| -> DispatchResult {
@@ -1316,10 +1272,41 @@ mod benchmarking {
 				Ok(())
 			};
 		}: {
-			validate(&account, &call)?
+			validate(&account, &call)?;
+			super::Module::<T>::attest(RawOrigin::Signed(account).into(), statement.to_text().to_vec())?;
+		}
+		verify {
+			assert_eq!(Claims::<T>::get(eth_address), None);
+		}
+
+		move_claim {
+			let c = MAX_CLAIMS;
+
+			for i in 0 .. c / 2 {
+				create_claim::<T>(c)?;
+				create_claim_attest::<T>(u32::max_value() - c)?;
+			}
+
+			let attest_c = u32::max_value() - c;
+			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let eth_address = eth(&secret_key);
+
+			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&(u32::max_value()/2).encode())).unwrap();
+			let new_eth_address = eth(&new_secret_key);
+
+			let account: T::AccountId = account("user", c, SEED);
+			Preclaims::<T>::insert(&account, eth_address);
+
+			assert!(Claims::<T>::contains_key(eth_address));
+			assert!(!Claims::<T>::contains_key(new_eth_address));
+		}: _(RawOrigin::Root, eth_address, new_eth_address, Some(account))
+		verify {
+			assert!(!Claims::<T>::contains_key(eth_address));
+			assert!(Claims::<T>::contains_key(new_eth_address));
 		}
 
 		// Benchmark the time it takes to do `repeat` number of keccak256 hashes
+		#[extra]
 		keccak256 {
 			let i in 0 .. 10_000;
 			let bytes = (i).encode();
@@ -1330,6 +1317,7 @@ mod benchmarking {
 		}
 
 		// Benchmark the time it takes to do `repeat` number of `eth_recover`
+		#[extra]
 		eth_recover {
 			let i in 0 .. 1_000;
 			// Crate signature
@@ -1358,9 +1346,7 @@ mod benchmarking {
 				assert_ok!(test_benchmark_mint_claim::<Test>());
 				assert_ok!(test_benchmark_claim_attest::<Test>());
 				assert_ok!(test_benchmark_attest::<Test>());
-				assert_ok!(test_benchmark_validate_unsigned_claim::<Test>());
-				assert_ok!(test_benchmark_validate_unsigned_claim_attest::<Test>());
-				assert_ok!(test_benchmark_validate_prevalidate_attests::<Test>());
+				assert_ok!(test_benchmark_move_claim::<Test>());
 				assert_ok!(test_benchmark_keccak256::<Test>());
 				assert_ok!(test_benchmark_eth_recover::<Test>());
 			});
