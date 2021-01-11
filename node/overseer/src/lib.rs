@@ -90,7 +90,7 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, JaegerSpan, jaeger,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered};
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
 
 // A capacity of bounded channels inside the overseer.
@@ -1047,6 +1047,8 @@ struct MetricsInner {
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
 	message_relay_timing: prometheus::Histogram,
+	channel_fill_level_to_overseer: prometheus::Histogram,
+	channel_fill_level_from_overseer: prometheus::Histogram,
 }
 
 #[derive(Default, Clone)]
@@ -1074,6 +1076,11 @@ impl Metrics {
 	/// Provide a timer for the duration between receiving a message and passing it to `route_message`
 	fn time_message_hold(&self) -> MaybeTimer {
 		self.0.as_ref().map(|metrics| metrics.message_relay_timing.start_timer())
+	}
+
+	fn channel_fill_level_snapshot(&self, from_overseer: usize, to_overseer: usize) {
+		self.0.as_ref().map(|metrics| metrics.channel_fill_level_to_overseer.observe(to_overseer as f64));
+		self.0.as_ref().map(|metrics| metrics.channel_fill_level_from_overseer.observe(from_overseer as f64));
 	}
 }
 
@@ -1119,6 +1126,30 @@ impl metrics::Metrics for Metrics {
 						// - `> 1.0`
 						// - `! 0`
 						buckets: prometheus::exponential_buckets(0.0001, 1.6, 18).expect("inputs are within documented range; qed"),
+					}
+				)?,
+				registry,
+			)?,
+			channel_fill_level_from_overseer: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts {
+						common_opts: prometheus::Opts::new(
+							"channel_fill_level_to_overseer",
+							"Number of elements sitting in the channel waiting to be processed.",
+						),
+						buckets: prometheus::exponential_buckets(0_f64, CHANNEL_CAPACITY as f64 / 17_f64, CHANNEL_CAPACITY).expect("inputs are within documented range; qed"),
+					}
+				)?,
+				registry,
+			)?,
+			channel_fill_level_to_overseer: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts {
+						common_opts: prometheus::Opts::new(
+							"channel_fill_level_to_overseer",
+							"Number of elements sitting in the channel waiting to be processed.",
+						),
+						buckets: prometheus::exponential_buckets(0_f64, CHANNEL_CAPACITY as f64 / 17_f64, CHANNEL_CAPACITY).expect("inputs are within documented range; qed"),
 					}
 				)?,
 				registry,
@@ -1253,6 +1284,23 @@ where
 		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 
 		let (to_overseer_tx, to_overseer_rx) = metered::unbounded("to_overseer");
+
+
+		{
+			let meter_from_overseer = events_rx.meter().clone();
+			let meter_to_overseer = to_overseer_rx.meter().clone();
+			let metronome_metrics = metrics.clone();
+			let metronome = Metronome::new(std::time::Duration::from_millis(137))
+			.for_each(move |_| {
+				metronome_metrics.channel_fill_level_snapshot(meter_from_overseer.queue_count(), meter_to_overseer.queue_count());
+
+				async move {
+					()
+				}
+			});
+			s.spawn("metrics_metronome", Box::pin(metronome));
+		}
+
 		let mut running_subsystems = FuturesUnordered::new();
 
 		let mut seed = 0x533d; // arbitrary
@@ -1791,6 +1839,7 @@ mod tests {
 	use polkadot_subsystem::{messages::RuntimeApiRequest, JaegerSpan};
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
+	use polkadot_node_subsystem_util::metered;
 
 	use sp_core::crypto::Pair as _;
 

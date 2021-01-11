@@ -988,9 +988,64 @@ impl<F: Future> Future for Timeout<F> {
 	}
 }
 
+
+#[derive(Copy, Clone)]
+enum MetronomeState {
+	Snooze,
+	SetAlarm,
+}
+
+/// Create a stream of ticks with a defined cycle duration.
+pub struct Metronome {
+	delay: Delay,
+	period: Duration,
+	state: MetronomeState,
+}
+
+impl Metronome
+{
+	/// Create a new metronome source with a defined cycle duration.
+	pub fn new(cycle: Duration) -> Self {
+		let period = cycle.into();
+		Self {
+			period,
+			delay: Delay::new(period),
+			state: MetronomeState::Snooze,
+		}
+	}
+}
+
+impl futures::Stream for Metronome
+{
+	type Item = ();
+	fn poll_next(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>
+	) -> Poll<Option<Self::Item>> {
+		loop {
+			match self.state {
+				MetronomeState::SetAlarm => {
+					let val = self.period.clone();
+					self.delay.reset(val);
+					self.state = MetronomeState::Snooze;
+				}
+				MetronomeState::Snooze => {
+					if !Pin::new(&mut self.delay).poll(cx).is_ready() {
+						break
+					}
+					self.state = MetronomeState::SetAlarm;
+					return Poll::Ready(Some(()));
+				}
+			}
+		}
+		Poll::Pending
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use executor::block_on;
 	use thiserror::Error;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
@@ -1000,7 +1055,7 @@ mod tests {
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-	use std::{pin::Pin, time::Duration, sync::Arc};
+	use std::{pin::Pin, sync::{Arc, atomic::{AtomicUsize, Ordering}}, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 	// you can leave the subsystem itself to the job manager.
@@ -1183,5 +1238,43 @@ mod tests {
 		let SpawnedSubsystem { name, .. } =
 			FakeCandidateSelectionSubsystem::new(pool, false, ()).start(context);
 		assert_eq!(name, "FakeCandidateSelection");
+	}
+
+
+	#[test]
+	fn tick_tack_metronome() {
+		let n = Arc::new(AtomicUsize::default());
+
+		let metronome = {
+			let n = n.clone();
+			let stream = Metronome::new(Duration::from_millis(137_u64));
+			stream.for_each(move |_res| {
+				let _ = n.fetch_add(1, Ordering::Relaxed);
+				async {
+					()
+				}
+			}).fuse()
+		};
+
+		let f2 = async move {
+			assert_eq!(n.load(Ordering::Relaxed), 0_usize);
+			Delay::new(Duration::from_millis(200)).await;
+			assert_eq!(n.load(Ordering::Relaxed), 1_usize);
+			Delay::new(Duration::from_millis(200)).await;
+			assert_eq!(n.load(Ordering::Relaxed), 2_usize);
+			Delay::new(Duration::from_millis(200)).await;
+			assert_eq!(n.load(Ordering::Relaxed), 4_usize);
+		}.fuse();
+
+		futures::pin_mut!(f2);
+		futures::pin_mut!(metronome);
+
+		block_on(async move {
+			// futures::join!(metronome, f2)
+			futures::select!(
+				_ = metronome => unreachable!("Metronome never stops. qed"),
+				_ = f2 => (),
+			)
+		});
 	}
 }
