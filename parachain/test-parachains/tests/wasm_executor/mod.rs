@@ -42,6 +42,7 @@ fn terminates_on_timeout() {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
 			relay_chain_height: 1,
+			relay_storage_root: Default::default(),
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 		},
@@ -70,6 +71,7 @@ fn parallel_execution() {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
 			relay_chain_height: 1,
+			relay_storage_root: Default::default(),
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 		},
@@ -81,6 +83,7 @@ fn parallel_execution() {
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
+			relay_storage_root: Default::default(),
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
