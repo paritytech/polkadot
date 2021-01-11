@@ -114,3 +114,4 @@ std = [
 # runtime without clashing with the runtime api exported functions
 # in WASM.
 disable-runtime-api = []
+runtime-benchmarks = []
