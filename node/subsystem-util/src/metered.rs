@@ -27,10 +27,10 @@ use std::pin::Pin;
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn channel<T>(capacity: usize, name: &'static str) -> (MeteredSender<T>, MeteredReceiver<T>) {
 	let (tx, rx) = mpsc::channel(capacity);
-	let shared_meter = Meter::default();
-
-	let tx = MeteredSender { meter: shared_meter.clone(), inner: tx, name };
-	let rx = MeteredReceiver { meter: shared_meter, inner: rx, name };
+	let mut shared_meter = Meter::default();
+	shared_meter.name = name;
+	let tx = MeteredSender { meter: shared_meter.clone(), inner: tx };
+	let rx = MeteredReceiver { meter: shared_meter, inner: rx };
 	(tx, rx)
 }
 
@@ -40,7 +40,6 @@ pub struct MeteredReceiver<T> {
 	// count currently contained messages
 	meter: Meter,
 	inner: mpsc::Receiver<T>,
-	name: &'static str,
 }
 
 impl<T> std::ops::Deref for MeteredReceiver<T> {
@@ -95,11 +94,19 @@ impl<T> MeteredReceiver<T> {
 
 /// The sender component, tracking the number of items
 /// sent across it.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MeteredSender<T> {
 	meter: Meter,
 	inner: mpsc::Sender<T>,
-	name: &'static str,
+}
+
+impl<T> Clone for MeteredSender<T> {
+	fn clone(&self) -> Self {
+		Self {
+			meter: self.meter.clone(),
+			inner: self.inner.clone(),
+		}
+	}
 }
 
 impl<T> std::ops::Deref for MeteredSender<T> {
@@ -143,6 +150,8 @@ impl<T> MeteredSender<T> {
 /// A peek into the inner state of a meter.
 #[derive(Debug, Clone, Default)]
 pub struct Meter {
+	/// Name of the receiver and sender pair.
+	name: &'static str,
 	// fill state of the channel
 	fill: Arc<AtomicUsize>,
 }
@@ -153,6 +162,10 @@ impl Meter {
 		// when obtaining we don't care much about off by one
 		// accuracy
 		self.fill.load(Ordering::Relaxed)
+	}
+
+	pub fn name(&self) -> &'static str {
+		self.name
 	}
 }
 
@@ -205,6 +218,7 @@ mod tests {
 					tx.try_send(msg).unwrap();
 				},
 				async move {
+					Delay::new(Duration::from_millis(100)).await;
 					assert_eq!(rx.meter().queue_count(), 4);
 					rx.try_next().unwrap();
 					assert_eq!(rx.meter().queue_count(), 3);

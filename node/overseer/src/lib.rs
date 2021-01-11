@@ -90,7 +90,7 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, JaegerSpan, jaeger,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}};
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered};
 use polkadot_node_primitives::SpawnNamed;
 
 // A capacity of bounded channels inside the overseer.
@@ -190,7 +190,7 @@ enum ExternalRequest {
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
 pub struct OverseerHandler {
-	events_tx: mpsc::Sender<Event>,
+	events_tx: metered::MeteredSender<Event>,
 }
 
 impl OverseerHandler {
@@ -291,7 +291,7 @@ impl Debug for ToOverseer {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M> {
-	tx: mpsc::Sender<FromOverseer<M>>,
+	tx: metered::MeteredSender<FromOverseer<M>>,
 	name: &'static str,
 }
 
@@ -324,7 +324,7 @@ impl<T> From<T> for MaybeTimed<T> {
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 #[derive(Debug)]
 pub struct OverseerSubsystemContext<M>{
-	rx: mpsc::Receiver<FromOverseer<M>>,
+	rx: metered::MeteredReceiver<FromOverseer<M>>,
 	tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
 	metrics: Metrics,
 	rng: Rand32,
@@ -340,7 +340,7 @@ impl<M> OverseerSubsystemContext<M> {
 	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
 	/// to the range `0.0..=1.0`.
 	fn new(
-		rx: mpsc::Receiver<FromOverseer<M>>,
+		rx: metered::MeteredReceiver<FromOverseer<M>>,
 		tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
 		metrics: Metrics,
 		increment: u64,
@@ -363,7 +363,7 @@ impl<M> OverseerSubsystemContext<M> {
 	/// Intended for tests.
 	#[allow(unused)]
 	fn new_unmetered(
-		rx: mpsc::Receiver<FromOverseer<M>>,
+		rx: metered::MeteredReceiver<FromOverseer<M>>,
 		tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
 	) -> Self {
 		let metrics = Metrics::default();
@@ -564,7 +564,7 @@ pub struct Overseer<S> {
 	to_overseer_rx: Fuse<mpsc::UnboundedReceiver<MaybeTimed<ToOverseer>>>,
 
 	/// Events that are sent to the overseer from the outside world
-	events_rx: mpsc::Receiver<Event>,
+	events_rx: metered::MeteredReceiver<Event>,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
@@ -1244,7 +1244,7 @@ where
 		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
 		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
 	{
-		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY, "overseer_events");
 
 		let handler = OverseerHandler {
 			events_tx: events_tx.clone(),
@@ -1742,7 +1742,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	metrics: &Metrics,
 	seed: &mut u64,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
-	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
+	let (to_tx, to_rx) = metered::channel(CHANNEL_CAPACITY, "subsystem_spawn");
 	let ctx = OverseerSubsystemContext::new(
 		to_rx,
 		to_overseer,
@@ -1796,7 +1796,7 @@ mod tests {
 
 	use super::*;
 
-	struct TestSubsystem1(mpsc::Sender<usize>);
+	struct TestSubsystem1(metered::MeteredSender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
@@ -1824,7 +1824,7 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem2(mpsc::Sender<usize>);
+	struct TestSubsystem2(metered::MeteredSender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
@@ -2036,7 +2036,7 @@ mod tests {
 		})
 	}
 
-	struct TestSubsystem5(mpsc::Sender<OverseerSignal>);
+	struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
@@ -2067,7 +2067,7 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem6(mpsc::Sender<OverseerSignal>);
+	struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
