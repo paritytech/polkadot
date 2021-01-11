@@ -325,7 +325,7 @@ impl<T> From<T> for MaybeTimed<T> {
 #[derive(Debug)]
 pub struct OverseerSubsystemContext<M>{
 	rx: metered::MeteredReceiver<FromOverseer<M>>,
-	tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+	tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	metrics: Metrics,
 	rng: Rand32,
 	threshold: u32,
@@ -341,7 +341,7 @@ impl<M> OverseerSubsystemContext<M> {
 	/// to the range `0.0..=1.0`.
 	fn new(
 		rx: metered::MeteredReceiver<FromOverseer<M>>,
-		tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+		tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 		metrics: Metrics,
 		increment: u64,
 		mut capture_rate: f64,
@@ -364,7 +364,7 @@ impl<M> OverseerSubsystemContext<M> {
 	#[allow(unused)]
 	fn new_unmetered(
 		rx: metered::MeteredReceiver<FromOverseer<M>>,
-		tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+		tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	) -> Self {
 		let metrics = Metrics::default();
 		OverseerSubsystemContext::new(rx, tx, metrics, 0, 0.0)
@@ -561,7 +561,7 @@ pub struct Overseer<S> {
 	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
 	/// Gather running subsystems' outbound streams into one.
-	to_overseer_rx: Fuse<mpsc::UnboundedReceiver<MaybeTimed<ToOverseer>>>,
+	to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<MaybeTimed<ToOverseer>>>,
 
 	/// Events that are sent to the overseer from the outside world
 	events_rx: metered::MeteredReceiver<Event>,
@@ -1252,7 +1252,7 @@ where
 
 		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 
-		let (to_overseer_tx, to_overseer_rx) = mpsc::unbounded();
+		let (to_overseer_tx, to_overseer_rx) = metered::unbounded("to_overseer");
 		let mut running_subsystems = FuturesUnordered::new();
 
 		let mut seed = 0x533d; // arbitrary
@@ -1737,7 +1737,7 @@ where
 fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-	to_overseer: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+	to_overseer: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
 	seed: &mut u64,
