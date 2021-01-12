@@ -1,8 +1,5 @@
 use super::*;
 
-use core::convert::Infallible;
-
-
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn unbounded<T>(name: &'static str) -> (UnboundedMeteredSender<T>, UnboundedMeteredReceiver<T>) {
     let (tx, rx) = mpsc::unbounded();
@@ -117,7 +114,7 @@ impl<T> UnboundedMeteredSender<T> {
 
 
     /// Attempt to send message or fail immediately.
-    pub fn unbounded_send(&mut self, msg: T) -> result::Result<(), Infallible> {
+    pub fn unbounded_send(&mut self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
         self.inner.unbounded_send(msg).expect("Unbounded send never fails. qed");
         self.meter.fill.fetch_add(1, Ordering::SeqCst);
         Ok(())

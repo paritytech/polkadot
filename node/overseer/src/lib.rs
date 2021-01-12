@@ -1134,10 +1134,10 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts {
 						common_opts: prometheus::Opts::new(
-							"channel_fill_level_to_overseer",
+							"channel_fill_level_from_overseer",
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
-						buckets: prometheus::exponential_buckets(0_f64, CHANNEL_CAPACITY as f64 / 17_f64, CHANNEL_CAPACITY).expect("inputs are within documented range; qed"),
+						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
 					}
 				)?,
 				registry,
@@ -1149,7 +1149,7 @@ impl metrics::Metrics for Metrics {
 							"channel_fill_level_to_overseer",
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
-						buckets: prometheus::exponential_buckets(0_f64, CHANNEL_CAPACITY as f64 / 17_f64, CHANNEL_CAPACITY).expect("inputs are within documented range; qed"),
+						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
 					}
 				)?,
 				registry,
