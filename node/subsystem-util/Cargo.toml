@@ -21,11 +21,11 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-primitives = { path = "../../primitives" }
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "substrate-runtime-dryrun-v027" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "substrate-runtime-dryrun-v027" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "substrate-runtime-dryrun-v027" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "substrate-runtime-dryrun-v027" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "substrate-runtime-dryrun-v027" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
