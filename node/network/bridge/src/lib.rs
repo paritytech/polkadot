@@ -813,7 +813,7 @@ mod tests {
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	struct TestNetwork {
 		net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
-		action_tx: mpsc::UnboundedSender<NetworkAction>,
+		action_tx: metered::UnboundedMeteredSender<NetworkAction>,
 	}
 
 	struct TestAuthorityDiscovery;
@@ -821,7 +821,7 @@ mod tests {
 	// The test's view of the network. This receives updates from the subsystem in the form
 	// of `NetworkAction`s.
 	struct TestNetworkHandle {
-		action_rx: mpsc::UnboundedReceiver<NetworkAction>,
+		action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
 		net_tx: SingleItemSink<NetworkEvent>,
 	}
 
