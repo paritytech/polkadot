@@ -6520,6 +6520,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "frame-system-rpc-runtime-api",
+ "hex-literal",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
