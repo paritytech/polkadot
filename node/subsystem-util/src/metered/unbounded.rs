@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Metered variant of bounded mpsc channels to be able to extract metrics.
+//! Metered variant of unbounded mpsc channels to be able to extract metrics.
 
 use super::*;
 
