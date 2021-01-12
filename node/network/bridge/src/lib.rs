@@ -791,7 +791,6 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::channel::mpsc;
 	use futures::executor;
 
 	use std::borrow::Cow;
