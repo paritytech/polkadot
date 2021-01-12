@@ -264,7 +264,7 @@ decl_error! {
 		HasActiveParachain,
 		/// The retirement period has not ended.
 		InRetirementPeriod,
-		/// Invalid signature
+		/// Invalid signature.
 		InvalidSignature,
 	}
 }
@@ -875,6 +875,38 @@ mod tests {
 	}
 
 	#[test]
+	fn create_with_verifier_works() {
+		new_test_ext().execute_with(|| {
+			// Now try to create a crowdloan campaign
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(101)));
+			assert_eq!(Crowdloan::fund_count(), 1);
+			// This is what the initial `fund_info` should look like
+			let fund_info = FundInfo {
+				parachain: None,
+				owner: 1,
+				verifier: Some(101),
+				deposit: 1,
+				raised: 0,
+				// 5 blocks length + 3 block ending period + 1 starting block
+				end: 9,
+				cap: 1000,
+				last_contribution: LastContribution::Never,
+				first_slot: 1,
+				last_slot: 4,
+				deploy_data: None,
+			};
+			assert_eq!(Crowdloan::funds(0), Some(fund_info));
+			// User has deposit removed from their free balance
+			assert_eq!(Balances::free_balance(1), 999);
+			// Deposit is placed in crowdloan free balance
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
+			// No new raise until first contribution
+			let empty: Vec<FundIndex> = Vec::new();
+			assert_eq!(Crowdloan::new_raise(), empty);
+		});
+	}
+
+	#[test]
 	fn create_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot create a crowdloan with bad slots
@@ -922,6 +954,47 @@ mod tests {
 			// Last contribution time recorded
 			assert_eq!(fund.last_contribution, LastContribution::PreEnding(0));
 			assert_eq!(fund.raised, 49);
+		});
+	}
+
+	#[test]
+	fn contribute_with_verifier_works() {
+		new_test_ext().execute_with(|| {
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(101)));
+			assert_eq!(Balances::free_balance(1), 999);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
+
+			// Missing signature
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, None), Error::<Test>::InvalidSignature);
+
+			let invalid_signature = TestSignature(101, vec![]);
+			let valid_signature = TestSignature(101, Encode::encode(&(0u32, 1u64, 0u64, 49u64)));
+
+			// Invalid signature
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(invalid_signature)), Error::<Test>::InvalidSignature);
+
+			// Valid signature wrong parameter
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 50, Some(valid_signature.clone())), Error::<Test>::InvalidSignature);
+			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0, 49, Some(valid_signature.clone())), Error::<Test>::InvalidSignature);
+
+			// Valid signature
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(valid_signature.clone())));
+
+			// Reuse valid signature
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(valid_signature)), Error::<Test>::InvalidSignature);
+
+			let valid_signature_2 = TestSignature(101, Encode::encode(&(0u32, 1u64, 49u64, 10u64)));
+
+			// New valid signature
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 10, Some(valid_signature_2)));
+
+			// Contributions appear in free balance of crowdloan
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 60);
+
+			// Contribution amount is correct
+			let fund = Crowdloan::funds(0).unwrap();
+			assert_eq!(fund.raised, 59);
 		});
 	}
 
