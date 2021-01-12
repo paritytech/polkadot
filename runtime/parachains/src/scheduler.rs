@@ -204,16 +204,15 @@ decl_module! {
 
 impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the scheduler module.
-	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		if now != Self::session_start_block() {
-			Self::clear_and_reschedule() // already done during session change.
-		}
-
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
 	/// Called by the initializer to finalize the scheduler module.
-	pub(crate) fn initializer_finalize() {}
+	pub(crate) fn initializer_finalize() {
+		let now = <frame_system::Module<T>>::block_number() + One::one();
+		Self::clear_and_reschedule(true, now);
+	}
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
@@ -323,12 +322,10 @@ impl<T: Config> Module<T> {
 		ParathreadQueue::set(thread_queue);
 
 		// We want to re-schedule as though it is the first block of the session.
-		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number());
+		let now = <frame_system::Module<T>>::block_number() + One::one();
+		<SessionStartBlock<T>>::set(now);
 
-		Self::clear_and_reschedule();
-
-		// Even though the first block of the session is actually the next block.
-		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number() + One::one());
+		Self::clear_and_reschedule(false, now);
 	}
 
 	/// Add a parathread claim to the queue. If there is a competing claim in the queue or currently
@@ -367,7 +364,10 @@ impl<T: Config> Module<T> {
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
-	pub(crate) fn schedule(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
+	pub(crate) fn schedule(
+		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
+		now: T::BlockNumber,
+	) {
 		let mut cores = AvailabilityCores::get();
 		let config = <configuration::Module<T>>::config();
 
@@ -403,7 +403,6 @@ impl<T: Config> Module<T> {
 		let parachains = <paras::Module<T>>::parachains();
 		let mut scheduled = Scheduled::get();
 		let mut parathread_queue = ParathreadQueue::get();
-		let now = <frame_system::Module<T>>::block_number();
 
 		if ValidatorGroups::get().is_empty() { return }
 
@@ -710,7 +709,7 @@ impl<T: Config> Module<T> {
 	}
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
-	fn clear_and_reschedule() {
+	fn clear_and_reschedule(inc_retries: bool, now: T::BlockNumber) {
 		let config = <configuration::Module<T>>::config();
 		ParathreadQueue::mutate(|queue| {
 			for core_assignment in Scheduled::take() {
@@ -719,7 +718,7 @@ impl<T: Config> Module<T> {
 
 					let entry = ParathreadEntry {
 						claim: ParathreadClaim(core_assignment.para_id, collator),
-						retries: retries + 1,
+						retries: retries + inc_retries as u32,
 					};
 
 					if entry.retries <= config.parathread_retries {
@@ -729,7 +728,7 @@ impl<T: Config> Module<T> {
 			}
 		});
 
-		Self::schedule(Vec::new());
+		Self::schedule(Vec::new(), now);
 	}
 }
 
@@ -1366,11 +1365,14 @@ mod tests {
 			}
 
 			// now note that cores 0, 2, and 3 were freed.
-			Scheduler::schedule(vec![
-				(CoreIndex(0), FreedReason::Concluded),
-				(CoreIndex(2), FreedReason::Concluded),
-				(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
-			]);
+			Scheduler::schedule(
+				vec![
+					(CoreIndex(0), FreedReason::Concluded),
+					(CoreIndex(2), FreedReason::Concluded),
+					(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
+				],
+				3
+			);
 
 			{
 				let scheduled = Scheduler::scheduled();
@@ -1487,10 +1489,13 @@ mod tests {
 			run_to_block(3, |_| None);
 
 			// now note that cores 0 and 2 were freed.
-			Scheduler::schedule(vec![
-				(CoreIndex(0), FreedReason::Concluded),
-				(CoreIndex(2), FreedReason::Concluded),
-			]);
+			Scheduler::schedule(
+				vec![
+					(CoreIndex(0), FreedReason::Concluded),
+					(CoreIndex(2), FreedReason::Concluded),
+				],
+				3,
+			);
 
 			{
 				let scheduled = Scheduler::scheduled();
@@ -1585,19 +1590,24 @@ mod tests {
 			};
 
 			assert_groups_rotated(0);
+			println!("before first");
 
 			// one block before first rotation.
 			run_to_block(rotation_frequency, |_| None);
 
 			assert_groups_rotated(0);
 
+			println!("first");
+
 			// first rotation.
 			run_to_block(rotation_frequency + 1, |_| None);
 			assert_groups_rotated(1);
+			println!("before second");
 
 			// one block before second rotation.
 			run_to_block(rotation_frequency * 2, |_| None);
 			assert_groups_rotated(1);
+			println!("second");
 
 			// second rotation.
 			run_to_block(rotation_frequency * 2 + 1, |_| None);
@@ -1607,6 +1617,8 @@ mod tests {
 
 	#[test]
 	fn parathread_claims_are_pruned_after_retries() {
+		let max_retries = default_config().parathread_retries;
+
 		let genesis_config = MockGenesisConfig {
 			configuration: crate::configuration::GenesisConfig {
 				config: default_config(),
@@ -2153,8 +2165,6 @@ mod tests {
 
 	#[test]
 	fn parathread_claims_are_pruned_after_deregistration() {
-		let max_retries = default_config().parathread_retries;
-
 		let genesis_config = MockGenesisConfig {
 			configuration: crate::configuration::GenesisConfig {
 				config: default_config(),
