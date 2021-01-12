@@ -24,7 +24,7 @@ polkadot-primitives = { path = "../../../primitives" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
-log = "0.4.11"
+log = "0.4.13"
 env_logger = "0.8.2"
 assert_matches = "1.4.0"
 kvdb-memorydb = "0.8.0"

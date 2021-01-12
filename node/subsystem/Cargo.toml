@@ -28,7 +28,7 @@ smallvec = "1.6.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.23"
-log = "0.4.11"
+log = "0.4.13"
 
 [dev-dependencies]
 assert_matches = "1.4.0"

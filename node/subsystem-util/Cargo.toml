@@ -33,6 +33,6 @@ assert_matches = "1.4.0"
 async-trait = "0.1.42"
 env_logger = "0.8.2"
 futures = { version = "0.3.8", features = ["thread-pool"] }
-log = "0.4.11"
+log = "0.4.13"
 parking_lot = "0.11.1"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
