@@ -578,14 +578,14 @@ mod tests {
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
+			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				Paras::initializer_on_new_session(&Default::default());
+			}
 			System::on_finalize(b);
 
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
-			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&Default::default());
-			}
 			Paras::initializer_initialize(b + 1);
 		}
 	}
@@ -1059,8 +1059,8 @@ mod tests {
 				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
 			}
 
-			// run to block, with a session change at that block.
-			run_to_block(3, Some(vec![3]));
+			// run to block №4, with a session change at the end of the block 3.
+			run_to_block(4, Some(vec![4]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
