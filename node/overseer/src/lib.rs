@@ -1943,8 +1943,11 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, mut s1_rx) = metered::channel::<usize>(64, "overseer_test");
-			let (s2_tx, mut s2_rx) = metered::channel::<usize>(64, "overseer_test");
+			let (s1_tx, s1_rx) = metered::channel::<usize>(64, "overseer_test");
+			let (s2_tx, s2_rx) = metered::channel::<usize>(64, "overseer_test");
+
+			let mut s1_rx = s1_rx.fuse();
+			let mut s2_rx = s2_rx.fuse();
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem1(s1_tx))
