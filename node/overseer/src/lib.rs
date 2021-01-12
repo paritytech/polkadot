@@ -1307,7 +1307,7 @@ where
 		let candidate_validation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_validation,
 			&metrics,
 			&mut seed,
@@ -1316,7 +1316,7 @@ where
 		let candidate_backing_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_backing,
 			&metrics,
 			&mut seed,
@@ -1325,7 +1325,7 @@ where
 		let candidate_selection_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_selection,
 			&metrics,
 			&mut seed,
@@ -1334,7 +1334,7 @@ where
 		let statement_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.statement_distribution,
 			&metrics,
 			&mut seed,
@@ -1343,7 +1343,7 @@ where
 		let availability_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_distribution,
 			&metrics,
 			&mut seed,
@@ -1352,7 +1352,7 @@ where
 		let bitfield_signing_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.bitfield_signing,
 			&metrics,
 			&mut seed,
@@ -1361,7 +1361,7 @@ where
 		let bitfield_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.bitfield_distribution,
 			&metrics,
 			&mut seed,
@@ -1370,7 +1370,7 @@ where
 		let provisioner_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.provisioner,
 			&metrics,
 			&mut seed,
@@ -1379,7 +1379,7 @@ where
 		let pov_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.pov_distribution,
 			&metrics,
 			&mut seed,
@@ -1388,7 +1388,7 @@ where
 		let runtime_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.runtime_api,
 			&metrics,
 			&mut seed,
@@ -1397,7 +1397,7 @@ where
 		let availability_store_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_store,
 			&metrics,
 			&mut seed,
@@ -1406,7 +1406,7 @@ where
 		let network_bridge_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.network_bridge,
 			&metrics,
 			&mut seed,
@@ -1415,7 +1415,7 @@ where
 		let chain_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.chain_api,
 			&metrics,
 			&mut seed,
@@ -1424,7 +1424,7 @@ where
 		let collation_generation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.collation_generation,
 			&metrics,
 			&mut seed,
@@ -1434,7 +1434,7 @@ where
 		let collator_protocol_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.collator_protocol,
 			&metrics,
 			&mut seed,
@@ -1943,8 +1943,8 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, mut s1_rx) = mpsc::channel::<usize>(64);
-			let (s2_tx, mut s2_rx) = mpsc::channel::<usize>(64);
+			let (s1_tx, mut s1_rx) = metered::channel::<usize>(64, "overseer_test");
+			let (s2_tx, mut s2_rx) = metered::channel::<usize>(64, "overseer_test");
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem1(s1_tx))
@@ -2173,8 +2173,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
-			let (tx_6, mut rx_6) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
 				.replace_candidate_backing(TestSubsystem6(tx_6));
@@ -2266,8 +2266,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
-			let (tx_6, mut rx_6) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
@@ -2358,7 +2358,7 @@ mod tests {
 				number: 1,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_backing(TestSubsystem6(tx_5));
