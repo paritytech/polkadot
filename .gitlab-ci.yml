@@ -180,28 +180,28 @@ check-transaction-versions:
   script:
     - scripts/gitlab/check_extrinsics_ordering.sh
 
-.build-linux:                      &build-linux
-  <<:                              *collect-artifacts
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  after_script:
-    - mv ./target/release/polkadot ./artifacts/.
-    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
-    - if [ "${CI_COMMIT_TAG}" ]; then
-        EXTRATAG="latest";
-      else
-        EXTRATAG="$(./artifacts/polkadot --version |
-          sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
-        EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
-      fi
-    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-    - echo -n ${VERSION} > ./artifacts/VERSION
-    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
-    - cp -r scripts/docker/* ./artifacts
+.pack-artifacts:                   &pack-artifacts
+  - mkdir -p ./artifacts
+  - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+  - mv ./target/release/polkadot ./artifacts/.
+  - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+  - if [ "${CI_COMMIT_TAG}" ]; then
+      EXTRATAG="latest";
+    else
+      EXTRATAG="$(./artifacts/polkadot --version |
+        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
+      EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
+    fi
+  - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+  - echo -n ${VERSION} > ./artifacts/VERSION
+  - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+  - cp -r scripts/docker/* ./artifacts
 
 build-linux-release:
   stage:                           build
-  <<:                              *build-linux
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
   rules:
     # .rules-test with manual on PRs
     - if: $PIPELINE == "rococo"
@@ -211,21 +211,21 @@ build-linux-release:
       allow_failure: true
     - when: always
   script:
-    - mkdir -p ./artifacts
-    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - time cargo build --release --verbose
     - sccache -s
+    - *pack-artifacts
 
 build-linux-rococo:
   stage:                           build
-  <<:                              *build-linux
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
   rules:
     - if: $PIPELINE == "rococo"
   script:
-    - mkdir -p ./artifacts
-    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - time cargo build --release --verbose --features=real-overseer
     - sccache -s
+    - *pack-artifacts
 
 generate-impl-guide:
   stage:                           build
@@ -261,7 +261,7 @@ generate-impl-guide:
         --tag "$IMAGE_NAME:$EXTRATAG" .
     # The job will success only on the protected branch
     - echo "$Docker_Hub_Pass_Parity" |
-      buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
+        buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
     - buildah info
     - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
