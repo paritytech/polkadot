@@ -172,7 +172,7 @@ Session changes are the only time that configuration can change, and the [Config
 
 Actions:
 
-1. Set `SessionStartBlock` to current block number.
+1. Set `SessionStartBlock` to current block number + 1, as session changes are applied at the end of the block.
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../types/runtime.md#host-configuration))
 1. Determine the number of cores & validator groups as `n_cores`. This is the maximum of
@@ -188,11 +188,12 @@ Actions:
    - all pruned claims should have their entry removed from the parathread index.
    - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
    - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
+1. Invoke `clear_and_reschedule()` as session changes are applied at the end of the block, so the state in the `Scheduled` storage item will be out of sync with current session info unless this call is made. As the state does not mutate between now and the next call to `schedule` in the initialization logic, it will have the same result even after being cleared.
 
 ## Initialization
 
-1. Free all scheduled cores and return parathread claims to queue, with retries incremented.
-1. Schedule free cores using the `schedule(Vec::new())`.
+1. Unless the last block triggered a session change, invoke `clear_and_reschedule()`.
+
 
 ## Finalization
 
@@ -224,3 +225,6 @@ No finalization routine runs for this module.
 - `group_rotation_info() -> GroupRotationInfo`: Returns a helper for determining group rotation.
 - `next_up_on_available(CoreIndex) -> Option<ScheduledCore>`: Return the next thing that will be scheduled on this core assuming it is currently occupied and the candidate occupying it became available. Returns in `ScheduledCore` format (todo: link to Runtime APIs page; linkcheck doesn't allow this right now). For parachains, this is always the ID of the parachain and no specified collator. For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that core, and is `None` if there isn't one.
 - `next_up_on_time_out(CoreIndex) -> Option<ScheduledCore>`: Return the next thing that will be scheduled on this core assuming it is currently occupied and the candidate occupying it timed out. Returns in `ScheduledCore` format (todo: link to Runtime APIs page; linkcheck doesn't allow this right now). For parachains, this is always the ID of the parachain and no specified collator. For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that core, or if there isn't one, the claim that is currently occupying the core. Otherwise `None`.
+- `clear_and_reschedule()`: on new block or new session
+  - Free all scheduled cores and return parathread claims to queue, with retries incremented.
+  - Schedule free cores using the `schedule(Vec::new())`.

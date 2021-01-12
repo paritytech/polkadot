@@ -46,7 +46,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use sp_runtime::traits::Saturating;
+use sp_runtime::traits::{One, Saturating};
 
 use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
@@ -204,25 +204,10 @@ decl_module! {
 
 impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the scheduler module.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		// Free all scheduled cores and return parathread claims to queue, with retries incremented.
-		let config = <configuration::Module<T>>::config();
-		ParathreadQueue::mutate(|queue| {
-			for core_assignment in Scheduled::take() {
-				if let AssignmentKind::Parathread(collator, retries) = core_assignment.kind {
-					let entry = ParathreadEntry {
-						claim: ParathreadClaim(core_assignment.para_id, collator),
-						retries: retries + 1,
-					};
-
-					if entry.retries <= config.parathread_retries {
-						queue.enqueue_entry(entry, config.parathread_cores);
-					}
-				}
-			}
-		});
-
-		Self::schedule(Vec::new());
+	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		if now != Self::session_start_block() {
+			Self::clear_and_reschedule() // already done during session change.
+		}
 
 		0
 	}
@@ -250,7 +235,6 @@ impl<T: Config> Module<T> {
 			},
 		);
 
-		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number());
 		AvailabilityCores::mutate(|cores| {
 			// clear all occupied cores.
 			for maybe_occupied in cores.iter_mut() {
@@ -337,6 +321,14 @@ impl<T: Config> Module<T> {
 			}
 		});
 		ParathreadQueue::set(thread_queue);
+
+		// We want to re-schedule as though it is the first block of the session.
+		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number());
+
+		Self::clear_and_reschedule();
+
+		// Even though the first block of the session is actually the next block.
+		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number() + One::one());
 	}
 
 	/// Add a parathread claim to the queue. If there is a competing claim in the queue or currently
@@ -716,6 +708,27 @@ impl<T: Config> Module<T> {
 				})
 		}
 	}
+
+	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
+	fn clear_and_reschedule() {
+		let config = <configuration::Module<T>>::config();
+		ParathreadQueue::mutate(|queue| {
+			for core_assignment in Scheduled::take() {
+				if let AssignmentKind::Parathread(collator, retries) = core_assignment.kind {
+					let entry = ParathreadEntry {
+						claim: ParathreadClaim(core_assignment.para_id, collator),
+						retries: retries + 1,
+					};
+
+					if entry.retries <= config.parathread_retries {
+						queue.enqueue_entry(entry, config.parathread_cores);
+					}
+				}
+			}
+		});
+
+		Self::schedule(Vec::new());
+	}
 }
 
 #[cfg(test)]
@@ -741,19 +754,36 @@ mod tests {
 			Scheduler::initializer_finalize();
 			Paras::initializer_finalize();
 
-			System::on_finalize(b);
-
-			System::on_initialize(b + 1);
-			System::set_block_number(b + 1);
-
 			if let Some(notification) = new_session(b + 1) {
 				Paras::initializer_on_new_session(&notification);
 				Scheduler::initializer_on_new_session(&notification);
 			}
 
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
+
 			Paras::initializer_initialize(b + 1);
 			Scheduler::initializer_initialize(b + 1);
 		}
+	}
+
+	fn run_to_end_of_block(
+		to: BlockNumber,
+		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
+	) {
+		run_to_block(to, &new_session);
+
+		Scheduler::initializer_finalize();
+		Paras::initializer_finalize();
+
+		if let Some(notification) = new_session(to + 1) {
+			Paras::initializer_on_new_session(&notification);
+			Scheduler::initializer_on_new_session(&notification);
+		}
+
+		System::on_finalize(to);
 	}
 
 	fn default_config() -> HostConfiguration<BlockNumber> {
@@ -1557,8 +1587,6 @@ mod tests {
 			// one block before first rotation.
 			run_to_block(rotation_frequency, |_| None);
 
-			let rotations_since_session_start = (rotation_frequency - session_start_block) / rotation_frequency;
-			assert_eq!(rotations_since_session_start, 0);
 			assert_groups_rotated(0);
 
 			// first rotation.
@@ -2036,6 +2064,90 @@ mod tests {
 					}
 				);
 			}
+		});
+	}
+
+	#[test]
+	fn session_change_causes_reschedule_dropping_removed_paras() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		assert_eq!(default_config().parathread_cores, 3);
+		new_test_ext(genesis_config).execute_with(|| {
+			let chain_a = ParaId::from(1);
+			let chain_b = ParaId::from(2);
+
+			// ensure that we have 5 groups by registering 2 parachains.
+			Paras::schedule_para_initialize(chain_a, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: true,
+			});
+			Paras::schedule_para_initialize(chain_b, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: true,
+			});
+
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+						ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+						ValidatorId::from(Sr25519Keyring::One.public()),
+					],
+					random_seed: [99; 32],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			assert_eq!(Scheduler::scheduled().len(), 2);
+
+			let groups = ValidatorGroups::get();
+			assert_eq!(groups.len(), 5);
+
+			Paras::schedule_para_cleanup(chain_b);
+
+			run_to_end_of_block(2, |number| match number {
+				2 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+						ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+						ValidatorId::from(Sr25519Keyring::One.public()),
+					],
+					random_seed: [99; 32],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			assert_eq!(
+				Scheduler::scheduled(),
+				vec![
+					CoreAssignment {
+						core: CoreIndex(0),
+						para_id: chain_a,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(0),
+					}
+				],
+			);
 		});
 	}
 }
