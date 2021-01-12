@@ -4,6 +4,10 @@
 #
 # pipelines can be triggered manually in the web
 # setting DEPLOY_TAG will only deploy the tagged image
+#
+# please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
+# &rules-pr-only and &rules-build presets. And "kubernetes-env" with "docker-env" to set a runner
+# which executes the job.
 
 stages:
   - test
@@ -25,6 +29,9 @@ variables:
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
 
+default:
+  cache:                           {}
+
 .collect-artifacts:                &collect-artifacts
   artifacts:
     name:                          "${CI_JOB_NAME}_${CI_COMMIT_REF_NAME}"
@@ -36,8 +43,7 @@ variables:
 .kubernetes-env:                   &kubernetes-env
   tags:
     - kubernetes-parity-build
-  environment:
-    name: parity-build
+  interruptible:                   true
 
 .docker-env:                       &docker-env
   retry:
@@ -47,30 +53,46 @@ variables:
       - unknown_failure
       - api_failure
   interruptible:                   true
-  dependencies:                    []
   tags:
     - linux-docker
 
-.compiler_info:                    &compiler_info
+.compiler-info:                    &compiler-info
   before_script:
     - rustup show
     - cargo --version
     - sccache -s
 
-.build-refs:                       &build-refs
+.rules-build:                      &rules-build
   rules:
+    # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
+    # build job so that publish-docker-rococo would "needs" build-linux-rococo job. This leads
+    # either to blocked or to forever running pipeline. It was decided to run these jobs from UI
+    # and on schedule.
+    #
+    # $PIPELINE should be passed in https://gitlab.parity.io/parity/polkadot/-/pipeline_schedules
+    # or other trigger to avoid running these jobs and run just those allowing this variable.
+    - if: $PIPELINE == "rococo"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
-.test-refs:                        &test-refs
+.rules-test:                       &rules-test
+  # these jobs run always*
   rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $PIPELINE == "rococo"
+      when: never
+    - when: always
+
+.pr-only:                          &rules-pr-only
+  # these jobs run only on PRs
+  rules:
+    - if: $PIPELINE == "rococo"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
+      when: never
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 #### stage:                        test
 
@@ -78,38 +100,36 @@ check-runtime:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *rules-pr-only
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
     - ./scripts/gitlab/check_runtime.sh
-  interruptible:                   true
   allow_failure:                   true
 
 check-line-width:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  <<:                              *rules-pr-only
   script:
     - ./scripts/gitlab/check_line_width.sh
-  interruptible:                   true
   allow_failure:                   true
 
 test-deterministic-wasm:
   stage:                           test
+  <<:                              *rules-test
   <<:                              *docker-env
+  <<:                              *compiler-info
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
-test-linux-stable:                 &test
+test-linux-stable:
   stage:                           test
-  <<:                              *test-refs
+  <<:                              *rules-test
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -123,72 +143,50 @@ test-linux-stable:                 &test
     - ./scripts/gitlab/test_linux_stable.sh
     - sccache -s
 
-check-web-wasm:                    &test
+check-web-wasm:
   stage:                           test
-  <<:                              *test-refs
+  <<:                              *rules-test
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   script:
-    # WASM support is in progress. As more and more crates support WASM, we
-    # should add entries here. See https://github.com/paritytech/polkadot/issues/625
+    # WASM support is in progress. As more and more crates support WASM, we should
+    # add entries here. See https://github.com/paritytech/polkadot/issues/625
     - ./scripts/gitlab/check_web_wasm.sh
     - sccache -s
 
-check-runtime-benchmarks:          &test
+check-runtime-benchmarks:
   stage:                           test
-  <<:                              *test-refs
+  <<:                              *rules-test
   <<:                              *docker-env
-  <<:                              *compiler_info
+  <<:                              *compiler-info
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
+#### stage:                        build
+
 check-transaction-versions:
-  image:                          node:15
-  stage:                          build
-  needs:
-    - job:                        test-linux-stable
-  before_script:
-    - npm install -g @polkadot/metadata-cmp
-    - git fetch origin release
-  script: "scripts/gitlab/check_extrinsics_ordering.sh"
-
-build-wasm-release:
-  stage:                          build
-  <<:                             *collect-artifacts
-  <<:                             *docker-env
-  <<:                             *compiler_info
-  # Note: We likely only want to do this for tagged releases, hence the 'rules:'
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-  script:
-    - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
-    - mkdir -p ./artifacts/wasm
-    - cd ./cli/wasm/
-    - for f in polkadot_cli*; do sha256sum "${f}" > "${f}.sha256"; done
-    - mv ./polkadot_cli* ../../artifacts/wasm/.
-
-build-linux-release:               &build
+  image:                           node:15
   stage:                           build
+  <<:                              *rules-test
+  <<:                              *docker-env
+  needs:
+    - job:                         test-linux-stable
+      artifacts:                   false
+  before_script:
+    - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    - git fetch origin release
+  script:
+    - scripts/gitlab/check_extrinsics_ordering.sh
+
+.build-linux:                      &build-linux
   <<:                              *collect-artifacts
   <<:                              *docker-env
-  <<:                              *compiler_info
-  rules:
-    # .build-refs with manual on PRs
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-      when: manual
-      allow_failure: true
-  script:
-    - time cargo build --release --verbose
-    - mkdir -p ./artifacts
+  <<:                              *compiler-info
+  after_script:
     - mv ./target/release/polkadot ./artifacts/.
     - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
-    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - if [ "${CI_COMMIT_TAG}" ]; then
         EXTRATAG="latest";
       else
@@ -200,48 +198,60 @@ build-linux-release:               &build
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
+
+build-linux-release:
+  stage:                           build
+  <<:                              *build-linux
+  rules:
+    # .rules-test with manual on PRs
+    - if: $PIPELINE == "rococo"
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      when: manual
+      allow_failure: true
+    - when: always
+  script:
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - time cargo build --release --verbose
+    - sccache -s
+
+build-linux-rococo:
+  stage:                           build
+  <<:                              *build-linux
+  rules:
+    - if: $PIPELINE == "rococo"
+  script:
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - time cargo build --release --verbose --features=real-overseer
     - sccache -s
 
 generate-impl-guide:
-  stage:                          build
+  stage:                           build
+  <<:                              *rules-test
+  <<:                              *docker-env
   image:
     name: michaelfbryan/mdbook-docker-image:latest
     entrypoint: [""]
   script:
     - mdbook build roadmap/implementers-guide
 
-.publish-build:                    &publish-build
-  stage:                           publish
-  dependencies:
-    - build-linux-release
-    - build-wasm-release
-  cache:                           {}
-  <<:                              *build-refs
+#### stage:                        publish
+
+.build-push-docker-image:          &build-push-docker-image
   <<:                              *kubernetes-env
-  before_script:
+  <<:                              *collect-artifacts
+  image:                           quay.io/buildah/stable
+  before_script:                   &check-versions
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
     - VERSION="$(cat ./artifacts/VERSION)"
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-
-publish-docker:
-  <<:                              *publish-build
-  image:                           quay.io/buildah/stable
-  <<:                              *collect-artifacts
-  # Don't run on releases - this is handled by the Github Action here:
-  # .github/workflows/publish-docker-release.yml
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-  variables:
-    GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
-    IMAGE_NAME:                    docker.io/parity/polkadot
   script:
     - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
-      ( echo "no docker credentials provided"; exit 1 )
+        ( echo "no docker credentials provided"; exit 1 )
     - cd ./artifacts
     - buildah bud
         --format=docker
@@ -249,6 +259,7 @@ publish-docker:
         --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         --tag "$IMAGE_NAME:$VERSION"
         --tag "$IMAGE_NAME:$EXTRATAG" .
+    # The job will success only on the protected branch
     - echo "$Docker_Hub_Pass_Parity" |
       buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
     - buildah info
@@ -259,13 +270,52 @@ publish-docker:
     # only VERSION information is needed for the deployment
     - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
 
+publish-docker-polkadot:
+  stage:                           publish
+  <<:                              *build-push-docker-image
+  # Don't run on releases - this is handled by the Github Action here:
+  # .github/workflows/publish-docker-release.yml
+  rules:
+    - if: $PIPELINE == "rococo"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+  variables:
+    GIT_STRATEGY:                  none
+    # DOCKERFILE:                  scripts/docker/Dockerfile
+    IMAGE_NAME:                    docker.io/parity/polkadot
+
+publish-docker-rococo:
+  stage:                           publish
+  <<:                              *build-push-docker-image
+  rules:
+    - if: $PIPELINE == "rococo"
+  needs:
+    - job:                         build-linux-rococo
+      artifacts:                   true
+  variables:
+    GIT_STRATEGY:                  none
+    # DOCKERFILE:                  scripts/docker/Dockerfile
+    IMAGE_NAME:                    docker.io/parity/rococo
+
 publish-s3-release:
-  <<:                              *publish-build
+  stage:                           publish
+  <<:                              *rules-build
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+  <<:                              *kubernetes-env
   image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
     BUCKET:                        "releases.parity.io"
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
+  before_script:
+    - *check-versions
   script:
     - echo "uploading objects to https://${BUCKET}/${PREFIX}/${VERSION}"
     - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
@@ -289,22 +339,23 @@ publish-s3-release:
     - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
 
+#### stage:                        deploy
+
 deploy-polkasync-kusama:
   stage:                           deploy
-  <<:                              *build-refs
+  <<:                              *rules-build
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-#### stage:                       .post
+#### stage:                        .post
 
 check-labels:
-  stage:                          .post
-  image:                          paritytech/tools:latest
-  <<:                             *kubernetes-env
-  rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  stage:                           .post
+  image:                           paritytech/tools:latest
+  <<:                              *rules-pr-only
+  <<:                              *kubernetes-env
   script:
     - ./scripts/gitlab/check_labels.sh
