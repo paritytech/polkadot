@@ -66,7 +66,7 @@ use std::task::Poll;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::{oneshot, mpsc};
 use futures::{
 	poll, select,
 	future::BoxFuture,
