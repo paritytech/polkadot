@@ -68,6 +68,13 @@ impl<T> UnboundedMeteredReceiver<T> {
     }
 }
 
+impl<T> futures::stream::FusedStream for UnboundedMeteredReceier<T> {
+    pub fn is_terminated(&self) -> bool {
+        self.inner.is_terminated()
+    }
+}
+
+
 /// The sender component, tracking the number of items
 /// sent across it.
 #[derive(Debug)]

@@ -68,6 +68,13 @@ impl<T> MeteredReceiver<T> {
 	}
 }
 
+impl<T> futures::stream::FusedStream for MeteredReceier<T> {
+    pub fn is_terminated(&self) -> bool {
+        self.inner.is_terminated()
+    }
+}
+
+
 /// The sender component, tracking the number of items
 /// sent across it.
 #[derive(Debug)]
