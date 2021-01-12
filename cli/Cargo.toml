@@ -14,7 +14,7 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-log = "0.4.11"
+log = "0.4.13"
 thiserror = "1.0.23"
 structopt = { version = "0.3.21", optional = true }
 wasm-bindgen = { version = "0.2.69", optional = true }
