@@ -68,7 +68,7 @@ impl<T> UnboundedMeteredReceiver<T> {
     }
 }
 
-impl<T> futures::stream::FusedStream for UnboundedMeteredReceier<T> {
+impl<T> futures::stream::FusedStream for UnboundedMeteredReceiver<T> {
     fn is_terminated(&self) -> bool {
         self.inner.is_terminated()
     }
