@@ -1245,24 +1245,28 @@ mod tests {
 	fn tick_tack_metronome() {
 		let n = Arc::new(AtomicUsize::default());
 
+		let (tick, mut block) = mpsc::unbounded();
+
 		let metronome = {
 			let n = n.clone();
 			let stream = Metronome::new(Duration::from_millis(137_u64));
 			stream.for_each(move |_res| {
 				let _ = n.fetch_add(1, Ordering::Relaxed);
-				async {
-					()
+				let mut tick = tick.clone();
+				async move {
+					tick.send(()).await.expect("Test helper channel works. qed");
 				}
 			}).fuse()
 		};
 
 		let f2 = async move {
-			assert_eq!(n.load(Ordering::Relaxed), 0_usize);
-			Delay::new(Duration::from_millis(200)).await;
+			block.next().await;
 			assert_eq!(n.load(Ordering::Relaxed), 1_usize);
-			Delay::new(Duration::from_millis(200)).await;
+			block.next().await;
 			assert_eq!(n.load(Ordering::Relaxed), 2_usize);
-			Delay::new(Duration::from_millis(200)).await;
+			block.next().await;
+			assert_eq!(n.load(Ordering::Relaxed), 3_usize);
+			block.next().await;
 			assert_eq!(n.load(Ordering::Relaxed), 4_usize);
 		}.fuse();
 

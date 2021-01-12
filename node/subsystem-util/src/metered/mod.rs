@@ -89,6 +89,8 @@ mod tests {
 
 	#[test]
 	fn with_tasks() {
+		let (ready, go) = futures::channel::oneshot::channel();
+
 		let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
 		block_on(async move {
 			futures::join!(
@@ -100,9 +102,10 @@ mod tests {
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
+					ready.send(()).expect("Helper oneshot channel must work. qed");
 				},
 				async move {
-					Delay::new(Duration::from_millis(100)).await;
+					go.await.expect("Helper oneshot channel must work. qed");
 					assert_eq!(rx.meter().queue_count(), 4);
 					rx.try_next().unwrap();
 					assert_eq!(rx.meter().queue_count(), 3);
