@@ -194,7 +194,10 @@ pub fn run() -> Result<()> {
 
 			runner.async_run(|mut config| {
 				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, import_queue).map(|r| r.map_err(|e| Error::SubstrateCli(e)) ), task_manager))
+				Ok((async move {
+					cmd.run(client, import_queue).await
+						.map_err(|e| Error::SubstrateCli(e))
+				}, task_manager))
 			})
 		},
 		Some(Subcommand::ExportBlocks(cmd)) => {
@@ -254,7 +257,8 @@ pub fn run() -> Result<()> {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 				Ok(
 					(async move {
-						cmd.run(client, backend).await.map_err(Error::SubstrateCli)
+						cmd.run(client, backend).await
+							.map_err(Error::SubstrateCli)
 					},
 					task_manager)
 				)
