@@ -66,6 +66,7 @@ members = [
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
+	"node/metered-channel",
 	"node/test/client",
 	"node/test/service",
 	"parachain/test-parachains",
