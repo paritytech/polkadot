@@ -1832,7 +1832,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 mod tests {
 	use std::sync::atomic;
 	use std::collections::HashMap;
-	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt, pending};
+	use futures::{executor, pin_mut, select, FutureExt, pending};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, JaegerSpan};
