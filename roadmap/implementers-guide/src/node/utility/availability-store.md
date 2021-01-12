@@ -9,25 +9,19 @@ The two data types:
 
 For each of these data we have pruning rules that determine how long we need to keep that data available.
 
-PoV hypothetically only need to be kept around until the block where the data was made fully available is finalized. However, disputes can revert finality, so we need to be a bit more conservative. We should keep the PoV until a block that finalized availability of it has been finalized for 1 day.
+PoV hypothetically only need to be kept around until the block where the data was made fully available is finalized. However, disputes can revert finality, so we need to be a bit more conservative and we add a delay. We should keep the PoV until a block that finalized availability of it has been finalized for 1 day + 1 hour.
 
-> TODO: arbitrary, but extracting `acceptance_period` is kind of hard here...
-
-Availability chunks need to be kept available until the dispute period for the corresponding candidate has ended. We can accomplish this by using the same criterion as the above, plus a delay. This gives us a pruning condition of the block finalizing availability of the chunk being final for 1 day + 1 hour.
-
-> TODO: again, concrete acceptance-period would be nicer here, but complicates things
+Availability chunks need to be kept available until the dispute period for the corresponding candidate has ended. We can accomplish this by using the same criterion as the above. This gives us a pruning condition of the block finalizing availability of the chunk being final for 1 day + 1 hour.
 
 There is also the case where a validator commits to make a PoV available, but the corresponding candidate is never backed. In this case, we keep the PoV available for 1 hour.
 
-> TODO: ideally would be an upper bound on how far back contextual execution is OK.
+There may be multiple competing blocks all ending the availability phase for a particular candidate. Until finality, it will be unclear which of those is actually the canonical chain, so the pruning records for PoVs and Availability chunks should keep track of all such blocks.
 
-There may be multiple competing blocks all ending the availability phase for a particular candidate. Until (and slightly beyond) finality, it will be unclear which of those is actually the canonical chain, so the pruning records for PoVs and Availability chunks should keep track of all such blocks.
-
-## Lifetime of the PoV in the storage
+## Lifetime of the block data and chunks in storage
 
 ```dot process
 digraph {
-	label = "Block life FSM\n\n\n";
+	label = "Block data FSM\n\n\n";
 	labelloc = "t";
 	rankdir="LR";
 
@@ -39,31 +33,55 @@ digraph {
 	st -> inc [label = "Block\nincluded"]
 	st -> prn [label = "Stored block\ntimed out"]
 	inc -> fin [label = "Block\nfinalized"]
-	fin -> prn [label = "Block keep time\n(1 day) elapsed"]
-}
-```
-
-## Lifetime of the chunk in the storage
-
-```dot process
-digraph {
-	label = "Chunk life FSM\n\n\n";
-	labelloc = "t";
-	rankdir="LR";
-
-	chst [label = "Chunk\nStored"; shape = circle]
-	st [label = "Block\nStored"; shape = circle]
-	inc [label = "Included"; shape = circle]
-	fin [label = "Finalized"; shape = circle]
-	prn [label = "Pruned"; shape = circle]
-
-	chst -> inc [label = "Block\nincluded"]
-	st -> inc [label = "Block\nincluded"]
-	st -> prn [label = "Stored block\ntimed out"]
-	inc -> fin [label = "Block\nfinalized"]
+	inc -> st [label = "Competing blocks\nfinalized"]
 	fin -> prn [label = "Block keep time\n(1 day + 1 hour) elapsed"]
 }
 ```
+
+## Database Schema
+
+We use an underlying Key-Value database where we assume we have the following operations available:
+  * `write(key, value)`
+  * `read(key) -> Option<value>`
+  * `iter_with_prefix(prefix) -> Iterator<(key, value)>` - gives all keys and values in lexicographical order where the key starts with `prefix`.
+
+We use this database to encode the following schema:
+
+```
+("available", CandidateHash) -> Option<AvailableData>
+("chunk", CandidateHash, u32) -> Option<ErasureChunk>
+("meta", CandidateHash) -> Option<CandidateMeta>
+
+("unfinalized", BlockNumber, BlockHash, CandidateHash) -> Option<()>
+("prune_by_time", Timestamp, CandidateHash) -> Option<()>
+```
+
+Timestamps are the wall-clock seconds since unix epoch. Timestamps and block numbers are both encoded as big-endian so lexicographic order is ascending.
+
+The meta information that we track per-candidate is defined as the `CandidateMeta` struct
+
+```rust
+struct CandidateMeta {
+  state: State,
+  data_available: bool,
+  chunks_stored: Bitfield,
+}
+
+enum State {
+  /// Candidate data was first observed at the given time but is not available in any block.
+  Unavailable(Timestamp),
+  /// The candidate was first observed at the given time and was included in the given list of unfinalized blocks, which may be
+  /// empty. The timestamp here is not used for pruning. Either one of these blocks will be finalized or the state will regress to
+  /// `State::Unavailable`, in which case the same timestamp will be reused.
+  Unfinalized(Timestamp, Vec<(BlockNumber, BlockHash)>),
+  /// Candidate data has appeared in a finalized block and did so at the given time.
+  Finalized(Timestamp)
+}
+```
+
+We maintain the invariant that if a candidate has a meta entry, its available data exists on disk if `data_available` is true. All chunks mentioned in the meta entry are available.
+
+Additionally, there is exactly one `prune_by_time` entry which holds the candidate hash unless the state is `Unfinalized`. There may be zero, one, or many "unfinalized" keys with the given candidate, and this will correspond to the `state` of the meta entry.
 
 ## Protocol
 
@@ -72,97 +90,81 @@ Input: [`AvailabilityStoreMessage`][ASM]
 Output:
 - [`RuntimeApiMessage`][RAM]
 
+
 ## Functionality
 
-On `ActiveLeavesUpdate`:
-
 For each head in the `activated` list:
-	- Note any new candidates backed in the block. Update pruning records for any stored `PoVBlock`s.
-	- Note any newly-included candidates backed in the block. Update pruning records for any stored availability chunks.
+  - Note any new candidates backed in the block. Update the `CandidateMeta` for each. If the `CandidateMeta` does not exist, create it as `Unavailable` with the current timestamp. Register a `"prune_by_time"` entry based on the current timestamp + 1 hour.
+  - Note any new candidate included in the block. Update the `CandidateMeta` for each, performing a transition from `Unavailable` to `Unfinalized` if necessary. That includes removing the `"prune_by_time"` entry. Add the block hash and number to the state, if unfinalized. Add an `"unfinalized"` entry for the block and candidate.
+  - The `CandidateEvent` runtime API can be used for this purpose.
+  - TODO: load all ancestors of the head back to the finalized block so we don't miss anything if import notifications are missed. If a `StoreChunk` message is received for a candidate which has no entry, then we will prematurely lose the data.
 
-On `OverseerSignal::BlockFinalized(_)` events:
+On `OverseerSignal::BlockFinalized(finalized)` events:
+  - for each key in `iter_with_prefix("unfinalized")`
+    - Stop if the key is beyond `("unfinalized, finalized)`
+    - For each block number f that we encounter, load the finalized hash for that block.
+      - The state of each `CandidateMeta` we encounter here must be `Unfinalized`, since we loaded the candidate from an `"unfinalized"` key.
+      - For each candidate that we encounter under `f` and the finalized block hash,
+        - Update the `CandidateMeta` to have `State::Finalized`.  Remove all `"unfinalized"` entries from the old `Unfinalized` state.
+        - Register a `"prune_by_time"` entry for the candidate based on the current time + 1 day + 1 hour.
+      - For each candidate that we encounter under `f` which is not under the finalized block hash,
+        - Remove all entries under `f` in the `Unfinalized` state.
+        - If the `CandidateMeta` has state `Unfinalized` with an empty list of blocks, downgrade to `Unavailable` and re-schedule pruning under the timestamp + 1 hour. We do not prune here as the candidate still may be included in a descendent of the finalized chain.
+      - Remove all `"unfinalized"` keys under `f`.  
+  - Update last_finalized = finalized.
 
-- Handle all pruning based on the newly-finalized block.
+  This is roughly `O(n * m)` where n is the number of blocks finalized since the last update, and `m` is the number of parachains.
 
-On `QueryPoV` message:
+On `QueryAvailableData` message:
 
-- Return the PoV block, if any, for that candidate hash.
+  - Query `("available", candidate_hash)`
+
+  This is `O(n)` in the size of the data, which may be large.
+
+On `QueryDataAvailability` message:
+
+  - Query whether `("meta", candidate_hash)` exists and `data_available == true`.
+
+  This is `O(n)` in the size of the metadata which is small.
 
 On `QueryChunk` message:
 
-- Determine if we have the chunk indicated by the parameters and return it and its inclusion proof via the response channel if so.
+  - Query `("chunk", candidate_hash, index)`
+
+  This is `O(n)` in the size of the data, which may be large.
+
+On `QueryChunkAvailability message:
+
+  - Query whether `("meta", candidate_hash)` exists and the bit at `index` is set.
+
+  This is `O(n)` in the size of the metadata which is small.
 
 On `StoreChunk` message:
 
-- Store the chunk along with its inclusion proof under the candidate hash and validator index.
+  - If there is a `CandidateMeta` under the candidate hash, set the bit of the erasure-chunk in the `chunks_stored` bitfield to `1`. If it was not `1` already, write the chunk under `("chunk", candidate_hash, chunk_index)`.
 
-On `StorePoV` message:
+  This is `O(n)` in the size of the chunk.
 
-- Store the block, if the validator index is provided, store the respective chunk as well.
+On `StoreAvailableData` message:
 
-On finality event:
+  - If there is no `CandidateMeta` under the candidate hash, create it with `State::Unavailable(now)`. Load the `CandidateMeta` otherwise.
+  - Store `data` under `("available", candidate_hash)` and set `data_available` to true.
+  - Store each chunk under `("chunk", candidate_hash, index)` and set every bit in `chunks_stored` to `1`.
 
-- For the finalized block and any earlier block (if any) update pruning records of `PoV`s and chunks to keep them for respective periods after finality.
+  This is `O(n)` in the size of the data as the aggregate size of the chunks is proportional to the data.
 
-### Note any backed, included and timedout candidates in the block by `hash`.
+Every 5 minutes, run a pruning routine:
 
-- Create a `(sender, receiver)` pair.
-- Dispatch a [`RuntimeApiMessage`][RAM]`::Request(hash, RuntimeApiRequest::CandidateEvents(sender)` and listen on the receiver for a response.
-- For every event in the response:`CandidateEvent::CandidateIncluded`.
-  * For every `CandidateEvent::CandidateBacked` do nothing
-  * For every `CandidateEvent::CandidateIncluded` update pruning records of any blocks that the node stored previously.
-  * For every `CandidateEvent::CandidateTimedOut` use pruning records to prune the data; delete the info from records.
+  - for each key in `iter_with_prefix("prune_by_time")`:
+    - If the key is beyond ("prune_by_time", now), return.
+    - Remove the key.
+    - Extract `candidate_hash` from the key.
+    - Load and remove the `("meta", candidate_hash)`
+    - For each erasure chunk bit set, remove `("chunk", candidate_hash, bit_index)`.
+    - If `data_available`, remove `("available", candidate_hash)
 
-## Schema
-
-### PoV pruning
-
-We keep a record about every PoV we keep, tracking its state and the time after which this PoV should be pruned.
-
-As the state of the `Candidate` changes, so does the `Prune At` time according to the rules defined earlier.
-
-| Record 1       | .. | Record N       |
-|----------------|----|----------------|
-| CandidateHash1 | .. | CandidateHashN |
-|    Prune At    | .. |    Prune At    |
-| CandidateState | .. | CandidateState |
-
-### Chunk pruning
-
-Chunk pruning is organized in a similar schema as PoV pruning.
-
-| Record 1       | .. | Record N       |
-|----------------|----|----------------|
-| CandidateHash1 | .. | CandidateHashN |
-|    Prune At    | .. |    Prune At    |
-| CandidateState | .. | CandidateState |
-
-### Included blocks caching
-
-In order to process finality events correctly we need to cache the set of parablocks included into each relay block beginning with the last finalized block and up to the most recent heads. We have to cache this data since we are only able to query this info from the state for the `k` last blocks where `k` is a relatively small number (for more info see `Assumptions`)
-
-These are used to update Chunk pruning and PoV pruning records upon finality:
-When another block finality notification is received:
- - For any record older than this block:
-   - Update pruning
-   - Remove the record
-
-| Relay Block N | .. | Chain Head 1 | Chain Head 2 |
-|---------------|----|--------------|--------------|
-| CandidateN_1 Included | .. | Candidate1_1 Included | Candidate2_1 Included |
-| CandidateN_2 Included | .. | Candidate1_2 Included | Candidete2_2 Included |
-|          ..           | .. |          ..           |           ..          |
-| CandidateN_M Included | .. | Candidate1_K Included | Candidate2_L Included |
-
-> TODO: It's likely we will have to have a way to go from block hash to `BlockNumber` to make this work.
-
-### Blocks
-
-Blocks are simply stored as `(Hash, AvailableData)` key-value pairs.
-
-### Chunks
-
-Chunks are stored as `(Hash, Vec<ErasureChunk>)` key-value pairs.
+  This is O(n * m) in the amount of candidates and average size of the data stored. This is probably the most expensive operation but does not need
+  to be run very often.
 
 ## Basic scenarios to test
 

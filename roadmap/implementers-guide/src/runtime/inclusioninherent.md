@@ -16,11 +16,13 @@ Included: Option<()>,
 
 ## Entry Points
 
-* `inclusion`: This entry-point accepts two parameters: [`Bitfields`](../types/availability.md#signed-availability-bitfield) and [`BackedCandidates`](../types/backing.md#backed-candidate).
+* `inclusion`: This entry-point accepts three parameters: The relay-chain parent block header, [`Bitfields`](../types/availability.md#signed-availability-bitfield) and [`BackedCandidates`](../types/backing.md#backed-candidate).
+    1. Hash the parent header and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module),
     1. The `Bitfields` are first forwarded to the `Inclusion::process_bitfields` routine, returning a set of freed cores. Provide a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine. Annotate each of these freed cores with `FreedReason::Concluded`.
     1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it, and add timed-out cores to the free cores, annotated with `FreedReason::TimedOut`.
     1. Invoke `Scheduler::schedule(freed)`
-	1. Invoke the `Inclusion::process_candidates` routine with the parameters `(backed_candidates, Scheduler::scheduled(), Scheduler::group_validators)`.
+    1. Extract `parent_storage_root` from the parent header,
+    1. Invoke the `Inclusion::process_candidates` routine with the parameters `(parent_storage_root, backed_candidates, Scheduler::scheduled(), Scheduler::group_validators)`.
     1. Call `Scheduler::occupied` using the return value of the `Inclusion::process_candidates` call above, first sorting the list of assigned core indices.
     1. Call the `Ump::process_pending_upward_messages` routine to execute all messages in upward dispatch queues.
     1. If all of the above succeeds, set `Included` to `Some(())`.

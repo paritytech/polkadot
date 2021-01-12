@@ -209,7 +209,7 @@ decl_storage! {
 
 		/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
 		/// entry in the upcoming-genesis map.
-		UpcomingParas: Vec<ParaId>;
+		UpcomingParas get(fn upcoming_paras): Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.

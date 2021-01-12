@@ -21,13 +21,13 @@
 pub mod claims;
 pub mod slot_range;
 pub mod slots;
-pub mod crowdfund;
+pub mod crowdloan;
 pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
 
-use primitives::v1::{BlockNumber, ValidatorId};
+use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
 use frame_support::{
@@ -52,7 +52,7 @@ pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as fr
 
 /// The sequence of bytes a valid wasm module binary always starts with. Apart from that it's also a
 /// valid wasm module.
-const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+pub const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
 /// We assume that an on-initialize consumes 2.5% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 2.5%`.
@@ -158,6 +158,35 @@ impl<T: pallet_session::Config>
 	fn on_disabled(_: usize) { }
 }
 
+/// A placeholder since there is currently no provided session key handler for parachain validator
+/// keys.
+pub struct AssignmentSessionKeyPlaceholder<T>(sp_std::marker::PhantomData<T>);
+impl<T> sp_runtime::BoundToRuntimeAppPublic for AssignmentSessionKeyPlaceholder<T> {
+	type Public = AssignmentId;
+}
+
+impl<T: pallet_session::Config>
+	pallet_session::OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
+{
+	type Key = AssignmentId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I) where
+		I: Iterator<Item = (&'a T::AccountId, AssignmentId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I) where
+		I: Iterator<Item = (&'a T::AccountId, AssignmentId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_disabled(_: usize) { }
+}
+
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
@@ -207,6 +236,7 @@ mod multiplier_tests {
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
+		type SS58Prefix = ();
 	}
 
 	type System = frame_system::Module<Runtime>;

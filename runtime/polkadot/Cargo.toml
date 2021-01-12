@@ -7,13 +7,13 @@ build = "build.rs"
 
 [dependencies]
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
-log = { version = "0.4.11", optional = true }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
+log = { version = "0.4.13", optional = true }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.118", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
-smallvec = "1.5.1"
+smallvec = "1.6.1"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -34,6 +34,7 @@ pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -58,6 +59,7 @@ pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate",
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -77,8 +79,8 @@ libsecp256k1 = "0.3.5"
 tiny-keccak = "2.0.2"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie-db = "0.22.1"
-serde_json = "1.0.60"
+trie-db = "0.22.2"
+serde_json = "1.0.61"
 
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"
@@ -104,6 +106,7 @@ std = [
 	"frame-support/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-bounties/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-collective/std",
@@ -128,6 +131,7 @@ std = [
 	"frame-system-rpc-runtime-api/std",
 	"pallet-timestamp/std",
 	"pallet-treasury/std",
+	"pallet-tips/std",
 	"sp-version/std",
 	"serde_derive",
 	"serde/std",
@@ -161,6 +165,8 @@ runtime-benchmarks = [
 	"pallet-staking/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-treasury/runtime-benchmarks",
+	"pallet-bounties/runtime-benchmarks",
+	"pallet-tips/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",

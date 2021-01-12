@@ -25,6 +25,7 @@ use futures::{
 };
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_subsystem::{
+	jaeger, JaegerSpan, PerLeafSpan,
 	errors::ChainApiError,
 	messages::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage,
@@ -38,7 +39,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
 };
-use std::pin::Pin;
+use std::{pin::Pin, sync::Arc};
 use thiserror::Error;
 
 const LOG_TARGET: &'static str = "candidate_selection";
@@ -94,12 +95,15 @@ impl JobTrait for CandidateSelectionJob {
 	#[tracing::instrument(skip(keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
+		span: Arc<JaegerSpan>,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CandidateSelectionMessage>,
 		mut sender: mpsc::Sender<FromJobCommand>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let span = PerLeafSpan::new(span, "candidate-selection");
 		async move {
+			let _span = span.child("query-runtime");
 			let (groups, cores) = futures::try_join!(
 				try_runtime_api!(request_validator_groups(relay_parent, &mut sender).await),
 				try_runtime_api!(request_from_runtime(
@@ -111,6 +115,9 @@ impl JobTrait for CandidateSelectionJob {
 
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 			let cores = try_runtime_api!(cores);
+
+			drop(_span);
+			let _span = span.child("find-assignment");
 
 			let n_cores = cores.len();
 
@@ -141,7 +148,9 @@ impl JobTrait for CandidateSelectionJob {
 				None => return Ok(()),
 			};
 
-			CandidateSelectionJob::new(assignment, metrics, sender, receiver).run_loop().await
+			drop(_span);
+
+			CandidateSelectionJob::new(assignment, metrics, sender, receiver).run_loop(&span).await
 		}.boxed()
 	}
 }
@@ -162,7 +171,8 @@ impl CandidateSelectionJob {
 		}
 	}
 
-	async fn run_loop(&mut self) -> Result<(), Error> {
+	async fn run_loop(&mut self, span: &jaeger::JaegerSpan) -> Result<(), Error> {
+		let span = span.child("run-loop");
 		loop {
 			match self.receiver.next().await  {
 				Some(CandidateSelectionMessage::Collation(
@@ -170,12 +180,14 @@ impl CandidateSelectionJob {
 					para_id,
 					collator_id,
 				)) => {
+					let _span = span.child("handle-collation");
 					self.handle_collation(relay_parent, para_id, collator_id).await;
 				}
 				Some(CandidateSelectionMessage::Invalid(
 					_,
 					candidate_receipt,
 				)) => {
+					let _span = span.child("handle-invalid");
 					self.handle_invalid(candidate_receipt).await;
 				}
 				None => break,
@@ -459,10 +471,10 @@ mod tests {
 		};
 
 		preconditions(&mut job);
-
+		let span = jaeger::JaegerSpan::Disabled;
 		let (_, job_result) = futures::executor::block_on(future::join(
 			test(to_job_tx, from_job_rx),
-			job.run_loop(),
+			job.run_loop(&span),
 		));
 
 		postconditions(job, job_result);

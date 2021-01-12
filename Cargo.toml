@@ -14,7 +14,7 @@ readme = "README.md"
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
 color-eyre = "0.5.10"
-thiserror = "1.0.22"
+thiserror = "1.0.23"
 futures = "0.3.8"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
@@ -22,7 +22,7 @@ parity-util-mem = { version = "*", default-features = false, features = ["jemall
 [dev-dependencies]
 assert_cmd = "1.0.2"
 nix = "0.19.1"
-tempfile = "3.1.0"
+tempfile = "3.2.0"
 
 [workspace]
 members = [
@@ -65,6 +65,7 @@ members = [
 	"node/subsystem",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
+	"node/jaeger",
 	"node/test/client",
 	"node/test/service",
 	"parachain/test-parachains",

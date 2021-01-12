@@ -1,9 +1,5 @@
 # Approval Types
 
-## ApprovalId
-
-The public key of a keypair used by a validator for approval voting on included parachain candidates.
-
 ## AssignmentId
 
 The public key of a keypair used by a validator for determining assignments to approve included parachain candidates.
@@ -57,11 +53,13 @@ struct ApprovalVote(Hash);
 
 ## SignedApprovalVote
 
+An approval vote signed with a validator's key. This should be verifiable under the `ValidatorId` corresponding to the `ValidatorIndex` of the session, which should be implicit from context.
+
 ```rust
 struct SignedApprovalVote {
     vote: ApprovalVote,
     validator: ValidatorIndex,
-    signature: ApprovalSignature,
+    signature: ValidatorSignature,
 }
 ```
 
@@ -78,7 +76,7 @@ struct IndirectSignedApprovalVote {
     // The index of the candidate in the list of candidates fully included as-of the block.
     candidate_index: u32,
     validator: ValidatorIndex,
-    signature: ApprovalSignature,
+    signature: ValidatorSignature,
 }
 ```
 
@@ -100,40 +98,4 @@ struct CheckedAssignmentCert {
 
 ```rust
 type DelayTranche = u32;
-```
-
-## RelayVRFStory
-
-Assignment criteria are based off of possible stories about the relay-chain block that included the candidate. More information on stories is available in [the informational page on approvals.](../protocol-approval.md#stories).
-
-```rust
-/// A story based on the VRF that authorized the relay-chain block where the candidate was
-/// included.
-///
-/// VRF Context is "A&V RC-VRF"
-struct RelayVRFStory(VRFInOut);
-```
-
-## RelayEquivocationStory
-
-```rust
-/// A story based on the candidate hash itself. Should be used when a candidate is an
-/// equivocation: when there are two relay-chain blocks with the same RelayVRFStory, but only
-/// one contains the candidate.
-///
-/// VRF Context is "A&V RC-EQUIV"
-struct RelayEquivocationStory(Hash);
-```
-
-## ExecutionTimePair
-
-```rust
-struct ExecutionTimePair {
-    // The absolute time in milliseconds that the validator claims to have taken
-    // with the block.
-    absolute: u32,
-    // The validator's believed ratio in execution time to the average, expressed as a fixed-point
-    // 16-bit unsigned integer with 8 bits before and after the point.
-    ratio: FixedU16,
-}
 ```
