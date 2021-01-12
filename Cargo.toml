@@ -22,7 +22,7 @@ parity-util-mem = { version = "*", default-features = false, features = ["jemall
 [dev-dependencies]
 assert_cmd = "1.0.2"
 nix = "0.19.1"
-tempfile = "3.1.0"
+tempfile = "3.2.0"
 
 [workspace]
 members = [

@@ -10,7 +10,7 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["bit-vec", "derive"] }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }
