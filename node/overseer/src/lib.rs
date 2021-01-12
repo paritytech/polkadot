@@ -1134,7 +1134,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts {
 						common_opts: prometheus::Opts::new(
-							"parachain_channel_fill_level_from_overseer",
+							"overseer_channel_fill_level_from_overseer",
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
 						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
@@ -1146,7 +1146,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts {
 						common_opts: prometheus::Opts::new(
-							"parachain_channel_fill_level_to_overseer",
+							"overseer_channel_fill_level_to_overseer",
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
 						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
@@ -2052,13 +2052,15 @@ mod tests {
 
 	fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 		let gather = registry.gather();
-		assert_eq!(gather[0].get_name(), "overseer_messages_relay_timing");
-		assert_eq!(gather[1].get_name(), "parachain_activated_heads_total");
-		assert_eq!(gather[2].get_name(), "parachain_deactivated_heads_total");
-		assert_eq!(gather[3].get_name(), "parachain_messages_relayed_total");
-		let activated = gather[1].get_metric()[0].get_counter().get_value() as u64;
-		let deactivated = gather[2].get_metric()[0].get_counter().get_value() as u64;
-		let relayed = gather[3].get_metric()[0].get_counter().get_value() as u64;
+		assert_eq!(gather[0].get_name(), "overseer_channel_fill_level_from_overseer");
+		assert_eq!(gather[1].get_name(), "overseer_channel_fill_level_to_overseer");
+		assert_eq!(gather[2].get_name(), "overseer_messages_relay_timing");
+		assert_eq!(gather[3].get_name(), "parachain_activated_heads_total");
+		assert_eq!(gather[4].get_name(), "parachain_deactivated_heads_total");
+		assert_eq!(gather[5].get_name(), "parachain_messages_relayed_total");
+		let activated = gather[3].get_metric()[0].get_counter().get_value() as u64;
+		let deactivated = gather[4].get_metric()[0].get_counter().get_value() as u64;
+		let relayed = gather[5].get_metric()[0].get_counter().get_value() as u64;
 		let mut result = HashMap::new();
 		result.insert("activated", activated);
 		result.insert("deactivated", deactivated);
