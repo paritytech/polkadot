@@ -212,9 +212,7 @@ decl_module! {
 
 impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the scheduler module.
-	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		Self::clear_and_reschedule(now);
-
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
@@ -713,7 +711,10 @@ impl<T: Config> Module<T> {
 	}
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
-	pub(crate) fn clear_and_reschedule(now: T::BlockNumber) {
+	pub(crate) fn clear_and_reschedule(
+		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
+		now: T::BlockNumber,
+	) {
 		let config = <configuration::Module<T>>::config();
 		ParathreadQueue::mutate(|queue| {
 			for core_assignment in Scheduled::take() {
@@ -732,7 +733,7 @@ impl<T: Config> Module<T> {
 			}
 		});
 
-		Self::schedule(Vec::new(), now);
+		Self::schedule(just_freed_cores, now);
 	}
 }
 
@@ -771,6 +772,9 @@ mod tests {
 
 			Paras::initializer_initialize(b + 1);
 			Scheduler::initializer_initialize(b + 1);
+
+			// In the real runtme this is expected to be called by the `InclusionInherent` module.
+			Scheduler::clear_and_reschedule(Vec::new(), b + 1);
 		}
 	}
 
@@ -2148,7 +2152,7 @@ mod tests {
 				_ => None,
 			});
 
-			Scheduler::clear_and_reschedule(3);
+			Scheduler::clear_and_reschedule(Vec::new(), 3);
 
 			assert_eq!(
 				Scheduler::scheduled(),

@@ -124,7 +124,10 @@ decl_module! {
 			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
 
-			<scheduler::Module<T>>::schedule(freed, <frame_system::Module<T>>::block_number());
+			<scheduler::Module<T>>::clear_and_reschedule(
+				freed,
+				<frame_system::Module<T>>::block_number(),
+			);
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;

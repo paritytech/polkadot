@@ -55,7 +55,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let config = <configuration::Module<T>>::config();
 
 	let now = <frame_system::Module<T>>::block_number() + One::one();
-	<scheduler::Module<T>>::clear_and_reschedule(now);
+	<scheduler::Module<T>>::clear_and_reschedule(Vec::new(), now);
 
 	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
 
