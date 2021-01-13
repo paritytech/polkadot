@@ -1765,8 +1765,6 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		_{ }
-
 		new_auction {
 			let lease_period_index = Slots::<T>::lease_period_index();
 			let duration = 100u32.into();

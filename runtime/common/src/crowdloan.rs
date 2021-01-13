@@ -1436,7 +1436,7 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{*, Module as Crowdloan};
-	use crate::slots::Module as Slots;
+	use crate::slots::{Module as Slots, Registrar};
 	use frame_system::RawOrigin;
 	use frame_support::{
 		assert_ok,
@@ -1446,10 +1446,6 @@ mod benchmarking {
 	use sp_std::prelude::*;
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
-
-	// TODO: replace with T::Parachains::MAX_CODE_SIZE
-	const MAX_CODE_SIZE: u32 = 10;
-	const MAX_HEAD_DATA_SIZE: u32 = 10;
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -1479,8 +1475,7 @@ mod benchmarking {
 	}
 
 	fn worst_validation_code<T: Config>() -> Vec<u8> {
-		// TODO: replace with T::Parachains::MAX_CODE_SIZE
-		let mut validation_code = vec![0u8; MAX_CODE_SIZE as usize];
+		let mut validation_code = vec![0u8; T::Parachains::MAX_CODE_SIZE as usize];
 		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
 		let _ = validation_code.splice(
 			..crate::WASM_MAGIC.len(),
@@ -1492,13 +1487,11 @@ mod benchmarking {
 	fn worst_deploy_data<T: Config>() -> DeployData<T::Hash> {
 		let validation_code = worst_validation_code::<T>();
 		let code = primitives::v1::ValidationCode(validation_code);
-		// TODO: replace with T::Parachains::MAX_HEAD_DATA_SIZE
-		let head_data = HeadData(vec![0u8; MAX_HEAD_DATA_SIZE as usize]);
+		let head_data = HeadData(vec![0u8; T::Parachains::MAX_HEAD_DATA_SIZE as usize]);
 
 		DeployData {
 			code_hash: T::Hashing::hash(&code.0),
-			// TODO: replace with T::Parachains::MAX_CODE_SIZE
-			code_size: MAX_CODE_SIZE,
+			code_size: T::Parachains::MAX_CODE_SIZE,
 			initial_head_data: head_data,
 		}
 	}
