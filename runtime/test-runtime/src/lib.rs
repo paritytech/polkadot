@@ -121,6 +121,7 @@ sp_api::decl_runtime_apis! {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
@@ -145,6 +146,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = SS58Prefix;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
@@ -424,6 +426,7 @@ impl claims::Config for Runtime {
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	type MoveClaimOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = claims::TestWeightInfo;
 }
 
 parameter_types! {
@@ -743,6 +746,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch() -> babe_primitives::Epoch {
 			Babe::current_epoch()
+		}
+
+		fn next_epoch() -> babe_primitives::Epoch {
+			Babe::next_epoch()
 		}
 
 		fn generate_key_ownership_proof(
