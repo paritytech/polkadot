@@ -26,7 +26,7 @@ use polkadot_subsystem::messages::NetworkBridgeMessage;
 use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 use sc_network::Event as NetworkEvent;
 
-use polkadot_node_network_protocol::{peer_set::peer_sets_info, ObservedRole};
+use polkadot_node_network_protocol::ObservedRole;
 
 use super::{WireMessage, LOG_TARGET, MALFORMED_MESSAGE_COST};
 
