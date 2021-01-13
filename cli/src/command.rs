@@ -18,6 +18,7 @@ use log::info;
 use service::{IdentifyVariant, self};
 use sc_cli::{SubstrateCli, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
+use futures::future::TryFutureExt;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -194,10 +195,7 @@ pub fn run() -> Result<()> {
 
 			runner.async_run(|mut config| {
 				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((async move {
-					cmd.run(client, import_queue).await
-						.map_err(|e| Error::SubstrateCli(e))
-				}, task_manager))
+				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
 			})
 		},
 		Some(Subcommand::ExportBlocks(cmd)) => {
@@ -209,10 +207,7 @@ pub fn run() -> Result<()> {
 			Ok(runner.async_run(|mut config| {
 				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)
 					.map_err(Error::PolkadotService)?;
-				Ok((async move {
-					cmd.run(client, config.database).await
-						.map_err(|e| Error::SubstrateCli(e))
-				}, task_manager))
+				Ok((cmd.run(client, config.database).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		},
 		Some(Subcommand::ExportState(cmd)) => {
@@ -223,10 +218,7 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((async move {
-					cmd.run(client, config.chain_spec).await
-						.map_err(|e| Error::SubstrateCli(e))
-				}, task_manager))
+				Ok((cmd.run(client, config.chain_spec).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		},
 		Some(Subcommand::ImportBlocks(cmd)) => {
@@ -237,10 +229,7 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((async move {
-					cmd.run(client, import_queue).await
-						.map_err(|e| Error::SubstrateCli(e))
-				}, task_manager))
+				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		},
 		Some(Subcommand::PurgeChain(cmd)) => {
