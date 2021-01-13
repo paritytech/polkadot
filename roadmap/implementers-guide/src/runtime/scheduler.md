@@ -163,7 +163,8 @@ ParathreadClaimIndex: Vec<ParaId>;
 /// The block number where the session start occurred. Used to track how many group rotations have occurred.
 SessionStartBlock: BlockNumber;
 /// Currently scheduled cores - free but up to be occupied.
-/// The value contained here will not be valid after the end of a block. Runtime APIs should be used to determine scheduled cores/
+/// The value contained here will not be valid after the end of a block. 
+/// Runtime APIs should be used to determine scheduled cores
 /// for the upcoming block.
 Scheduled: Vec<CoreAssignment>, // sorted ascending by CoreIndex.
 ```
