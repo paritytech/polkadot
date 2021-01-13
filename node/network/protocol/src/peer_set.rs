@@ -29,11 +29,6 @@ pub enum PeerSet {
 	Collation,
 }
 
-/// Protocol name as understood in substrate.
-///
-/// Ideally this would be defined in substrate as a newtype.
-type ProtocolName = Cow<'static, str>;
-
 impl PeerSet {
 	/// Get `sc_network` peer set configurations for each peerset.
 	///
@@ -72,17 +67,12 @@ impl PeerSet {
 	}
 
 	/// Convert a peer set into a protocol name as understood by Substrate.
-	///
-	/// With `ProtocolName` being a proper newtype we could use the `Into` trait here.
-	pub fn into_protocol_name(self) -> ProtocolName {
+	pub fn into_protocol_name(self) -> Cow<'static, str> {
 		self.get_protocol_name_static().into()
 	}
 
 	/// Try parsing a protocol name into a peer set.
-	///
-	/// If ProtocolName was a newtype, this would actually be nice to implement in terms of the
-	/// standard `TryFrom` trait.
-	pub fn try_from_protocol_name(name: &ProtocolName) -> Option<PeerSet> {
+	pub fn try_from_protocol_name(name: &Cow<'static, str>) -> Option<PeerSet> {
 		match name {
 			n if n == &PeerSet::Validation.into_protocol_name() => Some(PeerSet::Validation),
 			n if n == &PeerSet::Collation.into_protocol_name() => Some(PeerSet::Collation),
