@@ -822,14 +822,14 @@ sp_api::decl_runtime_apis! {
 		#[skip_initialize_block]
 		fn validators() -> Vec<ValidatorId>;
 
-		/// Returns the validator groups and rotation info localized based on the block whose state
-		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
-		/// the number of the block.
+		/// Returns the validator groups and rotation info localized based on the hypothetical child
+		///  of a block whose state  this is invoked on. Note that `now` in the `GroupRotationInfo`
+		/// should be the successor of the number of the block.
 		#[skip_initialize_block]
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
 
-		/// Yields information on all availability cores. Cores are either free or occupied. Free
-		/// cores can have paras assigned to them.
+		/// Yields information on all availability cores as relevant to the child block.
+		/// Cores are either free or occupied. Free cores can have paras assigned to them.
 		#[skip_initialize_block]
 		fn availability_cores() -> Vec<CoreState<H, N>>;
 
