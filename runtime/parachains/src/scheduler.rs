@@ -192,6 +192,9 @@ decl_storage! {
 		/// Currently scheduled cores - free but up to be occupied.
 		///
 		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
+		///
+		/// The value contained here will not be valid after the end of a block. Runtime APIs should be used to determine scheduled cores/
+		/// for the upcoming block.
 		Scheduled get(fn scheduled): Vec<CoreAssignment>; // sorted ascending by CoreIndex.
 	}
 }
@@ -210,14 +213,14 @@ decl_module! {
 impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the scheduler module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		let now = <frame_system::Module<T>>::block_number();
+		Self::clear_and_reschedule(now);
+
 		0
 	}
 
 	/// Called by the initializer to finalize the scheduler module.
-	pub(crate) fn initializer_finalize() {
-		let now = <frame_system::Module<T>>::block_number() + One::one();
-		Self::clear_and_reschedule(true, now);
-	}
+	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
@@ -329,8 +332,6 @@ impl<T: Config> Module<T> {
 		// We want to re-schedule as though it is the first block of the session.
 		let now = <frame_system::Module<T>>::block_number() + One::one();
 		<SessionStartBlock<T>>::set(now);
-
-		Self::clear_and_reschedule(false, now);
 	}
 
 	/// Add a parathread claim to the queue. If there is a competing claim in the queue or currently
@@ -634,9 +635,8 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Returns a helper for determining group rotation.
-	pub(crate) fn group_rotation_info() -> GroupRotationInfo<T::BlockNumber> {
+	pub(crate) fn group_rotation_info(now: T::BlockNumber) -> GroupRotationInfo<T::BlockNumber> {
 		let session_start_block = Self::session_start_block();
-		let now = <frame_system::Module<T>>::block_number();
 		let group_rotation_frequency = <configuration::Module<T>>::config()
 			.group_rotation_frequency;
 
@@ -714,7 +714,7 @@ impl<T: Config> Module<T> {
 	}
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
-	fn clear_and_reschedule(inc_retries: bool, now: T::BlockNumber) {
+	pub(crate) fn clear_and_reschedule(now: T::BlockNumber) {
 		let config = <configuration::Module<T>>::config();
 		ParathreadQueue::mutate(|queue| {
 			for core_assignment in Scheduled::take() {
@@ -723,7 +723,7 @@ impl<T: Config> Module<T> {
 
 					let entry = ParathreadEntry {
 						claim: ParathreadClaim(core_assignment.para_id, collator),
-						retries: retries + inc_retries as u32,
+						retries: retries + 1,
 					};
 
 					if entry.retries <= config.parathread_retries {
@@ -2080,7 +2080,7 @@ mod tests {
 	}
 
 	#[test]
-	fn session_change_causes_reschedule_dropping_removed_paras() {
+	fn session_change_requires_reschedule_dropping_removed_paras() {
 		let genesis_config = MockGenesisConfig {
 			configuration: crate::configuration::GenesisConfig {
 				config: default_config(),
@@ -2148,6 +2148,8 @@ mod tests {
 				}),
 				_ => None,
 			});
+
+			Scheduler::clear_and_reschedule(3);
 
 			assert_eq!(
 				Scheduler::scheduled(),
