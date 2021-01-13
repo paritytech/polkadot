@@ -124,7 +124,8 @@ decl_module! {
 			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
 
-			<scheduler::Module<T>>::clear_and_reschedule(
+			<scheduler::Module<T>>::clear();
+			<scheduler::Module<T>>::schedule(
 				freed,
 				<frame_system::Module<T>>::block_number(),
 			);

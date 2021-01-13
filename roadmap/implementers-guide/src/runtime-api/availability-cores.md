@@ -8,7 +8,7 @@ See also the [Scheduler Module](../runtime/scheduler.md) for a high-level descri
 fn availability_cores(at: Block) -> Vec<CoreState>;
 ```
 
-This is all the information that a validator needs about scheduling for the current block. It includes all information on [Scheduler](../runtime/scheduler.md) core-assignments and [Inclusion](../runtime/inclusion.md) state of blocks occupying availability cores. It includes data necessary to determine not only which paras are assigned now, but which cores are likely to become freed after processing bitfields, and exactly which bitfields would be necessary to make them so.  The implementation of this runtime API should invoke `Scheduler::clear_and_reschedule(Vec::new(), current_block_number + 1)` to ensure that scheduling is accurate.
+This is all the information that a validator needs about scheduling for the current block. It includes all information on [Scheduler](../runtime/scheduler.md) core-assignments and [Inclusion](../runtime/inclusion.md) state of blocks occupying availability cores. It includes data necessary to determine not only which paras are assigned now, but which cores are likely to become freed after processing bitfields, and exactly which bitfields would be necessary to make them so.  The implementation of this runtime API should invoke `Scheduler::clear` and `Scheduler::schedule(Vec::new(), current_block_number + 1)` to ensure that scheduling is accurate.
 
 ```rust
 struct OccupiedCore {
