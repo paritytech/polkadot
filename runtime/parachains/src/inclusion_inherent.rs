@@ -202,6 +202,10 @@ impl<T: Config> ProvideInherent for Module<T> {
 					{
 						Call::inclusion(signed_bitfields, backed_candidates, parent_header)
 					} else {
+						sp_runtime::print(
+							"WARN: dropping signed_bitfields and backed_candidates because they produced \
+							an invalid inclusion inherent. Probably this is related to a session change."
+						);
 						Call::inclusion(Vec::new().into(), Vec::new(), parent_header)
 					}
 				}
