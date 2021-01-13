@@ -177,8 +177,8 @@ pub fn run() -> Result<()> {
 						grandpa_pause,
 						jaeger_agent,
 					).map(|full| full.task_manager)
-				}.map_err(|e| Error::PolkadotService(e));
-				task_manager
+				}?;
+				Ok::<_, Error>(task_manager)
 			})
 		},
 		Some(Subcommand::BuildSpec(cmd)) => {
