@@ -183,6 +183,11 @@ decl_storage! {
 		/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
 		ParathreadClaimIndex: Vec<ParaId>;
 		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
+		///
+		/// Note that in the context of parachains modules the session change is signalled during
+		/// the block and enacted at the end of the block (at the finalization stage, to be exact).
+		/// Thus for all intents and purposes the effect of the session change is observed at the
+		/// block following the session change, block number of which we save in this storage value.
 		SessionStartBlock get(fn session_start_block): T::BlockNumber;
 		/// Currently scheduled cores - free but up to be occupied.
 		///
