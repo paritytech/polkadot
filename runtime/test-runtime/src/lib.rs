@@ -473,6 +473,7 @@ impl parachains_ump::Config for Runtime {
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_scheduler::Config for Runtime {}
@@ -746,6 +747,10 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch() -> babe_primitives::Epoch {
 			Babe::current_epoch()
+		}
+
+		fn next_epoch() -> babe_primitives::Epoch {
+			Babe::next_epoch()
 		}
 
 		fn generate_key_ownership_proof(

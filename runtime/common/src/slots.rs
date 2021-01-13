@@ -579,9 +579,9 @@ impl<T: Config> Module<T> {
 	/// ending. An immediately subsequent call with the same argument will always return `None`.
 	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = <AuctionInfo<T>>::get() {
-			if early_end + T::EndingPeriod::get() == now {
+			let ending_period = T::EndingPeriod::get();
+			if early_end + ending_period == now {
 				// Just ended!
-				let ending_period = T::EndingPeriod::get();
 				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
 					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
 				let res = <Winning<T>>::get(offset).unwrap_or_default();

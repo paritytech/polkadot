@@ -652,6 +652,11 @@ impl<T: Config> Module<T> {
 		}
 	}
 
+	// NOTE: Explicitly tell rustc not to inline this because otherwise heuristics note the incoming
+	// closure making it's attractive to inline. However, in this case, we will end up with lots of
+	// duplicated code (making this function to show up in the top of heaviest functions) only for
+	// the sake of essentially avoiding an indirect call. Doesn't worth it.
+	#[inline(never)]
 	fn update_config_member(
 		updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>) -> bool,
 	) {

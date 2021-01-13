@@ -9,5 +9,5 @@ description = "Primitives types for the Node-side"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

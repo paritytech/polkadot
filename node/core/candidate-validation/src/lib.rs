@@ -439,6 +439,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
 		relay_chain_height: persisted_validation_data.block_number,
+		relay_storage_root: persisted_validation_data.relay_storage_root,
 		dmq_mqc_head: persisted_validation_data.dmq_mqc_head,
 		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
