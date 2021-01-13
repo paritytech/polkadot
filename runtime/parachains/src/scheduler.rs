@@ -326,7 +326,6 @@ impl<T: Config> Module<T> {
 		});
 		ParathreadQueue::set(thread_queue);
 
-		// We want to re-schedule as though it is the first block of the session.
 		let now = <frame_system::Module<T>>::block_number() + One::one();
 		<SessionStartBlock<T>>::set(now);
 	}
