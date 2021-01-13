@@ -45,7 +45,7 @@ use sc_network::{
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	RpcHandlers, TaskExecutor, TaskManager, KeepBlocks, TransactionStorage,
+	RpcHandlers, TaskExecutor, TaskManager, KeepBlocks, TransactionStorageMode,
 };
 use service::{BasePath, Configuration, Role};
 use sp_arithmetic::traits::SaturatedConversion;
@@ -165,7 +165,7 @@ pub fn node_config(
 		state_cache_child_ratio: None,
 		state_pruning: Default::default(),
 		keep_blocks: KeepBlocks::All,
-		transaction_storage: TransactionStorage::BlockBody,
+		transaction_storage: TransactionStorageMode::BlockBody,
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Interpreted,
 		wasm_runtime_overrides: Default::default(),
