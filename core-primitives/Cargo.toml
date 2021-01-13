@@ -8,7 +8,7 @@ edition = "2018"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-parity-scale-codec = { version = "1.3.5", default-features = false, features = [ "derive" ] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = [ "derive" ] }
 
 [features]
 default = [ "std" ]

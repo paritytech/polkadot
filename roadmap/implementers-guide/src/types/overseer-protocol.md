@@ -173,12 +173,12 @@ enum AvailabilityStoreMessage {
 	QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
+	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<ErasureChunk>>),
 	/// Store a specific chunk of the candidate's erasure-coding, with an
 	/// accompanying proof.
-	StoreChunk(CandidateHash, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+	StoreChunk(CandidateHash, ErasureChunk, ResponseChannel<Result<()>>),
 	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
-	/// `AvailabilityChunkAndProof`.
+	/// `ErasureChunk`.
 	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```

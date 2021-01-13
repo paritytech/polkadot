@@ -254,6 +254,8 @@ pub struct ValidationParams {
 	pub block_data: BlockData,
 	/// The current relay-chain block number.
 	pub relay_chain_height: RelayChainBlockNumber,
+	/// The relay-chain block's storage root.
+	pub relay_storage_root: Hash,
 	/// The MQC head for the DMQ.
 	///
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages

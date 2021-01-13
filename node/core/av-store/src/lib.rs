@@ -19,21 +19,21 @@
 #![recursion_limit="256"]
 #![warn(missing_docs)]
 
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
-use parity_scale_codec::{Encode, Decode};
-use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
+use parity_scale_codec::{Encode, Decode, Input, Error as CodecError};
+use futures::{select, channel::oneshot, future, FutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
 	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
+	CandidateReceipt,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -42,8 +42,12 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
-	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
+	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
+use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
+
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &str = "availability";
 
@@ -51,6 +55,282 @@ mod columns {
 	pub const DATA: u32 = 0;
 	pub const META: u32 = 1;
 	pub const NUM_COLUMNS: u32 = 2;
+}
+
+/// The following constants are used under normal conditions:
+
+const AVAILABLE_PREFIX: &[u8; 9] = b"available";
+const CHUNK_PREFIX: &[u8; 5] = b"chunk";
+const META_PREFIX: &[u8; 4] = b"meta";
+const UNFINALIZED_PREFIX: &[u8; 11] = b"unfinalized";
+const PRUNE_BY_TIME_PREFIX: &[u8; 13] = b"prune_by_time";
+
+// We have some keys we want to map to empty values because existence of the key is enough. We use this because
+// rocksdb doesn't support empty values.
+const TOMBSTONE_VALUE: &[u8] = &*b" ";
+
+/// Unavailable blocks are kept for 1 hour.
+const KEEP_UNAVAILABLE_FOR: Duration = Duration::from_secs(60 * 60);
+
+/// Finalized data is kept for 25 hours.
+const KEEP_FINALIZED_FOR: Duration = Duration::from_secs(25 * 60 * 60);
+
+/// The pruning interval.
+const PRUNING_INTERVAL: Duration = Duration::from_secs(60 * 5);
+
+/// Unix time wrapper with big-endian encoding.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+struct BETimestamp(u64);
+
+impl Encode for BETimestamp {
+	fn size_hint(&self) -> usize {
+		std::mem::size_of::<u64>()
+	}
+
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		f(&self.0.to_be_bytes())
+	}
+}
+
+impl Decode for BETimestamp {
+	fn decode<I: Input>(value: &mut I) -> Result<Self, CodecError> {
+		<[u8; 8]>::decode(value).map(u64::from_be_bytes).map(Self)
+	}
+}
+
+impl From<Duration> for BETimestamp {
+	fn from(d: Duration) -> Self {
+		BETimestamp(d.as_secs())
+	}
+}
+
+impl Into<Duration> for BETimestamp {
+	fn into(self) -> Duration {
+		Duration::from_secs(self.0)
+	}
+}
+
+/// [`BlockNumber`] wrapper with big-endian encoding.
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+struct BEBlockNumber(BlockNumber);
+
+impl Encode for BEBlockNumber {
+	fn size_hint(&self) -> usize {
+		std::mem::size_of::<BlockNumber>()
+	}
+
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		f(&self.0.to_be_bytes())
+	}
+}
+
+impl Decode for BEBlockNumber {
+	fn decode<I: Input>(value: &mut I) -> Result<Self, CodecError> {
+		<[u8; std::mem::size_of::<BlockNumber>()]>::decode(value).map(BlockNumber::from_be_bytes).map(Self)
+	}
+}
+
+#[derive(Debug, Encode, Decode)]
+enum State {
+	/// Candidate data was first observed at the given time but is not available in any block.
+	#[codec(index = "0")]
+	Unavailable(BETimestamp),
+	/// The candidate was first observed at the given time and was included in the given list of unfinalized blocks, which may be
+	/// empty. The timestamp here is not used for pruning. Either one of these blocks will be finalized or the state will regress to
+	/// `State::Unavailable`, in which case the same timestamp will be reused. Blocks are sorted ascending first by block number and
+	/// then hash.
+	#[codec(index = "1")]
+	Unfinalized(BETimestamp, Vec<(BEBlockNumber, Hash)>),
+	/// Candidate data has appeared in a finalized block and did so at the given time.
+	#[codec(index = "2")]
+	Finalized(BETimestamp)
+}
+
+// Meta information about a candidate.
+#[derive(Debug, Encode, Decode)]
+struct CandidateMeta {
+	state: State,
+	data_available: bool,
+	chunks_stored: BitVec<BitOrderLsb0, u8>,
+}
+
+fn query_inner<D: Decode>(
+	db: &Arc<dyn KeyValueDB>,
+	column: u32,
+	key: &[u8],
+) -> Result<Option<D>, Error> {
+	match db.get(column, key) {
+		Ok(Some(raw)) => {
+			let res = D::decode(&mut &raw[..])?;
+			Ok(Some(res))
+		}
+		Ok(None) => Ok(None),
+		Err(e) => {
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
+			Err(e.into())
+		}
+	}
+}
+
+fn write_available_data(
+	tx: &mut DBTransaction,
+	hash: &CandidateHash,
+	available_data: &AvailableData,
+) {
+	let key = (AVAILABLE_PREFIX, hash).encode();
+
+	tx.put_vec(columns::DATA, &key[..], available_data.encode());
+}
+
+fn load_available_data(
+	db: &Arc<dyn KeyValueDB>,
+	hash: &CandidateHash,
+) -> Result<Option<AvailableData>, Error> {
+	let key = (AVAILABLE_PREFIX, hash).encode();
+
+	query_inner(db, columns::DATA, &key)
+}
+
+fn delete_available_data(
+	tx: &mut DBTransaction,
+	hash: &CandidateHash,
+) {
+	let key = (AVAILABLE_PREFIX, hash).encode();
+
+	tx.delete(columns::DATA, &key[..])
+}
+
+fn load_chunk(
+	db: &Arc<dyn KeyValueDB>,
+	candidate_hash: &CandidateHash,
+	chunk_index: ValidatorIndex,
+) -> Result<Option<ErasureChunk>, Error> {
+	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
+
+	query_inner(db, columns::DATA, &key)
+}
+
+fn write_chunk(
+	tx: &mut DBTransaction,
+	candidate_hash: &CandidateHash,
+	chunk_index: ValidatorIndex,
+	erasure_chunk: &ErasureChunk,
+) {
+	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
+
+	tx.put_vec(columns::DATA, &key, erasure_chunk.encode());
+}
+
+fn delete_chunk(
+	tx: &mut DBTransaction,
+	candidate_hash: &CandidateHash,
+	chunk_index: ValidatorIndex,
+) {
+	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
+
+	tx.delete(columns::DATA, &key[..]);
+}
+
+fn load_meta(
+	db: &Arc<dyn KeyValueDB>,
+	hash: &CandidateHash,
+) -> Result<Option<CandidateMeta>, Error> {
+	let key = (META_PREFIX, hash).encode();
+
+	query_inner(db, columns::META, &key)
+}
+
+fn write_meta(
+	tx: &mut DBTransaction,
+	hash: &CandidateHash,
+	meta: &CandidateMeta,
+) {
+	let key = (META_PREFIX, hash).encode();
+
+	tx.put_vec(columns::META, &key, meta.encode());
+}
+
+fn delete_meta(tx: &mut DBTransaction, hash: &CandidateHash) {
+	let key = (META_PREFIX, hash).encode();
+	tx.delete(columns::META, &key[..])
+}
+
+fn delete_unfinalized_height(
+	tx: &mut DBTransaction,
+	block_number: BlockNumber,
+) {
+	let prefix = (UNFINALIZED_PREFIX, BEBlockNumber(block_number)).encode();
+	tx.delete_prefix(columns::META, &prefix);
+}
+
+fn delete_unfinalized_inclusion(
+	tx: &mut DBTransaction,
+	block_number: BlockNumber,
+	block_hash: &Hash,
+	candidate_hash: &CandidateHash,
+) {
+	let key = (
+		UNFINALIZED_PREFIX,
+		BEBlockNumber(block_number),
+		block_hash,
+		candidate_hash,
+	).encode();
+
+	tx.delete(columns::META, &key[..]);
+}
+
+fn delete_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &CandidateHash) {
+	let key = (PRUNE_BY_TIME_PREFIX, t.into(), h).encode();
+	tx.delete(columns::META, &key);
+}
+
+fn write_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &CandidateHash) {
+	let t = t.into();
+	let key = (PRUNE_BY_TIME_PREFIX, t, h).encode();
+	tx.put(columns::META, &key, TOMBSTONE_VALUE);
+}
+
+fn finalized_block_range(finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
+	// We use big-endian encoding to iterate in ascending order.
+	let start = UNFINALIZED_PREFIX.encode();
+	let end = (UNFINALIZED_PREFIX, BEBlockNumber(finalized + 1)).encode();
+
+	(start, end)
+}
+
+fn write_unfinalized_block_contains(
+	tx: &mut DBTransaction,
+	n: BlockNumber,
+	h: &Hash,
+	ch: &CandidateHash,
+) {
+	let key = (UNFINALIZED_PREFIX, BEBlockNumber(n), h, ch).encode();
+	tx.put(columns::META, &key, TOMBSTONE_VALUE);
+}
+
+fn pruning_range(now: impl Into<BETimestamp>) -> (Vec<u8>, Vec<u8>) {
+	let start = PRUNE_BY_TIME_PREFIX.encode();
+	let end = (PRUNE_BY_TIME_PREFIX, BETimestamp(now.into().0 + 1)).encode();
+
+	(start, end)
+}
+
+fn decode_unfinalized_key(s: &[u8]) -> Result<(BlockNumber, Hash, CandidateHash), CodecError> {
+	if !s.starts_with(UNFINALIZED_PREFIX) {
+		return Err("missing magic string".into());
+	}
+
+	<(BEBlockNumber, Hash, CandidateHash)>::decode(&mut &s[UNFINALIZED_PREFIX.len()..])
+		.map(|(b, h, ch)| (b.0, h, ch))
+}
+
+fn decode_pruning_key(s: &[u8]) -> Result<(Duration, CandidateHash), CodecError> {
+	if !s.starts_with(PRUNE_BY_TIME_PREFIX) {
+		return Err("missing magic string".into());
+	}
+
+	<(BETimestamp, CandidateHash)>::decode(&mut &s[PRUNE_BY_TIME_PREFIX.len()..])
+		.map(|(t, ch)| (t.into(), ch))
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -77,6 +357,9 @@ pub enum Error {
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
 
+	#[error(transparent)]
+	Codec(#[from] CodecError),
+
 	#[error("Custom databases are not supported")]
 	CustomDatabase,
 }
@@ -93,334 +376,29 @@ impl Error {
 	}
 }
 
-/// A wrapper type for delays.
-#[derive(Clone, Debug, Decode, Encode, Eq)]
-enum PruningDelay {
-	/// This pruning should be triggered after this `Duration` from UNIX_EPOCH.
-	In(Duration),
-
-	/// Data is in the state where it has no expiration.
-	Indefinite,
-}
-
-impl PruningDelay {
-	fn now() -> Result<Self, Error> {
-		Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.into())
-	}
-
-	fn into_the_future(duration: Duration) -> Result<Self, Error> {
-		Ok(Self::In(SystemTime::now().duration_since(UNIX_EPOCH)? + duration))
-	}
-
-	fn as_duration(&self) -> Option<Duration> {
-		match self {
-			PruningDelay::In(d) => Some(*d),
-			PruningDelay::Indefinite => None,
-		}
-	}
-}
-
-impl From<Duration> for PruningDelay {
-	fn from(d: Duration) -> Self {
-		Self::In(d)
-	}
-}
-
-impl PartialEq for PruningDelay {
-	fn eq(&self, other: &Self) -> bool {
-		match (self, other) {
-			(PruningDelay::In(this), PruningDelay::In(that)) => {this == that},
-			(PruningDelay::Indefinite, PruningDelay::Indefinite) => true,
-			_ => false,
-		}
-	}
-}
-
-impl PartialOrd for PruningDelay {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		match (self, other) {
-			(PruningDelay::In(this), PruningDelay::In(that)) => this.partial_cmp(that),
-			(PruningDelay::In(_), PruningDelay::Indefinite) => Some(Ordering::Less),
-			(PruningDelay::Indefinite, PruningDelay::In(_)) => Some(Ordering::Greater),
-			(PruningDelay::Indefinite, PruningDelay::Indefinite) => Some(Ordering::Equal),
-		}
-	}
-}
-
-impl Ord for PruningDelay {
-	fn cmp(&self, other: &Self) -> Ordering {
-		match (self, other) {
-			(PruningDelay::In(this), PruningDelay::In(that)) => this.cmp(that),
-			(PruningDelay::In(_), PruningDelay::Indefinite) => Ordering::Less,
-			(PruningDelay::Indefinite, PruningDelay::In(_)) => Ordering::Greater,
-			(PruningDelay::Indefinite, PruningDelay::Indefinite) => Ordering::Equal,
-		}
-	}
-}
-
-/// A key for chunk pruning records.
-const CHUNK_PRUNING_KEY: [u8; 14] = *b"chunks_pruning";
-
-/// A key for PoV pruning records.
-const POV_PRUNING_KEY: [u8; 11] = *b"pov_pruning";
-
-/// A key for a cached value of next scheduled PoV pruning.
-const NEXT_POV_PRUNING: [u8; 16] = *b"next_pov_pruning";
-
-/// A key for a cached value of next scheduled chunk pruning.
-const NEXT_CHUNK_PRUNING: [u8; 18] = *b"next_chunk_pruning";
-
-/// The following constants are used under normal conditions:
-
-/// Stored block is kept available for 1 hour.
-const KEEP_STORED_BLOCK_FOR: Duration = Duration::from_secs(60 * 60);
-
-/// Finalized block is kept for 1 day.
-const KEEP_FINALIZED_BLOCK_FOR: Duration = Duration::from_secs(24 * 60 * 60);
-
-/// Keep chunk of the finalized block for 1 day + 1 hour.
-const KEEP_FINALIZED_CHUNK_FOR: Duration = Duration::from_secs(25 * 60 * 60);
-
-/// At which point in time since UNIX_EPOCH we need to wakeup and do next pruning of blocks.
-/// Essenially this is the first element in the sorted array of pruning data,
-/// we just want to cache it here to avoid lifting the whole array just to look at the head.
-///
-/// This record exists under `NEXT_POV_PRUNING` key, if it does not either:
-///  a) There are no records and nothing has to be pruned.
-///  b) There are records but all of them are in `Included` state and do not have exact time to
-///     be pruned.
-#[derive(Decode, Encode)]
-struct NextPoVPruning(Duration);
-
-impl NextPoVPruning {
-	// After which duration from `now` this should fire.
-	fn should_fire_in(&self) -> Result<Duration, Error> {
-		Ok(self.0.checked_sub(SystemTime::now().duration_since(UNIX_EPOCH)?).unwrap_or_default())
-	}
-}
-
-/// At which point in time since UNIX_EPOCH we need to wakeup and do next pruning of chunks.
-/// Essentially this is the first element in the sorted array of pruning data,
-/// we just want to cache it here to avoid lifting the whole array just to look at the head.
-///
-/// This record exists under `NEXT_CHUNK_PRUNING` key, if it does not either:
-///  a) There are no records and nothing has to be pruned.
-///  b) There are records but all of them are in `Included` state and do not have exact time to
-///     be pruned.
-#[derive(Decode, Encode)]
-struct NextChunkPruning(Duration);
-
-impl NextChunkPruning {
-	// After which amount of seconds into the future from `now` this should fire.
-	fn should_fire_in(&self) -> Result<Duration, Error> {
-		Ok(self.0.checked_sub(SystemTime::now().duration_since(UNIX_EPOCH)?).unwrap_or_default())
-	}
-}
-
 /// Struct holding pruning timing configuration.
 /// The only purpose of this structure is to use different timing
 /// configurations in production and in testing.
 #[derive(Clone)]
 struct PruningConfig {
-	/// How long should a stored block stay available.
-	keep_stored_block_for: Duration,
+	/// How long unavailable data should be kept.
+	keep_unavailable_for: Duration,
 
-	/// How long should a finalized block stay available.
-	keep_finalized_block_for: Duration,
+	/// How long finalized data should be kept.
+	keep_finalized_for: Duration,
 
-	/// How long should a chunk of a finalized block stay available.
-	keep_finalized_chunk_for: Duration,
+	/// How often to perform data pruning.
+	pruning_interval: Duration,
 }
 
 impl Default for PruningConfig {
 	fn default() -> Self {
 		Self {
-			keep_stored_block_for: KEEP_STORED_BLOCK_FOR,
-			keep_finalized_block_for: KEEP_FINALIZED_BLOCK_FOR,
-			keep_finalized_chunk_for: KEEP_FINALIZED_CHUNK_FOR,
+			keep_unavailable_for: KEEP_UNAVAILABLE_FOR,
+			keep_finalized_for: KEEP_FINALIZED_FOR,
+			pruning_interval: PRUNING_INTERVAL,
 		}
 	}
-}
-
-#[derive(Debug, Decode, Encode, Eq, PartialEq)]
-enum CandidateState {
-	Stored,
-	Included,
-	Finalized,
-}
-
-#[derive(Debug, Decode, Encode, Eq)]
-struct PoVPruningRecord {
-	candidate_hash: CandidateHash,
-	block_number: BlockNumber,
-	candidate_state: CandidateState,
-	prune_at: PruningDelay,
-}
-
-impl PartialEq for PoVPruningRecord {
-	fn eq(&self, other: &Self) -> bool {
-		self.candidate_hash == other.candidate_hash
-	}
-}
-
-impl Ord for PoVPruningRecord {
-	fn cmp(&self, other: &Self) -> Ordering {
-		if self.candidate_hash == other.candidate_hash {
-			return Ordering::Equal;
-		}
-
-		self.prune_at.cmp(&other.prune_at)
-	}
-}
-
-impl PartialOrd for PoVPruningRecord {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
-#[derive(Debug, Decode, Encode, Eq)]
-struct ChunkPruningRecord {
-	candidate_hash: CandidateHash,
-	block_number: BlockNumber,
-	candidate_state: CandidateState,
-	chunk_index: u32,
-	prune_at: PruningDelay,
-}
-
-impl PartialEq for ChunkPruningRecord {
-	fn eq(&self, other: &Self) -> bool {
-		self.candidate_hash == other.candidate_hash &&
-			self.chunk_index == other.chunk_index
-	}
-}
-
-impl Ord for ChunkPruningRecord {
-	fn cmp(&self, other: &Self) -> Ordering {
-		if self.candidate_hash == other.candidate_hash {
-			return Ordering::Equal;
-		}
-
-		self.prune_at.cmp(&other.prune_at)
-	}
-}
-
-impl PartialOrd for ChunkPruningRecord {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
-/// An implementation of the Availability Store subsystem.
-pub struct AvailabilityStoreSubsystem {
-	pruning_config: PruningConfig,
-	inner: Arc<dyn KeyValueDB>,
-	chunks_cache: HashMap<CandidateHash, HashMap<u32, ErasureChunk>>,
-	metrics: Metrics,
-}
-
-impl AvailabilityStoreSubsystem {
-	// Perform pruning of PoVs
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn prune_povs(&mut self) -> Result<(), Error> {
-		let _timer = self.metrics.time_prune_povs();
-
-		let mut tx = DBTransaction::new();
-		let mut pov_pruning = pov_pruning(&self.inner).unwrap_or_default();
-		let now = PruningDelay::now()?;
-
-		tracing::trace!(target: LOG_TARGET, "Pruning PoVs");
-		let outdated_records_count = pov_pruning.iter()
-			.take_while(|r| r.prune_at <= now)
-			.count();
-
-		for record in pov_pruning.drain(..outdated_records_count) {
-			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
-
-			self.chunks_cache.remove(&record.candidate_hash);
-			tx.delete(
-				columns::DATA,
-				available_data_key(&record.candidate_hash).as_slice(),
-			);
-		}
-
-		put_pov_pruning(&self.inner, Some(tx), pov_pruning, &self.metrics)?;
-
-		Ok(())
-	}
-
-	// Perform pruning of chunks.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn prune_chunks(&mut self) -> Result<(), Error> {
-		let _timer = self.metrics.time_prune_chunks();
-
-		let mut tx = DBTransaction::new();
-		let mut chunk_pruning = chunk_pruning(&self.inner).unwrap_or_default();
-		let now = PruningDelay::now()?;
-
-		tracing::trace!(target: LOG_TARGET, "Pruning Chunks");
-		let outdated_records_count = chunk_pruning.iter()
-			.take_while(|r| r.prune_at <= now)
-			.count();
-
-		for record in chunk_pruning.drain(..outdated_records_count) {
-			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
-
-			self.chunks_cache.remove(&record.candidate_hash);
-			tx.delete(
-				columns::DATA,
-				erasure_chunk_key(&record.candidate_hash, record.chunk_index).as_slice(),
-			);
-		}
-
-		put_chunk_pruning(&self.inner, Some(tx), chunk_pruning, &self.metrics)?;
-
-		Ok(())
-	}
-
-	// Return a `Future` that either resolves when another PoV pruning has to happen
-	// or is indefinitely `pending` in case no pruning has to be done.
-	// Just a helper to `select` over multiple things at once.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn maybe_prune_povs(&self) -> Result<impl Future<Output = ()>, Error> {
-		let future = match get_next_pov_pruning_time(&self.inner) {
-			Some(pruning) => {
-				Either::Left(Delay::new(pruning.should_fire_in()?))
-			}
-			None => Either::Right(future::pending::<()>()),
-		};
-
-		Ok(future)
-	}
-
-	// Return a `Future` that either resolves when another chunk pruning has to happen
-	// or is indefinitely `pending` in case no pruning has to be done.
-	// Just a helper to `select` over multiple things at once.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn maybe_prune_chunks(&self) -> Result<impl Future<Output = ()>, Error> {
-		let future = match get_next_chunk_pruning_time(&self.inner) {
-			Some(pruning) => {
-				Either::Left(Delay::new(pruning.should_fire_in()?))
-			}
-			None => Either::Right(future::pending::<()>()),
-		};
-
-		Ok(future)
-	}
-}
-
-fn available_data_key(candidate_hash: &CandidateHash) -> Vec<u8> {
-	(candidate_hash, 0i8).encode()
-}
-
-fn erasure_chunk_key(candidate_hash: &CandidateHash, index: u32) -> Vec<u8> {
-	(candidate_hash, index, 0i8).encode()
-}
-
-#[derive(Encode, Decode)]
-struct StoredAvailableData {
-	data: AvailableData,
-	n_validators: u32,
 }
 
 /// Configuration for the availability store.
@@ -448,6 +426,27 @@ impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
 	}
 }
 
+trait Clock: Send + Sync {
+	// Returns time since unix epoch.
+	fn now(&self) -> Result<Duration, Error>;
+}
+
+struct SystemClock;
+
+impl Clock for SystemClock {
+	fn now(&self) -> Result<Duration, Error> {
+		SystemTime::now().duration_since(UNIX_EPOCH).map_err(Into::into)
+	}
+}
+
+/// An implementation of the Availability Store subsystem.
+pub struct AvailabilityStoreSubsystem {
+	pruning_config: PruningConfig,
+	db: Arc<dyn KeyValueDB>,
+	metrics: Metrics,
+	clock: Box<dyn Clock>,
+}
+
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
 	pub fn new_on_disk(config: Config, metrics: Metrics) -> io::Result<Self> {
@@ -472,624 +471,23 @@ impl AvailabilityStoreSubsystem {
 
 		Ok(Self {
 			pruning_config: PruningConfig::default(),
-			inner: Arc::new(db),
-			chunks_cache: HashMap::new(),
+			db: Arc::new(db),
 			metrics,
+			clock: Box::new(SystemClock),
 		})
 	}
 
 	#[cfg(test)]
-	fn new_in_memory(inner: Arc<dyn KeyValueDB>, pruning_config: PruningConfig) -> Self {
+	fn new_in_memory(
+		db: Arc<dyn KeyValueDB>,
+		pruning_config: PruningConfig,
+		clock: Box<dyn Clock>,
+	) -> Self {
 		Self {
 			pruning_config,
-			inner,
-			chunks_cache: HashMap::new(),
+			db,
 			metrics: Metrics(None),
-		}
-	}
-}
-
-fn get_next_pov_pruning_time(db: &Arc<dyn KeyValueDB>) -> Option<NextPoVPruning> {
-	query_inner(db, columns::META, &NEXT_POV_PRUNING)
-}
-
-fn get_next_chunk_pruning_time(db: &Arc<dyn KeyValueDB>) -> Option<NextChunkPruning> {
-	query_inner(db, columns::META, &NEXT_CHUNK_PRUNING)
-}
-
-#[tracing::instrument(skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
-async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
-{
-	loop {
-		let res = run_iteration(&mut subsystem, &mut ctx).await;
-		match res {
-			Err(e) => {
-				e.trace();
-
-				if let Error::Subsystem(SubsystemError::Context(_)) = e {
-					break;
-				}
-			}
-			Ok(true) => {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-				break;
-			},
-			Ok(false) => continue,
-		}
-	}
-}
-
-#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
-async fn run_iteration<Context>(subsystem: &mut AvailabilityStoreSubsystem, ctx: &mut Context)
-	-> Result<bool, Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
-{
-	// Every time the following two methods are called a read from DB is performed.
-	// But given that these are very small values which are essentially a newtype
-	// wrappers around `Duration` (`NextChunkPruning` and `NextPoVPruning`) and also the
-	// fact of the frequent reads itself we assume these to end up cached in the memory
-	// anyway and thus these db reads to be reasonably fast.
-	let pov_pruning_time = subsystem.maybe_prune_povs()?;
-	let chunk_pruning_time = subsystem.maybe_prune_chunks()?;
-
-	let mut pov_pruning_time = pov_pruning_time.fuse();
-	let mut chunk_pruning_time = chunk_pruning_time.fuse();
-
-	select! {
-		incoming = ctx.recv().fuse() => {
-			match incoming? {
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate { activated, .. })
-				) => {
-					for (activated, _span) in activated.into_iter() {
-						process_block_activated(ctx, subsystem, activated).await?;
-					}
-				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					process_block_finalized(subsystem, &subsystem.inner, number).await?;
-				}
-				FromOverseer::Communication { msg } => {
-					process_message(subsystem, ctx, msg).await?;
-				}
-			}
-		}
-		_ = pov_pruning_time => {
-			subsystem.prune_povs()?;
-		}
-		_ = chunk_pruning_time => {
-			subsystem.prune_chunks()?;
-		}
-		complete => return Ok(true),
-	}
-
-	Ok(false)
-}
-
-/// As soon as certain block is finalized its pruning records and records of all
-/// blocks that we keep that are `older` than the block in question have to be updated.
-///
-/// The state of data has to be changed from
-/// `CandidateState::Included` to `CandidateState::Finalized` and their pruning times have
-/// to be updated to `now` + keep_finalized_{block, chunk}_for`.
-#[tracing::instrument(level = "trace", skip(subsystem, db), fields(subsystem = LOG_TARGET))]
-async fn process_block_finalized(
-	subsystem: &AvailabilityStoreSubsystem,
-	db: &Arc<dyn KeyValueDB>,
-	block_number: BlockNumber,
-) -> Result<(), Error> {
-	let _timer = subsystem.metrics.time_process_block_finalized();
-
-	if let Some(mut pov_pruning) = pov_pruning(db) {
-		// Since the records are sorted by time in which they need to be pruned and not by block
-		// numbers we have to iterate through the whole collection here.
-		for record in pov_pruning.iter_mut() {
-			if record.block_number <= block_number {
-				tracing::trace!(
-					target: LOG_TARGET,
-					block_number = %record.block_number,
-					"Updating pruning record for finalized block",
-				);
-
-				record.prune_at = PruningDelay::into_the_future(
-					subsystem.pruning_config.keep_finalized_block_for
-				)?;
-				record.candidate_state = CandidateState::Finalized;
-			}
-		}
-
-		put_pov_pruning(db, None, pov_pruning, &subsystem.metrics)?;
-	}
-
-	if let Some(mut chunk_pruning) = chunk_pruning(db) {
-		for record in chunk_pruning.iter_mut() {
-			if record.block_number <= block_number {
-				tracing::trace!(
-					target: LOG_TARGET,
-					block_number = %record.block_number,
-					"Updating chunk pruning record for finalized block",
-				);
-
-				record.prune_at = PruningDelay::into_the_future(
-					subsystem.pruning_config.keep_finalized_chunk_for
-				)?;
-				record.candidate_state = CandidateState::Finalized;
-			}
-		}
-
-		put_chunk_pruning(db, None, chunk_pruning, &subsystem.metrics)?;
-	}
-
-	Ok(())
-}
-
-#[tracing::instrument(level = "trace", skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
-async fn process_block_activated<Context>(
-	ctx: &mut Context,
-	subsystem: &mut AvailabilityStoreSubsystem,
-	hash: Hash,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>
-{
-	let _timer = subsystem.metrics.time_block_activated();
-	let db = &subsystem.inner;
-
-	let events = match request_candidate_events(ctx, hash).await {
-		Ok(events) => events,
-		Err(err) => {
-			tracing::debug!(target: LOG_TARGET, err = ?err, "requesting candidate events failed");
-			return Ok(());
-		}
-	};
-
-	tracing::trace!(target: LOG_TARGET, hash = %hash, "block activated");
-	let mut included = HashSet::new();
-
-	for event in events.into_iter() {
-		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-			tracing::trace!(
-				target: LOG_TARGET,
-				hash = %receipt.hash(),
-				"Candidate {:?} was included", receipt.hash(),
-			);
-			included.insert(receipt.hash());
-		}
-	}
-
-	for included in &included {
-		subsystem.chunks_cache.remove(&included);
-	}
-
-	if let Some(mut pov_pruning) = pov_pruning(db) {
-		for record in pov_pruning.iter_mut() {
-			if included.contains(&record.candidate_hash) {
-				record.prune_at = PruningDelay::Indefinite;
-				record.candidate_state = CandidateState::Included;
-			}
-		}
-
-		pov_pruning.sort();
-
-		put_pov_pruning(db, None, pov_pruning, &subsystem.metrics)?;
-	}
-
-	if let Some(mut chunk_pruning) = chunk_pruning(db) {
-		for record in chunk_pruning.iter_mut() {
-			if included.contains(&record.candidate_hash) {
-				record.prune_at = PruningDelay::Indefinite;
-				record.candidate_state = CandidateState::Included;
-			}
-		}
-
-		chunk_pruning.sort();
-
-		put_chunk_pruning(db, None, chunk_pruning, &subsystem.metrics)?;
-	}
-
-	Ok(())
-}
-
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn request_candidate_events<Context>(
-	ctx: &mut Context,
-	hash: Hash,
-) -> Result<Vec<CandidateEvent>, Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>
-{
-	let (tx, rx) = oneshot::channel();
-
-	let msg = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		hash,
-		RuntimeApiRequest::CandidateEvents(tx),
-	));
-
-	ctx.send_message(msg.into()).await;
-
-	Ok(rx.await??)
-}
-
-#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
-async fn process_message<Context>(
-	subsystem: &mut AvailabilityStoreSubsystem,
-	ctx: &mut Context,
-	msg: AvailabilityStoreMessage,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>
-{
-	use AvailabilityStoreMessage::*;
-
-	let _timer = subsystem.metrics.time_process_message();
-
-	match msg {
-		QueryAvailableData(hash, tx) => {
-			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data)).map_err(|_| oneshot::Canceled)?;
-		}
-		QueryDataAvailability(hash, tx) => {
-			let result = available_data(&subsystem.inner, &hash).is_some();
-
-			tracing::trace!(
-				target: LOG_TARGET,
-				candidate_hash = ?hash,
-				availability = ?result,
-				"Queried data availability",
-			);
-
-			tx.send(result).map_err(|_| oneshot::Canceled)?;
-		}
-		QueryChunk(hash, id, tx) => {
-			tx.send(get_chunk(subsystem, &hash, id)?).map_err(|_| oneshot::Canceled)?;
-		}
-		QueryChunkAvailability(hash, id, tx) => {
-			let result = get_chunk(subsystem, &hash, id).map(|r| r.is_some());
-
-			tracing::trace!(
-				target: LOG_TARGET,
-				candidate_hash = ?hash,
-				availability = ?result,
-				"Queried chunk availability",
-			);
-
-			tx.send(result?).map_err(|_| oneshot::Canceled)?;
-		}
-		StoreChunk { candidate_hash, relay_parent, chunk, tx } => {
-			let chunk_index = chunk.index;
-			// Current block number is relay_parent block number + 1.
-			let block_number = get_block_number(ctx, relay_parent).await? + 1;
-			let result = store_chunks(subsystem, &candidate_hash, vec![chunk], block_number);
-
-			tracing::trace!(
-				target: LOG_TARGET,
-				%chunk_index,
-				?candidate_hash,
-				%block_number,
-				?result,
-				"Stored chunk",
-			);
-
-			match result {
-				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
-					return Err(e);
-				}
-				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
-				}
-			}
-		}
-		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
-			let result = store_available_data(subsystem, &hash, id, n_validators, av_data);
-
-			tracing::trace!(target: LOG_TARGET, candidate_hash = ?hash, ?result, "Stored available data");
-
-			match result {
-				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
-					return Err(e);
-				}
-				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
-				}
-			}
-		}
-	}
-
-	Ok(())
-}
-
-fn available_data(
-	db: &Arc<dyn KeyValueDB>,
-	candidate_hash: &CandidateHash,
-) -> Option<StoredAvailableData> {
-	query_inner(db, columns::DATA, &available_data_key(candidate_hash))
-}
-
-fn pov_pruning(db: &Arc<dyn KeyValueDB>) -> Option<Vec<PoVPruningRecord>> {
-	query_inner(db, columns::META, &POV_PRUNING_KEY)
-}
-
-fn chunk_pruning(db: &Arc<dyn KeyValueDB>) -> Option<Vec<ChunkPruningRecord>> {
-	query_inner(db, columns::META, &CHUNK_PRUNING_KEY)
-}
-
-#[tracing::instrument(level = "trace", skip(db, tx, metrics), fields(subsystem = LOG_TARGET))]
-fn put_pov_pruning(
-	db: &Arc<dyn KeyValueDB>,
-	tx: Option<DBTransaction>,
-	mut pov_pruning: Vec<PoVPruningRecord>,
-	metrics: &Metrics,
-) -> Result<(), Error> {
-	let mut tx = tx.unwrap_or_default();
-
-	metrics.block_pruning_records_size(pov_pruning.len());
-
-	pov_pruning.sort();
-
-	tx.put_vec(
-		columns::META,
-		&POV_PRUNING_KEY,
-		pov_pruning.encode(),
-	);
-
-	match pov_pruning.get(0) {
-		// We want to wake up in case we have some records that are not scheduled to be kept
-		// indefinitely (data is included and waiting to move to the finalized state) and so
-		// the is at least one value that is not `PruningDelay::Indefinite`.
-		Some(PoVPruningRecord { prune_at: PruningDelay::In(prune_at), .. }) => {
-			tx.put_vec(
-				columns::META,
-				&NEXT_POV_PRUNING,
-				NextPoVPruning(*prune_at).encode(),
-			);
-		}
-		_ => {
-			// If there is no longer any records, delete the cached pruning time record.
-			tx.delete(
-				columns::META,
-				&NEXT_POV_PRUNING,
-			);
-		}
-	}
-
-	db.write(tx)?;
-
-	Ok(())
-}
-
-#[tracing::instrument(level = "trace", skip(db, tx, metrics), fields(subsystem = LOG_TARGET))]
-fn put_chunk_pruning(
-	db: &Arc<dyn KeyValueDB>,
-	tx: Option<DBTransaction>,
-	mut chunk_pruning: Vec<ChunkPruningRecord>,
-	metrics: &Metrics,
-) -> Result<(), Error> {
-	let mut tx = tx.unwrap_or_default();
-
-	metrics.chunk_pruning_records_size(chunk_pruning.len());
-
-	chunk_pruning.sort();
-
-	tx.put_vec(
-		columns::META,
-		&CHUNK_PRUNING_KEY,
-		chunk_pruning.encode(),
-	);
-
-	match chunk_pruning.get(0) {
-		Some(ChunkPruningRecord { prune_at: PruningDelay::In(prune_at), .. }) => {
-			tx.put_vec(
-				columns::META,
-				&NEXT_CHUNK_PRUNING,
-				NextChunkPruning(*prune_at).encode(),
-			);
-		}
-		_ => {
-			tx.delete(
-				columns::META,
-				&NEXT_CHUNK_PRUNING,
-			);
-		}
-	}
-
-	db.write(tx)?;
-
-	Ok(())
-}
-
-// produces a block number by block's hash.
-// in the the event of an invalid `block_hash`, returns `Ok(0)`
-async fn get_block_number<Context>(
-	ctx: &mut Context,
-	block_hash: Hash,
-) -> Result<BlockNumber, Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
-{
-	let (tx, rx) = oneshot::channel();
-
-	ctx.send_message(AllMessages::ChainApi(ChainApiMessage::BlockNumber(block_hash, tx))).await;
-
-	Ok(rx.await??.map(|number| number).unwrap_or_default())
-}
-
-#[tracing::instrument(level = "trace", skip(subsystem, available_data), fields(subsystem = LOG_TARGET))]
-fn store_available_data(
-	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &CandidateHash,
-	id: Option<ValidatorIndex>,
-	n_validators: u32,
-	available_data: AvailableData,
-) -> Result<(), Error> {
-	let _timer = subsystem.metrics.time_store_available_data();
-
-	let mut tx = DBTransaction::new();
-
-	let block_number = available_data.validation_data.block_number;
-
-	let chunks = get_chunks(&available_data, n_validators as usize, &subsystem.metrics)?;
-	store_chunks(
-		subsystem,
-		candidate_hash,
-		chunks,
-		block_number,
-	)?;
-
-	let stored_data = StoredAvailableData {
-		data: available_data,
-		n_validators,
-	};
-
-	let mut pov_pruning = pov_pruning(&subsystem.inner).unwrap_or_default();
-	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
-
-	if let Some(next_pruning) = prune_at.as_duration() {
-		tx.put_vec(
-			columns::META,
-			&NEXT_POV_PRUNING,
-			NextPoVPruning(next_pruning).encode(),
-		);
-	}
-
-	let pruning_record = PoVPruningRecord {
-		candidate_hash: *candidate_hash,
-		block_number,
-		candidate_state: CandidateState::Stored,
-		prune_at,
-	};
-
-	let idx = pov_pruning.binary_search(&pruning_record).unwrap_or_else(|insert_idx| insert_idx);
-
-	pov_pruning.insert(idx, pruning_record);
-
-	tx.put_vec(
-		columns::DATA,
-		available_data_key(&candidate_hash).as_slice(),
-		stored_data.encode(),
-	);
-
-	tx.put_vec(
-		columns::META,
-		&POV_PRUNING_KEY,
-		pov_pruning.encode(),
-	);
-
-	subsystem.inner.write(tx)?;
-
-	Ok(())
-}
-
-#[tracing::instrument(level = "trace", skip(subsystem), fields(subsystem = LOG_TARGET))]
-fn store_chunks(
-	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &CandidateHash,
-	chunks: Vec<ErasureChunk>,
-	block_number: BlockNumber,
-) -> Result<(), Error> {
-	let _timer = subsystem.metrics.time_store_chunks();
-
-	let mut tx = DBTransaction::new();
-	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
-
-	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
-	if let Some(delay) = prune_at.clone().as_duration() {
-		tx.put_vec(
-			columns::META,
-			&NEXT_CHUNK_PRUNING,
-			NextChunkPruning(delay).encode(),
-		);
-	}
-
-	for chunk in &chunks {
-		let pruning_record = ChunkPruningRecord {
-			candidate_hash: candidate_hash.clone(),
-			block_number,
-			candidate_state: CandidateState::Stored,
-			chunk_index: chunk.index,
-			prune_at: prune_at.clone(),
-		};
-
-		let idx = chunk_pruning.binary_search(&pruning_record).unwrap_or_else(|insert_idx| insert_idx);
-
-		chunk_pruning.insert(idx, pruning_record);
-
-		let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
-
-		tx.put_vec(
-			columns::DATA,
-			&dbkey,
-			chunk.encode(),
-		);
-	}
-
-	subsystem.chunks_cache.entry(*candidate_hash).or_default().extend(chunks.into_iter().map(|c| (c.index, c)));
-
-	tx.put_vec(
-		columns::META,
-		&CHUNK_PRUNING_KEY,
-		chunk_pruning.encode(),
-	);
-
-	subsystem.inner.write(tx)?;
-
-	Ok(())
-}
-
-#[tracing::instrument(level = "trace", skip(subsystem), fields(subsystem = LOG_TARGET))]
-fn get_chunk(
-	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &CandidateHash,
-	index: u32,
-) -> Result<Option<ErasureChunk>, Error> {
-	let _timer = subsystem.metrics.time_get_chunk();
-
-	if let Some(entry) = subsystem.chunks_cache.get(candidate_hash) {
-		if let Some(chunk) = entry.get(&index) {
-			return Ok(Some(chunk.clone()));
-		}
-	}
-
-	if let Some(chunk) = query_inner(
-		&subsystem.inner,
-		columns::DATA,
-		&erasure_chunk_key(candidate_hash, index)
-	) {
-		return Ok(Some(chunk));
-	}
-
-	if let Some(data) = available_data(&subsystem.inner, candidate_hash) {
-		let chunks = get_chunks(&data.data, data.n_validators as usize, &subsystem.metrics)?;
-		let desired_chunk = chunks.get(index as usize).cloned();
-		store_chunks(
-			subsystem,
-			candidate_hash,
-			chunks,
-			data.data.validation_data.block_number,
-		)?;
-		return Ok(desired_chunk);
-	}
-
-	Ok(None)
-}
-
-fn query_inner<D: Decode>(
-	db: &Arc<dyn KeyValueDB>,
-	column: u32,
-	key: &[u8],
-) -> Option<D> {
-	match db.get(column, key) {
-		Ok(Some(raw)) => {
-			let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
-			Some(res)
-		}
-		Ok(None) => None,
-		Err(e) => {
-			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
-			None
+			clock,
 		}
 	}
 }
@@ -1110,37 +508,663 @@ where
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(metrics), fields(subsystem = LOG_TARGET))]
-fn get_chunks(data: &AvailableData, n_validators: usize, metrics: &Metrics) -> Result<Vec<ErasureChunk>, Error> {
-	let chunks = erasure::obtain_chunks_v1(n_validators, data)?;
-	metrics.on_chunks_received(chunks.len());
+#[tracing::instrument(skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
+async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
+where
+	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+{
+	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
+
+	loop {
+		let res = run_iteration(&mut ctx, &mut subsystem, &mut next_pruning).await;
+		match res {
+			Err(e) => {
+				e.trace();
+
+				if let Error::Subsystem(SubsystemError::Context(_)) = e {
+					break;
+				}
+			}
+			Ok(true) => {
+				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				break;
+			},
+			Ok(false) => continue,
+		}
+	}
+}
+
+#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	subsystem: &mut AvailabilityStoreSubsystem,
+	mut next_pruning: &mut future::Fuse<Delay>,
+)
+	-> Result<bool, Error>
+where
+	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+{
+	select! {
+		incoming = ctx.recv().fuse() => {
+			match incoming? {
+				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate { activated, .. })
+				) => {
+					for (activated, _span) in activated.into_iter() {
+						let _timer = subsystem.metrics.time_block_activated();
+						process_block_activated(ctx, subsystem, activated).await?;
+					}
+				}
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+					let _timer = subsystem.metrics.time_process_block_finalized();
+
+					process_block_finalized(
+						ctx,
+						&subsystem,
+						hash,
+						number,
+					).await?;
+				}
+				FromOverseer::Communication { msg } => {
+					let _timer = subsystem.metrics.time_process_message();
+					process_message(subsystem, msg)?;
+				}
+			}
+		}
+		_ = next_pruning => {
+			// It's important to set the delay before calling `prune_all` because an error in `prune_all`
+			// could lead to the delay not being set again. Then we would never prune anything anymore.
+			*next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
+
+			let _timer = subsystem.metrics.time_pruning();
+			prune_all(&subsystem.db, &*subsystem.clock)?;
+		}
+	}
+
+	Ok(false)
+}
+
+async fn process_block_activated(
+	ctx: &mut impl SubsystemContext,
+	subsystem: &mut AvailabilityStoreSubsystem,
+	activated: Hash,
+) -> Result<(), Error> {
+	let now = subsystem.clock.now()?;
+
+	let candidate_events = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(
+			RuntimeApiMessage::Request(activated, RuntimeApiRequest::CandidateEvents(tx)).into()
+		).await;
+
+		rx.await??
+	};
+
+	let block_number = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(
+			ChainApiMessage::BlockNumber(activated, tx).into()
+		).await;
+
+		match rx.await?? {
+			None => return Ok(()),
+			Some(n) => n,
+		}
+	};
+
+	let block_header = {
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(
+			ChainApiMessage::BlockHeader(activated, tx).into()
+		).await;
+
+		match rx.await?? {
+			None => return Ok(()),
+			Some(n) => n,
+		}
+	};
+
+	// We need to request the number of validators based on the parent state, as that is the number of validators
+	// used to create this block.
+	let n_validators = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(
+			RuntimeApiMessage::Request(block_header.parent_hash, RuntimeApiRequest::Validators(tx)).into()
+		).await;
+
+		rx.await??.len()
+	};
+
+	let mut tx = DBTransaction::new();
+
+	for event in candidate_events {
+		match event {
+			CandidateEvent::CandidateBacked(receipt, _head) => {
+				note_block_backed(
+					&subsystem.db,
+					&mut tx,
+					&subsystem.pruning_config,
+					now,
+					n_validators,
+					receipt,
+				)?;
+			}
+			CandidateEvent::CandidateIncluded(receipt, _head) => {
+				note_block_included(
+					&subsystem.db,
+					&mut tx,
+					&subsystem.pruning_config,
+					(block_number, activated),
+					receipt,
+				)?;
+			}
+			_ => {}
+		}
+	}
+
+	subsystem.db.write(tx)?;
+
+	Ok(())
+}
+
+fn note_block_backed(
+	db: &Arc<dyn KeyValueDB>,
+	db_transaction: &mut DBTransaction,
+	pruning_config: &PruningConfig,
+	now: Duration,
+	n_validators: usize,
+	candidate: CandidateReceipt,
+) -> Result<(), Error> {
+	let candidate_hash = candidate.hash();
+
+	if load_meta(db, &candidate_hash)?.is_none() {
+		let meta = CandidateMeta {
+			state: State::Unavailable(now.into()),
+			data_available: false,
+			chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+		};
+
+		let prune_at = now + pruning_config.keep_unavailable_for;
+
+		write_pruning_key(db_transaction, prune_at, &candidate_hash);
+		write_meta(db_transaction, &candidate_hash, &meta);
+	}
+
+	Ok(())
+}
+
+fn note_block_included(
+	db: &Arc<dyn KeyValueDB>,
+	db_transaction: &mut DBTransaction,
+	pruning_config:&PruningConfig,
+	block: (BlockNumber, Hash),
+	candidate: CandidateReceipt,
+) -> Result<(), Error> {
+	let candidate_hash = candidate.hash();
+
+	match load_meta(db, &candidate_hash)? {
+		None => {
+			// This is alarming. We've observed a block being included without ever seeing it backed.
+			// Warn and ignore.
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Candidate {}, included without being backed?",
+				candidate_hash,
+			);
+		}
+		Some(mut meta) => {
+			let be_block = (BEBlockNumber(block.0), block.1);
+
+			meta.state = match meta.state {
+				State::Unavailable(at) => {
+					let at_d: Duration = at.into();
+					let prune_at = at_d + pruning_config.keep_unavailable_for;
+					delete_pruning_key(db_transaction, prune_at, &candidate_hash);
+
+					State::Unfinalized(at, vec![be_block])
+				}
+				State::Unfinalized(at, mut within) => {
+					if let Err(i) = within.binary_search(&be_block) {
+						within.insert(i, be_block);
+					}
+
+					State::Unfinalized(at, within)
+				}
+				State::Finalized(_at) => {
+					// This should never happen as a candidate would have to be included after
+					// finality.
+					return Ok(())
+				}
+			};
+
+			write_unfinalized_block_contains(db_transaction, block.0, &block.1, &candidate_hash);
+			write_meta(db_transaction, &candidate_hash, &meta);
+		}
+	}
+
+	Ok(())
+}
+
+macro_rules! peek_num {
+	($iter:ident) => {
+		match $iter.peek() {
+			Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
+			None => None
+		}
+	}
+}
+
+async fn process_block_finalized(
+	ctx: &mut impl SubsystemContext,
+	subsystem: &AvailabilityStoreSubsystem,
+	finalized_hash: Hash,
+	finalized_number: BlockNumber,
+) -> Result<(), Error> {
+	let now = subsystem.clock.now()?;
+
+	let mut next_possible_batch = 0;
+	loop {
+		let mut db_transaction = DBTransaction::new();
+		let (start_prefix, end_prefix) = finalized_block_range(finalized_number);
+
+		// We have to do some juggling here of the `iter` to make sure it doesn't cross the `.await` boundary
+		// as it is not `Send`. That is why we create the iterator once within this loop, drop it,
+		// do an asynchronous request, and then instantiate the exact same iterator again.
+		let batch_num = {
+			let mut iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
+				.take_while(|(k, _)| &k[..] < &end_prefix[..])
+				.peekable();
+
+			match peek_num!(iter) {
+				None => break, // end of iterator.
+				Some(n) => n,
+			}
+		};
+
+		if batch_num < next_possible_batch { continue } // sanity.
+		next_possible_batch = batch_num + 1;
+
+		let batch_finalized_hash = if batch_num == finalized_number {
+			finalized_hash
+		} else {
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx).into()).await;
+
+			match rx.await?? {
+				None => {
+					tracing::warn!(target: LOG_TARGET,
+						"Availability store was informed that block #{} is finalized, \
+						but chain API has no finalized hash.",
+						batch_num,
+					);
+
+					break
+				}
+				Some(h) => h,
+			}
+		};
+
+		let iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
+			.take_while(|(k, _)| &k[..] < &end_prefix[..])
+			.peekable();
+
+		let batch = load_all_at_finalized_height(iter, batch_num, batch_finalized_hash);
+
+		// Now that we've iterated over the entire batch at this finalized height,
+		// update the meta.
+
+		delete_unfinalized_height(&mut db_transaction, batch_num);
+
+		update_blocks_at_finalized_height(
+			&subsystem,
+			&mut db_transaction,
+			batch,
+			batch_num,
+			now,
+		)?;
+
+		// We need to write at the end of the loop so the prefix iterator doesn't pick up the same values again
+		// in the next iteration. Another unfortunate effect of having to re-initialize the iterator.
+		subsystem.db.write(db_transaction)?;
+	}
+
+	Ok(())
+}
+
+// loads all candidates at the finalized height and maps them to `true` if finalized
+// and `false` if unfinalized.
+fn load_all_at_finalized_height(
+	mut iter: std::iter::Peekable<impl Iterator<Item = (Box<[u8]>, Box<[u8]>)>>,
+	block_number: BlockNumber,
+	finalized_hash: Hash,
+) -> impl IntoIterator<Item = (CandidateHash, bool)> {
+	// maps candidate hashes to true if finalized, false otherwise.
+	let mut candidates = HashMap::new();
+
+	// Load all candidates that were included at this height.
+	loop {
+		match peek_num!(iter) {
+			None => break, // end of iterator.
+			Some(n) if n != block_number => break, // end of batch.
+			_ => {}
+		}
+
+		let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed");
+		let (_, block_hash, candidate_hash) = decode_unfinalized_key(&k[..])
+			.expect("`peek_num` checks validity of key; qed");
+
+		if block_hash == finalized_hash {
+			candidates.insert(candidate_hash, true);
+		} else {
+			candidates.entry(candidate_hash).or_insert(false);
+		}
+	}
+
+	candidates
+}
+
+fn update_blocks_at_finalized_height(
+	subsystem: &AvailabilityStoreSubsystem,
+	db_transaction: &mut DBTransaction,
+	candidates: impl IntoIterator<Item = (CandidateHash, bool)>,
+	block_number: BlockNumber,
+	now: Duration,
+) -> Result<(), Error> {
+	for (candidate_hash, is_finalized) in candidates {
+		let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Dangling candidate metadata for {}",
+					candidate_hash,
+				);
+
+				continue;
+			}
+			Some(c) => c,
+		};
+
+		if is_finalized {
+			// Clear everything else related to this block. We're finalized now!
+			match meta.state {
+				State::Finalized(_) => continue, // sanity
+				State::Unavailable(at) => {
+					// This is also not going to happen; the very fact that we are
+					// iterating over the candidate here indicates that `State` should
+					// be `Unfinalized`.
+					delete_pruning_key(db_transaction, at, &candidate_hash);
+				}
+				State::Unfinalized(_, blocks) => {
+					for (block_num, block_hash) in blocks.iter().cloned() {
+						// this exact height is all getting cleared out anyway.
+						if block_num.0 != block_number {
+							delete_unfinalized_inclusion(
+								db_transaction,
+								block_num.0,
+								&block_hash,
+								&candidate_hash,
+							);
+						}
+					}
+				}
+			}
+
+			meta.state = State::Finalized(now.into());
+
+			// Write the meta and a pruning record.
+			write_meta(db_transaction, &candidate_hash, &meta);
+			write_pruning_key(
+				db_transaction,
+				now + subsystem.pruning_config.keep_finalized_for,
+				&candidate_hash,
+			);
+		} else {
+			meta.state = match meta.state {
+				State::Finalized(_) => continue, // sanity.
+				State::Unavailable(_) => continue, // sanity.
+				State::Unfinalized(at, mut blocks) => {
+					// Clear out everything at this height.
+					blocks.retain(|(n, _)| n.0 != block_number);
+
+					// If empty, we need to go back to being unavailable as we aren't
+					// aware of any blocks this is included in.
+					if blocks.is_empty() {
+						let at_d: Duration = at.into();
+						let prune_at = at_d + subsystem.pruning_config.keep_unavailable_for;
+						write_pruning_key(db_transaction, prune_at, &candidate_hash);
+						State::Unavailable(at)
+					} else {
+						State::Unfinalized(at, blocks)
+					}
+				}
+			};
+
+			// Update the meta entry.
+			write_meta(db_transaction, &candidate_hash, &meta)
+		}
+	}
+
+	Ok(())
+}
+
+fn process_message(
+	subsystem: &mut AvailabilityStoreSubsystem,
+	msg: AvailabilityStoreMessage,
+) -> Result<(), Error> {
+	match msg {
+		AvailabilityStoreMessage::QueryAvailableData(candidate, tx) => {
+			let _ = tx.send(load_available_data(&subsystem.db, &candidate)?);
+		}
+		AvailabilityStoreMessage::QueryDataAvailability(candidate, tx) => {
+			let a = load_meta(&subsystem.db, &candidate)?.map_or(false, |m| m.data_available);
+			let _ = tx.send(a);
+		}
+		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
+			let _timer = subsystem.metrics.time_get_chunk();
+			let _ = tx.send(load_chunk(&subsystem.db, &candidate, validator_index)?);
+		}
+		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
+			let a = load_meta(&subsystem.db, &candidate)?
+				.map_or(false, |m| *m.chunks_stored.get(validator_index as usize).unwrap_or(&false));
+			let _ = tx.send(a);
+		}
+		AvailabilityStoreMessage::StoreChunk {
+			candidate_hash,
+			relay_parent: _,
+			chunk,
+			tx,
+		} => {
+			subsystem.metrics.on_chunks_received(1);
+			let _timer = subsystem.metrics.time_store_chunk();
+
+			match store_chunk(&subsystem.db, candidate_hash, chunk) {
+				Ok(true) => {
+					let _ = tx.send(Ok(()));
+				}
+				Ok(false) => {
+					let _ = tx.send(Err(()));
+				}
+				Err(e) => {
+					let _ = tx.send(Err(()));
+					return Err(e)
+				}
+			}
+		}
+		AvailabilityStoreMessage::StoreAvailableData(candidate, _our_index, n_validators, available_data, tx) => {
+			subsystem.metrics.on_chunks_received(n_validators as _);
+
+			let _timer = subsystem.metrics.time_store_available_data();
+
+			let res = store_available_data(
+				&subsystem,
+				candidate,
+				n_validators as _,
+				available_data,
+			);
+
+			match res {
+				Ok(()) => {
+					let _ = tx.send(Ok(()));
+				}
+				Err(e) => {
+					let _ = tx.send(Err(()));
+					return Err(e)
+				}
+			}
+		}
+	}
+
+	Ok(())
+}
+
+// Ok(true) on success, Ok(false) on failure, and Err on internal error.
+fn store_chunk(
+	db: &Arc<dyn KeyValueDB>,
+	candidate_hash: CandidateHash,
+	chunk: ErasureChunk,
+) -> Result<bool, Error> {
+	let mut tx = DBTransaction::new();
+
+	let mut meta = match load_meta(db, &candidate_hash)? {
+		Some(m) => m,
+		None => return Ok(false), // we weren't informed of this candidate by import events.
+	};
+
+	match meta.chunks_stored.get(chunk.index as usize).map(|b| *b) {
+		Some(true) => return Ok(true), // already stored.
+		Some(false) => {
+			meta.chunks_stored.set(chunk.index as usize, true);
+
+			write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
+			write_meta(&mut tx, &candidate_hash, &meta);
+		}
+		None => return Ok(false), // out of bounds.
+	}
+
+	db.write(tx)?;
+	Ok(true)
+}
+
+// Ok(true) on success, Ok(false) on failure, and Err on internal error.
+fn store_available_data(
+	subsystem: &AvailabilityStoreSubsystem,
+	candidate_hash: CandidateHash,
+	n_validators: usize,
+	available_data: AvailableData,
+) -> Result<(), Error> {
+	let mut tx = DBTransaction::new();
+
+	let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
+		Some(m) => {
+			if m.data_available {
+				return Ok(()); // already stored.
+			}
+
+			m
+		},
+		None => {
+			let now = subsystem.clock.now()?;
+
+			// Write a pruning record.
+			let prune_at = now + subsystem.pruning_config.keep_unavailable_for;
+			write_pruning_key(&mut tx, prune_at, &candidate_hash);
+
+			CandidateMeta {
+				state: State::Unavailable(now.into()),
+				data_available: false,
+				chunks_stored: BitVec::new(),
+			}
+		}
+	};
+
+	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
 	let branches = erasure::branches(chunks.as_ref());
 
-	Ok(chunks
-		.iter()
+	let erasure_chunks = chunks.iter()
 		.zip(branches.map(|(proof, _)| proof))
 		.enumerate()
 		.map(|(index, (chunk, proof))| ErasureChunk {
 			chunk: chunk.clone(),
 			proof,
 			index: index as u32,
-		})
-		.collect()
-	)
+		});
+
+	for chunk in erasure_chunks {
+		write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
+	}
+
+	meta.data_available = true;
+	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
+
+	write_meta(&mut tx, &candidate_hash, &meta);
+	write_available_data(&mut tx, &candidate_hash, &available_data);
+
+	subsystem.db.write(tx)?;
+	Ok(())
+}
+
+fn prune_all(db: &Arc<dyn KeyValueDB>, clock: &dyn Clock) -> Result<(), Error> {
+	let now = clock.now()?;
+	let (range_start, range_end) = pruning_range(now);
+
+	let mut tx = DBTransaction::new();
+	let iter = db.iter_with_prefix(columns::META, &range_start[..])
+		.take_while(|(k, _)| &k[..] < &range_end[..]);
+
+	for (k, _v) in iter {
+		tx.delete(columns::META, &k[..]);
+
+		let (_, candidate_hash) = match decode_pruning_key(&k[..]) {
+			Ok(m) => m,
+			Err(_) => continue, // sanity
+		};
+
+		delete_meta(&mut tx, &candidate_hash);
+
+		// Clean up all attached data of the candidate.
+		if let Some(meta) = load_meta(db, &candidate_hash)? {
+			// delete available data.
+			if meta.data_available {
+				delete_available_data(&mut tx, &candidate_hash)
+			}
+
+			// delete chunks.
+			for (i, b) in meta.chunks_stored.iter().enumerate() {
+				if *b {
+					delete_chunk(&mut tx, &candidate_hash, i as _);
+				}
+			}
+
+			// delete unfinalized block references. Pruning references don't need to be
+			// manually taken care of as we are deleting them as we go in the outer loop.
+			if let State::Unfinalized(_, blocks) = meta.state {
+				for (block_number, block_hash) in blocks {
+					delete_unfinalized_inclusion(
+						&mut tx,
+						block_number.0,
+						&block_hash,
+						&candidate_hash,
+					);
+				}
+			}
+		}
+	}
+
+	db.write(tx)?;
+	Ok(())
 }
 
 #[derive(Clone)]
 struct MetricsInner {
 	received_availability_chunks_total: prometheus::Counter<prometheus::U64>,
-	chunk_pruning_records_total: prometheus::Gauge<prometheus::U64>,
-	block_pruning_records_total: prometheus::Gauge<prometheus::U64>,
-	prune_povs: prometheus::Histogram,
-	prune_chunks: prometheus::Histogram,
+	pruning: prometheus::Histogram,
 	process_block_finalized: prometheus::Histogram,
 	block_activated: prometheus::Histogram,
 	process_message: prometheus::Histogram,
 	store_available_data: prometheus::Histogram,
-	store_chunks: prometheus::Histogram,
+	store_chunk: prometheus::Histogram,
 	get_chunk: prometheus::Histogram,
 }
 
@@ -1158,30 +1182,9 @@ impl Metrics {
 		}
 	}
 
-	fn chunk_pruning_records_size(&self, count: usize) {
-		if let Some(metrics) = &self.0 {
-			use core::convert::TryFrom as _;
-			let total = u64::try_from(count).unwrap_or_default();
-			metrics.chunk_pruning_records_total.set(total);
-		}
-	}
-
-	fn block_pruning_records_size(&self, count: usize) {
-		if let Some(metrics) = &self.0 {
-			use core::convert::TryFrom as _;
-			let total = u64::try_from(count).unwrap_or_default();
-			metrics.block_pruning_records_total.set(total);
-		}
-	}
-
 	/// Provide a timer for `prune_povs` which observes on drop.
-	fn time_prune_povs(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.prune_povs.start_timer())
-	}
-
-	/// Provide a timer for `prune_chunks` which observes on drop.
-	fn time_prune_chunks(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.prune_chunks.start_timer())
+	fn time_pruning(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.pruning.start_timer())
 	}
 
 	/// Provide a timer for `process_block_finalized` which observes on drop.
@@ -1205,8 +1208,8 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `store_chunk` which observes on drop.
-	fn time_store_chunks(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.store_chunks.start_timer())
+	fn time_store_chunk(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.store_chunk.start_timer())
 	}
 
 	/// Provide a timer for `get_chunk` which observes on drop.
@@ -1225,34 +1228,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			chunk_pruning_records_total: prometheus::register(
-				prometheus::Gauge::new(
-					"parachain_chunk_pruning_records_total",
-					"Number of chunk pruning records kept by the storage.",
-				)?,
-				registry,
-			)?,
-			block_pruning_records_total: prometheus::register(
-				prometheus::Gauge::new(
-					"parachain_block_pruning_records_total",
-					"Number of block pruning records kept by the storage.",
-				)?,
-				registry,
-			)?,
-			prune_povs: prometheus::register(
+			pruning: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_av_store_prune_povs",
-						"Time spent within `av_store::prune_povs`",
-					)
-				)?,
-				registry,
-			)?,
-			prune_chunks: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_prune_chunks",
-						"Time spent within `av_store::prune_chunks`",
+						"parachain_av_store_pruning",
+						"Time spent within `av_store::prune_all`",
 					)
 				)?,
 				registry,
@@ -1261,7 +1241,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"parachain_av_store_process_block_finalized",
-						"Time spent within `av_store::block_finalized`",
+						"Time spent within `av_store::process_block_finalized`",
 					)
 				)?,
 				registry,
@@ -1270,7 +1250,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"parachain_av_store_block_activated",
-						"Time spent within `av_store::block_activated`",
+						"Time spent within `av_store::process_block_activated`",
 					)
 				)?,
 				registry,
@@ -1293,11 +1273,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			store_chunks: prometheus::register(
+			store_chunk: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_av_store_store_chunks",
-						"Time spent within `av_store::store_chunks`",
+						"parachain_av_store_store_chunk",
+						"Time spent within `av_store::store_chunk`",
 					)
 				)?,
 				registry,
@@ -1306,7 +1286,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"parachain_av_store_get_chunk",
-						"Time spent within `av_store::get_chunk`",
+						"Time spent fetching requested chunks.`",
 					)
 				)?,
 				registry,
@@ -1315,6 +1295,3 @@ impl metrics::Metrics for Metrics {
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
-#[cfg(test)]
-mod tests;

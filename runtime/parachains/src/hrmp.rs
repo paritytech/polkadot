@@ -280,7 +280,7 @@ decl_storage! {
 		// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 		// the format will require migration of parachains.
 		HrmpEgressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
-	
+
 		/// Storage for the messages for each channel.
 		/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
 		HrmpChannelContents: map hasher(twox_64_concat) HrmpChannelId => Vec<InboundHrmpMessage<T::BlockNumber>>;
@@ -1101,16 +1101,16 @@ mod tests {
 			Hrmp::initializer_finalize();
 			Paras::initializer_finalize();
 
-			System::on_finalize(b);
-
-			System::on_initialize(b + 1);
-			System::set_block_number(b + 1);
-
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				// NOTE: this is in initialization order.
 				Paras::initializer_on_new_session(&Default::default());
 				Hrmp::initializer_on_new_session(&Default::default());
 			}
+
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
 
 			// NOTE: this is in initialization order.
 			Paras::initializer_initialize(b + 1);
