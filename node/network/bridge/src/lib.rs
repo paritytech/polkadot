@@ -791,7 +791,6 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::channel::mpsc;
 	use futures::executor;
 
 	use std::borrow::Cow;
@@ -805,6 +804,7 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 	};
+	use polkadot_node_subsystem_util::metered;
 	use polkadot_node_network_protocol::view;
 	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
@@ -812,7 +812,7 @@ mod tests {
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	struct TestNetwork {
 		net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
-		action_tx: mpsc::UnboundedSender<NetworkAction>,
+		action_tx: metered::UnboundedMeteredSender<NetworkAction>,
 	}
 
 	struct TestAuthorityDiscovery;
@@ -820,7 +820,7 @@ mod tests {
 	// The test's view of the network. This receives updates from the subsystem in the form
 	// of `NetworkAction`s.
 	struct TestNetworkHandle {
-		action_rx: mpsc::UnboundedReceiver<NetworkAction>,
+		action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
 		net_tx: SingleItemSink<NetworkEvent>,
 	}
 
@@ -830,7 +830,7 @@ mod tests {
 		TestAuthorityDiscovery,
 	) {
 		let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
-		let (action_tx, action_rx) = mpsc::unbounded();
+		let (action_tx, action_rx) = metered::unbounded("test_action");
 
 		(
 			TestNetwork {

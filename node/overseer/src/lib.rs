@@ -66,12 +66,12 @@ use std::task::Poll;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::{oneshot, mpsc};
 use futures::{
 	poll, select,
 	future::BoxFuture,
 	stream::{FuturesUnordered, Fuse},
-	Future, FutureExt, SinkExt, StreamExt,
+	Future, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
 use oorandom::Rand32;
@@ -90,7 +90,7 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, JaegerSpan, jaeger,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}};
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
 
 // A capacity of bounded channels inside the overseer.
@@ -101,6 +101,8 @@ const STOP_DELAY: u64 = 1;
 const LOG_TARGET: &'static str = "overseer";
 // Rate at which messages are timed.
 const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
+
+
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -188,7 +190,7 @@ enum ExternalRequest {
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
 pub struct OverseerHandler {
-	events_tx: mpsc::Sender<Event>,
+	events_tx: metered::MeteredSender<Event>,
 }
 
 impl OverseerHandler {
@@ -289,7 +291,7 @@ impl Debug for ToOverseer {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M> {
-	tx: mpsc::Sender<FromOverseer<M>>,
+	tx: metered::MeteredSender<FromOverseer<M>>,
 	name: &'static str,
 }
 
@@ -322,8 +324,8 @@ impl<T> From<T> for MaybeTimed<T> {
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 #[derive(Debug)]
 pub struct OverseerSubsystemContext<M>{
-	rx: mpsc::Receiver<FromOverseer<M>>,
-	tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+	rx: metered::MeteredReceiver<FromOverseer<M>>,
+	tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	metrics: Metrics,
 	rng: Rand32,
 	threshold: u32,
@@ -338,8 +340,8 @@ impl<M> OverseerSubsystemContext<M> {
 	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
 	/// to the range `0.0..=1.0`.
 	fn new(
-		rx: mpsc::Receiver<FromOverseer<M>>,
-		tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+		rx: metered::MeteredReceiver<FromOverseer<M>>,
+		tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 		metrics: Metrics,
 		increment: u64,
 		mut capture_rate: f64,
@@ -361,8 +363,8 @@ impl<M> OverseerSubsystemContext<M> {
 	/// Intended for tests.
 	#[allow(unused)]
 	fn new_unmetered(
-		rx: mpsc::Receiver<FromOverseer<M>>,
-		tx: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+		rx: metered::MeteredReceiver<FromOverseer<M>>,
+		tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	) -> Self {
 		let metrics = Metrics::default();
 		OverseerSubsystemContext::new(rx, tx, metrics, 0, 0.0)
@@ -559,10 +561,10 @@ pub struct Overseer<S> {
 	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
 	/// Gather running subsystems' outbound streams into one.
-	to_overseer_rx: Fuse<mpsc::UnboundedReceiver<MaybeTimed<ToOverseer>>>,
+	to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<MaybeTimed<ToOverseer>>>,
 
 	/// Events that are sent to the overseer from the outside world
-	events_rx: mpsc::Receiver<Event>,
+	events_rx: metered::MeteredReceiver<Event>,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
@@ -1045,6 +1047,8 @@ struct MetricsInner {
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
 	message_relay_timing: prometheus::Histogram,
+	channel_fill_level_to_overseer: prometheus::Histogram,
+	channel_fill_level_from_overseer: prometheus::Histogram,
 }
 
 #[derive(Default, Clone)]
@@ -1072,6 +1076,11 @@ impl Metrics {
 	/// Provide a timer for the duration between receiving a message and passing it to `route_message`
 	fn time_message_hold(&self) -> MaybeTimer {
 		self.0.as_ref().map(|metrics| metrics.message_relay_timing.start_timer())
+	}
+
+	fn channel_fill_level_snapshot(&self, from_overseer: usize, to_overseer: usize) {
+		self.0.as_ref().map(|metrics| metrics.channel_fill_level_to_overseer.observe(to_overseer as f64));
+		self.0.as_ref().map(|metrics| metrics.channel_fill_level_from_overseer.observe(from_overseer as f64));
 	}
 }
 
@@ -1117,6 +1126,30 @@ impl metrics::Metrics for Metrics {
 						// - `> 1.0`
 						// - `! 0`
 						buckets: prometheus::exponential_buckets(0.0001, 1.6, 18).expect("inputs are within documented range; qed"),
+					}
+				)?,
+				registry,
+			)?,
+			channel_fill_level_from_overseer: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts {
+						common_opts: prometheus::Opts::new(
+							"overseer_channel_fill_level_from_overseer",
+							"Number of elements sitting in the channel waiting to be processed.",
+						),
+						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
+					}
+				)?,
+				registry,
+			)?,
+			channel_fill_level_to_overseer: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts {
+						common_opts: prometheus::Opts::new(
+							"overseer_channel_fill_level_to_overseer",
+							"Number of elements sitting in the channel waiting to be processed.",
+						),
+						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
 					}
 				)?,
 				registry,
@@ -1242,7 +1275,7 @@ where
 		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
 		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
 	{
-		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY, "overseer_events");
 
 		let handler = OverseerHandler {
 			events_tx: events_tx.clone(),
@@ -1250,7 +1283,23 @@ where
 
 		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 
-		let (to_overseer_tx, to_overseer_rx) = mpsc::unbounded();
+		let (to_overseer_tx, to_overseer_rx) = metered::unbounded("to_overseer");
+
+		{
+			let meter_from_overseer = events_rx.meter().clone();
+			let meter_to_overseer = to_overseer_rx.meter().clone();
+			let metronome_metrics = metrics.clone();
+			let metronome = Metronome::new(std::time::Duration::from_millis(137))
+			.for_each(move |_| {
+				metronome_metrics.channel_fill_level_snapshot(meter_from_overseer.queue_count(), meter_to_overseer.queue_count());
+
+				async move {
+					()
+				}
+			});
+			s.spawn("metrics_metronome", Box::pin(metronome));
+		}
+
 		let mut running_subsystems = FuturesUnordered::new();
 
 		let mut seed = 0x533d; // arbitrary
@@ -1258,7 +1307,7 @@ where
 		let candidate_validation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_validation,
 			&metrics,
 			&mut seed,
@@ -1267,7 +1316,7 @@ where
 		let candidate_backing_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_backing,
 			&metrics,
 			&mut seed,
@@ -1276,7 +1325,7 @@ where
 		let candidate_selection_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_selection,
 			&metrics,
 			&mut seed,
@@ -1285,7 +1334,7 @@ where
 		let statement_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.statement_distribution,
 			&metrics,
 			&mut seed,
@@ -1294,7 +1343,7 @@ where
 		let availability_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_distribution,
 			&metrics,
 			&mut seed,
@@ -1303,7 +1352,7 @@ where
 		let bitfield_signing_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.bitfield_signing,
 			&metrics,
 			&mut seed,
@@ -1312,7 +1361,7 @@ where
 		let bitfield_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.bitfield_distribution,
 			&metrics,
 			&mut seed,
@@ -1321,7 +1370,7 @@ where
 		let provisioner_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.provisioner,
 			&metrics,
 			&mut seed,
@@ -1330,7 +1379,7 @@ where
 		let pov_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.pov_distribution,
 			&metrics,
 			&mut seed,
@@ -1339,7 +1388,7 @@ where
 		let runtime_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.runtime_api,
 			&metrics,
 			&mut seed,
@@ -1348,7 +1397,7 @@ where
 		let availability_store_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_store,
 			&metrics,
 			&mut seed,
@@ -1357,7 +1406,7 @@ where
 		let network_bridge_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.network_bridge,
 			&metrics,
 			&mut seed,
@@ -1366,7 +1415,7 @@ where
 		let chain_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.chain_api,
 			&metrics,
 			&mut seed,
@@ -1375,7 +1424,7 @@ where
 		let collation_generation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.collation_generation,
 			&metrics,
 			&mut seed,
@@ -1385,7 +1434,7 @@ where
 		let collator_protocol_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			to_overseer_tx.clone(),
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.collator_protocol,
 			&metrics,
 			&mut seed,
@@ -1735,12 +1784,12 @@ where
 fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-	to_overseer: mpsc::UnboundedSender<MaybeTimed<ToOverseer>>,
+	to_overseer: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
 	seed: &mut u64,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
-	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
+	let (to_tx, to_rx) = metered::channel(CHANNEL_CAPACITY, "subsystem_spawn");
 	let ctx = OverseerSubsystemContext::new(
 		to_rx,
 		to_overseer,
@@ -1783,18 +1832,19 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 mod tests {
 	use std::sync::atomic;
 	use std::collections::HashMap;
-	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt, pending};
+	use futures::{executor, pin_mut, select, FutureExt, pending};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, JaegerSpan};
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
+	use polkadot_node_subsystem_util::metered;
 
 	use sp_core::crypto::Pair as _;
 
 	use super::*;
 
-	struct TestSubsystem1(mpsc::Sender<usize>);
+	struct TestSubsystem1(metered::MeteredSender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
@@ -1822,7 +1872,7 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem2(mpsc::Sender<usize>);
+	struct TestSubsystem2(metered::MeteredSender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
@@ -1893,8 +1943,11 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, mut s1_rx) = mpsc::channel::<usize>(64);
-			let (s2_tx, mut s2_rx) = mpsc::channel::<usize>(64);
+			let (s1_tx, s1_rx) = metered::channel::<usize>(64, "overseer_test");
+			let (s2_tx, s2_rx) = metered::channel::<usize>(64, "overseer_test");
+
+			let mut s1_rx = s1_rx.fuse();
+			let mut s2_rx = s2_rx.fuse();
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem1(s1_tx))
@@ -1999,13 +2052,15 @@ mod tests {
 
 	fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 		let gather = registry.gather();
-		assert_eq!(gather[0].get_name(), "overseer_messages_relay_timing");
-		assert_eq!(gather[1].get_name(), "parachain_activated_heads_total");
-		assert_eq!(gather[2].get_name(), "parachain_deactivated_heads_total");
-		assert_eq!(gather[3].get_name(), "parachain_messages_relayed_total");
-		let activated = gather[1].get_metric()[0].get_counter().get_value() as u64;
-		let deactivated = gather[2].get_metric()[0].get_counter().get_value() as u64;
-		let relayed = gather[3].get_metric()[0].get_counter().get_value() as u64;
+		assert_eq!(gather[0].get_name(), "overseer_channel_fill_level_from_overseer");
+		assert_eq!(gather[1].get_name(), "overseer_channel_fill_level_to_overseer");
+		assert_eq!(gather[2].get_name(), "overseer_messages_relay_timing");
+		assert_eq!(gather[3].get_name(), "parachain_activated_heads_total");
+		assert_eq!(gather[4].get_name(), "parachain_deactivated_heads_total");
+		assert_eq!(gather[5].get_name(), "parachain_messages_relayed_total");
+		let activated = gather[3].get_metric()[0].get_counter().get_value() as u64;
+		let deactivated = gather[4].get_metric()[0].get_counter().get_value() as u64;
+		let relayed = gather[5].get_metric()[0].get_counter().get_value() as u64;
 		let mut result = HashMap::new();
 		result.insert("activated", activated);
 		result.insert("deactivated", deactivated);
@@ -2034,7 +2089,7 @@ mod tests {
 		})
 	}
 
-	struct TestSubsystem5(mpsc::Sender<OverseerSignal>);
+	struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
@@ -2065,7 +2120,7 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem6(mpsc::Sender<OverseerSignal>);
+	struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
@@ -2123,8 +2178,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
-			let (tx_6, mut rx_6) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
 				.replace_candidate_backing(TestSubsystem6(tx_6));
@@ -2216,8 +2271,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
-			let (tx_6, mut rx_6) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
@@ -2308,7 +2363,7 @@ mod tests {
 				number: 1,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_backing(TestSubsystem6(tx_5));

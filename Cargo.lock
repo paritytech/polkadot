@@ -3476,6 +3476,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "metered-channel"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.8",
+ "futures-timer 3.0.2",
+]
+
+[[package]]
 name = "mick-jaeger"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5013,6 +5022,7 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-authority-discovery",
  "sc-network",
@@ -5315,6 +5325,7 @@ dependencies = [
  "futures 0.3.8",
  "futures-timer 3.0.2",
  "log",
+ "metered-channel",
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.4",

@@ -21,6 +21,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-primitives = { path = "../../primitives" }
+metered-channel = { path = "../metered-channel"}
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
