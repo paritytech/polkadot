@@ -554,8 +554,8 @@ mod tests {
 	use polkadot_node_network_protocol::view;
 	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
-    use polkadot_primitives::v1::AuthorityDiscoveryId;
-    use polkadot_node_network_protocol::ObservedRole;
+	use polkadot_primitives::v1::AuthorityDiscoveryId;
+	use polkadot_node_network_protocol::ObservedRole;
 
 	use crate::network::{Network, NetworkAction};
 
@@ -611,12 +611,12 @@ mod tests {
 	}
 
 	#[async_trait]
-    impl validator_discovery::Network for TestNetwork {
+	impl validator_discovery::Network for TestNetwork {
 		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 
-        async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 	}
