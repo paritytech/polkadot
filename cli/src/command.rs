@@ -144,7 +144,8 @@ pub fn run() -> Result<()> {
 
 	match &cli.subcommand {
 		None => {
-			let runner = cli.create_runner(&cli.run.base)?;
+			let runner = cli.create_runner(&cli.run.base)
+				.map_err(Error::from)?;
 			let chain_spec = &runner.config().chain_spec;
 
 			set_default_ss58_version(chain_spec);
@@ -165,7 +166,7 @@ pub fn run() -> Result<()> {
 
 			let jaeger_agent = cli.run.jaeger_agent;
 
-			Ok(runner.run_node_until_exit(move |config| async move {
+			runner.run_node_until_exit(move |config| async move {
 				let role = config.role.clone();
 
 				let task_manager = match role {
@@ -178,7 +179,7 @@ pub fn run() -> Result<()> {
 					).map(|full| full.task_manager)
 				}.map_err(|e| Error::PolkadotService(e));
 				task_manager
-			})?)
+			})
 		},
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
