@@ -1590,24 +1590,19 @@ mod tests {
 			};
 
 			assert_groups_rotated(0);
-			println!("before first");
 
 			// one block before first rotation.
 			run_to_block(rotation_frequency, |_| None);
 
 			assert_groups_rotated(0);
 
-			println!("first");
-
 			// first rotation.
 			run_to_block(rotation_frequency + 1, |_| None);
-			assert_groups_rotated(1);
-			println!("before second");
+			assert_groups_rotated(1);;
 
 			// one block before second rotation.
 			run_to_block(rotation_frequency * 2, |_| None);
 			assert_groups_rotated(1);
-			println!("second");
 
 			// second rotation.
 			run_to_block(rotation_frequency * 2 + 1, |_| None);
