@@ -9,7 +9,7 @@ description = "Primitives types for the Node-side"
 futures = "0.3.8"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "master" }

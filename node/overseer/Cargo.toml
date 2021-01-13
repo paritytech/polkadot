@@ -14,7 +14,6 @@ polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../pr
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
-streamunordered = "0.5.1"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 

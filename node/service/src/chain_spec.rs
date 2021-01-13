@@ -856,7 +856,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
@@ -1343,7 +1342,6 @@ pub fn rococo_testnet_genesis(
 		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
 		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {

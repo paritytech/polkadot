@@ -86,11 +86,11 @@ Map the message onto the corresponding [Event Handler](#event-handlers) based on
 
 - Adjust peer reputation according to cost or benefit provided
 
-### SendValidationMessage
+### SendValidationMessage / SendValidationMessages
 
 - Issue a corresponding `ProtocolMessage` to each listed peer on the validation peer-set.
 
-### SendCollationMessage
+### SendCollationMessage / SendCollationMessages
 
 - Issue a corresponding `ProtocolMessage` to each listed peer on the collation peer-set.
 
