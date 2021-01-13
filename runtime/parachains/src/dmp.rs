@@ -236,14 +236,14 @@ mod tests {
 		while System::block_number() < to {
 			let b = System::block_number();
 			Dmp::initializer_finalize();
+			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				Dmp::initializer_on_new_session(&Default::default());
+			}
 			System::on_finalize(b);
 
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
-			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Dmp::initializer_on_new_session(&Default::default());
-			}
 			Dmp::initializer_initialize(b + 1);
 		}
 	}
