@@ -562,6 +562,7 @@ impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_inclusion_inherent::Config for Runtime {}
