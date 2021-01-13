@@ -100,7 +100,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1"),
 	authoring_version: 0,
-	spec_version: 15,
+	spec_version: 19,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -562,6 +562,7 @@ impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_inclusion_inherent::Config for Runtime {}
