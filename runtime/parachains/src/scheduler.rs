@@ -212,8 +212,7 @@ decl_module! {
 
 impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the scheduler module.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		let now = <frame_system::Module<T>>::block_number();
+	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		Self::clear_and_reschedule(now);
 
 		0
