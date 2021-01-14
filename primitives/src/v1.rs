@@ -259,7 +259,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// point. The hash of the persisted validation data should
 	/// match the `persisted_validation_data_hash` in the descriptor
 	/// of the receipt.
-	pub validation_data: ValidationData<N>,
+	pub validation_data: PersistedValidationData<N>,
 }
 
 /// A candidate-receipt with commitments directly included.
