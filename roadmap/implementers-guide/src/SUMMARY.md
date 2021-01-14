@@ -24,7 +24,6 @@
   - [Validator Groups](runtime-api/validator-groups.md)
   - [Availability Cores](runtime-api/availability-cores.md)
   - [Persisted Validation Data](runtime-api/persisted-validation-data.md)
-  - [Full Validation Data](runtime-api/full-validation-data.md)
   - [Session Index](runtime-api/session-index.md)
   - [Validation Code](runtime-api/validation-code.md)
   - [Candidate Pending Availability](runtime-api/candidate-pending-availability.md)

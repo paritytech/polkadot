@@ -833,15 +833,6 @@ sp_api::decl_runtime_apis! {
 		#[skip_initialize_block]
 		fn availability_cores() -> Vec<CoreState<H, N>>;
 
-		/// Yields the full validation data for the given ParaId along with an assumption that
-		/// should be used if the para currently occupieds a core.
-		///
-		/// Returns `None` if either the para is not registered or the assumption is `Freed`
-		/// and the para already occupies a core.
-		#[skip_initialize_block]
-		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<N>>;
-
 		/// Yields the persisted validation data for the given ParaId along with an assumption that
 		/// should be used if the para currently occupies a core.
 		///

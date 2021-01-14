@@ -269,7 +269,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
-		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
+		Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
 		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
@@ -284,7 +284,7 @@ mod tests {
 		validator_groups: Vec<Vec<ValidatorIndex>>,
 		availability_cores: Vec<CoreState>,
 		availability_cores_wait: Arc<Mutex<()>>,
-		validation_data: HashMap<ParaId, ValidationData>,
+		validation_data: HashMap<ParaId, PersistedValidationData>,
 		session_index_for_child: SessionIndex,
 		session_info: HashMap<SessionIndex, SessionInfo>,
 		validation_code: HashMap<ParaId, ValidationCode>,
@@ -333,15 +333,7 @@ mod tests {
 				para: ParaId,
 				_assumption: OccupiedCoreAssumption,
 			) -> Option<PersistedValidationData> {
-				self.validation_data.get(&para).map(|l| l.persisted.clone())
-			}
-
-			fn full_validation_data(
-				&self,
-				para: ParaId,
-				_assumption: OccupiedCoreAssumption,
-			) -> Option<ValidationData> {
-				self.validation_data.get(&para).map(|l| l.clone())
+				self.validation_data.get(&para).cloned()
 			}
 
 			fn check_validation_outputs(
