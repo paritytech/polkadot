@@ -1168,8 +1168,6 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		_ { }
-
 		// Benchmark `claim` including `validate_unsigned` logic.
 		claim {
 			let c = MAX_CLAIMS;

@@ -173,12 +173,12 @@ enum AvailabilityStoreMessage {
 	QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
-	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
+	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<ErasureChunk>>),
+	/// Store a specific chunk of the candidate's erasure-coding, with an
 	/// accompanying proof.
-	StoreChunk(CandidateHash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+	StoreChunk(CandidateHash, ErasureChunk, ResponseChannel<Result<()>>),
 	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
-	/// `AvailabilityChunkAndProof`.
+	/// `ErasureChunk`.
 	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
@@ -320,7 +320,11 @@ enum NetworkBridgeMessage {
 	/// Send a message to one or more peers on the validation peerset.
 	SendValidationMessage([PeerId], ValidationProtocolV1),
 	/// Send a message to one or more peers on the collation peerset.
-	SendCollationMessage([PeerId], ValidationProtocolV1),
+	SendCollationMessage([PeerId], CollationProtocolV1),
+	/// Send multiple validation messages.
+	SendValidationMessages([([PeerId, ValidationProtocolV1])]),
+	/// Send multiple collation messages.
+	SendCollationMessages([([PeerId, ValidationProtocolV1])]),
 	/// Connect to peers who represent the given `validator_ids`.
 	///
 	/// Also ask the network to stay connected to these peers at least

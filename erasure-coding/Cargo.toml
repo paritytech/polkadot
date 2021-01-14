@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 primitives = { package = "polkadot-primitives", path = "../primitives" }
 reed_solomon = { package = "reed-solomon-erasure", version = "4.0.2" }
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.23"
