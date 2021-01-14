@@ -38,7 +38,6 @@ members = [
 	"runtime/westend",
 	"runtime/test-runtime",
 	"statement-table",
-	"validation",
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
