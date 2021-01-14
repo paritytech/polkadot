@@ -18,6 +18,7 @@ use log::info;
 use service::{IdentifyVariant, self};
 use sc_cli::{SubstrateCli, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
+use futures::future::TryFutureExt;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -143,7 +144,8 @@ pub fn run() -> Result<()> {
 
 	match &cli.subcommand {
 		None => {
-			let runner = cli.create_runner(&cli.run.base)?;
+			let runner = cli.create_runner(&cli.run.base)
+				.map_err(Error::from)?;
 			let chain_spec = &runner.config().chain_spec;
 
 			set_default_ss58_version(chain_spec);
@@ -164,38 +166,37 @@ pub fn run() -> Result<()> {
 
 			let jaeger_agent = cli.run.jaeger_agent;
 
-			Ok(runner.run_node_until_exit(move |config| async move {
+			runner.run_node_until_exit(move |config| async move {
 				let role = config.role.clone();
 
 				let task_manager = match role {
-					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager)
-					.map_err(|e| sc_service::Error::Other(e.to_string())),
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
 					_ => service::build_full(
 						config,
 						service::IsCollator::No,
 						grandpa_pause,
 						jaeger_agent,
 					).map(|full| full.task_manager)
-					.map_err(|e| sc_service::Error::Other(e.to_string()) )
-				};
-				task_manager
-			}).map_err(|e| -> sc_cli::Error { e.into() })?)
-
+				}?;
+				Ok::<_, Error>(task_manager)
+			})
 		},
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
+			Ok(runner.sync_run(|config| {
+				cmd.run(config.chain_spec, config.network)
+			})?)
 		},
 		Some(Subcommand::CheckBlock(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
+			let runner = cli.create_runner(cmd)
+				.map_err(Error::SubstrateCli)?;
 			let chain_spec = &runner.config().chain_spec;
 
 			set_default_ss58_version(chain_spec);
 
 			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)
-					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
-				Ok((cmd.run(client, import_queue), task_manager))
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)?;
+				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
 			})
 		},
 		Some(Subcommand::ExportBlocks(cmd)) => {
@@ -204,11 +205,11 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			runner.async_run(|mut config| {
+			Ok(runner.async_run(|mut config| {
 				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)
-					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
-				Ok((cmd.run(client, config.database), task_manager))
-			})
+					.map_err(Error::PolkadotService)?;
+				Ok((cmd.run(client, config.database).map_err(Error::SubstrateCli), task_manager))
+			})?)
 		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -216,11 +217,10 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)
-					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
-				Ok((cmd.run(client, config.chain_spec), task_manager))
-			})
+			Ok(runner.async_run(|mut config| {
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+				Ok((cmd.run(client, config.chain_spec).map_err(Error::SubstrateCli), task_manager))
+			})?)
 		},
 		Some(Subcommand::ImportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -228,16 +228,14 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			runner.async_run(|mut config| {
-				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)
-					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
-				Ok((cmd.run(client, import_queue), task_manager))
-			})
+			Ok(runner.async_run(|mut config| {
+				let (client, _, import_queue, task_manager) = service::new_chain_ops(&mut config, None)?;
+				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
+			})?)
 		},
 		Some(Subcommand::PurgeChain(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			Ok(runner.sync_run(|config| cmd.run(config.database))
-				.map_err(|e| sc_service::Error::Other(e.to_string()))?)
+			Ok(runner.sync_run(|config| cmd.run(config.database))?)
 		},
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
@@ -245,11 +243,10 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			runner.async_run(|mut config| {
-				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)
-					.map_err(|e| sc_service::Error::Other(e.to_string()))?;
-				Ok((cmd.run(client, backend), task_manager))
-			})
+			Ok(runner.async_run(|mut config| {
+				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli),task_manager))
+			})?)
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
 			let _ = sc_cli::init_logger(
@@ -263,7 +260,7 @@ pub fn run() -> Result<()> {
 			);
 
 			if cfg!(feature = "browser") || cfg!(target_os = "android") {
-				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
+				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()).into())
 			} else {
 				#[cfg(not(any(target_os = "android", feature = "browser")))]
 				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
@@ -276,11 +273,12 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			runner.sync_run(|config| {
+			Ok(runner.sync_run(|config| {
 				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
-			})
+				.map_err(|e| Error::SubstrateCli(e))
+			})?)
 		},
-		Some(Subcommand::Key(cmd)) => cmd.run(&cli),
+		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 	}?;
 	Ok(())
 }

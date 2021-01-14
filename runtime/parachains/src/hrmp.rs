@@ -21,14 +21,14 @@ use crate::{
 };
 use parity_scale_codec::{Decode, Encode};
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure, traits::Get, weights::Weight, StorageMap,
-	StorageValue, dispatch::DispatchResult,
+	decl_storage, decl_module, decl_error, ensure, traits::{Get, ReservableCurrency}, weights::Weight,
+	StorageMap, StorageValue, dispatch::DispatchResult,
 };
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
 };
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
+use sp_runtime::traits::{UniqueSaturatedInto, AccountIdConversion, BlakeTwo256, Hash as HashT};
 use sp_std::{
 	mem, fmt,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -218,6 +218,13 @@ pub trait Config: frame_system::Config + configuration::Config + paras::Config +
 	type Origin: From<crate::Origin>
 		+ From<<Self as frame_system::Config>::Origin>
 		+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
+
+	/// An interface for reserving deposits for opening channels.
+	///
+	/// NOTE that this Currency instance will be charged with the amounts defined in the `Configuration`
+	/// module. Specifically, that means that the `Balance` of the `Currency` implementation should
+	/// be the same as `Balance` as used in the `Configuration`.
+	type Currency: ReservableCurrency<Self::AccountId>;
 }
 
 decl_storage! {
@@ -225,7 +232,6 @@ decl_storage! {
 		/// Paras that are to be cleaned up at the end of the session.
 		/// The entries are sorted ascending by the para id.
 		OutgoingParas: Vec<ParaId>;
-
 
 		/// The set of pending HRMP open channel requests.
 		///
@@ -423,23 +429,28 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Remove all storage entries associated with the given para.
-	pub(super) fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
+	fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
 		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&outgoing_para);
 
-		// close all channels where the outgoing para acts as the recipient.
-		for sender in <Self as Store>::HrmpIngressChannelsIndex::take(&outgoing_para) {
-			Self::close_hrmp_channel(&HrmpChannelId {
+		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(&outgoing_para)
+			.into_iter()
+			.map(|sender| HrmpChannelId {
 				sender,
 				recipient: outgoing_para.clone(),
 			});
-		}
-		// close all channels where the outgoing para acts as the sender.
-		for recipient in <Self as Store>::HrmpEgressChannelsIndex::take(&outgoing_para) {
-			Self::close_hrmp_channel(&HrmpChannelId {
+		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(&outgoing_para)
+			.into_iter()
+			.map(|recipient| HrmpChannelId {
 				sender: outgoing_para.clone(),
 				recipient,
 			});
+		let mut to_close = ingress.chain(egress).collect::<Vec<_>>();
+		to_close.sort();
+		to_close.dedup();
+
+		for channel in to_close {
+			Self::close_hrmp_channel(&channel);
 		}
 	}
 
@@ -447,7 +458,7 @@ impl<T: Config> Module<T> {
 	///
 	/// - prune the stale requests
 	/// - enact the confirmed requests
-	pub(super) fn process_hrmp_open_channel_requests(config: &HostConfiguration<T::BlockNumber>) {
+	fn process_hrmp_open_channel_requests(config: &HostConfiguration<T::BlockNumber>) {
 		let mut open_req_channels = <Self as Store>::HrmpOpenChannelRequestsList::get();
 		if open_req_channels.is_empty() {
 			return;
@@ -528,15 +539,21 @@ impl<T: Config> Module<T> {
 				request.age += 1;
 				if request.age == config.hrmp_open_request_ttl {
 					// got stale
-
 					<Self as Store>::HrmpOpenChannelRequestCount::mutate(&channel_id.sender, |v| {
 						*v -= 1;
 					});
 
-					// TODO: return deposit https://github.com/paritytech/polkadot/issues/1907
-
 					let _ = open_req_channels.swap_remove(idx);
-					<Self as Store>::HrmpOpenChannelRequests::remove(&channel_id);
+					if let Some(HrmpOpenChannelRequest { sender_deposit, .. }) =
+						<Self as Store>::HrmpOpenChannelRequests::take(&channel_id)
+					{
+						T::Currency::unreserve(
+							&channel_id.sender.into_account(),
+							sender_deposit.unique_saturated_into(),
+						);
+					}
+				} else {
+					<Self as Store>::HrmpOpenChannelRequests::insert(&channel_id, request);
 				}
 			}
 		}
@@ -545,35 +562,49 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Iterate over all close channel requests unconditionally closing the channels.
-	pub(super) fn process_hrmp_close_channel_requests() {
+	fn process_hrmp_close_channel_requests() {
 		let close_reqs = <Self as Store>::HrmpCloseChannelRequestsList::take();
 		for condemned_ch_id in close_reqs {
 			<Self as Store>::HrmpCloseChannelRequests::remove(&condemned_ch_id);
 			Self::close_hrmp_channel(&condemned_ch_id);
-
-			// clean up the indexes.
-			<Self as Store>::HrmpEgressChannelsIndex::mutate(&condemned_ch_id.sender, |v| {
-				if let Ok(i) = v.binary_search(&condemned_ch_id.recipient) {
-					v.remove(i);
-				}
-			});
-			<Self as Store>::HrmpIngressChannelsIndex::mutate(&condemned_ch_id.recipient, |v| {
-				if let Ok(i) = v.binary_search(&condemned_ch_id.sender) {
-					v.remove(i);
-				}
-			});
 		}
 	}
 
 	/// Close and remove the designated HRMP channel.
 	///
-	/// This includes returning the deposits. However, it doesn't include updating the ingress/egress
-	/// indicies.
-	pub(super) fn close_hrmp_channel(channel_id: &HrmpChannelId) {
-		// TODO: return deposit https://github.com/paritytech/polkadot/issues/1907
+	/// This includes returning the deposits.
+	///
+	/// This function is indempotent, meaning that after the first application it should have no
+	/// effect (i.e. it won't return the deposits twice).
+	fn close_hrmp_channel(channel_id: &HrmpChannelId) {
+		if let Some(HrmpChannel {
+			sender_deposit,
+			recipient_deposit,
+			..
+		}) = <Self as Store>::HrmpChannels::take(channel_id)
+		{
+			T::Currency::unreserve(
+				&channel_id.sender.into_account(),
+				sender_deposit.unique_saturated_into(),
+			);
+			T::Currency::unreserve(
+				&channel_id.recipient.into_account(),
+				recipient_deposit.unique_saturated_into(),
+			);
+		}
 
-		<Self as Store>::HrmpChannels::remove(channel_id);
 		<Self as Store>::HrmpChannelContents::remove(channel_id);
+
+		<Self as Store>::HrmpEgressChannelsIndex::mutate(&channel_id.sender, |v| {
+			if let Ok(i) = v.binary_search(&channel_id.recipient) {
+				v.remove(i);
+			}
+		});
+		<Self as Store>::HrmpIngressChannelsIndex::mutate(&channel_id.recipient, |v| {
+			if let Ok(i) = v.binary_search(&channel_id.sender) {
+				v.remove(i);
+			}
+		});
 	}
 
 	/// Check that the candidate of the given recipient controls the HRMP watermark properly.
@@ -845,7 +876,7 @@ impl<T: Config> Module<T> {
 		recipient: ParaId,
 		proposed_max_capacity: u32,
 		proposed_max_message_size: u32,
-	) -> Result<(), Error<T>> {
+	) -> DispatchResult {
 		ensure!(origin != recipient, Error::<T>::OpenHrmpChannelToSelf);
 		ensure!(
 			<paras::Module<T>>::is_valid_para(recipient),
@@ -896,7 +927,10 @@ impl<T: Config> Module<T> {
 			Error::<T>::OpenHrmpChannelLimitExceeded,
 		);
 
-		// TODO: Deposit https://github.com/paritytech/polkadot/issues/1907
+		T::Currency::reserve(
+			&origin.into_account(),
+			config.hrmp_sender_deposit.unique_saturated_into(),
+		)?;
 
 		<Self as Store>::HrmpOpenChannelRequestCount::insert(&origin, open_req_cnt + 1);
 		<Self as Store>::HrmpOpenChannelRequests::insert(
@@ -936,9 +970,9 @@ impl<T: Config> Module<T> {
 
 	/// Accept a pending open channel request from the given sender.
 	///
-	/// Basically the same as [`hrmp_accept_open_channel`](Module::hrmp_accept_open_channel) but intendend for calling directly from
-	/// other pallets rather than dispatched.
-	pub fn accept_open_channel(origin: ParaId, sender: ParaId) -> Result<(), Error<T>> {
+	/// Basically the same as [`hrmp_accept_open_channel`](Module::hrmp_accept_open_channel) but
+	/// intendend for calling directly from other pallets rather than dispatched.
+	pub fn accept_open_channel(origin: ParaId, sender: ParaId) -> DispatchResult {
 		let channel_id = HrmpChannelId {
 			sender,
 			recipient: origin,
@@ -966,7 +1000,10 @@ impl<T: Config> Module<T> {
 			Error::<T>::AcceptHrmpChannelLimitExceeded,
 		);
 
-		// TODO: Deposit https://github.com/paritytech/polkadot/issues/1907
+		T::Currency::reserve(
+			&origin.into_account(),
+			config.hrmp_recipient_deposit.unique_saturated_into(),
+		)?;
 
 		// persist the updated open channel request and then increment the number of accepted
 		// channels.
@@ -1086,14 +1123,16 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
+		new_test_ext, Test, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
 	};
+	use frame_support::{assert_err, traits::Currency as _};
 	use primitives::v1::BlockNumber;
 	use std::collections::{BTreeMap, HashSet};
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		use frame_support::traits::{OnFinalize as _, OnInitialize as _};
 
+		let config = Configuration::config();
 		while System::block_number() < to {
 			let b = System::block_number();
 
@@ -1102,9 +1141,15 @@ mod tests {
 			Paras::initializer_finalize();
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				let notification = crate::initializer::SessionChangeNotification {
+					prev_config: config.clone(),
+					new_config: config.clone(),
+					..Default::default()
+				};
+
 				// NOTE: this is in initialization order.
-				Paras::initializer_on_new_session(&Default::default());
-				Hrmp::initializer_on_new_session(&Default::default());
+				Paras::initializer_on_new_session(&notification);
+				Hrmp::initializer_on_new_session(&notification);
 			}
 
 			System::on_finalize(b);
@@ -1118,6 +1163,7 @@ mod tests {
 		}
 	}
 
+	#[derive(Debug)]
 	struct GenesisConfigBuilder {
 		hrmp_channel_max_capacity: u32,
 		hrmp_channel_max_message_size: u32,
@@ -1127,6 +1173,9 @@ mod tests {
 		hrmp_max_parachain_inbound_channels: u32,
 		hrmp_max_message_num_per_candidate: u32,
 		hrmp_channel_max_total_size: u32,
+		hrmp_sender_deposit: Balance,
+		hrmp_recipient_deposit: Balance,
+		hrmp_open_request_ttl: u32,
 	}
 
 	impl Default for GenesisConfigBuilder {
@@ -1140,6 +1189,9 @@ mod tests {
 				hrmp_max_parachain_inbound_channels: 2,
 				hrmp_max_message_num_per_candidate: 2,
 				hrmp_channel_max_total_size: 16,
+				hrmp_sender_deposit: 100,
+				hrmp_recipient_deposit: 100,
+				hrmp_open_request_ttl: 3,
 			}
 		}
 	}
@@ -1157,6 +1209,9 @@ mod tests {
 			config.hrmp_max_parachain_inbound_channels = self.hrmp_max_parachain_inbound_channels;
 			config.hrmp_max_message_num_per_candidate = self.hrmp_max_message_num_per_candidate;
 			config.hrmp_channel_max_total_size = self.hrmp_channel_max_total_size;
+			config.hrmp_sender_deposit = self.hrmp_sender_deposit;
+			config.hrmp_recipient_deposit = self.hrmp_recipient_deposit;
+			config.hrmp_open_request_ttl = self.hrmp_open_request_ttl;
 			genesis
 		}
 	}
@@ -1173,7 +1228,7 @@ mod tests {
 		}
 	}
 
-	fn register_parachain(id: ParaId) {
+	fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 		Paras::schedule_para_initialize(
 			id,
 			crate::paras::ParaGenesisArgs {
@@ -1182,10 +1237,16 @@ mod tests {
 				validation_code: vec![1].into(),
 			},
 		);
+		<Test as Config>::Currency::make_free_balance_be(&id.into_account(), balance);
+	}
+
+	fn register_parachain(id: ParaId) {
+		register_parachain_with_balance(id, 1000);
 	}
 
 	fn deregister_parachain(id: ParaId) {
 		Paras::schedule_para_cleanup(id);
+		Hrmp::schedule_para_cleanup(id);
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
@@ -1619,6 +1680,169 @@ mod tests {
 			assert_eq!(
 				egress_index,
 				vec![para_b],
+			);
+		});
+	}
+
+	#[test]
+	fn charging_deposits() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			register_parachain_with_balance(para_a, 0);
+			register_parachain(para_b);
+			run_to_block(5, Some(vec![5]));
+
+			assert_err!(
+				Hrmp::init_open_channel(para_a, para_b, 2, 8),
+				pallet_balances::Error::<Test, _>::InsufficientBalance
+			);
+		});
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			register_parachain(para_a);
+			register_parachain_with_balance(para_b, 0);
+			run_to_block(5, Some(vec![5]));
+
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+
+			assert_err!(
+				Hrmp::accept_open_channel(para_b, para_a),
+				pallet_balances::Error::<Test, _>::InsufficientBalance
+			);
+		});
+	}
+
+	#[test]
+	fn refund_deposit_on_normal_closure() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_sender_deposit = 20;
+		genesis.hrmp_recipient_deposit = 15;
+		new_test_ext(genesis.build()).execute_with(|| {
+			// Register two parachains funded with different amounts of funds and arrange a channel.
+			register_parachain_with_balance(para_a, 100);
+			register_parachain_with_balance(para_b, 110);
+			run_to_block(5, Some(vec![5]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				95
+			);
+			run_to_block(8, Some(vec![8]));
+
+			// Now, we close the channel and wait until the next session.
+			Hrmp::close_channel(
+				para_b,
+				HrmpChannelId {
+					sender: para_a,
+					recipient: para_b,
+				},
+			)
+			.unwrap();
+			run_to_block(10, Some(vec![10]));
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				100
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				110
+			);
+		});
+	}
+
+	#[test]
+	fn refund_deposit_on_request_expiry() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_sender_deposit = 20;
+		genesis.hrmp_recipient_deposit = 15;
+		genesis.hrmp_open_request_ttl = 2;
+		new_test_ext(genesis.build()).execute_with(|| {
+			// Register two parachains funded with different amounts of funds, send an open channel
+			// request but do not accept it.
+			register_parachain_with_balance(para_a, 100);
+			register_parachain_with_balance(para_b, 110);
+			run_to_block(5, Some(vec![5]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				110
+			);
+
+			// Request age is 1 out of 2
+			run_to_block(10, Some(vec![10]));
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+
+			// Request age is 2 out of 2. The request should expire.
+			run_to_block(20, Some(vec![20]));
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				100
+			);
+		});
+	}
+
+	#[test]
+	fn refund_deposit_on_offboarding() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_sender_deposit = 20;
+		genesis.hrmp_recipient_deposit = 15;
+		new_test_ext(genesis.build()).execute_with(|| {
+			// Register two parachains and open a channel between them.
+			register_parachain_with_balance(para_a, 100);
+			register_parachain_with_balance(para_b, 110);
+			run_to_block(5, Some(vec![5]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				80
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				95
+			);
+			run_to_block(8, Some(vec![8]));
+			assert!(channel_exists(para_a, para_b));
+
+			// Then deregister one parachain.
+			deregister_parachain(para_a);
+			run_to_block(10, Some(vec![10]));
+
+			// The channel should be removed.
+			assert!(!Paras::is_valid_para(para_a));
+			assert!(!channel_exists(para_a, para_b));
+			assert_storage_consistency_exhaustive();
+
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_a.into_account()),
+				100
+			);
+			assert_eq!(
+				<Test as Config>::Currency::free_balance(&para_b.into_account()),
+				110
 			);
 		});
 	}
