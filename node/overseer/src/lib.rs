@@ -1409,8 +1409,10 @@ where
 		let availability_recovery_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_recovery,
+			&metrics,
+			&mut seed,
 		)?;
 
 		let bitfield_signing_subsystem = spawn(

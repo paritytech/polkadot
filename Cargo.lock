@@ -4948,7 +4948,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "env_logger 0.8.2",
- "futures 0.3.8",
+ "futures 0.3.10",
  "futures-timer 3.0.2",
  "log",
  "lru",
@@ -4959,7 +4959,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "rand 0.7.3",
- "smallvec 1.6.0",
+ "smallvec 1.6.1",
  "sp-application-crypto",
  "sp-core",
  "sp-keyring",

@@ -148,21 +148,16 @@ struct Interaction {
 	requesting_chunks: FuturesUnordered<Timeout<oneshot::Receiver<ChunkResponse>>>,
 }
 
-impl Interaction {
-	async fn maybe_done(&mut self) -> error::Result<bool> {
-		// If it's empty and requesting_chunks is empty,
-		// break and issue a FromInteraction::Concluded(RecoveryError::Unavailable)
-		if self.received_chunks.len() + self.requesting_chunks.len() + self.shuffling.len() < self.threshold {
-			self.to_state.send(FromInteraction::Concluded(
-					self.candidate_hash,
-					Err(RecoveryError::Unavailable),
-			)).await.map_err(error::Error::ClosedToState)?;
-			Ok(true)
-		} else {
-			Ok(false)
-		}
-	}
+const fn is_unavailable(
+	received_chunks: usize,
+	requesting_chunks: usize,
+	n_validators: usize,
+	threshold: usize,
+) -> bool {
+	received_chunks + requesting_chunks + n_validators < threshold
+}
 
+impl Interaction {
 	async fn launch_parallel_requests(&mut self) -> error::Result<()> {
 		while self.requesting_chunks.len() < N_PARALLEL {
 			if let Some(validator_index) = self.shuffling.pop() {
@@ -248,7 +243,17 @@ impl Interaction {
 
 	async fn run(mut self) -> error::Result<()> {
 		loop {
-			if self.maybe_done().await? {
+			if is_unavailable(
+				self.received_chunks.len(),
+				self.requesting_chunks.len(),
+				self.shuffling.len(),
+				self.threshold,
+			) {
+				self.to_state.send(FromInteraction::Concluded(
+					self.candidate_hash,
+					Err(RecoveryError::Unavailable),
+				)).await.map_err(error::Error::ClosedToState)?;
+
 				return Ok(());
 			}
 
