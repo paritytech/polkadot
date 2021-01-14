@@ -1036,15 +1036,15 @@ mod tests {
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
 
-			System::on_finalize(b);
-
-			System::on_initialize(b + 1);
-			System::set_block_number(b + 1);
-
 			if let Some(notification) = new_session(b + 1) {
 				Paras::initializer_on_new_session(&notification);
 				Inclusion::initializer_on_new_session(&notification);
 			}
+
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
 
 			Paras::initializer_initialize(b + 1);
 			Inclusion::initializer_initialize(b + 1);
