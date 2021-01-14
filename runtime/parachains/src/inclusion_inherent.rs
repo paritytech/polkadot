@@ -192,22 +192,24 @@ impl<T: Config> ProvideInherent for Module<T> {
 				)| {
 					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 					// See github.com/paritytech/polkadot/issues/1327
-					if Self::inclusion(
+					let (signed_bitfields, backed_candidates) = match Self::inclusion(
 						frame_system::RawOrigin::None.into(),
 						signed_bitfields.clone(),
 						backed_candidates.clone(),
 						parent_header.clone(),
-					)
-					.is_ok()
-					{
-						Call::inclusion(signed_bitfields, backed_candidates, parent_header)
-					} else {
-						sp_runtime::print(
-							"WARN: dropping signed_bitfields and backed_candidates because they produced \
-							an invalid inclusion inherent. Probably this is related to a session change."
-						);
-						Call::inclusion(Vec::new().into(), Vec::new(), parent_header)
-					}
+					) {
+						Ok(_) => (signed_bitfields, backed_candidates),
+						Err(err) => {
+							frame_support::debug::warn!(
+								target: "runtime_inclusion_inherent",
+								"dropping signed_bitfields and backed_candidates because they produced \
+								an invalid inclusion inherent: {:?}",
+								err,
+							);
+							(Vec::new().into(), Vec::new())
+						}
+					};
+					Call::inclusion(signed_bitfields, backed_candidates, parent_header)
 				}
 			)
 	}
