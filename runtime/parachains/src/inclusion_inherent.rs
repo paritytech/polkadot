@@ -34,7 +34,7 @@ use frame_support::{
 use frame_system::ensure_none;
 use crate::{
 	inclusion,
-	scheduler::{self, FreedReason},
+	scheduler::{self, FreedReason, SessionStartBlock},
 	ump,
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
@@ -176,7 +176,7 @@ fn limit_backed_candidates<T: Config>(
 	}
 }
 
-impl<T: Config> ProvideInherent for Module<T> {
+impl<T: Config + frame_system::Config<BlockNumber = T>> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
 	const INHERENT_IDENTIFIER: InherentIdentifier = INCLUSION_INHERENT_IDENTIFIER;
@@ -206,6 +206,13 @@ impl<T: Config> ProvideInherent for Module<T> {
 								an invalid inclusion inherent: {:?}",
 								err,
 							);
+							if SessionStartBlock::get() == <frame_system::Module<T>>::block_number() {
+								frame_support::debug::info!(
+									target: "runtime_inclusion_inherent",
+									"this is the first block of the session, so dropping the signed bitfields and \
+									backed candidates is not unexpected",
+								);
+							}
 							(Vec::new().into(), Vec::new())
 						}
 					};
