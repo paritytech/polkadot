@@ -1138,7 +1138,7 @@ impl metrics::Metrics for Metrics {
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
 						buckets: prometheus::exponential_buckets(
-							0.00001_f64,
+							1_f64,
 							2_f64,
 							(CHANNEL_CAPACITY as f64).log2().ceil() as usize,
 						).expect("inputs are within documented range; qed"),
@@ -1154,7 +1154,7 @@ impl metrics::Metrics for Metrics {
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
 						buckets: prometheus::exponential_buckets(
-							0.00001_f64,
+							1_f64,
 							2_f64,
 							(CHANNEL_CAPACITY as f64).log2().ceil() as usize,
 						).expect("inputs are within documented range; qed"),
