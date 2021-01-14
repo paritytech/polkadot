@@ -1046,9 +1046,9 @@ struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
-	message_relay_timing: prometheus::Histogram,
-	channel_fill_level_to_overseer: prometheus::Histogram,
-	channel_fill_level_from_overseer: prometheus::Histogram,
+	message_relay_timings: prometheus::Histogram,
+	to_overseer_channel_queue_sizes: prometheus::Histogram,
+	from_overseer_channel_queue_sizes: prometheus::Histogram,
 }
 
 #[derive(Default, Clone)]
@@ -1075,12 +1075,12 @@ impl Metrics {
 
 	/// Provide a timer for the duration between receiving a message and passing it to `route_message`
 	fn time_message_hold(&self) -> MaybeTimer {
-		self.0.as_ref().map(|metrics| metrics.message_relay_timing.start_timer())
+		self.0.as_ref().map(|metrics| metrics.message_relay_timings.start_timer())
 	}
 
 	fn channel_fill_level_snapshot(&self, from_overseer: usize, to_overseer: usize) {
-		self.0.as_ref().map(|metrics| metrics.channel_fill_level_to_overseer.observe(to_overseer as f64));
-		self.0.as_ref().map(|metrics| metrics.channel_fill_level_from_overseer.observe(from_overseer as f64));
+		self.0.as_ref().map(|metrics| metrics.to_overseer_channel_queue_sizes.observe(to_overseer as f64));
+		self.0.as_ref().map(|metrics| metrics.from_overseer_channel_queue_sizes.observe(from_overseer as f64));
 	}
 }
 
@@ -1108,11 +1108,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			message_relay_timing: prometheus::register(
+			message_relay_timings: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts {
 						common_opts: prometheus::Opts::new(
-							"overseer_messages_relay_timing",
+							"parachain_overseer_messages_relay_timings",
 							"Time spent holding a message in the overseer before passing it to `route_message`",
 						),
 						// guessing at the desired resolution, but we know that messages will time
@@ -1130,26 +1130,34 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			channel_fill_level_from_overseer: prometheus::register(
+			from_overseer_channel_queue_sizes: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts {
 						common_opts: prometheus::Opts::new(
-							"overseer_channel_fill_level_from_overseer",
+							"parachain_from_overseer_channel_queue_sizes",
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
-						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
+						buckets: prometheus::exponential_buckets(
+							1_f64,
+							2_f64,
+							(CHANNEL_CAPACITY as f64).log2().ceil() as usize,
+						).expect("inputs are within documented range; qed"),
 					}
 				)?,
 				registry,
 			)?,
-			channel_fill_level_to_overseer: prometheus::register(
+			to_overseer_channel_queue_sizes: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts {
 						common_opts: prometheus::Opts::new(
-							"overseer_channel_fill_level_to_overseer",
+							"parachain_to_overseer_channel_queue_sizes",
 							"Number of elements sitting in the channel waiting to be processed.",
 						),
-						buckets: prometheus::exponential_buckets(0.00001_f64, 2_f64, (CHANNEL_CAPACITY as f64).log2().ceil() as usize).expect("inputs are within documented range; qed"),
+						buckets: prometheus::exponential_buckets(
+							1_f64,
+							2_f64,
+							(CHANNEL_CAPACITY as f64).log2().ceil() as usize,
+						).expect("inputs are within documented range; qed"),
 					}
 				)?,
 				registry,
@@ -2052,15 +2060,15 @@ mod tests {
 
 	fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 		let gather = registry.gather();
-		assert_eq!(gather[0].get_name(), "overseer_channel_fill_level_from_overseer");
-		assert_eq!(gather[1].get_name(), "overseer_channel_fill_level_to_overseer");
-		assert_eq!(gather[2].get_name(), "overseer_messages_relay_timing");
-		assert_eq!(gather[3].get_name(), "parachain_activated_heads_total");
-		assert_eq!(gather[4].get_name(), "parachain_deactivated_heads_total");
-		assert_eq!(gather[5].get_name(), "parachain_messages_relayed_total");
-		let activated = gather[3].get_metric()[0].get_counter().get_value() as u64;
-		let deactivated = gather[4].get_metric()[0].get_counter().get_value() as u64;
-		let relayed = gather[5].get_metric()[0].get_counter().get_value() as u64;
+		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
+		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
+		assert_eq!(gather[2].get_name(), "parachain_from_overseer_channel_queue_sizes");
+		assert_eq!(gather[3].get_name(), "parachain_messages_relayed_total");
+		assert_eq!(gather[4].get_name(), "parachain_overseer_messages_relay_timings");
+		assert_eq!(gather[5].get_name(), "parachain_to_overseer_channel_queue_sizes");
+		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
+		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
+		let relayed = gather[3].get_metric()[0].get_counter().get_value() as u64;
 		let mut result = HashMap::new();
 		result.insert("activated", activated);
 		result.insert("deactivated", deactivated);
