@@ -19,6 +19,7 @@
 
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
+use sp_runtime::traits::One;
 use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
@@ -39,8 +40,10 @@ pub fn validator_groups<T: initializer::Config>() -> (
 	Vec<Vec<ValidatorIndex>>,
 	GroupRotationInfo<T::BlockNumber>,
 ) {
+	let now = <frame_system::Module<T>>::block_number() + One::one();
+
 	let groups = <scheduler::Module<T>>::validator_groups();
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info();
+	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
 
 	(groups, rotation_info)
 }
@@ -51,7 +54,11 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info();
+	let now = <frame_system::Module<T>>::block_number() + One::one();
+	<scheduler::Module<T>>::clear();
+	<scheduler::Module<T>>::schedule(Vec::new(), now);
+
+	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
 
 	let time_out_at = |backed_in_number, availability_period| {
 		let time_out_at = backed_in_number + availability_period;
