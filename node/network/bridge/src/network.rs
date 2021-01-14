@@ -34,8 +34,7 @@ use polkadot_subsystem::{SubsystemError, SubsystemResult};
 ///
 /// This function is only used internally by the network-bridge, which is responsible to only send
 /// messages that are compatible with the passed peer set, as that is currently not enforced by
-/// this function. For the time being this will be a `WireMessage` parameterized with the right
-/// type.
+/// this function. These are messages of type `WireMessage` parameterized on the matching type.
 pub(crate) async fn send_message<M, I>(
 	net: &mut impl Network,
 	peers: I,
