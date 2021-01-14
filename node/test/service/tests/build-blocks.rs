@@ -21,13 +21,23 @@ use sp_keyring::Sr25519Keyring;
 
 #[substrate_test_utils::test]
 async fn ensure_test_service_build_blocks(task_executor: TaskExecutor) {
-	let mut alice = run_test_node(
+	sc_cli::init_logger(
+		sc_cli::InitLoggerParams {
+			pattern: "".into(),
+			tracing_receiver: Default::default(),
+			tracing_targets: None,
+			disable_log_reloading: false,
+			disable_log_color: true,
+		},
+	).expect("Sets up logger");
+
+	let mut alice = run_validator_node(
 		task_executor.clone(),
 		Sr25519Keyring::Alice,
 		|| {},
 		Vec::new(),
 	);
-	let mut bob = run_test_node(
+	let mut bob = run_validator_node(
 		task_executor.clone(),
 		Sr25519Keyring::Bob,
 		|| {},

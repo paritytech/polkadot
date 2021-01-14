@@ -21,7 +21,7 @@ use sp_runtime::generic::BlockId;
 use sp_api::ProvideRuntimeApi;
 use sc_block_builder::{BlockBuilderProvider, BlockBuilder};
 use sp_state_machine::BasicExternalities;
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 /// An extension for the test client to init a Polkadot specific block builder.
 pub trait InitPolkadotBlockBuilder {
@@ -69,7 +69,23 @@ impl InitPolkadotBlockBuilder for Client {
 
 		inherent_data
 			.put_data(sp_timestamp::INHERENT_IDENTIFIER, &timestamp)
-			.expect("Put timestamp failed");
+			.expect("Put timestamp inherent data");
+
+		let parent_header = self.header(at)
+			.expect("Get the parent block header")
+			.expect("The target block header must exist");
+		let provisioner_data = polkadot_node_subsystem::messages::ProvisionerInherentData::default();
+		let inclusion_inherent_data = (
+			provisioner_data.0,
+			provisioner_data.1,
+			parent_header,
+		);
+		inherent_data
+			.put_data(
+				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
+				&inclusion_inherent_data,
+			)
+			.expect("Put inclusion inherent data");
 
 		let inherents = block_builder.create_inherents(inherent_data).expect("Creates inherents");
 

@@ -1,12 +1,8 @@
 # Approval Types
 
-## ApprovalId
-
-The public key of a keypair used by a validator for approval voting.
-
 ## AssignmentId
 
-The private key of a keypair used by a validator for approval voting.
+The public key of a keypair used by a validator for determining assignments to approve included parachain candidates.
 
 ## AssignmentCert
 
@@ -17,11 +13,9 @@ These certificates can be checked in the context of a specific block, candidate,
 ```rust
 enum AssignmentCertKind {
     RelayVRFModulo {
-        relay_vrf: (VRFInOut, VRFProof),
         sample: u32,
     },
     RelayVRFDelay {
-        relay_vrf: (VRFInOut, VRFProof),
         core_index: CoreIndex,
     }
 }
@@ -30,11 +24,24 @@ struct AssignmentCert {
     // The criterion which is claimed to be met by this cert.
     kind: AssignmentCertKind,
     // The VRF showing the criterion is met.
-    vrf: VRFInOut,
+    vrf: (VRFPreOut, VRFProof),
 }
 ```
 
 > TODO: RelayEquivocation cert. Probably can only be broadcast to chains that have handled an equivocation report.
+
+## IndirectAssignmentCert 
+
+An assignment cert which refers to the candidate under which the assignment is relevant by block hash.
+
+```rust
+struct IndirectAssignmentCert {
+    // A block hash where the candidate appears.
+    block_hash: Hash,
+    validator: ValidatorIndex,
+    cert: AssignmentCert,
+}
+```
 
 ## ApprovalVote
 
@@ -46,11 +53,13 @@ struct ApprovalVote(Hash);
 
 ## SignedApprovalVote
 
+An approval vote signed with a validator's key. This should be verifiable under the `ValidatorId` corresponding to the `ValidatorIndex` of the session, which should be implicit from context.
+
 ```rust
 struct SignedApprovalVote {
     vote: ApprovalVote,
     validator: ValidatorIndex,
-    signature: ApprovalSignature,
+    signature: ValidatorSignature,
 }
 ```
 
@@ -58,7 +67,7 @@ struct SignedApprovalVote {
 
 A signed approval vote which references the candidate indirectly via the block. If there exists a look-up to the candidate hash from the block hash and candidate index, then this can be transformed into a `SignedApprovalVote`.
 
-Although this vote references the candidate by a specific block hash and candidate index, the vote actually applies to
+Although this vote references the candidate by a specific block hash and candidate index, the signature is computed on the actual `SignedApprovalVote` payload.
 
 ```rust
 struct IndirectSignedApprovalVote {
@@ -67,7 +76,7 @@ struct IndirectSignedApprovalVote {
     // The index of the candidate in the list of candidates fully included as-of the block.
     candidate_index: u32,
     validator: ValidatorIndex,
-    signature: ApprovalSignature,
+    signature: ValidatorSignature,
 }
 ```
 
@@ -89,40 +98,4 @@ struct CheckedAssignmentCert {
 
 ```rust
 type DelayTranche = u32;
-```
-
-## RelayVRFStory
-
-Assignment criteria are based off of possible stories about the relay-chain block that included the candidate. More information on stories is available in [the informational page on approvals.](../protocol-approval.md#stories).
-
-```rust
-/// A story based on the VRF that authorized the relay-chain block where the candidate was
-/// included.
-///
-/// VRF Context is "A&V RC-VRF"
-struct RelayVRFStory(VRFInOut);
-```
-
-## RelayEquivocationStory
-
-```rust
-/// A story based on the candidate hash itself. Should be used when a candidate is an
-/// equivocation: when there are two relay-chain blocks with the same RelayVRFStory, but only
-/// one contains the candidate.
-///
-/// VRF Context is "A&V RC-EQUIV"
-struct RelayEquivocationStory(Hash);
-```
-
-## ExecutionTimePair
-
-```rust
-struct ExecutionTimePair {
-    // The absolute time in milliseconds that the validator claims to have taken
-    // with the block.
-    absolute: u32,
-    // The validator's believed ratio in execution time to the average, expressed as a fixed-point
-    // 16-bit unsigned integer with 8 bits before and after the point.
-    ratio: FixedU16,
-}
 ```

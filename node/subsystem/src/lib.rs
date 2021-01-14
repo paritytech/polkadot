@@ -22,21 +22,23 @@
 
 #![warn(missing_docs)]
 
-use std::pin::Pin;
+use std::{pin::Pin, sync::Arc, fmt};
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{Hash, BlockNumber};
 use async_trait::async_trait;
 use smallvec::SmallVec;
-use thiserror::Error;
 
 use crate::messages::AllMessages;
 
 pub mod errors;
 pub mod messages;
+
+pub use polkadot_node_jaeger as jaeger;
+pub use jaeger::*;
 
 /// How many slots are stack-reserved for active leaves updates
 ///
@@ -47,23 +49,31 @@ const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 /// Changes in the set of active leaves: the parachain heads which we care to work on.
 ///
 /// Note that the activated and deactivated fields indicate deltas, not complete sets.
-#[derive(Clone, Debug, Default, Eq)]
+#[derive(Clone, Default)]
 pub struct ActiveLeavesUpdate {
-	/// New relay chain block hashes of interest.
-	pub activated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+	/// New relay chain block hashes of interest and their associated [`JaegerSpan`].
+	///
+	/// NOTE: Each span should only be kept active as long as the leaf is considered active and should be dropped
+	/// when the leaf is deactivated.
+	pub activated: SmallVec<[(Hash, Arc<JaegerSpan>); ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 	/// Relay chain block hashes no longer of interest.
 	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 }
 
 impl ActiveLeavesUpdate {
 	/// Create a ActiveLeavesUpdate with a single activated hash
-	pub fn start_work(hash: Hash) -> Self {
-		Self { activated: [hash].as_ref().into(), ..Default::default() }
+	pub fn start_work(hash: Hash, span: Arc<JaegerSpan>) -> Self {
+		Self { activated: [(hash, span)][..].into(), ..Default::default() }
 	}
 
 	/// Create a ActiveLeavesUpdate with a single deactivated hash
 	pub fn stop_work(hash: Hash) -> Self {
-		Self { deactivated: [hash].as_ref().into(), ..Default::default() }
+		Self { deactivated: [hash][..].into(), ..Default::default() }
+	}
+
+	/// Is this update empty and doesn't contain any information?
+	pub fn is_empty(&self) -> bool {
+		self.activated.is_empty() && self.deactivated.is_empty()
 	}
 }
 
@@ -72,9 +82,25 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		use std::collections::HashSet;
-		self.activated.iter().collect::<HashSet<_>>() == other.activated.iter().collect::<HashSet<_>>() &&
-			self.deactivated.iter().collect::<HashSet<_>>() == other.deactivated.iter().collect::<HashSet<_>>()
+		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len()
+			&& self.activated.iter().all(|a| other.activated.iter().any(|o| a.0 == o.0))
+			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
+	}
+}
+
+impl fmt::Debug for ActiveLeavesUpdate {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		struct Activated<'a>(&'a [(Hash, Arc<JaegerSpan>)]);
+		impl fmt::Debug for Activated<'_> {
+			fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+				f.debug_list().entries(self.0.iter().map(|e| e.0)).finish()
+			}
+		}
+
+		f.debug_struct("ActiveLeavesUpdate")
+			.field("activated", &Activated(&self.activated))
+			.field("deactivated", &self.deactivated)
+			.finish()
 	}
 }
 
@@ -83,8 +109,8 @@ impl PartialEq for ActiveLeavesUpdate {
 pub enum OverseerSignal {
 	/// Subsystems should adjust their jobs to start and stop work on appropriate block hashes.
 	ActiveLeaves(ActiveLeavesUpdate),
-	/// `Subsystem` is informed of a finalized block by its block hash.
-	BlockFinalized(Hash),
+	/// `Subsystem` is informed of a finalized block by its block hash and number.
+	BlockFinalized(Hash, BlockNumber),
 	/// Conclude the work of the `Overseer` and all `Subsystem`s.
 	Conclude,
 }
@@ -114,31 +140,32 @@ pub enum FromOverseer<M> {
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
+#[allow(missing_docs)]
 pub enum SubsystemError {
-	/// A notification connection is no longer valid.
 	#[error(transparent)]
 	NotifyCancellation(#[from] oneshot::Canceled),
 
-	/// Queue does not accept another item.
 	#[error(transparent)]
 	QueueError(#[from] mpsc::SendError),
 
-	/// An attempt to spawn a futures task did not succeed.
 	#[error(transparent)]
 	TaskSpawn(#[from] futures::task::SpawnError),
 
-	/// An infallable error.
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
 
-	/// Prometheus had a problem
 	#[error(transparent)]
 	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
 
-	/// An other error lacking particular type information.
+	#[error(transparent)]
+	Jaeger(#[from] JaegerError),
+
 	#[error("Failed to {0}")]
 	Context(String),
+
+	#[error("Subsystem stalled: {0}")]
+	SubsystemStalled(&'static str),
 
 	/// Per origin (or subsystem) annotations to wrap an error.
 	#[error("Error originated in {origin}")]
@@ -146,13 +173,13 @@ pub enum SubsystemError {
 		/// An additional anotation tag for the origin of `source`.
 		origin: &'static str,
 		/// The wrapped error. Marked as source for tracking the error chain.
-		#[source] source: Box<dyn std::error::Error + Send>
+		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
 	},
 }
 
 impl SubsystemError {
 	/// Adds a `str` as `origin` to the given error `err`.
-	pub fn with_origin<E: 'static + Send + std::error::Error>(origin: &'static str, err: E) -> Self {
+	pub fn with_origin<E: 'static + Send + Sync + std::error::Error>(origin: &'static str, err: E) -> Self {
 		Self::FromOrigin { origin, source: Box::new(err) }
 	}
 }
@@ -204,10 +231,10 @@ pub trait SubsystemContext: Send + 'static {
 	) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
+	async fn send_message(&mut self, msg: AllMessages);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
 }
 
@@ -228,14 +255,24 @@ pub trait Subsystem<C: SubsystemContext> {
 /// types of messages. Used for tests or as a placeholder.
 pub struct DummySubsystem;
 
-impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem
+where
+	C::Message: std::fmt::Debug
+{
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Err(_) => return Ok(()),
-					_ => continue,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(overseer_msg) => {
+						tracing::debug!(
+							target: "dummy-subsystem",
+							"Discarding a message sent from overseer {:?}",
+							overseer_msg
+						);
+						continue;
+					}
 				}
 			}
 		});

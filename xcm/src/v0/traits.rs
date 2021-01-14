@@ -17,7 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use core::result;
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 
 use super::{MultiLocation, Xcm};
 

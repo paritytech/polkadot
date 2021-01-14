@@ -36,7 +36,7 @@ use frame_support::{
 	traits::Get,
 	weights::Weight,
 };
-use codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode};
 use crate::{configuration, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
@@ -45,11 +45,11 @@ use serde::{Serialize, Deserialize};
 
 pub use crate::Origin;
 
-pub trait Trait: frame_system::Trait + configuration::Trait {
+pub trait Config: frame_system::Config + configuration::Config {
 	/// The outer origin type.
 	type Origin: From<Origin>
-		+ From<<Self as frame_system::Trait>::Origin>
-		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
+		+ From<<Self as frame_system::Config>::Origin>
+		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 }
 
 // the two key times necessary to track for every code replacement.
@@ -177,7 +177,7 @@ pub struct ParaGenesisArgs {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Paras {
+	trait Store for Module<T: Config> as Paras {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 		Parachains get(fn parachains): Vec<ParaId>;
 		/// All parathreads.
@@ -209,7 +209,7 @@ decl_storage! {
 
 		/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
 		/// entry in the upcoming-genesis map.
-		UpcomingParas: Vec<ParaId>;
+		UpcomingParas get(fn upcoming_paras): Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.
@@ -224,7 +224,7 @@ decl_storage! {
 }
 
 #[cfg(feature = "std")]
-fn build<T: Trait>(config: &GenesisConfig<T>) {
+fn build<T: Config>(config: &GenesisConfig<T>) {
 	let mut parachains: Vec<_> = config.paras
 		.iter()
 		.filter(|(_, args)| args.parachain)
@@ -244,17 +244,17 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Config> { }
 }
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		Self::prune_old_code(now)
@@ -396,7 +396,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -418,7 +418,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
+	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
 		let upcoming_weight = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(i) => {
@@ -542,7 +542,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Returns whether the given ID refers to a valid para.
-	pub(crate) fn is_valid_para(id: ParaId) -> bool {
+	pub fn is_valid_para(id: ParaId) -> bool {
 		Self::parachains().binary_search(&id).is_ok()
 			|| Self::is_parathread(id)
 	}
@@ -578,14 +578,14 @@ mod tests {
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
+			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				Paras::initializer_on_new_session(&Default::default());
+			}
 			System::on_finalize(b);
 
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
-			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&Default::default());
-			}
 			Paras::initializer_initialize(b + 1);
 		}
 	}
@@ -1059,8 +1059,8 @@ mod tests {
 				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
 			}
 
-			// run to block, with a session change at that block.
-			run_to_block(3, Some(vec![3]));
+			// run to block №4, with a session change at the end of the block 3.
+			run_to_block(4, Some(vec![4]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.

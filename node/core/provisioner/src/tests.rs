@@ -4,13 +4,14 @@ use polkadot_primitives::v1::{OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
-		para_id: para_id.into(),
 		group_responsible: para_id.into(),
 		next_up_on_available: None,
 		occupied_since: 100_u32,
 		time_out_at: 200_u32,
 		next_up_on_time_out: None,
 		availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
+		candidate_descriptor: Default::default(),
+		candidate_hash: Default::default(),
 	})
 }
 
@@ -192,14 +193,14 @@ mod select_availability_bitfields {
 mod select_candidates {
 	use futures_timer::Delay;
 	use super::super::*;
-	use super::{build_occupied_core, default_bitvec, occupied_core, scheduled_core};
-	use polkadot_node_subsystem::messages::RuntimeApiRequest::{
-		AvailabilityCores, PersistedValidationData as PersistedValidationDataReq,
+	use super::{build_occupied_core, occupied_core, scheduled_core, default_bitvec};
+	use polkadot_node_subsystem::messages::{
+		AllMessages, RuntimeApiMessage,
+		RuntimeApiRequest::{AvailabilityCores, PersistedValidationData as PersistedValidationDataReq},
 	};
 	use polkadot_primitives::v1::{
-		BlockNumber, CandidateDescriptor, CommittedCandidateReceipt, PersistedValidationData,
+		BlockNumber, CandidateDescriptor, PersistedValidationData, CommittedCandidateReceipt, CandidateCommitments,
 	};
-	use FromJob::{ChainApi, Runtime};
 
 	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 
@@ -207,9 +208,9 @@ mod select_candidates {
 		overseer_factory: OverseerFactory,
 		test_factory: TestFactory,
 	) where
-		OverseerFactory: FnOnce(mpsc::Receiver<FromJob>) -> Overseer,
+		OverseerFactory: FnOnce(mpsc::Receiver<FromJobCommand>) -> Overseer,
 		Overseer: Future<Output = ()>,
-		TestFactory: FnOnce(mpsc::Sender<FromJob>) -> Test,
+		TestFactory: FnOnce(mpsc::Sender<FromJobCommand>) -> Test,
 		Test: Future<Output = ()>,
 	{
 		let (tx, rx) = mpsc::channel(64);
@@ -297,38 +298,42 @@ mod select_candidates {
 		]
 	}
 
-	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJob>) {
+	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJobCommand>, expected: Vec<BackedCandidate>) {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
 
 		while let Some(from_job) = receiver.next().await {
 			match from_job {
-				ChainApi(BlockNumber(_relay_parent, tx)) => {
+				FromJobCommand::SendMessage(AllMessages::ChainApi(BlockNumber(_relay_parent, tx))) => {
 					tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
 				}
-				Runtime(Request(
+				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(
 					_parent_hash,
 					PersistedValidationDataReq(_para_id, _assumption, tx),
-				)) => tx.send(Ok(Some(Default::default()))).unwrap(),
-				Runtime(Request(_parent_hash, AvailabilityCores(tx))) => {
+				))) => tx.send(Ok(Some(Default::default()))).unwrap(),
+				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx)))) => {
 					tx.send(Ok(mock_availability_cores())).unwrap()
 				}
-				// non-exhaustive matches are fine for testing
-				_ => unimplemented!(),
+				FromJobCommand::SendMessage(
+					AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(_, _, sender))
+				) => {
+					let _ = sender.send(expected.clone());
+				}
+				_ => panic!("Unexpected message: {:?}", from_job),
 			}
 		}
 	}
 
 	#[test]
 	fn handles_overseer_failure() {
-		let overseer = |rx: mpsc::Receiver<FromJob>| async move {
+		let overseer = |rx: mpsc::Receiver<FromJobCommand>| async move {
 			// drop the receiver so it closes and the sender can't send, then just sleep long enough that
 			// this is almost certainly not the first of the two futures to complete
 			std::mem::drop(rx);
 			Delay::new(std::time::Duration::from_secs(1)).await;
 		};
 
-		let test = |mut tx: mpsc::Sender<FromJob>| async move {
+		let test = |mut tx: mpsc::Sender<FromJobCommand>| async move {
 			// wait so that the overseer can drop the rx before we attempt to send
 			Delay::new(std::time::Duration::from_millis(50)).await;
 			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
@@ -341,10 +346,8 @@ mod select_candidates {
 
 	#[test]
 	fn can_succeed() {
-		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
-			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
-			println!("{:?}", result);
-			assert!(result.is_ok());
+		test_harness(|r| mock_overseer(r, Vec::new()), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+			select_candidates(&[], &[], &[], Default::default(), &mut tx).await.unwrap();
 		})
 	}
 
@@ -358,23 +361,19 @@ mod select_candidates {
 
 		let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
 
-		let candidate_template = BackedCandidate {
-			candidate: CommittedCandidateReceipt {
-				descriptor: CandidateDescriptor {
-					persisted_validation_data_hash: empty_hash,
-					..Default::default()
-				},
+		let candidate_template = CandidateReceipt {
+			descriptor: CandidateDescriptor {
+				persisted_validation_data_hash: empty_hash,
 				..Default::default()
 			},
-			validity_votes: Vec::new(),
-			validator_indices: default_bitvec(n_cores),
+			commitments_hash: CandidateCommitments::default().hash(),
 		};
 
 		let candidates: Vec<_> = std::iter::repeat(candidate_template)
 			.take(mock_cores.len())
 			.enumerate()
 			.map(|(idx, mut candidate)| {
-				candidate.candidate.descriptor.para_id = idx.into();
+				candidate.descriptor.para_id = idx.into();
 				candidate
 			})
 			.cycle()
@@ -386,12 +385,12 @@ mod select_candidates {
 					candidate
 				} else if idx < mock_cores.len() * 2 {
 					// for the second repetition of the candidates, give them the wrong hash
-					candidate.candidate.descriptor.persisted_validation_data_hash
+					candidate.descriptor.persisted_validation_data_hash
 						= Default::default();
 					candidate
 				} else {
 					// third go-around: right hash, wrong para_id
-					candidate.candidate.descriptor.para_id = idx.into();
+					candidate.descriptor.para_id = idx.into();
 					candidate
 				}
 			})
@@ -403,15 +402,28 @@ mod select_candidates {
 			.map(|&idx| candidates[idx].clone())
 			.collect();
 
-		test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
+		let expected_backed = expected_candidates
+			.iter()
+			.map(|c| BackedCandidate {
+				candidate: CommittedCandidateReceipt { descriptor: c.descriptor.clone(), ..Default::default() },
+				validity_votes: Vec::new(),
+				validator_indices: default_bitvec(n_cores),
+			})
+			.collect();
+
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: mpsc::Sender<FromJobCommand>| async move {
 			let result =
 				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
-					.await;
+					.await.unwrap();
 
-			if result.is_err() {
-				println!("{:?}", result);
-			}
-			assert_eq!(result.unwrap(), expected_candidates);
+			result.into_iter()
+				.for_each(|c|
+					assert!(
+						expected_candidates.iter().any(|c2| c.candidate.corresponds_to(c2)),
+						"Failed to find candidate: {:?}",
+						c,
+					)
+				);
 		})
 	}
 }

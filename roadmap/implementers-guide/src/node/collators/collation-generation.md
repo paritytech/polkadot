@@ -32,12 +32,16 @@ pub struct Collation {
   pub proof_of_validity: PoV,
 }
 
+type CollatorFn = Box<
+  dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>>>>
+>;
+
 struct CollationGenerationConfig {
   key: CollatorPair,
-  /// Collate will be called with the relay chain hash the parachain should build 
+  /// Collate will be called with the relay chain hash the parachain should build
   /// a block on and the `ValidationData` that provides information about the state
   /// of the parachain on the relay chain.
-  collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>>>>>
+  collator: CollatorFn,
   para_id: ParaId,
 }
 ```

@@ -19,7 +19,7 @@
 use core::{result, convert::TryFrom};
 use alloc::{boxed::Box, vec::Vec};
 
-use codec::{self, Encode, Decode};
+use parity_scale_codec::{self, Encode, Decode};
 use super::{VersionedXcm, VersionedMultiAsset};
 
 mod junction;

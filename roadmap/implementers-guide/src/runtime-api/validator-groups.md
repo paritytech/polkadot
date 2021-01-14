@@ -1,13 +1,13 @@
 # Validator Groups
 
-Yields the validator groups used during the current session. The validators in the groups are referred to by their index into the validator-set.
+Yields the validator groups used during the current session. The validators in the groups are referred to by their index into the validator-set and this is assumed to be as-of the child of the block whose state is being queried.
 
 ```rust
 /// A helper data-type for tracking validator-group rotations.
 struct GroupRotationInfo {
     session_start_block: BlockNumber,
     group_rotation_frequency: BlockNumber,
-    now: BlockNumber,
+    now: BlockNumber, // The successor of the block in whose state this runtime API is queried.
 }
 
 impl GroupRotationInfo {
@@ -17,14 +17,10 @@ impl GroupRotationInfo {
 
     /// Returns the block number of the next rotation after the current block. If the current block
     /// is 10 and the rotation frequency is 5, this should return 15.
-    ///
-    /// If the group rotation frequency is 0, returns 0.
     fn next_rotation_at(&self) -> BlockNumber;
 
     /// Returns the block number of the last rotation before or including the current block. If the
     /// current block is 10 and the rotation frequency is 5, this should return 10.
-    ///
-    /// If the group rotation frequency is 0, returns 0.
     fn last_rotation_at(&self) -> BlockNumber;
 }
 
