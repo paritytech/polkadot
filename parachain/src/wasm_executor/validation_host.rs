@@ -35,10 +35,10 @@ pub const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
 /// Execution timeout in seconds;
 #[cfg(debug_assertions)]
-pub const EXECUTION_TIMEOUT_SEC: u64 =  30;
+pub const EXECUTION_TIMEOUT_SEC: u64 = 30;
 
 #[cfg(not(debug_assertions))]
-pub const EXECUTION_TIMEOUT_SEC: u64 =  5;
+pub const EXECUTION_TIMEOUT_SEC: u64 = 5;
 
 enum Event {
 	CandidateReady = 0,
@@ -46,12 +46,130 @@ enum Event {
 	WorkerReady = 2,
 }
 
+use std::convert::TryInto;
+
+/// An identitiy hash builder.
+///
+/// Is a true identity hasher for anything
+/// that has a very limited number of bytes.
+/// Best case, it's just one `u64` that is
+/// unique by some external constraint.
+///
+/// Identity is guaranteed for anything less or
+/// equal than 8 bytes.
+/// For longer entries, the bytes are simply XOR'd
+/// in a ring overlapping fashion, to retain entropy.
+#[derive(PartialEq, Eq, Clone, Default)]
+pub struct IdentityHasher {
+	state: u64,
+	watermark: usize,
+	// technically only 7, but this allows to abuse it
+	// intermediate buffer for the first xor
+	buffer: [u8; 8],
+}
+
+#[inline(always)]
+fn read_u64(input: &[u8]) -> u64 {
+	let (int_bytes, _rest) = input.split_at(std::mem::size_of::<u64>());
+	let int_bytes = int_bytes.try_into().unwrap();
+	if cfg!(target_endian = "big") {
+		u64::from_be_bytes(int_bytes)
+	} else {
+		u64::from_le_bytes(int_bytes)
+	}
+}
+
+impl std::hash::Hasher for IdentityHasher {
+	#[inline]
+	fn finish(&self) -> u64 {
+		// always use the full buffer, as read_u64 expects that
+		// this will include some bytes of the previous state but that
+		// is ok and deterministic
+		let state = self.state & read_u64(&self.buffer[..]);
+		state
+	}
+	fn write(&mut self, bytes: &[u8]) {
+		let total = bytes.len() + self.watermark as usize;
+		let div = total >> 3;
+		let rem = total & 0x07_usize;
+
+		// for indentity the special case should rarely appear
+		let special = self.watermark != 0;
+
+		// first if rem is non zero
+		if div > 0 && special {
+			unsafe {
+				std::intrinsics::copy(
+					bytes[0_usize..(8_usize - self.watermark)].as_ptr(),
+					self.buffer[self.watermark..8].as_mut_ptr(),
+					8_usize - self.watermark,
+				);
+			}
+			self.state ^= read_u64(&self.buffer[0..8]);
+			self.watermark = 0;
+		}
+
+		// multiple of 8 byte blocks
+		// if special case, then the first block is already handled
+		if div > special as usize {
+			for i in (special as usize)..div {
+				let k = i * 8;
+				self.state ^= read_u64(&bytes[k..(k + 8_usize)]);
+			}
+		}
+
+		// update internal state buffer
+		unsafe {
+			std::intrinsics::copy(
+				bytes[(total - rem)..total].as_ptr(),
+				self.buffer[self.watermark..(self.watermark + rem)].as_mut_ptr(),
+				rem,
+			);
+		}
+		self.watermark = rem;
+	}
+}
+
+/// An identity hash builder.
+pub struct IdentityHasherBuilder;
+
+impl std::hash::BuildHasher for IdentityHasherBuilder {
+	type Hasher = IdentityHasher;
+	fn build_hasher(&self) -> Self::Hasher {
+		Self::Hasher::default()
+	}
+}
+
+/// Modify the signal stick to be able to run the profiling code
+/// preloaded by coz.
+#[inline(always)]
+fn coz_sigal_stack_mod(thread_idx: usize) {
+	lazy_static::lazy_static! {
+		static ref BOOKKEEPING: std::sync::RwLock<std::collections::HashSet<usize, IdentityHasherBuilder>> =
+			std::sync::RwLock::new(
+				std::collections::HashSet::<usize, IdentityHasherBuilder>::with_capacity_and_hasher(
+					256usize, // pre-alloc for 256 virtual cores should be enough™
+					IdentityHasherBuilder,
+				)
+			);
+	};
+	if !BOOKKEEPING.read().expect("RwLock::Read always succeeds. qed").contains(&thread_idx) {
+		let _ = BOOKKEEPING.write().expect("RwLock::Write always succeeds. qed").insert(thread_idx);
+	}
+}
+
 #[derive(Clone)]
 struct TaskExecutor(ThreadPool);
 
 impl TaskExecutor {
 	fn new() -> Result<Self, String> {
-		ThreadPool::new().map_err(|e| e.to_string()).map(Self)
+		ThreadPoolBuilder::new()
+			.after_start(|idx| {
+				coz_sigal_stack_mod(idx);
+			})
+			.create()
+			.map_err(|e| e.to_string())
+			.map(Self)
 	}
 }
 

@@ -75,7 +75,9 @@ impl std::default::Default for JaegerConfig {
 	fn default() -> Self {
 		Self {
 			node_name: "unknown_".to_owned(),
-			agent_addr: "127.0.0.1:6831".parse().expect(r#"Static "127.0.0.1:6831" is a valid socket address string. qed"#),
+			agent_addr: "127.0.0.1:6831"
+				.parse()
+				.expect(r#"Static "127.0.0.1:6831" is a valid socket address string. qed"#),
 		}
 	}
 }
@@ -87,22 +89,27 @@ impl JaegerConfig {
 	}
 }
 
-
 /// Jaeger configuration builder.
 #[derive(Default)]
 pub struct JaegerConfigBuilder {
-	inner: JaegerConfig
+	inner: JaegerConfig,
 }
 
 impl JaegerConfigBuilder {
 	/// Set the name for this node.
-	pub fn named<S>(mut self, name: S) -> Self where S: AsRef<str> {
+	pub fn named<S>(mut self, name: S) -> Self
+	where
+		S: AsRef<str>,
+	{
 		self.inner.node_name = name.as_ref().to_owned();
 		self
 	}
 
 	/// Set the agent address to send the collected spans to.
-	pub fn agent<U>(mut self, addr: U) -> Self where U: Into<std::net::SocketAddr> {
+	pub fn agent<U>(mut self, addr: U) -> Self
+	where
+		U: Into<std::net::SocketAddr>,
+	{
 		self.inner.agent_addr = addr.into();
 		self
 	}
@@ -133,13 +140,10 @@ impl PerLeafSpan {
 	/// Takes the `leaf_span` that is created by the overseer per leaf and a name for a child span.
 	/// Both will be stored in this object, while the child span is implicitly accessible by using the
 	/// [`Deref`](std::ops::Deref) implementation.
-	pub fn new(leaf_span: Arc<JaegerSpan>, name: impl Into<String>) -> Self {
+	pub fn new(leaf_span: Arc<JaegerSpan>, name: &'static str) -> Self {
 		let span = leaf_span.child(name);
 
-		Self {
-			span,
-			leaf_span,
-		}
+		Self { span, leaf_span }
 	}
 
 	/// Returns the leaf span.
@@ -157,21 +161,97 @@ impl std::ops::Deref for PerLeafSpan {
 	}
 }
 
+/// Need to re-implement, since our names
+/// are not known at compile time.
+pub mod coz {
+	lazy_static::lazy_static! {
+		static ref BEGIN: dashmap::DashMap<&'static str, ::coz::Counter> = Default::default();
+		static ref END: dashmap::DashMap<&'static str, ::coz::Counter> = Default::default();
+		static ref PROGRESS: dashmap::DashMap<&'static str, ::coz::Counter> = Default::default();
+	}
+
+	pub struct ScopeGuard(&'static str);
+
+	impl ScopeGuard {
+		fn new(name: &'static str) -> Self {
+			begin(name);
+			Self(name)
+		}
+	}
+
+	impl Drop for ScopeGuard {
+		fn drop(&mut self) {
+			end(self.0);
+		}
+	}
+
+	pub fn begin(name: &'static str) {
+		BEGIN
+			.entry(name)
+			.and_modify(|entry| {
+				entry.increment();
+			})
+			.or_insert_with(|| {
+				let counter = ::coz::Counter::begin(name);
+				counter.increment();
+				counter
+			});
+	}
+
+	pub fn end(name: &'static str) {
+		END.entry(name)
+			.and_modify(|entry| {
+				entry.increment();
+			})
+			.or_insert_with(|| {
+				let counter = ::coz::Counter::end(name);
+				counter.increment();
+				counter
+			});
+	}
+
+	pub fn scope(name: &'static str) -> ScopeGuard {
+		ScopeGuard::new(name)
+	}
+
+	pub fn progress(name: &'static str) {
+		PROGRESS
+			.entry(name)
+			.and_modify(|entry| {
+				entry.increment();
+			})
+			.or_insert_with(|| {
+				let counter = ::coz::Counter::progress(name);
+				counter.increment();
+				counter
+			});
+	}
+}
+
 /// A wrapper type for a span.
 ///
 /// Handles running with and without jaeger.
 pub enum JaegerSpan {
 	/// Running with jaeger being enabled.
-	Enabled(mick_jaeger::Span),
+	Enabled { name: &'static str, inner: mick_jaeger::Span },
 	/// Running with jaeger disabled.
 	Disabled,
 }
 
+impl Drop for JaegerSpan {
+	fn drop(&mut self) {
+		match self {
+			Self::Enabled { name, .. } => coz::end(name),
+			_ => {}
+		}
+	}
+}
+
 impl JaegerSpan {
 	/// Derive a child span from `self`.
-	pub fn child(&self, name: impl Into<String>) -> Self {
+	pub fn child(&self, name: &'static str) -> Self {
 		match self {
-			Self::Enabled(inner) => Self::Enabled(inner.child(name)),
+			Self::Enabled { inner, .. } => Self::Enabled { name, inner: inner.child(name) },
 			Self::Disabled => Self::Disabled,
 		}
 	}
@@ -179,16 +259,18 @@ impl JaegerSpan {
 	/// Add an additional tag to the span.
 	pub fn add_string_tag(&mut self, tag: &str, value: &str) {
 		match self {
-			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, value),
-			Self::Disabled => {},
+			Self::Enabled { ref mut inner, .. } => inner.add_string_tag(tag, value),
+			Self::Disabled => {}
 		}
 	}
 
 	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
-			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
-			_ => {},
+			(Self::Enabled { ref mut inner, .. }, Self::Enabled { inner: ref other_inner, .. }) => {
+				inner.add_follows_from(&other_inner)
+			}
+			_ => {}
 		}
 	}
 }
@@ -199,26 +281,9 @@ impl std::fmt::Debug for JaegerSpan {
 	}
 }
 
-impl From<Option<mick_jaeger::Span>> for JaegerSpan {
-	fn from(src: Option<mick_jaeger::Span>) -> Self {
-		if let Some(span) = src {
-			Self::Enabled(span)
-		} else {
-			Self::Disabled
-		}
-	}
-}
-
-impl From<mick_jaeger::Span> for JaegerSpan {
-	fn from(src: mick_jaeger::Span) -> Self {
-		Self::Enabled(src)
-	}
-}
-
 /// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
-pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> JaegerSpan {
-	let mut span: JaegerSpan = INSTANCE.read_recursive()
-		.span(|| { candidate_hash.0 }, span_name).into();
+pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &'static str) -> JaegerSpan {
+	let mut span: JaegerSpan = INSTANCE.read_recursive().span(|| candidate_hash.0, span_name);
 
 	span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
 	span
@@ -226,8 +291,8 @@ pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
 #[inline(always)]
-pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.read_recursive().span(|| { pov.hash() }, span_name).into()
+pub fn pov_span(pov: &PoV, span_name: &'static str) -> JaegerSpan {
+	INSTANCE.read_recursive().span(|| pov.hash(), span_name)
 }
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
@@ -235,8 +300,8 @@ pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 ///
 /// This span automatically has the `relay-parent` tag set.
 #[inline(always)]
-pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-	let mut span: JaegerSpan = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
+pub fn hash_span(hash: &Hash, span_name: &'static str) -> JaegerSpan {
+	let mut span: JaegerSpan = INSTANCE.read_recursive().span(|| *hash, span_name);
 	span.add_string_tag("relay-parent", &format!("{:?}", hash));
 	span
 }
@@ -271,9 +336,7 @@ impl Jaeger {
 	pub fn launch<S: SpawnNamed>(self, spawner: S) -> result::Result<(), JaegerError> {
 		let cfg = match self {
 			Self::Prep(cfg) => Ok(cfg),
-			Self::Launched{ .. } => {
-				return Err(JaegerError::AlreadyLaunched)
-			}
+			Self::Launched { .. } => return Err(JaegerError::AlreadyLaunched),
 			Self::None => Err(JaegerError::MissingConfiguration),
 		}?;
 
@@ -281,44 +344,47 @@ impl Jaeger {
 
 		log::info!("🐹 Collecting jaeger spans for {:?}", &jaeger_agent);
 
-		let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
-			service_name: format!("polkadot-{}", cfg.node_name),
-		});
+		let (traces_in, mut traces_out) =
+			mick_jaeger::init(mick_jaeger::Config { service_name: format!("polkadot-{}", cfg.node_name) });
 
 		// Spawn a background task that pulls span information and sends them on the network.
-		spawner.spawn("jaeger-collector", Box::pin(async move {
-			match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
-				Ok(udp_socket) => loop {
-					let buf = traces_out.next().await;
-					// UDP sending errors happen only either if the API is misused or in case of missing privilege.
-					if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await {
-						log::debug!(target: "jaeger", "UDP send error: {}", e);
+		spawner.spawn(
+			"jaeger-collector",
+			Box::pin(async move {
+				match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
+					Ok(udp_socket) => loop {
+						let buf = traces_out.next().await;
+						// UDP sending errors happen only either if the API is misused or in case of missing privilege.
+						if let Err(e) = udp_socket.send_to(&buf, jaeger_agent).await {
+							log::debug!(target: "jaeger", "UDP send error: {}", e);
+						}
+					},
+					Err(e) => {
+						log::warn!(target: "jaeger", "UDP socket open error: {}", e);
 					}
 				}
-				Err(e) => {
-					log::warn!(target: "jaeger", "UDP socket open error: {}", e);
-				}
-			}
-		}));
+			}),
+		);
 
-		*INSTANCE.write() = Self::Launched {
-			traces_in,
-		};
+		*INSTANCE.write() = Self::Launched { traces_in };
 		Ok(())
 	}
 
-	fn span<F>(&self, lazy_hash: F, span_name: impl Into<String>) -> Option<mick_jaeger::Span>
+	fn span<F>(&self, lazy_hash: F, span_name: &'static str) -> JaegerSpan
 	where
 		F: Fn() -> Hash,
 	{
-		if let Self::Launched { traces_in , .. } = self {
+		use std::convert::TryInto;
+
+		if let Self::Launched { traces_in, .. } = self {
 			let hash = lazy_hash();
 			let mut buf = [0u8; 16];
 			buf.copy_from_slice(&hash.as_ref()[0..16]);
-			let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?;
-			Some(traces_in.span(trace_id, span_name))
+			let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))
+				.unwrap_or(0xFFFF_FFFF_FFFF_FFFFu128.try_into().unwrap());
+			JaegerSpan::Enabled { name: span_name, inner: traces_in.span(trace_id, span_name) }
 		} else {
-			None
+			JaegerSpan::Disabled
 		}
 	}
 }

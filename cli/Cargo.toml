@@ -25,6 +25,8 @@ polkadot-parachain = { path = "../parachain", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tracing-futures = "0.2.4"
+tracing-coz = "0.1.1"
+
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }

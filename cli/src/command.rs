@@ -141,6 +141,8 @@ fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
 pub fn run() -> Result<()> {
 	let cli = Cli::from_args();
 
+	tracing_coz::thread_init();
+
 	match &cli.subcommand {
 		None => {
 			let runner = cli.create_runner(&cli.run.base)?;
