@@ -40,7 +40,7 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]
-wasmtime = [ "sc-cli/wasmtime" ]
+wasmtime = [ "sc-cli/wasmtime", "polkadot-parachain/wasmtime" ]
 db = [ "service/db" ]
 cli = [
 	"structopt",
