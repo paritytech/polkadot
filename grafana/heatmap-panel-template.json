@@ -1,0 +1,87 @@
+{
+  "type": "heatmap",
+  "title": "",
+  "gridPos": {
+    "x": 0,
+    "y": null,
+    "w": 24,
+    "h": 8
+  },
+  "id": 2,
+  "targets": [
+    {
+      "expr": "sum by (le) (polkadot_parachain_pov_distribution_handle_signal_bucket)",
+      "legendFormat": "{{le}}",
+      "interval": "",
+      "refId": "A",
+      "queryType": "randomWalk",
+      "format": "heatmap"
+    }
+  ],
+  "datasource": "prometheus.parity-mgmt",
+  "fieldConfig": {
+    "defaults": {
+      "custom": {},
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "value": null,
+            "color": "green"
+          },
+          {
+            "value": 80,
+            "color": "red"
+          }
+        ]
+      },
+      "mappings": []
+    },
+    "overrides": []
+  },
+  "pluginVersion": "7.3.6",
+  "legend": {
+    "show": false
+  },
+  "tooltip": {
+    "show": true,
+    "showHistogram": false
+  },
+  "timeFrom": null,
+  "timeShift": null,
+  "heatmap": {},
+  "cards": {
+    "cardPadding": null,
+    "cardRound": null
+  },
+  "color": {
+    "mode": "spectrum",
+    "cardColor": "#b4ff00",
+    "colorScale": "sqrt",
+    "exponent": 0.5,
+    "colorScheme": "interpolateBlues"
+  },
+  "dataFormat": "tsbuckets",
+  "yBucketBound": "auto",
+  "reverseYBuckets": false,
+  "xAxis": {
+    "show": true
+  },
+  "yAxis": {
+    "show": true,
+    "format": "s",
+    "decimals": null,
+    "logBase": 1,
+    "splitFactor": null,
+    "min": null,
+    "max": null
+  },
+  "xBucketSize": null,
+  "xBucketNumber": null,
+  "yBucketSize": null,
+  "yBucketNumber": null,
+  "highlightCards": true,
+  "hideZeroBuckets": false,
+  "description": "Time spent within `pov_distribution::handle_signal`",
+  "maxDataPoints": 50
+}
