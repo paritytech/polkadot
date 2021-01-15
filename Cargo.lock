@@ -4943,6 +4943,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-availability-recovery"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "env_logger 0.8.2",
+ "futures 0.3.10",
+ "futures-timer 3.0.2",
+ "log",
+ "lru",
+ "polkadot-erasure-coding",
+ "polkadot-node-network-protocol",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "rand 0.7.3",
+ "smallvec 1.6.1",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keyring",
+ "streamunordered",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
 name = "polkadot-cli"
 version = "0.8.27"
 dependencies = [
@@ -5650,6 +5677,7 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api",
  "polkadot-availability-bitfield-distribution",
  "polkadot-availability-distribution",
+ "polkadot-availability-recovery",
  "polkadot-collator-protocol",
  "polkadot-network-bridge",
  "polkadot-node-collation-generation",

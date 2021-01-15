@@ -85,6 +85,7 @@ use polkadot_subsystem::messages::{
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
 	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage, CollatorProtocolMessage,
+	AvailabilityRecoveryMessage,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
@@ -524,6 +525,9 @@ pub struct Overseer<S> {
 	/// An availability distribution subsystem.
 	availability_distribution_subsystem: OverseenSubsystem<AvailabilityDistributionMessage>,
 
+	/// An availability recovery subsystem.
+	availability_recovery_subsystem: OverseenSubsystem<AvailabilityRecoveryMessage>,
+
 	/// A bitfield signing subsystem.
 	bitfield_signing_subsystem: OverseenSubsystem<BitfieldSigningMessage>,
 
@@ -593,8 +597,8 @@ pub struct Overseer<S> {
 /// message type that is specific to this [`Subsystem`]. At the moment not all
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
 pub struct AllSubsystems<
-	CV = (), CB = (), CS = (), SD = (), AD = (), BS = (), BD = (), P = (),
-	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = ()
+	CV = (), CB = (), CS = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
+	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = (),
 > {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
@@ -606,6 +610,8 @@ pub struct AllSubsystems<
 	pub statement_distribution: SD,
 	/// An availability distribution subsystem.
 	pub availability_distribution: AD,
+	/// An availability recovery subsystem.
+	pub availability_recovery: AR,
 	/// A bitfield signing subsystem.
 	pub bitfield_signing: BS,
 	/// A bitfield distribution subsystem.
@@ -628,8 +634,8 @@ pub struct AllSubsystems<
 	pub collator_protocol: CP,
 }
 
-impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
-	AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
+impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
+	AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 {
 	/// Create a new instance of [`AllSubsystems`].
 	///
@@ -658,6 +664,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
+		DummySubsystem,
 		DummySubsystem
 	> {
 		AllSubsystems {
@@ -666,6 +673,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			candidate_selection: DummySubsystem,
 			statement_distribution: DummySubsystem,
 			availability_distribution: DummySubsystem,
+			availability_recovery: DummySubsystem,
 			bitfield_signing: DummySubsystem,
 			bitfield_distribution: DummySubsystem,
 			provisioner: DummySubsystem,
@@ -683,13 +691,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_candidate_validation<NEW>(
 		self,
 		candidate_validation: NEW,
-	) -> AllSubsystems<NEW, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<NEW, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -707,13 +716,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_candidate_backing<NEW>(
 		self,
 		candidate_backing: NEW,
-	) -> AllSubsystems<CV, NEW, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, NEW, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -731,13 +741,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_candidate_selection<NEW>(
 		self,
 		candidate_selection: NEW,
-	) -> AllSubsystems<CV, CB, NEW, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, NEW, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -755,13 +766,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_statement_distribution<NEW>(
 		self,
 		statement_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, NEW, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, NEW, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -779,13 +791,39 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_availability_distribution<NEW>(
 		self,
 		availability_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, NEW, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution,
+			availability_recovery: self.availability_recovery,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `availability_recovery` instance in `self`.
+	pub fn replace_availability_recovery<NEW>(
+		self,
+		availability_recovery: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -803,13 +841,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_bitfield_signing<NEW>(
 		self,
 		bitfield_signing: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, NEW, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -827,13 +866,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_bitfield_distribution<NEW>(
 		self,
 		bitfield_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, NEW, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, NEW, P, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution,
 			provisioner: self.provisioner,
@@ -851,13 +891,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_provisioner<NEW>(
 		self,
 		provisioner: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, NEW, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, NEW, PoVD, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner,
@@ -875,13 +916,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_pov_distribution<NEW>(
 		self,
 		pov_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, NEW, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, NEW, RA, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -899,13 +941,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_runtime_api<NEW>(
 		self,
 		runtime_api: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, NEW, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, NEW, AS, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -923,13 +966,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_availability_store<NEW>(
 		self,
 		availability_store: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, NEW, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, NEW, NB, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -947,13 +991,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_network_bridge<NEW>(
 		self,
 		network_bridge: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NEW, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NEW, CA, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -971,13 +1016,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_chain_api<NEW>(
 		self,
 		chain_api: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, NEW, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, NEW, CG, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -995,13 +1041,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_collation_generation<NEW>(
 		self,
 		collation_generation: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, NEW, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, NEW, CP> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -1019,13 +1066,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_collator_protocol<NEW>(
 		self,
 		collator_protocol: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, NEW> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, NEW> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -1260,9 +1308,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>(
+	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
@@ -1272,6 +1320,7 @@ where
 		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
 		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
 		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>> + Send,
 		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
 		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
 		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
@@ -1353,6 +1402,15 @@ where
 			&mut running_subsystems,
 			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_distribution,
+			&metrics,
+			&mut seed,
+		)?;
+
+		let availability_recovery_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
+			all_subsystems.availability_recovery,
 			&metrics,
 			&mut seed,
 		)?;
@@ -1462,6 +1520,7 @@ where
 			candidate_selection_subsystem,
 			statement_distribution_subsystem,
 			availability_distribution_subsystem,
+			availability_recovery_subsystem,
 			bitfield_signing_subsystem,
 			bitfield_distribution_subsystem,
 			provisioner_subsystem,
@@ -1493,6 +1552,7 @@ where
 		let _ = self.candidate_selection_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.statement_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.availability_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
+		let _ = self.availability_recovery_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.bitfield_signing_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.bitfield_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.provisioner_subsystem.send_signal(OverseerSignal::Conclude).await;
@@ -1660,6 +1720,7 @@ where
 		self.candidate_selection_subsystem.send_signal(signal.clone()).await?;
 		self.statement_distribution_subsystem.send_signal(signal.clone()).await?;
 		self.availability_distribution_subsystem.send_signal(signal.clone()).await?;
+		self.availability_recovery_subsystem.send_signal(signal.clone()).await?;
 		self.bitfield_signing_subsystem.send_signal(signal.clone()).await?;
 		self.bitfield_distribution_subsystem.send_signal(signal.clone()).await?;
 		self.provisioner_subsystem.send_signal(signal.clone()).await?;
@@ -1693,6 +1754,9 @@ where
 			},
 			AllMessages::AvailabilityDistribution(msg) => {
 				self.availability_distribution_subsystem.send_message(msg).await?;
+			},
+			AllMessages::AvailabilityRecovery(msg) => {
+				let _ = self.availability_recovery_subsystem.send_message(msg).await;
 			},
 			AllMessages::BitfieldDistribution(msg) => {
 				self.bitfield_distribution_subsystem.send_message(msg).await?;
@@ -2538,6 +2602,15 @@ mod tests {
 		AvailabilityDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
 	}
 
+	fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
+		let (sender, _) = oneshot::channel();
+		AvailabilityRecoveryMessage::RecoverAvailableData(
+			Default::default(),
+			Default::default(),
+			sender,
+		)
+	}
+
 	fn test_bitfield_distribution_msg() -> BitfieldDistributionMessage {
 		BitfieldDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
 	}
@@ -2589,6 +2662,7 @@ mod tests {
 				collator_protocol: subsystem.clone(),
 				statement_distribution: subsystem.clone(),
 				availability_distribution: subsystem.clone(),
+				availability_recovery: subsystem.clone(),
 				bitfield_signing: subsystem.clone(),
 				bitfield_distribution: subsystem.clone(),
 				provisioner: subsystem.clone(),
@@ -2624,6 +2698,7 @@ mod tests {
 			handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
 			handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
 			handler.send_msg(AllMessages::AvailabilityDistribution(test_availability_distribution_msg())).await;
+			handler.send_msg(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
 			// handler.send_msg(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
 			handler.send_msg(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
 			handler.send_msg(AllMessages::Provisioner(test_provisioner_msg())).await;
@@ -2638,7 +2713,7 @@ mod tests {
 
 			select! {
 				res = overseer_fut => {
-					const NUM_SUBSYSTEMS: usize = 15;
+					const NUM_SUBSYSTEMS: usize = 16;
 
 					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// x2 because of broadcast_signal on startup

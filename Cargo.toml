@@ -57,6 +57,7 @@ members = [
 	"node/network/statement-distribution",
 	"node/network/bitfield-distribution",
 	"node/network/availability-distribution",
+	"node/network/availability-recovery",
 	"node/network/collator-protocol",
 	"node/overseer",
 	"node/primitives",
