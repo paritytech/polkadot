@@ -2,7 +2,16 @@
 
 set -e
 
-dashboard="$(<grafana/dashboard-template.json)"
+temp="$(mktemp)"
+
+function apply_expr() {
+  expr="$1"
+
+  jq "$expr" grafana/dashboard.json > "$temp"
+  cp "$temp" grafana/dashboard.json
+}
+
+cp grafana/dashboard-template.json grafana/dashboard.json
 
 idx="0"
 for result in $(rg -trust 'parachain_.*_total' -oN); do
@@ -23,11 +32,16 @@ for result in $(rg -trust 'parachain_.*_total' -oN); do
 
   panel="$(
     jq ".title = \"$title\"" grafana/panel-template.json |
-    jq ".targets[0].expr = \"$expr\"" |
-    jq ".gridPos.y = $y"
+    jq ".targets[0].expr = \"$expr\""
   )"
 
-  dashboard="$(jq ".panels += [$panel]" <<< "$dashboard")"
+  apply_expr ".panels += [$panel]"
 done
 
-jq . "$dashboard"
+apply_expr '.panels |= sort_by(.title)'
+
+# fall back to python to compute the id and index of each panel from the sorted list;
+# if that's possible in jq, it's complicated
+python3 grafana/idx_and_position.py
+
+echo "ok; output in grafana/dashboard.json"
