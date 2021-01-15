@@ -1,13 +1,13 @@
 # Validator Groups
 
-Yields the validator groups used during the current session. The validators in the groups are referred to by their index into the validator-set.
+Yields the validator groups used during the current session. The validators in the groups are referred to by their index into the validator-set and this is assumed to be as-of the child of the block whose state is being queried.
 
 ```rust
 /// A helper data-type for tracking validator-group rotations.
 struct GroupRotationInfo {
     session_start_block: BlockNumber,
     group_rotation_frequency: BlockNumber,
-    now: BlockNumber,
+    now: BlockNumber, // The successor of the block in whose state this runtime API is queried.
 }
 
 impl GroupRotationInfo {

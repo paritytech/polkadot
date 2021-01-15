@@ -79,6 +79,7 @@ rococo-runtime = { path = "../../runtime/rococo" }
 # Polkadot Subsystems
 polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
 polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
+polkadot-availability-recovery = { path = "../network/availability-recovery", optional = true }
 polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
 polkadot-network-bridge = { path = "../network/bridge", optional = true }
 polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
@@ -114,6 +115,7 @@ runtime-benchmarks = [
 real-overseer = [
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
+	"polkadot-availability-recovery",
 	"polkadot-collator-protocol",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",

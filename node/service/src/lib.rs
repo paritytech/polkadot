@@ -398,11 +398,14 @@ where
 	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
 	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
 			Metrics::register(registry)?,
+		),
+		availability_recovery: AvailabilityRecoverySubsystem::new(
 		),
 		availability_store: AvailabilityStoreSubsystem::new_on_disk(
 			availability_config,
@@ -568,7 +571,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 	#[cfg(feature = "real-overseer")]
-	config.network.extra_sets.extend(polkadot_network_bridge::peers_sets_info());
+	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
