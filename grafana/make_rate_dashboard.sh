@@ -12,8 +12,8 @@ function apply_expr() {
 }
 
 cp grafana/dashboard-template.json grafana/dashboard.json
+apply_expr '.title = "Polkadot Subsystem Counter Rates"'
 
-idx="0"
 for result in $(rg -trust 'parachain_.*_total' -oN); do
   file="$(cut -d':' -f1 <<< "$result")"
   subsystem="$(cut -d'/' -f2- <<< "$file")"
@@ -26,9 +26,6 @@ for result in $(rg -trust 'parachain_.*_total' -oN); do
 
   title="$(printf "Relay %s: %s / Second" "$subsystem" "$name")"
   expr="$(printf 'sum by (instance) (rate(polkadot_%s{job=\\"nodes-rococo\\"}[10m]))' "$total")"
-
-  y="$((idx * 8))"
-  idx="$((idx+1))"
 
   panel="$(
     jq ".title = \"$title\"" grafana/panel-template.json |
