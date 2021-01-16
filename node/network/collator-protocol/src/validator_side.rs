@@ -368,7 +368,7 @@ where
 			if let Some(per_request) = state.requests_info.remove(&id) {
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
-					trace::debug!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						%request_id,
 						"Received collation",
@@ -425,7 +425,7 @@ where
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
 		tracing::trace!(
 			target: LOG_TARGET,
-			%peer_id,
+			peer_id = %peer_id,
 			%para_id,
 			?relay_parent,
 			"collation has already been requested",
@@ -457,7 +457,7 @@ where
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		%peer_id,
+		peer_id = %peer_id,
 		%para_id,
 		%request_id,
 		?relay_parent,

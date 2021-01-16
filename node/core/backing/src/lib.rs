@@ -386,7 +386,7 @@ struct BackgroundValidationParams<F> {
 }
 
 async fn validate_and_make_available(
-	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand>,
+	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync>,
 ) -> Result<(), Error> {
 	let BackgroundValidationParams {
 		mut tx_from,
@@ -562,7 +562,7 @@ impl CandidateBackingJob {
 	async fn background_validate_and_make_available(
 		&mut self,
 		params: BackgroundValidationParams<
-			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static
+			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync
 		>,
 	) -> Result<(), Error> {
 		let candidate_hash = params.candidate.hash();
@@ -608,10 +608,10 @@ impl CandidateBackingJob {
 		let candidate_hash = candidate.hash();
 		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
 
-		trace::debug!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
-			candidate_receipt = ?candidate_receipt,
+			candidate_receipt = ?candidate,
 			"Validate and second candidate",
 		);
 
@@ -686,9 +686,9 @@ impl CandidateBackingJob {
 		statement: &SignedFullStatement,
 		parent_span: &JaegerSpan,
 	) -> Result<Option<TableSummary>, Error> {
-		trace::debug!(
+		tracing::debug!(
 			target: LOG_TARGET,
-			statement = ?statement.to_compact(),
+			statement = ?statement.payload().to_compact(),
 			"Importing statement",
 		);
 
@@ -713,7 +713,7 @@ impl CandidateBackingJob {
 				if let Some(backed) =
 					table_attested_to_backed(attested, &self.table_context)
 				{
-					trace::debug!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?candidate_hash,
 						"Candidate backed",
