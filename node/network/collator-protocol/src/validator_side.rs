@@ -368,6 +368,12 @@ where
 			if let Some(per_request) = state.requests_info.remove(&id) {
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
+					trace::debug!(
+						target: LOG_TARGET,
+						%request_id,
+						"Received collation",
+					);
+
 					let _ = per_request.result.send((receipt.clone(), pov.clone()));
 					state.metrics.on_request(Ok(()));
 
@@ -419,9 +425,9 @@ where
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
 		tracing::trace!(
 			target: LOG_TARGET,
-			peer_id = %peer_id,
-			para_id = %para_id,
-			relay_parent = %relay_parent,
+			%peer_id,
+			%para_id,
+			?relay_parent,
 			"collation has already been requested",
 		);
 		return;
@@ -448,6 +454,15 @@ where
 	state.requests_info.insert(request_id, per_request);
 
 	state.requests_in_progress.push(request.wait().boxed());
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		%peer_id,
+		%para_id,
+		%request_id,
+		?relay_parent,
+		"Requesting collation",
+	);
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::RequestCollation(
 		request_id,

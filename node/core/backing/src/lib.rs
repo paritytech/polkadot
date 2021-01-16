@@ -421,11 +421,17 @@ async fn validate_and_make_available(
 
 	let res = match v {
 		ValidationResult::Valid(commitments, validation_data) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation successful",
+			);
+
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
-					candidate_receipt = ?candidate,
+					candidate_hash = ?candidate.hash(),
 					actual_commitments = ?commitments,
 					"Commitments obtained with validation don't match the announced by the candidate receipt",
 				);
@@ -445,9 +451,9 @@ async fn validate_and_make_available(
 				match erasure_valid {
 					Ok(()) => Ok((candidate, commitments, pov.clone())),
 					Err(InvalidErasureRoot) => {
-						tracing::trace!(
+						tracing::debug!(
 							target: LOG_TARGET,
-							candidate_receipt = ?candidate,
+							candidate_hash = ?candidate.hash(),
 							actual_commitments = ?commitments,
 							"Erasure root doesn't match the announced by the candidate receipt",
 						);
@@ -457,9 +463,9 @@ async fn validate_and_make_available(
 			}
 		}
 		ValidationResult::Invalid(reason) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				candidate_receipt = ?candidate,
+				candidate_hash = ?candidate.hash(),
 				reason = ?reason,
 				"Validation yielded an invalid candidate",
 			);
@@ -467,9 +473,7 @@ async fn validate_and_make_available(
 		}
 	};
 
-	let command = make_command(res);
-	tx_command.send(command).await?;
-	Ok(())
+	tx_command.send(make_command(res)).await.map_err(Into::into)
 }
 
 impl CandidateBackingJob {
@@ -604,6 +608,13 @@ impl CandidateBackingJob {
 		let candidate_hash = candidate.hash();
 		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
 
+		trace::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate_receipt,
+			"Validate and second candidate",
+		);
+
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
 			tx_command: self.background_validation_tx.clone(),
@@ -675,6 +686,12 @@ impl CandidateBackingJob {
 		statement: &SignedFullStatement,
 		parent_span: &JaegerSpan,
 	) -> Result<Option<TableSummary>, Error> {
+		trace::debug!(
+			target: LOG_TARGET,
+			statement = ?statement.to_compact(),
+			"Importing statement",
+		);
+
 		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
 			let candidate_hash = statement.payload().candidate_hash();
@@ -696,6 +713,12 @@ impl CandidateBackingJob {
 				if let Some(backed) =
 					table_attested_to_backed(attested, &self.table_context)
 				{
+					trace::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate_hash,
+						"Candidate backed",
+					);
+
 					let message = ProvisionerMessage::ProvisionableData(
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
@@ -793,6 +816,13 @@ impl CandidateBackingJob {
 		// and not just those things that the function uses.
 		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?.to_plain();
 		let descriptor = candidate.descriptor().clone();
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate,
+			"Kicking off validation",
+		);
 
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
