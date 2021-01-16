@@ -23,7 +23,7 @@
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
-	jaeger,
+	jaeger, PerLeafSpan, JaegerSpan,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
 		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -34,7 +34,7 @@ use polkadot_node_subsystem_util::{
 	self as util, JobManager, JobTrait, Validator, FromJobCommand, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
-use std::{pin::Pin, time::Duration, iter::FromIterator};
+use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};
 use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
@@ -69,16 +69,16 @@ pub enum Error {
 
 /// If there is a candidate pending availability, query the Availability Store
 /// for whether we have the availability chunk for our validator index.
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
 	relay_parent: Hash,
 	core: CoreState,
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
+	span: &jaeger::JaegerSpan,
 ) -> Result<bool, Error> {
-	let span = jaeger::hash_span(&relay_parent, "core-availability");
 	if let CoreState::Occupied(core) = core {
-		let _span = span.child("query chunk");
+		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -103,10 +103,10 @@ async fn get_core_availability(
 			"Candidate availability",
 		);
 
-		return res;
+		res
+	} else {
+		Ok(false)
 	}
-
-	Ok(false)
 }
 
 /// delegates to the v1 runtime API
@@ -152,7 +152,8 @@ async fn construct_availability_bitfield(
 	// Handle all cores concurrently
 	// `try_join_all` returns all results in the same order as the input futures.
 	let results = future::try_join_all(
-		availability_cores.into_iter().map(|core| get_core_availability(relay_parent, core, validator_idx, &sender)),
+		availability_cores.into_iter()
+			.map(|core| get_core_availability(relay_parent, core, validator_idx, &sender, span)),
 	).await?;
 
 	Ok(AvailabilityBitfield(FromIterator::from_iter(results)))
@@ -214,9 +215,10 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "BitfieldSigningJob";
 
 	/// Run a job for the parent block indicated
-	#[tracing::instrument(skip(keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(span, keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
+		span: Arc<JaegerSpan>,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
@@ -224,7 +226,7 @@ impl JobTrait for BitfieldSigningJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
 		async move {
-			let span = jaeger::hash_span(&relay_parent, "run:bitfield-signing");
+			let span = PerLeafSpan::new(span, "bitfield-signing");
 			let _span = span.child("delay");
 			let wait_until = Instant::now() + JOB_DELAY;
 
@@ -244,12 +246,12 @@ impl JobTrait for BitfieldSigningJob {
 			let _timer = metrics.time_run();
 
 			drop(_span);
-			let _span = span.child("availablity");
+			let span_availability = span.child("availability");
 
 			let bitfield =
 				match construct_availability_bitfield(
 					relay_parent,
-					&span,
+					&span_availability,
 					validator.index(),
 					&mut sender,
 				).await
@@ -263,7 +265,7 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
-			drop(_span);
+			drop(span_availability);
 			let _span = span.child("signing");
 
 			let signed_bitfield = validator

@@ -71,7 +71,7 @@ use frame_support::{
 	weights::Weight,
 };
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 
@@ -121,6 +121,7 @@ sp_api::decl_runtime_apis! {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
@@ -145,6 +146,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = SS58Prefix;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
@@ -424,6 +426,7 @@ impl claims::Config for Runtime {
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	type MoveClaimOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = claims::TestWeightInfo;
 }
 
 parameter_types! {
@@ -470,6 +473,7 @@ impl parachains_ump::Config for Runtime {
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_scheduler::Config for Runtime {}
@@ -745,6 +749,10 @@ sp_api::impl_runtime_apis! {
 			Babe::current_epoch()
 		}
 
+		fn next_epoch() -> babe_primitives::Epoch {
+			Babe::next_epoch()
+		}
+
 		fn generate_key_ownership_proof(
 			_slot_number: babe_primitives::SlotNumber,
 			_authority_id: babe_primitives::AuthorityId,
@@ -784,6 +792,9 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
 		}
 	}
 

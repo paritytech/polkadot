@@ -331,6 +331,7 @@ mod tests {
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
+		type SS58Prefix = ();
 	}
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test where
@@ -434,6 +435,7 @@ mod tests {
 
 	impl hrmp::Config for Test {
 		type Origin = Origin;
+		type Currency = pallet_balances::Module<Test>;
 	}
 
 	impl pallet_session::historical::Config for Test {

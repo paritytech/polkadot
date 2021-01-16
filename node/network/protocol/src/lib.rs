@@ -21,10 +21,17 @@
 
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
-use std::convert::TryFrom;
-use std::fmt;
+use std::{convert::TryFrom, fmt, collections::HashMap};
 
 pub use sc_network::{ReputationChange, PeerId};
+#[doc(hidden)]
+pub use polkadot_node_jaeger::JaegerSpan;
+#[doc(hidden)]
+pub use std::sync::Arc;
+
+
+/// Peer-sets and protocols used for parachains.
+pub mod peer_set;
 
 /// A unique identifier of a request.
 pub type RequestId = u64;
@@ -43,16 +50,6 @@ impl fmt::Display for WrongVariant {
 }
 
 impl std::error::Error for WrongVariant {}
-
-
-/// The peer-sets that the network manages. Different subsystems will use different peer-sets.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PeerSet {
-	/// The validation peer-set is responsible for all messages related to candidate validation and communication among validators.
-	Validation,
-	/// The collation peer-set is used for validator<>collator communication.
-	Collation,
-}
 
 /// The advertised role of a node.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -103,8 +100,8 @@ pub enum NetworkBridgeEvent<M> {
 	/// Peer's `View` has changed.
 	PeerViewChange(PeerId, View),
 
-	/// Our `View` has changed.
-	OurViewChange(View),
+	/// Our view has changed.
+	OurViewChange(OurView),
 }
 
 macro_rules! impl_try_from {
@@ -159,6 +156,72 @@ impl<M> NetworkBridgeEvent<M> {
 	}
 }
 
+/// Specialized wrapper around [`View`].
+///
+/// Besides the access to the view itself, it also gives access to the [`JaegerSpan`] per leave/head.
+#[derive(Debug, Clone, Default)]
+pub struct OurView {
+	view: View,
+	span_per_head: HashMap<Hash, Arc<JaegerSpan>>,
+}
+
+impl OurView {
+	/// Creates a new instance.
+	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<JaegerSpan>)>, finalized_number: BlockNumber) -> Self {
+		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
+
+		Self {
+			view: View {
+				heads: state_per_head.keys().cloned().collect(),
+				finalized_number,
+			},
+			span_per_head: state_per_head,
+		}
+	}
+
+	/// Returns the span per head map.
+	///
+	/// For each head there exists one span in this map.
+	pub fn span_per_head(&self) -> &HashMap<Hash, Arc<JaegerSpan>> {
+		&self.span_per_head
+	}
+}
+
+impl PartialEq for OurView {
+	fn eq(&self, other: &Self) -> bool {
+		self.view == other.view
+	}
+}
+
+impl std::ops::Deref for OurView {
+	type Target = View;
+
+	fn deref(&self) -> &View {
+		&self.view
+	}
+}
+
+/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`JaegerSpan`]'s.
+///
+/// NOTE: Use for tests only.
+///
+/// # Example
+///
+/// ```
+/// # use polkadot_node_network_protocol::our_view;
+/// # use polkadot_primitives::v1::Hash;
+/// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
+/// ```
+#[macro_export]
+macro_rules! our_view {
+	( $( $hash:expr ),* $(,)? ) => {
+		$crate::OurView::new(
+			vec![ $( $hash.clone() ),* ].into_iter().map(|h| (h, $crate::Arc::new($crate::JaegerSpan::Disabled))),
+			0,
+		)
+	};
+}
+
 /// A succinct representation of a peer's view. This consists of a bounded amount of chain heads
 /// and the highest known finalized block number.
 ///
@@ -171,18 +234,21 @@ pub struct View {
 	pub finalized_number: BlockNumber,
 }
 
-
 /// Construct a new view with the given chain heads and finalized number 0.
+///
 /// NOTE: Use for tests only.
+///
 /// # Example
 ///
-/// ```ignore
-/// view![Hash::repeat_byte(1), Hash::repeat_byte(2)]
+/// ```
+/// # use polkadot_node_network_protocol::view;
+/// # use polkadot_primitives::v1::Hash;
+/// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
 macro_rules! view {
 	( $( $hash:expr ),* $(,)? ) => {
-		View { heads: vec![ $( $hash.clone() ),* ], finalized_number: 0 }
+		$crate::View { heads: vec![ $( $hash.clone() ),* ], finalized_number: 0 }
 	};
 }
 
@@ -216,7 +282,7 @@ impl View {
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash,
+		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex,
 	};
 	use polkadot_node_primitives::SignedFullStatement;
 	use parity_scale_codec::{Encode, Decode};
@@ -229,6 +295,16 @@ pub mod v1 {
 		/// An erasure chunk for a given candidate hash.
 		#[codec(index = "0")]
 		Chunk(CandidateHash, ErasureChunk),
+	}
+
+	/// Network messages used by the availability recovery subsystem.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	pub enum AvailabilityRecoveryMessage {
+		/// Request a chunk for a given candidate hash and validator index.
+		RequestChunk(RequestId, CandidateHash, ValidatorIndex),
+		/// Respond with chunk for a given candidate hash and validator index.
+		/// The response may be `None` if the requestee does not have the chunk.
+		Chunk(RequestId, Option<ErasureChunk>),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
@@ -293,6 +369,9 @@ pub mod v1 {
 		/// Statement distribution messages
 		#[codec(index = "3")]
 		StatementDistribution(StatementDistributionMessage),
+		/// Availability recovery messages
+		#[codec(index = "4")]
+		AvailabilityRecovery(AvailabilityRecoveryMessage),
 	}
 
 	impl_try_from!(ValidationProtocol, AvailabilityDistribution, AvailabilityDistributionMessage);

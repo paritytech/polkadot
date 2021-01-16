@@ -19,12 +19,13 @@
 
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
+use sp_runtime::traits::One;
 use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage,
+	InboundDownwardMessage, InboundHrmpMessage, Hash,
 };
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
@@ -39,8 +40,10 @@ pub fn validator_groups<T: initializer::Config>() -> (
 	Vec<Vec<ValidatorIndex>>,
 	GroupRotationInfo<T::BlockNumber>,
 ) {
+	let now = <frame_system::Module<T>>::block_number() + One::one();
+
 	let groups = <scheduler::Module<T>>::validator_groups();
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info();
+	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
 
 	(groups, rotation_info)
 }
@@ -51,7 +54,11 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info();
+	let now = <frame_system::Module<T>>::block_number() + One::one();
+	<scheduler::Module<T>>::clear();
+	<scheduler::Module<T>>::schedule(Vec::new(), now);
+
+	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
 
 	let time_out_at = |backed_in_number, availability_period| {
 		let time_out_at = backed_in_number + availability_period;
@@ -190,18 +197,24 @@ fn with_assumption<Config, T, F>(
 pub fn full_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-)
-	-> Option<ValidationData<T::BlockNumber>>
-{
+) -> Option<ValidationData<T::BlockNumber>> {
+	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	with_assumption::<T, _, _>(
-		para_id,
-		assumption,
-		|| Some(ValidationData {
-			persisted: crate::util::make_persisted_validation_data::<T>(para_id, relay_parent_number)?,
-			transient: crate::util::make_transient_validation_data::<T>(para_id, relay_parent_number)?,
-		}),
-	)
+	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+		.expect("storage root must decode to the Hash type; qed");
+	with_assumption::<T, _, _>(para_id, assumption, || {
+		Some(ValidationData {
+			persisted: crate::util::make_persisted_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+				relay_storage_root,
+			)?,
+			transient: crate::util::make_transient_validation_data::<T>(
+				para_id,
+				relay_parent_number,
+			)?,
+		})
+	})
 }
 
 /// Implementation for the `persisted_validation_data` function of the runtime API.
@@ -209,12 +222,17 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
+	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	with_assumption::<T, _, _>(
-		para_id,
-		assumption,
-		|| crate::util::make_persisted_validation_data::<T>(para_id, relay_parent_number),
-	)
+	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+		.expect("storage root must decode to the Hash type; qed");
+	with_assumption::<T, _, _>(para_id, assumption, || {
+		crate::util::make_persisted_validation_data::<T>(
+			para_id,
+			relay_parent_number,
+			relay_storage_root,
+		)
+	})
 }
 
 /// Implementation for the `check_validation_outputs` function of the runtime API.

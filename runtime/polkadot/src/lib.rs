@@ -63,7 +63,7 @@ use frame_support::{
 use frame_system::{EnsureRoot, EnsureOneOf};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use static_assertions::const_assert;
 
@@ -138,6 +138,7 @@ type MoreThanHalfCouncil = EnsureOneOf<
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 0;
 }
 
 impl frame_system::Config for Runtime {
@@ -162,6 +163,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
+	type SS58Prefix = SS58Prefix;
 }
 
 parameter_types! {
@@ -761,6 +763,7 @@ impl claims::Config for Runtime {
 	type Prefix = Prefix;
 	/// At least 3/4 of the council must agree to a claim move before it can happen.
 	type MoveClaimOrigin = pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1235,6 +1238,10 @@ sp_api::impl_runtime_apis! {
 			Babe::current_epoch()
 		}
 
+		fn next_epoch() -> babe_primitives::Epoch {
+			Babe::next_epoch()
+		}
+
 		fn generate_key_ownership_proof(
 			_slot_number: babe_primitives::SlotNumber,
 			authority_id: babe_primitives::AuthorityId,
@@ -1290,6 +1297,9 @@ sp_api::impl_runtime_apis! {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
 		}
+		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
+		}
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
@@ -1327,7 +1337,7 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 			// Polkadot
-			add_benchmark!(params, batches, claims, Claims);
+			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
