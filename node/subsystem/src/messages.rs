@@ -25,7 +25,7 @@
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
+	v1 as protocol_v1, ReputationChange, PeerId,
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
@@ -43,6 +43,11 @@ use polkadot_primitives::v1::{
 };
 use polkadot_statement_table::v1::Misbehavior;
 use std::{sync::Arc, collections::btree_map::BTreeMap};
+
+
+/// Network events as transmitted to other subsystems, wrapped in their message types.
+pub mod network_bridge_event;
+pub use network_bridge_event::NetworkBridgeEvent;
 
 /// Subsystem messages where each message is always bound to a relay parent.
 pub trait BoundToRelayParent {
