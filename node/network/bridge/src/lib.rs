@@ -30,11 +30,11 @@ use polkadot_subsystem::{
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
-	CollatorProtocolMessage,
+	CollatorProtocolMessage, NetworkBridgeEvent,
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
-	ReputationChange, PeerId, peer_set::PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1, OurView,
+	ReputationChange, PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView,
 };
 
 /// Peer set infos for network initialization.

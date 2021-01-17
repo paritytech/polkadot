@@ -29,7 +29,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, SubsystemResult, SubsystemError, Subsystem,
 	FromOverseer, SpawnedSubsystem,
 	messages::{
-		PoVDistributionMessage, AllMessages, NetworkBridgeMessage,
+		PoVDistributionMessage, AllMessages, NetworkBridgeMessage, NetworkBridgeEvent,
 	},
 };
 use polkadot_node_subsystem_util::{
@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, OurView,
+	v1 as protocol_v1, ReputationChange as Rep, PeerId, OurView,
 };
 
 use futures::prelude::*;

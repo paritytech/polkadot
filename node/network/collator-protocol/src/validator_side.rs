@@ -32,10 +32,11 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
+		NetworkBridgeEvent,
 	},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, OurView, PeerId, ReputationChange as Rep, RequestId, NetworkBridgeEvent,
+	v1 as protocol_v1, View, OurView, PeerId, ReputationChange as Rep, RequestId,
 };
 use polkadot_node_subsystem_util::{TimeoutExt as _, metrics::{self, prometheus}};
 

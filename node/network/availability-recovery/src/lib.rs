@@ -39,10 +39,11 @@ use polkadot_subsystem::{
 	errors::RecoveryError,
 	messages::{
 		AvailabilityStoreMessage, AvailabilityRecoveryMessage, AllMessages, NetworkBridgeMessage,
+		NetworkBridgeEvent,
 	},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, RequestId,
+	v1 as protocol_v1, PeerId, ReputationChange as Rep, RequestId,
 };
 use polkadot_node_subsystem_util::{
 	Timeout, TimeoutExt,

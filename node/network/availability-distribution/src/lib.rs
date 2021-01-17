@@ -32,7 +32,7 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View, OurView,
+	v1 as protocol_v1, PeerId, ReputationChange as Rep, View, OurView,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{
@@ -42,7 +42,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
-	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent
 };
 use polkadot_subsystem::{
 	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
