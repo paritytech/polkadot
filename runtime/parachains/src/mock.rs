@@ -100,6 +100,7 @@ parameter_types! {
 
 impl pallet_balances::Config for Test {
 	type MaxLocks = ();
+	type MaxReserves = ();
 	type Balance = Balance;
 	type Event = TestEvent;
 	type DustRemoval = ();
