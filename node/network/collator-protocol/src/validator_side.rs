@@ -752,7 +752,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					tracing::trace!(target: LOG_TARGET, id, "request timed out");
+					tracing::debug!(target: LOG_TARGET, request_id=%id, "Collation timed out");
 					request_timed_out(&mut ctx, &mut state, id).await;
 				}
 				CollationRequestResult::Received(id) => {
