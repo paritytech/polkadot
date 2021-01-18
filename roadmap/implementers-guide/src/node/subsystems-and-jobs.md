@@ -21,6 +21,7 @@ Subsystems must be robust to spurious exits. The outputs of the set of subsystem
 
 ```dot process
 digraph {
+    layout="circo";
     node [shape = oval];
 
     av_store    [label = "Availability Store"]
@@ -43,26 +44,35 @@ digraph {
     runt_api    [label = "Runtime API"]
     stmt_dist   [label = "Statement Distribution"]
 
-    av_store    -> runt_api [arrowType = "odiamond",    label = "Request::CandidateEvents"]
-    av_store    -> chn_api  [arrowType = "odiamond",    label = "BlockNumber"]
-    av_store    -> chn_api  [arrowType = "odiamond",    label = "BlockHeader"]
-    av_store    -> runt_api [arrowType = "odiamond",    label = "Request::Validators"]
-    av_store    -> chn_api  [arrowType = "odiamond",    label = "FinalizedBlockHash"]
+    av_store    -> runt_api     [arrowType = "odiamond",    label = "Request::CandidateEvents"]
+    av_store    -> chn_api      [arrowType = "odiamond",    label = "BlockNumber"]
+    av_store    -> chn_api      [arrowType = "odiamond",    label = "BlockHeader"]
+    av_store    -> runt_api     [arrowType = "odiamond",    label = "Request::Validators"]
+    av_store    -> chn_api      [arrowType = "odiamond",    label = "FinalizedBlockHash"]
 
-    avail_dist  -> net_brdg [arrowType = "onormal",     label = "Request::SendValidationMessages"]
-    avail_dist  -> runt_api [arrowType = "odiamond",    label = "Request::AvailabilityCores"]
-    avail_dist  -> net_brdg [arrowType = "onormal",     label = "ReportPeer"]
-    avail_dist  -> av_store [arrowType = "odiamond",    label = "QueryDataAvailability"]
-    avail_dist  -> av_store [arrowType = "odiamond",    label = "QueryChunk"]
-    avail_dist  -> av_store [arrowType = "odiamond",    label = "StoreChunk"]
-    avail_dist  -> runt_api [arrowType = "odiamond",    label = "Request::Validators"]
-    avail_dist  -> chn_api  [arrowType = "odiamond",    label = "Ancestors"]
-    avail_dist  -> runt_api [arrowType = "odiamond",    label = "Request::SessionIndexForChild"]
+    avail_dist  -> net_brdg     [arrowType = "onormal",     label = "Request::SendValidationMessages"]
+    avail_dist  -> runt_api     [arrowType = "odiamond",    label = "Request::AvailabilityCores"]
+    avail_dist  -> net_brdg     [arrowType = "onormal",     label = "ReportPeer"]
+    avail_dist  -> av_store     [arrowType = "odiamond",    label = "QueryDataAvailability"]
+    avail_dist  -> av_store     [arrowType = "odiamond",    label = "QueryChunk"]
+    avail_dist  -> av_store     [arrowType = "odiamond",    label = "StoreChunk"]
+    avail_dist  -> runt_api     [arrowType = "odiamond",    label = "Request::Validators"]
+    avail_dist  -> chn_api      [arrowType = "odiamond",    label = "Ancestors"]
+    avail_dist  -> runt_api     [arrowType = "odiamond",    label = "Request::SessionIndexForChild"]
 
-    avail_rcov  -> net_brdg [arrowType = "onormal",     label = "ReportPeer"]
-    avail_rcov  -> av_store [arrowType = "odiamond",    label = "QueryChunk"]
-    avail_rcov  -> net_brdg [arrowType = "odiamond",    label = "ConnectToValidators"]
-    avail_rcov  -> net_brdg [arrowType = "onormal",     label = "SendValidationMessage::Chunk"]
-    avail_rcov  -> net_brdg [arrowType = "onormal",     label = "SendValidationMessage::RequestChunk"]
+    avail_rcov  -> net_brdg     [arrowType = "onormal",     label = "ReportPeer"]
+    avail_rcov  -> av_store     [arrowType = "odiamond",    label = "QueryChunk"]
+    avail_rcov  -> net_brdg     [arrowType = "odiamond",    label = "ConnectToValidators"]
+    avail_rcov  -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage::Chunk"]
+    avail_rcov  -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage::RequestChunk"]
+
+    bitf_dist   -> net_brdg     [arrowType = "onormal",     label = "ReportPeer"]
+    bitf_dist   -> provisioner  [arrowType = "onormal",     label = "ProvisionableData::Bitfield"]
+    bitf_dist   -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage"]
+    bitf_dist   -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage"]
+    bitf_dist   -> {
+        runt_api [arrowType = "odiamond", label = "Request::Validatiors"]
+        runt_api [arrowType = "odiamond", label = "Request::SessionIndexForChild"]
+    }
 }
 ```
