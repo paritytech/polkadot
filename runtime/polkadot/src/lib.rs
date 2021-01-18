@@ -822,6 +822,7 @@ pub enum ProxyType {
 	Staking = 3,
 	// Skip 4 as it is now removed (was SudoBalances)
 	IdentityJudgement = 5,
+	Cancellation = 6,
 }
 
 #[cfg(test)]
@@ -910,6 +911,9 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
 				Call::Utility(..)
+			),
+			ProxyType::Cancellation => matches!(c,
+				Call::Proxy(..)
 			)
 		}
 	}
