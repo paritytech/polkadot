@@ -26,7 +26,7 @@ use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::Encode;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
+	GroupRotationInfo, CoreState, Id, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
 	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
 	SessionInfo as SessionInfoData,
@@ -694,11 +694,6 @@ sp_api::impl_runtime_apis! {
 
 		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_api_impl::availability_cores::<Runtime>()
-		}
-
-		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>> {
-			runtime_api_impl::full_validation_data::<Runtime>(para_id, assumption)
 		}
 
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
