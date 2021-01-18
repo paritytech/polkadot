@@ -11,3 +11,54 @@ Since this goal of determining when to start and conclude work relative to a spe
 The work that subsystems spawn to be done on a specific relay-parent is known as a job. Subsystems should set up and tear down jobs according to the signals received from the overseer. Subsystems may share or cache state between jobs.
 
 Subsystems must be robust to spurious exits. The outputs of the set of subsystems as a whole comprises of signed messages and data committed to disk. Care must be taken to avoid issuing messages that are not substantiated. Since subsystems need to be safe under spurious exits, it is the expected behavior that an `OverseerSignal::Conclude` can just lead to breaking the loop and exiting directly as opposed to waiting for everything to shut down gracefully.
+
+## Subsystem Data Flow
+
+
+**Note**: This diagram omits the overseer for simplicity. In fact, all messages are relayed via the overseer.
+
+**Note**: Messages with a diamond arrowhead (`♢`) include a `oneshot::Sender` which communicates a response from the recipient.
+
+```dot process
+digraph {
+    node [shape = oval];
+
+    av_store    [label = "Availability Store"]
+    avail_dist  [label = "Availability Distribution"]
+    avail_rcov  [label = "Availability Recovery"]
+    bitf_dist   [label = "Bitfield Distribution"]
+    bitf_sign   [label = "Bitfield Signing"]
+    cand_back   [label = "Candidate Backing"]
+    cand_sel    [label = "Candidate Selection"]
+    cand_val    [label = "Candidate Validation"]
+    chn_api     [label = "Chain API"]
+    coll_gen    [label = "Collation Generation"]
+    coll_prot   [label = "Collator Protocol"]
+    disp_part   [label = "Dispute Participation"]
+    misb_arb    [label = "Misbehavior Arbitration"]
+    net_brdg    [label = "Network Bridge"]
+    peer_set    [label = "Peer Set Manager"]
+    pov_dist    [label = "PoV Distribution"]
+    provisioner [label = "Provisioner"]
+    runt_api    [label = "Runtime API"]
+    stmt_dist   [label = "Statement Distribution"]
+
+    av_store    -> runt_api [arrowType = "ediamond",    label = "Request::CandidateEvents"]
+    av_store    -> chn_api  [arrowType = "ediamond",    label = "BlockNumber"]
+    av_store    -> chn_api  [arrowType = "ediamond",    label = "BlockHeader"]
+    av_store    -> runt_api [arrowType = "ediamond",    label = "Request::Validators"]
+    av_store    -> chn_api  [arrowType = "ediamond",    label = "FinalizedBlockHash"]
+
+    avail_dist  -> net_brdg [arrowType = "empty",       label = "Request::SendValidationMessages"]
+    avail_dist  -> runt_api [arrowType = "ediamond",    label = "Request::AvailabilityCores"]
+    avail_dist  -> net_brdg [arrowType = "empty",       label = "ReportPeer"]
+    avail_dist  -> av_store [arrowType = "ediamond",    label = "QueryDataAvailability"]
+    avail_dist  -> av_store [arrowType = "ediamond",    label = "QueryChunk"]
+    avail_dist  -> av_store [arrowType = "ediamond",    label = "StoreChunk"]
+    avail_dist  -> runt_api [arrowType = "ediamond",    label = "Request::Validators"]
+    avail_dist  -> chn_api  [arrowType = "ediamond",    label = "Ancestors"]
+    avail_dist  -> runt_api [arrowType = "ediamond",    label = "Request::SessionIndexForChild"]
+
+
+}
+```
