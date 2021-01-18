@@ -16,7 +16,7 @@
 
 //! Network protocol types for parachains.
 
-#![deny(unused_crate_dependencies, unused_results)]
+#![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
 use polkadot_primitives::v1::{Hash, BlockNumber};
@@ -286,8 +286,9 @@ pub mod v1 {
 	};
 	use polkadot_node_primitives::SignedFullStatement;
 	use parity_scale_codec::{Encode, Decode};
-	use std::convert::TryFrom;
 	use super::RequestId;
+	use std::{convert::TryFrom, io::Write};
+	use flate2::{Compression, write::{GzEncoder, GzDecoder}};
 
 	/// Network messages used by the availability distribution subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
@@ -323,9 +324,9 @@ pub mod v1 {
 		#[codec(index = "0")]
 		Awaiting(Hash, Vec<Hash>),
 		/// Notification of an awaited PoV, in a given relay-parent context.
-		/// (relay_parent, pov_hash, pov)
+		/// (relay_parent, pov_hash, compressed_pov)
 		#[codec(index = "1")]
-		SendPoV(Hash, Hash, PoV),
+		SendPoV(Hash, Hash, CompressedPoV),
 	}
 
 	/// Network messages used by the statement distribution subsystem.
@@ -334,6 +335,40 @@ pub mod v1 {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = "0")]
 		Statement(Hash, SignedFullStatement)
+	}
+
+	#[derive(Debug, Clone, Copy, PartialEq, thiserror::Error)]
+	#[allow(missing_docs)]
+	pub enum CompressedPoVError {
+		#[error("Failed to compress a PoV")]
+		Compress,
+		#[error("Failed to uncompress a PoV")]
+		Uncompress,
+		#[error("Failed to decode the uncompressed PoV")]
+		Decode,
+	}
+
+	/// SCALE and GZip encoded [`PoV`].
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	pub struct CompressedPoV(Vec<u8>);
+
+	impl CompressedPoV {
+		/// Create from the given [`PoV`].
+		pub fn from_pov(pov: &PoV) -> Result<Self, CompressedPoVError> {
+			let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+			pov.encode_to(&mut encoder);
+			encoder.finish().map(Self).map_err(|_| CompressedPoVError::Compress)
+		}
+
+		/// Uncompress, decode and return the [`PoV`].
+		pub fn as_pov(&self) -> Result<PoV, CompressedPoVError> {
+			let mut writer = Vec::new();
+			let mut decoder = GzDecoder::new(&mut writer);
+			decoder.write_all(&self.0).map_err(|_| CompressedPoVError::Uncompress)?;
+			decoder.finish().map_err(|_| CompressedPoVError::Uncompress)?;
+
+			PoV::decode(&mut &writer[..]).map_err(|_| CompressedPoVError::Decode)
+		}
 	}
 
 	/// Network messages used by the collator protocol subsystem
@@ -351,7 +386,7 @@ pub mod v1 {
 		RequestCollation(RequestId, Hash, ParaId),
 		/// A requested collation.
 		#[codec(index = "3")]
-		Collation(RequestId, CandidateReceipt, PoV),
+		Collation(RequestId, CandidateReceipt, CompressedPoV),
 	}
 
 	/// All network messages on the validation peer-set.
