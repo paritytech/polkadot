@@ -1200,8 +1200,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures::{future, Future};
 	use polkadot_primitives::v1::{
-		ScheduledCore, BlockData, PersistedValidationData, ValidationData,
-		TransientValidationData, HeadData, GroupRotationInfo,
+		ScheduledCore, BlockData, PersistedValidationData, HeadData, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
@@ -1222,7 +1221,7 @@ mod tests {
 		keystore: SyncCryptoStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		validation_data: ValidationData,
+		validation_data: PersistedValidationData,
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		availability_cores: Vec<CoreState>,
 		head_data: HashMap<ParaId, HeadData>,
@@ -1287,22 +1286,13 @@ mod tests {
 				parent_hash: relay_parent,
 			};
 
-			let validation_data = ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: HeadData(vec![7, 8, 9]),
-					block_number: Default::default(),
-					hrmp_mqc_heads: Vec::new(),
-					dmq_mqc_head: Default::default(),
-					max_pov_size: 1024,
-					relay_storage_root: Default::default(),
-				},
-				transient: TransientValidationData {
-					max_code_size: 1000,
-					max_head_data_size: 1000,
-					balance: Default::default(),
-					code_upgrade_allowed: None,
-					dmq_length: 0,
-				},
+			let validation_data = PersistedValidationData {
+				parent_head: HeadData(vec![7, 8, 9]),
+				block_number: Default::default(),
+				hrmp_mqc_heads: Vec::new(),
+				dmq_mqc_head: Default::default(),
+				max_pov_size: 1024,
+				relay_storage_root: Default::default(),
 			};
 
 			Self {
@@ -1342,7 +1332,7 @@ mod tests {
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let available_data = AvailableData {
-			validation_data: test.validation_data.persisted.clone(),
+			validation_data: test.validation_data.clone(),
 			pov: Arc::new(pov),
 		};
 
@@ -1483,7 +1473,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1621,7 +1611,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1916,7 +1906,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -2101,7 +2091,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
