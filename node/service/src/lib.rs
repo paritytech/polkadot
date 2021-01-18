@@ -580,7 +580,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// the collation protocol is finished.
 	// Tracking issue: https://github.com/paritytech/polkadot/issues/2283
 	#[cfg(feature = "real-overseer")]
-	config.network.yamux_window_size = Some(1024 * 1024);
+	config.network.yamux_window_size = Some(5 * 1024 * 1024);
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
