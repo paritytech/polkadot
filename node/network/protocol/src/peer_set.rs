@@ -41,7 +41,7 @@ impl PeerSet {
 			// TODO: lower this limit after https://github.com/paritytech/polkadot/issues/2283 is
 			// done and collations use request-response protocols
 			PeerSet::Collation = 16 * 1024 * 1024,
-		}
+		};
 
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
