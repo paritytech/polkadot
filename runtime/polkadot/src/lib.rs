@@ -864,8 +864,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..)
 			),
 			ProxyType::Cancellation => matches!(c,
-				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
-				Call::Utility(..)
+				Call::Proxy(..)
 			)
 		}
 	}
