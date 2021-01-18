@@ -36,9 +36,15 @@ impl PeerSet {
 	/// network service.
 	pub fn get_info(self) -> NonDefaultSetConfig {
 		let protocol = self.into_protocol_name();
+		let max_notification_size = match self {
+			PeerSet::Validation = 1024 * 1024,
+			PeerSet::Collation = 16 * 1024 * 1024,
+		}
+
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					in_peers: 25,
 					out_peers: 0,
@@ -48,6 +54,7 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				max_notification_size,
 				set_config: SetConfig {
 					in_peers: 25,
 					out_peers: 0,
