@@ -42,6 +42,7 @@ members = [
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"node/collation-generation",
+	"node/core/approval-voting",
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
