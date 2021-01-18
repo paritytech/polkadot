@@ -775,6 +775,7 @@ pub enum ProxyType {
 	Staking = 3,
 	// Skip 4 as it is now removed (was SudoBalances)
 	IdentityJudgement = 5,
+        Cancellation = 6,
 }
 
 #[cfg(test)]
@@ -789,6 +790,7 @@ mod proxy_type_tests {
 		Staking,
 		SudoBalances,
 		IdentityJudgement,
+		Cancellation,
 	}
 
 	#[test]
@@ -799,6 +801,7 @@ mod proxy_type_tests {
 			(OldProxyType::Governance, ProxyType::Governance),
 			(OldProxyType::Staking, ProxyType::Staking),
 			(OldProxyType::IdentityJudgement, ProxyType::IdentityJudgement),
+			(OldProxyType::Cancellation, ProxyType::Cancellation),
 		].into_iter() {
 			assert_eq!(i.encode(), j.encode());
 		}
@@ -857,6 +860,10 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..)
 			),
 			ProxyType::IdentityJudgement => matches!(c,
+				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
+				Call::Utility(..)
+			),
+			ProxyType::Cancellation => matches!(c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
 				Call::Utility(..)
 			)
