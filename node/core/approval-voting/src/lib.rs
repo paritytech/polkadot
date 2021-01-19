@@ -99,7 +99,7 @@ struct State<T> {
 	session_info: Vec<SessionInfo>,
 	keystore: LocalKeystore,
 	// Tick -> [(Relay Block, Candidate Hash)]
-	wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>,
+	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
 	slot_duration_millis: u64,
 	db: Arc<T>,
 
@@ -189,9 +189,18 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 
 		futures::select! {
 			tick_wakeup = wait_til_next_tick.fuse() => {
-				// TODO [now]
 				// should always be "Some" in practice.
-				let _woken = state.wakeups.remove(&tick_wakeup).unwrap_or_default();
+				let woken = state.wakeups.remove(&tick_wakeup).unwrap_or_default();
+
+				for (woken_block, woken_candidate) in woken {
+					process_wakeup(
+						&mut ctx,
+						&mut state,
+						woken_block,
+						woken_candidate,
+					).await?;
+				}
+
 			}
 			next_msg = ctx.recv().fuse() => {
 				if handle_from_overseer(
