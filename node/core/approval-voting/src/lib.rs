@@ -766,12 +766,19 @@ fn check_and_import_assignment(
 	aux_schema::write_candidate_entry(&*state.db, &assigned_candidate_hash, &candidate_entry)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
+	// We check for approvals here because we may be late in seeing a block containing a
+	// candidate for which we have already seen approvals by the same validator.
+	//
+	// For these candidates, we will receive the assignments potentially after a corresponding
+	// approval, and so we must check for approval here.
 	check_full_approvals(
 		state,
 		Some((assignment.block_hash, block_entry)),
 		&mut candidate_entry,
 		|h, _| h == &assignment.block_hash,
 	)?;
+
+	// TODO [now]: schedule wakeup
 
 	Ok(res)
 }
