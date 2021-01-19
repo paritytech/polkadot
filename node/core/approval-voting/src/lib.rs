@@ -31,7 +31,7 @@ use polkadot_subsystem::{
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex, AvailableData,
+	CandidateReceipt, CoreIndex, GroupIndex, AvailableData, BlockNumber,
 };
 use polkadot_node_primitives::approval::{
 	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
@@ -165,6 +165,7 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 	let approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest> = unimplemented!();
 	let mut approval_vote_rx = approval_vote_rx.fuse();
 	let mut state: State<T> = unimplemented!();
+	let mut last_finalized_height = None;
 
 	if let Err(e) = aux_schema::clear(&*state.db) {
 		tracing::warn!(target: LOG_TARGET, "Failed to clear DB: {:?}", e);
@@ -191,7 +192,12 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 				let _woken = state.wakeups.remove(&tick_wakeup).unwrap_or_default();
 			}
 			next_msg = ctx.recv().fuse() => {
-				if handle_from_overseer(&mut ctx, &mut state, next_msg?).await? {
+				if handle_from_overseer(
+					&mut ctx,
+					&mut state,
+					next_msg?,
+					&mut last_finalized_height,
+				).await? {
 					break
 				}
 			}
@@ -209,17 +215,20 @@ async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	x: FromOverseer<ApprovalVotingMessage>,
+	last_finalized_height: &mut Option<BlockNumber>,
 ) -> SubsystemResult<bool> {
 	match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			for (head, _span) in update.activated {
-				if let Err(e) = handle_new_head(ctx, state, head).await {
+				if let Err(e) = handle_new_head(ctx, state, head, &*last_finalized_height).await {
 					return Err(SubsystemError::with_origin("db", e));
 				}
 			}
 			Ok(false)
 		}
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			*last_finalized_height = Some(block_number);
+
 			aux_schema::canonicalize(&*state.db, block_number, block_hash)
 				.map(|_| false)
 				.map_err(|e| SubsystemError::with_origin("db", e))
@@ -248,16 +257,31 @@ async fn handle_from_overseer(
 // a subset of the ancestry of `head`, as well as `head`, starting from `head` and moving
 // backwards.
 //
-// This won't return the entire ancestry of the head in the case of a fresh DB.
+// This returns the entire ancestry up to the last finalized block's height or the last item we
+// have in the DB. This may be somewhat expensive when first recovering from major sync.
+//
 // TODO [now]: improve error handling.
 async fn determine_new_blocks(
 	ctx: &mut impl SubsystemContext,
 	db: &impl AuxStore,
 	head: Hash,
 	header: &Header,
+	finalized_number: BlockNumber,
 ) -> SubsystemResult<Vec<(Hash, Header)>> {
-	const MAX_ANCESTRY: usize = 64;
 	const ANCESTRY_STEP: usize = 4;
+
+	// Early exit if the block is in the DB or too early.
+	{
+		let already_known = aux_schema::load_block_entry(db, &head)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+			.is_some();
+
+		let before_relevant = header.number <= finalized_number;
+
+		if already_known || before_relevant {
+			return Ok(Vec::new());
+		}
+	}
 
 	let mut ancestry = vec![(head, header.clone())];
 
@@ -269,7 +293,7 @@ async fn determine_new_blocks(
 		return Ok(ancestry);
 	}
 
-	while ancestry.len() < MAX_ANCESTRY {
+	loop {
 		let &(ref last_hash, ref last_header) = ancestry.last()
 			.expect("ancestry has length 1 at initialization and is only added to; qed");
 
@@ -322,10 +346,13 @@ async fn determine_new_blocks(
 		};
 
 		for (hash, header) in batch_hashes.into_iter().zip(batch_headers) {
-			if aux_schema::load_block_entry(db, &hash)
+			let is_known = aux_schema::load_block_entry(db, &hash)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-				.is_some()
-			{
+				.is_some();
+
+			let is_relevant = header.number > finalized_number;
+
+			if is_known || !is_relevant {
 				break
 			}
 
@@ -547,13 +574,18 @@ async fn handle_new_head(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	head: Hash,
+	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<()> {
 	// Update session info based on most recent head.
 	let header: Header = unimplemented!();
 
 	cache_session_info_for_head(ctx, state, head, &header).await?;
 
-	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header)
+	// If we've just started the node and haven't yet received any finality notifications,
+	// we don't do any look-back. Approval voting is only for nodes were already online.
+	let finalized_number = finalized_number.unwrap_or(header.number.saturating_sub(1));
+
+	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header, finalized_number)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.await?;
 
