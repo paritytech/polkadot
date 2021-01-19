@@ -567,6 +567,51 @@ pub(crate) fn add_block_entry(
 	Ok(())
 }
 
+// An atomic transaction of multiple candidate or block entries.
+#[derive(Default)]
+pub struct Transaction {
+	block_entries: HashMap<Hash, BlockEntry>,
+	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
+}
+
+impl Transaction {
+	/// Put a block entry in the transaction, overwriting any other with the
+	/// same hash.
+	pub(crate) fn put_block_entry(&mut self, entry: BlockEntry) {
+		let hash = entry.block_hash;
+		let _ = self.block_entries.insert(hash, entry);
+	}
+
+	/// Put a candidate entry in the transaction, overwriting any other with the
+	/// same hash.
+	pub(crate) fn put_candidate_entry(&mut self, hash: CandidateHash, entry: CandidateEntry) {
+		let _ = self.candidate_entries.insert(hash, entry);
+	}
+
+	/// Write the contents of the transaction, atomically, to the DB.
+	pub(crate) fn write(self, db: &impl AuxStore) -> sp_blockchain::Result<()> {
+		let blocks: Vec<_> = self.block_entries.into_iter().map(|(hash, entry)| {
+			let k = block_entry_key(&hash);
+			let v = entry.encode();
+
+			(k, v)
+		}).collect();
+
+		let candidates: Vec<_> = self.candidate_entries.into_iter().map(|(hash, entry)| {
+			let k = candidate_entry_key(&hash);
+			let v = entry.encode();
+
+			(k, v)
+		}).collect();
+
+		let kv = blocks.iter().map(|(k, v)| (&k[..], &v[..]))
+			.chain(candidates.iter().map(|(k, v)| (&k[..], &v[..])))
+			.collect::<Vec<_>>();
+
+		db.insert_aux(&kv, &[])
+	}
+}
+
 /// Write a candidate entry to the store.
 pub(crate) fn write_candidate_entry(store: &impl AuxStore, candidate_hash: &CandidateHash, entry: &CandidateEntry)
 	-> sp_blockchain::Result<()>
