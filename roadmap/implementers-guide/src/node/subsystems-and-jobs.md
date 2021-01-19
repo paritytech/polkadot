@@ -25,6 +25,7 @@ Messages with an open triangle arrowhead ("Δ") do not include a return sender.
 digraph {
     rankdir=LR;
     node [shape = oval];
+    concentrate = true;
 
     av_store    [label = "Availability Store"]
     avail_dist  [label = "Availability Distribution"]
