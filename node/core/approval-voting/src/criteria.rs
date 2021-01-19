@@ -122,6 +122,8 @@ fn assigned_core_transcript(core_index: CoreIndex) -> Transcript {
 ///
 /// The current description of the protocol assigns every validator to check every core. But at different times.
 /// The idea is that most assignments are never triggered and fall by the wayside.
+///
+/// This will not assign to anything the local validator was part of the backing group for.
 pub(crate) fn compute_assignments(
 	keystore: &LocalKeystore,
 	relay_vrf_story: RelayVRFStory,
@@ -170,6 +172,17 @@ pub(crate) fn compute_assignments(
 		leaving_cores,
 		&mut assignments,
 	);
+
+	// Do not assign to backing group.
+	for (i, group) in session_info.validator_groups.iter().enumerate() {
+		if group.contains(&index) {
+			let _ = assignments.remove(&CoreIndex(i as _));
+
+			// As of the time of writing, each validator is a member of only one group,
+			// so we could break here. But there is nothing stopping us from changing
+			// that in the future. We do the full iteration for future-proofing.
+		}
+	}
 
 	assignments
 }
