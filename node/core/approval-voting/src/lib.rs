@@ -650,8 +650,55 @@ async fn check_and_import_assignment(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	assignment: IndirectAssignmentCert,
-) -> AssignmentCheckResult {
-	// TODO [now]
+) -> SubsystemResult<AssignmentCheckResult> {
+	const TOO_FAR_IN_FUTURE: SlotNumber = 5;
+
+	let block_entry = aux_schema::load_block_entry(&*state.db, &relay_block)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+	let block_entry = match block_entry {
+		Some(b) => b,
+		None => return Ok(AssignmentCheckResult::Bad),
+	};
+
+	let session_info = match state.session_info(block_entry.session) {
+		Some(s) => s,
+		None => {
+			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session);
+			return Ok(AssignmentCheckResult::Bad);
+		}
+	};
+
+	let claimed_core_index = match block_entry.candidates.get(assignment.candidate_index as usize) {
+		Some((_, core)) => *core,
+		None => return Ok(AssignmentCheckResult::Bad),
+	};
+
+	let res = crate::criteria::check_assignment_cert(
+		claimed_core_index,
+		assignment.validator,
+		&session_info,
+		block_entry.relay_vrf_story.clone(),
+		&assignment.cert,
+	);
+
+	let tranche = match res {
+		Err(crate::criteria::InvalidAssignment) => return Ok(AssignmentCheckResult::Bad),
+		Ok(tranche) => {
+			let tranche_now_of_prev_slot = tranche_now(
+				state.slot_duration_millis,
+				block_entry.slot.saturating_sub(TOO_FAR_IN_FUTURE),
+			);
+
+			if tranche >= tranche_now_of_prev_slot {
+				return Ok(AssignmentCheckResult::TooFarInFuture);
+			}
+
+			tranche
+		}
+	};
+
+	// TODO [now] import assignment
 	unimplemented!()
 }
 
