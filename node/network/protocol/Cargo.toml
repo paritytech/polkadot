@@ -13,4 +13,4 @@ parity-scale-codec = { version = "1.3.6", default-features = false, features = [
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.20", features = ["derive"] }
 thiserror = "1.0.23"
-flate2 = "1.0.19"
+flate2 = "1.0.16"
