@@ -762,19 +762,17 @@ fn check_and_import_assignment(
 		}
 	};
 
-	// update candidate entry on disk.
-	aux_schema::write_candidate_entry(&*state.db, &assigned_candidate_hash, &candidate_entry)
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
 	// We check for approvals here because we may be late in seeing a block containing a
 	// candidate for which we have already seen approvals by the same validator.
 	//
 	// For these candidates, we will receive the assignments potentially after a corresponding
 	// approval, and so we must check for approval here.
+	//
+	// Note that this writes the candidate entry and any modified block entries to disk.
 	check_full_approvals(
 		state,
 		Some((assignment.block_hash, block_entry)),
-		&mut candidate_entry,
+		candidate_entry,
 		|h, _| h == &assignment.block_hash,
 	)?;
 
@@ -880,15 +878,17 @@ fn import_checked_approval(
 	// Check if this approval vote alters the approval state of any blocks.
 	//
 	// This may include blocks beyond the already loaded block.
-	check_full_approvals(state, already_loaded, &mut candidate_entry, |_, a| a.is_assigned(validator))
-
-	// TODO [now]: write to disk.
+	check_full_approvals(state, already_loaded, candidate_entry, |_, a| a.is_assigned(validator))
 }
 
+// Checks the candidate for approval under all blocks matching the given filter.
+//
+// If returning without error, is guaranteed to have written all modified block entries and the
+// candidate entry itself.
 fn check_full_approvals(
 	state: &State<impl AuxStore>,
 	mut already_loaded: Option<(Hash, BlockEntry)>,
-	candidate_entry: &mut CandidateEntry,
+	mut candidate_entry: CandidateEntry,
 	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
 ) -> SubsystemResult<()> {
 	// We only query this max once per hash.
@@ -903,6 +903,8 @@ fn check_full_approvals(
 	};
 
 	let candidate_hash = candidate_entry.candidate.hash();
+
+	let mut transaction = aux_schema::Transaction::default();
 
 	let mut newly_approved = Vec::new();
 	for (block_hash, approval_entry) in candidate_entry.block_assignments.iter()
@@ -951,8 +953,7 @@ fn check_full_approvals(
 			newly_approved.push(*block_hash);
 			block_entry.mark_approved_by_hash(&candidate_hash);
 
-			aux_schema::write_block_entry(db, &block_entry)
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+			transaction.put_block_entry(block_entry);
 		}
 	}
 
@@ -961,6 +962,10 @@ fn check_full_approvals(
 			a.mark_approved();
 		}
 	}
+
+	transaction.put_candidate_entry(candidate_hash, candidate_entry);
+	transaction.write(db)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 	Ok(())
 }
