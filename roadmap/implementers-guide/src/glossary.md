@@ -25,6 +25,7 @@ exactly one downward message queue.
 - Parachain Validators: A subset of validators assigned during a period of time to back candidates for a specific parachain
 - Parathread: A parachain which is scheduled on a pay-as-you-go basis.
 - PDK (Parachain Development Kit): A toolset that allows one to develop a parachain. Cumulus is a PDK.
+- Preimage: In our context, if `H(X) = Y` where `H` is a hash function and `Y` is the hash, then `X` is the hash preimage.
 - Proof-of-Validity (PoV): A stateless-client proof that a parachain candidate is valid, with respect to some validation function.
 - Relay Parent: A block in the relay chain, referred to in a context where work is being done in the context of the state at this block.
 - Router: The router module is a meta module that consists of three runtime modules responsible for routing messages between paras and the relay chain. The three separate runtime modules are: Dmp, Ump, Hrmp, each responsible for the respective part of message routing.
