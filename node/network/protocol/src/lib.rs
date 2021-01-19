@@ -33,6 +33,13 @@ pub use std::sync::Arc;
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
 
+
+/// All wire sent data are enumerated in `ProtocolMessage`.
+///
+/// For each peer set `ProtocolMessage` defines a constructor specifying the data
+/// protocol of that peer set.
+pub mod message;
+
 /// A unique identifier of a request.
 pub type RequestId = u64;
 
@@ -237,6 +244,8 @@ impl View {
 }
 
 /// v1 protocol types.
+///
+/// Actual protocols as sent over the wire.
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
@@ -315,9 +324,6 @@ pub mod v1 {
 	/// All network messages on the validation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum ValidationProtocol {
-		/// Availability distribution messages
-		#[codec(index = "0")]
-		AvailabilityDistribution(AvailabilityDistributionMessage),
 		/// Bitfield distribution messages
 		#[codec(index = "1")]
 		BitfieldDistribution(BitfieldDistributionMessage),
@@ -332,7 +338,6 @@ pub mod v1 {
 		AvailabilityRecovery(AvailabilityRecoveryMessage),
 	}
 
-	impl_try_from!(ValidationProtocol, AvailabilityDistribution, AvailabilityDistributionMessage);
 	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
 	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);

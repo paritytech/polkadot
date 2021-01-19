@@ -16,9 +16,14 @@
 
 //! All peersets and protocols used for parachains.
 
+use bytes::Bytes;
+
+use parity_scale_codec::{Decode, Error as DecodeError};
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::borrow::Cow;
 use strum::{EnumIter, IntoEnumIterator};
+
+use crate::message::ProtocolMessage;
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
@@ -27,6 +32,8 @@ pub enum PeerSet {
 	Validation,
 	/// The collation peer-set is used for validator<>collator communication.
 	Collation,
+	/// Direct peer connections for availability distribution (and recovery?).
+	AvailabilityDistribution,
 }
 
 impl PeerSet {
@@ -55,6 +62,16 @@ impl PeerSet {
 					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 				},
 			},
+			PeerSet::AvailabilityDistribution => NonDefaultSetConfig {
+				notifications_protocol: protocol,
+				set_config: sc_network::config::SetConfig {
+					in_peers: 0,
+					out_peers: 0,
+					// We just follow the authorities on this one:
+					reserved_nodes: Vec::new(),
+					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+				},
+			},
 		}
 	}
 
@@ -63,6 +80,7 @@ impl PeerSet {
 		match self {
 			PeerSet::Validation => "/polkadot/validation/1",
 			PeerSet::Collation => "/polkadot/collation/1",
+			PeerSet::AvailabilityDistribution => "/polkadot/availability-distribution/1",
 		}
 	}
 
@@ -76,8 +94,27 @@ impl PeerSet {
 		match name {
 			n if n == &PeerSet::Validation.into_protocol_name() => Some(PeerSet::Validation),
 			n if n == &PeerSet::Collation.into_protocol_name() => Some(PeerSet::Collation),
+			n if n == &PeerSet::AvailabilityDistribution.into_protocol_name() => {
+				Some(PeerSet::AvailabilityDistribution)
+			}
 			_ => None,
 		}
+	}
+
+	/// Decode a scale encoded message according to the specified peer set.
+	///
+	/// On success this function will return a `ProtocolMessage` with the decoded data.
+	pub fn decode_message(&self, bytes: &mut Bytes) -> Result<ProtocolMessage, DecodeError> {
+		let r = match self {
+			Self::Validation =>
+				ProtocolMessage::Validation(Decode::decode(&mut bytes.as_ref())?),
+			Self::Collation =>
+				ProtocolMessage::Collation(Decode::decode(&mut bytes.as_ref())?),
+			Self::AvailabilityDistribution =>
+				ProtocolMessage::AvailabilityDistribution(Decode::decode(&mut bytes.as_ref())?),
+
+		};
+		Ok(r)
 	}
 }
 
