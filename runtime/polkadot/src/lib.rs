@@ -913,7 +913,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..)
 			),
 			ProxyType::Cancellation => matches!(c,
-				Call::Proxy(..)
+				Call::Proxy(pallet_proxy::Call::reject_announcement(..))
 			)
 		}
 	}
