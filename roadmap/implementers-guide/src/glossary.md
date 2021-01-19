@@ -8,6 +8,8 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Backing: A set of statements proving that a Parachain Candidate is backable.
 - Collator: A node who generates Proofs-of-Validity (PoV) for blocks of a specific parachain.
 - DMP: (Downward Message Passing). Message passing from the relay-chain to a parachain.
+- DMQ: (Downward Message Queue). A message queue for messages from the relay-chain down to a parachain. A parachain has
+exactly one downward message queue.
 - Extrinsic: An element of a relay-chain block which triggers a specific entry-point of a runtime module with given arguments.
 - GRANDPA: (Ghost-based Recursive ANcestor Deriving Prefix Agreement). The algorithm validators use to guarantee finality of the Relay Chain.
 - HRMP: (Horizontally Relay-routed Message Passing). A mechanism for message passing between parachains (hence horizontal) that leverages the relay-chain storage. Predates XCMP.
