@@ -174,8 +174,16 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
     * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate. The delay tranche for the assignment is determined by reducing `(vrf.make_bytes().to_u64() % (session_info.n_delay_tranches + session_info.zeroth_delay_tranche_width)).saturating_sub(session_info.zeroth_delay_tranche_width)`.
     * We also check that the core index derived by the output is covered by the `VRFProof` by means of an auxiliary signature.
     * If the delay tranche is too far in the future, return `VoteCheckResult::Ignore`.
-    * `import_checked_assignment`
-    * return the appropriate `VoteCheckResult` on the response channel.
+
+  * Import the assignment.
+    * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
+    * Ignore if we already observe the validator as having been assigned.
+    * Ensure the validator index is not part of the backing group for the candidate.
+    * Ensure the validator index is not present in the approval entry already.
+    * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
+    * Note the candidate index within the approval entry.
+  * Schedule a wakeup with `next_wakeup`.
+  * return the appropriate `VoteCheckResult` on the response channel.
 
 #### `ApprovalVotingMessage::CheckAndImportApproval`
 
@@ -201,14 +209,6 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 #### `tranche_now(slot_number, time) -> DelayTranche`
   * Convert `time.saturating_sub(slot_number.to_time())` to a delay tranches value
 
-#### `import_checked_assignment`
-  * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
-  * Ignore if we already observe the validator as having been assigned.
-  * Ensure the validator index is not part of the backing group for the candidate.
-  * Ensure the validator index is not present in the approval entry already.
-  * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
-  * Note the candidate index within the approval entry.
-  * Schedule a wakeup with `next_wakeup`.
 
 #### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
