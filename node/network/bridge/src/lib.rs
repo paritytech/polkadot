@@ -1279,7 +1279,7 @@ mod tests {
 				peer_a.clone(),
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-					View { heads: vec![], finalized_number: 1 },
+					View { heads: vec![Hash::repeat_byte(0x01)], finalized_number: 1 },
 				).encode(),
 			).await;
 
@@ -1292,13 +1292,13 @@ mod tests {
 			).await;
 
 			let actions = network_handle.next_network_actions(1).await;
-			assert!(network_actions_contains(
+			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::ReputationChange(
 					peer_a.clone(),
 					MALFORMED_VIEW_COST,
 				),
-			));
+			);
 		});
 	}
 
