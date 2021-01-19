@@ -242,129 +242,12 @@ decl_storage! {
 		/// will be left-padded with one or more zeroes to denote the fact that nothing is held on
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
 		///
-		/// Each entry represents a (depositor, deposit) pair.
-		pub Deposits get(fn deposits): map hasher(twox_64_concat) ParaId => Vec<(T::AccountId, BalanceOf<T>)>;
+		/// Each entry represents a (depositor, deposit) pair. If it's `None` for a particular lease
+		/// period, then the para isn't a parachain during that period.
+		pub Deposits get(fn deposits): map hasher(twox_64_concat) ParaId => Vec<Option(T::AccountId, BalanceOf<T>)>;
 
-		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
-		/// This is cleared out on the first block of the lease period.
-		pub OnboardQueue get(fn onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
-
-		pub OffboardQueue get(fn onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
-	}
-}
-
-/// Swap the existence of two items, provided by value, within an ordered list.
-///
-/// If neither item exists, or if both items exist this will do nothing. If exactly one of the
-/// items exists, then it will be removed and the other inserted.
-fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, other: T) {
-	let maybe_one_pos = ids.binary_search(&one);
-	let maybe_other_pos = ids.binary_search(&other);
-	match (maybe_one_pos, maybe_other_pos) {
-		(Ok(one_pos), Err(_)) => ids[one_pos] = other,
-		(Err(_), Ok(other_pos)) => ids[other_pos] = one,
-		_ => return,
-	};
-	ids.sort();
-}
-
-impl<T: Config> SwapAux for Module<T> {
-	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		if <Onboarding<T>>::contains_key(one) || <Onboarding<T>>::contains_key(other) {
-			Err("can't swap an undeployed parachain")?
-		}
-		Ok(())
-	}
-	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		<Offboarding<T>>::swap(one, other);
-		<Deposits<T>>::swap(one, other);
-		ManagedIds::mutate(|ids| swap_ordered_existence(ids, one, other));
-		Ok(())
-	}
-}
-
-// TODO: Implement.
-impl<T: Config> Leaser for Module<T> {
-	type AccountId = T::AccountId;
-
-	type LeasePeriod = T::BlockNumber;
-
-	type Currency = T::Currency;
-
-	fn lease_out(
-		para: ParaId,
-		leaser: Self::AccountId,
-		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
-		period_begin: Self::LeasePeriod,
-		period_count: Self::LeasePeriod,
-	) -> DispatchResult {
-		// TODO: do we still need this?
-		// Add a deployment record so we know to on-board them at the appropriate
-		// juncture.
-		<OnboardQueue<T>>::mutate(period_begin, |starts| starts.push(para_id));
-		// Add a default off-boarding account which matches the original bidder
-		<Offboarding<T>>::insert(&para_id, &bidder.who);
-		let entry = (begin_lease_period, IncomingParachain::Unset(bidder));
-		<Onboarding<T>>::insert(&para_id, entry);
-
-		// TODO: move into slots.rs
-		// Figure out whether we already have some funds of `who` held in reserve for `para_id`.
-		//  If so, then we acn deduct those from the amount that we need to reserve.
-		let maybe_additional = amount.checked_sub(&T::Leaser::deposit_held(para_id, &who));
-		let extra = if let Some(additional) = maybe_additional {
-			T::Currency::reserve(&who, additional)?;
-
-			Self::deposit_event(RawEvent::WonRenewal(para_id, range, extra, amount));
-
-			// Finally, we update the deposit held so it is `amount` for the new lease period
-			// indices that were won in the auction.
-			let maybe_offset = auction_lease_period_index
-				.checked_sub(&lease_period_index)
-				.and_then(|x| x.checked_into::<usize>());
-			if let Some(offset) = maybe_offset {
-				// Should always succeed; for it to fail it would mean we auctioned a lease period
-				// that already ended.
-
-				// The lease period index range (begin, end) that newly belongs to this parachain
-				// ID. We need to ensure that it features in `Deposits` to prevent it from being
-				// reaped too early (any managed parachain whose `Deposits` set runs low will be
-				// removed).
-				let pair = range.as_pair();
-				let pair = (pair.0 as usize + offset, pair.1 as usize + offset);
-				<Deposits<T>>::mutate(para_id, |d| {
-					// Left-pad with zeroes as necessary.
-					if d.len() < pair.0 {
-						d.resize_with(pair.0, Default::default);
-					}
-					// Then place the deposit values for as long as the chain should exist.
-					for i in pair.0 ..= pair.1 {
-						if d.len() > i {
-							// The chain bought the same lease period twice. Just take the maximum.
-							d[i] = d[i].max(amount);
-						} else if d.len() == i {
-							d.push((who, amount));
-						} else {
-							unreachable!("earlier resize means it must be >= i; qed")
-						}
-					}
-				});
-			}
-	}
-
-	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
-		Deposits::<T>::get(para)
-			.into_iter()
-			.map(|(who, amount)| if &who == leaser { amount } else { Zero::zero() })
-			.max()
-			.unwrap_or_else(Zero::zero)
-	}
-
-	fn lease_period() -> Self::LeasePeriod {
-		T::LeasePeriod::get()
-	}
-
-	fn lease_period_index() -> Self::LeasePeriod {
-		(<frame_system::Module<T>>::block_number() / T::LeasePeriod::get()).into()
+		/// The set of Para IDs that should be full parachains for the given lease period.
+		pub Leased: map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
 	}
 }
 
@@ -609,6 +492,124 @@ impl<T: Config> Module<T> {
 				<Onboarding<T>>::remove(para_id)
 			}
 		}
+	}
+}
+
+impl<T: Config> Leaser for Module<T> {
+	type AccountId = T::AccountId;
+	type LeasePeriod = T::BlockNumber;
+	type Currency = T::Currency;
+
+	fn lease_out(
+		para: ParaId,
+		leaser: Self::AccountId,
+		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
+		period_begin: Self::LeasePeriod,
+		period_count: Self::LeasePeriod,
+	) -> DispatchResult {
+
+		// Figure out whether we already have some funds of `who` held in reserve for `para_id`.
+		//  If so, then we can deduct those from the amount that we need to reserve.
+		let maybe_additional = amount.checked_sub(&T::Leaser::deposit_held(para_id, &who));
+		if let Some(additional) = maybe_additional {
+			T::Currency::reserve(&who, additional)?;
+		}
+
+		// Remember that this should be leased.
+		for p in period_begin..(period_begin + period_count) {
+			// Schedule the para for full parachain status.
+			Leased::<T>::mutate(p, |paras| paras.push(para));
+		}
+
+		Self::deposit_event(RawEvent::WonRenewal(para_id, range, extra, amount));
+
+		// Finally, we update the deposit held so it is `amount` for the new lease period
+		// indices that were won in the auction.
+		let maybe_offset = period_begin
+			.checked_sub(&Self::lease_period_index())
+			.and_then(|x| x.checked_into::<usize>());
+		if let Some(offset) = maybe_offset {
+			// Should always succeed; for it to fail it would mean we auctioned a lease period
+			// that already ended.
+
+			// offset is the amount into the `Deposits` items list that our lease begins. `period_count`
+			// is the number of items that it lasts for.
+
+			// The lease period index range (begin, end) that newly belongs to this parachain
+			// ID. We need to ensure that it features in `Deposits` to prevent it from being
+			// reaped too early (any managed parachain whose `Deposits` set runs low will be
+			// removed).
+			Deposits::<T>::mutate(para_id, |d| {
+				// Left-pad with zeroes as necessary.
+				if d.len() < offset {
+					d.resize_with(offset, None);
+				}
+				// Then place the deposit values for as long as the chain should exist.
+				for i in offset .. (offset + period_count as usize) {
+					if d.len() > i {
+						// Already exists but it's `None`. That means a later slot was already leased.
+						// No problem.
+						if d[i] == None {
+							d[i] = Some((leaser.clone(), amount))
+						} else {
+							// The chain bought the same lease period twice. How dumb. Safe to ignore.
+						}
+					} else if d.len() == i {
+						// Doesn't exist. This is usual.
+						d.push(Some((leaser.clone(), amount)));
+					} else {
+						unreachable!("earlier resize means it must be >= i; qed")
+					}
+				}
+			});
+		}
+		Ok(())
+	}
+
+	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
+		Deposits::<T>::get(para)
+			.into_iter()
+			.map(|(who, amount)| if &who == leaser { amount } else { Zero::zero() })
+			.max()
+			.unwrap_or_else(Zero::zero)
+	}
+
+	fn lease_period() -> Self::LeasePeriod {
+		T::LeasePeriod::get()
+	}
+
+	fn lease_period_index() -> Self::LeasePeriod {
+		(<frame_system::Module<T>>::block_number() / T::LeasePeriod::get()).into()
+	}
+}
+
+/// Swap the existence of two items, provided by value, within an ordered list.
+///
+/// If neither item exists, or if both items exist this will do nothing. If exactly one of the
+/// items exists, then it will be removed and the other inserted.
+fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, other: T) {
+	let maybe_one_pos = ids.binary_search(&one);
+	let maybe_other_pos = ids.binary_search(&other);
+	match (maybe_one_pos, maybe_other_pos) {
+		(Ok(one_pos), Err(_)) => ids[one_pos] = other,
+		(Err(_), Ok(other_pos)) => ids[other_pos] = one,
+		_ => return,
+	};
+	ids.sort();
+}
+
+impl<T: Config> SwapAux for Module<T> {
+	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
+		if <Onboarding<T>>::contains_key(one) || <Onboarding<T>>::contains_key(other) {
+			Err("can't swap an undeployed parachain")?
+		}
+		Ok(())
+	}
+	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
+		<Offboarding<T>>::swap(one, other);
+		<Deposits<T>>::swap(one, other);
+		ManagedIds::mutate(|ids| swap_ordered_existence(ids, one, other));
+		Ok(())
 	}
 }
 
