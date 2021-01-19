@@ -235,8 +235,8 @@ async fn handle_from_overseer(
 		}
 		FromOverseer::Signal(OverseerSignal::Conclude) => Ok(true),
 		FromOverseer::Communication { msg } => match msg {
-			ApprovalVotingMessage::CheckAndImportAssignment(a, res) => {
-				let _ = res.send(check_and_import_assignment(ctx, state, a).await);
+			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
+				let _ = res.send(check_and_import_assignment(ctx, state, a, claimed_core)?);
 				Ok(false)
 			}
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
@@ -646,14 +646,15 @@ async fn handle_new_head(
 	Ok(())
 }
 
-async fn check_and_import_assignment(
+fn check_and_import_assignment(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	assignment: IndirectAssignmentCert,
+	claimed_core_index: CoreIndex,
 ) -> SubsystemResult<AssignmentCheckResult> {
 	const TOO_FAR_IN_FUTURE: SlotNumber = 5;
 
-	let block_entry = aux_schema::load_block_entry(&*state.db, &relay_block)
+	let block_entry = aux_schema::load_block_entry(&*state.db, &assignment.block_hash)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 	let block_entry = match block_entry {
@@ -669,9 +670,12 @@ async fn check_and_import_assignment(
 		}
 	};
 
-	let claimed_core_index = match block_entry.candidates.get(assignment.candidate_index as usize) {
-		Some((_, core)) => *core,
-		None => return Ok(AssignmentCheckResult::Bad),
+	let assigned_candidate_hash = match block_entry.candidates.iter()
+		.find(|(c, _)| c == &claimed_core_index)
+		.map(|(_, h)| *h)
+	{
+		Some(a) => a,
+		None => return Ok(AssignmentCheckResult::Bad), // no candidate at core.
 	};
 
 	let res = crate::criteria::check_assignment_cert(
