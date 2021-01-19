@@ -217,7 +217,6 @@ impl State {
 					num = assignments.len(),
 					"Processing assignments from a peer",
 				);
-				// TODO: can we batch the circulation part?
 				for (assignment, claimed_index) in assignments.into_iter() {
 					self.import_and_circulate_assignment(
 						ctx,
