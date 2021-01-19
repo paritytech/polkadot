@@ -7,12 +7,12 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Backed Candidate: A Backable Candidate noted in a relay-chain block
 - Backing: A set of statements proving that a Parachain Candidate is backable.
 - Collator: A node who generates Proofs-of-Validity (PoV) for blocks of a specific parachain.
-- DMP: (Downward Message Passing). Message passing from the relay-chain to a parachain.
+- DMP: (Downward Message Passing). Message passing from the relay-chain to a parachain. Also there is a runtime parachains module with the same name.
 - DMQ: (Downward Message Queue). A message queue for messages from the relay-chain down to a parachain. A parachain has
 exactly one downward message queue.
 - Extrinsic: An element of a relay-chain block which triggers a specific entry-point of a runtime module with given arguments.
 - GRANDPA: (Ghost-based Recursive ANcestor Deriving Prefix Agreement). The algorithm validators use to guarantee finality of the Relay Chain.
-- HRMP: (Horizontally Relay-routed Message Passing). A mechanism for message passing between parachains (hence horizontal) that leverages the relay-chain storage. Predates XCMP.
+- HRMP: (Horizontally Relay-routed Message Passing). A mechanism for message passing between parachains (hence horizontal) that leverages the relay-chain storage. Predates XCMP. Also there is a runtime parachains module with the same name.
 - Inclusion Pipeline: The set of steps taken to carry a Parachain Candidate from authoring, to backing, to availability and full inclusion in an active fork of its parachain.
 - Module: A component of the Runtime logic, encapsulating storage, routines, and entry-points.
 - Module Entry Point: A recipient of new information presented to the Runtime. This may trigger routines.
