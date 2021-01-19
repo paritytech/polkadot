@@ -21,6 +21,7 @@
 pub mod claims;
 pub mod slot_range;
 pub mod slots;
+pub mod auctions;
 pub mod crowdloan;
 pub mod purchase;
 pub mod impls;
