@@ -355,14 +355,14 @@ pub mod v1 {
 	impl CompressedPoV {
 		/// Create from the given [`PoV`].
 		pub fn from_pov(pov: &PoV) -> Result<Self, CompressedPoVError> {
-			let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+			let mut encoder = GzEncoder::new(Vec::with_capacity(1024), Compression::default());
 			pov.encode_to(&mut encoder);
 			encoder.finish().map(Self).map_err(|_| CompressedPoVError::Compress)
 		}
 
 		/// Uncompress, decode and return the [`PoV`].
 		pub fn as_pov(&self) -> Result<PoV, CompressedPoVError> {
-			let mut writer = Vec::new();
+			let mut writer = Vec::with_capacity(1024);
 			let mut decoder = GzDecoder::new(&mut writer);
 			decoder.write_all(&self.0).map_err(|_| CompressedPoVError::Uncompress)?;
 			decoder.finish().map_err(|_| CompressedPoVError::Uncompress)?;
