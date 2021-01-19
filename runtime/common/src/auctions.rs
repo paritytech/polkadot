@@ -104,8 +104,7 @@ type WinningData<T> =
 	[Option<(Bidder<<T as frame_system::Config>::AccountId>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
-type WinnersData<T> =
-	Vec<(Option<NewBidder<<T as frame_system::Config>::AccountId>>, ParaId, BalanceOf<T>, SlotRange)>;
+type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>, SlotRange)>;
 
 /// The funding mode for the bid; either a continuation of a previous funder or a completely new funder.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
@@ -382,116 +381,31 @@ impl<T: Config> Module<T> {
 		auction_lease_period_index: LeasePeriodOf<T>,
 		winning_ranges: WinningData<T>,
 	) {
-		// TODO: This should just use `Leaser`'s interface.
-		//   Much (most?) of this logic should move into the implementation of Leaser.
+		Self::deposit_event(RawEvent::AuctionClosed(Self::auction_counter()));
 
-		// First, unreserve all amounts that were reserved for the bids. We will later deduct the
+		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
 		for (bidder, _) in winning_ranges.iter().filter_map(|x| x.as_ref()) {
-			if let Some(amount) = <ReservedAmounts<T>>::take(bidder) {
+			if let Some(amount) = ReservedAmounts::<T>::take(bidder) {
 				T::Currency::unreserve(&bidder.funding_account(), amount);
 			}
 		}
 
 		// Next, calculate the winning combination of slots and thus the final winners of the
 		// auction.
-		let winners = Self::calculate_winners(winning_ranges, T::Parachains::new_id);
+		// TODO: This will need refactoring so it always uses ParaId (and never attempts to create a new ParaId)
+		let winners = Self::calculate_winners(winning_ranges);
 
-		Self::deposit_event(RawEvent::AuctionClosed(Self::auction_counter()));
-
-		// Go through those winners and deduct their bid, updating our table of deposits
+		// Go through those winners and re-reserve their bid, updating our table of deposits
 		// accordingly.
-		for (maybe_new_deploy, para_id, amount, range) in winners.into_iter() {
-			match maybe_new_deploy {
-				Some(bidder) => {
-					// For new deployments we ensure the full amount is deducted. This should always
-					// succeed as we just unreserved the same amount above.
-					if T::Currency::withdraw(
-						&bidder.who,
-						amount,
-						WithdrawReasons::FEE,
-						ExistenceRequirement::AllowDeath
-					).is_err() {
-						continue;
-					}
+		for (leaser, para, amount, range) in winners.into_iter() {
+			let begin_offset = <LeasePeriodOf<T>>::from(range.as_pair().0 as u32);
+			let period_begin = auction_lease_period_index + begin_offset;
+			let period_count = <LeasePeriodOf<T>>::from(range.len() as u32);
 
-					// Add para IDs of any chains that will be newly deployed to our set of managed
-					// IDs.
-					ManagedIds::mutate(|ids|
-						if let Err(pos) = ids.binary_search(&para_id) {
-							ids.insert(pos, para_id)
-						} else {
-							// This can't happen as it's a winner being newly
-							// deployed and thus the para_id shouldn't already be being managed.
-						}
-					);
-					Self::deposit_event(RawEvent::WonDeploy(bidder.clone(), range, para_id, amount));
-
-					// Add a deployment record so we know to on-board them at the appropriate
-					// juncture.
-					let begin_offset = <LeasePeriodOf<T>>::from(range.as_pair().0 as u32);
-					let begin_lease_period = auction_lease_period_index + begin_offset;
-					<OnboardQueue<T>>::mutate(begin_lease_period, |starts| starts.push(para_id));
-					// Add a default off-boarding account which matches the original bidder
-					<Offboarding<T>>::insert(&para_id, &bidder.who);
-					let entry = (begin_lease_period, IncomingParachain::Unset(bidder));
-					<Onboarding<T>>::insert(&para_id, entry);
-				}
-				None => {
-					// For renewals, reserve any extra on top of what we already have held
-					// on deposit for their chain.
-					let extra = if let Some(additional) =
-						amount.checked_sub(&Self::deposit_held(&para_id))
-					{
-						if T::Currency::withdraw(
-							&para_id.into_account(),
-							additional,
-							WithdrawReasons::FEE,
-							ExistenceRequirement::AllowDeath
-						).is_err() {
-							continue;
-						}
-						additional
-					} else {
-						Default::default()
-					};
-					Self::deposit_event(RawEvent::WonRenewal(para_id, range, extra, amount));
-				}
-			}
-
-			// Finally, we update the deposit held so it is `amount` for the new lease period
-			// indices that were won in the auction.
-			let maybe_offset = auction_lease_period_index
-				.checked_sub(&lease_period_index)
-				.and_then(|x| x.checked_into::<usize>());
-			if let Some(offset) = maybe_offset {
-				// Should always succeed; for it to fail it would mean we auctioned a lease period
-				// that already ended.
-
-				// The lease period index range (begin, end) that newly belongs to this parachain
-				// ID. We need to ensure that it features in `Deposits` to prevent it from being
-				// reaped too early (any managed parachain whose `Deposits` set runs low will be
-				// removed).
-				let pair = range.as_pair();
-				let pair = (pair.0 as usize + offset, pair.1 as usize + offset);
-				<Deposits<T>>::mutate(para_id, |d| {
-					// Left-pad with zeroes as necessary.
-					if d.len() < pair.0 {
-						d.resize_with(pair.0, Default::default);
-					}
-					// Then place the deposit values for as long as the chain should exist.
-					for i in pair.0 ..= pair.1 {
-						if d.len() > i {
-							// The chain bought the same lease period twice. Just take the maximum.
-							d[i] = d[i].max(amount);
-						} else if d.len() == i {
-							d.push(amount);
-						} else {
-							unreachable!("earlier resize means it must be >= i; qed")
-						}
-					}
-				});
+			if T::Leaser::lease_out(para, leaser, amount, period_begin, period_count).is_err() {
+				continue
 			}
 		}
 	}
@@ -598,8 +512,7 @@ impl<T: Config> Module<T> {
 	/// This is a simple dynamic programming algorithm designed by Al, the original code is at:
 	/// https://github.com/w3f/consensus/blob/master/NPoS/auctiondynamicthing.py
 	fn calculate_winners(
-		mut winning: WinningData<T>,
-		new_id: impl Fn() -> ParaId
+		mut winning: WinningData<T>
 	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at:

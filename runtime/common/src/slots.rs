@@ -111,7 +111,7 @@ pub trait Leaser {
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
-	) -> Result<(), ()>;
+	) -> DispatchResult;
 
 	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
 	/// go down outside of a lease period.
@@ -248,6 +248,8 @@ decl_storage! {
 		/// The set of Para IDs that have won and need to be on-boarded at an upcoming lease-period.
 		/// This is cleared out on the first block of the lease period.
 		pub OnboardQueue get(fn onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
+
+		pub OffboardQueue get(fn onboard_queue): map hasher(twox_64_concat) LeasePeriodOf<T> => Vec<ParaId>;
 	}
 }
 
@@ -295,9 +297,58 @@ impl<T: Config> Leaser for Module<T> {
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
-	) -> Result<(), ()> {
-		// TODO: This will need code to be moved from `manage_auction_end` in `auctions.rs`.
-		unimplemented!()
+	) -> DispatchResult {
+		// TODO: do we still need this?
+		// Add a deployment record so we know to on-board them at the appropriate
+		// juncture.
+		<OnboardQueue<T>>::mutate(period_begin, |starts| starts.push(para_id));
+		// Add a default off-boarding account which matches the original bidder
+		<Offboarding<T>>::insert(&para_id, &bidder.who);
+		let entry = (begin_lease_period, IncomingParachain::Unset(bidder));
+		<Onboarding<T>>::insert(&para_id, entry);
+
+		// TODO: move into slots.rs
+		// Figure out whether we already have some funds of `who` held in reserve for `para_id`.
+		//  If so, then we acn deduct those from the amount that we need to reserve.
+		let maybe_additional = amount.checked_sub(&T::Leaser::deposit_held(para_id, &who));
+		let extra = if let Some(additional) = maybe_additional {
+			T::Currency::reserve(&who, additional)?;
+
+			Self::deposit_event(RawEvent::WonRenewal(para_id, range, extra, amount));
+
+			// Finally, we update the deposit held so it is `amount` for the new lease period
+			// indices that were won in the auction.
+			let maybe_offset = auction_lease_period_index
+				.checked_sub(&lease_period_index)
+				.and_then(|x| x.checked_into::<usize>());
+			if let Some(offset) = maybe_offset {
+				// Should always succeed; for it to fail it would mean we auctioned a lease period
+				// that already ended.
+
+				// The lease period index range (begin, end) that newly belongs to this parachain
+				// ID. We need to ensure that it features in `Deposits` to prevent it from being
+				// reaped too early (any managed parachain whose `Deposits` set runs low will be
+				// removed).
+				let pair = range.as_pair();
+				let pair = (pair.0 as usize + offset, pair.1 as usize + offset);
+				<Deposits<T>>::mutate(para_id, |d| {
+					// Left-pad with zeroes as necessary.
+					if d.len() < pair.0 {
+						d.resize_with(pair.0, Default::default);
+					}
+					// Then place the deposit values for as long as the chain should exist.
+					for i in pair.0 ..= pair.1 {
+						if d.len() > i {
+							// The chain bought the same lease period twice. Just take the maximum.
+							d[i] = d[i].max(amount);
+						} else if d.len() == i {
+							d.push((who, amount));
+						} else {
+							unreachable!("earlier resize means it must be >= i; qed")
+						}
+					}
+				});
+			}
 	}
 
 	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
@@ -383,6 +434,25 @@ decl_module! {
 			}
 
 			0
+		}
+
+		#[weight = 0]
+		fn register(origin, id: ParaId) -> DispatchResult {
+			// TODO: ...
+			ManagedIds::mutate(|ids|
+				if let Err(pos) = ids.binary_search(&para_id) {
+					ids.insert(pos, para_id)
+				} else {
+					// This can't happen as it's a winner being newly
+					// deployed and thus the para_id shouldn't already be being managed.
+				}
+			);
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn unregister(origin, id: ParaId) {
+			// TODO
 		}
 
 		/// Set the deploy information for a successful bid to deploy a new parachain.
