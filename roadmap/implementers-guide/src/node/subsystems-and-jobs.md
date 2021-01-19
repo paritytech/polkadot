@@ -12,16 +12,18 @@ The work that subsystems spawn to be done on a specific relay-parent is known as
 
 Subsystems must be robust to spurious exits. The outputs of the set of subsystems as a whole comprises of signed messages and data committed to disk. Care must be taken to avoid issuing messages that are not substantiated. Since subsystems need to be safe under spurious exits, it is the expected behavior that an `OverseerSignal::Conclude` can just lead to breaking the loop and exiting directly as opposed to waiting for everything to shut down gracefully.
 
-## Subsystem Data Flow
+## Subsystem Message Traffic
 
+Which subsystems send messages to which other subsystems.
 
 **Note**: This diagram omits the overseer for simplicity. In fact, all messages are relayed via the overseer.
 
-**Note**: Messages with a diamond arrowhead (`♢`) include a `oneshot::Sender` which communicates a response from the recipient.
+**Note**: Messages with a filled diamond arrowhead ("♦") include a `oneshot::Sender` which communicates a response from the recipient.
+Messages with an open triangle arrowhead ("Δ") do not include a return sender.
 
 ```dot process
 digraph {
-    layout="circo";
+    rankdir=LR;
     node [shape = oval];
 
     av_store    [label = "Availability Store"]
@@ -35,44 +37,87 @@ digraph {
     chn_api     [label = "Chain API"]
     coll_gen    [label = "Collation Generation"]
     coll_prot   [label = "Collator Protocol"]
-    disp_part   [label = "Dispute Participation"]
-    misb_arb    [label = "Misbehavior Arbitration"]
     net_brdg    [label = "Network Bridge"]
-    peer_set    [label = "Peer Set Manager"]
     pov_dist    [label = "PoV Distribution"]
     provisioner [label = "Provisioner"]
     runt_api    [label = "Runtime API"]
     stmt_dist   [label = "Statement Distribution"]
 
-    av_store    -> runt_api     [arrowType = "odiamond",    label = "Request::CandidateEvents"]
-    av_store    -> chn_api      [arrowType = "odiamond",    label = "BlockNumber"]
-    av_store    -> chn_api      [arrowType = "odiamond",    label = "BlockHeader"]
-    av_store    -> runt_api     [arrowType = "odiamond",    label = "Request::Validators"]
-    av_store    -> chn_api      [arrowType = "odiamond",    label = "FinalizedBlockHash"]
+    av_store    -> runt_api     [arrowhead = "diamond", label = "Request::CandidateEvents"]
+    av_store    -> chn_api      [arrowhead = "diamond", label = "BlockNumber"]
+    av_store    -> chn_api      [arrowhead = "diamond", label = "BlockHeader"]
+    av_store    -> runt_api     [arrowhead = "diamond", label = "Request::Validators"]
+    av_store    -> chn_api      [arrowhead = "diamond", label = "FinalizedBlockHash"]
 
-    avail_dist  -> net_brdg     [arrowType = "onormal",     label = "Request::SendValidationMessages"]
-    avail_dist  -> runt_api     [arrowType = "odiamond",    label = "Request::AvailabilityCores"]
-    avail_dist  -> net_brdg     [arrowType = "onormal",     label = "ReportPeer"]
-    avail_dist  -> av_store     [arrowType = "odiamond",    label = "QueryDataAvailability"]
-    avail_dist  -> av_store     [arrowType = "odiamond",    label = "QueryChunk"]
-    avail_dist  -> av_store     [arrowType = "odiamond",    label = "StoreChunk"]
-    avail_dist  -> runt_api     [arrowType = "odiamond",    label = "Request::Validators"]
-    avail_dist  -> chn_api      [arrowType = "odiamond",    label = "Ancestors"]
-    avail_dist  -> runt_api     [arrowType = "odiamond",    label = "Request::SessionIndexForChild"]
+    avail_dist  -> net_brdg     [arrowhead = "onormal", label = "Request::SendValidationMessages"]
+    avail_dist  -> runt_api     [arrowhead = "diamond", label = "Request::AvailabilityCores"]
+    avail_dist  -> net_brdg     [arrowhead = "onormal", label = "ReportPeer"]
+    avail_dist  -> av_store     [arrowhead = "diamond", label = "QueryDataAvailability"]
+    avail_dist  -> av_store     [arrowhead = "diamond", label = "QueryChunk"]
+    avail_dist  -> av_store     [arrowhead = "diamond", label = "StoreChunk"]
+    avail_dist  -> runt_api     [arrowhead = "diamond", label = "Request::Validators"]
+    avail_dist  -> chn_api      [arrowhead = "diamond", label = "Ancestors"]
+    avail_dist  -> runt_api     [arrowhead = "diamond", label = "Request::SessionIndexForChild"]
 
-    avail_rcov  -> net_brdg     [arrowType = "onormal",     label = "ReportPeer"]
-    avail_rcov  -> av_store     [arrowType = "odiamond",    label = "QueryChunk"]
-    avail_rcov  -> net_brdg     [arrowType = "odiamond",    label = "ConnectToValidators"]
-    avail_rcov  -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage::Chunk"]
-    avail_rcov  -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage::RequestChunk"]
+    avail_rcov  -> net_brdg     [arrowhead = "onormal", label = "ReportPeer"]
+    avail_rcov  -> av_store     [arrowhead = "diamond", label = "QueryChunk"]
+    avail_rcov  -> net_brdg     [arrowhead = "diamond", label = "ConnectToValidators"]
+    avail_rcov  -> net_brdg     [arrowhead = "onormal", label = "SendValidationMessage::Chunk"]
+    avail_rcov  -> net_brdg     [arrowhead = "onormal", label = "SendValidationMessage::RequestChunk"]
 
-    bitf_dist   -> net_brdg     [arrowType = "onormal",     label = "ReportPeer"]
-    bitf_dist   -> provisioner  [arrowType = "onormal",     label = "ProvisionableData::Bitfield"]
-    bitf_dist   -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage"]
-    bitf_dist   -> net_brdg     [arrowType = "onormal",     label = "SendValidationMessage"]
-    bitf_dist   -> {
-        runt_api [arrowType = "odiamond", label = "Request::Validatiors"]
-        runt_api [arrowType = "odiamond", label = "Request::SessionIndexForChild"]
-    }
+    bitf_dist   -> net_brdg     [arrowhead = "onormal", label = "ReportPeer"]
+    bitf_dist   -> provisioner  [arrowhead = "onormal", label = "ProvisionableData::Bitfield"]
+    bitf_dist   -> net_brdg     [arrowhead = "onormal", label = "SendValidationMessage"]
+    bitf_dist   -> net_brdg     [arrowhead = "onormal", label = "SendValidationMessage"]
+    bitf_dist   -> runt_api     [arrowhead = "diamond", label = "Request::Validatiors"]
+    bitf_dist   -> runt_api     [arrowhead = "diamond", label = "Request::SessionIndexForChild"]
+
+    bitf_sign   -> av_store     [arrowhead = "diamond", label = "QueryChunkAvailability"]
+    bitf_sign   -> runt_api     [arrowhead = "diamond", label = "Request::AvailabilityCores"]
+    bitf_sign   -> bitf_dist    [arrowhead = "onormal", label = "DistributeBitfield"]
+
+    cand_back   -> av_store     [arrowhead = "diamond", label = "StoreAvailableData"]
+    cand_back   -> pov_dist     [arrowhead = "diamond", label = "FetchPoV"]
+    cand_back   -> cand_val     [arrowhead = "diamond", label = "ValidateFromChainState"]
+    cand_back   -> cand_sel     [arrowhead = "onormal", label = "Invalid"]
+    cand_back   -> provisioner  [arrowhead = "onormal", label = "ProvisionableData::MisbehaviorReport"]
+    cand_back   -> provisioner  [arrowhead = "onormal", label = "ProvisionableData::BackedCandidate"]
+    cand_back   -> pov_dist     [arrowhead = "onormal", label = "DistributePoV"]
+    cand_back   -> stmt_dist    [arrowhead = "onormal", label = "Share"]
+
+    cand_sel    -> coll_prot    [arrowhead = "diamond", label = "FetchCollation"]
+    cand_sel    -> cand_back    [arrowhead = "onormal", label = "Second"]
+    cand_sel    -> coll_prot    [arrowhead = "onormal", label = "ReportCollator"]
+
+    cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::PersistedValidationData"]
+    cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::ValidationCode"]
+    cand_val    -> runt_api     [arrowhead = "diamond", label = "Request::CheckValidationOutputs"]
+
+    coll_gen    -> coll_prot    [arrowhead = "onormal", label = "DistributeCollation"]
+
+    coll_prot   -> net_brdg     [arrowhead = "onormal", label = "ReportPeer"]
+    coll_prot   -> net_brdg     [arrowhead = "onormal", label = "Declare"]
+    coll_prot   -> net_brdg     [arrowhead = "onormal", label = "AdvertiseCollation"]
+    coll_prot   -> net_brdg     [arrowhead = "onormal", label = "Collation"]
+    coll_prot   -> net_brdg     [arrowhead = "onormal", label = "RequestCollation"]
+    coll_prot   -> cand_sel     [arrowhead = "onormal", label = "Collation"]
+
+    net_brdg    -> avail_dist   [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
+    net_brdg    -> bitf_dist    [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
+    net_brdg    -> pov_dist     [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
+    net_brdg    -> stmt_dist    [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
+    net_brdg    -> coll_prot    [arrowhead = "onormal", label = "NetworkBridgeUpdateV1"]
+
+    pov_dist    -> net_brdg     [arrowhead = "onormal", label = "SendValidationMessage"]
+    pov_dist    -> net_brdg     [arrowhead = "onormal", label = "ReportPeer"]
+
+    provisioner -> cand_back    [arrowhead = "diamond", label = "GetBackedCandidates"]
+    provisioner -> chn_api      [arrowhead = "diamond", label = "BlockNumber"]
+
+    stmt_dist   -> net_brdg     [arrowhead = "onormal", label = "SendValidationMessage"]
+    stmt_dist   -> net_brdg     [arrowhead = "onormal", label = "ReportPeer"]
+    stmt_dist   -> cand_back    [arrowhead = "onormal", label = "Statement"]
+    stmt_dist   -> runt_api     [arrowhead = "onormal", label = "Request::Validators"]
+    stmt_dist   -> runt_api     [arrowhead = "onormal", label = "Request::SessionIndexForChild"]
 }
 ```
