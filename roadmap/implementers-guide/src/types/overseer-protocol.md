@@ -63,6 +63,7 @@ enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
 		IndirectAssignmentCert,
+		CoreIndex, // The claimed core index of the assignment.
 		ResponseChannel<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the

@@ -38,7 +38,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, CandidateHash,
+	ValidationCode, ValidatorId, CandidateHash, CoreIndex,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
 use std::{sync::Arc, collections::btree_map::BTreeMap};
@@ -78,6 +78,7 @@ pub enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
 		IndirectAssignmentCert,
+		CoreIndex,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
 
