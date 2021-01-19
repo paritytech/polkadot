@@ -348,11 +348,6 @@ impl<T: Config> Module<T> {
 		None
 	}
 
-	/// Returns the current lease period.
-	fn lease_period_index() -> LeasePeriodOf<T> {
-		(<frame_system::Module<T>>::block_number() / T::Leaser::lease_period()).into()
-	}
-
 	/// Some when the auction's end is known (with the end block number). None if it is unknown.
 	/// If `Some` then the block number must be at most the previous block and at least the
 	/// previous block minus `T::EndingPeriod::get()`.
@@ -389,7 +384,7 @@ impl<T: Config> Module<T> {
 	) {
 		// TODO: This should just use `Leaser`'s interface.
 		//   Much (most?) of this logic should move into the implementation of Leaser.
-		
+
 		// First, unreserve all amounts that were reserved for the bids. We will later deduct the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
