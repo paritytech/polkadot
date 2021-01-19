@@ -569,6 +569,7 @@ pub(crate) fn add_block_entry(
 
 // An atomic transaction of multiple candidate or block entries.
 #[derive(Default)]
+#[must_use = "Transactions do nothing unless written to a DB"]
 pub struct Transaction {
 	block_entries: HashMap<Hash, BlockEntry>,
 	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
