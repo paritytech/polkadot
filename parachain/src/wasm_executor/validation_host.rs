@@ -26,7 +26,7 @@ use super::{
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
 use parking_lot::Mutex;
 use log::{debug, trace};
-use futures::executor::ThreadPool;
+use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use sp_core::traits::SpawnNamed;
 
 const WORKER_ARG: &'static str = "validation-worker";
