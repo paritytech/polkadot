@@ -25,5 +25,6 @@ sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch =
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]

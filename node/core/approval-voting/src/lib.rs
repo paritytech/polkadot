@@ -35,12 +35,14 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::approval::{
 	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
-	BlockApprovalMeta, RelayVRFStory,
+	BlockApprovalMeta, RelayVRFStory, ApprovalVote,
 };
+use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
 use sc_client_api::backend::AuxStore;
 use sp_consensus_babe::Epoch as BabeEpoch;
+use sp_runtime::traits::AppVerify;
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
@@ -236,11 +238,11 @@ async fn handle_from_overseer(
 		FromOverseer::Signal(OverseerSignal::Conclude) => Ok(true),
 		FromOverseer::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
-				let _ = res.send(check_and_import_assignment(ctx, state, a, claimed_core)?);
+				let _ = res.send(check_and_import_assignment(state, a, claimed_core)?);
 				Ok(false)
 			}
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
-				let _ = res.send(check_and_import_approval(ctx, state, a).await);
+				check_and_import_approval(state, a, res)?;
 				Ok(false)
 			}
 			ApprovalVotingMessage::ApprovedAncestor(_target, _lower_bound, _res ) => {
@@ -646,8 +648,14 @@ async fn handle_new_head(
 	Ok(())
 }
 
+fn approval_signing_payload(
+	approval_vote: ApprovalVote,
+	session_index: SessionIndex,
+) -> Vec<u8> {
+	(approval_vote, session_index).encode()
+}
+
 fn check_and_import_assignment(
-	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	assignment: IndirectAssignmentCert,
 	claimed_core_index: CoreIndex,
@@ -758,7 +766,7 @@ fn check_and_import_assignment(
 	aux_schema::write_candidate_entry(&*state.db, &assigned_candidate_hash, &candidate_entry)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
-	// TODO [now]: schedule wakeup
+	// TODO [now]: schedule wakeup and `check_full_approvals`.
 	Ok(res)
 }
 
@@ -770,13 +778,168 @@ fn is_in_backing_group(
 	validator_groups.get(group.0 as usize).map_or(false, |g| g.contains(&validator))
 }
 
-async fn check_and_import_approval(
-	ctx: &mut impl SubsystemContext,
+fn check_and_import_approval(
 	state: &mut State<impl AuxStore>,
 	approval: IndirectSignedApprovalVote,
-) -> ApprovalCheckResult {
-	// TODO [now]
-	unimplemented!()
+	response: oneshot::Sender<ApprovalCheckResult>,
+) -> SubsystemResult<()> {
+	macro_rules! respond {
+		($e: expr) => { {
+			let _ = response.send($e);
+			return Ok(());
+		} }
+	}
+
+	let block_entry = aux_schema::load_block_entry(&*state.db, &approval.block_hash)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+	let block_entry = match block_entry {
+		Some(b) => b,
+		None => respond!(ApprovalCheckResult::Bad)
+	};
+
+	let session_info = match state.session_info(block_entry.session) {
+		Some(s) => s,
+		None => {
+			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session);
+			respond!(ApprovalCheckResult::Bad)
+		}
+	};
+
+	let approved_candidate_hash = match block_entry.candidates.get(approval.candidate_index as usize) {
+		Some((_, h)) => *h,
+		None => respond!(ApprovalCheckResult::Bad)
+	};
+
+	let approval_payload = approval_signing_payload(
+		ApprovalVote(approved_candidate_hash),
+		block_entry.session,
+	);
+
+	let pubkey = match session_info.validators.get(approval.validator as usize) {
+		Some(k) => k,
+		None => respond!(ApprovalCheckResult::Bad)
+	};
+
+	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
+
+	if !approval_sig_valid {
+		respond!(ApprovalCheckResult::Bad)
+	}
+
+	let candidate_entry = match aux_schema::load_candidate_entry(&*state.db, &approved_candidate_hash)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+	{
+		Some(c) => c,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Unknown candidate entry for {}",
+				approved_candidate_hash,
+			);
+
+			respond!(ApprovalCheckResult::Bad)
+		}
+	};
+
+	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
+	let _ = response.send(ApprovalCheckResult::Accepted);
+
+	import_checked_approval(
+		state,
+		Some((approval.block_hash, block_entry)),
+		candidate_entry,
+		approval.validator,
+	)
+}
+
+fn import_checked_approval(
+	state: &State<impl AuxStore>,
+	already_loaded: Option<(Hash, BlockEntry)>,
+	mut candidate_entry: CandidateEntry,
+	validator: ValidatorIndex,
+) -> SubsystemResult<()> {
+	if candidate_entry.mark_approval(validator) {
+		// already approved - nothing to do here.
+		return Ok(());
+	}
+
+	// Check if this approval vote alters the approval state of any blocks.
+	//
+	// This may include blocks beyond the already loaded block.
+	check_full_approvals(state, already_loaded, candidate_entry, |_, a| a.is_assigned(validator))
+}
+
+fn check_full_approvals(
+	state: &State<impl AuxStore>,
+	mut already_loaded: Option<(Hash, BlockEntry)>,
+	mut candidate_entry: CandidateEntry,
+	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
+) -> SubsystemResult<()> {
+	// We only query this max once per hash.
+	let db = &*state.db;
+	let mut load_block_entry = move |block_hash| -> SubsystemResult<Option<BlockEntry>> {
+		if already_loaded.as_ref().map_or(false, |(h, _)| h == block_hash) {
+			Ok(already_loaded.take().map(|(_, c)| c))
+		} else {
+			aux_schema::load_block_entry(db, block_hash)
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+		}
+	};
+
+	let candidate_hash = candidate_entry.candidate.hash();
+
+	for (block_hash, approval_entry) in candidate_entry.block_assignments.iter()
+		.filter(|(h, a)| !a.is_approved() && filter(h, a))
+	{
+		let mut block_entry = match load_block_entry(block_hash)? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Missing block entry {} referenced by candidate {}",
+					block_hash,
+					candidate_entry.candidate.hash(),
+				);
+				continue
+			}
+			Some(b) => b,
+		};
+
+		let session_info = match state.session_info(block_entry.session) {
+			Some(s) => s,
+			None => {
+				tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session);
+				continue
+			}
+		};
+
+		let tranche_now = tranche_now(state.slot_duration_millis, block_entry.slot);
+
+		let required_tranches = tranches_to_approve(
+			approval_entry,
+			&candidate_entry.approvals,
+			tranche_now,
+			slot_number_to_tick(state.slot_duration_millis, block_entry.slot),
+			slot_number_to_tick(state.slot_duration_millis, session_info.no_show_slots as _),
+			session_info.needed_approvals as _
+		);
+
+		let now_approved = check_approval(
+			&block_entry,
+			&candidate_entry,
+			approval_entry,
+			required_tranches,
+		);
+
+		if now_approved {
+			block_entry.mark_approved_by_hash(&candidate_hash);
+
+			aux_schema::write_block_entry(db, &block_entry)
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+		}
+	}
+
+	Ok(())
 }
 
 enum RequiredTranches {

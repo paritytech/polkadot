@@ -145,6 +145,16 @@ impl ApprovalEntry {
 				a
 			})
 	}
+
+	/// Whether the approval entry is approved
+	pub(crate) fn is_approved(&self) -> bool {
+		self.approved
+	}
+
+	/// Mark the approval entry as approved.
+	pub(crate) fn mark_approved(&mut self) {
+		self.approved = true;
+	}
 }
 
 /// Metadata regarding approval of a particular candidate.
@@ -162,6 +172,13 @@ impl CandidateEntry {
 	/// Access the bit-vec of approvals.
 	pub(crate) fn approvals(&self) -> &BitSlice<BitOrderLsb0, u8> {
 		&self.approvals
+	}
+
+	/// Note that a given validator has approved. Return the previous approval state.
+	pub(crate) fn mark_approval(&mut self, validator: ValidatorIndex) -> bool {
+		let prev = *self.approvals.get(validator as usize).unwrap_or(&false);
+		self.approvals.set(validator as usize, true);
+		prev
 	}
 }
 
@@ -181,6 +198,15 @@ pub(crate) struct BlockEntry {
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: BitVec<BitOrderLsb0, u8>,
 	pub children: Vec<Hash>,
+}
+
+impl BlockEntry {
+	/// Mark a candidate as fully approved in the bitfield.
+	pub(crate) fn mark_approved_by_hash(&mut self, candidate_hash: &CandidateHash) {
+		if let Some(p) = self.candidates.iter().position(|(_, h)| h == candidate_hash) {
+			self.approved_bitfield.set(p, true);
+		}
+	}
 }
 
 /// A range from earliest..last block number stored within the DB.
@@ -546,6 +572,17 @@ pub(crate) fn write_candidate_entry(store: &impl AuxStore, candidate_hash: &Cand
 	-> sp_blockchain::Result<()>
 {
 	let k = candidate_entry_key(candidate_hash);
+	let v = entry.encode();
+	let kv = (&k[..], &v[..]);
+
+	store.insert_aux(std::iter::once(&kv), &[])
+}
+
+/// Write a block entry to the store.
+pub(crate) fn write_block_entry(store: &impl AuxStore, entry: &BlockEntry)
+	-> sp_blockchain::Result<()>
+{
+	let k = block_entry_key(&entry.block_hash);
 	let v = entry.encode();
 	let kv = (&k[..], &v[..]);
 

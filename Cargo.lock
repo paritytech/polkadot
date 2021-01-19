@@ -5082,6 +5082,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus-babe",
  "sp-consensus-slots",
+ "sp-runtime",
  "tracing",
  "tracing-futures",
 ]
