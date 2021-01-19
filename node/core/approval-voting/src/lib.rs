@@ -766,7 +766,13 @@ fn check_and_import_assignment(
 	aux_schema::write_candidate_entry(&*state.db, &assigned_candidate_hash, &candidate_entry)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
-	// TODO [now]: schedule wakeup and `check_full_approvals`.
+	check_full_approvals(
+		state,
+		Some((assignment.block_hash, block_entry)),
+		&mut candidate_entry,
+		|h, _| h == &assignment.block_hash,
+	)?;
+
 	Ok(res)
 }
 
@@ -867,13 +873,15 @@ fn import_checked_approval(
 	// Check if this approval vote alters the approval state of any blocks.
 	//
 	// This may include blocks beyond the already loaded block.
-	check_full_approvals(state, already_loaded, candidate_entry, |_, a| a.is_assigned(validator))
+	check_full_approvals(state, already_loaded, &mut candidate_entry, |_, a| a.is_assigned(validator))
+
+	// TODO [now]: write to disk.
 }
 
 fn check_full_approvals(
 	state: &State<impl AuxStore>,
 	mut already_loaded: Option<(Hash, BlockEntry)>,
-	mut candidate_entry: CandidateEntry,
+	candidate_entry: &mut CandidateEntry,
 	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
 ) -> SubsystemResult<()> {
 	// We only query this max once per hash.
@@ -889,6 +897,7 @@ fn check_full_approvals(
 
 	let candidate_hash = candidate_entry.candidate.hash();
 
+	let mut newly_approved = Vec::new();
 	for (block_hash, approval_entry) in candidate_entry.block_assignments.iter()
 		.filter(|(h, a)| !a.is_approved() && filter(h, a))
 	{
@@ -932,10 +941,17 @@ fn check_full_approvals(
 		);
 
 		if now_approved {
+			newly_approved.push(*block_hash);
 			block_entry.mark_approved_by_hash(&candidate_hash);
 
 			aux_schema::write_block_entry(db, &block_entry)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+		}
+	}
+
+	for b in &newly_approved {
+		if let Some(a) = candidate_entry.block_assignments.get_mut(b) {
+			a.mark_approved();
 		}
 	}
 
