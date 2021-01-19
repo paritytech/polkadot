@@ -65,7 +65,7 @@ decl_module! {
 /// An abstraction for the authority discovery pallet
 /// to help with mock testing.
 pub trait AuthorityDiscoveryConfig {
-	/// Retrieve authority identifiers of the current and next authority set.
+	/// Retrieve authority identifiers of the current authority set in canonical ordering.
 	fn authorities() -> Vec<AuthorityDiscoveryId>;
 }
 

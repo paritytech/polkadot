@@ -27,7 +27,7 @@ use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo, AssignmentId,
 };
 use runtime_common::{
@@ -60,7 +60,7 @@ use frame_support::{
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use frame_system::{EnsureRoot};
 
@@ -850,11 +850,6 @@ sp_api::impl_runtime_apis! {
 			Vec::new()
 		}
 
-		fn full_validation_data(_: Id, _: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>> {
-			None
-		}
-
 		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<BlockNumber>> {
 			None
@@ -1019,6 +1014,9 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
 		}
 	}
 

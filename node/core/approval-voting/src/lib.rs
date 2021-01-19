@@ -940,9 +940,11 @@ async fn launch_approval(
 		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
 	).await;
 
-	let in_context_number = match context_num_rx.await? {
-		Ok(Ok(n)) => n,
-		Ok(Err(_)) => return Ok(()),
+	let in_context_number = match context_num_rx.await?
+		.map_err(|e| SubsystemError::with_origin("chain-api", e))?
+	{
+		Some(n) => n,
+		None => return Ok(()),
 	};
 
 	ctx.send_message(

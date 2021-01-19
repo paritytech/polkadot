@@ -129,7 +129,6 @@ fn read_write() {
 			(hash_a, ApprovalEntry {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(1),
-				next_wakeup: 1000,
 				our_assignment: None,
 				assignments: Default::default(),
 				approved: false,
@@ -296,7 +295,6 @@ fn clear_works() {
 			(hash_a, ApprovalEntry {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(1),
-				next_wakeup: 1000,
 				our_assignment: None,
 				assignments: Default::default(),
 				approved: false,
