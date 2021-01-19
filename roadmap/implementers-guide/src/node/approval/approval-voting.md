@@ -181,6 +181,7 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
     * Ensure the validator index is not present in the approval entry already.
     * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
     * Note the candidate index within the approval entry.
+  * `check_full_approvals(candidate_entry, filter by this specific approval entry)`
   * Schedule a wakeup with `next_wakeup`.
   * return the appropriate `VoteCheckResult` on the response channel.
 
@@ -211,7 +212,12 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
-  * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
+  * `check_full_approvals(candidate_entry, filter by validators assigned to)`
+
+#### `check_full_approvals(CandidateEntry, filter)`:
+  * Checks every `ApprovalEntry` that is not yet `approved` for whether it is now approved.
+    * For each `ApprovalEntry` in the `CandidateEntry` that is not `approved` and passes the `filter`
+    * Load the block entry for the `ApprovalEntry`.
     * If so, set `n_tranches = tranches_to_approve(approval_entry, tranche_now(block.slot, now()))`.
     * If `check_approval(block_entry, candidate_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
 
