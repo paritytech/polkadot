@@ -654,6 +654,8 @@ fn check_and_import_assignment(
 ) -> SubsystemResult<AssignmentCheckResult> {
 	const TOO_FAR_IN_FUTURE: SlotNumber = 5;
 
+	let tick_now = tick_now();
+
 	let block_entry = aux_schema::load_block_entry(&*state.db, &assignment.block_hash)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
@@ -702,8 +704,70 @@ fn check_and_import_assignment(
 		}
 	};
 
-	// TODO [now] import assignment
-	unimplemented!()
+	let mut candidate_entry = match aux_schema::load_candidate_entry(
+		&*state.db,
+		&assigned_candidate_hash,
+	)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+	{
+		Some(c) => c,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Missing candidate entry {} referenced in live block {}",
+				assigned_candidate_hash,
+				assignment.block_hash,
+			);
+
+			return Ok(AssignmentCheckResult::Bad);
+		}
+	};
+
+	let res = {
+		// import the assignment.
+		let mut assignment_entry = match
+			candidate_entry.block_assignments.get_mut(&assignment.block_hash)
+		{
+			Some(a) => a,
+			None => return Ok(AssignmentCheckResult::Bad),
+		};
+
+		// Check that the validator was not part of the backing group
+		// and not already assigned.
+		let is_in_backing = is_in_backing_group(
+			&session_info.validator_groups,
+			assignment.validator,
+			assignment_entry.backing_group,
+		);
+
+		if is_in_backing {
+			return Ok(AssignmentCheckResult::Bad);
+		}
+
+		let is_duplicate =  assignment_entry.is_assigned(assignment.validator);
+		assignment_entry.import_assignment(tranche, assignment.validator, tick_now);
+
+		if is_duplicate {
+			AssignmentCheckResult::AcceptedDuplicate
+		} else {
+			AssignmentCheckResult::Accepted
+		}
+	};
+
+	// update candidate entry on disk.
+	aux_schema::write_candidate_entry(&*state.db, &assigned_candidate_hash, &candidate_entry)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+	// TODO [now]: schedule wakeup
+	Ok(res)
+}
+
+fn is_in_backing_group(
+	validator_groups: &[Vec<ValidatorIndex>],
+	validator: ValidatorIndex,
+	group: GroupIndex,
+) -> bool {
+	validator_groups.get(group.0 as usize).map_or(false, |g| g.contains(&validator))
 }
 
 async fn check_and_import_approval(

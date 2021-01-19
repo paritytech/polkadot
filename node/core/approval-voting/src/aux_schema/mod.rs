@@ -80,39 +80,56 @@ impl ApprovalEntry {
 	pub(crate) fn trigger_our_assignment(&mut self, tick_now: Tick)
 		-> Option<(AssignmentCert, ValidatorIndex)>
 	{
-		let tranches = &mut self.tranches;
-		let assignments = &mut self.assignments;
-		self.our_assignment.as_mut().and_then(|a| {
+		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() { return None }
 			a.mark_triggered();
 
-			// linear search probably faster than binary. not many tranches typically.
-			let idx = match tranches.iter().position(|t| t.tranche >= a.tranche()) {
-				Some(pos) => {
-					if tranches[pos].tranche > a.tranche() {
-						tranches.insert(pos, TrancheEntry {
-							tranche: a.tranche(),
-							assignments: Vec::new(),
-						});
-					}
+			Some(a.clone())
+		});
 
-					pos
-				}
-				None => {
-					tranches.push(TrancheEntry {
-						tranche: a.tranche(),
+		our.map(|a| {
+			self.import_assignment(a.tranche(), a.validator_index(), tick_now);
+
+			(a.cert().clone(), a.validator_index())
+		})
+	}
+
+	/// Whether a validator is already assigned.
+	pub(crate) fn is_assigned(&self, validator_index: ValidatorIndex) -> bool {
+		*self.assignments.get(validator_index as usize).unwrap_or(&false)
+	}
+
+	/// Import an assignment. No-op if already assigned on the same tranche.
+	pub(crate) fn import_assignment(
+		&mut self,
+		tranche: DelayTranche,
+		validator_index: ValidatorIndex,
+		tick_now: Tick,
+	) {
+		// linear search probably faster than binary. not many tranches typically.
+		let idx = match self.tranches.iter().position(|t| t.tranche >= tranche) {
+			Some(pos) => {
+				if self.tranches[pos].tranche > tranche {
+					self.tranches.insert(pos, TrancheEntry {
+						tranche: tranche,
 						assignments: Vec::new(),
 					});
-
-					tranches.len() - 1
 				}
-			};
 
-			tranches[idx].assignments.push((a.validator_index(), tick_now));
-			assignments.set(a.validator_index() as _, true);
+				pos
+			}
+			None => {
+				self.tranches.push(TrancheEntry {
+					tranche: tranche,
+					assignments: Vec::new(),
+				});
 
-			Some((a.cert().clone(), a.validator_index()))
-		})
+				self.tranches.len() - 1
+			}
+		};
+
+		self.tranches[idx].assignments.push((validator_index, tick_now));
+		self.assignments.set(validator_index as _, true);
 	}
 
 	// Produce a bitvec indicating the assignments of all validators up to and
