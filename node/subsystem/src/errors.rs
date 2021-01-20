@@ -60,20 +60,20 @@ impl core::fmt::Display for ChainApiError {
 
 impl std::error::Error for ChainApiError {}
 
+/// An error that may happen during Availability Recovery process.
+#[derive(PartialEq, Debug, Clone)]
+pub enum RecoveryError {
+	/// A chunk is recovered but is invalid.
+	Invalid,
 
-/// A description of an error causing the chain API request to be unservable.
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum JaegerError {
-	#[error("Already launched the collector thread")]
-	AlreadyLaunched,
-
-	#[error("Missing jaeger configuration")]
-	MissingConfiguration,
-
-	#[error("Failed to allocate port for UDP transfer to jaeger agent")]
-	PortAllocationError(#[source] std::io::Error),
-
-	#[error("Failed to send jaeger span to agent")]
-	SendError(#[source] std::io::Error),
+	/// A requested chunk is unavailable.
+	Unavailable,
 }
+
+impl std::fmt::Display for RecoveryError {
+	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+		write!(f, "{}", self)
+	}
+}
+
+impl std::error::Error for RecoveryError {}

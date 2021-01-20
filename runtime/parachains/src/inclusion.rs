@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData,
+	CandidateReceipt, HeadData, CandidateHash, Hash,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
@@ -58,6 +58,8 @@ pub struct AvailabilityBitfieldRecord<N> {
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
+	/// The candidate hash.
+	hash: CandidateHash,
 	/// The candidate descriptor.
 	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
@@ -84,6 +86,16 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the core index.
 	pub(crate) fn core_occupied(&self)-> CoreIndex {
 		self.core.clone()
+	}
+
+	/// Get the candidate hash.
+	pub(crate) fn candidate_hash(&self) -> CandidateHash {
+		self.hash
+	}
+
+	/// Get the canddiate descriptor.
+	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
+		&self.descriptor
 	}
 }
 
@@ -370,11 +382,13 @@ impl<T: Config> Module<T> {
 		Ok(freed_cores)
 	}
 
-	/// Process candidates that have been backed. Provide a set of candidates and scheduled cores.
+	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
+	/// and scheduled cores.
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates(
+		parent_storage_root: Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -387,7 +401,12 @@ impl<T: Config> Module<T> {
 
 		let validators = Validators::get();
 		let parent_hash = <frame_system::Module<T>>::parent_hash();
-		let check_cx = CandidateCheckContext::<T>::new();
+
+		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
+		// before of the block where we include a candidate (i.e. this code path).
+		let now = <frame_system::Module<T>>::block_number();
+		let relay_parent_number = now - One::one();
+		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		// do all checks before writing storage.
 		let core_indices_and_backers = {
@@ -471,7 +490,11 @@ impl<T: Config> Module<T> {
 						{
 							// this should never fail because the para is registered
 							let persisted_validation_data =
-								match crate::util::make_persisted_validation_data::<T>(para_id) {
+								match crate::util::make_persisted_validation_data::<T>(
+									para_id,
+									relay_parent_number,
+									parent_storage_root,
+								) {
 									Some(l) => l,
 									None => {
 										// We don't want to error out here because it will
@@ -568,6 +591,8 @@ impl<T: Config> Module<T> {
 				candidate.candidate.commitments.head_data.clone(),
 			));
 
+			let candidate_hash = candidate.candidate.hash();
+
 			let (descriptor, commitments) = (
 				candidate.candidate.descriptor,
 				candidate.candidate.commitments,
@@ -575,9 +600,10 @@ impl<T: Config> Module<T> {
 
 			<PendingAvailability<T>>::insert(&para_id, CandidatePendingAvailability {
 				core,
+				hash: candidate_hash,
 				descriptor,
 				availability_votes,
-				relay_parent_number: check_cx.relay_parent_number,
+				relay_parent_number,
 				backers,
 				backed_in_number: check_cx.now,
 			});
@@ -588,11 +614,17 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Run the acceptance criteria checks on the given candidate commitments.
-	pub(crate) fn check_validation_outputs(
+	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
 		validation_outputs: primitives::v1::CandidateCommitments,
 	) -> bool {
-		if let Err(err) = CandidateCheckContext::<T>::new().check_validation_outputs(
+		// This function is meant to be called from the runtime APIs against the relay-parent, hence
+		// `relay_parent_number` is equal to `now`.
+		let now = <frame_system::Module<T>>::block_number();
+		let relay_parent_number = now;
+		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+
+		if let Err(err) = check_cx.check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
@@ -797,12 +829,11 @@ struct CandidateCheckContext<T: Config> {
 }
 
 impl<T: Config> CandidateCheckContext<T> {
-	fn new() -> Self {
-		let now = <frame_system::Module<T>>::block_number();
+	fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self {
 			config: <configuration::Module<T>>::config(),
 			now,
-			relay_parent_number: now - One::one(),
+			relay_parent_number,
 		}
 	}
 
@@ -1005,15 +1036,15 @@ mod tests {
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
 
-			System::on_finalize(b);
-
-			System::on_initialize(b + 1);
-			System::set_block_number(b + 1);
-
 			if let Some(notification) = new_session(b + 1) {
 				Paras::initializer_on_new_session(&notification);
 				Inclusion::initializer_on_new_session(&notification);
 			}
+
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
 
 			Paras::initializer_initialize(b + 1);
 			Inclusion::initializer_initialize(b + 1);
@@ -1096,8 +1127,13 @@ mod tests {
 	}
 
 	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
+		let relay_parent_number = <frame_system::Module<Test>>::block_number() - 1;
 		let persisted_validation_data
-			= crate::util::make_persisted_validation_data::<Test>(para_id)?;
+			= crate::util::make_persisted_validation_data::<Test>(
+				para_id,
+				relay_parent_number,
+				Default::default(),
+			)?;
 		Some(persisted_validation_data.hash())
 	}
 
@@ -1112,6 +1148,7 @@ mod tests {
 			let default_candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: default_candidate.hash(),
 				descriptor: default_candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1122,6 +1159,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: default_candidate.hash(),
 				descriptor: default_candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1286,6 +1324,7 @@ mod tests {
 				let default_candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: default_candidate.hash(),
 					descriptor: default_candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
@@ -1321,6 +1360,7 @@ mod tests {
 				let default_candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: default_candidate.hash(),
 					descriptor: default_candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
@@ -1393,6 +1433,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: candidate_a.hash(),
 				descriptor: candidate_a.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1409,6 +1450,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: candidate_b.hash(),
 				descriptor: candidate_b.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
@@ -1575,7 +1617,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1596,6 +1638,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_b_assignment.clone()],
 						&group_validators,
@@ -1609,7 +1652,7 @@ mod tests {
 				let mut candidate_a = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1617,7 +1660,7 @@ mod tests {
 				let mut candidate_b = TestCandidateBuilder {
 					para_id: chain_b,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([2; 32]),
+					pov_hash: Hash::repeat_byte(2),
 					persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1654,6 +1697,7 @@ mod tests {
 				// out-of-order manifests as unscheduled.
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 						&group_validators,
@@ -1667,7 +1711,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1688,6 +1732,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1698,13 +1743,13 @@ mod tests {
 
 			// candidate not in parent context.
 			{
-				let wrong_parent_hash = Hash::from([222; 32]);
+				let wrong_parent_hash = Hash::repeat_byte(222);
 				assert!(System::parent_hash() != wrong_parent_hash);
 
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: wrong_parent_hash,
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
@@ -1724,6 +1769,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1737,7 +1783,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1760,6 +1806,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![
 							chain_a_assignment.clone(),
@@ -1777,7 +1824,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1790,7 +1837,7 @@ mod tests {
 				);
 
 				// change the candidate after signing.
-				candidate.descriptor.pov_hash = Hash::from([2; 32]);
+				candidate.descriptor.pov_hash = Hash::repeat_byte(2);
 
 				let backed = block_on(back_candidate(
 					candidate,
@@ -1803,6 +1850,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![thread_a_assignment.clone()],
 						&group_validators,
@@ -1816,7 +1864,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1839,6 +1887,7 @@ mod tests {
 				let candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate.hash(),
 					descriptor: candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 3,
@@ -1849,6 +1898,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1865,7 +1915,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1890,6 +1940,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1905,7 +1956,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					hrmp_watermark: RELAY_PARENT_NUM,
@@ -1936,6 +1987,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -1949,7 +2001,7 @@ mod tests {
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_hash: Hash::from([1; 32]),
+					pov_hash: Hash::repeat_byte(1),
 					persisted_validation_data_hash: [42u8; 32].into(),
 					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
@@ -1971,6 +2023,7 @@ mod tests {
 
 				assert_eq!(
 					Inclusion::process_candidates(
+						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
@@ -2048,7 +2101,7 @@ mod tests {
 			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([1; 32]),
+				pov_hash: Hash::repeat_byte(1),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
@@ -2061,7 +2114,7 @@ mod tests {
 			let mut candidate_b = TestCandidateBuilder {
 				para_id: chain_b,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([2; 32]),
+				pov_hash: Hash::repeat_byte(2),
 				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
@@ -2074,7 +2127,7 @@ mod tests {
 			let mut candidate_c = TestCandidateBuilder {
 				para_id: thread_a,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([3; 32]),
+				pov_hash: Hash::repeat_byte(3),
 				persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
@@ -2112,6 +2165,7 @@ mod tests {
 			));
 
 			let occupied_cores = Inclusion::process_candidates(
+				Default::default(),
 				vec![backed_a, backed_b, backed_c],
 				vec![
 					chain_a_assignment.clone(),
@@ -2127,6 +2181,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate_a.hash(),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2143,6 +2198,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_b),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(1),
+					hash: candidate_b.hash(),
 					descriptor: candidate_b.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2159,6 +2215,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&thread_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(2),
+					hash: candidate_c.hash(),
 					descriptor: candidate_c.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2220,7 +2277,7 @@ mod tests {
 			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
-				pov_hash: Hash::from([1; 32]),
+				pov_hash: Hash::repeat_byte(1),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				new_validation_code: Some(vec![1, 2, 3].into()),
 				hrmp_watermark: RELAY_PARENT_NUM,
@@ -2241,6 +2298,7 @@ mod tests {
 			));
 
 			let occupied_cores = Inclusion::process_candidates(
+				Default::default(),
 				vec![backed_a],
 				vec![
 					chain_a_assignment.clone(),
@@ -2254,6 +2312,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
+					hash: candidate_a.hash(),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
@@ -2329,6 +2388,7 @@ mod tests {
 			let candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
+				hash: candidate.hash(),
 				descriptor: candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 5,
@@ -2339,6 +2399,7 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
+				hash: candidate.hash(),
 				descriptor: candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 6,

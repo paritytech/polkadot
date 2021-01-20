@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{HashMap, HashSet};
-use std::time::Duration;
-use std::task::Poll;
+use std::{collections::{HashMap, HashSet}, time::Duration, task::Poll, sync::Arc};
 
 use futures::{
 	StreamExt,
@@ -30,20 +28,16 @@ use polkadot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
 };
 use polkadot_subsystem::{
-	jaeger,
+	jaeger, PerLeafSpan, JaegerSpan,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, RequestId,
-	NetworkBridgeEvent,
+	v1 as protocol_v1, View, OurView, PeerId, ReputationChange as Rep, RequestId, NetworkBridgeEvent,
 };
-use polkadot_node_subsystem_util::{
-	TimeoutExt as _,
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::{TimeoutExt as _, metrics::{self, prometheus}};
 
 use super::{modify_reputation, LOG_TARGET, Result};
 
@@ -172,7 +166,7 @@ struct PerRequest {
 #[derive(Default)]
 struct State {
 	/// Our own view.
-	view: View,
+	view: OurView,
 
 	/// Track all active collators and their views.
 	peer_views: HashMap<PeerId, View>,
@@ -215,6 +209,9 @@ struct State {
 
 	/// Metrics.
 	metrics: Metrics,
+
+	/// Span per relay parent.
+	span_per_relay_parent: HashMap<Hash, PerLeafSpan>,
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
@@ -371,6 +368,12 @@ where
 			if let Some(per_request) = state.requests_info.remove(&id) {
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
+					tracing::debug!(
+						target: LOG_TARGET,
+						%request_id,
+						"Received collation",
+					);
+
 					let _ = per_request.result.send((receipt.clone(), pov.clone()));
 					state.metrics.on_request(Ok(()));
 
@@ -423,8 +426,8 @@ where
 		tracing::trace!(
 			target: LOG_TARGET,
 			peer_id = %peer_id,
-			para_id = %para_id,
-			relay_parent = %relay_parent,
+			%para_id,
+			?relay_parent,
 			"collation has already been requested",
 		);
 		return;
@@ -451,6 +454,15 @@ where
 	state.requests_info.insert(request_id, per_request);
 
 	state.requests_in_progress.push(request.wait().boxed());
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		peer_id = %peer_id,
+		%para_id,
+		%request_id,
+		?relay_parent,
+		"Requesting collation",
+	);
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::RequestCollation(
 		request_id,
@@ -505,7 +517,7 @@ where
 			state.peer_views.entry(origin).or_default();
 		}
 		AdvertiseCollation(relay_parent, para_id) => {
-			let _span = jaeger::hash_span(&relay_parent, "advertising-collation");
+			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
 			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
@@ -517,7 +529,8 @@ where
 			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 		Collation(request_id, receipt, pov) => {
-			let _span1 = jaeger::hash_span(&receipt.descriptor.relay_parent, "received-collation");
+			let _span1 = state.span_per_relay_parent.get(&receipt.descriptor.relay_parent)
+				.map(|s| s.child("received-collation"));
 			let _span2 = jaeger::pov_span(&pov, "received-collation");
 			received_collation(ctx, state, origin, request_id, receipt, pov).await;
 		}
@@ -556,9 +569,19 @@ async fn remove_relay_parent(
 #[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
 	state: &mut State,
-	view: View,
+	view: OurView,
 ) -> Result<()> {
-	let old_view = std::mem::replace(&mut (state.view), view);
+	let old_view = std::mem::replace(&mut state.view, view);
+
+	let added: HashMap<Hash, Arc<JaegerSpan>> = state.view
+		.span_per_head()
+		.iter()
+		.filter(|v| !old_view.contains(&v.0))
+		.map(|v| (v.0.clone(), v.1.clone()))
+		.collect();
+	added.into_iter().for_each(|(h, s)| {
+		state.span_per_relay_parent.insert(h, PerLeafSpan::new(s, "validator-side"));
+	});
 
 	let removed = old_view
 		.difference(&state.view)
@@ -571,6 +594,7 @@ async fn handle_our_view_change(
 	for removed in removed.into_iter() {
 		state.recently_removed_heads.insert(removed.clone());
 		remove_relay_parent(state, removed).await?;
+		state.span_per_relay_parent.remove(&removed);
 	}
 
 	Ok(())
@@ -663,7 +687,7 @@ where
 			);
 		}
 		FetchCollation(relay_parent, collator_id, para_id, tx) => {
-			let _span = jaeger::hash_span(&relay_parent, "fetching-collation");
+			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("fetch-collation"));
 			fetch_collation(ctx, state, relay_parent, collator_id, para_id, tx).await;
 		}
 		ReportCollator(id) => {
@@ -714,7 +738,7 @@ where
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
-				Signal(BlockFinalized(_)) => {}
+				Signal(BlockFinalized(..)) => {}
 				Signal(ActiveLeaves(_)) => {}
 				Signal(Conclude) => { break }
 			}
@@ -728,7 +752,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					tracing::trace!(target: LOG_TARGET, id, "request timed out");
+					tracing::debug!(target: LOG_TARGET, request_id=%id, "Collation timed out");
 					request_timed_out(&mut ctx, &mut state, id).await;
 				}
 				CollationRequestResult::Received(id) => {
@@ -760,6 +784,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair};
 	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_node_network_protocol::our_view;
 
 	#[derive(Clone)]
 	struct TestState {
@@ -872,7 +897,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
+					NetworkBridgeEvent::OurViewChange(our_view![test_state.relay_parent])
 				)
 			).await;
 
@@ -930,7 +955,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
+					NetworkBridgeEvent::OurViewChange(our_view![test_state.relay_parent])
 				)
 			).await;
 
@@ -1021,7 +1046,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![Hash::repeat_byte(0x42)]))
+					NetworkBridgeEvent::OurViewChange(our_view![Hash::repeat_byte(0x42)])
 				)
 			).await;
 
@@ -1049,7 +1074,7 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
+					NetworkBridgeEvent::OurViewChange(our_view![test_state.relay_parent])
 				)
 			).await;
 
@@ -1133,8 +1158,8 @@ mod tests {
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent]))
-				)
+					NetworkBridgeEvent::OurViewChange(our_view![test_state.relay_parent])
+				),
 			).await;
 
 			let peer_b = PeerId::random();

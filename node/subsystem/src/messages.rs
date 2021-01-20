@@ -36,7 +36,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, ValidationData, CandidateHash,
+	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
 use std::{sync::Arc, collections::btree_map::BTreeMap};
@@ -203,6 +203,12 @@ pub enum NetworkBridgeMessage {
 	/// Send a message to one or more peers on the collation peer-set.
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
+	/// Send a batch of validation messages.
+	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
+
+	/// Send a batch of collation messages.
+	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
+
 	/// Connect to peers who represent the given `validator_ids`.
 	///
 	/// Also ask the network to stay connected to these peers at least
@@ -225,16 +231,31 @@ impl NetworkBridgeMessage {
 			Self::ReportPeer(_, _) => None,
 			Self::SendValidationMessage(_, _) => None,
 			Self::SendCollationMessage(_, _) => None,
+			Self::SendValidationMessages(_) => None,
+			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
 		}
 	}
 }
 
 /// Availability Distribution Message.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum AvailabilityDistributionMessage {
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
+}
+
+/// Availability Recovery Message.
+#[derive(Debug)]
+pub enum AvailabilityRecoveryMessage {
+	/// Recover available data from validators on the network.
+	RecoverAvailableData(
+		CandidateReceipt,
+		SessionIndex,
+		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
+	),
+	/// Event from the network bridge.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
 }
 
 impl AvailabilityDistributionMessage {
@@ -309,8 +330,6 @@ pub enum AvailabilityStoreMessage {
 		candidate_hash: CandidateHash,
 		/// A relevant relay parent.
 		relay_parent: Hash,
-		/// The index of the validator this chunk belongs to.
-		validator_index: ValidatorIndex,
 		/// The chunk itself.
 		chunk: ErasureChunk,
 		/// Sending side of the channel to send result to.
@@ -392,14 +411,6 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<PersistedValidationData>>,
-	),
-	/// Get the full validation data for a particular para, taking the given
-	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
-	/// if the para currently occupies a core.
-	FullValidationData(
-		ParaId,
-		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<ValidationData>>,
 	),
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
@@ -590,6 +601,8 @@ pub enum AllMessages {
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.
 	AvailabilityDistribution(AvailabilityDistributionMessage),
+	/// Message for the availability recovery subsystem.
+	AvailabilityRecovery(AvailabilityRecoveryMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
 	/// Message for the bitfield signing subsystem.

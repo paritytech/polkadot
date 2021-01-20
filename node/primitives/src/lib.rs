@@ -27,7 +27,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
+	UpwardMessage, ValidationCode, PersistedValidationData,
 	HeadData, PoV, CollatorPair, Id as ParaId, OutboundHrmpMessage, CandidateCommitments, CandidateHash,
 };
 use polkadot_statement_table::{
@@ -63,6 +63,17 @@ pub enum Statement {
 }
 
 impl Statement {
+	/// Get the candidate hash referenced by this statement.
+	///
+	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be expensive
+	/// for large candidates.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			Statement::Valid(ref h) | Statement::Invalid(ref h) => *h,
+			Statement::Seconded(ref c) => c.hash(),
+		}
+	}
+
 	/// Transform this statement into its compact version, which references only the hash
 	/// of the candidate.
 	pub fn to_compact(&self) -> CompactStatement {
@@ -277,7 +288,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 /// block should be build on and the [`ValidationData`] that provides
 /// information about the state of the parachain on the relay chain.
 pub type CollatorFn = Box<
-	dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
+	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
 		+ Send
 		+ Sync,
 >;

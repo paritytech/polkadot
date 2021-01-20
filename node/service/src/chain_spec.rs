@@ -66,7 +66,32 @@ pub type KusamaChainSpec = service::GenericChainSpec<kusama::GenesisConfig, Exte
 pub type WestendChainSpec = service::GenericChainSpec<westend::GenesisConfig, Extensions>;
 
 /// The `ChainSpec` parametrized for the rococo runtime.
-pub type RococoChainSpec = service::GenericChainSpec<rococo::GenesisConfig, Extensions>;
+pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
+
+/// Extension for the Rococo genesis config to support a custom changes to the genesis state.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct RococoGenesisExt {
+	/// The runtime genesis config.
+	runtime_genesis_config: rococo::GenesisConfig,
+	/// The session length in blocks.
+	///
+	/// If `None` is supplied, the default value is used.
+	session_length_in_blocks: Option<u32>,
+}
+
+impl sp_runtime::BuildStorage for RococoGenesisExt {
+	fn assimilate_storage(
+		&self,
+		storage: &mut sp_core::storage::Storage,
+	) -> Result<(), String> {
+		sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
+			if let Some(length) = self.session_length_in_blocks.as_ref() {
+				rococo::constants::time::EpochDurationInBlocks::set(length);
+			}
+		});
+		self.runtime_genesis_config.assimilate_storage(storage)
+	}
+}
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
 	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
@@ -831,7 +856,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
@@ -847,6 +871,28 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				chain_availability_period: 4,
 				thread_availability_period: 4,
 				no_show_slots: 10,
+				max_upward_queue_count: 8,
+				max_upward_queue_size: 8 * 1024,
+				max_downward_message_size: 1024,
+				// this is approximatelly 4ms.
+				//
+				// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
+				// an import since that's a made up number and should be replaced with a constant
+				// obtained by benchmarking anyway.
+				preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
+				max_upward_message_size: 1024,
+				max_upward_message_num_per_candidate: 5,
+				hrmp_open_request_ttl: 5,
+				hrmp_sender_deposit: 0,
+				hrmp_recipient_deposit: 0,
+				hrmp_channel_max_capacity: 8,
+				hrmp_channel_max_total_size: 8 * 1024,
+				hrmp_max_parachain_inbound_channels: 4,
+				hrmp_max_parathread_inbound_channels: 4,
+				hrmp_channel_max_message_size: 1024,
+				hrmp_max_parachain_outbound_channels: 4,
+				hrmp_max_parathread_outbound_channels: 4,
+				hrmp_max_message_num_per_candidate: 5,
 				..Default::default()
 			},
 		}),
@@ -925,7 +971,10 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		"Rococo Staging Testnet",
 		"rococo_staging_testnet",
 		ChainType::Live,
-		move || rococo_staging_testnet_config_genesis(wasm_binary),
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
+			session_length_in_blocks: None,
+		},
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(ROCOCO_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -1315,7 +1364,6 @@ pub fn rococo_testnet_genesis(
 		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
 		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
@@ -1542,7 +1590,11 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		"Rococo Local Testnet",
 		"rococo_local_testnet",
 		ChainType::Local,
-		move || rococo_local_testnet_genesis(wasm_binary),
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_local_testnet_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),

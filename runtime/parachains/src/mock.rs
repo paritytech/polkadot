@@ -21,7 +21,7 @@ use sp_core::H256;
 use sp_runtime::traits::{
 	BlakeTwo256, IdentityLookup,
 };
-use primitives::v1::{AuthorityDiscoveryId, BlockNumber, Header, ValidatorIndex};
+use primitives::v1::{AuthorityDiscoveryId, Balance, BlockNumber, Header, ValidatorIndex};
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
 	traits::Randomness as RandomnessT,
@@ -50,6 +50,7 @@ impl_outer_dispatch! {
 impl_outer_event! {
 	pub enum TestEvent for Test {
 		frame_system<T>,
+		pallet_balances<T>,
 		inclusion<T>,
 	}
 }
@@ -90,6 +91,21 @@ impl frame_system::Config for Test {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = ();
+}
+
+parameter_types! {
+	pub static ExistentialDeposit: u64 = 0;
+}
+
+impl pallet_balances::Config for Test {
+	type MaxLocks = ();
+	type Balance = Balance;
+	type Event = TestEvent;
+	type DustRemoval = ();
+	type ExistentialDeposit = ExistentialDeposit;
+	type AccountStore = System;
+	type WeightInfo = ();
 }
 
 impl crate::initializer::Config for Test {
@@ -110,6 +126,7 @@ impl crate::ump::Config for Test {
 
 impl crate::hrmp::Config for Test {
 	type Origin = Origin;
+	type Currency = pallet_balances::Module<Test>;
 }
 
 impl crate::scheduler::Config for Test { }
@@ -118,6 +135,8 @@ impl crate::inclusion::Config for Test {
 	type Event = TestEvent;
 	type RewardValidators = TestRewardValidators;
 }
+
+impl crate::inclusion_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 

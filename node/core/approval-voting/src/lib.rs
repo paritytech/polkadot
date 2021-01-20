@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,27 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Errors that can occur during the validation process.
+//! The Approval Voting Subsystem.
+//!
+//! This subsystem is responsible for determining candidates to do approval checks
+//! on, performing those approval checks, and tracking the assignments and approvals
+//! of others. It uses this information to determine when candidates and blocks have
+//! been sufficiently approved to finalize.
 
-use thiserror::Error;
+mod aux_schema;
 
-/// Error type for validation
-#[derive(Debug, Error)]
-pub enum Error {
-	/// Client error
-	#[error(transparent)]
-	Client(#[from] sp_blockchain::Error),
-	/// Consensus error
-	#[error(transparent)]
-	Consensus(#[from] consensus::error::Error),
-	/// Unexpected error checking inherents
-	#[error("Unexpected error while checking inherents: {0}")]
-	InherentError(inherents::Error),
-}
-
-
-impl std::convert::From<inherents::Error> for Error {
-	fn from(inner: inherents::Error) -> Self {
-		Self::InherentError(inner)
-	}
-}
+/// A base unit of time, starting from the unix epoch, split into half-second intervals.
+type Tick = u64;

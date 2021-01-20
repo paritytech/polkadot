@@ -1,0 +1,14 @@
+[package]
+name = "metered-channel"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+description = "Channels with attached Meters"
+
+[dependencies]
+futures = "0.3.12"
+futures-timer = "3.0.2"
+
+[dev-dependencies]
+assert_matches = "1.4.0"
+futures = { version = "0.3.12", features = ["thread-pool"] }

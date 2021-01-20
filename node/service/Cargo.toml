@@ -39,6 +39,7 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Pallets
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -52,12 +53,12 @@ frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate"
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
-futures = "0.3.8"
+futures = "0.3.12"
 hex-literal = "0.3.1"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
-serde = { version = "1.0.118", features = ["derive"] }
-thiserror = "1.0.21"
+serde = { version = "1.0.119", features = ["derive"] }
+thiserror = "1.0.23"
 
 # Polkadot
 polkadot-node-core-proposer = { path = "../core/proposer" }
@@ -78,6 +79,7 @@ rococo-runtime = { path = "../../runtime/rococo" }
 # Polkadot Subsystems
 polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
 polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
+polkadot-availability-recovery = { path = "../network/availability-recovery", optional = true }
 polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
 polkadot-network-bridge = { path = "../network/bridge", optional = true }
 polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
@@ -102,10 +104,18 @@ db = ["service/db"]
 full-node = [
 	"polkadot-node-core-av-store",
 ]
-runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
+
+runtime-benchmarks = [
+	"polkadot-runtime/runtime-benchmarks",
+	"kusama-runtime/runtime-benchmarks",
+	"westend-runtime/runtime-benchmarks",
+	"rococo-runtime/runtime-benchmarks"
+]
+
 real-overseer = [
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
+	"polkadot-availability-recovery",
 	"polkadot-collator-protocol",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",
