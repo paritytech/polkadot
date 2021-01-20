@@ -216,7 +216,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 				babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
-			Option<sc_telemetry::TelemetrySpan>,
+			Option<telemetry::TelemetrySpan>,
 		)
 	>,
 	Error
