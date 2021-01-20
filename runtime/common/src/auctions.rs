@@ -19,8 +19,11 @@
 //! happens elsewhere.
 
 use sp_std::{prelude::*, mem::swap, convert::TryInto};
-use sp_runtime::traits::{
-	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
+use sp_runtime::{
+	RuntimeDebug,
+	traits::{
+		CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
+	},
 };
 use parity_scale_codec::{Encode, Decode, Codec};
 use frame_support::{
@@ -163,8 +166,8 @@ decl_event!(
 		WonDeploy(NewBidder<AccountId>, SlotRange, ParaId, Balance),
 		/// An existing parachain won the right to continue.
 		/// First balance is the extra amount reseved. Second is the total amount reserved.
-		/// [parachain_id, range, extra_reseved, total_amount]
-		WonRenewal(ParaId, SlotRange, Balance, Balance),
+		/// [parachain_id, begin, count, total_amount]
+		WonRenewal(ParaId, LeasePeriod, LeasePeriod, Balance),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
 		/// Second is the total. [bidder, extra_reserved, total_amount]
 		Reserved(AccountId, Balance, Balance),
@@ -553,7 +556,8 @@ impl<T: Config> Module<T> {
 				.expect("none values are filtered out in previous logic; qed"));
 			let (slot_winner, bid) = final_winner;
 			match slot_winner {
-				Bidder::New(new_bidder) => (Some(new_bidder), new_id(), bid, r),
+				//Bidder::New(new_bidder) => (Some(new_bidder), new_id(), bid, r),
+				Bidder::New(new_bidder) => (Some(new_bidder), Default::default(), bid, r),
 				Bidder::Existing(para_id) => (None, para_id, bid, r),
 			}
 		}).collect::<Vec<_>>()

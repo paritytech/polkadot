@@ -168,7 +168,7 @@ decl_storage! {
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
 		///
 		/// It is illegal for a `None` value to trail in the list.
-		pub Leases: map hasher(twox_64_concat) ParaId => Vec<Option(T::AccountId, BalanceOf<T>)>;
+		pub Leases: map hasher(twox_64_concat) ParaId => Vec<Option<(T::AccountId, BalanceOf<T>)>>;
 
 		/// The ordered set of Para IDs that are full parachains currently.
 		pub CurrentChains: Vec<ParaId>;
@@ -178,16 +178,12 @@ decl_storage! {
 decl_event!(
 	pub enum Event<T> where
 		AccountId = <T as frame_system::Config>::AccountId,
-		BlockNumber = <T as frame_system::Config>::BlockNumber,
 		LeasePeriod = LeasePeriodOf<T>,
 		ParaId = ParaId,
 		Balance = BalanceOf<T>,
 	{
 		/// A new [lease_period] is beginning.
 		NewLeasePeriod(LeasePeriod),
-		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
-		/// [bidder, range, parachain_id, amount]
-		WonDeploy(NewBidder<AccountId>, SlotRange, ParaId, Balance),
 		/// An existing parachain won the right to continue.
 		/// First balance is the extra amount reseved. Second is the total amount reserved.
 		/// [parachain_id, range, extra_reseved, total_amount]
@@ -268,10 +264,10 @@ decl_module! {
 		#[weight = 0]
 		fn force_lease(origin,
 			para: ParaId,
-			leaser: Self::AccountId,
-			amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
-			period_begin: Self::LeasePeriod,
-			period_count: Self::LeasePeriod,
+			leaser: T::AccountId,
+			amount: BalanceOf<T>,
+			period_begin: LeasePeriodOf<T>,
+			period_count: LeasePeriodOf<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::lease_out(para, leaser, amount, period_begin, period_count)
@@ -297,26 +293,26 @@ decl_module! {
 		) {
 			// TODO: Fix up.
 
-			let who = ensure_signed(origin)?;
-			let (starts, details) = <Onboarding<T>>::get(&para_id)
-				.ok_or(Error::<T>::ParaNotOnboarding)?;
-			if let IncomingParachain::Unset(ref nb) = details {
-				ensure!(nb.who == who && nb.sub == sub, Error::<T>::InvalidOrigin);
-			} else {
-				Err(Error::<T>::AlreadyRegistered)?
-			}
+			// let who = ensure_signed(origin)?;
+			// let (starts, details) = <Onboarding<T>>::get(&para_id)
+			// 	.ok_or(Error::<T>::ParaNotOnboarding)?;
+			// if let IncomingParachain::Unset(ref nb) = details {
+			// 	ensure!(nb.who == who && nb.sub == sub, Error::<T>::InvalidOrigin);
+			// } else {
+			// 	Err(Error::<T>::AlreadyRegistered)?
+			// }
 
-			ensure!(
-				T::Parachains::head_data_size_allowed(initial_head_data.0.len() as _),
-				Error::<T>::HeadDataTooLarge,
-			);
-			ensure!(
-				T::Parachains::code_size_allowed(code_size),
-				Error::<T>::CodeTooLarge,
-			);
+			// ensure!(
+			// 	T::Parachains::head_data_size_allowed(initial_head_data.0.len() as _),
+			// 	Error::<T>::HeadDataTooLarge,
+			// );
+			// ensure!(
+			// 	T::Parachains::code_size_allowed(code_size),
+			// 	Error::<T>::CodeTooLarge,
+			// );
 
-			let item = (starts, IncomingParachain::Fixed{code_hash, code_size, initial_head_data});
-			<Onboarding<T>>::insert(&para_id, item);
+			// let item = (starts, IncomingParachain::Fixed{code_hash, code_size, initial_head_data});
+			// <Onboarding<T>>::insert(&para_id, item);
 		}
 
 		/// Note a new para's code.
@@ -339,28 +335,28 @@ decl_module! {
 		) -> DispatchResult {
 			// TODO: Fix up.
 
-			let (starts, details) = <Onboarding<T>>::get(&para_id)
-				.ok_or(Error::<T>::ParaNotOnboarding)?;
-			if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
-				ensure!(code.0.len() as u32 == code_size, Error::<T>::InvalidCode);
-				ensure!(<T as frame_system::Config>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
+			// let (starts, details) = <Onboarding<T>>::get(&para_id)
+			// 	.ok_or(Error::<T>::ParaNotOnboarding)?;
+			// if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
+			// 	ensure!(code.0.len() as u32 == code_size, Error::<T>::InvalidCode);
+			// 	ensure!(<T as frame_system::Config>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
 
-				if starts > Self::lease_period_index() {
-					// Hasn't yet begun. Replace the on-boarding entry with the new information.
-					let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
-					<Onboarding<T>>::insert(&para_id, item);
-				} else {
-					// Should have already begun. Remove the on-boarding entry and register the
-					// parachain for its immediate start.
-					<Onboarding<T>>::remove(&para_id);
-					let _ = T::Parachains::
-						register_para(para_id, true, code, initial_head_data);
-				}
+			// 	if starts > Self::lease_period_index() {
+			// 		// Hasn't yet begun. Replace the on-boarding entry with the new information.
+			// 		let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
+			// 		<Onboarding<T>>::insert(&para_id, item);
+			// 	} else {
+			// 		// Should have already begun. Remove the on-boarding entry and register the
+			// 		// parachain for its immediate start.
+			// 		<Onboarding<T>>::remove(&para_id);
+			// 		let _ = T::Parachains::
+			// 			register_para(para_id, true, code, initial_head_data);
+			// 	}
 
-				Ok(())
-			} else {
-				Err(Error::<T>::UnsetDeployData)?
-			}
+			// 	Ok(())
+			// } else {
+			// 	Err(Error::<T>::UnsetDeployData)?
+			// }
 		}
 	}
 }
@@ -451,23 +447,23 @@ impl<T: Config> Leaser for Module<T> {
 		// Remember that this should be leased.
 		for p in period_begin..(period_begin + period_count) {
 			// Schedule the para for full parachain status.
-			ensure!(!Leased::<T>::get(p).contains(&para), Error::<T>::AlreadyLeased);
+			ensure!(!Leases::<T>::get(p).contains(&para), Error::<T>::AlreadyLeased);
 		}
 
-		// Figure out whether we already have some funds of `who` held in reserve for `para_id`.
+		// Figure out whether we already have some funds of `leaser` held in reserve for `para_id`.
 		//  If so, then we can deduct those from the amount that we need to reserve.
-		let maybe_additional = amount.checked_sub(&T::Leaser::deposit_held(para_id, &who));
+		let maybe_additional = amount.checked_sub(&T::Leaser::deposit_held(para, &leaser));
 		if let Some(additional) = maybe_additional {
-			T::Currency::reserve(&who, additional)?;
+			T::Currency::reserve(&leaser, additional)?;
 		}
 
 		// Remember that this should be leased.
 		for p in period_begin..(period_begin + period_count) {
 			// Schedule the para for full parachain status.
-			Leased::<T>::mutate(p, |paras| paras.push(para));
+			Leases::<T>::mutate(p, |paras| paras.push(para));
 		}
 
-		Self::deposit_event(RawEvent::WonRenewal(para_id, range, extra, amount));
+		Self::deposit_event(RawEvent::WonRenewal(para, period_begin, period_count, amount));
 
 		// Finally, we update the deposit held so it is `amount` for the new lease period
 		// indices that were won in the auction.
@@ -485,7 +481,7 @@ impl<T: Config> Leaser for Module<T> {
 			// ID. We need to ensure that it features in `Deposits` to prevent it from being
 			// reaped too early (any managed parachain whose `Deposits` set runs low will be
 			// removed).
-			Deposits::<T>::mutate(para_id, |d| {
+			Leases::<T>::mutate(para, |d| {
 				// Left-pad with zeroes as necessary.
 				if d.len() < offset {
 					d.resize_with(offset, None);
@@ -515,7 +511,7 @@ impl<T: Config> Leaser for Module<T> {
 	}
 
 	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
-		Deposits::<T>::get(para)
+		Leases::<T>::get(para)
 			.into_iter()
 			.map(|(who, amount)| if &who == leaser { amount } else { Zero::zero() })
 			.max()
@@ -549,13 +545,13 @@ fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, oth
 // TODO: This will need rejigging...
 impl<T: Config> SwapAux for Module<T> {
 	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		if Onboarding::<T>::contains_key(one) || Onboarding::<T>::contains_key(other) {
-			Err("can't swap an undeployed parachain")?
-		}
+		// if Onboarding::<T>::contains_key(one) || Onboarding::<T>::contains_key(other) {
+		// 	Err("can't swap an undeployed parachain")?
+		// }
 		Ok(())
 	}
 	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		Deposits::<T>::swap(one, other);
+		Leases::<T>::swap(one, other);
 		Ok(())
 	}
 }
@@ -637,13 +633,6 @@ mod tests {
 
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
-		fn new_id() -> ParaId {
-			PARACHAIN_COUNT.with(|p| {
-				*p.borrow_mut() += 1;
-				(*p.borrow() - 1).into()
-			})
-		}
-
 		fn head_data_size_allowed(head_data_size: u32) -> bool {
 			head_data_size <= MAX_HEAD_DATA_SIZE
 		}

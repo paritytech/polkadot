@@ -77,7 +77,7 @@ use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
 };
-use crate::slots;
+use crate::{slots, auctions};
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
@@ -119,7 +119,7 @@ pub type FundIndex = u32;
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum LastContribution<BlockNumber> {
 	Never,
-	PreEnding(slots::AuctionIndex),
+	PreEnding(auctions::AuctionIndex),
 	Ending(BlockNumber),
 }
 
@@ -182,7 +182,7 @@ decl_storage! {
 		NewRaise get(fn new_raise): Vec<FundIndex>;
 
 		/// The number of auctions that have entered into their ending period so far.
-		EndingsCount get(fn endings_count): slots::AuctionIndex;
+		EndingsCount get(fn endings_count): auctions::AuctionIndex;
 	}
 }
 
@@ -512,7 +512,7 @@ decl_module! {
 					EndingsCount::mutate(|c| *c += 1);
 				}
 				for (fund, index) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
-					let bidder = slots::Bidder::New(slots::NewBidder {
+					let bidder = auctions::Bidder::New(auctions::NewBidder {
 						who: Self::fund_account_id(index),
 						/// FundIndex and slots::SubId happen to be the same type (u32). If this
 						/// ever changes, then some sort of conversion will be needed here.
