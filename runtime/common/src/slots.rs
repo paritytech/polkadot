@@ -199,19 +199,10 @@ decl_event!(
 		NewLeasePeriod(LeasePeriod),
 		/// An existing parachain won the right to continue.
 		/// First balance is the extra amount reseved. Second is the total amount reserved.
-		/// \[parachain_id, range, extra_reseved, total_amount\]
-		WonRenewal(ParaId, SlotRange, Balance, Balance),
-		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
-		/// Second is the total. [bidder, extra_reserved, total_amount]
-		Reserved(AccountId, Balance, Balance),
-		/// Funds were unreserved since bidder is no longer active. [bidder, amount]
-		Unreserved(AccountId, Balance),
+		/// \[parachain_id, leaser, period_begin, period_count, extra_reseved, total_amount\]
+		Leased(ParaId, AccountId, LeasePeriod, LeasePeriod, Balance, Balance),
 		/// A para ID value has been claimed.
 		Claimed(ParaId),
-		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
-		/// but no parachain slot has been leased.
-		/// \[parachain_id, leaser, amount\]
-		ReserveConfiscated(ParaId, AccountId, Balance),
 	}
 );
 
@@ -516,6 +507,11 @@ impl<T: Config> Leaser for Module<T> {
 				T::Currency::reserve(&leaser, *additional)
 					.map_err(|_| LeaseError::ReserveFailed)?;
 			}
+
+			let reserved = maybe_additional.unwrap_or_default();
+			Self::deposit_event(
+				RawEvent::Leased(para, leaser, period_begin, period_count, reserved, amount)
+			);
 
 			Ok(())
 		})

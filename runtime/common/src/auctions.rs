@@ -36,7 +36,7 @@ use primitives::v1::{
 };
 use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use crate::slots::Leaser;
+use crate::slots::{Leaser, LeaseError};
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -174,6 +174,10 @@ decl_event!(
 		Reserved(AccountId, Balance, Balance),
 		/// Funds were unreserved since bidder is no longer active. [bidder, amount]
 		Unreserved(AccountId, Balance),
+		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
+		/// but no parachain slot has been leased.
+		/// \[parachain_id, leaser, amount\]
+		ReserveConfiscated(ParaId, AccountId, Balance),
 	}
 );
 
@@ -408,8 +412,22 @@ impl<T: Config> Module<T> {
 			let period_begin = auction_lease_period_index + begin_offset;
 			let period_count = <LeasePeriodOf<T>>::from(range.len() as u32);
 
-			if T::Leaser::lease_out(para, leaser, amount, period_begin, period_count).is_err() {
-				continue
+			match T::Leaser::lease_out(para, leaser, amount, period_begin, period_count) {
+				Err(LeaseError::ReserveFailed) | Err(LeaseError::AlreadyEnded) => {
+					// Should never happen since we just unreserved this amount (and our offset is from the
+					// present period). But if it does, there's not much we can do.
+				}
+				Err(LeaseError::AlreadyLeased) => {
+					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
+					// keep the amount reserved and let governance sort it out.
+					CurrencyOf::<T>::reserve(&leaser, amount);
+					/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
+					/// but no parachain slot has been leased.
+					/// \[parachain_id, leaser, amount\]
+					Self::deposit_event(RawEvent::ReserveConfiscated(para, leaser, amount));
+				}
+				Ok(()) => {
+				}
 			}
 		}
 	}
