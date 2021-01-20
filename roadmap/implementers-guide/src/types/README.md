@@ -24,7 +24,12 @@ digraph {
         </table>
     >]
 
-    CandidateDescriptor:para_id -> "polkadot_parachain::primitives::Id"
+    CandidateDescriptor:para_id -> "polkadot_parachain::primitives::Id":w
+    CandidateDescriptor:pov_hash -> PoVHash
+
+    PoVHash [label = "Hash", shape="doublecircle", fill="lightgray"]
+
+    PoVHash -> PoV:name
 
     CandidateReceipt [label = <
         <table>
@@ -35,6 +40,11 @@ digraph {
     >]
 
     CandidateReceipt:descriptor -> CandidateDescriptor:name
+    CandidateReceipt:commitments_hash -> CandidateCommitmentsHash
+
+    CandidateCommitmentsHash [label = "Hash", shape="doublecircle", fill="lightgray"]
+
+    CandidateCommitmentsHash -> CandidateCommitments:name
 
     FullCandidateReceipt [label = <
         <table>
@@ -81,7 +91,7 @@ digraph {
         </table>
     >]
 
-    PersistedValidationData:parent_head -> HeadData
+    PersistedValidationData:parent_head -> HeadData:w
 
     TransientValidationData [label = <
         <table>
@@ -94,7 +104,7 @@ digraph {
         </table>
     >]
 
-    TransientValidationData:balance -> "polkadot_core_primitives::v1::Balance"
+    TransientValidationData:balance -> "polkadot_core_primitives::v1::Balance":w
 
     CandidateCommitments [label = <
         <table>
@@ -108,11 +118,11 @@ digraph {
         </table>
     >]
 
-    CandidateCommitments:upward_messages -> "polkadot_parachain::primitives::UpwardMessage"
-    CandidateCommitments:horizontal_messages -> "polkadot_core_primitives::v1::OutboundHrmpMessage"
-    CandidateCommitments:head_data -> HeadData
-    CandidateCommitments:horizontal_messages -> "polkadot_parachain::primitives::Id"
-    CandidateCommitments:new_validation_code -> "polkadot_parachain::primitives::ValidationCode"
+    CandidateCommitments:upward_messages -> "polkadot_parachain::primitives::UpwardMessage":w
+    CandidateCommitments:horizontal_messages -> "polkadot_core_primitives::v1::OutboundHrmpMessage":w
+    CandidateCommitments:head_data -> HeadData:w
+    CandidateCommitments:horizontal_messages -> "polkadot_parachain::primitives::Id":w
+    CandidateCommitments:new_validation_code -> "polkadot_parachain::primitives::ValidationCode":w
 
     PoV [label = <
         <table>
@@ -121,7 +131,7 @@ digraph {
         </table>
     >]
 
-    PoV:block_data -> "polkadot_parachain::primitives::BlockData"
+    PoV:block_data -> "polkadot_parachain::primitives::BlockData":w
 
     BackedCandidate [label = <
         <table>
