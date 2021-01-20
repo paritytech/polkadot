@@ -342,9 +342,17 @@ async fn handle_from_overseer(
 				check_and_import_approval(state, a, res)?;
 				Ok(false)
 			}
-			ApprovalVotingMessage::ApprovedAncestor(_target, _lower_bound, _res ) => {
-				// TODO [now]
-				Ok(false)
+			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
+				match handle_approved_ancestor(ctx, &*state.db, target, lower_bound).await {
+					Ok(v) => {
+						let _ = res.send(v);
+						Ok(false)
+					}
+					Err(e) => {
+						let _ = res.send(None);
+						Err(e)
+					}
+				}
 			}
 		}
 	}
@@ -377,6 +385,71 @@ async fn handle_background_request(
 	}
 
 	Ok(())
+}
+
+async fn handle_approved_ancestor(
+	ctx: &mut impl SubsystemContext,
+	db: &impl AuxStore,
+	target: Hash,
+	lower_bound: BlockNumber,
+) -> SubsystemResult<Option<Hash>> {
+	let mut all_approved_max = None;
+
+	let block_number = {
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(ChainApiMessage::BlockNumber(target, tx).into()).await;
+
+		match rx.await? {
+			Ok(Some(n)) => n,
+			Ok(None) => return Ok(None),
+			Err(_) => return Ok(None),
+		}
+	};
+
+	if block_number <= lower_bound { return Ok(None) }
+
+	// request ancestors up to but not including the lower bound,
+	// as a vote on the lower bound is implied if we cannot find
+	// anything else.
+	let ancestry = if block_number > lower_bound + 1 {
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(ChainApiMessage::Ancestors {
+			hash: target,
+			k: (block_number - (lower_bound + 1)) as usize,
+			response_channel: tx,
+		}.into()).await;
+
+		match rx.await? {
+			Ok(a) => a,
+			Err(_) => return Ok(None),
+		}
+	} else {
+		Vec::new()
+	};
+
+	for block_hash in std::iter::once(target).chain(ancestry) {
+		// Block entries should be present as the assumption is that
+		// nothing here is finalized. If we encounter any missing block
+		// entries we can fail.
+		let entry = match aux_schema::load_block_entry(db, &block_hash)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+		{
+			None => return Ok(None),
+			Some(b) => b,
+		};
+
+		if entry.is_fully_approved() {
+			if all_approved_max.is_none() {
+				all_approved_max = Some(block_hash);
+			}
+		} else {
+			all_approved_max = None;
+		}
+	}
+
+	Ok(all_approved_max)
 }
 
 // Given a new chain-head hash, this determines the hashes of all new blocks we should track

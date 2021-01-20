@@ -239,6 +239,11 @@ impl BlockEntry {
 			self.approved_bitfield.set(p, true);
 		}
 	}
+
+	/// Whether the block entry is fully approved.
+	pub(crate) fn is_fully_approved(&self) -> bool {
+		self.approved_bitfield.all()
+	}
 }
 
 /// A range from earliest..last block number stored within the DB.
