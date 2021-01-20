@@ -673,7 +673,7 @@ async fn handle_new_head(
 			None => continue,
 		};
 
-		aux_schema::add_block_entry(
+		let candidate_entries = aux_schema::add_block_entry(
 			&*state.db,
 			block_header.parent_hash,
 			block_header.number,
@@ -704,12 +704,35 @@ async fn handle_new_head(
 			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
 			slot_number: slot,
 		});
+
+		let (block_tick, no_show_duration) = {
+			let session_info = state.session_info(session_index)
+				.expect("imported_block_info requires session to be available; qed");
+
+			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
+			let no_show_duration = slot_number_to_tick(
+				state.slot_duration_millis,
+				session_info.no_show_slots as _,
+			);
+
+			(block_tick, no_show_duration)
+		};
+
+		// schedule a wakeup for each candidate in the block.
+
+		for (candidate_hash, candidate_entry) in candidate_entries {
+			schedule_wakeup(
+				state,
+				&candidate_entry,
+				block_hash,
+				block_tick,
+				no_show_duration,
+				candidate_hash,
+			);
+		}
 	}
 
 	ctx.send_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into()).await;
-
-	// TODO [now]: schedule wakeup for each imported block. May issue trigger of assignment and broadcast
-	// of messages, so we need to have already notified distribution about the new blocks.
 
 	Ok(())
 }
@@ -828,6 +851,16 @@ fn check_and_import_assignment(
 		}
 	};
 
+	let (block_tick, no_show_duration) = {
+		let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot);
+		let no_show_duration = slot_number_to_tick(
+			state.slot_duration_millis,
+			session_info.no_show_slots as _,
+		);
+
+		(block_tick, no_show_duration)
+	};
+
 	// We check for approvals here because we may be late in seeing a block containing a
 	// candidate for which we have already seen approvals by the same validator.
 	//
@@ -835,14 +868,21 @@ fn check_and_import_assignment(
 	// approval, and so we must check for approval here.
 	//
 	// Note that this writes the candidate entry and any modified block entries to disk.
-	check_full_approvals(
+	let candidate_entry = check_full_approvals(
 		state,
 		Some((assignment.block_hash, block_entry)),
 		candidate_entry,
 		|h, _| h == &assignment.block_hash,
 	)?;
 
-	// TODO [now]: schedule wakeup
+	schedule_wakeup(
+		state,
+		&candidate_entry,
+		assignment.block_hash,
+		block_tick,
+		no_show_duration,
+		assigned_candidate_hash,
+	);
 
 	Ok(res)
 }
@@ -944,7 +984,8 @@ fn import_checked_approval(
 	// Check if this approval vote alters the approval state of any blocks.
 	//
 	// This may include blocks beyond the already loaded block.
-	check_full_approvals(state, already_loaded, candidate_entry, |_, a| a.is_assigned(validator))
+	check_full_approvals(state, already_loaded, candidate_entry, |_, a| a.is_assigned(validator))?;
+	Ok(())
 }
 
 // Checks the candidate for approval under all blocks matching the given filter.
@@ -956,7 +997,7 @@ fn check_full_approvals(
 	mut already_loaded: Option<(Hash, BlockEntry)>,
 	mut candidate_entry: CandidateEntry,
 	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<CandidateEntry> {
 	// We only query this max once per hash.
 	let db = &*state.db;
 	let mut load_block_entry = move |block_hash| -> SubsystemResult<Option<BlockEntry>> {
@@ -1029,11 +1070,11 @@ fn check_full_approvals(
 		}
 	}
 
-	transaction.put_candidate_entry(candidate_hash, candidate_entry);
+	transaction.put_candidate_entry(candidate_hash, candidate_entry.clone());
 	transaction.write(db)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
-	Ok(())
+	Ok(candidate_entry)
 }
 
 enum RequiredTranches {
@@ -1250,6 +1291,12 @@ async fn process_wakeup(
 		None => return Ok(()), // TODO [now]: log?
 	};
 
+	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot);
+	let no_show_duration = slot_number_to_tick(
+		state.slot_duration_millis,
+		session_info.no_show_slots as _,
+	);
+
 	let should_broadcast = {
 		let approval_entry = match candidate_entry.block_assignments.get(&relay_block) {
 			Some(e) => e,
@@ -1260,8 +1307,8 @@ async fn process_wakeup(
 			&approval_entry,
 			&candidate_entry.approvals,
 			tranche_now(state.slot_duration_millis, block_entry.slot),
-			slot_number_to_tick(state.slot_duration_millis, block_entry.slot),
-			slot_number_to_tick(state.slot_duration_millis, session_info.no_show_slots as _),
+			block_tick,
+			no_show_duration,
 			session_info.needed_approvals as _,
 		);
 
@@ -1330,7 +1377,14 @@ async fn process_wakeup(
 		}
 	}
 
-	// TODO [now]: schedule a new wakeup.
+	schedule_wakeup(
+		state,
+		&candidate_entry,
+		relay_block,
+		block_tick,
+		no_show_duration,
+		candidate_hash,
+	);
 
 	Ok(())
 }
