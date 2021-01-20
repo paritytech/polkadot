@@ -143,6 +143,7 @@ digraph {
     >]
 
     BackedCandidate:candidate -> CommittedCandidateReceipt:name
+    BackedCandidate:validity_votes  -> "polkadot_primitives:v0:ValidityAttestation":w
 
     AvailableData [label = <
         <table>
