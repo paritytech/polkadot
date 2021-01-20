@@ -15,7 +15,7 @@ readme = "README.md"
 cli = { package = "polkadot-cli", path = "cli" }
 color-eyre = "0.5.10"
 thiserror = "1.0.23"
-futures = "0.3.8"
+futures = "0.3.12"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
@@ -42,6 +42,7 @@ members = [
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"node/collation-generation",
+	"node/core/approval-voting",
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",

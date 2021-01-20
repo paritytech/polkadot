@@ -442,12 +442,6 @@ enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		ResponseChannel<Option<PersistedValidationData>>,
 	),
-	/// Get the full validation data for a specific para, with the given occupied core assumption.
-	FullValidationData(
-		ParaId,
-		OccupiedCoreAssumption,
-		ResponseChannel<Option<ValidationData>>,
-	),
 	/// Sends back `true` if the commitments pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,

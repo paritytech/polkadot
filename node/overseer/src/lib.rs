@@ -1095,8 +1095,8 @@ struct MetricsInner {
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
 	message_relay_timings: prometheus::Histogram,
-	to_overseer_channel_queue_sizes: prometheus::Histogram,
-	from_overseer_channel_queue_sizes: prometheus::Histogram,
+	to_overseer_channel_queue_size: prometheus::Gauge<prometheus::U64>,
+	from_overseer_channel_queue_size: prometheus::Gauge<prometheus::U64>,
 }
 
 #[derive(Default, Clone)]
@@ -1127,8 +1127,8 @@ impl Metrics {
 	}
 
 	fn channel_fill_level_snapshot(&self, from_overseer: usize, to_overseer: usize) {
-		self.0.as_ref().map(|metrics| metrics.to_overseer_channel_queue_sizes.observe(to_overseer as f64));
-		self.0.as_ref().map(|metrics| metrics.from_overseer_channel_queue_sizes.observe(from_overseer as f64));
+		self.0.as_ref().map(|metrics| metrics.to_overseer_channel_queue_size.set(to_overseer as u64));
+		self.0.as_ref().map(|metrics| metrics.from_overseer_channel_queue_size.set(from_overseer as u64));
 	}
 }
 
@@ -1178,35 +1178,21 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			from_overseer_channel_queue_sizes: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts {
-						common_opts: prometheus::Opts::new(
-							"parachain_from_overseer_channel_queue_sizes",
-							"Number of elements sitting in the channel waiting to be processed.",
-						),
-						buckets: prometheus::exponential_buckets(
-							1_f64,
-							2_f64,
-							(CHANNEL_CAPACITY as f64).log2().ceil() as usize,
-						).expect("inputs are within documented range; qed"),
-					}
+			from_overseer_channel_queue_size: prometheus::register(
+				prometheus::Gauge::<prometheus::U64>::with_opts(
+					prometheus::Opts::new(
+						"parachain_from_overseer_channel_queue_size",
+						"Number of elements sitting in the channel waiting to be processed.",
+					),
 				)?,
 				registry,
 			)?,
-			to_overseer_channel_queue_sizes: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts {
-						common_opts: prometheus::Opts::new(
-							"parachain_to_overseer_channel_queue_sizes",
-							"Number of elements sitting in the channel waiting to be processed.",
-						),
-						buckets: prometheus::exponential_buckets(
-							1_f64,
-							2_f64,
-							(CHANNEL_CAPACITY as f64).log2().ceil() as usize,
-						).expect("inputs are within documented range; qed"),
-					}
+			to_overseer_channel_queue_size: prometheus::register(
+				prometheus::Gauge::<prometheus::U64>::with_opts(
+					prometheus::Opts::new(
+						"parachain_to_overseer_channel_queue_size",
+						"Number of elements sitting in the channel waiting to be processed.",
+					),
 				)?,
 				registry,
 			)?,
@@ -1346,7 +1332,7 @@ where
 			let meter_from_overseer = events_rx.meter().clone();
 			let meter_to_overseer = to_overseer_rx.meter().clone();
 			let metronome_metrics = metrics.clone();
-			let metronome = Metronome::new(std::time::Duration::from_millis(137))
+			let metronome = Metronome::new(std::time::Duration::from_millis(950))
 			.for_each(move |_| {
 				metronome_metrics.channel_fill_level_snapshot(meter_from_overseer.queue_count(), meter_to_overseer.queue_count());
 
@@ -2126,10 +2112,10 @@ mod tests {
 		let gather = registry.gather();
 		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
 		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
-		assert_eq!(gather[2].get_name(), "parachain_from_overseer_channel_queue_sizes");
+		assert_eq!(gather[2].get_name(), "parachain_from_overseer_channel_queue_size");
 		assert_eq!(gather[3].get_name(), "parachain_messages_relayed_total");
 		assert_eq!(gather[4].get_name(), "parachain_overseer_messages_relay_timings");
-		assert_eq!(gather[5].get_name(), "parachain_to_overseer_channel_queue_sizes");
+		assert_eq!(gather[5].get_name(), "parachain_to_overseer_channel_queue_size");
 		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
 		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
 		let relayed = gather[3].get_metric()[0].get_counter().get_value() as u64;

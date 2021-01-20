@@ -40,7 +40,7 @@ use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
 };
 use runtime_common::{
@@ -637,12 +637,6 @@ sp_api::impl_runtime_apis! {
 
 		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_impl::availability_cores::<Runtime>()
-		}
-
-		fn full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>>
-		{
-			runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
 		}
 
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)

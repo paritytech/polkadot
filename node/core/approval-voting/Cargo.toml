@@ -1,0 +1,21 @@
+[package]
+name = "polkadot-node-core-approval-voting"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.8"
+parity-scale-codec = { version = "1.3.5", default-features = false, features = ["bit-vec", "derive"] }
+
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-overseer = { path = "../../overseer" }
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-primitives = { path = "../../primitives" }
+bitvec = "0.17.4"
+
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+[dev-dependencies]
