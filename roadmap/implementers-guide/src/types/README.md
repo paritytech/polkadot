@@ -4,6 +4,8 @@ This section of the guide provides type definitions of various categories.
 
 ## V1 Overview
 
+Diagrams are rendered in high resolution; open them in a separate tab to see full scale.
+
 These data types are defined in `polkadot/primitives/src/v1.rs`:
 
 ```dot process
@@ -337,5 +339,101 @@ digraph {
     >]
 
     AbridgedHrmpChannel:mqc_head -> MQCHash
+}
+```
+
+These data types are defined in `polkadot/parachain/src/primitives.rs`:
+
+```dot process
+digraph {
+    rankdir = LR;
+    node [shape = plain]
+
+    HeadData [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">HeadData</td></tr>
+            <tr><td>0</td><td port="0">Vec&lt;u8&gt;</td></tr>
+        </table>
+    >]
+
+    ValidationCode [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">ValidationCode</td></tr>
+            <tr><td>0</td><td port="0">Vec&lt;u8&gt;</td></tr>
+        </table>
+    >]
+
+    BlockData [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">BlockData</td></tr>
+            <tr><td>0</td><td port="0">Vec&lt;u8&gt;</td></tr>
+        </table>
+    >]
+
+    Id [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">Id</td></tr>
+            <tr><td>0</td><td port="0">u32</td></tr>
+        </table>
+    >]
+
+    Sibling [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">Sibling</td></tr>
+            <tr><td>0</td><td port="0">Id</td></tr>
+        </table>
+    >]
+
+    Sibling:0 -> Id:name
+
+    HrmpChannelId [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">HrmpChannelId</td></tr>
+            <tr><td>sender</td><td port="sender">Id</td></tr>
+            <tr><td>recipient</td><td port="recipient">Id</td></tr>
+        </table>
+    >]
+
+    HrmpChannelId:e -> Id:name
+
+    ValidationParams [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">ValidationParams</td></tr>
+            <tr><td>parent_head</td><td port="parent_head">HeadData</td></tr>
+            <tr><td>block_data</td><td port="block_data">BlockData</td></tr>
+            <tr><td>relay_chain_height</td><td port="relay_chain_height">RelayChainBlockNumber</td></tr>
+            <tr><td>relay_storage_root</td><td port="relay_storage_root">Hash</td></tr>
+            <tr><td>dmq_mqc_head</td><td port="dmq_mqc_head">Hash</td></tr>
+            <tr><td>hrmp_mqc_heads</td><td port="hrmp_mqc_heads">Vec&lt;(Id, Hash)&gt;</td></tr>
+        </table>
+    >]
+
+    ValidationParams:parent_head -> HeadData:name
+    ValidationParams:block_data -> BlockData:name
+    ValidationParams:relay_chain_height -> RelayChainBlockNumber:w
+
+    RelayChainBlockNumber [label = "polkadot_core_primitives::BlockNumber"]
+
+    ValidationResult [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">ValidationResult</td></tr>
+            <tr><td>head_data</td><td port="head_data">HeadData</td></tr>
+            <tr><td>new_validation_code</td><td port="new_validation_code">Option&lt;ValidationCode&gt;</td></tr>
+            <tr><td>upward_messages</td><td port="upward_messages">Vec&lt;UpwardMessage&gt;</td></tr>
+            <tr><td>horizontal_messages</td><td port="horizontal_messages">Vec&lt;OutboundHrmpMessage&lt;Id&gt;&gt;</td></tr>
+            <tr><td>processed_downward_messages</td><td port="processed_downward_messages">u32</td></tr>
+            <tr><td>hrmp_watermark</td><td port="hrmp_watermark">RelayChainBlockNumber</td></tr>
+        </table>
+    >]
+
+    ValidationResult:head_data -> HeadData:name
+    ValidationResult:new_validation_code -> ValidationCode:name
+    ValidationResult:upward_messages -> UpwardMessage:w
+    ValidationResult:horizontal_messages -> OutboundHrmpMessage:w
+    ValidationResult:horizontal_messages -> Id:name
+    ValidationResult:hrmp_watermark -> RelayChainBlockNumber:w
+
+    UpwardMessage [label = "Vec<u8>"]
+    OutboundHrmpMessage [label = "polkadot_core_primitives::OutboundHrmpMessage"]
 }
 ```
