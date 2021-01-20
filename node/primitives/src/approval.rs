@@ -20,7 +20,7 @@ pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof, Randomness};
 pub use sp_consensus_babe::SlotNumber;
 
 use polkadot_primitives::v1::{
-	CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature, CoreIndex,
+	CandidateHash, Hash, ValidatorIndex, ValidatorSignature, CoreIndex,
 	Header, BlockNumber,
 };
 use parity_scale_codec::{Encode, Decode};

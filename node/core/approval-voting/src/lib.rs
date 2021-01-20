@@ -33,7 +33,7 @@ use polkadot_subsystem::{
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex, AvailableData, BlockNumber, PersistedValidationData,
+	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber, PersistedValidationData,
 	ValidationCode, CandidateDescriptor, PoV, ValidatorPair, ValidatorSignature, ValidatorId,
 };
 use polkadot_node_primitives::ValidationResult;
@@ -45,7 +45,6 @@ use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::SlotNumber;
 use sc_client_api::backend::AuxStore;
-use sp_consensus_babe::Epoch as BabeEpoch;
 use sp_runtime::traits::AppVerify;
 use sp_application_crypto::Pair;
 
@@ -60,7 +59,7 @@ use std::time::{Duration, SystemTime};
 use std::sync::Arc;
 use std::ops::{RangeBounds, Bound as RangeBound};
 
-use aux_schema::{TrancheEntry, ApprovalEntry, CandidateEntry, BlockEntry};
+use aux_schema::{ApprovalEntry, CandidateEntry, BlockEntry};
 use criteria::OurAssignment;
 
 mod aux_schema;
@@ -73,7 +72,6 @@ const LOG_TARGET: &str = "approval-voting";
 type Tick = u64;
 
 const TICK_DURATION_MILLIS: u64 = 500;
-const TICK_DURATION: Duration = Duration::from_millis(TICK_DURATION_MILLIS);
 
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem<T> {
@@ -260,7 +258,7 @@ async fn run<T, C>(mut ctx: C, subsystem: ApprovalVotingSubsystem<T>) -> Subsyst
 	}
 
 	loop {
-		let mut wait_til_next_tick = match state.wakeups.first() {
+		let wait_til_next_tick = match state.wakeups.first() {
 			None => future::Either::Left(future::pending()),
 			Some(tick) => future::Either::Right(async move {
 				if let Some(until) = until_tick(tick) {
@@ -433,7 +431,7 @@ async fn determine_new_blocks(
 		}
 
 		let (tx, rx) = oneshot::channel();
-		let ancestors = ctx.send_message(ChainApiMessage::Ancestors {
+		ctx.send_message(ChainApiMessage::Ancestors {
 			hash: *last_hash,
 			k: ANCESTRY_STEP,
 			response_channel: tx,
@@ -965,7 +963,7 @@ fn check_and_import_assignment(
 
 	let res = {
 		// import the assignment.
-		let mut assignment_entry = match
+		let assignment_entry = match
 			candidate_entry.block_assignments.get_mut(&assignment.block_hash)
 		{
 			Some(a) => a,
@@ -1193,7 +1191,6 @@ fn check_full_approvals(
 		);
 
 		let now_approved = check_approval(
-			&block_entry,
 			&candidate_entry,
 			approval_entry,
 			required_tranches,
@@ -1234,7 +1231,6 @@ enum RequiredTranches {
 }
 
 fn check_approval(
-	block: &BlockEntry,
 	candidate: &CandidateEntry,
 	approval: &ApprovalEntry,
 	required: RequiredTranches,
@@ -1424,7 +1420,7 @@ async fn process_wakeup(
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
-	let (mut block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
+	let (block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
 		(Some(b), Some(c)) => (b, c),
 		_ => return Ok(()),
 	};
@@ -1470,7 +1466,6 @@ async fn process_wakeup(
 			Some(ref assignment) => {
 				match tranches_to_approve {
 					RequiredTranches::All => check_approval(
-						&block_entry,
 						&candidate_entry,
 						&approval_entry,
 						RequiredTranches::All,
@@ -1582,6 +1577,7 @@ async fn launch_approval(
 		).into()
 	).await;
 
+	let candidate = candidate.clone();
 	let background = async move {
 		let available_data = match a_rx.await {
 			Err(_) => return,
@@ -1620,7 +1616,7 @@ async fn launch_approval(
 		let _ = background_tx.send(BackgroundRequest::CandidateValidation(
 			available_data.validation_data,
 			validation_code,
-			candidate.descriptor.clone(),
+			candidate.descriptor,
 			available_data.pov,
 			val_tx,
 		)).await;
@@ -1645,7 +1641,7 @@ async fn launch_approval(
 		}
 	};
 
-	Ok(())
+	ctx.spawn("approval-checks", Box::pin(background)).await
 }
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
