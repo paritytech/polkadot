@@ -25,8 +25,9 @@ use polkadot_subsystem::{
 	messages::{
 		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ValidationFailed, CandidateValidationMessage,
+		ValidationFailed, CandidateValidationMessage, AvailabilityRecoveryMessage,
 	},
+	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal,
 };
@@ -1336,7 +1337,16 @@ async fn process_wakeup(
 
 	let session_info = match state.session_info(block_entry.session) {
 		Some(i) => i,
-		None => return Ok(()), // TODO [now]: log?
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Missing session info for live block {} in session {}",
+				relay_block,
+				block_entry.session,
+			);
+
+			return Ok(())
+		}
 	};
 
 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot);
@@ -1446,14 +1456,15 @@ async fn launch_approval(
 	block_hash: Hash,
 	candidate_index: usize,
 ) -> SubsystemResult<()> {
-	let (_a_tx, a_rx) = oneshot::channel::<AvailableData>();
+	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 	let (context_num_tx, context_num_rx) = oneshot::channel();
 
-	// TODO [now]
-	// ctx.send_message(
-	// 	AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, a_tx).into()
-	// ).await?;
+	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
+		candidate.clone(),
+		session_index,
+		a_tx,
+	).into()).await;
 
 	ctx.send_message(
 		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
@@ -1480,7 +1491,16 @@ async fn launch_approval(
 	let background = async move {
 		let available_data = match a_rx.await {
 			Err(_) => return,
-			Ok(a) => a,
+			Ok(Ok(a)) => a,
+			Ok(Err(RecoveryError::Unavailable)) => {
+				// do nothing. we'll just be a no-show and that'll cause others to rise up.
+				return;
+			}
+			Ok(Err(RecoveryError::Invalid)) => {
+				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
+				// https://github.com/paritytech/polkadot/issues/2176
+				return;
+			}
 		};
 
 		let validation_code = match code_rx.await {
