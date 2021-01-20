@@ -88,12 +88,25 @@ pub trait Registrar<AccountId> {
 	fn make_parathread(id: ParaId);
 }
 
+/// Error type for something that went wrong with leasing.
+pub enum LeaseError {
+	/// Unable to reserve the funds in the leaser's account.
+	ReserveFailed,
+	/// There is already a lease on at lease one period for the given para.
+	AlreadyLeased,
+	/// The period to be leased has already ended.
+	AlreadyEnded,
+}
+
 /// Lease manager. Used by the auction module to handle parachain slot leases.
 pub trait Leaser {
+	/// An account identifier for a leaser.
 	type AccountId;
 
+	/// The measurement type for counting lease periods (generally just a `BlockNumber`).
 	type LeasePeriod;
 
+	/// The currency type in which the lease is taken.
 	type Currency: ReservableCurrency<Self::AccountId>;
 
 	/// Lease a new parachain slot for `para`.
@@ -106,14 +119,14 @@ pub trait Leaser {
 	/// The lease will last from `period_begin` for `period_count` lease periods. It is undefined if the `para`
 	/// already has a slot leased during those periods.
 	///
-	/// Returns `Err` if the `amount` was unable to be reserved.
+	/// Returns `Err` in the case of an error, and in which case nothing is changed.
 	fn lease_out(
 		para: ParaId,
 		leaser: Self::AccountId,
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
-	) -> DispatchResult;
+	) -> Result<(), LeaseError>;
 
 	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
 	/// go down outside of a lease period.
@@ -172,9 +185,6 @@ decl_storage! {
 
 		/// The ordered set of Para IDs that are full parachains currently.
 		pub CurrentChains: Vec<ParaId>;
-
-		/// The list of leased paras for each block.
-		pub Leased: map hasher(twox_64_concat) T::BlockNumber => Vec<ParaId>;
 	}
 }
 
@@ -189,7 +199,7 @@ decl_event!(
 		NewLeasePeriod(LeasePeriod),
 		/// An existing parachain won the right to continue.
 		/// First balance is the extra amount reseved. Second is the total amount reserved.
-		/// [parachain_id, range, extra_reseved, total_amount]
+		/// \[parachain_id, range, extra_reseved, total_amount\]
 		WonRenewal(ParaId, SlotRange, Balance, Balance),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
 		/// Second is the total. [bidder, extra_reserved, total_amount]
@@ -198,6 +208,10 @@ decl_event!(
 		Unreserved(AccountId, Balance),
 		/// A para ID value has been claimed.
 		Claimed(ParaId),
+		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
+		/// but no parachain slot has been leased.
+		/// \[parachain_id, leaser, amount\]
+		ReserveConfiscated(ParaId, AccountId, Balance),
 	}
 );
 
@@ -225,8 +239,6 @@ decl_error! {
 		HeadDataTooLarge,
 		/// The Id given is already in use.
 		InUse,
-		/// This para is already leased.
-		AlreadyLeased,
 	}
 }
 
@@ -389,7 +401,7 @@ impl<T: Config> Module<T> {
 				//
 				// `para` is now just a parathread.
 				//
-				// Return the full deposit to the off-boarding account.
+				// Unreserve whatever is left.
 				if let Some((who, value)) = lease_periods[0] {
 					T::Currency::unreserve(&who, value);
 				}
@@ -401,29 +413,31 @@ impl<T: Config> Module<T> {
 
 				// We need to pop the first deposit entry, which corresponds to the now-
 				// ended lease period.
-				let outgoing = lease_periods.remove(0);
+				let maybe_ended_lease = lease_periods.remove(0);
 
 				Leases::<T>::insert(para, &lease_periods);
 
-				if let Some(outgoing) = outgoing {
-
+				// If we *were* active in the last period and so have ended a lease...
+				if let Some(ended_lease) = maybe_ended_lease {
 					// Then we need to get the new amount that should continue to be held on
 					// deposit for the parachain.
-					let new_held = Self::deposit_held(para, &outgoing.0);
+					let now_held = Self::deposit_held(para, &ended_lease.0);
 
-					// If this is less than what we were holding previously, then return it
-					// to the parachain itself.
-					if let Some(rebate) = outgoing.1.checked_sub(&new_held) {
-						T::Currency::unreserve( &outgoing.0, rebate);
+					// If this is less than what we were holding for this leaser's now-ended lease, then
+					// unreserve it.
+					if let Some(rebate) = ended_lease.1.checked_sub(&now_held) {
+						T::Currency::unreserve( &ended_lease.0, rebate);
 					}
 				}
 
+				// If we have an active lease in the new period, then add to the current parachains
 				if lease_periods[0].is_some() {
 					parachains.push(para);
 				}
 			}
 		}
 		parachains.sort();
+		CurrentChains::put(&parachains);
 
 		for para in parachains.iter() {
 			if old_parachains.binary_search(para).is_err() {
@@ -452,73 +466,59 @@ impl<T: Config> Leaser for Module<T> {
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
-	) -> DispatchResult {
-
-		// Remember that this should be leased.
-		for p in period_begin..(period_begin + period_count) {
-			// Schedule the para for full parachain status.
-			ensure!(!Leased::<T>::get(p).contains(&para), Error::<T>::AlreadyLeased);
-		}
-
-		// Figure out whether we already have some funds of `leaser` held in reserve for `para_id`.
-		//  If so, then we can deduct those from the amount that we need to reserve.
-		let maybe_additional = amount.checked_sub(&Self::deposit_held(para, &leaser));
-		if let Some(additional) = maybe_additional {
-			T::Currency::reserve(&leaser, additional)?;
-		}
-
-		// Remember that this should be leased.
-		for p in period_begin..(period_begin + period_count) {
-			// Schedule the para for full parachain status.
-			Leased::<T>::mutate(p, |paras| paras.push(para));
-		}
-
-		// TODO
-		//Self::deposit_event(RawEvent::WonRenewal(para, period_begin, period_count, amount));
-
+	) -> Result<(), LeaseError> {
 		// Finally, we update the deposit held so it is `amount` for the new lease period
 		// indices that were won in the auction.
-		let maybe_offset = period_begin
+		let offset = period_begin
 			.checked_sub(&Self::lease_period_index())
-			.and_then(|x| x.checked_into::<usize>());
-		if let Some(offset) = maybe_offset {
-			// Should always succeed; for it to fail it would mean we auctioned a lease period
-			// that already ended.
+			.and_then(|x| x.checked_into::<usize>())
+			.ok_or(LeaseError::AlreadyEnded)?;
 
-			// offset is the amount into the `Deposits` items list that our lease begins. `period_count`
-			// is the number of items that it lasts for.
+		// offset is the amount into the `Deposits` items list that our lease begins. `period_count`
+		// is the number of items that it lasts for.
 
-			// The lease period index range (begin, end) that newly belongs to this parachain
-			// ID. We need to ensure that it features in `Deposits` to prevent it from being
-			// reaped too early (any managed parachain whose `Deposits` set runs low will be
-			// removed).
-			Leases::<T>::mutate(para, |d| {
-				// Left-pad with zeroes as necessary.
-				if d.len() < offset {
-					d.resize_with(offset, || { None });
-				}
-				// Then place the deposit values for as long as the chain should exist.
-				for i in offset .. (offset + period_count as usize) {
-					if d.len() > i {
-						// Already exists but it's `None`. That means a later slot was already leased.
-						// No problem.
-						if d[i] == None {
-							d[i] = Some((leaser.clone(), amount))
-						} else {
-							// The chain bought the same lease period twice. Shouldn't be able to happen
-							// due to the check at the top. If it somehow does, then it means that the
-							// leaser may lose their funds and need a governance intervention.
-						}
-					} else if d.len() == i {
-						// Doesn't exist. This is usual.
-						d.push(Some((leaser.clone(), amount)));
+		// The lease period index range (begin, end) that newly belongs to this parachain
+		// ID. We need to ensure that it features in `Deposits` to prevent it from being
+		// reaped too early (any managed parachain whose `Deposits` set runs low will be
+		// removed).
+		Leases::<T>::try_mutate(para, |d| {
+			// Left-pad with `None`s as necessary.
+			if d.len() < offset {
+				d.resize_with(offset, || { None });
+			}
+			// Then place the deposit values for as long as the chain should exist.
+			for i in offset .. (offset + period_count as usize) {
+				if d.len() > i {
+					// Already exists but it's `None`. That means a later slot was already leased.
+					// No problem.
+					if d[i] == None {
+						d[i] = Some((leaser.clone(), amount));
 					} else {
-						unreachable!("earlier resize means it must be >= i; qed")
+						// The chain tried to lease the same period twice. This might be a griefing
+						// attempt.
+						//
+						// We bail, not giving any lease and leave it for governance to sort out.
+						return Err(LeaseError::AlreadyLeased);
 					}
+				} else if d.len() == i {
+					// Doesn't exist. This is usual.
+					d.push(Some((leaser.clone(), amount)));
+				} else {
+					// earlier resize means it must be >= i; qed
+					// defensive code though since we really don't want to panic here.
 				}
-			});
-		}
-		Ok(())
+			}
+
+			// Figure out whether we already have some funds of `leaser` held in reserve for `para_id`.
+			//  If so, then we can deduct those from the amount that we need to reserve.
+			let maybe_additional = amount.checked_sub(&Self::deposit_held(para, &leaser));
+			if let Some(ref additional) = maybe_additional {
+				T::Currency::reserve(&leaser, *additional)
+					.map_err(|_| LeaseError::ReserveFailed)?;
+			}
+
+			Ok(())
+		})
 	}
 
 	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
