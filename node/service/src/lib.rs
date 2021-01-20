@@ -397,11 +397,14 @@ where
 	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
 	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
 			Metrics::register(registry)?,
+		),
+		availability_recovery: AvailabilityRecoverySubsystem::new(
 		),
 		availability_store: AvailabilityStoreSubsystem::new_on_disk(
 			availability_config,
@@ -568,6 +571,21 @@ pub fn new_full<RuntimeApi, Executor>(
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 	#[cfg(feature = "real-overseer")]
 	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
+
+	// TODO: At the moment, the collator protocol uses notifications protocols to download
+	// collations. Because of DoS-protection measures, notifications protocols have a very limited
+	// bandwidth capacity, resulting in the collation download taking a long time.
+	// The lines of code below considerably relaxes this DoS protection in order to circumvent
+	// this problem. This configuraiton change should preferably not reach any live network, and
+	// should be removed once the collation protocol is finished.
+	// Tracking issue: https://github.com/paritytech/polkadot/issues/2283
+	#[cfg(feature = "real-overseer")]
+	fn adjust_yamux(cfg: &mut sc_network::config::NetworkConfiguration) {
+		cfg.yamux_window_size = Some(5 * 1024 * 1024);
+	}
+	#[cfg(not(feature = "real-overseer"))]
+	fn adjust_yamux(_: &mut sc_network::config::NetworkConfiguration) {}
+	adjust_yamux(&mut config.network);
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {

@@ -282,7 +282,7 @@ impl View {
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash,
+		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex,
 	};
 	use polkadot_node_primitives::SignedFullStatement;
 	use parity_scale_codec::{Encode, Decode};
@@ -295,6 +295,16 @@ pub mod v1 {
 		/// An erasure chunk for a given candidate hash.
 		#[codec(index = "0")]
 		Chunk(CandidateHash, ErasureChunk),
+	}
+
+	/// Network messages used by the availability recovery subsystem.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	pub enum AvailabilityRecoveryMessage {
+		/// Request a chunk for a given candidate hash and validator index.
+		RequestChunk(RequestId, CandidateHash, ValidatorIndex),
+		/// Respond with chunk for a given candidate hash and validator index.
+		/// The response may be `None` if the requestee does not have the chunk.
+		Chunk(RequestId, Option<ErasureChunk>),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
@@ -359,6 +369,9 @@ pub mod v1 {
 		/// Statement distribution messages
 		#[codec(index = "3")]
 		StatementDistribution(StatementDistributionMessage),
+		/// Availability recovery messages
+		#[codec(index = "4")]
+		AvailabilityRecovery(AvailabilityRecoveryMessage),
 	}
 
 	impl_try_from!(ValidationProtocol, AvailabilityDistribution, AvailabilityDistributionMessage);

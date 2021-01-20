@@ -259,7 +259,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// point. The hash of the persisted validation data should
 	/// match the `persisted_validation_data_hash` in the descriptor
 	/// of the receipt.
-	pub validation_data: ValidationData<N>,
+	pub validation_data: PersistedValidationData<N>,
 }
 
 /// A candidate-receipt with commitments directly included.
@@ -317,44 +317,25 @@ impl Ord for CommittedCandidateReceipt {
 	}
 }
 
-/// The validation data provide information about how to validate both the inputs and
-/// outputs of a candidate.
+/// The validation data provides information about how to create the inputs for validation of a candidate.
+/// This information is derived from the chain state and will vary from para to para, although some of the
+/// fields may be the same for every para.
 ///
-/// There are two types of validation data: persisted and transient.
-/// Their respective sections of the guide elaborate on their functionality in more detail.
+/// Since this data is used to form inputs to the validation function, it needs to be persisted by the
+/// availability system to avoid dependence on availability of the relay-chain state.
 ///
-/// This information is derived from the chain state and will vary from para to para,
-/// although some of the fields may be the same for every para.
+/// Furthermore, the validation data acts as a way to authorize the additional data the collator needs
+/// to pass to the validation function. For example, the validation function can check whether the incoming
+/// messages (e.g. downward messages) were actually sent by using the data provided in the validation data
+/// using so called MQC heads.
 ///
-/// Persisted validation data are generally derived from some relay-chain state to form inputs
-/// to the validation function, and as such need to be persisted by the availability system to
-/// avoid dependence on availability of the relay-chain state. The backing phase of the
-/// inclusion pipeline ensures that everything that is included in a valid fork of the
-/// relay-chain already adheres to the transient constraints.
+/// Since the commitments of the validation function are checked by the relay-chain, secondary checkers
+/// can rely on the invariant that the relay-chain only includes para-blocks for which these checks have
+/// already been done. As such, there is no need for the validation data used to inform validators and
+/// collators about the checks the relay-chain will perform to be persisted by the availability system.
 ///
-/// The validation data also serve the purpose of giving collators a means of ensuring that
-/// their produced candidate and the commitments submitted to the relay-chain alongside it
-/// will pass the checks done by the relay-chain when backing, and give validators
-/// the same understanding when determining whether to second or attest to a candidate.
-///
-/// Since the commitments of the validation function are checked by the
-/// relay-chain, secondary checkers can rely on the invariant that the relay-chain
-/// only includes para-blocks for which these checks have already been done. As such,
-/// there is no need for the validation data used to inform validators and collators about
-/// the checks the relay-chain will perform to be persisted by the availability system.
-/// Nevertheless, we expose it so the backing validators can validate the outputs of a
-/// candidate before voting to submit it to the relay-chain and so collators can
-/// collate candidates that satisfy the criteria implied these transient validation data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Default))]
-pub struct ValidationData<N = BlockNumber> {
-	/// The persisted validation data.
-	pub persisted: PersistedValidationData<N>,
-	/// The transient validation data.
-	pub transient: TransientValidationData<N>,
-}
-
-/// Validation data that needs to be persisted for secondary checkers.
+/// The `PersistedValidationData` should be relatively lightweight primarly because it is constructed
+/// during inclusion for each candidate and therefore lies on the critical path of inclusion.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct PersistedValidationData<N = BlockNumber> {
@@ -382,36 +363,6 @@ impl<N: Encode> PersistedValidationData<N> {
 	pub fn hash(&self) -> Hash {
 		BlakeTwo256::hash_of(self)
 	}
-}
-
-/// Validation data for checking outputs of the validation-function.
-/// As such, they also inform the collator about how to construct the candidate.
-///
-/// These are transient because they are not necessary beyond the point where the
-/// candidate is backed.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct TransientValidationData<N = BlockNumber> {
-	/// The maximum code size permitted, in bytes.
-	pub max_code_size: u32,
-	/// The maximum head-data size permitted, in bytes.
-	pub max_head_data_size: u32,
-	/// The balance of the parachain at the moment of validation.
-	pub balance: Balance,
-	/// Whether the parachain is allowed to upgrade its validation code.
-	///
-	/// This is `Some` if so, and contains the number of the minimum relay-chain
-	/// height at which the upgrade will be applied, if an upgrade is signaled
-	/// now.
-	///
-	/// A parachain should enact its side of the upgrade at the end of the first
-	/// parablock executing in the context of a relay-chain block with at least this
-	/// height. This may be equal to the current perceived relay-chain block height, in
-	/// which case the code upgrade should be applied at the end of the signaling
-	/// block.
-	pub code_upgrade_allowed: Option<N>,
-	/// The number of messages pending of the downward message queue.
-	pub dmq_length: u32,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
@@ -832,15 +783,6 @@ sp_api::decl_runtime_apis! {
 		/// Cores are either free or occupied. Free cores can have paras assigned to them.
 		#[skip_initialize_block]
 		fn availability_cores() -> Vec<CoreState<H, N>>;
-
-		/// Yields the full validation data for the given ParaId along with an assumption that
-		/// should be used if the para currently occupieds a core.
-		///
-		/// Returns `None` if either the para is not registered or the assumption is `Freed`
-		/// and the para already occupies a core.
-		#[skip_initialize_block]
-		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<N>>;
 
 		/// Yields the persisted validation data for the given ParaId along with an assumption that
 		/// should be used if the para currently occupies a core.
