@@ -50,8 +50,10 @@ use bitvec::vec::BitVec;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use std::collections::{BTreeMap, HashMap};
+use std::collections::btree_map::Entry;
 use std::time::{Duration, SystemTime};
 use std::sync::Arc;
+use std::ops::{RangeBounds, Bound as RangeBound};
 
 use aux_schema::{TrancheEntry, ApprovalEntry, CandidateEntry, BlockEntry};
 use criteria::OurAssignment;
@@ -94,12 +96,68 @@ struct ApprovalVoteRequest {
 	candidate_index: u32,
 }
 
+#[derive(Default)]
+struct Wakeups {
+	// Tick -> [(Relay Block, Candidate Hash)]
+	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
+	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
+}
+
+impl Wakeups {
+	// Returns the first tick there exist wakeups for, if any.
+	fn first(&self) -> Option<Tick> {
+		self.wakeups.keys().next().map(|t| *t)
+	}
+
+	// Schedules a wakeup at the given tick. no-op if there is already an earlier or equal wake-up
+	// for these values. replaces any later wakeup.
+	fn schedule(&mut self, block_hash: Hash, candidate_hash: CandidateHash, tick: Tick) {
+		if let Some(prev) = self.reverse_wakeups.get(&(block_hash, candidate_hash)) {
+			if prev >= &tick { return }
+
+			// we are replacing previous wakeup.
+			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
+				if let Some(pos) = entry.get().iter()
+					.position(|x| x == &(block_hash, candidate_hash))
+				{
+					entry.get_mut().remove(pos);
+				}
+
+				if entry.get().is_empty() {
+					let _ = entry.remove_entry();
+				}
+			}
+		}
+
+		self.reverse_wakeups.insert((block_hash, candidate_hash), tick);
+		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
+	}
+
+	// drains all wakeups within the given range.
+	// panics if the given range is empty.
+	fn drain<'a, R: RangeBounds<Tick>>(&'a mut self, range: R)
+		-> impl Iterator<Item = (Hash, CandidateHash)> + 'a
+	{
+		let reverse = &mut self.reverse_wakeups;
+
+		// BTreeMap has no `drain` method :(
+		let after = match range.end_bound() {
+			RangeBound::Unbounded => BTreeMap::new(),
+			RangeBound::Included(last) => self.wakeups.split_off(&(last + 1)),
+			RangeBound::Excluded(last) => self.wakeups.split_off(&last),
+		};
+		let prev = std::mem::replace(&mut self.wakeups, after);
+		prev.into_iter()
+			.flat_map(|(_, wakeup)| wakeup)
+			.inspect(move |&(ref b, ref c)| { let _ = reverse.remove(&(*b, *c)); })
+	}
+}
+
 struct State<T> {
 	earliest_session: SessionIndex,
 	session_info: Vec<SessionInfo>,
 	keystore: LocalKeystore,
-	// Tick -> [(Relay Block, Candidate Hash)]
-	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
+	wakeups: Wakeups,
 	slot_duration_millis: u64,
 	db: Arc<T>,
 
@@ -175,9 +233,9 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 	}
 
 	loop {
-		let mut wait_til_next_tick = match state.wakeups.iter().next() {
+		let mut wait_til_next_tick = match state.wakeups.first() {
 			None => future::Either::Left(future::pending()),
-			Some((&tick, _)) => future::Either::Right(async move {
+			Some(tick) => future::Either::Right(async move {
 				if let Some(until) = until_tick(tick) {
 					futures_timer::Delay::new(until).await;
 				}
@@ -189,8 +247,7 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 
 		futures::select! {
 			tick_wakeup = wait_til_next_tick.fuse() => {
-				// should always be "Some" in practice.
-				let woken = state.wakeups.remove(&tick_wakeup).unwrap_or_default();
+				let woken = state.wakeups.drain(..=tick_wakeup);
 
 				for (woken_block, woken_candidate) in woken {
 					process_wakeup(
@@ -1155,6 +1212,19 @@ fn tranches_to_approve(
 		// Any assignments up to now should be broadcast. Typically this will happen when
 		// `tranche_now == 0`.
 		.unwrap_or(RequiredTranches::Pending(tranche_now))
+}
+
+fn schedule_wakeup(
+	state: &mut State<impl AuxStore>,
+	candidate_entry: &CandidateEntry,
+	block_hash: Hash,
+	block_tick: Tick,
+	no_show_duration: Tick,
+	candidate_hash: CandidateHash,
+) {
+	if let Some(tick) = candidate_entry.next_wakeup(&block_hash, block_tick, no_show_duration) {
+		state.wakeups.schedule(block_hash, candidate_hash, tick);
+	}
 }
 
 async fn process_wakeup(
