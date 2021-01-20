@@ -117,7 +117,7 @@ pub trait Leaser {
 
 	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
 	/// go down outside of a lease period.
-	fn deposit_held(para: ParaId, leaser: Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
+	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
 
 	/// The lease period. This is constant, but can't be a `const` due to it being a runtime configurable quantity.
 	fn lease_period() -> Self::LeasePeriod;
@@ -172,6 +172,9 @@ decl_storage! {
 
 		/// The ordered set of Para IDs that are full parachains currently.
 		pub CurrentChains: Vec<ParaId>;
+
+		/// The list of leased paras for each block.
+		pub Leased: map hasher(twox_64_concat) T::BlockNumber => Vec<ParaId>;
 	}
 }
 
@@ -222,6 +225,8 @@ decl_error! {
 		HeadDataTooLarge,
 		/// The Id given is already in use.
 		InUse,
+		/// This para is already leased.
+		AlreadyLeased,
 	}
 }
 
@@ -373,7 +378,7 @@ impl<T: Config> Module<T> {
 
 		// Figure out what chains need bringing on.
 		let mut parachains = Vec::new();
-		for (para, lease_periods) in Leases::iter() {
+		for (para, lease_periods) in Leases::<T>::iter() {
 			if lease_periods.is_empty() { continue }
 			// ^^ should never be empty since we would have deleted the entry otherwise.
 
@@ -398,14 +403,17 @@ impl<T: Config> Module<T> {
 
 				Leases::<T>::insert(para, &lease_periods);
 
-				// Then we need to get the new amount that should continue to be held on
-				// deposit for the parachain.
-				let new_held = Self::deposit_held(para, &outgoing.0);
+				if let Some(outgoing) = outgoing {
 
-				// If this is less than what we were holding previously, then return it
-				// to the parachain itself.
-				if let Some(rebate) = outgoing.1.checked_sub(&new_held) {
-					T::Currency::unreserve( &outgoing.0, rebate);
+					// Then we need to get the new amount that should continue to be held on
+					// deposit for the parachain.
+					let new_held = Self::deposit_held(para, &outgoing.0);
+
+					// If this is less than what we were holding previously, then return it
+					// to the parachain itself.
+					if let Some(rebate) = outgoing.1.checked_sub(&new_held) {
+						T::Currency::unreserve( &outgoing.0, rebate);
+					}
 				}
 
 				if lease_periods[0].is_some() {
@@ -447,12 +455,12 @@ impl<T: Config> Leaser for Module<T> {
 		// Remember that this should be leased.
 		for p in period_begin..(period_begin + period_count) {
 			// Schedule the para for full parachain status.
-			ensure!(!Leases::<T>::get(p).contains(&para), Error::<T>::AlreadyLeased);
+			ensure!(!Leased::<T>::get(p).contains(&para), Error::<T>::AlreadyLeased);
 		}
 
 		// Figure out whether we already have some funds of `leaser` held in reserve for `para_id`.
 		//  If so, then we can deduct those from the amount that we need to reserve.
-		let maybe_additional = amount.checked_sub(&T::Leaser::deposit_held(para, &leaser));
+		let maybe_additional = amount.checked_sub(&Self::deposit_held(para, &leaser));
 		if let Some(additional) = maybe_additional {
 			T::Currency::reserve(&leaser, additional)?;
 		}
@@ -460,10 +468,11 @@ impl<T: Config> Leaser for Module<T> {
 		// Remember that this should be leased.
 		for p in period_begin..(period_begin + period_count) {
 			// Schedule the para for full parachain status.
-			Leases::<T>::mutate(p, |paras| paras.push(para));
+			Leased::<T>::mutate(p, |paras| paras.push(para));
 		}
 
-		Self::deposit_event(RawEvent::WonRenewal(para, period_begin, period_count, amount));
+		// TODO
+		//Self::deposit_event(RawEvent::WonRenewal(para, period_begin, period_count, amount));
 
 		// Finally, we update the deposit held so it is `amount` for the new lease period
 		// indices that were won in the auction.
@@ -484,7 +493,7 @@ impl<T: Config> Leaser for Module<T> {
 			Leases::<T>::mutate(para, |d| {
 				// Left-pad with zeroes as necessary.
 				if d.len() < offset {
-					d.resize_with(offset, None);
+					d.resize_with(offset, || { None });
 				}
 				// Then place the deposit values for as long as the chain should exist.
 				for i in offset .. (offset + period_count as usize) {
@@ -513,7 +522,14 @@ impl<T: Config> Leaser for Module<T> {
 	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
 		Leases::<T>::get(para)
 			.into_iter()
-			.map(|(who, amount)| if &who == leaser { amount } else { Zero::zero() })
+			.map(|lease| {
+				match lease {
+					Some((who, amount)) => {
+						if &who == leaser { amount } else { Zero::zero() }
+					},
+					None => Zero::zero(),
+				}
+			})
 			.max()
 			.unwrap_or_else(Zero::zero)
 	}

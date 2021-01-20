@@ -88,7 +88,7 @@ pub type BalanceOf<T> =
 pub type NegativeImbalanceOf<T> =
 	<<T as slots::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-pub trait Config: slots::Config {
+pub trait Config: slots::Config + auctions::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// ModuleID for the crowdloan module. An appropriate value could be ```ModuleId(*b"py/cfund")```
@@ -326,7 +326,7 @@ decl_module! {
 			let balance = balance.saturating_add(value);
 			Self::contribution_put(index, &who, &balance);
 
-			if <slots::Module<T>>::is_ending(now).is_some() {
+			if <auctions::Module<T>>::is_ending(now).is_some() {
 				match fund.last_contribution {
 					// In ending period; must ensure that we are in NewRaise.
 					LastContribution::Ending(n) if n == now => {
@@ -408,7 +408,6 @@ decl_module! {
 			let fund_origin = frame_system::RawOrigin::Signed(Self::fund_account_id(index)).into();
 			<slots::Module<T>>::fix_deploy_data(
 				fund_origin,
-				index,
 				para_id,
 				code_hash,
 				code_size,
@@ -428,7 +427,7 @@ decl_module! {
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
 			let parachain_id = fund.parachain.take().ok_or(Error::<T>::NotParachain)?;
 			// No deposit information implies the parachain was off-boarded
-			ensure!(<slots::Module<T>>::deposits(parachain_id).len() == 0, Error::<T>::ParaHasDeposit);
+			ensure!(slots::Leases::<T>::get(parachain_id).len() == 0, Error::<T>::ParaHasDeposit);
 			let account = Self::fund_account_id(index);
 			// Funds should be returned at the end of off-boarding
 			ensure!(T::Currency::free_balance(&account) >= fund.raised, Error::<T>::FundsNotReturned);
@@ -505,8 +504,8 @@ decl_module! {
 		}
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
-			if let Some(n) = <slots::Module<T>>::is_ending(n) {
-				let auction_index = <slots::Module<T>>::auction_counter();
+			if let Some(n) = <auctions::Module<T>>::is_ending(n) {
+				let auction_index = <auctions::Module<T>>::auction_counter();
 				if n.is_zero() {
 					// first block of ending period.
 					EndingsCount::mutate(|c| *c += 1);
@@ -521,7 +520,7 @@ decl_module! {
 
 					// Care needs to be taken by the crowdloan creator that this function will succeed given
 					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
-					let result = <slots::Module<T>>::handle_bid(
+					let result = <auctions::Module<T>>::handle_bid(
 						bidder,
 						auction_index,
 						fund.first_slot,
@@ -1661,7 +1660,7 @@ mod benchmarking {
 			let lease_period_index = end_block / T::LeasePeriod::get();
 			Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
 
-			assert_eq!(<slots::Module<T>>::is_ending(end_block), Some(0u32.into()));
+			assert_eq!(<auctions::Module<T>>::is_ending(end_block), Some(0u32.into()));
 			assert_eq!(NewRaise::get().len(), n as usize);
 			let old_endings_count = EndingsCount::get();
 		}: {

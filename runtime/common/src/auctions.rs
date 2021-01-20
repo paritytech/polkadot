@@ -38,6 +38,7 @@ use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use crate::slots::Leaser;
 
+type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The module's configuration trait.
@@ -259,7 +260,7 @@ decl_module! {
 		) {
 			ensure_root(origin)?;
 			ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
-			ensure!(lease_period_index >= Self::lease_period_index(), Error::<T>::LeasePeriodInPast);
+			ensure!(lease_period_index >= T::Leaser::lease_period_index(), Error::<T>::LeasePeriodInPast);
 
 			// Bump the counter.
 			let n = <AuctionCounter>::mutate(|n| { *n += 1; *n });
@@ -391,7 +392,7 @@ impl<T: Config> Module<T> {
 		// special-case them here.
 		for (bidder, _) in winning_ranges.iter().filter_map(|x| x.as_ref()) {
 			if let Some(amount) = ReservedAmounts::<T>::take(bidder) {
-				T::Currency::unreserve(&bidder.funding_account(), amount);
+				CurrencyOf::<T>::unreserve(&bidder.funding_account(), amount);
 			}
 		}
 
@@ -463,11 +464,12 @@ impl<T: Config> Module<T> {
 			// Get the amount already held on deposit on our behalf if this is a renewal bid from
 			// an existing parachain.
 			// TODO: this should just be the output from `Leaser::deposit_held`.
-			let deposit_held = if let Bidder::Existing(ref bidder_para_id) = bidder {
-				Self::deposit_held(bidder_para_id)
-			} else {
-				Zero::zero()
-			};
+			// let deposit_held = if let Bidder::Existing(ref bidder_para_id) = bidder {
+			// 	Self::deposit_held(bidder_para_id)
+			// } else {
+			// 	Zero::zero()
+			// };
+			let deposit_held = Zero::zero();
 			// Get the amount already reserved in any prior and still active bids by us.
 			let already_reserved =
 				<ReservedAmounts<T>>::get(&bidder).unwrap_or_default() + deposit_held;
@@ -475,7 +477,7 @@ impl<T: Config> Module<T> {
 			if let Some(additional) = amount.checked_sub(&already_reserved) {
 				// ...then reserve some more funds from their account, failing if there's not
 				// enough funds.
-				T::Currency::reserve(&bidder.funding_account(), additional)?;
+				CurrencyOf::<T>::reserve(&bidder.funding_account(), additional)?;
 				// ...and record the amount reserved.
 				<ReservedAmounts<T>>::insert(&bidder, amount);
 
@@ -498,7 +500,7 @@ impl<T: Config> Module<T> {
 					// Previous bidder is no longer winning any ranges: unreserve their funds.
 					if let Some(amount) = <ReservedAmounts<T>>::take(&who) {
 						// It really should be reserved; there's not much we can do here on fail.
-						let _ = T::Currency::unreserve(&who.funding_account(), amount);
+						let _ = CurrencyOf::<T>::unreserve(&who.funding_account(), amount);
 
 						Self::deposit_event(RawEvent::Unreserved(who.funding_account(), amount));
 					}
