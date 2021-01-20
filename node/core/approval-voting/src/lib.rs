@@ -77,14 +77,15 @@ const TICK_DURATION: Duration = Duration::from_millis(TICK_DURATION_MILLIS);
 
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem<T> {
-	// TODO [now]: keystore. chain config? aux-store.
-	_marker: std::marker::PhantomData<T>,
+	keystore: LocalKeystore,
+	slot_duration_millis: u64,
+	db: Arc<T>,
 }
 
 impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage> {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run::<T, C>(ctx)
+		let future = run::<T, C>(ctx, self)
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 			.boxed();
 
@@ -236,14 +237,22 @@ fn until_tick(tick: Tick) -> Option<Duration> {
 	}
 }
 
-async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
+async fn run<T, C>(mut ctx: C, subsystem: ApprovalVotingSubsystem<T>) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
-	// TODO [now]
-	let background_rx: mpsc::Receiver<BackgroundRequest> = unimplemented!();
-	let mut background_rx = background_rx.fuse();
-	let mut state: State<T> = unimplemented!();
+	let (background_tx, background_rx) = mpsc::channel(64);
+	let mut state: State<T> = State {
+		earliest_session: None,
+		session_info: Vec::new(),
+		keystore: subsystem.keystore,
+		wakeups: Default::default(),
+		slot_duration_millis: subsystem.slot_duration_millis,
+		db: subsystem.db,
+		background_tx,
+	};
+
 	let mut last_finalized_height = None;
+	let mut background_rx = background_rx.fuse();
 
 	if let Err(e) = aux_schema::clear(&*state.db) {
 		tracing::warn!(target: LOG_TARGET, "Failed to clear DB: {:?}", e);
@@ -265,7 +274,7 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 
 		futures::select! {
 			tick_wakeup = wait_til_next_tick.fuse() => {
-				let woken = state.wakeups.drain(..=tick_wakeup);
+				let woken = state.wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
 
 				for (woken_block, woken_candidate) in woken {
 					process_wakeup(
