@@ -495,7 +495,8 @@ pub(crate) struct NewCandidateInfo {
 /// parent hash.
 ///
 /// Has no effect if there is already an entry for the block or `candidate_info` returns
-/// `None` for any of the candidates referenced by the block entry.
+/// `None` for any of the candidates referenced by the block entry. In these cases,
+/// no information about new candidates will be referred to by this function.
 pub(crate) fn add_block_entry(
 	store: &impl AuxStore,
 	parent_hash: Hash,
@@ -503,7 +504,7 @@ pub(crate) fn add_block_entry(
 	entry: BlockEntry,
 	n_validators: usize,
 	candidate_info: impl Fn(&CandidateHash) -> Option<NewCandidateInfo>,
-) -> sp_blockchain::Result<()> {
+) -> sp_blockchain::Result<Vec<(CandidateHash, CandidateEntry)>> {
 	let session = entry.session;
 
 	let new_block_range = {
@@ -523,12 +524,14 @@ pub(crate) fn add_block_entry(
 		let mut blocks_at_height = load_blocks_at_height(store, number)?;
 		if blocks_at_height.contains(&entry.block_hash) {
 			// seems we already have a block entry for this block. nothing to do here.
-			return Ok(())
+			return Ok(Vec::new())
 		}
 
 		blocks_at_height.push(entry.block_hash);
 		(blocks_at_height_key(number), blocks_at_height.encode())
 	};
+
+	let mut candidate_entries = Vec::with_capacity(entry.candidates.len());
 
 	let candidate_entry_updates = {
 		let mut updated_entries = Vec::with_capacity(entry.candidates.len());
@@ -538,7 +541,7 @@ pub(crate) fn add_block_entry(
 				backing_group,
 				our_assignment,
 			} = match candidate_info(candidate_hash) {
-				None => return Ok(()),
+				None => return Ok(Vec::new()),
 				Some(info) => info,
 			};
 
@@ -564,6 +567,8 @@ pub(crate) fn add_block_entry(
 			updated_entries.push(
 				(candidate_entry_key(&candidate_hash), candidate_entry.encode())
 			);
+
+			candidate_entries.push((*candidate_hash, candidate_entry));
 		}
 
 		updated_entries
@@ -596,7 +601,7 @@ pub(crate) fn add_block_entry(
 
 	store.insert_aux(&all_keys_and_values, &[])?;
 
-	Ok(())
+	Ok(candidate_entries)
 }
 
 // An atomic transaction of multiple candidate or block entries.
