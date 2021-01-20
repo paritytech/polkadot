@@ -5068,14 +5068,22 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "futures 0.3.12",
+ "futures-timer 3.0.2",
+ "merlin",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-client-api",
+ "sc-keystore",
+ "schnorrkel",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus-slots",
+ "sp-runtime",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5241,11 +5249,13 @@ name = "polkadot-node-core-runtime-api"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-api",
+ "sp-consensus-babe",
  "sp-core",
  "tracing",
  "tracing-futures",
@@ -5286,9 +5296,13 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "schnorrkel",
+ "sp-application-crypto",
+ "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
+ "thiserror",
 ]
 
 [[package]]
