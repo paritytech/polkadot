@@ -170,7 +170,7 @@ impl Wakeups {
 }
 
 struct State<T> {
-	earliest_session: SessionIndex,
+	earliest_session: Option<SessionIndex>,
 	session_info: Vec<SessionInfo>,
 	keystore: LocalKeystore,
 	wakeups: Wakeups,
@@ -181,15 +181,19 @@ struct State<T> {
 
 impl<T> State<T> {
 	fn session_info(&self, index: SessionIndex) -> Option<&SessionInfo> {
-		if index < self.earliest_session {
-			None
-		} else {
-			self.session_info.get((index - self.earliest_session) as usize)
-		}
+		self.earliest_session.and_then(|earliest| {
+			if index < earliest {
+				None
+			} else {
+				self.session_info.get((index - earliest) as usize)
+			}
+		})
+
 	}
 
-	fn latest_session(&self) -> SessionIndex {
-		self.earliest_session + (self.session_info.len() as SessionIndex).saturating_sub(1)
+	fn latest_session(&self) -> Option<SessionIndex> {
+		self.earliest_session
+			.map(|earliest| earliest + (self.session_info.len() as SessionIndex).saturating_sub(1))
 	}
 }
 
@@ -481,6 +485,36 @@ async fn determine_new_blocks(
 	Ok(ancestry)
 }
 
+async fn load_all_sessions(
+	ctx: &mut impl SubsystemContext,
+	block_hash: Hash,
+	start: SessionIndex,
+	end_inclusive: SessionIndex,
+) -> SubsystemResult<Option<Vec<SessionInfo>>> {
+	let mut v = Vec::new();
+	for i in start..=end_inclusive {
+		let (tx, rx)= oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			block_hash,
+			RuntimeApiRequest::SessionInfo(i, tx),
+		).into()).await;
+
+		let session_info = match rx.await {
+			Ok(Ok(Some(s))) => s,
+			Ok(Ok(None)) => return Ok(None),
+			Ok(Err(e)) => return Err(SubsystemError::with_origin("approval-voting", e)),
+			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
+		};
+
+		v.push(session_info);
+	}
+
+	Ok(Some(v))
+}
+
+// Sessions unavailable in state to cache.
+struct SessionsUnavailable;
+
 // When inspecting a new import notification, updates the session info cache to match
 // the session of the imported block.
 //
@@ -493,7 +527,7 @@ async fn cache_session_info_for_head(
 	state: &mut State<impl AuxStore>,
 	block_hash: Hash,
 	block_header: &Header,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<Result<(), SessionsUnavailable>> {
 	let session_index = {
 		let (s_tx, s_rx) = oneshot::channel();
 		ctx.send_message(RuntimeApiMessage::Request(
@@ -501,50 +535,77 @@ async fn cache_session_info_for_head(
 			RuntimeApiRequest::SessionIndexForChild(s_tx),
 		).into()).await;
 
-		match s_rx.await {
-			Ok(Ok(s)) => s,
-			Ok(Err(_)) => return Ok(()),
-			Err(_) => return Ok(()),
+		match s_rx.await? {
+			Ok(s) => s,
+			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
 		}
 	};
 
-	if session_index >= state.earliest_session {
-		// Update the window of sessions.
-		if session_index > state.latest_session() {
+	match state.earliest_session {
+		None => {
+			// First block processed on start-up.
+
 			let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
-			let old_window_end = state.latest_session();
+
+			tracing::info!(
+				target: LOG_TARGET, "Loading approval window from session {}..={}",
+				window_start, session_index,
+			);
+
+			match load_all_sessions(ctx, block_hash, window_start, session_index).await? {
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Could not load sessions {}..={} from block {:?} in session {}",
+						window_start, session_index, block_hash, session_index,
+					);
+
+					return Ok(Err(SessionsUnavailable));
+				},
+				Some(s) => {
+					state.earliest_session = Some(window_start);
+					state.session_info = s;
+				}
+			}
+		}
+		Some(old_window_start) => {
+			let latest = state.latest_session().expect("latest always exists if earliest does; qed");
+
+			// Either cached or ancient.
+			if session_index <= latest { return Ok(Ok(())) }
+
+			let old_window_end = latest;
+
+			let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
 			tracing::info!(
 				target: LOG_TARGET, "Moving approval window from session {}..={} to {}..={}",
-				state.earliest_session, old_window_end,
+				old_window_start, old_window_end,
 				window_start, session_index,
 			);
 
 			// keep some of the old window, if applicable.
-			let old_window_start = std::mem::replace(&mut state.earliest_session, window_start);
-			let overlap_start = session_index - old_window_end;
-			state.session_info.drain(..overlap_start as usize);
+			let overlap_start = window_start - old_window_start;
 
-			// load the end of the window.
-			for i in state.session_info.len() as SessionIndex + window_start ..= session_index {
-				let (tx, rx)= oneshot::channel();
-				ctx.send_message(RuntimeApiMessage::Request(
-					block_hash,
-					RuntimeApiRequest::SessionInfo(i, tx),
-				).into()).await;
+			match load_all_sessions(ctx, block_hash, latest + 1, session_index).await? {
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Could not load sessions {}..={} from block {:?} in session {}",
+						latest + 1, session_index, block_hash, session_index,
+					);
 
-				let session_info = match rx.await {
-					Ok(Ok(Some(s))) => s,
-					Ok(Ok(None)) => unimplemented!(), // indicates a runtime error.
-					Ok(Err(_)) => unimplemented!(), // TODO [now]: what to do if unavailable?
-					Err(_) => unimplemented!(),
-				};
-
-				state.session_info.push(session_info);
+					return Ok(Err(SessionsUnavailable));
+				}
+				Some(s) => {
+					state.session_info.drain(..overlap_start as usize);
+					state.session_info.extend(s);
+					state.earliest_session = Some(window_start);
+				}
 			}
 		}
 	}
 
-	Ok(())
+	Ok(Ok(()))
 }
 
 struct ImportedBlockInfo {
@@ -603,7 +664,7 @@ async fn imported_block_info(
 			Err(_) => return Ok(None),
 		};
 
-		if session_index < state.earliest_session {
+		if state.earliest_session.as_ref().map_or(true, |e| &session_index < e) {
 			tracing::debug!(target: LOG_TARGET, "Block {} is from ancient session {}. Skipping",
 				block_hash, session_index);
 
@@ -694,9 +755,33 @@ async fn handle_new_head(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<()> {
 	// Update session info based on most recent head.
-	let header: Header = unimplemented!();
+	let header = {
+		let (h_tx, h_rx) = oneshot::channel();
+		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx).into()).await;
 
-	cache_session_info_for_head(ctx, state, head, &header).await?;
+		match h_rx.await? {
+			Err(e) => {
+				return Err(SubsystemError::with_origin("approval-voting", e));
+			}
+			Ok(None) => {
+				tracing::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
+				return Ok(());
+			}
+			Ok(Some(h)) => h
+		}
+	};
+
+	if let Err(SessionsUnavailable)
+		= cache_session_info_for_head(ctx, state, head, &header).await?
+	{
+		tracing::warn!(
+			target: LOG_TARGET,
+			"Could not cache session info when processing head {:?}",
+			head,
+		);
+
+		return Ok(())
+	}
 
 	// If we've just started the node and haven't yet received any finality notifications,
 	// we don't do any look-back. Approval voting is only for nodes were already online.
