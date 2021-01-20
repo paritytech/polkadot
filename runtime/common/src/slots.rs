@@ -150,7 +150,7 @@ decl_storage! {
 		///
 		/// The given account ID is responsible for registering the code and initial head data, but may only do
 		/// so if it isn't yet registered. (After that, it's up to governance to do so.)
-		pub Paras: map hasher(twox_64_concat) ParaId => Option<(BalanceOf<T>, T::AccountId)>;
+		pub Paras: map hasher(twox_64_concat) ParaId => Option<(T::AccountId, BalanceOf<T>)>;
 
 		/// Amounts held on deposit for each (possibly future) leased parachain.
 		///
@@ -262,6 +262,7 @@ decl_module! {
 			// TODO...
 			//   (Should only be possible when called from the parachain itself or Root. Should free up
 			//   all associated deposits)
+			Ok(())
 		}
 
 		/// Just a hotwire into the `lease_out` call, in case Root wants to force some lease to happen
@@ -362,6 +363,7 @@ decl_module! {
 			// } else {
 			// 	Err(Error::<T>::UnsetDeployData)?
 			// }
+			Ok(())
 		}
 	}
 }
