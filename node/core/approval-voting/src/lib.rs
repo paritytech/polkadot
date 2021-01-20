@@ -25,7 +25,7 @@ use polkadot_subsystem::{
 	messages::{
 		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ValidationFailed,
+		ValidationFailed, CandidateValidationMessage,
 	},
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal,
@@ -234,7 +234,7 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
 	// TODO [now]
-	let background_rx: mpsc::Receiver<ApprovalVoteRequest> = unimplemented!();
+	let background_rx: mpsc::Receiver<BackgroundRequest> = unimplemented!();
 	let mut background_rx = background_rx.fuse();
 	let mut state: State<T> = unimplemented!();
 	let mut last_finalized_height = None;
@@ -282,7 +282,13 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 				}
 			}
 			background_request = background_rx.next().fuse() => {
-				// TODO [now]
+				if let Some(req) = background_request {
+					handle_background_request(
+						&mut ctx,
+						&mut state,
+						req,
+					).await?
+				}
 			}
 		}
 	}
@@ -329,6 +335,35 @@ async fn handle_from_overseer(
 			}
 		}
 	}
+}
+
+async fn handle_background_request(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl AuxStore>,
+	request: BackgroundRequest,
+) -> SubsystemResult<()> {
+	match request {
+		BackgroundRequest::ApprovalVote(vote_request) => {
+			unimplemented!()
+		}
+		BackgroundRequest::CandidateValidation(
+			validation_data,
+			validation_code,
+			descriptor,
+			pov,
+			tx,
+		) => {
+			ctx.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+				validation_data,
+				validation_code,
+				descriptor,
+				pov,
+				tx,
+			).into()).await;
+		}
+	}
+
+	Ok(())
 }
 
 // Given a new chain-head hash, this determines the hashes of all new blocks we should track
