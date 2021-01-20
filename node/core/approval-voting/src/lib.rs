@@ -25,14 +25,17 @@ use polkadot_subsystem::{
 	messages::{
 		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
+		ValidationFailed,
 	},
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal,
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex, AvailableData, BlockNumber,
+	CandidateReceipt, CoreIndex, GroupIndex, AvailableData, BlockNumber, PersistedValidationData,
+	ValidationCode, CandidateDescriptor, PoV,
 };
+use polkadot_node_primitives::ValidationResult;
 use polkadot_node_primitives::approval::{
 	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
 	BlockApprovalMeta, RelayVRFStory, ApprovalVote,
@@ -88,6 +91,17 @@ impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
 			future,
 		}
 	}
+}
+
+enum BackgroundRequest {
+	ApprovalVote(ApprovalVoteRequest),
+	CandidateValidation(
+		PersistedValidationData,
+		ValidationCode,
+		CandidateDescriptor,
+		Arc<PoV>,
+		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+	),
 }
 
 struct ApprovalVoteRequest {
@@ -160,9 +174,7 @@ struct State<T> {
 	wakeups: Wakeups,
 	slot_duration_millis: u64,
 	db: Arc<T>,
-
-	// These are connected to each other.
-	approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
+	background_tx: mpsc::Sender<BackgroundRequest>,
 }
 
 impl<T> State<T> {
@@ -222,8 +234,8 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
 	// TODO [now]
-	let approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest> = unimplemented!();
-	let mut approval_vote_rx = approval_vote_rx.fuse();
+	let background_rx: mpsc::Receiver<ApprovalVoteRequest> = unimplemented!();
+	let mut background_rx = background_rx.fuse();
 	let mut state: State<T> = unimplemented!();
 	let mut last_finalized_height = None;
 
@@ -269,7 +281,7 @@ async fn run<T, C>(mut ctx: C) -> SubsystemResult<()>
 					break
 				}
 			}
-			approval = approval_vote_rx.next().fuse() => {
+			background_request = background_rx.next().fuse() => {
 				// TODO [now]
 			}
 		}
@@ -1367,7 +1379,7 @@ async fn process_wakeup(
 
 			launch_approval(
 				ctx,
-				state.approval_vote_tx.clone(),
+				state.background_tx.clone(),
 				block_entry.session,
 				&candidate_entry.candidate,
 				val_index,
@@ -1391,7 +1403,7 @@ async fn process_wakeup(
 
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
-	approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
+	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
 	candidate: &CandidateReceipt,
 	validator_index: ValidatorIndex,
@@ -1438,12 +1450,49 @@ async fn launch_approval(
 		let validation_code = match code_rx.await {
 			Err(_) => return,
 			Ok(Err(_)) => return,
-			Ok(code) => code,
+			Ok(Ok(Some(code))) => code,
+			Ok(Ok(None)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Validation code unavailable for block {:?} in the state of block {:?} (a recent descendant)",
+					candidate.descriptor.relay_parent,
+					block_hash,
+				);
+
+				// No dispute necessary, as this indicates that the chain is not behaving
+				// according to expectations.
+				return;
+			}
 		};
 
-		// TODO [now]: issue a `CandidateValidationMessage::ValidateFromExhaustive`.
+		let (val_tx, val_rx) = oneshot::channel();
 
-		// TODO [now]: issue an `approval_vote_tx` message.
+		let _ = background_tx.send(BackgroundRequest::CandidateValidation(
+			available_data.validation_data,
+			validation_code,
+			candidate.descriptor.clone(),
+			available_data.pov,
+			val_tx,
+		)).await;
+
+		match val_rx.await {
+			Err(_) => return,
+			Ok(Ok(ValidationResult::Valid(_, _))) => {
+				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
+				// then there isn't anything we can do.
+
+				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
+					validator_index,
+					block_hash,
+					candidate_index,
+				})).await;
+			}
+			Ok(Ok(ValidationResult::Invalid(_))) => {
+				// TODO: issue dispute, but not for timeouts.
+				// https://github.com/paritytech/polkadot/issues/2176
+			}
+			Ok(Err(_)) => return, // internal error.
+		}
 	};
 
 	Ok(())
