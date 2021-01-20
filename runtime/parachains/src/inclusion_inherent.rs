@@ -124,7 +124,11 @@ decl_module! {
 			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
 
-			<scheduler::Module<T>>::schedule(freed);
+			<scheduler::Module<T>>::clear();
+			<scheduler::Module<T>>::schedule(
+				freed,
+				<frame_system::Module<T>>::block_number(),
+			);
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
@@ -192,18 +196,25 @@ impl<T: Config> ProvideInherent for Module<T> {
 				)| {
 					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 					// See github.com/paritytech/polkadot/issues/1327
-					if Self::inclusion(
+					let (signed_bitfields, backed_candidates) = match Self::inclusion(
 						frame_system::RawOrigin::None.into(),
 						signed_bitfields.clone(),
 						backed_candidates.clone(),
 						parent_header.clone(),
-					)
-					.is_ok()
-					{
-						Call::inclusion(signed_bitfields, backed_candidates, parent_header)
-					} else {
-						Call::inclusion(Vec::new().into(), Vec::new(), parent_header)
-					}
+					) {
+						Ok(_) => (signed_bitfields, backed_candidates),
+						Err(err) => {
+							frame_support::debug::RuntimeLogger::init();
+							frame_support::debug::warn!(
+								target: "runtime_inclusion_inherent",
+								"dropping signed_bitfields and backed_candidates because they produced \
+								an invalid inclusion inherent: {:?}",
+								err,
+							);
+							(Vec::new().into(), Vec::new())
+						}
+					};
+					Call::inclusion(signed_bitfields, backed_candidates, parent_header)
 				}
 			)
 	}

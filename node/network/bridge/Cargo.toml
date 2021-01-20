@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.42"
-futures = "0.3.8"
+futures = "0.3.12"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
@@ -20,5 +20,6 @@ polkadot-node-network-protocol = { path = "../protocol" }
 assert_matches = "1.4.0"
 parking_lot = "0.11.1"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util"}
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

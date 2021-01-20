@@ -26,7 +26,7 @@ use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::Encode;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
+	GroupRotationInfo, CoreState, Id, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
 	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
 	SessionInfo as SessionInfoData,
@@ -55,7 +55,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
@@ -100,7 +100,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1"),
 	authoring_version: 0,
-	spec_version: 15,
+	spec_version: 19,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -562,6 +562,7 @@ impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_inclusion_inherent::Config for Runtime {}
@@ -693,11 +694,6 @@ sp_api::impl_runtime_apis! {
 
 		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			runtime_api_impl::availability_cores::<Runtime>()
-		}
-
-		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>> {
-			runtime_api_impl::full_validation_data::<Runtime>(para_id, assumption)
 		}
 
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
@@ -872,6 +868,9 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
 		}
 	}
 }
