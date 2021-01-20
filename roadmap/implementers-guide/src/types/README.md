@@ -8,11 +8,12 @@ These data types are defined in `polkadot/primitives/src/v1.rs`:
 
 ```dot process
 digraph {
+    rankdir = LR;
     node [shape = plain]
 
     CandidateDescriptor [label = <
         <table>
-            <tr><td border="0" colspan="2">CandidateDescriptor&lt;H = Hash&gt;</td></tr>
+            <tr><td border="0" colspan="2" port="name">CandidateDescriptor&lt;H = Hash&gt;</td></tr>
             <tr><td>para_id</td><td port="para_id">Id</td></tr>
             <tr><td>relay_parent</td><td port="relay_parent">H</td></tr>
             <tr><td>collator</td><td port="collator">CollatorId</td></tr>
@@ -23,52 +24,54 @@ digraph {
         </table>
     >]
 
+    CandidateDescriptor:para_id -> "polkadot_parachain::primitives::Id"
+
     CandidateReceipt [label = <
         <table>
-            <tr><td border="0" colspan="2">CandidateReceipt&lt;H = Hash&gt;</td></tr>
+            <tr><td border="0" colspan="2" port="name">CandidateReceipt&lt;H = Hash&gt;</td></tr>
             <tr><td>descriptor</td><td port="descriptor">CandidateDescriptor&lt;H&gt;</td></tr>
             <tr><td>commitments_hash</td><td port="commitments_hash">Hash</td></tr>
         </table>
     >]
 
-    CandidateReceipt:descriptor -> CandidateDescriptor
+    CandidateReceipt:descriptor -> CandidateDescriptor:name
 
     FullCandidateReceipt [label = <
         <table>
-            <tr><td border="0" colspan="2">FullCandidateReceipt&lt;H = Hash, N = BlockNumber&gt;</td></tr>
+            <tr><td border="0" colspan="2" port="name">FullCandidateReceipt&lt;H = Hash, N = BlockNumber&gt;</td></tr>
             <tr><td>inner</td><td port="inner">CandidateReceipt&lt;H&gt;</td></tr>
             <tr><td>validation_data</td><td port="validation_data">ValidationData&lt;N&gt;</td></tr>
         </table>
     >]
 
-    FullCandidateReceipt:inner -> CandidateReceipt
-    FullCandidateReceipt:validation_data -> ValidationData
+    FullCandidateReceipt:inner -> CandidateReceipt:name
+    FullCandidateReceipt:validation_data -> ValidationData:name
 
     CommittedCandidateReceipt [label = <
         <table>
-            <tr><td border="0" colspan="2">CommittedCandidateReceipt&lt;H = Hash&gt;</td></tr>
+            <tr><td border="0" colspan="2" port="name">CommittedCandidateReceipt&lt;H = Hash&gt;</td></tr>
             <tr><td>descriptor</td><td port="descriptor">CandidateDescriptor&lt;H&gt;</td></tr>
             <tr><td>commitments</td><td port="commitments">CandidateCommitments</td></tr>
         </table>
     >]
 
-    CommittedCandidateReceipt:descriptor -> CandidateDescriptor
-    CommittedCandidateReceipt:commitments -> CandidateCommitments
+    CommittedCandidateReceipt:descriptor -> CandidateDescriptor:name
+    CommittedCandidateReceipt:commitments -> CandidateCommitments:name
 
     ValidationData [label = <
         <table>
-            <tr><td border="0" colspan="2">ValidationData&lt;N = BlockNumber&gt;</td></tr>
+            <tr><td border="0" colspan="2" port="name">ValidationData&lt;N = BlockNumber&gt;</td></tr>
             <tr><td>persisted</td><td port="persisted">PersistedValidationData&lt;N&gt;</td></tr>
             <tr><td>transient</td><td port="transient">TransientValidationData&lt;N&gt;</td></tr>
         </table>
     >]
 
-    ValidationData:persisted -> PersistedValidationData
-    ValidationData:transient -> TransientValidationData
+    ValidationData:persisted -> PersistedValidationData:name
+    ValidationData:transient -> TransientValidationData:name
 
     PersistedValidationData [label = <
         <table>
-            <tr><td border="0" colspan="2">PersistedValidationData&lt;N = BlockNumber&gt;</td></tr>
+            <tr><td border="0" colspan="2" port="name">PersistedValidationData&lt;N = BlockNumber&gt;</td></tr>
             <tr><td>parent_head</td><td port="parent_head">HeadData</td></tr>
             <tr><td>block_number</td><td port="block_number">N</td></tr>
             <tr><td>relay_storage_root</td><td port="relay_storage_root">Hash</td></tr>
@@ -77,5 +80,71 @@ digraph {
             <tr><td>max_pov_size</td><td port="max_pov_size">u32</td></tr>
         </table>
     >]
+
+    PersistedValidationData:parent_head -> HeadData
+
+    TransientValidationData [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">TransientValidationData&lt;N = BlockNumber&gt;</td></tr>
+            <tr><td>max_code_size</td><td port="max_code_size">u32</td></tr>
+            <tr><td>max_head_data_size</td><td port="max_head_data_size">u32</td></tr>
+            <tr><td>balance</td><td port="balance">Balance</td></tr>
+            <tr><td>code_upgrade_allowed</td><td port="code_upgrade_allowed">Option&lt;N&gt;</td></tr>
+            <tr><td>dmq_length</td><td port="dmq_length">u32</td></tr>
+        </table>
+    >]
+
+    TransientValidationData:balance -> "polkadot_core_primitives::v1::Balance"
+
+    CandidateCommitments [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">CandidateCommitments&lt;N = BlockNumber&gt;</td></tr>
+            <tr><td>upward_messages</td><td port="upward_messages">Vec&lt;UpwardMessage&gt;</td></tr>
+            <tr><td>horizontal_messages</td><td port="horizontal_messages">Vec&lt;OutboundHrmpMessage&lt;Id&gt;&gt;</td></tr>
+            <tr><td>new_validation_code</td><td port="new_validation_code">Option&lt;ValidationCode&gt;</td></tr>
+            <tr><td>head_data</td><td port="head_data">HeadData</td></tr>
+            <tr><td>processed_downward_messages</td><td port="processed_downward_messages">u32</td></tr>
+            <tr><td>hrmp_watermark</td><td port="hrmp_watermark">N</td></tr>
+        </table>
+    >]
+
+    CandidateCommitments:upward_messages -> "polkadot_parachain::primitives::UpwardMessage"
+    CandidateCommitments:horizontal_messages -> "polkadot_core_primitives::v1::OutboundHrmpMessage"
+    CandidateCommitments:head_data -> HeadData
+    CandidateCommitments:horizontal_messages -> "polkadot_parachain::primitives::Id"
+    CandidateCommitments:new_validation_code -> "polkadot_parachain::primitives::ValidationCode"
+
+    PoV [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">PoV</td></tr>
+            <tr><td>block_data</td><td port="block_data">BlockData</td></tr>
+        </table>
+    >]
+
+    PoV:block_data -> "polkadot_parachain::primitives::BlockData"
+
+    BackedCandidate [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">BackedCandidate&lt;H = Hash&gt;</td></tr>
+            <tr><td>candidate</td><td port="candidate">CommittedCandidateReceipt&lt;H&gt;</td></tr>
+            <tr><td>validity_votes</td><td port="validity_votes">Vec&lt;ValidityAttestation&gt;</td></tr>
+            <tr><td>validator_indices</td><td port="validator_indices">BitVec</td></tr>
+        </table>
+    >]
+
+    BackedCandidate:candidate -> CommittedCandidateReceipt:name
+
+    AvailableData [label = <
+        <table>
+            <tr><td border="0" colspan="2" port="name">AvailableData</td></tr>
+            <tr><td>pov</td><td port="pov">Arc&lt;PoV&gt;</td></tr>
+            <tr><td>validation_data</td><td port="validation_data">PersistedValidationData</td></tr>
+        </table>
+    >]
+
+    AvailableData:pov -> PoV:name
+    AvailableData:validation_data -> PersistedValidationData:name
+
+    HeadData [label = "polkadot_parachain::primitives::HeadData"]
 }
 ```
