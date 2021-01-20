@@ -230,6 +230,8 @@ decl_error! {
 		HeadDataTooLarge,
 		/// The Id given is already in use.
 		InUse,
+		/// There was an error with the lease.
+		LeaseError,
 	}
 }
 
@@ -280,6 +282,8 @@ decl_module! {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::lease_out(para, leaser, amount, period_begin, period_count)
+				.map_err(|_| Error::<T>::LeaseError)?;
+			Ok(())
 		}
 
 		/// Set the deploy information for a successful bid to deploy a new parachain.

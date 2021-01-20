@@ -82,11 +82,12 @@ use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 
-pub type BalanceOf<T> =
-	<<T as slots::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type CurrencyOf<T> = <<T as auctions::Config>::Leaser as slots::Leaser>::Currency;
+type BalanceOf<T> = <<<T as auctions::Config>::Leaser as slots::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
 #[allow(dead_code)]
-pub type NegativeImbalanceOf<T> =
-	<<T as slots::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as slots::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+
 
 pub trait Config: slots::Config + auctions::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
@@ -285,7 +286,7 @@ decl_module! {
 			let next_index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
 
 			let deposit = T::SubmissionDeposit::get();
-			T::Currency::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
+			CurrencyOf::<T>::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
 			FundCount::put(next_index);
 
 			<Funds<T>>::insert(index, FundInfo {
@@ -320,7 +321,7 @@ decl_module! {
 			let now = <frame_system::Module<T>>::block_number();
 			ensure!(fund.end > now, Error::<T>::ContributionPeriodOver);
 
-			T::Currency::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
+			CurrencyOf::<T>::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
 			let balance = Self::contribution_get(index, &who);
 			let balance = balance.saturating_add(value);
@@ -430,7 +431,7 @@ decl_module! {
 			ensure!(slots::Leases::<T>::get(parachain_id).len() == 0, Error::<T>::ParaHasDeposit);
 			let account = Self::fund_account_id(index);
 			// Funds should be returned at the end of off-boarding
-			ensure!(T::Currency::free_balance(&account) >= fund.raised, Error::<T>::FundsNotReturned);
+			ensure!(CurrencyOf::<T>::free_balance(&account) >= fund.raised, Error::<T>::FundsNotReturned);
 
 			// This fund just ended. Withdrawal period begins.
 			let now = <frame_system::Module<T>>::block_number();
@@ -458,7 +459,7 @@ decl_module! {
 
 			// Avoid using transfer to ensure we don't pay any fees.
 			let fund_account = Self::fund_account_id(index);
-			T::Currency::transfer(&fund_account, &who, balance, AllowDeath)?;
+			CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
 
 			Self::contribution_kill(index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
@@ -487,10 +488,10 @@ decl_module! {
 			match Self::crowdloan_kill(index) {
 				child::KillOutcome::AllRemoved => {
 					let account = Self::fund_account_id(index);
-					T::Currency::transfer(&account, &fund.owner, fund.deposit, AllowDeath)?;
+					CurrencyOf::<T>::transfer(&account, &fund.owner, fund.deposit, AllowDeath)?;
 
 					// Remove all other balance from the account into orphaned funds.
-					let (imbalance, _) = T::Currency::slash(&account, BalanceOf::<T>::max_value());
+					let (imbalance, _) = CurrencyOf::<T>::slash(&account, BalanceOf::<T>::max_value());
 					T::OrphanedFunds::on_unbalanced(imbalance);
 
 					<Funds<T>>::remove(index);
@@ -1473,14 +1474,14 @@ mod benchmarking {
 		let last_slot = lease_period_index + 3u32.into();
 
 		let caller = account("fund_creator", 0, 0);
-		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
 		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end));
 		FundCount::get() - 1
 	}
 
 	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
-		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
+		CurrencyOf::<T>::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
 	}
@@ -1552,7 +1553,7 @@ mod benchmarking {
 
 			let caller: T::AccountId = whitelisted_caller();
 
-			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller), cap, first_slot, last_slot, end)
 		verify {
 			assert_last_event::<T>(RawEvent::Created(FundCount::get() - 1).into())
@@ -1563,7 +1564,7 @@ mod benchmarking {
 			let fund_index = create_fund::<T>(100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
-			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			Currency::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution)
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
@@ -1653,7 +1654,7 @@ mod benchmarking {
 				let fund_index = create_fund::<T>(end_block);
 				let contributor: T::AccountId = account("contributor", i, 0);
 				let contribution = T::MinContribution::get() * (i + 1).into();
-				T::Currency::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
+				CurrencyOf::<T>::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
 				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution)?;
 			}
 
