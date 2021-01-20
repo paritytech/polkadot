@@ -170,7 +170,7 @@ pub fn run() -> Result<()> {
 				let role = config.role.clone();
 
 				let task_manager = match role {
-					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+					Role::Light => service::build_light(config).map(|(task_manager, _, _)| task_manager),
 					_ => service::build_full(
 						config,
 						service::IsCollator::No,
@@ -249,15 +249,9 @@ pub fn run() -> Result<()> {
 			})?)
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-			let _ = sc_cli::init_logger(
-				sc_cli::InitLoggerParams {
-					pattern: "".into(),
-					tracing_receiver: Default::default(),
-					tracing_targets: None,
-					disable_log_reloading: false,
-					disable_log_color: true,
-				},
-			);
+			let mut builder = sc_cli::GlobalLoggerBuilder::new("");
+			builder.with_colors(false);
+			let _ = builder.init();
 
 			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()).into())

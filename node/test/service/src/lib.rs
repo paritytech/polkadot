@@ -69,7 +69,7 @@ pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExec
 pub use polkadot_service::FullBackend;
 
 /// Create a new full node.
-#[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
+#[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
@@ -198,6 +198,7 @@ pub fn node_config(
 		base_path: Some(base_path),
 		informant_output_format: Default::default(),
 		disable_log_reloading: false,
+		telemetry_handle: None,
 	}
 }
 
