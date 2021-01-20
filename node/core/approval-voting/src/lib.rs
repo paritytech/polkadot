@@ -387,8 +387,6 @@ async fn handle_background_request(
 //
 // This returns the entire ancestry up to the last finalized block's height or the last item we
 // have in the DB. This may be somewhat expensive when first recovering from major sync.
-//
-// TODO [now]: improve error handling.
 async fn determine_new_blocks(
 	ctx: &mut impl SubsystemContext,
 	db: &impl AuxStore,
