@@ -349,7 +349,7 @@ pub mod v1 {
 		NotSupported,
 	}
 
-	/// SCALE and GZip encoded [`PoV`].
+	/// SCALE and Zstd encoded [`PoV`].
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub struct CompressedPoV(Vec<u8>);
 
@@ -375,7 +375,8 @@ pub mod v1 {
 			struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>, usize);
 			impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
 				fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
-					if self.1.saturating_add(into.len()) > MAX_POV_BLOCK_SIZE {
+					self.1 = self.1.saturating_add(into.len());
+					if self.1 > MAX_POV_BLOCK_SIZE {
 						return Err("pov block too big".into())
 					}
 					self.0.read_exact(into).map_err(Into::into)
@@ -448,4 +449,18 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
+}
+
+#[cfg(test)]
+mod tests {
+	use polkadot_primitives::v1::PoV;
+	use super::v1::{CompressedPoV, CompressedPoVError};
+
+	#[test]
+	fn decompress_huge_pov_block_fails() {
+		let pov = PoV { block_data: vec![0; 63 * 1024 * 1024].into() };
+
+		let compressed = CompressedPoV::compress(&pov).unwrap();
+		assert_eq!(CompressedPoVError::Decode, compressed.decompress().unwrap_err());
+	}
 }
