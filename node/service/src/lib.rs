@@ -589,6 +589,10 @@ pub fn new_full<RuntimeApi, Executor>(
 	fn adjust_yamux(_: &mut sc_network::config::NetworkConfiguration) {}
 	adjust_yamux(&mut config.network);
 
+	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
+		&config, task_manager.spawn_handle(), backend.clone(),
+	));
+
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
