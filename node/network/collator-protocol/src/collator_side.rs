@@ -501,7 +501,7 @@ async fn send_collation(
 	receipt: CandidateReceipt,
 	pov: PoV,
 ) {
-	let pov = match protocol_v1::CompressedPoV::from_pov(&pov) {
+	let pov = match protocol_v1::CompressedPoV::compress(&pov) {
 		Ok(pov) => pov,
 		Err(error) => {
 			tracing::debug!(
@@ -1288,7 +1288,7 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(req_id, receipt, pov) => {
 							assert_eq!(req_id, request_id);
 							assert_eq!(receipt, candidate);
-							assert_eq!(pov.as_pov().unwrap(), pov_block);
+							assert_eq!(pov.decompress().unwrap(), pov_block);
 						}
 					);
 				}

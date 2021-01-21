@@ -470,7 +470,7 @@ async fn handle_distribute(
 		}
 	}
 
-	let encoded_pov = match protocol_v1::CompressedPoV::from_pov(&*pov) {
+	let encoded_pov = match protocol_v1::CompressedPoV::compress(&*pov) {
 		Ok(pov) => pov,
 		Err(error) => {
 			tracing::debug!(
@@ -576,7 +576,7 @@ async fn handle_incoming_pov(
 		Some(r) => r,
 	};
 
-	let pov = match encoded_pov.as_pov() {
+	let pov = match encoded_pov.decompress() {
 		Ok(pov) => pov,
 		Err(error) => {
 			tracing::debug!(

@@ -5270,7 +5270,6 @@ dependencies = [
 name = "polkadot-node-network-protocol"
 version = "0.1.0"
 dependencies = [
- "flate2",
  "parity-scale-codec",
  "polkadot-node-jaeger",
  "polkadot-node-primitives",
@@ -5278,6 +5277,7 @@ dependencies = [
  "sc-network",
  "strum 0.20.0",
  "thiserror",
+ "zstd",
 ]
 
 [[package]]

@@ -368,7 +368,7 @@ where
 			if let Some(per_request) = state.requests_info.remove(&id) {
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
-					let pov = match pov.as_pov() {
+					let pov = match pov.decompress() {
 						Ok(pov) => pov,
 						Err(error) => {
 							tracing::debug!(
@@ -1309,7 +1309,7 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(
 							request_id,
 							candidate_a.clone(),
-							protocol_v1::CompressedPoV::from_pov(&PoV {
+							protocol_v1::CompressedPoV::compress(&PoV {
 								block_data: BlockData(vec![]),
 							}).unwrap(),
 						)
@@ -1347,7 +1347,7 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(
 							request_id,
 							candidate_b.clone(),
-							protocol_v1::CompressedPoV::from_pov(&PoV {
+							protocol_v1::CompressedPoV::compress(&PoV {
 								block_data: BlockData(vec![1, 2, 3]),
 							}).unwrap(),
 						)

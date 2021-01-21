@@ -287,8 +287,7 @@ pub mod v1 {
 	use polkadot_node_primitives::SignedFullStatement;
 	use parity_scale_codec::{Encode, Decode};
 	use super::RequestId;
-	use std::{convert::TryFrom, io::Write};
-	use flate2::{Compression, write::{GzEncoder, GzDecoder}};
+	use std::{convert::TryFrom, io::Read};
 
 	/// Network messages used by the availability distribution subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
@@ -342,8 +341,8 @@ pub mod v1 {
 	pub enum CompressedPoVError {
 		#[error("Failed to compress a PoV")]
 		Compress,
-		#[error("Failed to uncompress a PoV")]
-		Uncompress,
+		#[error("Failed to decompress a PoV")]
+		Decompress,
 		#[error("Failed to decode the uncompressed PoV")]
 		Decode,
 	}
@@ -353,21 +352,25 @@ pub mod v1 {
 	pub struct CompressedPoV(Vec<u8>);
 
 	impl CompressedPoV {
-		/// Create from the given [`PoV`].
-		pub fn from_pov(pov: &PoV) -> Result<Self, CompressedPoVError> {
-			let mut encoder = GzEncoder::new(Vec::with_capacity(1024), Compression::default());
-			pov.encode_to(&mut encoder);
-			encoder.finish().map(Self).map_err(|_| CompressedPoVError::Compress)
+		/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
+		pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
+			zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
 		}
 
-		/// Uncompress, decode and return the [`PoV`].
-		pub fn as_pov(&self) -> Result<PoV, CompressedPoVError> {
-			let mut writer = Vec::with_capacity(1024);
-			let mut decoder = GzDecoder::new(&mut writer);
-			decoder.write_all(&self.0).map_err(|_| CompressedPoVError::Uncompress)?;
-			decoder.finish().map_err(|_| CompressedPoVError::Uncompress)?;
+		/// Decompress `self` and returns the [`PoV`] on success.
+		pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
+			struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>);
+			impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
+				fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
+					self.0.read_exact(into).map_err(Into::into)
+				}
+				fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
+					Ok(None)
+				}
+			}
 
-			PoV::decode(&mut &writer[..]).map_err(|_| CompressedPoVError::Decode)
+			let mut decoder = zstd::Decoder::new(self.0.as_slice()).map_err(|_| CompressedPoVError::Decompress)?;
+			PoV::decode(&mut InputDecoder(&mut decoder)).map_err(|_| CompressedPoVError::Decode)
 		}
 	}
 

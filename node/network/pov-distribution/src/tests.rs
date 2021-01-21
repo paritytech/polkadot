@@ -399,7 +399,7 @@ fn ask_validators_for_povs() {
 					protocol_v1::PoVDistributionMessage::SendPoV(
 						current,
 						pov_hash,
-						protocol_v1::CompressedPoV::from_pov(&pov_block).unwrap(),
+						protocol_v1::CompressedPoV::compress(&pov_block).unwrap(),
 					),
 				)
 			)
@@ -635,7 +635,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 				assert_eq!(peers, vec![peer_a.clone()]);
 				assert_eq!(
 					message,
-					send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+					send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 				);
 			}
 		)
@@ -947,7 +947,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -956,7 +956,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_b.clone(),
-				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1037,7 +1037,7 @@ fn peer_punished_for_sending_bad_pov() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&bad_pov).unwrap()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&bad_pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1102,7 +1102,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1165,7 +1165,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_b, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+				send_pov_message(hash_b, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1454,7 +1454,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1478,7 +1478,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 				assert_eq!(peers, vec![peer_b.clone()]);
 				assert_eq!(
 					message,
-					send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+					send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 				);
 			}
 		);
@@ -1538,7 +1538,7 @@ fn peer_completing_request_no_longer_awaiting() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::from_pov(&pov).unwrap()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
