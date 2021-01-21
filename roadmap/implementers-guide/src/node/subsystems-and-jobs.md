@@ -205,5 +205,29 @@ sequenceDiagram
     end
 ```
 
-Assuming we hit the happy path, flow continues with `CandidateSelection` receiving the return from its
-`FetchCollation` request.
+Assuming we hit the happy path, flow continues with `CandidateSelection` receiving a `(candidate_receipt, pov)` as
+the return value from its
+`FetchCollation` request. The only time `CandidateSelection` actively requests a collation is when
+it hasn't yet seconded one for some `relay_parent`, and is ready to second.
+
+```mermaid
+sequenceDiagram
+    participant CS as CandidateSelection
+    participant CB as CandidateBacking
+    participant CV as CandidateValidation
+    participant SD as StatementDistribution
+    participant PD as PoVDistribution
+
+    CS ->> CB: Second
+    CB -->> CV: ValidateFromChainState
+
+    Note over CB,CV: There's some complication in the source, as<br/>candidates are actually validated in a separate task.
+
+    alt valid
+        Note over CB: This is where we transform the CandidateReceipt into a CommittedCandidateReceipt
+        CB ->> SD: Create, share SignedStatement
+        CB ->> PD: Distribute PoV
+    else invalid
+        CB ->> CS: Invalid
+    end
+```
