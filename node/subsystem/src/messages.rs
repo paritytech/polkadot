@@ -36,7 +36,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, ValidationData, CandidateHash,
+	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
 use std::{sync::Arc, collections::btree_map::BTreeMap};
@@ -245,6 +245,19 @@ pub enum AvailabilityDistributionMessage {
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
 }
 
+/// Availability Recovery Message.
+#[derive(Debug)]
+pub enum AvailabilityRecoveryMessage {
+	/// Recover available data from validators on the network.
+	RecoverAvailableData(
+		CandidateReceipt,
+		SessionIndex,
+		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
+	),
+	/// Event from the network bridge.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
+}
+
 impl AvailabilityDistributionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
@@ -398,14 +411,6 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<PersistedValidationData>>,
-	),
-	/// Get the full validation data for a particular para, taking the given
-	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
-	/// if the para currently occupies a core.
-	FullValidationData(
-		ParaId,
-		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<ValidationData>>,
 	),
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
@@ -596,6 +601,8 @@ pub enum AllMessages {
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.
 	AvailabilityDistribution(AvailabilityDistributionMessage),
+	/// Message for the availability recovery subsystem.
+	AvailabilityRecovery(AvailabilityRecoveryMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
 	/// Message for the bitfield signing subsystem.

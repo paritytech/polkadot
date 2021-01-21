@@ -35,7 +35,7 @@ pub const RELAY_VRF_DELAY_CONTEXT: &str = "A&V TRANCHE";
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct RelayVRF(pub [u8; 32]);
 
 /// Different kinds of input data or criteria that can prove a validator's assignment

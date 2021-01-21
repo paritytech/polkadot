@@ -193,8 +193,6 @@ fn make_runtime_api_request<Client>(
 		Request::AvailabilityCores(sender) => query!(availability_cores(), sender),
 		Request::PersistedValidationData(para, assumption, sender) =>
 			query!(persisted_validation_data(para, assumption), sender),
-		Request::FullValidationData(para, assumption, sender) =>
-			query!(full_validation_data(para, assumption), sender),
 		Request::CheckValidationOutputs(para, commitments, sender) =>
 			query!(check_validation_outputs(para, commitments), sender),
 		Request::SessionIndexForChild(sender) => query!(session_index_for_child(), sender),
@@ -271,7 +269,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
-		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
+		Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
 		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
@@ -286,7 +284,7 @@ mod tests {
 		validator_groups: Vec<Vec<ValidatorIndex>>,
 		availability_cores: Vec<CoreState>,
 		availability_cores_wait: Arc<Mutex<()>>,
-		validation_data: HashMap<ParaId, ValidationData>,
+		validation_data: HashMap<ParaId, PersistedValidationData>,
 		session_index_for_child: SessionIndex,
 		session_info: HashMap<SessionIndex, SessionInfo>,
 		validation_code: HashMap<ParaId, ValidationCode>,
@@ -335,15 +333,7 @@ mod tests {
 				para: ParaId,
 				_assumption: OccupiedCoreAssumption,
 			) -> Option<PersistedValidationData> {
-				self.validation_data.get(&para).map(|l| l.persisted.clone())
-			}
-
-			fn full_validation_data(
-				&self,
-				para: ParaId,
-				_assumption: OccupiedCoreAssumption,
-			) -> Option<ValidationData> {
-				self.validation_data.get(&para).map(|l| l.clone())
+				self.validation_data.get(&para).cloned()
 			}
 
 			fn check_validation_outputs(
@@ -518,48 +508,6 @@ mod tests {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::PersistedValidationData(para_b, OccupiedCoreAssumption::Included, tx)
-				),
-			}).await;
-
-			assert_eq!(rx.await.unwrap().unwrap(), None);
-
-			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-		};
-
-		futures::executor::block_on(future::join(subsystem_task, test_task));
-	}
-
-	#[test]
-	fn requests_full_validation_data() {
-		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let relay_parent = [1; 32].into();
-		let para_a = 5.into();
-		let para_b = 6.into();
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		let mut runtime_api = MockRuntimeApi::default();
-		runtime_api.validation_data.insert(para_a, Default::default());
-		let runtime_api = Arc::new(runtime_api);
-
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
-		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
-		let test_task = async move {
-			let (tx, rx) = oneshot::channel();
-
-			ctx_handle.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(
-					relay_parent,
-					Request::FullValidationData(para_a, OccupiedCoreAssumption::Included, tx)
-				),
-			}).await;
-
-			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
-
-			let (tx, rx) = oneshot::channel();
-			ctx_handle.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(
-					relay_parent,
-					Request::FullValidationData(para_b, OccupiedCoreAssumption::Included, tx)
 				),
 			}).await;
 

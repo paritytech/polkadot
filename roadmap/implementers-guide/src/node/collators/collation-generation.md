@@ -33,7 +33,7 @@ pub struct Collation {
 }
 
 type CollatorFn = Box<
-  dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>>>>
+  dyn Fn(Hash, &PeristedValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>>>>
 >;
 
 struct CollationGenerationConfig {

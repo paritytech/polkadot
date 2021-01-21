@@ -329,7 +329,7 @@ mod tests {
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u128>;
 		type OnNewAccount = ();
-		type OnKilledAccount = Balances;
+		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 	}
@@ -563,19 +563,19 @@ mod tests {
 			Sr25519Keyring::Two,
 		];
 
+		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
+
+		pallet_balances::GenesisConfig::<Test> {
+			balances,
+		}.assimilate_storage(&mut t).unwrap();
+
 		// stashes are the index.
 		let session_keys: Vec<_> = authority_keys.iter().enumerate()
 			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
 			.collect();
 
-		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
-
 		pallet_session::GenesisConfig::<Test> {
 			keys: session_keys,
-		}.assimilate_storage(&mut t).unwrap();
-
-		pallet_balances::GenesisConfig::<Test> {
-			balances,
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()

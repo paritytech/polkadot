@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.8"
+futures = "0.3.12"
 futures01 = { package = "futures", version = "0.1.29" }
 hex = "0.4.2"
 tracing = "0.1.22"
@@ -45,8 +45,9 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "roc
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
