@@ -20,7 +20,7 @@ enum ObservedRole {
 	Light,
 }
 
-/// SCALE and GZip encoded `PoV`.
+/// SCALE and zstd encoded `PoV`.
 struct CompressedPoV(Vec<u8>);
 ```
 
