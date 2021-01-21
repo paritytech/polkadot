@@ -375,7 +375,8 @@ pub mod v1 {
 			struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>, usize);
 			impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
 				fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
-					if self.1.saturating_add(into.len()) > MAX_POV_BLOCK_SIZE {
+					self.1 = self.1.saturating_add(into.len());
+					if self.1 > MAX_POV_BLOCK_SIZE {
 						return Err("pov block too big".into())
 					}
 					self.0.read_exact(into).map_err(Into::into)
