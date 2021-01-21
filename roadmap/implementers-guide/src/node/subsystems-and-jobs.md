@@ -122,3 +122,39 @@ digraph {
     stmt_dist   -> runt_api     [arrowhead = "onormal", label = "Request::SessionIndexForChild"]
 }
 ```
+
+## The Path to Backing
+
+Let's contextualize that diagram a bit by following a parachain block from its creation through finalization.
+Parachains can use completely arbitrary processes to generate blocks. The relay chain doesn't know or care about
+the details; each parachain just needs to provide a [collator](collators/collation-generation.md).
+
+**Note**: Inter-subsystem communications are relayed via the overseer, but that step is omitted here for brevity.
+
+**Note**: Dashed lines indicate a request/response cycle, where the response is communicated asynchronously via
+a oneshot channel. Adjacent dashed lines may be processed in parallel.
+
+```mermaid
+sequenceDiagram
+    participant Overseer
+    participant CollationGeneration
+    participant RuntimeApi
+    participant CollatorProtocol
+
+    Overseer ->> CollationGeneration: ActiveLeavesUpdate
+    loop for each activated head
+        CollationGeneration -->> RuntimeApi: Request availability cores
+        CollationGeneration -->> RuntimeApi: Request validators
+
+        Note over CollationGeneration: Determine an appropriate ScheduledCore and OccupiedCoreAssumption
+
+        CollationGeneration -->> RuntimeApi: Request full validation data
+
+        Note over CollationGeneration: Build the collation
+
+        CollationGeneration ->> CollatorProtocol: DistributeCollation
+    end
+```
+
+The `DistributeCollation` messages that `CollationGeneration` sends to the `CollatorProtocol` contains
+two items: a `CandidateReceipt` and `PoV`. The `CollatorProtocol` is then responsible for sending
