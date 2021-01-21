@@ -412,7 +412,7 @@ impl<T: Config> Module<T> {
 			let period_begin = auction_lease_period_index + begin_offset;
 			let period_count = <LeasePeriodOf<T>>::from(range.len() as u32);
 
-			match T::Leaser::lease_out(para, leaser, amount, period_begin, period_count) {
+			match T::Leaser::lease_out(para, &leaser, amount, period_begin, period_count) {
 				Err(LeaseError::ReserveFailed) | Err(LeaseError::AlreadyEnded) => {
 					// Should never happen since we just unreserved this amount (and our offset is from the
 					// present period). But if it does, there's not much we can do.
@@ -577,8 +577,8 @@ impl<T: Config> Module<T> {
 			let (slot_winner, bid) = final_winner;
 			match slot_winner {
 				//Bidder::New(new_bidder) => (Some(new_bidder), new_id(), bid, r),
-				Bidder::New(new_bidder) => (Some(new_bidder), Default::default(), bid, r),
-				Bidder::Existing(para_id) => (None, para_id, bid, r),
+				Bidder::New(new_bidder) => (Default::default(), Default::default(), bid, r),
+				Bidder::Existing(para_id) => (Default::default(), para_id, bid, r),
 			}
 		}).collect::<Vec<_>>()
 	}

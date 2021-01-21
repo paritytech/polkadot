@@ -122,7 +122,7 @@ pub trait Leaser {
 	/// Returns `Err` in the case of an error, and in which case nothing is changed.
 	fn lease_out(
 		para: ParaId,
-		leaser: Self::AccountId,
+		leaser: &Self::AccountId,
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
@@ -281,7 +281,7 @@ decl_module! {
 			period_count: LeasePeriodOf<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::lease_out(para, leaser, amount, period_begin, period_count)
+			Self::lease_out(para, &leaser, amount, period_begin, period_count)
 				.map_err(|_| Error::<T>::LeaseError)?;
 			Ok(())
 		}
@@ -387,7 +387,7 @@ impl<T: Config> Module<T> {
 
 		// Figure out what chains need bringing on.
 		let mut parachains = Vec::new();
-		for (para, lease_periods) in Leases::<T>::iter() {
+		for (para, mut lease_periods) in Leases::<T>::iter() {
 			if lease_periods.is_empty() { continue }
 			// ^^ should never be empty since we would have deleted the entry otherwise.
 
@@ -397,8 +397,8 @@ impl<T: Config> Module<T> {
 				// `para` is now just a parathread.
 				//
 				// Unreserve whatever is left.
-				if let Some((who, value)) = lease_periods[0] {
-					T::Currency::unreserve(&who, value);
+				if let Some((who, value)) = &lease_periods[0] {
+					T::Currency::unreserve(&who, *value);
 				}
 
 				// Remove the now-empty lease list.
@@ -457,7 +457,7 @@ impl<T: Config> Leaser for Module<T> {
 
 	fn lease_out(
 		para: ParaId,
-		leaser: Self::AccountId,
+		leaser: &Self::AccountId,
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
@@ -481,8 +481,10 @@ impl<T: Config> Leaser for Module<T> {
 			if d.len() < offset {
 				d.resize_with(offset, || { None });
 			}
+			let period_count_usize = period_count.checked_into::<usize>()
+				.ok_or(LeaseError::AlreadyEnded)?;
 			// Then place the deposit values for as long as the chain should exist.
-			for i in offset .. (offset + period_count as usize) {
+			for i in offset .. (offset + period_count_usize) {
 				if d.len() > i {
 					// Already exists but it's `None`. That means a later slot was already leased.
 					// No problem.
@@ -514,7 +516,7 @@ impl<T: Config> Leaser for Module<T> {
 
 			let reserved = maybe_additional.unwrap_or_default();
 			Self::deposit_event(
-				RawEvent::Leased(para, leaser, period_begin, period_count, reserved, amount)
+				RawEvent::Leased(para, leaser.clone(), period_begin, period_count, reserved, amount)
 			);
 
 			Ok(())
