@@ -5268,6 +5268,8 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "strum 0.20.0",
+ "thiserror",
+ "zstd",
 ]
 
 [[package]]
