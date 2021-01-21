@@ -287,7 +287,7 @@ pub mod v1 {
 	use polkadot_node_primitives::SignedFullStatement;
 	use parity_scale_codec::{Encode, Decode};
 	use super::RequestId;
-	use std::{convert::TryFrom, io::Read};
+	use std::convert::TryFrom;
 
 	/// Network messages used by the availability distribution subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
@@ -345,6 +345,8 @@ pub mod v1 {
 		Decompress,
 		#[error("Failed to decode the uncompressed PoV")]
 		Decode,
+		#[error("Architecture is not supported")]
+		NotSupported,
 	}
 
 	/// SCALE and GZip encoded [`PoV`].
@@ -353,12 +355,21 @@ pub mod v1 {
 
 	impl CompressedPoV {
 		/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
+		#[cfg(not(target_os = "unknown"))]
 		pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
 			zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
 		}
 
+		/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
+		#[cfg(target_os = "unknown")]
+		pub fn compress(_: &PoV) -> Result<Self, CompressedPoVError> {
+			Err(CompressedPoVError::NotSupported)
+		}
+
 		/// Decompress `self` and returns the [`PoV`] on success.
+		#[cfg(not(target_os = "unknown"))]
 		pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
+			use std::io::Read;
 			struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>);
 			impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
 				fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
@@ -371,6 +382,12 @@ pub mod v1 {
 
 			let mut decoder = zstd::Decoder::new(self.0.as_slice()).map_err(|_| CompressedPoVError::Decompress)?;
 			PoV::decode(&mut InputDecoder(&mut decoder)).map_err(|_| CompressedPoVError::Decode)
+		}
+
+		/// Decompress `self` and returns the [`PoV`] on success.
+		#[cfg(target_os = "unknown")]
+		pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
+			Err(CompressedPoVError::NotSupported)
 		}
 	}
 
