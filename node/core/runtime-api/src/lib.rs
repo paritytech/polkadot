@@ -421,6 +421,10 @@ mod tests {
 				self.babe_epoch.as_ref().unwrap().clone()
 			}
 
+			fn next_epoch(&self) -> BabeEpoch {
+				unimplemented!()
+			}
+
 			fn generate_key_ownership_proof(
 				_slot_number: sp_consensus_babe::SlotNumber,
 				_authority_id: sp_consensus_babe::AuthorityId,
