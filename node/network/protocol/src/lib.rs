@@ -370,9 +370,14 @@ pub mod v1 {
 		#[cfg(not(target_os = "unknown"))]
 		pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 			use std::io::Read;
-			struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>);
+			const MAX_POV_BLOCK_SIZE: usize = 32 * 1024 * 1024;
+
+			struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>, usize);
 			impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
 				fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
+					if self.1.saturating_add(into.len()) > MAX_POV_BLOCK_SIZE {
+						return Err("pov block too big".into())
+					}
 					self.0.read_exact(into).map_err(Into::into)
 				}
 				fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
@@ -381,7 +386,7 @@ pub mod v1 {
 			}
 
 			let mut decoder = zstd::Decoder::new(self.0.as_slice()).map_err(|_| CompressedPoVError::Decompress)?;
-			PoV::decode(&mut InputDecoder(&mut decoder)).map_err(|_| CompressedPoVError::Decode)
+			PoV::decode(&mut InputDecoder(&mut decoder, 0)).map_err(|_| CompressedPoVError::Decode)
 		}
 
 		/// Decompress `self` and returns the [`PoV`] on success.
