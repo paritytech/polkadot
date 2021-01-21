@@ -88,7 +88,6 @@ type BalanceOf<T> = <<<T as auctions::Config>::Leaser as slots::Leaser>::Currenc
 #[allow(dead_code)]
 type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as slots::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-
 pub trait Config: slots::Config + auctions::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
@@ -136,9 +135,10 @@ struct DeployData<Hash> {
 #[cfg_attr(feature = "std", derive(Debug))]
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
-	/// The parachain that this fund has funded, if there is one. As long as this is `Some`, then
-	/// the funds may not be withdrawn and the fund cannot be dissolved.
-	parachain: Option<ParaId>,
+	/// The parachain that this fund is funding or plans to fund.
+	parachain: ParaId,
+	/// As long as this is `true` then the funds may not be withdrawn and the fund cannot be dissolved.
+	is_leased: bool,
 	/// The owning account who placed the deposit.
 	owner: AccountId,
 	/// The amount of deposit placed.
@@ -289,7 +289,7 @@ decl_module! {
 			CurrencyOf::<T>::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
 			FundCount::put(next_index);
 
-			<Funds<T>>::insert(index, FundInfo {
+			Funds::<T>::insert(index, FundInfo {
 				parachain: None,
 				owner,
 				deposit,
@@ -327,7 +327,7 @@ decl_module! {
 			let balance = balance.saturating_add(value);
 			Self::contribution_put(index, &who, &balance);
 
-			if <auctions::Module<T>>::is_ending(now).is_some() {
+			if auctions::Module::<T>::is_ending(now).is_some() {
 				match fund.last_contribution {
 					// In ending period; must ensure that we are in NewRaise.
 					LastContribution::Ending(n) if n == now => {
@@ -355,69 +355,9 @@ decl_module! {
 				}
 			}
 
-			<Funds<T>>::insert(index, &fund);
+			Funds::<T>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Contributed(who, index, value));
-		}
-
-		/// Set the deploy data of the funded parachain if not already set. Once set, this cannot
-		/// be changed again.
-		///
-		/// - `origin` must be the fund owner.
-		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
-		/// - `code_hash` is the hash of the parachain's Wasm validation function.
-		/// - `initial_head_data` is the parachain's initial head data.
-		#[weight = 0]
-		fn fix_deploy_data(origin,
-			#[compact] index: FundIndex,
-			code_hash: T::Hash,
-			code_size: u32,
-			initial_head_data: HeadData,
-		) {
-			let who = ensure_signed(origin)?;
-
-			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			ensure!(fund.owner == who, Error::<T>::InvalidOrigin); // must be fund owner
-			ensure!(fund.deploy_data.is_none(), Error::<T>::ExistingDeployData);
-
-			fund.deploy_data = Some(DeployData { code_hash, code_size, initial_head_data });
-
-			<Funds<T>>::insert(index, &fund);
-
-			Self::deposit_event(RawEvent::DeployDataFixed(index));
-		}
-
-		/// Complete onboarding process for a winning parachain fund. This can be called once by
-		/// any origin once a fund wins a slot and the fund has set its deploy data (using
-		/// `fix_deploy_data`).
-		///
-		/// - `index` is the fund index that `origin` owns and whose deploy data will be set.
-		/// - `para_id` is the parachain index that this fund won.
-		#[weight = 0]
-		fn onboard(origin,
-			#[compact] index: FundIndex,
-			#[compact] para_id: ParaId
-		) {
-			ensure_signed(origin)?;
-
-			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			let DeployData { code_hash, code_size, initial_head_data }
-				= fund.clone().deploy_data.ok_or(Error::<T>::UnsetDeployData)?;
-			ensure!(fund.parachain.is_none(), Error::<T>::AlreadyOnboard);
-			fund.parachain = Some(para_id);
-
-			let fund_origin = frame_system::RawOrigin::Signed(Self::fund_account_id(index)).into();
-			<slots::Module<T>>::fix_deploy_data(
-				fund_origin,
-				para_id,
-				code_hash,
-				code_size,
-				initial_head_data,
-			)?;
-
-			<Funds<T>>::insert(index, &fund);
-
-			Self::deposit_event(RawEvent::Onboarded(index, para_id));
 		}
 
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
@@ -426,18 +366,23 @@ decl_module! {
 			ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			let parachain_id = fund.parachain.take().ok_or(Error::<T>::NotParachain)?;
+			let parachain_id = fund.parachain;
+
 			// No deposit information implies the parachain was off-boarded
+			// TODO: Better way of doing this, maybe just check the reserved amount is zero or otherwise through
+			//   a trait.
 			ensure!(slots::Leases::<T>::get(parachain_id).len() == 0, Error::<T>::ParaHasDeposit);
+
 			let account = Self::fund_account_id(index);
 			// Funds should be returned at the end of off-boarding
 			ensure!(CurrencyOf::<T>::free_balance(&account) >= fund.raised, Error::<T>::FundsNotReturned);
 
 			// This fund just ended. Withdrawal period begins.
-			let now = <frame_system::Module<T>>::block_number();
+			let now = frame_system::Module::<T>::block_number();
 			fund.end = now;
+			fund.is_leased = false;
 
-			<Funds<T>>::insert(index, &fund);
+			Funds::<T>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Retiring(index));
 		}
@@ -448,7 +393,7 @@ decl_module! {
 			ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			ensure!(fund.parachain.is_none(), Error::<T>::FundNotRetired);
+			ensure!(!fund.is_leased, Error::<T>::FundNotRetired);
 			let now = <frame_system::Module<T>>::block_number();
 
 			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
@@ -464,7 +409,7 @@ decl_module! {
 			Self::contribution_kill(index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
 
-			<Funds<T>>::insert(index, &fund);
+			Funds::<T>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
 		}
@@ -477,7 +422,7 @@ decl_module! {
 			ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
-			ensure!(fund.parachain.is_none(), Error::<T>::HasActiveParachain);
+			ensure!(!fund.is_leased, Error::<T>::HasActiveParachain);
 			let now = <frame_system::Module<T>>::block_number();
 			ensure!(
 				now >= fund.end.saturating_add(T::RetirementPeriod::get()),
@@ -494,7 +439,7 @@ decl_module! {
 					let (imbalance, _) = CurrencyOf::<T>::slash(&account, BalanceOf::<T>::max_value());
 					T::OrphanedFunds::on_unbalanced(imbalance);
 
-					<Funds<T>>::remove(index);
+					Funds::<T>::remove(index);
 
 					Self::deposit_event(RawEvent::Dissolved(index));
 				},
@@ -505,24 +450,18 @@ decl_module! {
 		}
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
-			if let Some(n) = <auctions::Module<T>>::is_ending(n) {
-				let auction_index = <auctions::Module<T>>::auction_counter();
+			if let Some(n) = auctions::Module::<T>::is_ending(n) {
+				let auction_index = auctions::Module::<T>::auction_counter();
 				if n.is_zero() {
 					// first block of ending period.
 					EndingsCount::mutate(|c| *c += 1);
 				}
 				for (fund, index) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
-					let bidder = auctions::Bidder::New(auctions::NewBidder {
-						who: Self::fund_account_id(index),
-						/// FundIndex and slots::SubId happen to be the same type (u32). If this
-						/// ever changes, then some sort of conversion will be needed here.
-						sub: index,
-					});
-
 					// Care needs to be taken by the crowdloan creator that this function will succeed given
 					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
-					let result = <auctions::Module<T>>::handle_bid(
-						bidder,
+					let result = auctions::Module::<T>::handle_bid(
+						Self::fund_account_id(index),
+						para_id,
 						auction_index,
 						fund.first_slot,
 						fund.last_slot,
@@ -1661,7 +1600,7 @@ mod benchmarking {
 			let lease_period_index = end_block / T::LeasePeriod::get();
 			Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
 
-			assert_eq!(<auctions::Module<T>>::is_ending(end_block), Some(0u32.into()));
+			assert_eq!(auctions::Module::<T>::is_ending(end_block), Some(0u32.into()));
 			assert_eq!(NewRaise::get().len(), n as usize);
 			let old_endings_count = EndingsCount::get();
 		}: {
