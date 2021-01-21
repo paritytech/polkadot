@@ -146,7 +146,7 @@ sequenceDiagram
         CollationGeneration -->> RuntimeApi: Request availability cores
         CollationGeneration -->> RuntimeApi: Request validators
 
-        Note over CollationGeneration: Determine an appropriate ScheduledCore and OccupiedCoreAssumption
+        Note over CollationGeneration: Determine an appropriate ScheduledCore <br/>and OccupiedCoreAssumption
 
         CollationGeneration -->> RuntimeApi: Request full validation data
 
@@ -157,4 +157,53 @@ sequenceDiagram
 ```
 
 The `DistributeCollation` messages that `CollationGeneration` sends to the `CollatorProtocol` contains
-two items: a `CandidateReceipt` and `PoV`. The `CollatorProtocol` is then responsible for sending
+two items: a `CandidateReceipt` and `PoV`. The `CollatorProtocol` is then responsible for distributing
+that collation to interested validators. However, not all potential collations are of interest. The
+`CandidateSelection` subsystem is responsible for determining which collations are interesting, before
+`CollatorProtocol` actually fetches the collation.
+
+```mermaid
+sequenceDiagram
+    participant CollationGeneration
+    participant CS as CollatorProtocol::CollatorSide
+    participant NB as NetworkBridge
+    participant VS as CollatorProtocol::ValidatorSide
+    participant CandidateSelection
+
+    CollationGeneration ->> CS: DistributeCollation
+    CS -->> NB: ConnectToValidators
+
+    Note over CS,NB: This connects to multiple validators.
+
+    CS ->> NB: Declare
+    NB ->> VS: Declare
+
+    Note over CS: Ensure that the connected validator is among<br/>the para's validator set. Otherwise, skip it.
+
+    CS ->> NB: AdvertiseCollation
+    NB ->> VS: AdvertiseCollation
+
+    VS ->> CandidateSelection: Collation
+
+    Note over CandidateSelection: Lots of other machinery in play here,<br/>but there are only three outcomes from the<br/>perspective of the `CollatorProtocol`:
+
+    alt happy path
+        CandidateSelection -->> VS: FetchCollation
+        Activate VS
+        VS ->> NB: RequestCollation
+        NB ->> CS: RequestCollation
+        CS ->> NB: Collation
+        NB ->> VS: Collation
+        Deactivate VS
+
+    else collation invalid or unexpected
+        CandidateSelection ->> VS: ReportCollator
+        VS ->> NB: ReportPeer
+
+    else CandidateSelection already selected a different candidate
+        Note over CandidateSelection: silently drop
+    end
+```
+
+Assuming we hit the happy path, flow continues with `CandidateSelection` receiving the return from its
+`FetchCollation` request.
