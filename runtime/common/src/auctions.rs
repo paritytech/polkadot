@@ -22,7 +22,7 @@ use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::{
 	RuntimeDebug,
 	traits::{
-		CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
+		CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion, Saturating,
 	},
 };
 use parity_scale_codec::{Encode, Decode, Codec};
@@ -108,7 +108,7 @@ decl_event!(
 		AuctionClosed(AuctionIndex),
 		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
 		/// [bidder, range, parachain_id, amount]
-		WonDeploy(NewBidder<AccountId>, SlotRange, ParaId, Balance),
+		WonDeploy(AccountId, SlotRange, ParaId, Balance),
 		/// An existing parachain won the right to continue.
 		/// First balance is the extra amount reseved. Second is the total amount reserved.
 		/// [parachain_id, begin, count, total_amount]
@@ -247,7 +247,7 @@ decl_module! {
 			#[compact] amount: BalanceOf<T>
 		) {
 			let who = ensure_signed(origin)?;
-			Self::handle_bid(para, auction_index, first_slot, last_slot, amount)?;
+			Self::handle_bid(who, para, auction_index, first_slot, last_slot, amount)?;
 		}
 	}
 }
@@ -311,7 +311,7 @@ impl<T: Config> Module<T> {
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
 		for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
-			ReservedAmounts::<T>::take((bidder, para));
+			ReservedAmounts::<T>::take((bidder.clone(), para));
 			CurrencyOf::<T>::unreserve(&bidder, amount);
 		}
 
@@ -377,11 +377,11 @@ impl<T: Config> Module<T> {
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
 			.unwrap_or_default();
 		// If this bid beat the previous winner of our range.
-		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.1) {
+		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
 			// This must overlap with all existing ranges that we're winning on or it's invalid.
 			ensure!(current_winning.iter()
 				.enumerate()
-				.all(|(i, x)| x.as_ref().map_or(true, |(w, _)|
+				.all(|(i, x)| x.as_ref().map_or(true, |(w, _, _)|
 					w != &bidder || range.intersects(i.try_into()
 						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
 					)
@@ -397,20 +397,19 @@ impl<T: Config> Module<T> {
 			let reserve_required = amount.saturating_sub(existing_lease_deposit);
 
 			// Get the amount already reserved in any prior and still active bids by us.
-			let bidder_para = (bidder, para);
+			let bidder_para = (bidder.clone(), para);
 			let already_reserved = ReservedAmounts::<T>::get(&bidder_para).unwrap_or_default();
-			let (bidder, para) = bidder_para;
 
 			// If these don't already cover the bid...
 			if let Some(additional) = reserve_required.checked_sub(&already_reserved) {
 				// ...then reserve some more funds from their account, failing if there's not
 				// enough funds.
-				CurrencyOf::<T>::reserve(&bidder.funding_account(), additional)?;
+				CurrencyOf::<T>::reserve(&bidder, additional)?;
 				// ...and record the amount reserved.
-				ReservedAmounts::<T>::insert(&bidder, reserve_required);
+				ReservedAmounts::<T>::insert(&bidder_para, reserve_required);
 
 				Self::deposit_event(RawEvent::Reserved(
-					bidder.funding_account(),
+					bidder.clone(),
 					additional,
 					reserve_required,
 				));
@@ -427,11 +426,11 @@ impl<T: Config> Module<T> {
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
 				{
 					// Previous bidder is no longer winning any ranges: unreserve their funds.
-					if let Some(amount) = ReservedAmounts::<T>::take(&who) {
+					if let Some(amount) = ReservedAmounts::<T>::take(&bidder_para) {
 						// It really should be reserved; there's not much we can do here on fail.
-						let _ = CurrencyOf::<T>::unreserve(&who.funding_account(), amount);
+						let _ = CurrencyOf::<T>::unreserve(&who, amount);
 
-						Self::deposit_event(RawEvent::Unreserved(who.funding_account(), amount));
+						Self::deposit_event(RawEvent::Unreserved(who, amount));
 					}
 				}
 			}
