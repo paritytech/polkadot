@@ -40,7 +40,7 @@ use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
 };
 use runtime_common::{
@@ -71,7 +71,7 @@ use frame_support::{
 	weights::Weight,
 };
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 use beefy_primitives::ecdsa::AuthorityId as BeefyId;
@@ -474,6 +474,7 @@ impl parachains_ump::Config for Runtime {
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Currency = Balances;
 }
 
 impl parachains_scheduler::Config for Runtime {}
@@ -639,12 +640,6 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::availability_cores::<Runtime>()
 		}
 
-		fn full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>>
-		{
-			runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
-		}
-
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<BlockNumber>>
 		{
@@ -799,6 +794,9 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
 		}
 	}
 

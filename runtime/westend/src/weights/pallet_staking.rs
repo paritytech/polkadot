@@ -205,4 +205,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(w as Weight)))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
+	fn kick(w: u32, ) -> Weight {
+		w as Weight
+	}
 }

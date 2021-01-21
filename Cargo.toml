@@ -15,7 +15,7 @@ readme = "README.md"
 cli = { package = "polkadot-cli", path = "cli" }
 color-eyre = "0.5.10"
 thiserror = "1.0.23"
-futures = "0.3.8"
+futures = "0.3.12"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
@@ -38,11 +38,11 @@ members = [
 	"runtime/westend",
 	"runtime/test-runtime",
 	"statement-table",
-	"validation",
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"node/collation-generation",
+	"node/core/approval-voting",
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
@@ -58,6 +58,7 @@ members = [
 	"node/network/statement-distribution",
 	"node/network/bitfield-distribution",
 	"node/network/availability-distribution",
+	"node/network/availability-recovery",
 	"node/network/collator-protocol",
 	"node/overseer",
 	"node/primitives",
@@ -66,6 +67,7 @@ members = [
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
+	"node/metered-channel",
 	"node/test/client",
 	"node/test/service",
 	"parachain/test-parachains",
