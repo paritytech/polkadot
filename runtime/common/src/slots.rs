@@ -138,26 +138,6 @@ pub trait SwapAux {
 	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
 }
 
-
-/// Information regarding a parachain that will be deployed.
-///
-/// We store either the bidder that will be able to set the final deployment information or the
-/// information itself.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub enum IncomingParachain<AccountId, Hash> {
-	/// Deploy information not yet set; just the bidder identity.
-	Unset(AccountId),
-	/// Deploy information set only by code hash; so we store the code hash, code size, and head data.
-	///
-	/// The code size must be included so that checks against a maximum code size
-	/// can be done. If the size of the preimage of the code hash does not match
-	/// the given code size, it will not be possible to register the parachain.
-	Fixed { code_hash: Hash, code_size: u32, initial_head_data: HeadData },
-	/// Deploy information fully set; so we store the code and head data.
-	Deploy { code: ValidationCode, initial_head_data: HeadData },
-}
-
 type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
 
 // This module's storage items.
@@ -189,14 +169,6 @@ decl_storage! {
 
 		/// The ordered set of Para IDs that are full parachains currently.
 		pub CurrentChains: Vec<ParaId>;
-
-		/// The actual on-boarding information. Only exists when one of the following is true:
-		/// - It is before the lease period that the parachain should be on-boarded.
-		/// - The full on-boarding information has not yet been provided and the parachain is not
-		/// yet due to be off-boarded.
-		pub Onboarding get(fn onboarding):
-			map hasher(twox_64_concat) ParaId =>
-			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 	}
 }
 
