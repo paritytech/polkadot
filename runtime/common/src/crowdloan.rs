@@ -273,11 +273,12 @@ decl_module! {
 		) {
 			let owner = ensure_signed(origin)?;
 
-			// TODO: ensure this is the parachain manager. Needs Registrar Update.
-
 			ensure!(first_slot < last_slot, Error::<T>::LastSlotBeforeFirstSlot);
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
+
+			let (manager, _) = slots::Paras::<T>::get(index).ok_or(Error::<T>::InvalidParaId)?;
+			ensure!(owner == manager, Error::<T>::InvalidOrigin);
 
 			let deposit = T::SubmissionDeposit::get();
 			CurrencyOf::<T>::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
