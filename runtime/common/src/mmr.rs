@@ -131,7 +131,7 @@ impl<T: Config> Module<T> where
 			.collect::<Vec<_>>();
 		let merkle_root: MerkleRootOf<T> = sp_io::trie
 			::keccak_256_ordered_root(beefy_public_keys).into();
-		BeefyAuthoritiesRoot::<T>::put(merkle_root)
+		BeefyNextAuthoritiesRoot::<T>::put(merkle_root)
 	}
 }
 
