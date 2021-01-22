@@ -36,7 +36,7 @@ use primitives::v1::{
 };
 use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use crate::slots::{Leaser, LeaseError};
+use crate::traits::{Leaser, LeaseError};
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;

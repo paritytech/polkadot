@@ -38,7 +38,7 @@ use runtime_parachains::{
 	Origin,
 };
 
-use crate::slots::{self, Registrar};
+use crate::traits::Registrar;
 use parity_scale_codec::{Encode, Decode};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
@@ -263,7 +263,7 @@ decl_module! {
 	}
 }
 
-impl<T: Config> slots::Registrar<T::AccountId> for Module<T> {
+impl<T: Config> crate::traits::Registrar<T::AccountId> for Module<T> {
 	fn max_head_size() -> u32 {
 		T::MaxHeadSize::get()
 	}

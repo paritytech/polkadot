@@ -36,6 +36,7 @@ use primitives::v1::{
 };
 use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
+use crate::traits::{Leaser, LeaseError, Registrar, SwapAux};
 
 type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -55,87 +56,6 @@ pub trait Config: frame_system::Config {
 
 	/// The number of blocks over which a single period lasts.
 	type LeasePeriod: Get<Self::BlockNumber>;
-}
-
-/// Parachain registration API.
-pub trait Registrar<AccountId> {
-	/// The max head size for a para.
-	fn max_head_size() -> u32;
-
-	/// The max code size for a para.
-	fn max_code_size() -> u32;
-
-	/// Elevate a para to parachain status.
-	fn make_parachain(id: ParaId) -> DispatchResult;
-
-	/// Lower a para back to normal from parachain status.
-	fn make_parathread(id: ParaId) -> DispatchResult;
-}
-
-/// Error type for something that went wrong with leasing.
-pub enum LeaseError {
-	/// Unable to reserve the funds in the leaser's account.
-	ReserveFailed,
-	/// There is already a lease on at lease one period for the given para.
-	AlreadyLeased,
-	/// The period to be leased has already ended.
-	AlreadyEnded,
-}
-
-/// Lease manager. Used by the auction module to handle parachain slot leases.
-pub trait Leaser {
-	/// An account identifier for a leaser.
-	type AccountId;
-
-	/// The measurement type for counting lease periods (generally just a `BlockNumber`).
-	type LeasePeriod;
-
-	/// The currency type in which the lease is taken.
-	type Currency: ReservableCurrency<Self::AccountId>;
-
-	/// Lease a new parachain slot for `para`.
-	///
-	/// `leaser` shall have a total of `amount` balance reserved by the implementor of this trait.
-	///
-	/// Note: The implementor of the trait (the leasing system) is expected to do all reserve/unreserve calls. The
-	/// caller of this trait *SHOULD NOT* pre-reserve the deposit (though should ensure that it is reservable).
-	///
-	/// The lease will last from `period_begin` for `period_count` lease periods. It is undefined if the `para`
-	/// already has a slot leased during those periods.
-	///
-	/// Returns `Err` in the case of an error, and in which case nothing is changed.
-	fn lease_out(
-		para: ParaId,
-		leaser: &Self::AccountId,
-		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
-		period_begin: Self::LeasePeriod,
-		period_count: Self::LeasePeriod,
-	) -> Result<(), LeaseError>;
-
-	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
-	/// go down outside of a lease period.
-	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
-
-	/// The lease period. This is constant, but can't be a `const` due to it being a runtime configurable quantity.
-	fn lease_period() -> Self::LeasePeriod;
-
-	/// Returns the current lease period.
-	fn lease_period_index() -> Self::LeasePeriod;
-}
-
-/// Auxilliary for when there's an attempt to swap two parachains/parathreads.
-pub trait SwapAux {
-	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
-	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
-
-	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
-	/// code and `head_data` remain equivalent for all parachains/threads, however other properties
-	/// such as leases, deposits held and thread/chain nature are swapped.
-	///
-	/// May only be called on a state that `ensure_can_swap` has previously returned `Ok` for: if this is
-	/// not the case, the result is undefined. May only return an error if `ensure_can_swap` also returns
-	/// an error.
-	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
 }
 
 type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
