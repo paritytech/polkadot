@@ -274,3 +274,33 @@ sequenceDiagram
 ```
 
 But who are these `Listener`s who've asked to be notified about incoming `SignedStatement`s?
+Nobody, as yet.
+
+> TODO: What are the signed statement listeners actually for?
+
+Let's pick back up with the PoV Distribution subsystem.
+
+```mermaid
+sequenceDiagram
+    participant CB as CandidateBacking
+    participant PD as PoVDistribution
+    participant Listener
+    participant NB as NetworkBridge
+
+    CB ->> PD: DistributePoV
+
+    Note over PD,Listener: Various subsystems can register listeners for when PoVs arrive
+
+    loop for each Listener
+        PD ->> Listener: Arc<PoV>
+    end
+
+    Note over PD: Gossip to connected peers
+
+    PD ->> NB: SendPoV
+
+    Note over PD,NB: On receipt of a network PoV, PovDistribution forwards it to each Listener.<br/>It also penalizes bad gossipers.
+```
+
+Unlike in the case of `StatementDistribution`, there is another subsystem which in various circumstances
+already registers a listener to be notified when a new `PoV` arrives: Backing.
