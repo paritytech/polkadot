@@ -1,4 +1,4 @@
-name: Push release notes to internal release notes channel
+name: Send new release notification to matrix channels
 on:
   release:
     types:
@@ -8,13 +8,11 @@ jobs:
     strategy:
       matrix:
         channel:
-          # TODO: Test channels, remove before merging
-          - '!BtOFjyjPaOPcxxIzll:matrix.parity.io'
-          - '!wvmkoSfnHAQEOZKJcg:matrix.parity.io'
-#         - '!LhjZccBOqFNYKLdmbb:polkadot.builders' # #KusamaValidatorLounge:polkadot.builders
-#         - '!FMwxpQnYhRCNDRsYGI:matrix.parity.io' # #kusama-announcements:matrix.parity.io
-#         - '!NZrbtteFeqYKCUGQtr:matrix.parity.io' # #polkadotvalidatorlounge:web3.foundation
-#         - '!UqHPWiCBGZWxrmYBkF:matrix.parity.io' # #polkadot-announcements:matrix.parity.io
+        - '!LhjZccBOqFNYKLdmbb:polkadot.builders' # #KusamaValidatorLounge:polkadot.builders
+        - '!FMwxpQnYhRCNDRsYGI:matrix.parity.io' # #kusama-announcements:matrix.parity.io
+        - '!NZrbtteFeqYKCUGQtr:matrix.parity.io' # #polkadotvalidatorlounge:web3.foundation
+        - '!UqHPWiCBGZWxrmYBkF:matrix.parity.io' # #polkadot-announcements:matrix.parity.io
+        - '!NTogofoetwjbTwOoPi:matrix.parity.io' # Internal release-notes channel
     runs-on: ubuntu-latest
     steps:
       - uses: s3krit/matrix-message-action@v0.0.3
