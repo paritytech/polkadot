@@ -51,7 +51,7 @@ pub trait Config: frame_system::Config {
 	type ParaDeposit: Get<BalanceOf<Self>>;
 
 	/// The parachain registrar type.
-	type Parachains: Registrar<Self::AccountId>;
+	type Registrar: Registrar<Self::AccountId>;
 
 	/// The number of blocks over which a single period lasts.
 	type LeasePeriod: Get<Self::BlockNumber>;
@@ -59,33 +59,17 @@ pub trait Config: frame_system::Config {
 
 /// Parachain registration API.
 pub trait Registrar<AccountId> {
-	/// Checks whether the given initial head data size falls within the limit.
-	fn head_data_size_allowed(head_data_size: u32) -> bool;
+	/// The max head size for a para.
+	fn max_head_size() -> u32;
 
-	/// Checks whether the given validation code falls within the limit.
-	fn code_size_allowed(code_size: u32) -> bool;
-
-	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be
-	/// registered or it will result in a error.
-	///
-	/// This does not enforce any code size or initial head data limits, as these
-	/// are governable and parameters for parachain initialization are often
-	/// determined long ahead-of-time. Not checking these values ensures that changes to limits
-	/// do not invalidate in-progress auction winners.
-	fn register_para(
-		id: ParaId,
-		code: ValidationCode,
-		initial_head_data: HeadData,
-	) -> DispatchResult;
-
-	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
-	fn deregister_para(id: ParaId) -> DispatchResult;
+	/// The max code size for a para.
+	fn max_code_size() -> u32;
 
 	/// Elevate a para to parachain status.
-	fn make_parachain(id: ParaId);
+	fn make_parachain(id: ParaId) -> DispatchResult;
 
 	/// Lower a para back to normal from parachain status.
-	fn make_parathread(id: ParaId);
+	fn make_parathread(id: ParaId) -> DispatchResult;
 }
 
 /// Error type for something that went wrong with leasing.
@@ -154,6 +138,26 @@ pub trait SwapAux {
 	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
 }
 
+
+/// Information regarding a parachain that will be deployed.
+///
+/// We store either the bidder that will be able to set the final deployment information or the
+/// information itself.
+#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub enum IncomingParachain<AccountId, Hash> {
+	/// Deploy information not yet set; just the bidder identity.
+	Unset(AccountId),
+	/// Deploy information set only by code hash; so we store the code hash, code size, and head data.
+	///
+	/// The code size must be included so that checks against a maximum code size
+	/// can be done. If the size of the preimage of the code hash does not match
+	/// the given code size, it will not be possible to register the parachain.
+	Fixed { code_hash: Hash, code_size: u32, initial_head_data: HeadData },
+	/// Deploy information fully set; so we store the code and head data.
+	Deploy { code: ValidationCode, initial_head_data: HeadData },
+}
+
 type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
 
 // This module's storage items.
@@ -185,6 +189,14 @@ decl_storage! {
 
 		/// The ordered set of Para IDs that are full parachains currently.
 		pub CurrentChains: Vec<ParaId>;
+
+		/// The actual on-boarding information. Only exists when one of the following is true:
+		/// - It is before the lease period that the parachain should be on-boarded.
+		/// - The full on-boarding information has not yet been provided and the parachain is not
+		/// yet due to be off-boarded.
+		pub Onboarding get(fn onboarding):
+			map hasher(twox_64_concat) ParaId =>
+			Option<(LeasePeriodOf<T>, IncomingParachain<T::AccountId, T::Hash>)>;
 	}
 }
 
@@ -252,24 +264,6 @@ decl_module! {
 			0
 		}
 
-		#[weight = 0]
-		fn claim(origin, id: ParaId) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(!Paras::<T>::contains_key(id), Error::<T>::InUse);
-			T::Currency::reserve(&who, T::ParaDeposit::get());
-			Paras::<T>::insert(id, (who, T::ParaDeposit::get()));
-			Self::deposit_event(RawEvent::Claimed(id));
-			Ok(())
-		}
-
-		#[weight = 0]
-		fn unclaim(origin, id: ParaId) -> DispatchResult {
-			// TODO...
-			//   (Should only be possible when called from the parachain itself or Root. Should free up
-			//   all associated deposits)
-			Ok(())
-		}
-
 		/// Just a hotwire into the `lease_out` call, in case Root wants to force some lease to happen
 		/// independently of any other on-chain mechanism to use it.
 		#[weight = 0]
@@ -283,93 +277,6 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::lease_out(para, &leaser, amount, period_begin, period_count)
 				.map_err(|_| Error::<T>::LeaseError)?;
-			Ok(())
-		}
-
-		/// Set the deploy information for a successful bid to deploy a new parachain.
-		///
-		/// - `origin` must be the successful bidder account.
-		/// - `sub` is the sub-bidder ID of the bidder.
-		/// - `para_id` is the parachain ID allotted to the winning bidder.
-		/// - `code_hash` is the hash of the parachain's Wasm validation function.
-		/// - `initial_head_data` is the parachain's initial head data.
-		///
-		/// Use in concert with `elaborate_deploy_data`. The two are different functions to allow for parachains
-		/// sending this dispatch (which should be quite small) and a third-party sending the full code to the
-		/// relay-chain directly.
-		#[weight = 500_000_000]
-		pub fn fix_deploy_data(origin,
-			#[compact] para_id: ParaId,
-			code_hash: T::Hash,
-			code_size: u32,
-			initial_head_data: HeadData,
-		) {
-			// TODO: Fix up.
-
-			// let who = ensure_signed(origin)?;
-			// let (starts, details) = <Onboarding<T>>::get(&para_id)
-			// 	.ok_or(Error::<T>::ParaNotOnboarding)?;
-			// if let IncomingParachain::Unset(ref nb) = details {
-			// 	ensure!(nb.who == who && nb.sub == sub, Error::<T>::InvalidOrigin);
-			// } else {
-			// 	Err(Error::<T>::AlreadyRegistered)?
-			// }
-
-			// ensure!(
-			// 	T::Parachains::head_data_size_allowed(initial_head_data.0.len() as _),
-			// 	Error::<T>::HeadDataTooLarge,
-			// );
-			// ensure!(
-			// 	T::Parachains::code_size_allowed(code_size),
-			// 	Error::<T>::CodeTooLarge,
-			// );
-
-			// let item = (starts, IncomingParachain::Fixed{code_hash, code_size, initial_head_data});
-			// <Onboarding<T>>::insert(&para_id, item);
-		}
-
-		/// Note a new para's code.
-		///
-		/// This must be called after `fix_deploy_data` and `code` must be the preimage of the
-		/// `code_hash` passed there for the same `para_id`.
-		///
-		/// This may be called before or after the beginning of the parachain's first lease period.
-		/// If called before then the parachain will become active at the first block of its
-		/// starting lease period. If after, then it will become active immediately after this call.
-		///
-		/// - `_origin` is irrelevant.
-		/// - `para_id` is the parachain ID whose code will be elaborated.
-		/// - `code` is the preimage of the registered `code_hash` of `para_id`.
-		#[weight = 5_000_000_000]
-		pub fn elaborate_deploy_data(
-			_origin,
-			#[compact] para_id: ParaId,
-			code: ValidationCode,
-		) -> DispatchResult {
-			// TODO: Fix up.
-
-			// let (starts, details) = <Onboarding<T>>::get(&para_id)
-			// 	.ok_or(Error::<T>::ParaNotOnboarding)?;
-			// if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
-			// 	ensure!(code.0.len() as u32 == code_size, Error::<T>::InvalidCode);
-			// 	ensure!(<T as frame_system::Config>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
-
-			// 	if starts > Self::lease_period_index() {
-			// 		// Hasn't yet begun. Replace the on-boarding entry with the new information.
-			// 		let item = (starts, IncomingParachain::Deploy{code, initial_head_data});
-			// 		<Onboarding<T>>::insert(&para_id, item);
-			// 	} else {
-			// 		// Should have already begun. Remove the on-boarding entry and register the
-			// 		// parachain for its immediate start.
-			// 		<Onboarding<T>>::remove(&para_id);
-			// 		let _ = T::Parachains::
-			// 			register_para(para_id, true, code, initial_head_data);
-			// 	}
-
-			// 	Ok(())
-			// } else {
-			// 	Err(Error::<T>::UnsetDeployData)?
-			// }
 			Ok(())
 		}
 	}
@@ -437,14 +344,14 @@ impl<T: Config> Module<T> {
 		for para in parachains.iter() {
 			if old_parachains.binary_search(para).is_err() {
 				// incoming.
-				let _ = T::Parachains::make_parachain(*para);
+				let _ = T::Registrar::make_parachain(*para);
 			}
 		}
 
 		for para in old_parachains.iter() {
 			if parachains.binary_search(para).is_err() {
 				// outgoing.
-				let _ = T::Parachains::make_parathread(*para);
+				let _ = T::Registrar::make_parathread(*para);
 			}
 		}
 	}
@@ -565,9 +472,7 @@ fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, oth
 // TODO: This will need rejigging...
 impl<T: Config> SwapAux for Module<T> {
 	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		// if Onboarding::<T>::contains_key(one) || Onboarding::<T>::contains_key(other) {
-		// 	Err("can't swap an undeployed parachain")?
-		// }
+		// TODO: Implement
 		Ok(())
 	}
 	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {

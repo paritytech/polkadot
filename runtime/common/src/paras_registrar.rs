@@ -20,7 +20,7 @@
 use crate::WASM_MAGIC;
 use sp_std::{prelude::*, result};
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure,
+	decl_storage, decl_module, decl_error, decl_event, ensure,
 	dispatch::DispatchResult,
 	traits::{Get, Currency, ReservableCurrency},
 };
@@ -38,10 +38,35 @@ use runtime_parachains::{
 	Origin,
 };
 
+use crate::slots::{self, Registrar};
+use parity_scale_codec::{Encode, Decode};
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+pub enum ParaState {
+	Parachain,
+	Parathread,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default)]
+pub struct ParaData {
+	genesis_head: HeadData,
+	validation_code: ValidationCode,
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default)]
+pub struct ParaInfo<Account, Balance> {
+	manager: Account,
+	deposit: Balance,
+	state: Option<ParaState>,
+}
+
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait Config: paras::Config + dmp::Config + ump::Config + hrmp::Config {
+	/// The overarching event type.
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+
 	/// The aggregated origin type must support the `parachains` origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
@@ -53,7 +78,13 @@ pub trait Config: paras::Config + dmp::Config + ump::Config + hrmp::Config {
 	type Currency: ReservableCurrency<Self::AccountId>;
 
 	/// The deposit to be paid to run a parathread.
-	type ParathreadDeposit: Get<BalanceOf<Self>>;
+	type ParaDeposit: Get<BalanceOf<Self>>;
+
+	/// The maximum size for the validation code.
+	type MaxCodeSize: Get<u32>;
+
+	/// The maximum size for the head code.
+	type MaxHeadSize: Get<u32>;
 }
 
 decl_storage! {
@@ -64,16 +95,34 @@ decl_storage! {
 		/// Pending swap operations.
 		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
-		/// Map of all registered parathreads/chains.
-		Paras get(fn paras): map hasher(twox_64_concat) ParaId => Option<bool>;
+		/// Amount held on deposit for each para and the original depositor.
+		///
+		/// The given account ID is responsible for registering the code and initial head data, but may only do
+		/// so if it isn't yet registered. (After that, it's up to governance to do so.)
+		pub Paras: map hasher(twox_64_concat) ParaId => Option<ParaInfo<T::AccountId, BalanceOf<T>>>;
 
-		/// Users who have paid a parathread's deposit.
-		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
+		/// Onboarding data for a para.
+		pub Onboarding: map hasher(twox_64_concat) ParaId => Option<ParaData>;
+	}
+}
+
+decl_event! {
+	pub enum Event<T> where
+		AccountId = <T as frame_system::Config>::AccountId,
+		ParaId = ParaId,
+	{
+		Claimed(ParaId, AccountId),
 	}
 }
 
 decl_error! {
 	pub enum Error for Module<T: Config> {
+		/// The Id is not registered.
+		NotRegistered,
+		/// The Id given is already in use.
+		InUse,
+		/// The caller is not the owner of this Id.
+		NotOwner,
 		/// Parachain already exists.
 		ParaAlreadyExists,
 		/// Invalid parachain ID.
@@ -88,6 +137,8 @@ decl_error! {
 		ParathreadsRegistrationDisabled,
 		/// The validation code provided doesn't start with the Wasm file magic string.
 		DefinitelyNotWasm,
+		/// No para data has been uploaded.
+		DataNotUploaded,
 	}
 }
 
@@ -95,41 +146,66 @@ decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
+		fn deposit_event() = default;
+
+		/// Claim a ParaId for use as a parachain or parathread.
+		#[weight = 0]
+		fn claim(origin, id: ParaId) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			ensure!(!Paras::<T>::contains_key(id), Error::<T>::InUse);
+			<T as Config>::Currency::reserve(&who, T::ParaDeposit::get())?;
+			let info = ParaInfo {
+				manager: who.clone(),
+				deposit: T::ParaDeposit::get(),
+				state: None,
+			};
+			Paras::<T>::insert(id, info);
+			Self::deposit_event(RawEvent::Claimed(id, who));
+			Ok(())
+		}
+
+		/// Unclaim a ParaId, freeing all data and returning any deposit.
+		#[weight = 0]
+		fn unclaim(origin, id: ParaId) -> DispatchResult {
+			// TODO...
+			//   (Should only be possible when called from the parachain itself or Root.
+			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			//ensure_root(origin)?;
+			if let Some(info) = Paras::<T>::take(&id) {
+				<T as Config>::Currency::unreserve(&info.manager, info.deposit);
+			}
+			Onboarding::remove(&id);
+			Ok(())
+		}
+
+		/// Upload onboarding data for a registered ParaId.
+		///
+		/// Caller must be the manager of this ParaId.
+		#[weight = 0]
+		fn add_onboarding_data(origin, id: ParaId, genesis_head: HeadData, validation_code: ValidationCode) {
+			let who = ensure_signed(origin)?;
+			let info = Paras::<T>::get(&id).ok_or(Error::<T>::NotRegistered)?;
+			ensure!(who == info.manager, Error::<T>::NotOwner);
+			ensure!(validation_code.0.len() <= T::MaxCodeSize::get() as usize, Error::<T>::CodeTooLarge);
+			ensure!(genesis_head.0.len() <= T::MaxHeadSize::get() as usize, Error::<T>::HeadDataTooLarge);
+			ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
+			let para_data = ParaData { genesis_head, validation_code };
+			Onboarding::insert(id, para_data);
+		}
+
 		/// Register a parathread with given code for immediate use.
 		///
-		/// Must be sent from a Signed origin that is able to have `ParathreadDeposit` reserved.
+		/// Must be sent from a Signed origin that is able to have `ParaDeposit` reserved.
 		/// `genesis_head` and `validation_code` are used to initalize the parathread's state.
 		#[weight = 0]
 		fn register_parathread(
 			origin,
 			id: ParaId,
-			genesis_head: HeadData,
-			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-
-			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
-			ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
-
-			ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
-
-			let outgoing = <paras::Module<T>>::outgoing_paras();
-
-			ensure!(outgoing.binary_search(&id).is_err(), Error::<T>::ParaAlreadyExists);
-
-			<T as Config>::Currency::reserve(&who, T::ParathreadDeposit::get())?;
-			<Debtors<T>>::insert(id, who);
-
-			Paras::insert(id, false);
-
-			let genesis = ParaGenesisArgs {
-				genesis_head,
-				validation_code,
-				parachain: false,
-			};
-
-			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
-
+			let info = Paras::<T>::get(&id).ok_or(Error::<T>::NotRegistered)?;
+			ensure!(who == info.manager, Error::<T>::NotOwner);
+			Self::make_parathread(id)?;
 			Ok(())
 		}
 
@@ -145,14 +221,8 @@ decl_module! {
 			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 
 			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
-
-			let is_parachain = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
-
-			ensure!(!is_parachain, Error::<T>::InvalidThreadId);
-
-			let debtor = <Debtors<T>>::take(id);
-			let _ = <T as Config>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
-
+			let info = Paras::<T>::take(id).ok_or(Error::<T>::InvalidChainId)?;
+			ensure!(info.state == Some(ParaState::Parathread), Error::<T>::InvalidThreadId);
 			runtime_parachains::schedule_para_cleanup::<T>(id);
 
 			Ok(())
@@ -187,63 +257,70 @@ decl_module! {
 		/// and the auction deposit are switched.
 		#[weight = 0]
 		fn swap(origin, other: ParaId) {
-			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
-
-			if PendingSwap::get(other) == Some(id) {
-				// Remove intention to swap.
-				PendingSwap::remove(other);
-
-				Paras::mutate(id, |i|
-					Paras::mutate(other, |j|
-						sp_std::mem::swap(i, j)
-					)
-				);
-
-				<Debtors<T>>::mutate(id, |i|
-					<Debtors<T>>::mutate(other, |j|
-						sp_std::mem::swap(i, j)
-					)
-				);
-			} else {
-				PendingSwap::insert(id, other);
-			}
+			let _id = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			// TODO: Implement
 		}
 	}
 }
 
+impl<T: Config> slots::Registrar<T::AccountId> for Module<T> {
+	fn max_head_size() -> u32 {
+		T::MaxHeadSize::get()
+	}
+
+	fn max_code_size() -> u32 {
+		T::MaxHeadSize::get()
+	}
+
+	// Make a registered para into a parachain.
+	fn make_parachain(id: ParaId) -> DispatchResult {
+		Self::make_para(id, true)
+	}
+
+	// Make a registered para into a parathread.
+	fn make_parathread(id: ParaId) -> DispatchResult {
+		ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
+		Self::make_para(id, false)
+	}
+
+}
+
 impl<T: Config> Module<T> {
-	/// Register a parachain with given code. Must be called by root.
-	/// Fails if given ID is already used.
-	pub fn register_parachain(
-		id: ParaId,
-		genesis_head: HeadData,
-		validation_code: ValidationCode,
-	) -> DispatchResult {
-		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
-		ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
+	/// Register a parachain or parathread that is managed by this pallet.
+	///
+	/// This can fail if the ParaId is not registered or the onboarding data,
+	/// has not been uploaded.
+	fn make_para(id: ParaId, parachain: bool) -> DispatchResult {
+		let mut info = Paras::<T>::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		let outgoing = <paras::Module<T>>::outgoing_paras();
-
 		ensure!(outgoing.binary_search(&id).is_err(), Error::<T>::ParaAlreadyExists);
 
-		Paras::insert(id, true);
+		let data = Onboarding::take(id).ok_or(Error::<T>::DataNotUploaded)?;
 
 		let genesis = ParaGenesisArgs {
-			genesis_head,
-			validation_code,
-			parachain: true,
+			genesis_head: data.genesis_head,
+			validation_code: data.validation_code,
+			parachain,
 		};
 
 		runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 
+		if parachain {
+			info.state = Some(ParaState::Parachain);
+		} else {
+			info.state = Some(ParaState::Parathread);
+		}
+
+		Paras::<T>::insert(&id, info);
 		Ok(())
 	}
 
 	/// Deregister a parachain with the given ID. Must be called by root.
 	pub fn deregister_parachain(id: ParaId) -> DispatchResult {
-		let is_parachain = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
+		let info = Paras::<T>::take(id).ok_or(Error::<T>::InvalidChainId)?;
 
-		ensure!(is_parachain, Error::<T>::InvalidChainId);
+		ensure!(info.state == Some(ParaState::Parachain), Error::<T>::InvalidChainId);
 
 		runtime_parachains::schedule_para_cleanup::<T>(id);
 
@@ -529,7 +606,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const ParathreadDeposit: Balance = 10;
+		pub const ParaDeposit: Balance = 10;
 		pub const QueueSize: usize = 2;
 		pub const MaxRetries: u32 = 3;
 	}
@@ -537,7 +614,7 @@ mod tests {
 	impl Config for Test {
 		type Origin = Origin;
 		type Currency = pallet_balances::Module<Test>;
-		type ParathreadDeposit = ParathreadDeposit;
+		type ParaDeposit = ParaDeposit;
 	}
 
 	type Balances = pallet_balances::Module<Test>;
@@ -644,8 +721,8 @@ mod tests {
 			));
 
 			// deposit should be taken (reserved)
-			assert_eq!(Balances::free_balance(3u64) + ParathreadDeposit::get(), orig_bal);
-			assert_eq!(Balances::reserved_balance(3u64), ParathreadDeposit::get());
+			assert_eq!(Balances::free_balance(3u64) + ParaDeposit::get(), orig_bal);
+			assert_eq!(Balances::reserved_balance(3u64), ParaDeposit::get());
 
 			run_to_block(3);
 
