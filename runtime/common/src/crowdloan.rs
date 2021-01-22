@@ -112,9 +112,6 @@ pub trait Config: slots::Config + auctions::Config {
 	type RemoveKeysLimit: Get<u32>;
 }
 
-/// Simple index for identifying a fund.
-pub type FundIndex = u32;
-
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum LastContribution<BlockNumber> {
@@ -172,15 +169,12 @@ decl_storage! {
 	trait Store for Module<T: Config> as Crowdloan {
 		/// Info on all of the funds.
 		Funds get(fn funds):
-			map hasher(twox_64_concat) FundIndex
+			map hasher(twox_64_concat) ParaId
 			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::Hash, T::BlockNumber>>;
-
-		/// The total number of funds that have so far been allocated.
-		FundCount get(fn fund_count): FundIndex;
 
 		/// The funds that have had additional contributions during the last block. This is used
 		/// in order to determine which funds should submit new or updated bids.
-		NewRaise get(fn new_raise): Vec<FundIndex>;
+		NewRaise get(fn new_raise): Vec<ParaId>;
 
 		/// The number of auctions that have entered into their ending period so far.
 		EndingsCount get(fn endings_count): auctions::AuctionIndex;
@@ -193,24 +187,24 @@ decl_event! {
 		Balance = BalanceOf<T>,
 	{
 		/// Create a new crowdloaning campaign. [fund_index]
-		Created(FundIndex),
+		Created(ParaId),
 		/// Contributed to a crowd sale. [who, fund_index, amount]
-		Contributed(AccountId, FundIndex, Balance),
+		Contributed(AccountId, ParaId, Balance),
 		/// Withdrew full balance of a contributor. [who, fund_index, amount]
-		Withdrew(AccountId, FundIndex, Balance),
+		Withdrew(AccountId, ParaId, Balance),
 		/// Fund is placed into retirement. [fund_index]
-		Retiring(FundIndex),
+		Retiring(ParaId),
 		/// Fund is partially dissolved, i.e. there are some left over child
 		/// keys that still need to be killed. [fund_index]
-		PartiallyDissolved(FundIndex),
+		PartiallyDissolved(ParaId),
 		/// Fund is dissolved. [fund_index]
-		Dissolved(FundIndex),
+		Dissolved(ParaId),
 		/// The deploy data of the funded parachain is setted. [fund_index]
-		DeployDataFixed(FundIndex),
+		DeployDataFixed(ParaId),
 		/// Onboarding process for a winning parachain fund is completed. [find_index, parachain_id]
-		Onboarded(FundIndex, ParaId),
+		Onboarded(ParaId, ParaId),
 		/// The result of trying to submit a new bid to the Slots pallet.
-		HandleBidResult(FundIndex, DispatchResult),
+		HandleBidResult(ParaId, DispatchResult),
 	}
 }
 
@@ -227,7 +221,7 @@ decl_error! {
 		/// The contribution was below the minimum, `MinContribution`.
 		ContributionTooSmall,
 		/// Invalid fund index.
-		InvalidFundIndex,
+		InvalidParaId,
 		/// Contributions exceed maximum amount.
 		CapExceeded,
 		/// The contribution period has already ended.
@@ -271,6 +265,7 @@ decl_module! {
 		/// Create a new crowdloaning campaign for a parachain slot deposit for the current auction.
 		#[weight = 100_000_000]
 		fn create(origin,
+			index: ParaId,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
 			#[compact] last_slot: T::BlockNumber,
@@ -282,15 +277,15 @@ decl_module! {
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
-			let index = FundCount::get();
-			let next_index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
+			let (manager, _) = slots::Paras::<T>::get(index).ok_or(Error::<T>::InvalidParaId)?;
+			ensure!(owner == manager, Error::<T>::InvalidOrigin);
 
 			let deposit = T::SubmissionDeposit::get();
 			CurrencyOf::<T>::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
-			FundCount::put(next_index);
 
 			Funds::<T>::insert(index, FundInfo {
-				parachain: None,
+				parachain: index,
+				is_leased: false,
 				owner,
 				deposit,
 				raised: Zero::zero(),
@@ -309,11 +304,11 @@ decl_module! {
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is unable to be purchased and the timeout expires.
 		#[weight = 0]
-		fn contribute(origin, #[compact] index: FundIndex, #[compact] value: BalanceOf<T>) {
+		fn contribute(origin, index: ParaId, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
-			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			fund.raised  = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
 			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
 
@@ -362,10 +357,10 @@ decl_module! {
 
 		/// Note that a successful fund has lost its parachain slot, and place it into retirement.
 		#[weight = 0]
-		fn begin_retirement(origin, #[compact] index: FundIndex) {
+		fn begin_retirement(origin, #[compact] index: ParaId) {
 			ensure_signed(origin)?;
 
-			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let parachain_id = fund.parachain;
 
 			// No deposit information implies the parachain was off-boarded
@@ -389,10 +384,10 @@ decl_module! {
 
 		/// Withdraw full balance of a contributor to an unsuccessful or off-boarded fund.
 		#[weight = 0]
-		fn withdraw(origin, who: T::AccountId, #[compact] index: FundIndex) {
+		fn withdraw(origin, who: T::AccountId, #[compact] index: ParaId) {
 			ensure_signed(origin)?;
 
-			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(!fund.is_leased, Error::<T>::FundNotRetired);
 			let now = <frame_system::Module<T>>::block_number();
 
@@ -418,10 +413,10 @@ decl_module! {
 		/// but it has been retired from its parachain slot. This places any deposits that were not
 		/// withdrawn into the treasury.
 		#[weight = 0]
-		fn dissolve(origin, #[compact] index: FundIndex) {
+		fn dissolve(origin, #[compact] index: ParaId) {
 			ensure_signed(origin)?;
 
-			let fund = Self::funds(index).ok_or(Error::<T>::InvalidFundIndex)?;
+			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(!fund.is_leased, Error::<T>::HasActiveParachain);
 			let now = <frame_system::Module<T>>::block_number();
 			ensure!(
@@ -456,11 +451,11 @@ decl_module! {
 					// first block of ending period.
 					EndingsCount::mutate(|c| *c += 1);
 				}
-				for (fund, index) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
+				for (fund, para_id) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
 					// Care needs to be taken by the crowdloan creator that this function will succeed given
 					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
 					let result = auctions::Module::<T>::handle_bid(
-						Self::fund_account_id(index),
+						Self::fund_account_id(para_id),
 						para_id,
 						auction_index,
 						fund.first_slot,
@@ -468,7 +463,7 @@ decl_module! {
 						fund.raised,
 					);
 
-					Self::deposit_event(RawEvent::HandleBidResult(index, result));
+					Self::deposit_event(RawEvent::HandleBidResult(para_id, result));
 				}
 			}
 
@@ -482,33 +477,33 @@ impl<T: Config> Module<T> {
 	///
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
-	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
+	pub fn fund_account_id(index: ParaId) -> T::AccountId {
 		T::ModuleId::get().into_sub_account(index)
 	}
 
-	pub fn id_from_index(index: FundIndex) -> child::ChildInfo {
+	pub fn id_from_index(index: ParaId) -> child::ChildInfo {
 		let mut buf = Vec::new();
 		buf.extend_from_slice(b"crowdloan");
-		buf.extend_from_slice(&index.to_le_bytes()[..]);
+		buf.extend_from_slice(&index.encode()[..]);
 		child::ChildInfo::new_default(T::Hashing::hash(&buf[..]).as_ref())
 	}
 
-	pub fn contribution_put(index: FundIndex, who: &T::AccountId, balance: &BalanceOf<T>) {
+	pub fn contribution_put(index: ParaId, who: &T::AccountId, balance: &BalanceOf<T>) {
 		who.using_encoded(|b| child::put(&Self::id_from_index(index), b, balance));
 	}
 
-	pub fn contribution_get(index: FundIndex, who: &T::AccountId) -> BalanceOf<T> {
+	pub fn contribution_get(index: ParaId, who: &T::AccountId) -> BalanceOf<T> {
 		who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(
 			&Self::id_from_index(index),
 			b,
 		))
 	}
 
-	pub fn contribution_kill(index: FundIndex, who: &T::AccountId) {
+	pub fn contribution_kill(index: ParaId, who: &T::AccountId) {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdloan_kill(index: FundIndex) -> child::KillOutcome {
+	pub fn crowdloan_kill(index: ParaId) -> child::KillOutcome {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 }
@@ -745,7 +740,7 @@ mod tests {
 			assert_eq!(System::block_number(), 0);
 			assert_eq!(Crowdloan::fund_count(), 0);
 			assert_eq!(Crowdloan::funds(0), None);
-			let empty: Vec<FundIndex> = Vec::new();
+			let empty: Vec<ParaId> = Vec::new();
 			assert_eq!(Crowdloan::new_raise(), empty);
 			assert_eq!(Crowdloan::contribution_get(0, &1), 0);
 			assert_eq!(Crowdloan::endings_count(), 0);
@@ -778,7 +773,7 @@ mod tests {
 			// Deposit is placed in crowdloan free balance
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
 			// No new raise until first contribution
-			let empty: Vec<FundIndex> = Vec::new();
+			let empty: Vec<ParaId> = Vec::new();
 			assert_eq!(Crowdloan::new_raise(), empty);
 		});
 	}
@@ -838,7 +833,7 @@ mod tests {
 	fn contribute_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot contribute to non-existing fund
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49), Error::<Test>::InvalidParaId);
 			// Cannot contribute below minimum contribution
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 9), Error::<Test>::ContributionTooSmall);
 
@@ -911,7 +906,7 @@ mod tests {
 				<Test as frame_system::Config>::Hash::default(),
 				0,
 				vec![0].into()),
-				Error::<Test>::InvalidFundIndex
+				Error::<Test>::InvalidParaId
 			);
 
 			// Cannot set deploy data after it already has been set
@@ -984,7 +979,7 @@ mod tests {
 			run_to_block(10);
 
 			// Cannot onboard invalid fund index
-			assert_noop!(Crowdloan::onboard(Origin::signed(1), 1, 0.into()), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::onboard(Origin::signed(1), 1, 0.into()), Error::<Test>::InvalidParaId);
 			// Cannot onboard crowdloan without deploy data
 			assert_noop!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()), Error::<Test>::UnsetDeployData);
 
@@ -1088,7 +1083,7 @@ mod tests {
 			run_to_block(50);
 
 			// Cannot retire invalid fund index
-			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 1), Error::<Test>::InvalidParaId);
 
 			// Cannot retire twice
 			assert_ok!(Crowdloan::begin_retirement(Origin::signed(1), 0));
@@ -1142,7 +1137,7 @@ mod tests {
 			// Cannot withdraw if they did not contribute
 			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 0), Error::<Test>::NoContributions);
 			// Cannot withdraw from a non-existent fund
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 1), Error::<Test>::InvalidParaId);
 		});
 	}
 
@@ -1260,7 +1255,7 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300));
 
 			// Cannot dissolve an invalid fund index
-			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 1), Error::<Test>::InvalidFundIndex);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 1), Error::<Test>::InvalidParaId);
 			// Cannot dissolve a fund in progress
 			assert_noop!(Crowdloan::dissolve(Origin::signed(1), 0), Error::<Test>::InRetirementPeriod);
 
@@ -1406,7 +1401,7 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn create_fund<T: Config>(end: T::BlockNumber) -> FundIndex {
+	fn create_fund<T: Config>(end: T::BlockNumber) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let lease_period_index = end / T::LeasePeriod::get();
 		let first_slot = lease_period_index;
@@ -1419,7 +1414,7 @@ mod benchmarking {
 		FundCount::get() - 1
 	}
 
-	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
+	fn contribute_fund<T: Config>(who: &T::AccountId, index: ParaId) {
 		CurrencyOf::<T>::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
@@ -1451,7 +1446,7 @@ mod benchmarking {
 	}
 
 	fn setup_onboarding<T: Config>(
-		fund_index: FundIndex,
+		fund_index: ParaId,
 		para_id: ParaId,
 		end_block: T::BlockNumber,
 	) -> DispatchResult {
