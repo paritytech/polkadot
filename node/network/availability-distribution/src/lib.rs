@@ -145,7 +145,7 @@ struct PerCandidate {
 	/// A Candidate and a set of known erasure chunks in form of messages to be gossiped / distributed if the peer view wants that.
 	/// This is _across_ peers and not specific to a particular one.
 	/// candidate hash + erasure chunk index -> gossip message
-	message_vault: HashMap<u32, AvailabilityGossipMessage>,
+	message_vault: HashMap<ValidatorIndex, AvailabilityGossipMessage>,
 
 	/// Track received erasure chunk indices per peer.
 	received_messages: HashMap<PeerId, HashSet<ValidatorIndex>>,
@@ -177,7 +177,7 @@ impl PerCandidate {
 	}
 
 	/// Add a chunk to the message vault. Overwrites anything that was already present.
-	fn add_message(&mut self, chunk_index: u32, message: AvailabilityGossipMessage) {
+	fn add_message(&mut self, chunk_index: ValidatorIndex, message: AvailabilityGossipMessage) {
 		let _ = self.message_vault.insert(chunk_index, message);
 	}
 

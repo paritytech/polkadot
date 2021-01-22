@@ -26,7 +26,7 @@ use strum::{EnumIter, IntoEnumIterator};
 use crate::message::ProtocolMessage;
 
 /// The peer-sets and thus the protocols which are used for the network.
-#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter, Eq, Hash)]
 pub enum PeerSet {
 	/// The validation peer-set is responsible for all messages related to candidate validation and communication among validators.
 	Validation,

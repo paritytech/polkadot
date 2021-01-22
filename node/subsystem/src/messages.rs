@@ -42,9 +42,10 @@ use polkadot_primitives::v1::{
 use std::{sync::Arc, collections::btree_map::BTreeMap};
 
 
-/// Network events as transmitted to other subsystems, wrapped in their message types.
-pub mod network_bridge_event;
-pub use network_bridge_event::NetworkBridgeEvent;
+/// Network events (`NetworkBridgeEvent`) and networ messages as transmitted to other subsystems,
+/// wrapped in their message types.
+pub mod network;
+pub use network::NetworkBridgeEvent;
 
 /// Subsystem messages where each message is always bound to a relay parent.
 pub trait BoundToRelayParent {
@@ -179,7 +180,21 @@ pub enum CollatorProtocolMessage {
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
 	/// Get a network bridge update.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent),
+    /// Receive a message from the network.
+    NetworkMessage(protocol_v1::CollatorProtocolMessage),
+}
+
+impl From<NetworkBridgeEvent> for CollatorProtocolMessage {
+    fn from(ev: NetworkBridgeEvent) -> Self {
+        Self::NetworkBridgeUpdateV1(ev)
+    }
+}
+
+impl From<protocol_v1::CollatorProtocolMessage> for CollatorProtocolMessage {
+    fn from(msg: protocol_v1::CollatorProtocolMessage) -> Self {
+        Self::NetworkMessage(msg)
+    }
 }
 
 impl CollatorProtocolMessage {
@@ -192,6 +207,7 @@ impl CollatorProtocolMessage {
 			Self::ReportCollator(_) => None,
 			Self::NoteGoodCollation(_) => None,
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkMessage(_) => None,
 		}
 	}
 }
@@ -244,10 +260,24 @@ impl NetworkBridgeMessage {
 }
 
 /// Availability Distribution Message.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
 	/// Event from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent),
+    /// Message from the network(bridge).
+    NetworkMessage(protocol_v1::AvailabilityDistributionMessage),
+}
+
+impl From<NetworkBridgeEvent> for AvailabilityDistributionMessage {
+    fn from(ev: NetworkBridgeEvent) -> Self {
+        Self::NetworkBridgeUpdateV1(ev)
+    }
+}
+
+impl From<protocol_v1::AvailabilityDistributionMessage> for AvailabilityDistributionMessage {
+    fn from(msg: protocol_v1::AvailabilityDistributionMessage) -> Self {
+        Self::NetworkMessage(msg)
+    }
 }
 
 /// Availability Recovery Message.
@@ -260,7 +290,20 @@ pub enum AvailabilityRecoveryMessage {
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
 	/// Event from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent),
+    NetworkMessage(protocol_v1::AvailabilityRecoveryMessage),
+}
+
+impl From<NetworkBridgeEvent> for AvailabilityRecoveryMessage {
+    fn from(ev: NetworkBridgeEvent) -> Self {
+        Self::NetworkBridgeUpdateV1(ev)
+    }
+}
+
+impl From<protocol_v1::AvailabilityRecoveryMessage> for AvailabilityRecoveryMessage {
+    fn from(msg: protocol_v1::AvailabilityRecoveryMessage) -> Self {
+        Self::NetworkMessage(msg)
+    }
 }
 
 impl AvailabilityDistributionMessage {
@@ -268,6 +311,7 @@ impl AvailabilityDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkMessage(_) => None,
 		}
 	}
 }
@@ -279,7 +323,21 @@ pub enum BitfieldDistributionMessage {
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
 
 	/// Event from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent),
+    /// Message from the network.
+    NetworkMessage(protocol_v1::BitfieldDistributionMessage),
+}
+
+impl From<NetworkBridgeEvent> for BitfieldDistributionMessage {
+    fn from(ev: NetworkBridgeEvent) -> Self {
+        Self::NetworkBridgeUpdateV1(ev)
+    }
+}
+
+impl From<protocol_v1::BitfieldDistributionMessage> for BitfieldDistributionMessage {
+    fn from(msg: protocol_v1::BitfieldDistributionMessage) -> Self {
+        Self::NetworkMessage(msg)
+    }
 }
 
 impl BitfieldDistributionMessage {
@@ -288,6 +346,7 @@ impl BitfieldDistributionMessage {
 		match self {
 			Self::DistributeBitfield(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkMessage(_) => None,
 		}
 	}
 }
@@ -494,9 +553,23 @@ pub enum StatementDistributionMessage {
 	/// given relay-parent hash and it should be distributed to other validators.
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent),
+    /// Message from the network.
+    NetworkMessage(protocol_v1::StatementDistributionMessage),
 	/// Register a listener for shared statements.
 	RegisterStatementListener(mpsc::Sender<SignedFullStatement>),
+}
+
+impl From<NetworkBridgeEvent> for StatementDistributionMessage {
+    fn from(ev: NetworkBridgeEvent) -> Self {
+        Self::NetworkBridgeUpdateV1(ev)
+    }
+}
+
+impl From<protocol_v1::StatementDistributionMessage> for StatementDistributionMessage {
+    fn from(msg: protocol_v1::StatementDistributionMessage) -> Self {
+        Self::NetworkMessage(msg)
+    }
 }
 
 impl StatementDistributionMessage {
@@ -505,6 +578,7 @@ impl StatementDistributionMessage {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkMessage(_) => None,
 			Self::RegisterStatementListener(_) => None,
 		}
 	}
@@ -569,7 +643,21 @@ pub enum PoVDistributionMessage {
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
 	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
 	/// An update from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent),
+    /// Receive message from the network.
+    NetworkMessage(protocol_v1::PoVDistributionMessage),
+}
+
+impl From<NetworkBridgeEvent> for PoVDistributionMessage {
+    fn from(ev: NetworkBridgeEvent) -> Self {
+        Self::NetworkBridgeUpdateV1(ev)
+    }
+}
+
+impl From<protocol_v1::PoVDistributionMessage> for PoVDistributionMessage {
+    fn from(msg: protocol_v1::PoVDistributionMessage) -> Self {
+        Self::NetworkMessage(msg)
+    }
 }
 
 impl PoVDistributionMessage {
@@ -579,6 +667,7 @@ impl PoVDistributionMessage {
 			Self::FetchPoV(hash, _, _) => Some(*hash),
 			Self::DistributePoV(hash, _, _) => Some(*hash),
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkMessage(_) => None,
 		}
 	}
 }

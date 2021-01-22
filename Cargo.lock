@@ -614,6 +614,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
+name = "bytes"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
+
+[[package]]
 name = "cache-padded"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2469,6 +2475,15 @@ name = "itertools"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
 dependencies = [
  "either",
 ]
@@ -5041,6 +5056,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "futures 0.3.10",
+ "itertools 0.10.0",
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "polkadot-node-network-protocol",
@@ -5265,6 +5281,7 @@ dependencies = [
 name = "polkadot-node-network-protocol"
 version = "0.1.0"
 dependencies = [
+ "bytes 1.0.1",
  "parity-scale-codec",
  "polkadot-node-jaeger",
  "polkadot-node-primitives",

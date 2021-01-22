@@ -17,9 +17,10 @@
 
 use futures::channel::mpsc;
 
-use parity_scale_codec::Decode;
+use bytes::Bytes;
+use parity_scale_codec::{Decode, codec};
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, PeerId, ReputationChange,
+	peer_set::PeerSet, v1 as protocol_v1, PeerId, ReputationChange, message::ProtocolMessage,
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockNumber};
 use polkadot_subsystem::messages::NetworkBridgeMessage;
@@ -70,11 +71,11 @@ pub(crate) enum Action {
 	PeerDisconnected(PeerSet, PeerId),
 
 	/// Messages from the network targeted to other subsystems.
-	PeerMessages(
-		PeerId,
-		Vec<WireMessage<protocol_v1::ValidationProtocol>>,
-		Vec<WireMessage<protocol_v1::CollationProtocol>>,
-	),
+	///
+	/// We need `PeerSet` here because of the `ViewUpdate` constructor of `WireMessage`. We could
+	/// also just split `WireMessage` up here already, but considering that we might remove it,
+	/// let's not bother for now.
+	PeerMessages(Vec<(PeerSet, WireMessage<ProtocolMessage>)>),
 
 	Abort,
 	Nop,
@@ -151,34 +152,54 @@ impl From<Option<NetworkEvent>> for Action {
 				})
 			}
 			Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
-				let v_messages: Result<Vec<_>, _> = messages
+				let decoded: Result<Vec<_>, _> = messages
 					.iter()
-					.filter(|(protocol, _)| protocol == &PeerSet::Validation.into_protocol_name())
-					.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
+					// We simply ignore unknown protocols:
+					.filter_map(|(protocol, msg)|
+						 PeerSet::try_from_protocol_name(protocol)
+						 .map(|p| Ok((p, decode_wire_message(p, msg)?)))
+					)
 					.collect();
 
-				let v_messages = match v_messages {
-					Err(_) => return Action::ReportPeer(remote, MALFORMED_MESSAGE_COST),
-					Ok(v) => v,
-				};
-
-				let c_messages: Result<Vec<_>, _> = messages
-					.iter()
-					.filter(|(protocol, _)| protocol == &PeerSet::Collation.into_protocol_name())
-					.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
-					.collect();
-
-				match c_messages {
+				match decoded {
 					Err(_) => Action::ReportPeer(remote, MALFORMED_MESSAGE_COST),
-					Ok(c_messages) => {
-						if v_messages.is_empty() && c_messages.is_empty() {
+					Ok(v) => {
+						if v.is_empty() {
 							Action::Nop
-						} else {
-							Action::PeerMessages(remote, v_messages, c_messages)
+						}
+						else {
+							Action::PeerMessages(v)
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+// Once we removed `WireMessage` we can decode messages by means of `PeerSet::decode_message`.
+fn decode_wire_message(peer_set: PeerSet, bytes: &mut Bytes) -> Result<WireMessage<ProtocolMessage>, codec::Error> {
+
+    fn traverse<M, N>(wm: WireMessage<M>, f: impl FnOnce(M) -> N) -> WireMessage<N> {
+        match wm {
+            WireMessage::ProtocolMessage(m) => WireMessage::ProtocolMessage(f(m)),
+            WireMessage::ViewUpdate(v) => WireMessage::ViewUpdate(v),
+        }
+    }
+
+    let r = match peer_set {
+        PeerSet::Validation =>
+            traverse(
+				Decode::decode(&mut bytes.as_ref())?,
+				ProtocolMessage::Validation
+			),
+        PeerSet::Collation =>
+            traverse(Decode::decode(&mut bytes.as_ref())?, ProtocolMessage::Collation),
+        PeerSet::AvailabilityDistribution =>
+            traverse(
+                Decode::decode(&mut bytes.as_ref())?,
+                ProtocolMessage::AvailabilityDistribution
+                ),
+    };
+    Ok(r)
 }

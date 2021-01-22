@@ -25,8 +25,8 @@ use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
 
-use super::LOG_TARGET;
-use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId, ReputationChange};
+use super::{LOG_TARGET, WireMessage};
+use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId, ReputationChange, message::ProtocolMessage};
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
@@ -38,8 +38,7 @@ use polkadot_subsystem::{SubsystemError, SubsystemResult};
 pub(crate) async fn send_message<M, I>(
 	net: &mut impl Network,
 	peers: I,
-	peer_set: PeerSet,
-	message: M,
+	message: WireMessage<ProtocolMessage>,
 ) -> SubsystemResult<()>
 where
 	M: Encode + Clone,
