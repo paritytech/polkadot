@@ -231,3 +231,46 @@ sequenceDiagram
         CB ->> CS: Invalid
     end
 ```
+
+At this point, you'll see that control flows in two directions: to `StatementDistribution` to distribute
+the `SignedStatement`, and to `PoVDistribution` to distribute the `PoV`. However, that's largely a mirage:
+while the initial implementation distributes `PoV`s by gossip, that's inefficient, and will be replaced
+with a system which fetches `PoV`s only when actually necessary.
+
+> TODO: figure out more precisely the current status and plans; write them up
+
+Therefore, we'll follow the `SignedStatement`. The `StatementDistribution` subsystem is largely concerned
+with implementing a gossip protocol:
+
+```mermaid
+sequenceDiagram
+    participant SD as StatementDistribution
+    participant NB as NetworkBridge
+    participant Listener
+
+    alt On receipt of a<br/>SignedStatement from CandidateBacking
+        % fn circulate_statement_and_dependents
+        SD ->> NB: SendValidationMessage
+
+        Note right of NB: Bridge sends validation message to all appropriate peers
+    else On initialization, from other subsystems:
+        Listener ->> SD: RegisterStatementListener
+    else On receipt of peer validation message
+        NB ->> SD: NetworkBridgeUpdateV1
+
+        % fn handle_incoming_message
+        alt if we aren't already aware of the relay parent for this statement
+            SD ->> NB: ReportPeer
+        else the statement corresponds to our View
+            Note over SD,Listener: Forward the statement to each registered listener
+            SD ->> Listener: SignedFullStatement
+        end
+
+        % fn circulate_statement
+        opt if we know of peers who haven't seen this message, gossip it
+            SD ->> NB: SendValidationMessage
+        end
+    end
+```
+
+But who are these `Listener`s who've asked to be notified about incoming `SignedStatement`s?
