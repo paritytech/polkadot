@@ -501,11 +501,19 @@ async fn send_collation(
 	receipt: CandidateReceipt,
 	pov: PoV,
 ) {
-	let wire_message = protocol_v1::CollatorProtocolMessage::Collation(
-		request_id,
-		receipt,
-		pov,
-	);
+	let pov = match protocol_v1::CompressedPoV::compress(&pov) {
+		Ok(pov) => pov,
+		Err(error) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				error = ?error,
+				"Failed to create `CompressedPov`",
+			);
+			return
+		}
+	};
+
+	let wire_message = protocol_v1::CollatorProtocolMessage::Collation(request_id, receipt, pov);
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendCollationMessage(
@@ -1280,7 +1288,7 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(req_id, receipt, pov) => {
 							assert_eq!(req_id, request_id);
 							assert_eq!(receipt, candidate);
-							assert_eq!(pov, pov_block);
+							assert_eq!(pov.decompress().unwrap(), pov_block);
 						}
 					);
 				}
