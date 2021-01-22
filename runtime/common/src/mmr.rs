@@ -16,6 +16,7 @@
 
 //! A pallet responsible for creating Merkle Mountain Range (MMR) leaf for current block.
 
+use beefy_primitives::ValidatorSetId;
 use sp_core::H256;
 use sp_std::prelude::*;
 use frame_support::{decl_error, decl_module, decl_storage, RuntimeDebug,};
@@ -30,8 +31,8 @@ pub struct MmrLeaf<Hash, MerkleRoot> {
 	pub parent_hash: Hash,
 	/// A merkle root of all registered parachain heads.
 	pub parachain_heads: MerkleRoot,
-	/// A merkle root of current beefy authority set.
-	pub beefy_authority_set: MerkleRoot,
+	/// A merkle root of the next beefy authority set.
+	pub beefy_next_authority_set: (ValidatorSetId, MerkleRoot),
 }
 
 impl<T: Config> LeafDataProvider for Module<T> where
@@ -46,7 +47,10 @@ impl<T: Config> LeafDataProvider for Module<T> where
 		MmrLeaf {
 			parent_hash: frame_system::Module::<T>::leaf_data(),
 			parachain_heads: Module::<T>::parachain_heads_merkle_root(),
-			beefy_authority_set: Module::<T>::beefy_authority_set_merkle_root(),
+			beefy_next_authority_set: (
+				Module::<T>::beefy_next_authority_set_id(),
+				Module::<T>::beefy_next_authority_set_merkle_root()
+			),
 		}
 	}
 }
@@ -71,8 +75,8 @@ decl_error! {
 
 decl_storage! {
 	trait Store for Module<T: Config> as Beefy {
-		/// The merkle root of next BEEFY authority set.
-		pub BeefyAuthoritiesRoot get(fn beefy_authorities_root): MerkleRootOf<T>;
+		/// The merkle root of the next BEEFY authority set.
+		pub BeefyNextAuthoritiesRoot get(fn beefy_next_authorities_root): MerkleRootOf<T>;
 	}
 }
 
@@ -112,11 +116,15 @@ impl<T: Config> Module<T> where
 	/// the merkle tree every block. Instead we should update the merkle root in [on_new_session]
 	/// callback, cause we know it will only change every session - in future it should be optimized
 	/// to change every era instead.
-	fn beefy_authority_set_merkle_root() -> MerkleRootOf<T> {
-		Self::beefy_authorities_root()
+	fn beefy_next_authority_set_merkle_root() -> MerkleRootOf<T> {
+		Self::beefy_next_authorities_root()
 	}
 
-	fn update_beefy_authorities() {
+	fn beefy_next_authority_set_id() -> ValidatorSetId {
+		pallet_beefy::Module::<T>::validator_set_id() + 1
+	}
+
+	fn update_beefy_next_authorities() {
 		let beefy_public_keys = pallet_beefy::Module::<T>::next_authorities()
 			.into_iter()
 			.map(|authority_id| authority_id.encode())
@@ -140,13 +148,13 @@ impl<T: Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> wh
 	fn on_genesis_session<'a, I: 'a>(_validators: I) where
 		I: Iterator<Item=(&'a T::AccountId, Self::Key)>, Self::Key: 'a
 	{
-		Self::update_beefy_authorities();
+		Self::update_beefy_next_authorities();
 	}
 
 	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued_validators: I) where
 		I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-		Self::update_beefy_authorities();
+		Self::update_beefy_next_authorities();
 	}
 
 	fn on_disabled(_validator_index: usize) {}
