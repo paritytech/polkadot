@@ -691,7 +691,7 @@ impl<N> CoreState<N> {
 
 /// An assumption being made about the state of an occupied core.
 #[derive(Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Eq, Hash, Debug))]
 pub enum OccupiedCoreAssumption {
 	/// The candidate occupying the core was made available and included to free the core.
 	#[codec(index = "0")]
