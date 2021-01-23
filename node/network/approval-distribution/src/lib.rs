@@ -268,10 +268,10 @@ impl State {
 		if !range.is_empty() {
 			self.blocks_by_number
 			.range(range)
-			.map(|(_n, h)| h)
+			.map(|(_number, hashes)| hashes)
 			.flatten()
-			.for_each(|h| {
-				if let Some(entry) = blocks.get_mut(h) {
+			.for_each(|hash| {
+				if let Some(entry) = blocks.get_mut(hash) {
 					entry.known_by.remove(&peer_id);
 				}
 			});
@@ -415,24 +415,25 @@ impl State {
 		}
 
 		// Dispatch a ApprovalDistributionV1Message::Assignment(assignment, candidate_index)
-		// to all peers in the BlockEntry's known_by set,
+		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
 		let peers = self.peer_views
 			.keys()
 			.cloned()
-			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
+			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| {
+				id != key && entry.known_by.contains_key(key)
+			}))
 			.collect::<Vec<_>>();
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
-		for peer in peers.iter().cloned() {
-			entry.known_by
-				.entry(peer)
-				.or_default()
-				.known_messages
-				.insert(fingerprint.clone());
+		for peer in peers.iter() {
+			// we already filtered peers above, so this should always be Some
+			if let Some(entry) = entry.known_by.get_mut(peer) {
+				entry.known_messages.insert(fingerprint.clone());
+			}
 		}
 
 		if !peers.is_empty() {
@@ -577,31 +578,34 @@ impl State {
 		}
 
 		// Dispatch a ApprovalDistributionV1Message::Approval(vote)
-		// to all peers in the BlockEntry's known_by set,
+		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
 		let peers = self.peer_views
 			.keys()
 			.cloned()
-			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
+			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| {
+				id != key && entry.known_by.contains_key(key)
+			}))
 			.collect::<Vec<_>>();
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
-		for peer in peers.iter().cloned() {
-			entry.known_by
-				.entry(peer)
-				.or_default()
-				.known_messages
-				.insert(fingerprint.clone());
+		for peer in peers.iter() {
+			// we already filtered peers above, so this should always be Some
+			if let Some(entry) = entry.known_by.get_mut(peer) {
+				entry.known_messages.insert(fingerprint.clone());
+			}
 		}
 
 		let approvals = vec![vote];
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-			peers,
-			protocol_v1::ValidationProtocol::ApprovalDistribution(
-				protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
-			),
-		).into()).await;
+		if !peers.is_empty() {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
+				),
+			).into()).await;
+		}
 	}
 
 	async fn unify_with_peer(
