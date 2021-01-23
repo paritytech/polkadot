@@ -385,7 +385,7 @@ fn import_approval_happy_path() {
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
 				)
 			)) => {
-				assert_eq!(peers.len(), 3);
+				assert_eq!(peers.len(), 2);
 				assert_eq!(assignments.len(), 1);
 			}
 		);

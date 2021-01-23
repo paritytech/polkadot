@@ -418,12 +418,11 @@ impl State {
 		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
-		let peers = self.peer_views
+		let peers = entry
+			.known_by
 			.keys()
 			.cloned()
-			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| {
-				id != key && entry.known_by.contains_key(key)
-			}))
+			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
@@ -581,12 +580,11 @@ impl State {
 		// to all peers in the BlockEntry's known_by set who know about the block,
 		// excluding the peer in the source, if source has kind MessageSource::Peer.
 		let maybe_peer_id = source.peer_id();
-		let peers = self.peer_views
+		let peers = entry
+			.known_by
 			.keys()
 			.cloned()
-			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| {
-				id != key && entry.known_by.contains_key(key)
-			}))
+			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.

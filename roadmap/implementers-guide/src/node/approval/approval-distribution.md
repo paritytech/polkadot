@@ -169,7 +169,7 @@ The algorithm is the following:
     * check if the fingerprint appears under the `BlockEntry's` knowledge. If not, add it.
   * Load the candidate entry for the given candidate index. It should exist unless there is a logic error in the approval voting subsystem.
   * Set the approval state for the validator index to `ApprovalState::Assigned` unless the approval state is set already. This should not happen as long as the approval voting subsystem instructs us to ignore duplicate assignments.
-  * Dispatch a `ApprovalDistributionV1Message::Assignment(assignment, candidate_index)` to all peers in the `BlockEntry`'s `known_by` set who know about the block, excluding the peer in the `source`, if `source` has kind `MessageSource::Peer`. Add the fingerprint of the assignment to the knowledge of each peer.
+  * Dispatch a `ApprovalDistributionV1Message::Assignment(assignment, candidate_index)` to all peers in the `BlockEntry`'s `known_by` set, excluding the peer in the `source`, if `source` has kind `MessageSource::Peer`. Add the fingerprint of the assignment to the knowledge of each peer.
 
 
 #### `import_and_circulate_approval(source: MessageSource, approval: IndirectSignedApprovalVote)`
@@ -191,7 +191,7 @@ Imports an approval signature referenced by block hash and candidate index:
       * Report the peer and return.
   * Load the candidate entry for the given candidate index. It should exist unless there is a logic error in the approval voting subsystem.
   * Set the approval state for the validator index to `ApprovalState::Approved`. It should already be in the `Assigned` state as our `BlockEntry` knowledge contains a fingerprint for the assignment.
-  * Dispatch a `ApprovalDistributionV1Message::Approval(approval)` to all peers in the `BlockEntry`'s `known_by` set who know about the block, excluding the peer in the `source`, if `source` has kind `MessageSource::Peer`. Add the fingerprint of the assignment to the knowledge of each peer. Note that this obeys the politeness conditions:
+  * Dispatch a `ApprovalDistributionV1Message::Approval(approval)` to all peers in the `BlockEntry`'s `known_by` set, excluding the peer in the `source`, if `source` has kind `MessageSource::Peer`. Add the fingerprint of the assignment to the knowledge of each peer. Note that this obeys the politeness conditions:
     * We guarantee elsewhere that all peers within `known_by` are aware of all assignments relative to the block.
     * We've checked that this specific approval has a corresponding assignment within the `BlockEntry`.
     * Thus, all peers are aware of the assignment or have a message to them in-flight which will make them so.
