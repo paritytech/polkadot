@@ -35,7 +35,7 @@ Input:
 Output:
   - `ApprovalVotingMessage::CheckAndImportAssignment`
   - `ApprovalVotingMessage::CheckAndImportApproval`
-  - `NetworkBridgeMessage::SendValidationMessage::ApprovalDistibution`
+  - `NetworkBridgeMessage::SendValidationMessage::ApprovalDistribution`
 
 ## Functionality
 
