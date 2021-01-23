@@ -548,7 +548,7 @@ fn update_peer_view() {
 		).await;
 
 		// connect a peer
-		setup_peer_with_view(overseer, peer, view![hash_a, hash_b]).await;
+		setup_peer_with_view(overseer, peer, view![hash_a]).await;
 
 		// we should send relevant assignments to the peer
 		assert_matches!(
@@ -560,7 +560,7 @@ fn update_peer_view() {
 				)
 			)) => {
 				assert_eq!(peers.len(), 1);
-				assert_eq!(assignments.len(), 2);
+				assert_eq!(assignments.len(), 1);
 			}
 		);
 	});
@@ -584,7 +584,7 @@ fn update_peer_view() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: vec![hash_c, hash_d], finalized_number: 2 })
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: vec![hash_b, hash_c, hash_d], finalized_number: 2 })
 			)
 		).await;
 

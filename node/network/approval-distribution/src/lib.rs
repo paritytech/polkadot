@@ -621,7 +621,7 @@ impl State {
 			let interesting_blocks = std::iter::from_fn(|| {
 				// step 2.
 				let entry = match entries.get_mut(&block) {
-					Some(entry) if entry.number >= view_finalized_number => entry,
+					Some(entry) if entry.number > view_finalized_number => entry,
 					_ => return None,
 				};
 				let interesting_block = match entry.known_by.entry(peer_id.clone()) {
@@ -800,8 +800,7 @@ impl ApprovalDistribution {
 					// handled by NewBlocks
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					tracing::trace!(target: LOG_TARGET, number = %number, "finalized signal (ignored)");
-					// handled by our handle_block_finalized
+					tracing::trace!(target: LOG_TARGET, number = %number, "finalized signal");
 					state.handle_block_finalized(number);
 				},
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
