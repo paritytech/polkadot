@@ -396,7 +396,10 @@ impl State {
 				}
 			}
 		} else {
-			entry.knowledge.known_messages.insert(fingerprint.clone());
+			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
+				// if we already imported an assignment, there is no need to distribute it again
+				return;
+			}
 		}
 
 		// Invariant: none of the peers except for the `source` know about the assignment.
@@ -551,7 +554,10 @@ impl State {
 				}
 			}
 		} else {
-			entry.knowledge.known_messages.insert(fingerprint.clone());
+			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
+				// if we already imported an approval, there is no need to distribute it again
+				return;
+			}
 		}
 
 		// Invariant: none of the peers except for the `source` know about the approval.

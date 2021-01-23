@@ -723,3 +723,100 @@ fn update_peer_view() {
 			.is_none()
 	);
 }
+
+#[test]
+fn import_remotely_then_locally() {
+	let peer_a = PeerId::random();
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+	let peer = &peer_a;
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		// setup the peer
+		setup_peer_with_view(overseer, peer, view![hash]).await;
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot_number: 1,
+		};
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		// import the assignment remotely first
+		let validator_index = 0u32;
+		let candidate_index = 0u32;
+		let cert = fake_assignment_cert(hash, validator_index);
+		let assignments = vec![(cert.clone(), candidate_index)];
+		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
+		send_message_from_peer(overseer, peer, msg).await;
+
+		// send an `Accept` message from the Approval Voting subsystem
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+				assignment,
+				tx,
+			)) => {
+				assert_eq!(assignment, cert);
+				tx.send(AssignmentCheckResult::Accepted).unwrap();
+			}
+		);
+
+		expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+		// import the same assignment locally
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index)
+		).await;
+
+		assert!(overseer
+			.recv()
+			.timeout(TIMEOUT)
+			.await
+			.is_none(),
+			"no message should be sent",
+		);
+
+		// send the approval remotely
+		let approval = IndirectSignedApprovalVote {
+			block_hash: hash,
+			candidate_index,
+			validator: validator_index,
+			signature: Default::default(),
+		};
+		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer(overseer, peer, msg).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
+				vote,
+				tx,
+			)) => {
+				assert_eq!(vote, approval);
+				tx.send(ApprovalCheckResult::Accepted).unwrap();
+			}
+		);
+		expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+		// import the same approval locally
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeApproval(approval)
+		).await;
+
+		assert!(overseer
+			.recv()
+			.timeout(TIMEOUT)
+			.await
+			.is_none(),
+			"no message should be sent",
+		);
+	});
+}
