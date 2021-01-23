@@ -25,6 +25,18 @@ However, awareness on its own of a (block, candidate) pair would imply that even
 
 ## Protocol
 
+Input:
+  - `ApprovalDistributionMessage::NewBlocks`
+  - `ApprovalDistributionMessage::DistributeAssignment`
+  - `ApprovalDistributionMessage::DistributeApproval`
+  - `ApprovalDistributionMessage::NetworkBridgeUpdateV1`
+  - `OverseerSignal::BlockFinalized`
+
+Output:
+  - `ApprovalVotingMessage::CheckAndImportAssignment`
+  - `ApprovalVotingMessage::CheckAndImportApproval`
+  - `NetworkBridgeMessage::SendValidationMessage::ApprovalDistibution`
+
 ## Functionality
 
 ```rust
