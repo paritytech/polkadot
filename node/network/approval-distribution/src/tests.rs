@@ -193,8 +193,8 @@ fn try_import_the_same_assignment() {
 		let overseer = &mut virtual_overseer;
 		// setup peers
 		setup_peer_with_view(overseer, &peer_a, view![]).await;
-		setup_peer_with_view(overseer, &peer_b, view![]).await;
-		setup_peer_with_view(overseer, &peer_c, view![]).await;
+		setup_peer_with_view(overseer, &peer_b, view![hash]).await;
+		setup_peer_with_view(overseer, &peer_c, view![hash]).await;
 
 		// new block `hash_a` with 1 candidates
 		let meta = BlockApprovalMeta {
@@ -248,11 +248,19 @@ fn try_import_the_same_assignment() {
 		setup_peer_with_view(overseer, &peer_d, view![]).await;
 
 		// send the same assignment from peer_d
-		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
+		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
 		send_message_from_peer(overseer, &peer_d, msg).await;
 
 		expect_reputation_change(overseer, &peer_d, COST_UNEXPECTED_MESSAGE).await;
 		expect_reputation_change(overseer, &peer_d, BENEFIT_VALID_MESSAGE).await;
+
+		assert!(overseer
+			.recv()
+			.timeout(TIMEOUT)
+			.await
+			.is_none(),
+			"no message should be sent",
+		);
 	});
 }
 
@@ -331,6 +339,92 @@ fn spam_attack_results_in_negative_reputation_change() {
 			expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
 			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE).await;
 		}
+	});
+}
+
+#[test]
+fn import_approval_happy_path() {
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	let peer_c = PeerId::random();
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		// setup peers
+		setup_peer_with_view(overseer, &peer_a, view![]).await;
+		setup_peer_with_view(overseer, &peer_b, view![hash]).await;
+		setup_peer_with_view(overseer, &peer_c, view![hash]).await;
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot_number: 1,
+		};
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		// import an assignment related to `hash` locally
+		let validator_index = 0u32;
+		let candidate_index = 0u32;
+		let cert = fake_assignment_cert(hash, validator_index);
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index)
+		).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
+				)
+			)) => {
+				assert_eq!(peers.len(), 3);
+				assert_eq!(assignments.len(), 1);
+			}
+		);
+
+		// send the an approval from peer_b
+		let approval = IndirectSignedApprovalVote {
+			block_hash: hash,
+			candidate_index,
+			validator: validator_index,
+			signature: Default::default(),
+		};
+		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer(overseer, &peer_b, msg).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
+				vote,
+				tx,
+			)) => {
+				assert_eq!(vote, approval);
+				tx.send(ApprovalCheckResult::Accepted).unwrap();
+			}
+		);
+
+		expect_reputation_change(overseer, &peer_b, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
+				)
+			)) => {
+				assert_eq!(peers.len(), 1);
+				assert_eq!(approvals.len(), 1);
+			}
+		);
 	});
 }
 
