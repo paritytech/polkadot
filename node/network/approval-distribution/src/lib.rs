@@ -148,7 +148,7 @@ impl State {
 				})
 			}
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
-				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
+				self.handle_peer_view_change(ctx, peer_id, view).await;
 			}
 			NetworkBridgeEvent::OurViewChange(_view) => {
 				// handled by `BlockFinalized` notification
@@ -162,7 +162,6 @@ impl State {
 	async fn handle_new_blocks(
 		&mut self,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 	) {
 		let mut new_hashes = HashSet::new();
@@ -195,7 +194,6 @@ impl State {
 			Self::unify_with_peer(
 				&mut self.blocks,
 				ctx,
-				metrics,
 				peer_id.clone(),
 				view_intersection,
 			).await;
@@ -249,11 +247,10 @@ impl State {
 	async fn handle_peer_view_change(
 		&mut self,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
 	) {
-		Self::unify_with_peer(&mut self.blocks, ctx, metrics, peer_id.clone(), view.clone()).await;
+		Self::unify_with_peer(&mut self.blocks, ctx, peer_id.clone(), view.clone()).await;
 		let finalized_number = view.finalized_number;
 		let old_view = self.peer_views.insert(peer_id.clone(), view);
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
@@ -301,7 +298,7 @@ impl State {
 	async fn import_and_circulate_assignment(
 		&mut self,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		_metrics: &Metrics,
+		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
@@ -376,6 +373,9 @@ impl State {
 					}
 				}
 				AssignmentCheckResult::AcceptedDuplicate => {
+					// "duplicate" assignments aren't necessarily equal.
+					// There is more than one way each validator can be assigned to each core.
+					// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.known_messages.insert(fingerprint);
 					}
@@ -387,6 +387,11 @@ impl State {
 				}
 				AssignmentCheckResult::Bad => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					tracing::info!(
+						target: LOG_TARGET,
+						peer = ?peer_id,
+						"Got a bad assignment from peer",
+					);
 					return;
 				}
 			}
@@ -395,6 +400,7 @@ impl State {
 		}
 
 		// Invariant: none of the peers except for the `source` know about the assignment.
+		metrics.on_assignment_imported();
 
 		match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
@@ -448,7 +454,7 @@ impl State {
 	async fn import_and_circulate_approval(
 		&mut self,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		_metrics: &Metrics,
+		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
 	) {
@@ -536,6 +542,11 @@ impl State {
 				}
 				ApprovalCheckResult::Bad => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					tracing::info!(
+						target: LOG_TARGET,
+						peer = ?peer_id,
+						"Got a bad approval from peer",
+					);
 					return;
 				}
 			}
@@ -544,6 +555,7 @@ impl State {
 		}
 
 		// Invariant: none of the peers except for the `source` know about the approval.
+		metrics.on_approval_imported();
 
 		match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
@@ -609,7 +621,6 @@ impl State {
 	async fn unify_with_peer(
 		entries: &mut HashMap<Hash, BlockEntry>,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
 	) {
@@ -644,17 +655,14 @@ impl State {
 		Self::send_gossip_messages_to_peer(
 			entries,
 			ctx,
-			metrics,
 			peer_id,
 			to_send
 		).await;
 	}
 
-	#[tracing::instrument(level = "trace", skip(entries, ctx, _metrics, blocks), fields(subsystem = LOG_TARGET))]
 	async fn send_gossip_messages_to_peer(
 		entries: &HashMap<Hash, BlockEntry>,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		_metrics: &Metrics,
 		peer_id: PeerId,
 		blocks: HashSet<Hash>,
 	) {
@@ -770,7 +778,7 @@ impl ApprovalDistribution {
 					msg: ApprovalDistributionMessage::NewBlocks(metas),
 				} => {
 					tracing::debug!(target: LOG_TARGET, "Processing NewBlocks");
-					state.handle_new_blocks(&mut ctx, &self.metrics, metas).await;
+					state.handle_new_blocks(&mut ctx, metas).await;
 				}
 				FromOverseer::Communication {
 					msg: ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index),
@@ -834,10 +842,42 @@ pub struct Metrics(Option<MetricsInner>);
 
 #[derive(Clone)]
 struct MetricsInner {
+	assignments_imported_total: prometheus::Counter<prometheus::U64>,
+	approvals_imported_total: prometheus::Counter<prometheus::U64>,
+}
+
+impl Metrics {
+	fn on_assignment_imported(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.assignments_imported_total.inc();
+		}
+	}
+
+	fn on_approval_imported(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_imported_total.inc();
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
-	fn try_register(_registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		Ok(Metrics::default())
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			assignments_imported_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_assignments_imported_total",
+					"Number of valid assignments imported locally or from other peers.",
+				)?,
+				registry,
+			)?,
+			approvals_imported_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_approvals_imported_total",
+					"Number of valid approvals imported locally or from other peers.",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
 	}
 }
