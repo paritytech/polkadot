@@ -428,6 +428,83 @@ fn import_approval_happy_path() {
 	});
 }
 
+#[test]
+fn import_approval_bad() {
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		// setup peers
+		setup_peer_with_view(overseer, &peer_a, view![]).await;
+		setup_peer_with_view(overseer, &peer_b, view![hash]).await;
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot_number: 1,
+		};
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		let validator_index = 0u32;
+		let candidate_index = 0u32;
+		let cert = fake_assignment_cert(hash, validator_index);
+
+		// send the an approval from peer_b, we don't have an assignment yet
+		let approval = IndirectSignedApprovalVote {
+			block_hash: hash,
+			candidate_index,
+			validator: validator_index,
+			signature: Default::default(),
+		};
+		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer(overseer, &peer_b, msg).await;
+
+		expect_reputation_change(overseer, &peer_b, COST_UNEXPECTED_MESSAGE).await;
+
+		// now import an assignment from peer_b
+		let assignments = vec![(cert.clone(), candidate_index)];
+		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
+		send_message_from_peer(overseer, &peer_b, msg).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+				assignment,
+				tx,
+			)) => {
+				assert_eq!(assignment, cert);
+				tx.send(AssignmentCheckResult::Accepted).unwrap();
+			}
+		);
+
+		expect_reputation_change(overseer, &peer_b, BENEFIT_VALID_MESSAGE_FIRST).await;
+
+		// and try again
+		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
+		send_message_from_peer(overseer, &peer_b, msg).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
+				vote,
+				tx,
+			)) => {
+				assert_eq!(vote, approval);
+				tx.send(ApprovalCheckResult::Bad).unwrap();
+			}
+		);
+
+		expect_reputation_change(overseer, &peer_b, COST_INVALID_MESSAGE).await;
+	});
+}
+
 /// make sure we clean up the state on block finalized
 #[test]
 fn update_our_view() {
