@@ -102,6 +102,7 @@ decl_event! {
 		ParaId = ParaId,
 	{
 		Registered(ParaId, AccountId),
+		Deregistered(ParaId),
 	}
 }
 
@@ -113,18 +114,10 @@ decl_error! {
 		InUse,
 		/// The caller is not the owner of this Id.
 		NotOwner,
-		/// Parachain already exists.
-		ParaAlreadyExists,
-		/// Invalid parachain ID.
-		InvalidChainId,
-		/// Invalid parathread ID.
-		InvalidThreadId,
 		/// Invalid para code size.
 		CodeTooLarge,
 		/// Invalid para head data size.
 		HeadDataTooLarge,
-		/// Parathreads registration is disabled.
-		ParathreadsRegistrationDisabled,
 		/// The validation code provided doesn't start with the Wasm file magic string.
 		DefinitelyNotWasm,
 		/// Para is not a Parachain.
@@ -195,6 +188,7 @@ decl_module! {
 			}
 
 			runtime_parachains::schedule_para_cleanup::<T>(id);
+			Self::deposit_event(RawEvent::Deregistered(id));
 			Ok(())
 		}
 
