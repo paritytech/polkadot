@@ -66,10 +66,16 @@ where
 	<hrmp::Module<T>>::schedule_para_cleanup(id);
 }
 
-/// Schedule a para to be initialized at the start of the next session with the given genesis data.
-pub fn schedule_para_swap<T: paras::Config>(
-	chain: primitives::v1::Id,
-	thread: primitives::v1::Id,
+/// Schedule an existing parathread to be upgraded to a parachain.
+pub fn schedule_para_upgrade<T: paras::Config>(
+	id: primitives::v1::Id,
 ) {
-	<paras::Module<T>>::schedule_para_swap(chain, thread);
+	<paras::Module<T>>::schedule_para_upgrade(id);
+}
+
+/// Schedule an existing parachain to be downgraded to a parathread.
+pub fn schedule_para_downgrade<T: paras::Config>(
+	id: primitives::v1::Id,
+) {
+	<paras::Module<T>>::schedule_para_downgrade(id);
 }

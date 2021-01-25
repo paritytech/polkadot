@@ -127,8 +127,10 @@ decl_error! {
 		ParathreadsRegistrationDisabled,
 		/// The validation code provided doesn't start with the Wasm file magic string.
 		DefinitelyNotWasm,
-		/// No para data has been uploaded.
-		DataNotUploaded,
+		/// Para is not a Parachain.
+		NotParachain,
+		/// Para is not a Parathread.
+		NotParathread,
 	}
 }
 
@@ -212,9 +214,11 @@ decl_module! {
 					if let Some(id_info) = Paras::<T>::get(id) {
 						// identify which is a parachain and which is a parathread
 						if id_info.parachain && !other_info.parachain {
-							runtime_parachains::schedule_para_swap::<T>(id, other);
+							runtime_parachains::schedule_para_downgrade::<T>(id);
+							runtime_parachains::schedule_para_upgrade::<T>(other);
 						} else if !id_info.parachain && other_info.parachain {
-							runtime_parachains::schedule_para_swap::<T>(other, id);
+							runtime_parachains::schedule_para_downgrade::<T>(other);
+							runtime_parachains::schedule_para_upgrade::<T>(id);
 						}
 
 						PendingSwap::remove(other);
@@ -236,16 +240,32 @@ impl<T: Config> crate::traits::Registrar<T::AccountId> for Module<T> {
 		T::MaxHeadSize::get()
 	}
 
-	// Upgrade a registered para into a parachain.
+	// Upgrade a registered parathread into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
-		//Self::make_para(id, true)
-		Ok(())
+		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {
+			if let Some(info) = maybe_info {
+				ensure!(!info.parachain, Error::<T>::NotParathread);
+				runtime_parachains::schedule_para_upgrade::<T>(id);
+				info.parachain = true;
+				Ok(())
+			} else {
+				Err(Error::<T>::NotRegistered.into())
+			}
+		})
 	}
 
 	// Downgrade a registered para into a parathread.
 	fn make_parathread(id: ParaId) -> DispatchResult {
-		//Self::make_para(id, false)
-		Ok(())
+		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {
+			if let Some(info) = maybe_info {
+				ensure!(info.parachain, Error::<T>::NotParachain);
+				runtime_parachains::schedule_para_downgrade::<T>(id);
+				info.parachain = false;
+				Ok(())
+			} else {
+				Err(Error::<T>::NotRegistered.into())
+			}
+		})
 	}
 
 }

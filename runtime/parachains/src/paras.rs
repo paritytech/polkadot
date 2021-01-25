@@ -214,9 +214,10 @@ decl_storage! {
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.
 		OutgoingParas get(fn outgoing_paras): Vec<ParaId>;
-		/// Parachain + Parathread combos that will swap positions. Key is the parachain, and value is the parathread.
-		UpcomingSwaps: map hasher(twox_64_concat) ParaId => Option<ParaId>;
-
+		/// Existing Parathreads that should upgrade to be a Parachain.
+		UpcomingUpgrades: Vec<ParaId>;
+		/// Existing Parachains that should downgrade to be a Parathread.
+		UpcomingDowngrades: Vec<ParaId>;
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
@@ -270,7 +271,8 @@ impl<T: Config> Module<T> {
 		let now = <frame_system::Module<T>>::block_number();
 		let mut parachains = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
-		Self::apply_swaps(&mut parachains);
+		Self::apply_upgrades(&mut parachains);
+		Self::apply_downgrades(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
 	}
 
@@ -321,23 +323,25 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	/// Applies any parachain and parathread swaps, updating the list of parachains.
-	fn apply_swaps(parachains: &mut Vec<ParaId>) {
-		let swap_iter = UpcomingSwaps::iter();
+	/// Take an existing parathread and upgrade it to be a parachain.
+	fn apply_upgrades(parachains: &mut Vec<ParaId>) {
+		let upgrades = UpcomingUpgrades::take();
+		for para in upgrades {
+			if Parathreads::take(&para).is_some() {
+				if let Err(i) = parachains.binary_search(&para) {
+					parachains.insert(i, para);
+				}
+			}
+		}
+	}
 
-		for (parachain, parathread) in swap_iter {
-			if let Ok(i) = parachains.binary_search(&parachain) {
-				if Self::is_parathread(parathread) {
-					// Remove parachain and parathread
-					parachains.remove(i);
-					Parathreads::remove(&parathread);
-
-					// Add back parachain and parathread swapped.
-					Parathreads::insert(&parachain, ());
-					if let Err(i) = parachains.binary_search(&parathread) {
-						parachains.insert(i, parathread);
-					}
-				};
+	/// Take an existing parachain and downgrade it to be a parathread. Update the list of parachains.
+	fn apply_downgrades(parachains: &mut Vec<ParaId>) {
+		let downgrades = UpcomingDowngrades::take();
+		for para in downgrades {
+			if let Ok(i) = parachains.binary_search(&para) {
+				parachains.remove(i);
+				Parathreads::insert(&para, ());
 			}
 		}
 	}
@@ -468,8 +472,13 @@ impl<T: Config> Module<T> {
 		outgoing_weight + upcoming_weight
 	}
 
-	pub(crate) fn schedule_para_swap(chain: ParaId, thread: ParaId) -> Weight {
-		UpcomingSwaps::insert(chain, thread);
+	pub(crate) fn schedule_para_upgrade(para: ParaId) -> Weight {
+		UpcomingUpgrades::append(para);
+		T::DbWeight::get().writes(1)
+	}
+
+	pub(crate) fn schedule_para_downgrade(para: ParaId) -> Weight {
+		UpcomingDowngrades::append(para);
 		T::DbWeight::get().writes(1)
 	}
 
