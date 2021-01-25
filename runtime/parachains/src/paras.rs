@@ -208,12 +208,14 @@ decl_storage! {
 		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 
 		/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
-		/// entry in the upcoming-genesis map.
+		/// entry in the upcoming-genesis map. Ordered by ParaId.
 		UpcomingParas get(fn upcoming_paras): Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.
 		OutgoingParas get(fn outgoing_paras): Vec<ParaId>;
+		/// Parachain + Parathread combos that will swap positions. Key is the parachain, and value is the parathread.
+		UpcomingSwaps: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
 	}
 	add_extra_genesis {
@@ -268,6 +270,7 @@ impl<T: Config> Module<T> {
 		let now = <frame_system::Module<T>>::block_number();
 		let mut parachains = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
+		Self::apply_swaps(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
 	}
 
@@ -317,6 +320,28 @@ impl<T: Config> Module<T> {
 			<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
 		}
 	}
+
+	/// Applies any parachain and parathread swaps, updating the list of parachains.
+	fn apply_swaps(parachains: &mut Vec<ParaId>) {
+		let swap_iter = UpcomingSwaps::iter();
+
+		for (parachain, parathread) in swap_iter {
+			if let Ok(i) = parachains.binary_search(&parachain) {
+				if Self::is_parathread(parathread) {
+					// Remove parachain and parathread
+					parachains.remove(i);
+					Parathreads::remove(&parathread);
+
+					// Add back parachain and parathread swapped.
+					Parathreads::insert(&parachain, ());
+					if let Err(i) = parachains.binary_search(&parathread) {
+						parachains.insert(i, parathread);
+					}
+				};
+			}
+		}
+	}
+
 
 	// note replacement of the code of para with given `id`, which occured in the
 	// context of the given relay-chain block number. provide the replaced code.
@@ -543,13 +568,22 @@ impl<T: Config> Module<T> {
 
 	/// Returns whether the given ID refers to a valid para.
 	pub fn is_valid_para(id: ParaId) -> bool {
-		Self::parachains().binary_search(&id).is_ok()
-			|| Self::is_parathread(id)
+		Self::is_parachain(id) || Self::is_parathread(id)
 	}
 
 	/// Whether a para ID corresponds to any live parathread.
-	pub(crate) fn is_parathread(id: ParaId) -> bool {
+	pub fn is_parachain(id: ParaId) -> bool {
+		Parachains::get().binary_search(&id).is_ok()
+	}
+
+	/// Whether a para ID corresponds to any live parathread.
+	pub fn is_parathread(id: ParaId) -> bool {
 		Parathreads::get(&id).is_some()
+	}
+
+	/// Wether a para ID is in in the onboarding queue.
+	pub fn is_upcoming(id: ParaId) -> bool {
+		UpcomingParas::get().binary_search(&id).is_ok()
 	}
 
 	/// The block number of the last scheduled upgrade of the requested para. Includes future upgrades

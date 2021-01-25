@@ -19,10 +19,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod claims;
-pub mod slot_range;
-pub mod slots;
-pub mod auctions;
-pub mod crowdloan;
+//pub mod slot_range;
+//pub mod slots;
+//pub mod auctions;
+//pub mod crowdloan;
 pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
