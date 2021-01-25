@@ -346,33 +346,6 @@ impl<T: Config> Leaser for Module<T> {
 	}
 }
 
-/// Swap the existence of two items, provided by value, within an ordered list.
-///
-/// If neither item exists, or if both items exist this will do nothing. If exactly one of the
-/// items exists, then it will be removed and the other inserted.
-fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, other: T) {
-	let maybe_one_pos = ids.binary_search(&one);
-	let maybe_other_pos = ids.binary_search(&other);
-	match (maybe_one_pos, maybe_other_pos) {
-		(Ok(one_pos), Err(_)) => ids[one_pos] = other,
-		(Err(_), Ok(other_pos)) => ids[other_pos] = one,
-		_ => return,
-	};
-	ids.sort();
-}
-
-// TODO: This will need rejigging...
-impl<T: Config> SwapAux for Module<T> {
-	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		// TODO: Implement
-		Ok(())
-	}
-	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
-		Leases::<T>::swap(one, other);
-		Ok(())
-	}
-}
-
 /// tests for this module
 #[cfg(test)]
 mod tests {
