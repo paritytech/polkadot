@@ -85,6 +85,12 @@ impl Statement {
 	}
 }
 
+impl From<&'_ Statement> for CompactStatement {
+	fn from(stmt: &Statement) -> Self {
+		stmt.to_compact()
+	}
+}
+
 impl EncodeAs<CompactStatement> for Statement {
 	fn encode_as(&self) -> Vec<u8> {
 		self.to_compact().encode()

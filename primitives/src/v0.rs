@@ -921,6 +921,16 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	pub fn into_payload(self) -> Payload {
 		self.payload
 	}
+
+	/// Convert `Payload` into `RealPayload`.
+	pub fn convert_payload(&self) -> Signed<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
+		Signed {
+			signature: self.signature.clone(),
+			validator_index: self.validator_index,
+			payload: self.payload().into(),
+			real_payload: sp_std::marker::PhantomData,
+		}
+	}
 }
 
 /// Custom validity errors used in Polkadot while validating transactions.
