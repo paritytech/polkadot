@@ -94,6 +94,7 @@ polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
 polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
+polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
@@ -130,4 +131,5 @@ real-overseer = [
 	"polkadot-node-core-runtime-api",
 	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
+	"polkadot-approval-distribution",
 ]
