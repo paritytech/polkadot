@@ -43,12 +43,6 @@ use parity_scale_codec::{Encode, Decode};
 use sp_runtime::RuntimeDebug;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
-pub struct ParaData {
-	genesis_head: HeadData,
-	validation_code: ValidationCode,
-}
-
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
 	manager: Account,
 	deposit: Balance,
