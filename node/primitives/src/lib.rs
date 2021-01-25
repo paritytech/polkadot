@@ -150,6 +150,8 @@ pub enum InvalidCandidate {
 	HashMismatch,
 	/// Bad collator signature.
 	BadSignature,
+	/// Para head hash does not match.
+	ParaHeadHashMismatch,
 }
 
 /// Result of the validation of the candidate.
