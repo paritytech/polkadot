@@ -342,7 +342,6 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-
 	// note replacement of the code of para with given `id`, which occured in the
 	// context of the given relay-chain block number. provide the replaced code.
 	//
@@ -467,6 +466,11 @@ impl<T: Config> Module<T> {
 		});
 
 		outgoing_weight + upcoming_weight
+	}
+
+	pub(crate) fn schedule_para_swap(chain: ParaId, thread: ParaId) -> Weight {
+		UpcomingSwaps::insert(chain, thread);
+		T::DbWeight::get().writes(1)
 	}
 
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion

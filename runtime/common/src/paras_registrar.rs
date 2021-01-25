@@ -175,7 +175,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Unclaim a Para Id, freeing all data and returning any deposit.
+		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
 		/// The caller must be the Para Id itself or Root.
 		#[weight = 0]
@@ -207,7 +207,22 @@ decl_module! {
 		#[weight = 0]
 		fn swap(origin, other: ParaId) {
 			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
-			// TODO: Implement
+			if PendingSwap::get(other) == Some(id) {
+				if let Some(other_info) = Paras::<T>::get(other) {
+					if let Some(id_info) = Paras::<T>::get(id) {
+						// identify which is a parachain and which is a parathread
+						if id_info.parachain && !other_info.parachain {
+							runtime_parachains::schedule_para_swap::<T>(id, other);
+						} else if !id_info.parachain && other_info.parachain {
+							runtime_parachains::schedule_para_swap::<T>(other, id);
+						}
+
+						PendingSwap::remove(other);
+					}
+				}
+			} else {
+				PendingSwap::insert(id, other);
+			}
 		}
 	}
 }
@@ -221,13 +236,13 @@ impl<T: Config> crate::traits::Registrar<T::AccountId> for Module<T> {
 		T::MaxHeadSize::get()
 	}
 
-	// Make a registered para into a parachain.
+	// Upgrade a registered para into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		//Self::make_para(id, true)
 		Ok(())
 	}
 
-	// Make a registered para into a parathread.
+	// Downgrade a registered para into a parathread.
 	fn make_parathread(id: ParaId) -> DispatchResult {
 		//Self::make_para(id, false)
 		Ok(())
