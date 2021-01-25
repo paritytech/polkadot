@@ -35,6 +35,7 @@ use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
 	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber, PersistedValidationData,
 	ValidationCode, CandidateDescriptor, PoV, ValidatorPair, ValidatorSignature, ValidatorId,
+	CandidateIndex,
 };
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_primitives::approval::{
@@ -959,7 +960,7 @@ fn approval_signing_payload(
 fn check_and_import_assignment(
 	state: &mut State<impl AuxStore>,
 	assignment: IndirectAssignmentCert,
-	claimed_core_index: CoreIndex,
+	candidate_index: CandidateIndex,
 ) -> SubsystemResult<AssignmentCheckResult> {
 	const TOO_FAR_IN_FUTURE: SlotNumber = 5;
 
@@ -981,11 +982,10 @@ fn check_and_import_assignment(
 		}
 	};
 
-	let assigned_candidate_hash = match block_entry.candidates.iter()
-		.find(|(c, _)| c == &claimed_core_index)
-		.map(|(_, h)| *h)
+	let (claimed_core_index, assigned_candidate_hash)
+		= match block_entry.candidates.get(candidate_index as usize)
 	{
-		Some(a) => a,
+		Some((c, h)) => (*c, *h),
 		None => return Ok(AssignmentCheckResult::Bad), // no candidate at core.
 	};
 
@@ -1579,9 +1579,10 @@ async fn process_wakeup(
 
 		if let Some(i) = index_in_candidate {
 			// sanity: should always be present.
-			ctx.send_message(
-				ApprovalDistributionMessage::DistributeAssignment(indirect_cert, i as u32).into()
-			).await;
+			ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
+				indirect_cert,
+				i as CandidateIndex,
+			).into()).await;
 
 			launch_approval(
 				ctx,
