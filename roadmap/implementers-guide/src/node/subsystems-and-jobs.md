@@ -123,7 +123,7 @@ digraph {
 }
 ```
 
-## The Path to Backing
+## The Path to Inclusion (Node Side)
 
 Let's contextualize that diagram a bit by following a parachain block from its creation through finalization.
 Parachains can use completely arbitrary processes to generate blocks. The relay chain doesn't know or care about
@@ -215,18 +215,29 @@ sequenceDiagram
     participant CS as CandidateSelection
     participant CB as CandidateBacking
     participant CV as CandidateValidation
+    participant PV as Provisioner
     participant SD as StatementDistribution
     participant PD as PoVDistribution
 
     CS ->> CB: Second
+    % fn validate_and_make_available
     CB -->> CV: ValidateFromChainState
 
     Note over CB,CV: There's some complication in the source, as<br/>candidates are actually validated in a separate task.
 
     alt valid
         Note over CB: This is where we transform the CandidateReceipt into a CommittedCandidateReceipt
-        CB ->> SD: Create, share SignedStatement
-        CB ->> PD: Distribute PoV
+        % CandidateBackingJob::sign_import_and_distribute_statement
+        % CandidateBackingJob::import_statement
+        CB ->> PV: ProvisionableData::BackedCandidate
+        % CandidateBackingJob::issue_new_misbehaviors
+        opt if there is misbehavior to report
+            CB ->> PV: ProvisionableData::MisbehaviorReport
+        end
+        % CandidateBackingJob::distribute_signed_statement
+        CB ->> SD: Share
+        % CandidateBackingJob::distribute_pov
+        CB ->> PD: DistributePoV
     else invalid
         CB ->> CS: Invalid
     end
@@ -276,8 +287,6 @@ sequenceDiagram
 But who are these `Listener`s who've asked to be notified about incoming `SignedStatement`s?
 Nobody, as yet.
 
-> TODO: What are the signed statement listeners actually for?
-
 Let's pick back up with the PoV Distribution subsystem.
 
 ```mermaid
@@ -303,4 +312,126 @@ sequenceDiagram
 ```
 
 Unlike in the case of `StatementDistribution`, there is another subsystem which in various circumstances
-already registers a listener to be notified when a new `PoV` arrives: Backing.
+already registers a listener to be notified when a new `PoV` arrives: `CandidateBacking`. Note that this
+is the second time that `CandidateBacking` has gotten involved. The first instance was from the perspective
+of the validator choosing to second a candidate via its `CandidateSelection` subsystem. This time, it's
+from the perspective of some other validator, being informed that this foreign `PoV` has been received.
+
+```mermaid
+sequenceDiagram
+    participant SD as StatementDistribution
+    participant CB as CandidateBacking
+    participant PD as PoVDistribution
+    participant AS as AvailabilityStore
+
+    SD ->> CB: Statement
+    % CB::maybe_validate_and_import => CB::kick_off_validation_work
+    CB -->> PD: FetchPoV
+    Note over CB,PD: This call creates the Listener from the previous diagram
+
+    CB ->> AS: StoreAvailableData
+```
+
+At this point, things have gone a bit nonlinear. Let's pick up the thread again with `BitfieldSigning`. As
+the `Overseer` activates each relay parent, it starts a `BitfieldSigningJob` which operates on an extremely
+simple metric: after creation, it immediately goes to sleep for 1.5 seconds. On waking, it records the state
+of the world pertaining to availability at that moment.
+
+```mermaid
+sequenceDiagram
+    participant OS as Overseer
+    participant BS as BitfieldSigning
+    participant RA as RuntimeApi
+    participant AS as AvailabilityStore
+    participant BD as BitfieldDistribution
+
+    OS ->> BS: ActiveLeavesUpdate
+    loop for each activated relay parent
+        Note over BS: Wait 1.5 seconds
+        BS -->> RA: Request::AvailabilityCores
+        loop for each availability core
+            BS -->> AS: QueryChunkAvailability
+        end
+        BS ->> BD: DistributeBitfield
+    end
+```
+
+`BitfieldDistribution` is, like the other `*Distribution` subsystems, primarily interested in implementing
+a peer-to-peer gossip network propagating its particular messages. However, it also serves as an essential
+relay passing the message along.
+
+```mermaid
+sequenceDiagram
+    participant BS as BitfieldSigning
+    participant BD as BitfieldDistribution
+    participant NB as NetworkBridge
+    participant PV as Provisioner
+
+    BS ->> BD: DistributeBitfield
+    BD ->> PV: ProvisionableData::Bitfield
+    BD ->> NB: SendValidationMessage::BitfieldDistribution::Bitfield
+```
+
+We've now seen the message flow to the `Provisioner`: both `CandidateBacking` and `BitfieldDistribution`
+contribute provisionable data. Now, let's look at that subsystem.
+
+Much like the `BitfieldSigning` subsystem, the `Provisioner` creates a new job for each newly-activated
+leaf, and starts a timer. Unlike `BitfieldSigning`, we won't depict that part of the process, because
+the `Provisioner` also has other things going on.
+
+```mermaid
+sequenceDiagram
+    participant A as Arbitrary
+    participant PV as Provisioner
+    participant CB as CandidateBacking
+    participant BD as BitfieldDistribution
+    participant RA as RuntimeApi
+    participant PO as Proposer
+
+    alt receive request to forward block authorship data
+        A ->> PV: RequestBlockAuthorshipData
+        Note over A,PV: This request contains a mpsc::Sender, which the Provisioner keeps
+    else receive provisionable data
+        alt
+            CB ->> PV: ProvisionableData
+        else
+            BD ->> PV: ProvisionableData
+        end
+
+        loop over stored Senders
+            PV ->> A: ProvisionableData
+        end
+
+        Note over PV: store bitfields and backed candidates
+    else receive request for inherent data
+        PO ->> PV: RequestInherentData
+        alt we have already constructed the inherent data
+            PV ->> PO: send the inherent data
+        else we have not yet constructed the inherent data
+            Note over PV,PO: Store the return sender without sending immediately
+        end
+    else timer times out
+        note over PV: Waited 2 seconds
+        PV -->> RA: RuntimeApiRequest::AvailabilityCores
+        Note over PV: construct and store the inherent data
+        loop over stored inherent data requests
+            PV ->> PO: (SignedAvailabilityBitfields, BackedCandidates)
+        end
+    end
+```
+
+In principle, any arbitrary subsystem could send a `RequestInherentData` to the `Provisioner`. In practice,
+only the `Proposer` does so. Likewise, any arbitrary subsystem could send a `RequestBlockAuthorshipData`; the
+distinction is that no subsystem currently does so.
+
+The proposer is an atypical subsystem in that, unlike most of them, it is not primarily driven by
+the `Overseer`, but instead by the `sp_consensus::Environment` and `sp_consensus::Proposer` traits
+from Substrate. It doesn't make much sense to diagram this flow because it's very linear:
+
+- Substrate creates a `Proposer` from the `ProposerFactory` once per upcoming block, using the `parent_header: Header`.
+- At some later point, it calls `Proposer::propose(self, ...)`, consuming the proposer to generate a proposal
+- `Proposer::propose` sends a `RequestInherentData` to the `Provisioner`. This has a fixed timeout of
+  2.5 seconds, meaning that the provisioner has approximately 0.5 seconds to generate and send the data.
+
+The tuple `(SignedAvailabilityBitfields, BackedCandidates, ParentHeader)` is injected by the `Proposer`
+into the inherent data. From that point on, control passes from the node to the runtime.
