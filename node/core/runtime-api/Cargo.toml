@@ -8,13 +8,15 @@ edition = "2018"
 futures = "0.3.12"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
+memory-lru = "0.1.0"
+parity-util-mem = "0.8.0"
+
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-memory-lru = "0.1.0"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

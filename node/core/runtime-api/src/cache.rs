@@ -20,6 +20,7 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, SessionInfo, ValidationCode, ValidatorId, ValidatorIndex,
 };
+use parity_util_mem::MallocSizeOfExt;
 
 
 use memory_lru::{MemoryLruCache, ResidentSize};
@@ -57,6 +58,7 @@ pub(crate) struct RequestResultCache {
 }
 
 struct Validators(Vec<ValidatorId>);
+
 struct ValidatorGroups((Vec<Vec<ValidatorIndex>>, GroupRotationInfo));
 struct AvailabilityCores(Vec<CoreState>);
 struct PPersistedValidationData(Option<PersistedValidationData>);
@@ -72,89 +74,79 @@ struct InboundHrmpChannelsContents(BTreeMap<ParaId, Vec<InboundHrmpMessage<Block
 
 impl ResidentSize for Validators {
 	fn resident_size(&self) -> usize {
-		self.0.len() * 32
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for ValidatorGroups {
 	fn resident_size(&self) -> usize {
-		let len = self.0.0.iter().fold(0, |acc, x| acc + x.len() * 4);
-		std::mem::size_of::<GroupRotationInfo>() + len
+		std::mem::size_of::<Self>() + self.0.0.malloc_size_of() + self.0.1.malloc_size_of()
 	}
 }
 
 impl ResidentSize for AvailabilityCores {
 	fn resident_size(&self) -> usize {
-		self.0.len() * std::mem::size_of::<CoreState>()
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for PPersistedValidationData {
 	fn resident_size(&self) -> usize {
-		std::mem::size_of::<PersistedValidationData>()
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for CheckValidationOutputs {
 	fn resident_size(&self) -> usize {
-		std::mem::size_of::<SessionIndex>()
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for SessionIndexForChild {
 	fn resident_size(&self) -> usize {
-		4
+		self.malloc_size_of()
 	}
 }
 
 impl ResidentSize for VValidationCode {
 	fn resident_size(&self) -> usize {
-		match self.0 {
-			Some(ref code) => code.0.len(),
-			None => 1,
-		}
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
+
 impl ResidentSize for HistoricalValidationCode {
 	fn resident_size(&self) -> usize {
-		match self.0 {
-			Some(ref code) => code.0.len(),
-			None => 32,
-		}
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for CandidatePendingAvailability {
 	fn resident_size(&self) -> usize {
-		std::mem::size_of::<CandidatePendingAvailability>()
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for CandidateEvents {
 	fn resident_size(&self) -> usize {
-		self.0.len() * std::mem::size_of::<CandidateEvent>()
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for SSessionInfo {
 	fn resident_size(&self) -> usize {
-		std::mem::size_of::<SessionInfo>()
+		std::mem::size_of::<Self>() + std::mem::size_of::<SessionInfo>()
 	}
 }
 
 impl ResidentSize for DmqContents {
 	fn resident_size(&self) -> usize {
-		self.0.len() * std::mem::size_of::<InboundDownwardMessage<BlockNumber>>()
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
 impl ResidentSize for InboundHrmpChannelsContents {
 	fn resident_size(&self) -> usize {
-		let values_size = self.0.iter().fold(0, |acc, x| acc + x.1.len()) *
-			std::mem::size_of::<InboundHrmpMessage<BlockNumber>>();
-		let keys_size = self.0.len() * std::mem::size_of::<ParaId>();
-
-		values_size + keys_size
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
