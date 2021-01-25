@@ -85,8 +85,8 @@ impl Statement {
 	}
 }
 
-impl From<Statement> for CompactStatement {
-	fn from(stmt: Statement) -> Self {
+impl From<&'_ Statement> for CompactStatement {
+	fn from(stmt: &Statement) -> Self {
 		stmt.to_compact()
 	}
 }
