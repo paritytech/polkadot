@@ -353,7 +353,7 @@ async fn received_collation<Context>(
 	origin: PeerId,
 	request_id: RequestId,
 	receipt: CandidateReceipt,
-	pov: PoV,
+	pov: protocol_v1::CompressedPoV,
 )
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
@@ -368,6 +368,21 @@ where
 			if let Some(per_request) = state.requests_info.remove(&id) {
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
+					let pov = match pov.decompress() {
+						Ok(pov) => pov,
+						Err(error) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								%request_id,
+								?error,
+								"Failed to extract PoV",
+							);
+							return;
+						}
+					};
+
+					let _span = jaeger::pov_span(&pov, "received-collation");
+
 					tracing::debug!(
 						target: LOG_TARGET,
 						%request_id,
@@ -529,9 +544,8 @@ where
 			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 		Collation(request_id, receipt, pov) => {
-			let _span1 = state.span_per_relay_parent.get(&receipt.descriptor.relay_parent)
+			let _span = state.span_per_relay_parent.get(&receipt.descriptor.relay_parent)
 				.map(|s| s.child("received-collation"));
-			let _span2 = jaeger::pov_span(&pov, "received-collation");
 			received_collation(ctx, state, origin, request_id, receipt, pov).await;
 		}
 	}
@@ -1295,9 +1309,9 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(
 							request_id,
 							candidate_a.clone(),
-							PoV {
+							protocol_v1::CompressedPoV::compress(&PoV {
 								block_data: BlockData(vec![]),
-							},
+							}).unwrap(),
 						)
 					)
 				)
@@ -1333,9 +1347,9 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(
 							request_id,
 							candidate_b.clone(),
-							PoV {
+							protocol_v1::CompressedPoV::compress(&PoV {
 								block_data: BlockData(vec![1, 2, 3]),
-							},
+							}).unwrap(),
 						)
 					)
 				)

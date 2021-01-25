@@ -38,8 +38,9 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, CandidateHash, CoreIndex,
+	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
+	CandidateIndex,
 };
 use std::{sync::Arc, collections::btree_map::BTreeMap};
 
@@ -47,75 +48,6 @@ use std::{sync::Arc, collections::btree_map::BTreeMap};
 pub trait BoundToRelayParent {
 	/// Returns the relay parent this message is bound to.
 	fn relay_parent(&self) -> Hash;
-}
-
-/// The result of an assignment being checked by the approval voting subsystem.
-#[derive(Debug)]
-pub enum AssignmentCheckResult {
-	/// The vote was accepted and should be propagated onwards.
-	Accepted,
-	/// The vote was accepted but duplicate and should not be propagated onwards.
-	AcceptedDuplicate,
-	/// The vote was valid but too far in the future to accept right now.
-	TooFarInFuture,
-	/// The vote was bad and should be ignored, reporting the peer who propagated it.
-	Bad,
-}
-
-/// The result of an approval being checked by the approval voting subsytem
-#[derive(Debug)]
-pub enum ApprovalCheckResult {
-	/// The vote was accepted and should be propagated onwards.
-	Accepted,
-	/// The vote was bad and should be ignored, reporting the peer who propagated it.
-	Bad,
-}
-
-/// Messages received by the Approval Voting subsystem.
-#[derive(Debug)]
-pub enum ApprovalVotingMessage {
-	/// Check if the assignment is valid and can be accepted by our view of the protocol.
-	/// Should not be sent unless the block hash is known.
-	CheckAndImportAssignment(
-		IndirectAssignmentCert,
-		CoreIndex,
-		oneshot::Sender<AssignmentCheckResult>,
-	),
-
-	/// Check if the approval vote is valid and can be accepted by our view of the protocol.
-	///
-	/// Should not be sent unless the block hash within the indirect vote is known.
-	CheckAndImportApproval(
-		IndirectSignedApprovalVote,
-		oneshot::Sender<ApprovalCheckResult>,
-	),
-
-	/// Returns the highest possible ancestor hash of the provided block hash which is
-	/// acceptable to vote on finality for.
-	///
-	/// The `BlockNumber` provided is the number of the block's ancestor which is the
-	/// earliest possible vote.
-	///
-	/// It can also return the same block hash, if that is acceptable to vote upon.
-	/// Return `None` if the input hash is unrecognized.
-	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<Hash>>),
-}
-
-/// Message to the Approval Distribution subsystem.
-#[derive(Debug)]
-pub enum ApprovalDistributionMessage {
-	/// Notify the `ApprovalDistribution` subsystem about new blocks
-	/// and the candidates contained within them.
-	NewBlocks(Vec<BlockApprovalMeta>),
-	/// Distribute an assignment cert from the local validator. The cert is assumed
-	/// to be valid, relevant, and for the given relay-parent and validator index.
-	///
-	/// The `u32` param is the candidate index in the fully-included list.
-	DistributeAssignment(IndirectAssignmentCert, u32),
-	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
-	/// valid, relevant, and the corresponding approval already issued.
-	/// If not, the subsystem is free to drop the message.
-	DistributeApproval(IndirectSignedApprovalVote),
 }
 
 /// Messages received by the Candidate Selection subsystem.
@@ -617,7 +549,7 @@ impl BoundToRelayParent for ProvisionerMessage {
 	}
 }
 
-/// Message to the PoV Distribution Subsystem.
+/// Message to the PoV Distribution subsystem.
 #[derive(Debug)]
 pub enum PoVDistributionMessage {
 	/// Fetch a PoV from the network.
@@ -643,7 +575,7 @@ impl PoVDistributionMessage {
 	}
 }
 
-/// Message to the Collation Generation Subsystem.
+/// Message to the Collation Generation subsystem.
 #[derive(Debug)]
 pub enum CollationGenerationMessage {
 	/// Initialize the collation generation subsystem
@@ -657,13 +589,76 @@ impl CollationGenerationMessage {
 	}
 }
 
+/// The result type of [`ApprovalVotingMessage::CheckAndImportAssignment`] request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignmentCheckResult {
+	/// The vote was accepted and should be propagated onwards.
+	Accepted,
+	/// The vote was valid but duplicate and should not be propagated onwards.
+	AcceptedDuplicate,
+	/// The vote was valid but too far in the future to accept right now.
+	TooFarInFuture,
+	/// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+}
+
+/// The result type of [`ApprovalVotingMessage::CheckAndImportApproval`] request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalCheckResult {
+	/// The vote was accepted and should be propagated onwards.
+	Accepted,
+	/// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+}
+
+/// Message to the Approval Voting subsystem.
+#[derive(Debug)]
+pub enum ApprovalVotingMessage {
+	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	/// Should not be sent unless the block hash is known.
+	CheckAndImportAssignment(
+		IndirectAssignmentCert,
+		CandidateIndex,
+		oneshot::Sender<AssignmentCheckResult>,
+	),
+	/// Check if the approval vote is valid and can be accepted by our view of the
+	/// protocol.
+	///
+	/// Should not be sent unless the block hash within the indirect vote is known.
+	CheckAndImportApproval(
+		IndirectSignedApprovalVote,
+		oneshot::Sender<ApprovalCheckResult>,
+	),
+	/// Returns the highest possible ancestor hash of the provided block hash which is
+	/// acceptable to vote on finality for.
+	/// The `BlockNumber` provided is the number of the block's ancestor which is the
+	/// earliest possible vote.
+	///
+	/// It can also return the same block hash, if that is acceptable to vote upon.
+	/// Return `None` if the input hash is unrecognized.
+	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<Hash>>),
+}
+
+/// Message to the Approval Distribution subsystem.
+#[derive(Debug)]
+pub enum ApprovalDistributionMessage {
+	/// Notify the `ApprovalDistribution` subsystem about new blocks
+	/// and the candidates contained within them.
+	NewBlocks(Vec<BlockApprovalMeta>),
+	/// Distribute an assignment cert from the local validator. The cert is assumed
+	/// to be valid, relevant, and for the given relay-parent and validator index.
+	DistributeAssignment(IndirectAssignmentCert, CandidateIndex),
+	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
+	/// valid, relevant, and the corresponding approval already issued.
+	/// If not, the subsystem is free to drop the message.
+	DistributeApproval(IndirectSignedApprovalVote),
+	/// An update from the network bridge.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
+}
+
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug, derive_more::From)]
 pub enum AllMessages {
-	/// Message for the approval distribution subsystem
-	ApprovalDistribution(ApprovalDistributionMessage),
-	/// Message for the approval voting subsystem.
-	ApprovalVoting(ApprovalVotingMessage),
 	/// Message for the validation subsystem.
 	CandidateValidation(CandidateValidationMessage),
 	/// Message for the candidate backing subsystem.
@@ -694,6 +689,10 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
-	/// Message for the Collation Generation subsystem
+	/// Message for the Collation Generation subsystem.
 	CollationGeneration(CollationGenerationMessage),
+	/// Message for the Approval Voting subsystem.
+	ApprovalVoting(ApprovalVotingMessage),
+	/// Message for the Approval Distribution subsystem.
+	ApprovalDistribution(ApprovalDistributionMessage),
 }

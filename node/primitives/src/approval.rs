@@ -21,7 +21,7 @@ pub use sp_consensus_babe::SlotNumber;
 
 use polkadot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex, ValidatorSignature, CoreIndex,
-	Header, BlockNumber,
+	Header, BlockNumber, CandidateIndex,
 };
 use parity_scale_codec::{Encode, Decode};
 use sp_consensus_babe as babe_primitives;
@@ -88,7 +88,7 @@ pub struct AssignmentCert {
 
 /// An assignment crt which refers to the candidate under which the assignment is
 /// relevant by block hash.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectAssignmentCert {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
@@ -106,12 +106,12 @@ pub struct ApprovalVote(pub CandidateHash);
 ///
 /// In practice, we have a look-up from block hash and candidate index to candidate hash,
 /// so this can be transformed into a `SignedApprovalVote`.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectSignedApprovalVote {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
 	/// The index of the candidate in the list of candidates fully included as-of the block.
-	pub candidate_index: u32,
+	pub candidate_index: CandidateIndex,
 	/// The validator index.
 	pub validator: ValidatorIndex,
 	/// The signature by the validator.

@@ -86,6 +86,12 @@ impl Statement {
 	}
 }
 
+impl From<&'_ Statement> for CompactStatement {
+	fn from(stmt: &Statement) -> Self {
+		stmt.to_compact()
+	}
+}
+
 impl EncodeAs<CompactStatement> for Statement {
 	fn encode_as(&self) -> Vec<u8> {
 		self.to_compact().encode()
@@ -151,6 +157,8 @@ pub enum InvalidCandidate {
 	HashMismatch,
 	/// Bad collator signature.
 	BadSignature,
+	/// Para head hash does not match.
+	ParaHeadHashMismatch,
 }
 
 /// Result of the validation of the candidate.
