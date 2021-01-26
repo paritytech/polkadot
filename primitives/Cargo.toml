@@ -25,7 +25,7 @@ trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", b
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 hex-literal = "0.3.1"
-parity-util-mem = { version = "0.8.0", optional = true }
+parity-util-mem = { version = "0.8.0", default-features = false, optional = true }
 
 [dev-dependencies]
 sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }

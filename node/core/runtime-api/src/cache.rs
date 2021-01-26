@@ -20,7 +20,7 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, SessionInfo, ValidationCode, ValidatorId, ValidatorIndex,
 };
-use parity_util_mem::MallocSizeOfExt;
+use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 
 
 use memory_lru::{MemoryLruCache, ResidentSize};
@@ -41,112 +41,28 @@ const SESSION_INFO_CACHE_SIZE: usize = 64 * 1024;
 const DMQ_CONTENTS_CACHE_SIZE: usize = 64 * 1024;
 const INBOUND_HRMP_CHANNELS_CACHE_SIZE: usize = 64 * 1024;
 
+struct ResidentSizeOf<T>(T);
+
+impl<T: MallocSizeOf> ResidentSize for ResidentSizeOf<T> {
+	fn resident_size(&self) -> usize {
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
+	}
+}
+
 pub(crate) struct RequestResultCache {
-	validators: MemoryLruCache<Hash, CacheValidators>,
-	validator_groups: MemoryLruCache<Hash, CacheValidatorGroups>,
-	availability_cores: MemoryLruCache<Hash, CacheAvailabilityCores>,
-	persisted_validation_data: MemoryLruCache<(Hash, ParaId, OccupiedCoreAssumption), CachePersistedValidationData>,
-	check_validation_outputs: MemoryLruCache<(Hash, ParaId, CandidateCommitments), CacheCheckValidationOutputs>,
-	session_index_for_child: MemoryLruCache<Hash, CacheSessionIndexForChild>,
-	validation_code: MemoryLruCache<(Hash, ParaId, OccupiedCoreAssumption), CacheValidationCode>,
-	historical_validation_code: MemoryLruCache<(Hash, ParaId, BlockNumber), CacheHistoricalValidationCode>,
-	candidate_pending_availability: MemoryLruCache<(Hash, ParaId), CacheCandidatePendingAvailability>,
-	candidate_events: MemoryLruCache<Hash, CacheCandidateEvents>,
-	session_info: MemoryLruCache<(Hash, SessionIndex), CacheSessionInfo>,
-	dmq_contents: MemoryLruCache<(Hash, ParaId), CacheDmqContents>,
-	inbound_hrmp_channels_contents: MemoryLruCache<(Hash, ParaId), CacheInboundHrmpChannelsContents>,
-}
-
-struct CacheValidators(Vec<ValidatorId>);
-struct CacheValidatorGroups((Vec<Vec<ValidatorIndex>>, GroupRotationInfo));
-struct CacheAvailabilityCores(Vec<CoreState>);
-struct CachePersistedValidationData(Option<PersistedValidationData>);
-struct CacheCheckValidationOutputs(bool);
-struct CacheSessionIndexForChild(SessionIndex);
-struct CacheValidationCode(Option<ValidationCode>);
-struct CacheHistoricalValidationCode(Option<ValidationCode>);
-struct CacheCandidatePendingAvailability(Option<CommittedCandidateReceipt>);
-struct CacheCandidateEvents(Vec<CandidateEvent>);
-struct CacheSessionInfo(Option<SessionInfo>);
-struct CacheDmqContents(Vec<InboundDownwardMessage<BlockNumber>>);
-struct CacheInboundHrmpChannelsContents(BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>);
-
-impl ResidentSize for CacheValidators {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheValidatorGroups {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.0.malloc_size_of() + self.0.1.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheAvailabilityCores {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CachePersistedValidationData {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheCheckValidationOutputs {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheSessionIndexForChild {
-	fn resident_size(&self) -> usize {
-		self.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheValidationCode {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheHistoricalValidationCode {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheCandidatePendingAvailability {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheCandidateEvents {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheSessionInfo {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheDmqContents {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
-}
-
-impl ResidentSize for CacheInboundHrmpChannelsContents {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + self.0.malloc_size_of()
-	}
+	validators: MemoryLruCache<Hash, ResidentSizeOf<Vec<ValidatorId>>>,
+	validator_groups: MemoryLruCache<Hash, ResidentSizeOf<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>>,
+	availability_cores: MemoryLruCache<Hash, ResidentSizeOf<Vec<CoreState>>>,
+	persisted_validation_data: MemoryLruCache<(Hash, ParaId, OccupiedCoreAssumption), ResidentSizeOf<Option<PersistedValidationData>>>,
+	check_validation_outputs: MemoryLruCache<(Hash, ParaId, CandidateCommitments), ResidentSizeOf<bool>>,
+	session_index_for_child: MemoryLruCache<Hash, ResidentSizeOf<SessionIndex>>,
+	validation_code: MemoryLruCache<(Hash, ParaId, OccupiedCoreAssumption), ResidentSizeOf<Option<ValidationCode>>>,
+	historical_validation_code: MemoryLruCache<(Hash, ParaId, BlockNumber), ResidentSizeOf<Option<ValidationCode>>>,
+	candidate_pending_availability: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
+	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
+	session_info: MemoryLruCache<(Hash, SessionIndex), ResidentSizeOf<Option<SessionInfo>>>,
+	dmq_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
+	inbound_hrmp_channels_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>>,
 }
 
 impl Default for RequestResultCache {
@@ -175,7 +91,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_validators(&mut self, relay_parent: Hash, validators: Vec<ValidatorId>) {
-		self.validators.insert(relay_parent, CacheValidators(validators));
+		self.validators.insert(relay_parent, ResidentSizeOf(validators));
 	}
 
 	pub(crate) fn validator_groups(&mut self, relay_parent: &Hash) -> Option<&(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)> {
@@ -183,7 +99,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_validator_groups(&mut self, relay_parent: Hash, groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo)) {
-		self.validator_groups.insert(relay_parent, CacheValidatorGroups(groups));
+		self.validator_groups.insert(relay_parent, ResidentSizeOf(groups));
 	}
 
 	pub(crate) fn availability_cores(&mut self, relay_parent: &Hash) -> Option<&Vec<CoreState>> {
@@ -191,7 +107,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_availability_cores(&mut self, relay_parent: Hash, cores: Vec<CoreState>) {
-		self.availability_cores.insert(relay_parent, CacheAvailabilityCores(cores));
+		self.availability_cores.insert(relay_parent, ResidentSizeOf(cores));
 	}
 
 	pub(crate) fn persisted_validation_data(&mut self, key: (Hash, ParaId, OccupiedCoreAssumption)) -> Option<&Option<PersistedValidationData>> {
@@ -199,7 +115,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_persisted_validation_data(&mut self, key: (Hash, ParaId, OccupiedCoreAssumption), data: Option<PersistedValidationData>) {
-		self.persisted_validation_data.insert(key, CachePersistedValidationData(data));
+		self.persisted_validation_data.insert(key, ResidentSizeOf(data));
 	}
 
 	pub(crate) fn check_validation_outputs(&mut self, key: (Hash, ParaId, CandidateCommitments)) -> Option<&bool> {
@@ -207,7 +123,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_check_validation_outputs(&mut self, key: (Hash, ParaId, CandidateCommitments), value: bool) {
-		self.check_validation_outputs.insert(key, CacheCheckValidationOutputs(value));
+		self.check_validation_outputs.insert(key, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn session_index_for_child(&mut self, relay_parent: &Hash) -> Option<&SessionIndex> {
@@ -215,7 +131,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_session_index_for_child(&mut self, relay_parent: Hash, index: SessionIndex) {
-		self.session_index_for_child.insert(relay_parent, CacheSessionIndexForChild(index));
+		self.session_index_for_child.insert(relay_parent, ResidentSizeOf(index));
 	}
 
 	pub(crate) fn validation_code(&mut self, key: (Hash, ParaId, OccupiedCoreAssumption)) -> Option<&Option<ValidationCode>> {
@@ -223,7 +139,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_validation_code(&mut self, key: (Hash, ParaId, OccupiedCoreAssumption), value: Option<ValidationCode>) {
-		self.validation_code.insert(key, CacheValidationCode(value));
+		self.validation_code.insert(key, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn historical_validation_code(&mut self, key: (Hash, ParaId, BlockNumber)) -> Option<&Option<ValidationCode>> {
@@ -231,7 +147,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_historical_validation_code(&mut self, key: (Hash, ParaId, BlockNumber), value: Option<ValidationCode>) {
-		self.historical_validation_code.insert(key, CacheHistoricalValidationCode(value));
+		self.historical_validation_code.insert(key, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn candidate_pending_availability(&mut self, key: (Hash, ParaId)) -> Option<&Option<CommittedCandidateReceipt>> {
@@ -239,7 +155,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_candidate_pending_availability(&mut self, key: (Hash, ParaId), value: Option<CommittedCandidateReceipt>) {
-		self.candidate_pending_availability.insert(key, CacheCandidatePendingAvailability(value));
+		self.candidate_pending_availability.insert(key, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn candidate_events(&mut self, relay_parent: &Hash) -> Option<&Vec<CandidateEvent>> {
@@ -247,7 +163,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_candidate_events(&mut self, relay_parent: Hash, events: Vec<CandidateEvent>) {
-		self.candidate_events.insert(relay_parent, CacheCandidateEvents(events));
+		self.candidate_events.insert(relay_parent, ResidentSizeOf(events));
 	}
 
 	pub(crate) fn session_info(&mut self, key: (Hash, SessionIndex)) -> Option<&Option<SessionInfo>> {
@@ -255,7 +171,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_session_info(&mut self, key: (Hash, SessionIndex), value: Option<SessionInfo>) {
-		self.session_info.insert(key, CacheSessionInfo(value));
+		self.session_info.insert(key, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn dmq_contents(&mut self, key: (Hash, ParaId)) -> Option<&Vec<InboundDownwardMessage<BlockNumber>>> {
@@ -263,7 +179,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_dmq_contents(&mut self, key: (Hash, ParaId), value: Vec<InboundDownwardMessage<BlockNumber>>) {
-		self.dmq_contents.insert(key, CacheDmqContents(value));
+		self.dmq_contents.insert(key, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn inbound_hrmp_channels_contents(&mut self, key: (Hash, ParaId)) -> Option<&BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>> {
@@ -271,7 +187,7 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_inbound_hrmp_channel_contents(&mut self, key: (Hash, ParaId), value: BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>) {
-		self.inbound_hrmp_channels_contents.insert(key, CacheInboundHrmpChannelsContents(value));
+		self.inbound_hrmp_channels_contents.insert(key, ResidentSizeOf(value));
 	}
 }
 
