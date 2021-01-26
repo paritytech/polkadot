@@ -210,6 +210,9 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 /// Compute the assignments for a given block. Returns a map containing all assignments to cores in
 /// the block. If more than one assignment targets the given core, only the earliest assignment is kept.
 ///
+/// The `leaving_cores` parameter indicates all cores within the block where a candidate was included,
+/// as well as the group index backing those.
+///
 /// The current description of the protocol assigns every validator to check every core. But at different times.
 /// The idea is that most assignments are never triggered and fall by the wayside.
 ///
@@ -269,17 +272,6 @@ pub(crate) fn compute_assignments(
 		&mut assignments,
 	);
 
-	// Do not assign to backing group.
-	for (i, group) in config.validator_groups.iter().enumerate() {
-		if group.contains(&index) {
-			let _ = assignments.remove(&CoreIndex(i as _));
-
-			// As of the time of writing, each validator is a member of only one group,
-			// so we could break here. But there is nothing stopping us from changing
-			// that in the future. We do the full iteration for future-proofing.
-		}
-	}
-
 	assignments
 }
 
@@ -293,22 +285,27 @@ fn compute_relay_vrf_modulo_assignments(
 ) {
 	for rvm_sample in 0..config.relay_vrf_modulo_samples {
 		let mut core = Default::default();
-		let maybe_assignment = assignments_key.vrf_sign_extra_after_check(
-			relay_vrf_modulo_transcript(relay_vrf_story.clone(), rvm_sample),
-			|vrf_in_out| {
-				core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
-				if leaving_cores.clone().into_iter().any(|c| c == core) {
-					Some(assigned_core_transcript(core))
-				} else {
-					None
+
+		let maybe_assignment = {
+			// Extra scope to ensure borrowing instead of moving core
+			// into closure.
+			let core = &mut core;
+			assignments_key.vrf_sign_extra_after_check(
+				relay_vrf_modulo_transcript(relay_vrf_story.clone(), rvm_sample),
+				|vrf_in_out| {
+					*core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
+					if leaving_cores.clone().into_iter().any(|c| c == *core) {
+						Some(assigned_core_transcript(*core))
+					} else {
+						None
+					}
 				}
-			}
-		);
+			)
+		};
 
 		if let Some((vrf_in_out, vrf_proof, _)) = maybe_assignment {
 			// Sanity: `core` is always initialized to non-default here, as the closure above
 			// has been executed.
-
 			let cert = AssignmentCert {
 				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
 				vrf: (approval_types::VRFOutput(vrf_in_out.to_output()), approval_types::VRFProof(vrf_proof)),
@@ -489,14 +486,41 @@ mod tests {
 		store
 	}
 
+	fn assignment_keys(accounts: &[Sr25519Keyring]) -> Vec<AssignmentId> {
+		accounts.iter().map(|k|
+			AssignmentId::from(k.public())
+		).collect()
+	}
+
 	#[test]
 	fn assignments_produced_for_non_backing() {
 		let keystore = futures::executor::block_on(
-			make_keystore(&[Sr25519Keyring::Alice, Sr25519Keyring::Bob])
+			make_keystore(&[Sr25519Keyring::Alice])
 		);
 
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
+		let assignments = compute_assignments(
+			&keystore,
+			relay_vrf_story,
+			&Config {
+				assignment_keys: assignment_keys(&[
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				]),
+				validator_groups: vec![vec![0], vec![1, 2]],
+				n_cores: 2,
+				zeroth_delay_tranche_width: 10,
+				relay_vrf_modulo_samples: 3,
+				n_delay_tranches: 40,
+			},
+			vec![(CoreIndex(0), GroupIndex(1)), (CoreIndex(1), GroupIndex(0))],
+		);
 
+		// Note that alice is in group 0, which was the backing group for core 1.
+		// Alice should have self-assigned to check core 0 but not 1.
+		assert_eq!(assignments.len(), 1);
+		assert!(assignments.get(&CoreIndex(0)).is_some());
 	}
 
 	#[test]
