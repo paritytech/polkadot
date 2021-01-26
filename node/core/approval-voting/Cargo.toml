@@ -14,8 +14,8 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 bitvec = "0.17.4"
 
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
 [dev-dependencies]

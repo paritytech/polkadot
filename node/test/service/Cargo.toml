@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-service"
-version = "0.8.27"
+version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -47,7 +47,7 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "rococ
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-primitives"
-version = "0.8.27"
+version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -25,6 +25,7 @@ trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", d
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 hex-literal = "0.3.1"
+parity-util-mem = { version = "0.8.0", default-features = false, optional = true }
 
 [dev-dependencies]
 sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
@@ -48,6 +49,7 @@ std = [
 	"sp-arithmetic/std",
 	"runtime_primitives/std",
 	"serde",
+	"parity-util-mem",
 	"polkadot-parachain/std",
 	"polkadot-core-primitives/std",
 	"bitvec/std",
