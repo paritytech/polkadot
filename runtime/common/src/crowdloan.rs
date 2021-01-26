@@ -1686,10 +1686,14 @@ mod benchmarking {
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-			let data = (fund_index, &caller, 0, contribution);
+			let pair = ed25519::Pair::from_string("//verifier", None).unwrap();
+			let payload = (fund_index, &caller, 0, contribution);
+			let sig = payload.using_encoded(|encoded| pair.sign(encoded));
+			let sig = MultiSignature::Ed25519(sig);
+			// hack to convert types
+			let sig = T::ContributionSignature::decode(&mut &sig.encode()[..]).unwrap();
 
-
-		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, None)
+		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, Some(sig))
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
 			assert!(!NewRaise::get().is_empty());
