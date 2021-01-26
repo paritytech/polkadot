@@ -83,7 +83,7 @@ pub struct ApprovalVotingSubsystem<T> {
 impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage> {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run::<T, C>(ctx, self)
+		let future = run::<T, C>(ctx, self, Box::new(SystemClock))
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 			.boxed();
 
@@ -197,7 +197,11 @@ impl<T> State<T> {
 	}
 }
 
-async fn run<T, C>(mut ctx: C, subsystem: ApprovalVotingSubsystem<T>) -> SubsystemResult<()>
+async fn run<T, C>(
+	mut ctx: C,
+	subsystem: ApprovalVotingSubsystem<T>,
+	clock: Box<dyn Clock + Send + Sync>,
+) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
 	let (background_tx, background_rx) = mpsc::channel(64);
@@ -209,7 +213,7 @@ async fn run<T, C>(mut ctx: C, subsystem: ApprovalVotingSubsystem<T>) -> Subsyst
 		slot_duration_millis: subsystem.slot_duration_millis,
 		db: subsystem.db,
 		background_tx,
-		clock: Box::new(SystemClock),
+		clock,
 	};
 
 	let mut last_finalized_height = None;
