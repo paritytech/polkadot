@@ -5104,6 +5104,8 @@ dependencies = [
  "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus-slots",
+ "sp-keyring",
+ "sp-keystore",
  "sp-runtime",
  "tracing",
  "tracing-futures",

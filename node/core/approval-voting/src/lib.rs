@@ -766,7 +766,7 @@ async fn imported_block_info(
 						let assignments = state.assignment_criteria.compute_assignments(
 							&state.keystore,
 							relay_vrf.clone(),
-							session_info,
+							&criteria::Config::from(session_info),
 							included_candidates.iter().map(|(_, _, core, _)| *core).collect(),
 						);
 
@@ -962,7 +962,7 @@ fn check_and_import_assignment(
 	let res = state.assignment_criteria.check_assignment_cert(
 		claimed_core_index,
 		assignment.validator,
-		&session_info,
+		&criteria::Config::from(session_info),
 		block_entry.relay_vrf_story.clone(),
 		&assignment.cert,
 	);
