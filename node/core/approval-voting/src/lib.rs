@@ -67,6 +67,9 @@ mod aux_schema;
 mod criteria;
 mod time;
 
+#[cfg(test)]
+mod tests;
+
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const LOG_TARGET: &str = "approval-voting";
 
