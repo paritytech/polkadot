@@ -60,7 +60,7 @@ use std::sync::Arc;
 use std::ops::{RangeBounds, Bound as RangeBound};
 
 use aux_schema::{ApprovalEntry, CandidateEntry, BlockEntry};
-use criteria::OurAssignment;
+use criteria::{AssignmentCriteria, RealAssignmentCriteria, OurAssignment};
 use time::{slot_number_to_tick,Tick, Clock, ClockExt, SystemClock};
 
 mod aux_schema;
@@ -83,7 +83,12 @@ pub struct ApprovalVotingSubsystem<T> {
 impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage> {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run::<T, C>(ctx, self, Box::new(SystemClock))
+		let future = run::<T, C>(
+			ctx,
+			self,
+			Box::new(SystemClock),
+			Box::new(RealAssignmentCriteria),
+		)
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 			.boxed();
 
@@ -177,6 +182,7 @@ struct State<T> {
 	db: Arc<T>,
 	background_tx: mpsc::Sender<BackgroundRequest>,
 	clock: Box<dyn Clock + Send + Sync>,
+	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
 
 impl<T> State<T> {
@@ -201,6 +207,7 @@ async fn run<T, C>(
 	mut ctx: C,
 	subsystem: ApprovalVotingSubsystem<T>,
 	clock: Box<dyn Clock + Send + Sync>,
+	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 ) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
@@ -214,6 +221,7 @@ async fn run<T, C>(
 		db: subsystem.db,
 		background_tx,
 		clock,
+		assignment_criteria,
 	};
 
 	let mut last_finalized_height = None;
@@ -755,11 +763,11 @@ async fn imported_block_info(
 					babe_epoch.epoch_index,
 				) {
 					Ok(relay_vrf) => {
-						let assignments = criteria::compute_assignments(
+						let assignments = state.assignment_criteria.compute_assignments(
 							&state.keystore,
 							relay_vrf.clone(),
 							session_info,
-							included_candidates.iter().map(|(_, _, core, _)| *core),
+							included_candidates.iter().map(|(_, _, core, _)| *core).collect(),
 						);
 
 						(assignments, slot, relay_vrf)
@@ -951,7 +959,7 @@ fn check_and_import_assignment(
 		None => return Ok(AssignmentCheckResult::Bad), // no candidate at core.
 	};
 
-	let res = crate::criteria::check_assignment_cert(
+	let res = state.assignment_criteria.check_assignment_cert(
 		claimed_core_index,
 		assignment.validator,
 		&session_info,

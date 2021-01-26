@@ -117,6 +117,62 @@ fn assigned_core_transcript(core_index: CoreIndex) -> Transcript {
 	t
 }
 
+/// A trait for producing and checking assignments. Used to mock.
+pub(crate) trait AssignmentCriteria {
+	fn compute_assignments(
+		&self,
+		keystore: &LocalKeystore,
+		relay_vrf_story: RelayVRFStory,
+		session_info: &SessionInfo,
+		leaving_cores: Vec<CoreIndex>,
+	) -> HashMap<CoreIndex, OurAssignment>;
+
+	fn check_assignment_cert(
+		&self,
+		claimed_core_index: CoreIndex,
+		validator_index: ValidatorIndex,
+		session_info: &SessionInfo,
+		relay_vrf_story: RelayVRFStory,
+		assignment: &AssignmentCert,
+	) -> Result<DelayTranche, InvalidAssignment>;
+}
+
+pub(crate) struct RealAssignmentCriteria;
+
+impl AssignmentCriteria for RealAssignmentCriteria {
+	fn compute_assignments(
+		&self,
+		keystore: &LocalKeystore,
+		relay_vrf_story: RelayVRFStory,
+		session_info: &SessionInfo,
+		leaving_cores: Vec<CoreIndex>,
+	) -> HashMap<CoreIndex, OurAssignment> {
+		compute_assignments(
+			keystore,
+			relay_vrf_story,
+			session_info,
+			leaving_cores.iter().cloned(),
+		)
+	}
+
+	fn check_assignment_cert(
+		&self,
+		claimed_core_index: CoreIndex,
+		validator_index: ValidatorIndex,
+		session_info: &SessionInfo,
+		relay_vrf_story: RelayVRFStory,
+		assignment: &AssignmentCert,
+	) -> Result<DelayTranche, InvalidAssignment> {
+		check_assignment_cert(
+			claimed_core_index,
+			validator_index,
+			session_info,
+			relay_vrf_story,
+			assignment,
+		)
+	}
+}
+
 /// Compute the assignments for a given block. Returns a map containing all assignments to cores in
 /// the block. If more than one assignment targets the given core, only the earliest assignment is kept.
 ///
