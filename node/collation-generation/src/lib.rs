@@ -333,6 +333,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						persisted_validation_data_hash,
 						pov_hash,
 						erasure_root,
+						para_head: commitments.head_data.hash(),
 					},
 				};
 
@@ -738,6 +739,7 @@ mod tests {
 				persisted_validation_data_hash: expect_validation_data_hash,
 				pov_hash: expect_pov_hash,
 				erasure_root: Default::default(), // this isn't something we're checking right now
+				para_head: test_collation().head_data.hash(),
 			};
 
 			assert_eq!(sent_messages.len(), 1);

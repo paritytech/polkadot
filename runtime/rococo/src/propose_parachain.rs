@@ -61,7 +61,7 @@ pub trait Config: pallet_session::Config
 	+ runtime_parachains::hrmp::Config
 {
 	/// The overreaching event type.
-	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// The maximum name length of a parachain.
 	type MaxNameLength: Get<u32>;
@@ -78,8 +78,6 @@ pub trait Config: pallet_session::Config
 struct Proposal<AccountId, ValidatorId, Balance> {
 	/// The account that proposed this parachain.
 	proposer: AccountId,
-	/// The validation WASM code of the parachain.
-	validation_code: ValidationCode,
 	/// The genesis head state of the parachain.
 	genesis_head: HeadData,
 	/// The validators for the relay chain provided by the parachain.
@@ -100,13 +98,15 @@ struct RegisteredParachainInfo<AccountId, ValidatorId> {
 }
 
 decl_event! {
-	pub enum Event {
+	pub enum Event<T> where ValidatorId = <T as pallet_session::Config>::ValidatorId {
 		/// A parachain was proposed for registration.
 		ParachainProposed(Vec<u8>, ParaId),
 		/// A parachain was approved and is scheduled for being activated.
 		ParachainApproved(ParaId),
 		/// A parachain was registered and is now running.
 		ParachainRegistered(ParaId),
+		/// New validators were added to the set.
+		ValidatorsRegistered(Vec<ValidatorId>),
 	}
 }
 
@@ -141,6 +141,8 @@ decl_storage! {
 	trait Store for Module<T: Config> as ParachainProposer {
 		/// All the proposals.
 		Proposals: map hasher(twox_64_concat) ParaId => Option<Proposal<T::AccountId, T::ValidatorId, BalanceOf<T>>>;
+		/// The validation WASM code of the parachain.
+		ParachainValidationCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// Proposals that are approved.
 		ApprovedProposals: Vec<ParaId>;
 		/// Proposals that are scheduled at for a fixed session to be applied.
@@ -149,6 +151,8 @@ decl_storage! {
 		ParachainInfo: map hasher(twox_64_concat) ParaId => Option<RegisteredParachainInfo<T::AccountId, T::ValidatorId>>;
 		/// Validators that should be retired, because their Parachain was deregistered.
 		ValidatorsToRetire: Vec<T::ValidatorId>;
+		/// Validators that should be added.
+		ValidatorsToAdd: Vec<T::ValidatorId>;
 	}
 }
 
@@ -201,10 +205,12 @@ decl_module! {
 			ensure!(validation_code.0.starts_with(runtime_common::WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
 			let active_validators = Session::<T>::validators();
+			let validators_to_retire = ValidatorsToRetire::<T>::get();
 			ensure!(
-				validators.iter().all(|v| !active_validators.contains(v)),
+				validators.iter().all(|v| !active_validators.contains(v) || validators_to_retire.contains(v)),
 				Error::<T>::ValidatorAlreadyRegistered,
 			);
+
 			Proposals::<T>::iter().try_for_each(|(_, prop)|
 				if validators.iter().all(|v| !prop.validators.contains(v)) {
 					Ok(())
@@ -220,13 +226,13 @@ decl_module! {
 				proposer: who,
 				validators: validators.into(),
 				genesis_head,
-				validation_code,
 				balance,
 			};
 
 			Proposals::<T>::insert(para_id, proposal);
+			ParachainValidationCode::insert(para_id, validation_code);
 
-			Self::deposit_event(Event::ParachainProposed(name, para_id));
+			Self::deposit_event(RawEvent::ParachainProposed(name, para_id));
 		}
 
 		/// Approve a parachain proposal.
@@ -243,7 +249,7 @@ decl_module! {
 
 			ApprovedProposals::append(para_id);
 
-			Self::deposit_event(Event::ParachainApproved(para_id));
+			Self::deposit_event(RawEvent::ParachainApproved(para_id));
 		}
 
 		/// Cancel a parachain proposal.
@@ -265,6 +271,7 @@ decl_module! {
 			}
 
 			Proposals::<T>::remove(&para_id);
+			ParachainValidationCode::remove(&para_id);
 
 			pallet_balances::Module::<T>::unreserve(&proposal.proposer, T::ProposeDeposit::get());
 		}
@@ -288,6 +295,19 @@ decl_module! {
 			runtime_parachains::schedule_para_cleanup::<T>(para_id);
 
 			pallet_balances::Module::<T>::unreserve(&info.proposer, T::ProposeDeposit::get());
+		}
+
+		/// Add new validators to the set.
+		#[weight = 100_000]
+		fn register_validators(
+			origin,
+			validators: Vec<T::ValidatorId>,
+		) {
+			T::PriviledgedOrigin::ensure_origin(origin)?;
+
+			validators.clone().into_iter().for_each(|v| ValidatorsToAdd::<T>::append(v));
+
+			Self::deposit_event(RawEvent::ValidatorsRegistered(validators));
 		}
 	}
 }
@@ -327,9 +347,10 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 		for (id, proposal) in proposals.iter().filter_map(|id| Proposals::<T>::get(&id).map(|p| (id, p))) {
 			ScheduledProposals::append(new_index, id);
 
+			let validation_code = ParachainValidationCode::get(&id)?;
 			let genesis = ParaGenesisArgs {
 				genesis_head: proposal.genesis_head,
-				validation_code: proposal.validation_code,
+				validation_code,
 				parachain: true,
 			};
 
@@ -337,6 +358,12 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 
 			validators.extend(proposal.validators);
 		}
+
+		ValidatorsToAdd::<T>::take().into_iter().for_each(|v| {
+			if !validators.contains(&v) {
+				validators.push(v);
+			}
+		});
 
 		Some(validators)
 	}
@@ -348,7 +375,7 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 
 		// Register all parachains that are allowed to start with the new session.
 		for (id, proposal) in proposals.iter().filter_map(|id| Proposals::<T>::take(&id).map(|p| (id, p))) {
-			Self::deposit_event(Event::ParachainRegistered(*id));
+			Self::deposit_event(RawEvent::ParachainRegistered(*id));
 
 			// Add some funds to the Parachain
 			let _ = pallet_balances::Module::<T>::deposit_creating(&id.into_account(), proposal.balance);

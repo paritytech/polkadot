@@ -459,6 +459,10 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
+			if res.head_data.hash() != descriptor.para_head {
+				return Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch));
+			}
+
 			let outputs = CandidateCommitments {
 				head_data: res.head_data,
 				upward_messages: res.upward_messages,
@@ -887,15 +891,17 @@ mod tests {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+		let head_data = HeadData(vec![1, 1, 1]);
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
+		descriptor.para_head = head_data.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
-			head_data: HeadData(vec![1, 1, 1]),
+			head_data,
 			new_validation_code: Some(vec![2, 2, 2].into()),
 			upward_messages: Vec::new(),
 			horizontal_messages: Vec::new(),

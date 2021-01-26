@@ -17,9 +17,11 @@
 //! Types relevant for approval.
 
 pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
+pub use sp_consensus_slots::SlotNumber;
 
 use polkadot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature, CoreIndex,
+	BlockNumber, CandidateIndex,
 };
 use parity_scale_codec::{Encode, Decode};
 
@@ -28,10 +30,10 @@ use parity_scale_codec::{Encode, Decode};
 pub type DelayTranche = u32;
 
 /// A static context used for all relay-vrf-modulo VRFs.
-pub const RELAY_VRF_MODULO_CONTEXT: &str = "A&V MOD";
+pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
 
 /// A static context used for all relay-vrf-delay VRFs.
-pub const RELAY_VRF_DELAY_CONTEXT: &str = "A&V TRANCHE";
+pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V TRANCHE";
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
@@ -40,7 +42,7 @@ pub struct RelayVRF(pub [u8; 32]);
 
 /// Different kinds of input data or criteria that can prove a validator's assignment
 /// to check a particular parachain.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum AssignmentCertKind {
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with a sample number.
@@ -61,7 +63,7 @@ pub enum AssignmentCertKind {
 }
 
 /// A certification of assignment.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct AssignmentCert {
 	/// The criterion which is claimed to be met by this cert.
 	pub kind: AssignmentCertKind,
@@ -71,7 +73,7 @@ pub struct AssignmentCert {
 
 /// An assignment crt which refers to the candidate under which the assignment is
 /// relevant by block hash.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectAssignmentCert {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
@@ -92,14 +94,30 @@ pub type SignedApprovalVote = Signed<ApprovalVote>;
 ///
 /// In practice, we have a look-up from block hash and candidate index to candidate hash,
 /// so this can be transformed into a `SignedApprovalVote`.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectSignedApprovalVote {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
 	/// The index of the candidate in the list of candidates fully included as-of the block.
-	pub candidate_index: u32,
+	pub candidate_index: CandidateIndex,
 	/// The validator index.
 	pub validator: ValidatorIndex,
 	/// The signature by the validator.
 	pub signature: ValidatorSignature,
+}
+
+/// Metadata about a block which is now live in the approval protocol.
+#[derive(Debug)]
+pub struct BlockApprovalMeta {
+	/// The hash of the block.
+	pub hash: Hash,
+	/// The number of the block.
+	pub number: BlockNumber,
+	/// The hash of the parent block.
+	pub parent_hash: Hash,
+	/// The candidates included by the block.
+	/// Note that these are not the same as the candidates that appear within the block body.
+	pub candidates: Vec<CandidateHash>,
+	/// The consensus slot number of the block.
+	pub slot_number: SlotNumber,
 }

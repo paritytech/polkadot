@@ -204,7 +204,7 @@ construct_runtime! {
 		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Propose parachain pallet.
-		ProposeParachain: propose_parachain::{Module, Call, Storage, Event},
+		ProposeParachain: propose_parachain::{Module, Call, Storage, Event<T>},
 	}
 }
 
