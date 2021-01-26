@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.8"
+futures = "0.3.12"
 thiserror = "1.0.23"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
@@ -18,7 +18,7 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 [dev-dependencies]
 assert_matches = "1.4.0"
 env_logger = "0.8.1"
-log = "0.4.11"
+log = "0.4.13"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

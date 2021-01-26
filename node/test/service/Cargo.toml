@@ -5,13 +5,13 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.8"
+futures = "0.3.12"
 futures01 = { package = "futures", version = "0.1.29" }
 hex = "0.4.2"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
-rand = "0.8.1"
-tempfile = "3.1.0"
+rand = "0.8.2"
+tempfile = "3.2.0"
 
 # Polkadot dependencies
 polkadot-overseer = { path = "../../overseer" }
@@ -45,6 +45,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master" }

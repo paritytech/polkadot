@@ -119,6 +119,7 @@ impl CodeParams {
 			.expect("this struct is not created with invalid shard number; qed")
 	}
 }
+
 /// Returns the maximum number of allowed, faulty chunks
 /// which does not prevent recovery given all other pieces
 /// are correct.

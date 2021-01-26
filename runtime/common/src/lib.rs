@@ -52,7 +52,7 @@ pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as fr
 
 /// The sequence of bytes a valid wasm module binary always starts with. Apart from that it's also a
 /// valid wasm module.
-const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+pub const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
 /// We assume that an on-initialize consumes 2.5% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 2.5%`.
