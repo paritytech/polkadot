@@ -137,6 +137,7 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				let sender = $sender;
 				if let Some(value) = self.requests_cache.$cache_api_name(&relay_parent) {
 					let _ = sender.send(Ok(value.clone()));
+					self.metrics.on_cached_request();
 					None
 				} else {
 					Some(sender)
@@ -146,6 +147,7 @@ impl<Client> RuntimeApiSubsystem<Client> where
 			($cache_api_name:ident ($($param:expr),+), $sender:expr) => {{
 				let sender = $sender;
 				if let Some(value) = self.requests_cache.$cache_api_name((relay_parent.clone(), $($param.clone()),+)) {
+					self.metrics.on_cached_request();
 					let _ = sender.send(Ok(value.clone()));
 					None
 				} else {
@@ -161,26 +163,33 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				.map(|sender| Request::ValidatorGroups(sender)),
 			Request::AvailabilityCores(sender) => query!(availability_cores(), sender)
 				.map(|sender| Request::AvailabilityCores(sender)),
-			Request::PersistedValidationData(para, assumption, sender) => query!(persisted_validation_data(para, assumption), sender)
-				.map(|sender| Request::PersistedValidationData(para, assumption, sender)),
-			Request::CheckValidationOutputs(para, commitments, sender) => query!(check_validation_outputs(para, commitments), sender)
-				.map(|sender| Request::CheckValidationOutputs(para, commitments, sender)),
-			Request::SessionIndexForChild(sender) => query!(session_index_for_child(), sender)
-				.map(|sender| Request::SessionIndexForChild(sender)),
-			Request::ValidationCode(para, assumption, sender) => query!(validation_code(para, assumption), sender)
-				.map(|sender| Request::ValidationCode(para, assumption, sender)),
-			Request::HistoricalValidationCode(para, at, sender) => query!(historical_validation_code(para, at), sender)
-				.map(|sender| Request::HistoricalValidationCode(para, at, sender)),
-			Request::CandidatePendingAvailability(para, sender) => query!(candidate_pending_availability(para), sender)
-				.map(|sender| Request::CandidatePendingAvailability(para, sender)),
+			Request::PersistedValidationData(para, assumption, sender) =>
+				query!(persisted_validation_data(para, assumption), sender)
+					.map(|sender| Request::PersistedValidationData(para, assumption, sender)),
+			Request::CheckValidationOutputs(para, commitments, sender) =>
+				query!(check_validation_outputs(para, commitments), sender)
+					.map(|sender| Request::CheckValidationOutputs(para, commitments, sender)),
+			Request::SessionIndexForChild(sender) =>
+				query!(session_index_for_child(), sender)
+					.map(|sender| Request::SessionIndexForChild(sender)),
+			Request::ValidationCode(para, assumption, sender) =>
+				query!(validation_code(para, assumption), sender)
+					.map(|sender| Request::ValidationCode(para, assumption, sender)),
+			Request::HistoricalValidationCode(para, at, sender) =>
+				query!(historical_validation_code(para, at), sender)
+					.map(|sender| Request::HistoricalValidationCode(para, at, sender)),
+			Request::CandidatePendingAvailability(para, sender) =>
+				query!(candidate_pending_availability(para), sender)
+					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) => query!(candidate_events(), sender)
 				.map(|sender| Request::CandidateEvents(sender)),
 			Request::SessionInfo(index, sender) => query!(session_info(index), sender)
 				.map(|sender| Request::SessionInfo(index, sender)),
 			Request::DmqContents(id, sender) => query!(dmq_contents(id), sender)
 				.map(|sender| Request::DmqContents(id, sender)),
-			Request::InboundHrmpChannelsContents(id, sender) => query!(inbound_hrmp_channels_contents(id), sender)
-				.map(|sender| Request::InboundHrmpChannelsContents(id, sender))
+			Request::InboundHrmpChannelsContents(id, sender) =>
+				query!(inbound_hrmp_channels_contents(id), sender)
+					.map(|sender| Request::InboundHrmpChannelsContents(id, sender))
 		}
 	}
 
@@ -352,6 +361,11 @@ impl Metrics {
 				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
 			}
 		}
+	}
+
+	fn on_cached_request(&self) {
+		self.0.as_ref()
+			.map(|metrics| metrics.chain_api_requests.with_label_values(&["cached"]).inc());
 	}
 
 	/// Provide a timer for `make_runtime_api_request` which observes on drop.
