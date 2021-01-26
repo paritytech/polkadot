@@ -286,7 +286,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 	let finality_proof_provider = GrandpaFinalityProofProvider::new_for_service(
 		backend.clone(),
-		client.clone(),
 		Some(shared_authority_set.clone()),
 	);
 
