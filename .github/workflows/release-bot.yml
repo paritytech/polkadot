@@ -1,32 +1,23 @@
-name: Push release notes to internal release notes channel
+name: Send new release notification to matrix channels
 on:
   release:
     types:
       - published
 jobs:
   ping_matrix:
+    strategy:
+      matrix:
+        channel:
+        - '!LhjZccBOqFNYKLdmbb:polkadot.builders' # #KusamaValidatorLounge:polkadot.builders
+        - '!FMwxpQnYhRCNDRsYGI:matrix.parity.io' # #kusama-announcements:matrix.parity.io
+        - '!NZrbtteFeqYKCUGQtr:matrix.parity.io' # #polkadotvalidatorlounge:web3.foundation
+        - '!UqHPWiCBGZWxrmYBkF:matrix.parity.io' # #polkadot-announcements:matrix.parity.io
+        - '!NTogofoetwjbTwOoPi:matrix.parity.io' # Internal release-notes channel
     runs-on: ubuntu-latest
     steps:
-      - name: Internal Release Notes Channel
-        uses: s3krit/matrix-message-action@v0.0.3
+      - uses: s3krit/matrix-message-action@v0.0.3
         with:
-          room_id: ${{ secrets.MATRIX_ROOM_ID }}
+          room_id: ${{ matrix.channel }} # heh
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          message: "**${{github.event.repository.full_name}}:** A release has been ${{github.event.action}}<br/>Release version [${{github.event.release.tag_name}}](${{github.event.release.html_url}})<br/><br/>***Description:***<br/>${{github.event.release.body}}<br/>"
-          server: "matrix.parity.io"
-
-      - name: Validator Lounge
-        uses: s3krit/matrix-message-action@v0.0.3
-        with:
-          room_id: ${{ secrets.VALIDATOR_LOUNGE_MATRIX_ROOM_ID }}
-          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          message: "***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>Please update at your earliest convenience.<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
-          server: "matrix.parity.io"
-
-      - name: Polkadot Announcements
-        uses: s3krit/matrix-message-action@v0.0.3
-        with:
-          room_id: ${{ secrets.KUSAMA_ANNOUNCEMENTS_MATRIX_ROOM_ID }}
-          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          message: "***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>Please update at your earliest convenience.<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
+          message: "***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
           server: "matrix.parity.io"
