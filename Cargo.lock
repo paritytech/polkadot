@@ -5093,6 +5093,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "merlin",
  "parity-scale-codec",
+ "parking_lot 0.11.1",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-overseer",
