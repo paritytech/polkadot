@@ -1556,6 +1556,8 @@ mod benchmarking {
 	};
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
+	use sp_runtime::MultiSignature;
+	use sp_core::{ed25519, Pair};
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
 
@@ -1580,14 +1582,27 @@ mod benchmarking {
 		let caller = account("fund_creator", 0, 0);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end, None));
+		let pair = ed25519::Pair::from_string("//verifier", None).unwrap();
+		let pubkey = pair.public();
+		// hack to convert types
+		let verifier: T::AccountId = Decode::decode(&mut pubkey.as_ref()).unwrap();
+
+		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end, Some(verifier)));
 		FundCount::get() - 1
 	}
 
 	fn contribute_fund<T: Config>(who: &T::AccountId, index: FundIndex) {
 		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
-		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, None));
+
+		let pair = ed25519::Pair::from_string("//verifier", None).unwrap();
+		let payload = (index, &who, 0, value);
+		let sig = payload.using_encoded(|encoded| pair.sign(encoded));
+		let sig = MultiSignature::Ed25519(sig);
+		// hack to convert types
+		let sig = T::ContributionSignature::decode(&mut &sig.encode()[..]).unwrap();
+
+		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, Some(sig)));
 	}
 
 	fn worst_validation_code<T: Config>() -> Vec<u8> {
@@ -1656,9 +1671,10 @@ mod benchmarking {
 			let end = T::BlockNumber::max_value();
 
 			let caller: T::AccountId = whitelisted_caller();
+			let verifier = account("verifier", 0, 0);
 
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-		}: _(RawOrigin::Signed(caller), cap, first_slot, last_slot, end, None)
+		}: _(RawOrigin::Signed(caller), cap, first_slot, last_slot, end, Some(verifier))
 		verify {
 			assert_last_event::<T>(RawEvent::Created(FundCount::get() - 1).into())
 		}
@@ -1669,6 +1685,10 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+
+			let data = (fund_index, &caller, 0, contribution);
+
+
 		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, None)
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
