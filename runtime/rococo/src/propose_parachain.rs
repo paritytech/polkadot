@@ -204,14 +204,10 @@ decl_module! {
 			);
 			ensure!(validation_code.0.starts_with(runtime_common::WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
-			let mut active_validators = Session::<T>::validators();
-			ValidatorsToRetire::<T>::take().iter().for_each(|v| {
-				if let Some(pos) = active_validators.iter().position(|r| r == v) {
-					active_validators.swap_remove(pos);
-				}
-			});
+			let active_validators = Session::<T>::validators();
+			let validators_to_retire = ValidatorsToRetire::<T>::get();
 			ensure!(
-				validators.iter().all(|v| !active_validators.contains(v)),
+				validators.iter().all(|v| !active_validators.contains(v) || validators_to_retire.contains(v)),
 				Error::<T>::ValidatorAlreadyRegistered,
 			);
 
