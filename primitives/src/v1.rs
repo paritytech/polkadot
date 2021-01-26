@@ -630,7 +630,7 @@ pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	/// A bitfield with 1 bit for each validator in the set. `1` bits mean that the corresponding
 	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
 	/// this will be available.
-	#[cfg_attr(feature = "std", ignore_malloc_size_of = "ouside type")]
+	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub availability: BitVec<bitvec::order::Lsb0, u8>,
 	/// The group assigned to distribute availability pieces of this candidate.
 	pub group_responsible: GroupIndex,

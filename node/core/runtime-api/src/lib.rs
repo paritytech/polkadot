@@ -56,7 +56,10 @@ pub struct RuntimeApiSubsystem<Client> {
 	metrics: Metrics,
 	spawn_handle: Box<dyn SpawnNamed>,
 	/// If there are [`MAX_PARALLEL_REQUESTS`] requests being executed, we buffer them in here until they can be executed.
-	waiting_requests: VecDeque<(Pin<Box<dyn Future<Output = ()> + Send>>, oneshot::Receiver<Option<RequestResult>>)>,
+	waiting_requests: VecDeque<(
+		Pin<Box<dyn Future<Output = ()> + Send>>,
+		oneshot::Receiver<Option<RequestResult>>,
+	)>,
 	/// All the active runtime api requests that are currently being executed.
 	active_requests: FuturesUnordered<oneshot::Receiver<Option<RequestResult>>>,
 	/// Requests results cache

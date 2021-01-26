@@ -58,7 +58,9 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u
 	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
 	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(
+	serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
+)]
 pub struct Id(u32);
 
 impl TypeId for Id {
