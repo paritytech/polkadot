@@ -56,23 +56,19 @@ use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use std::collections::{BTreeMap, HashMap};
 use std::collections::btree_map::Entry;
-use std::time::{Duration, SystemTime};
 use std::sync::Arc;
 use std::ops::{RangeBounds, Bound as RangeBound};
 
 use aux_schema::{ApprovalEntry, CandidateEntry, BlockEntry};
 use criteria::OurAssignment;
+use time::{slot_number_to_tick,Tick, Clock, ClockExt, SystemClock};
 
 mod aux_schema;
 mod criteria;
+mod time;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const LOG_TARGET: &str = "approval-voting";
-
-/// A base unit of time, starting from the unix epoch, split into half-second intervals.
-type Tick = u64;
-
-const TICK_DURATION_MILLIS: u64 = 500;
 
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem<T> {
@@ -177,6 +173,7 @@ struct State<T> {
 	slot_duration_millis: u64,
 	db: Arc<T>,
 	background_tx: mpsc::Sender<BackgroundRequest>,
+	clock: Box<dyn Clock + Send + Sync>,
 }
 
 impl<T> State<T> {
@@ -197,45 +194,6 @@ impl<T> State<T> {
 	}
 }
 
-fn tick_now() -> Tick {
-	time_to_tick(SystemTime::now())
-}
-
-// returns '0' if before the unix epoch, otherwise, number of
-// whole ticks elapsed since unix epoch.
-fn time_to_tick(time: SystemTime) -> Tick {
-	match time.duration_since(SystemTime::UNIX_EPOCH) {
-		Err(_) => 0,
-		Ok(d) => d.as_millis() as u64 / TICK_DURATION_MILLIS,
-	}
-}
-
-fn tick_to_time(tick: Tick) -> SystemTime {
-	SystemTime::UNIX_EPOCH + Duration::from_millis(TICK_DURATION_MILLIS * tick)
-}
-
-// assumes `slot_duration_millis` evenly divided by tick duration.
-fn slot_number_to_tick(slot_duration_millis: u64, slot: SlotNumber) -> Tick {
-	let ticks_per_slot = slot_duration_millis / TICK_DURATION_MILLIS;
-	slot * ticks_per_slot
-}
-
-fn tranche_now(slot_duration_millis: u64, base_slot: SlotNumber) -> DelayTranche {
-	tick_now().saturating_sub(slot_number_to_tick(slot_duration_millis, base_slot)) as u32
-}
-
-// Returns `None` if the tick has been reached or is already
-// passed.
-fn until_tick(tick: Tick) -> Option<Duration> {
-	let now = SystemTime::now();
-	let tick_onset = tick_to_time(tick);
-	if now < tick_onset {
-		tick_onset.duration_since(now).ok()
-	} else {
-		None
-	}
-}
-
 async fn run<T, C>(mut ctx: C, subsystem: ApprovalVotingSubsystem<T>) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
@@ -248,6 +206,7 @@ async fn run<T, C>(mut ctx: C, subsystem: ApprovalVotingSubsystem<T>) -> Subsyst
 		slot_duration_millis: subsystem.slot_duration_millis,
 		db: subsystem.db,
 		background_tx,
+		clock: Box::new(SystemClock),
 	};
 
 	let mut last_finalized_height = None;
@@ -261,13 +220,9 @@ async fn run<T, C>(mut ctx: C, subsystem: ApprovalVotingSubsystem<T>) -> Subsyst
 	loop {
 		let wait_til_next_tick = match state.wakeups.first() {
 			None => future::Either::Left(future::pending()),
-			Some(tick) => future::Either::Right(async move {
-				if let Some(until) = until_tick(tick) {
-					futures_timer::Delay::new(until).await;
-				}
-
-				tick
-			})
+			Some(tick) => future::Either::Right(
+				state.clock.wait(tick).map(move |()| tick)
+			),
 		};
 		futures::pin_mut!(wait_til_next_tick);
 
@@ -964,7 +919,7 @@ fn check_and_import_assignment(
 ) -> SubsystemResult<AssignmentCheckResult> {
 	const TOO_FAR_IN_FUTURE: SlotNumber = 5;
 
-	let tick_now = tick_now();
+	let tick_now = state.clock.tick_now();
 
 	let block_entry = aux_schema::load_block_entry(&*state.db, &assignment.block_hash)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
@@ -1000,7 +955,7 @@ fn check_and_import_assignment(
 	let tranche = match res {
 		Err(crate::criteria::InvalidAssignment) => return Ok(AssignmentCheckResult::Bad),
 		Ok(tranche) => {
-			let tranche_now_of_prev_slot = tranche_now(
+			let tranche_now_of_prev_slot = state.clock.tranche_now(
 				state.slot_duration_millis,
 				block_entry.slot.saturating_sub(TOO_FAR_IN_FUTURE),
 			);
@@ -1250,7 +1205,7 @@ fn check_full_approvals(
 			}
 		};
 
-		let tranche_now = tranche_now(state.slot_duration_millis, block_entry.slot);
+		let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot);
 
 		let required_tranches = tranches_to_approve(
 			approval_entry,
@@ -1525,7 +1480,7 @@ async fn process_wakeup(
 		let tranches_to_approve = tranches_to_approve(
 			&approval_entry,
 			&candidate_entry.approvals,
-			tranche_now(state.slot_duration_millis, block_entry.slot),
+			state.clock.tranche_now(state.slot_duration_millis, block_entry.slot),
 			block_tick,
 			no_show_duration,
 			session_info.needed_approvals as _,
@@ -1556,7 +1511,7 @@ async fn process_wakeup(
 			let approval_entry = candidate_entry.block_assignments.get_mut(&relay_block)
 				.expect("should_broadcast only true if this fetched earlier; qed");
 
-			approval_entry.trigger_our_assignment(tick_now())
+			approval_entry.trigger_our_assignment(state.clock.tick_now())
 		};
 
 		aux_schema::write_candidate_entry(&*state.db, &candidate_hash, &candidate_entry)

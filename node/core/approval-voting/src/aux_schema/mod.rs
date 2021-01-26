@@ -46,7 +46,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::collections::hash_map::Entry;
 use bitvec::{slice::BitSlice, vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
-use super::Tick;
+use super::time::Tick;
 use super::criteria::OurAssignment;
 
 #[cfg(test)]
