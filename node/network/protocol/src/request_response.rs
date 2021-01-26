@@ -1,0 +1,112 @@
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+//! Overview over request/responses as used in `Polkadot`.
+//!
+//! enum  Protocol .... List of all supported protocols.
+//!
+//! enum  Request  .... List of all supported requests, each entry matches one in protocols, but
+//! has the actual request as payload.
+//!
+//! struct IncomingRequest .... wrapper for incoming requests, containing a sender for sending
+//! responses.
+//!
+//! struct OutgoingRequest .... wrapper for outgoing requests, containing a sender used by the
+//! networking code for delivering responses/delivery errors.
+//!
+//! trait `IsRequest` .... A trait describing a particular request. It is used for gathering meta
+//! data, like what is the corresponding response type.
+//!
+//!  Versioned (v1 module): The actual requests and responses as sent over the network.
+
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::time::Duration;
+use std::iter::FromIterator;
+use std::pin::Pin;
+use strum::{EnumIter, IntoEnumIterator};
+
+use futures::channel::mpsc;
+use futures::channel::oneshot;
+use futures::prelude::Stream;
+use futures::task::{Context, Poll};
+
+pub use sc_network::config::{RequestResponseConfig};
+pub use sc_network::config as network;
+use parity_scale_codec::{Encode, Decode, Error as DecodingError};
+
+/// All requests that can be sent to the network bridge.
+pub mod request;
+pub use request::{Request, IncomingRequest, OutgoingRequest};
+
+/// Multiplexer for incoming requests.
+pub mod multiplexer;
+
+pub mod v1;
+
+/// A protocol per subsystem seems to make the most sense, this way we don't need any dispatching
+/// within protocols.
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, EnumIter)]
+pub enum Protocol {
+	/// Protocol for availability fetching, used by availability distribution.
+	AvailabilityFetching,
+}
+
+impl Protocol {
+	/// Get a configuration for a given Request response protocol.
+	///
+	/// Returns a receiver for messages received on this protocol and the requested
+	/// `ProtocolConfig`.
+	///
+	/// See also `dispatcher::RequestDispatcher`,  which makes use of this function and provides a more
+	/// high-level interface.
+	pub fn get_config(self) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
+		let p_name = self.into_protocol_name();
+		// Channel size again a number I made up. Hundreds of validators will start requesting
+		// their chunks once they see a candidate awaiting availability on chain. Given that they
+		// will see that block at different times (due to network delays), 100 seems big enough to
+		// accomodate for "bursts", assuming we can service requests relatively quickly, which
+		// would need to be measured as well.
+		let (tx, rx) = mpsc::channel(100);
+		let cfg = match self {
+			AvailabilityFetching => RequestResponseConfig {
+				name: p_name,
+				// Arbitrary numbers, which I guess right now should be fine:
+				// TODO: Get better numbers.
+				max_request_size: 100_000,
+				max_response_size: 1_000_000,
+				// Also just some relative conservative guess:
+				request_timeout: Duration::new(8, 0),
+				inbound_queue: Some(tx),
+			},
+		};
+		(rx, cfg)
+	}
+
+	/// Get the protocol name of this protocol, as understood by substrate networking.
+	pub fn into_protocol_name(self) -> Cow<'static, str> {
+		self.get_protocol_name_static().into()
+	}
+
+	/// Get the protocol name associated with each peer set as static str.
+	pub const fn get_protocol_name_static(self) -> &'static str {
+		match self {
+			Protocol::AvailabilityFetching => "/polkadot/req_availability/1",
+		}
+	}
+}

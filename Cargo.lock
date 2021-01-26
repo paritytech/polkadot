@@ -5428,6 +5428,7 @@ dependencies = [
 name = "polkadot-node-network-protocol"
 version = "0.1.0"
 dependencies = [
+ "futures 0.3.12",
  "parity-scale-codec",
  "polkadot-node-jaeger",
  "polkadot-node-primitives",

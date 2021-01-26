@@ -33,6 +33,9 @@ pub use std::sync::Arc;
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
 
+/// Request/response protocols used in Polkadot.
+pub mod request_response;
+
 /// A unique identifier of a request.
 pub type RequestId = u64;
 
