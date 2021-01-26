@@ -49,7 +49,7 @@ pub use crate::v0::{
 };
 
 #[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
+use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 
 // More exports from v0 for std.
 #[cfg(feature = "std")]
@@ -152,6 +152,16 @@ mod assigment_app {
 /// The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
 pub type AssignmentId = assigment_app::Public;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for AssignmentId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
@@ -725,11 +735,12 @@ pub enum CandidateEvent<H = Hash> {
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default))]
+#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
 pub struct SessionInfo {
 	/// Validators in canonical ordering.
 	pub validators: Vec<ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
+	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
 	pub assignment_keys: Vec<AssignmentId>,

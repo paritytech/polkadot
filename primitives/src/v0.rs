@@ -65,7 +65,10 @@ pub type CollatorId = collator_app::Public;
 #[cfg(feature = "std")]
 impl MallocSizeOf for CollatorId {
 	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
-		32
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
 	}
 }
 
@@ -79,7 +82,10 @@ pub type CollatorSignature = collator_app::Signature;
 #[cfg(feature = "std")]
 impl MallocSizeOf for CollatorSignature {
 	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
-		32
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
 	}
 }
 
@@ -100,7 +106,10 @@ pub type ValidatorId = validator_app::Public;
 #[cfg(feature = "std")]
 impl MallocSizeOf for ValidatorId {
 	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
-		32
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
 	}
 }
 
@@ -121,7 +130,10 @@ pub type ValidatorSignature = validator_app::Signature;
 #[cfg(feature = "std")]
 impl MallocSizeOf for ValidatorSignature {
 	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
-		32
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
 	}
 }
 

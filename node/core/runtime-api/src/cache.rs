@@ -133,7 +133,7 @@ impl ResidentSize for CacheCandidateEvents {
 
 impl ResidentSize for CacheSessionInfo {
 	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Self>() + std::mem::size_of::<SessionInfo>()
+		std::mem::size_of::<Self>() + self.0.malloc_size_of()
 	}
 }
 
