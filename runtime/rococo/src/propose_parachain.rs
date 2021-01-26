@@ -105,8 +105,8 @@ decl_event! {
 		ParachainApproved(ParaId),
 		/// A parachain was registered and is now running.
 		ParachainRegistered(ParaId),
-		/// A new validator was added to the set.
-		ValidatorRegistered(Vec<ValidatorId>),
+		/// New validators were added to the set.
+		ValidatorsRegistered(Vec<ValidatorId>),
 	}
 }
 
@@ -301,9 +301,9 @@ decl_module! {
 			pallet_balances::Module::<T>::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
 
-		/// Add a new validator to the set.
+		/// Add new validators to the set.
 		#[weight = 100_000]
-		fn register_validator(
+		fn register_validators(
 			origin,
 			validators: Vec<T::ValidatorId>,
 		) {
@@ -311,7 +311,7 @@ decl_module! {
 
 			validators.clone().into_iter().for_each(|v| ValidatorsToAdd::<T>::append(v));
 
-			Self::deposit_event(RawEvent::ValidatorRegistered(validators));
+			Self::deposit_event(RawEvent::ValidatorsRegistered(validators));
 		}
 	}
 }
