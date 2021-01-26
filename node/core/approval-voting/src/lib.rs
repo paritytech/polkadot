@@ -767,7 +767,9 @@ async fn imported_block_info(
 							&state.keystore,
 							relay_vrf.clone(),
 							&criteria::Config::from(session_info),
-							included_candidates.iter().map(|(_, _, core, _)| *core).collect(),
+							included_candidates.iter()
+								.map(|(_, _, core, group)| (*core, *group))
+								.collect(),
 						);
 
 						(assignments, slot, relay_vrf)

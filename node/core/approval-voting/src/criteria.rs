@@ -20,7 +20,7 @@ use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::v1::{
-	CoreIndex, ValidatorIndex, SessionInfo, AssignmentPair, AssignmentId,
+	CoreIndex, ValidatorIndex, SessionInfo, AssignmentPair, AssignmentId, GroupIndex,
 };
 use sc_keystore::LocalKeystore;
 use parity_scale_codec::{Encode, Decode};
@@ -155,7 +155,7 @@ pub(crate) trait AssignmentCriteria {
 		keystore: &LocalKeystore,
 		relay_vrf_story: RelayVRFStory,
 		config: &Config,
-		leaving_cores: Vec<CoreIndex>,
+		leaving_cores: Vec<(CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment>;
 
 	fn check_assignment_cert(
@@ -176,13 +176,13 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		keystore: &LocalKeystore,
 		relay_vrf_story: RelayVRFStory,
 		config: &Config,
-		leaving_cores: Vec<CoreIndex>,
+		leaving_cores: Vec<(CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment> {
 		compute_assignments(
 			keystore,
 			relay_vrf_story,
 			config,
-			leaving_cores.iter().cloned(),
+			leaving_cores,
 		)
 	}
 
@@ -215,7 +215,7 @@ pub(crate) fn compute_assignments(
 	keystore: &LocalKeystore,
 	relay_vrf_story: RelayVRFStory,
 	config: &Config,
-	leaving_cores: impl IntoIterator<Item = CoreIndex> + Clone,
+	leaving_cores: impl IntoIterator<Item = (CoreIndex, GroupIndex)> + Clone,
 ) -> HashMap<CoreIndex, OurAssignment> {
 	let (index, assignments_key): (ValidatorIndex, AssignmentPair) = {
 		let key = config.assignment_keys.iter().enumerate()
@@ -235,6 +235,15 @@ pub(crate) fn compute_assignments(
 		}
 	};
 
+	// Ignore any cores where the assigned group is our own.
+	let leaving_cores = leaving_cores.into_iter()
+		.filter(|&(_, ref g)|
+			config.validator_groups.get(g.0 as usize)
+				.filter(|group| group.contains(&index)).is_none()
+		)
+		.map(|(c, _)| c)
+		.collect::<Vec<_>>();
+
 	let assignments_key: &sp_application_crypto::sr25519::Pair = assignments_key.as_ref();
 	let assignments_key: &schnorrkel::Keypair = assignments_key.as_ref();
 
@@ -246,7 +255,7 @@ pub(crate) fn compute_assignments(
 		index,
 		config,
 		relay_vrf_story.clone(),
-		leaving_cores.clone(),
+		leaving_cores.iter().cloned(),
 		&mut assignments,
 	);
 
