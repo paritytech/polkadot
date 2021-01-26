@@ -961,30 +961,6 @@ fn check_and_import_assignment(
 		None => return Ok(AssignmentCheckResult::Bad), // no candidate at core.
 	};
 
-	let res = state.assignment_criteria.check_assignment_cert(
-		claimed_core_index,
-		assignment.validator,
-		&criteria::Config::from(session_info),
-		block_entry.relay_vrf_story.clone(),
-		&assignment.cert,
-	);
-
-	let tranche = match res {
-		Err(crate::criteria::InvalidAssignment) => return Ok(AssignmentCheckResult::Bad),
-		Ok(tranche) => {
-			let tranche_now_of_prev_slot = state.clock.tranche_now(
-				state.slot_duration_millis,
-				block_entry.slot.saturating_sub(TOO_FAR_IN_FUTURE),
-			);
-
-			if tranche >= tranche_now_of_prev_slot {
-				return Ok(AssignmentCheckResult::TooFarInFuture);
-			}
-
-			tranche
-		}
-	};
-
 	let mut candidate_entry = match aux_schema::load_candidate_entry(
 		&*state.db,
 		&assigned_candidate_hash,
@@ -1013,17 +989,31 @@ fn check_and_import_assignment(
 			None => return Ok(AssignmentCheckResult::Bad),
 		};
 
-		// Check that the validator was not part of the backing group
-		// and not already assigned.
-		let is_in_backing = is_in_backing_group(
-			&session_info.validator_groups,
+
+		let res = state.assignment_criteria.check_assignment_cert(
+			claimed_core_index,
 			assignment.validator,
+			&criteria::Config::from(session_info),
+			block_entry.relay_vrf_story.clone(),
+			&assignment.cert,
 			assignment_entry.backing_group,
 		);
 
-		if is_in_backing {
-			return Ok(AssignmentCheckResult::Bad);
-		}
+		let tranche = match res {
+			Err(crate::criteria::InvalidAssignment) => return Ok(AssignmentCheckResult::Bad),
+			Ok(tranche) => {
+				let tranche_now_of_prev_slot = state.clock.tranche_now(
+					state.slot_duration_millis,
+					block_entry.slot.saturating_sub(TOO_FAR_IN_FUTURE),
+				);
+
+				if tranche >= tranche_now_of_prev_slot {
+					return Ok(AssignmentCheckResult::TooFarInFuture);
+				}
+
+				tranche
+			}
+		};
 
 		let is_duplicate =  assignment_entry.is_assigned(assignment.validator);
 		assignment_entry.import_assignment(tranche, assignment.validator, tick_now);
@@ -1069,14 +1059,6 @@ fn check_and_import_assignment(
 	);
 
 	Ok(res)
-}
-
-fn is_in_backing_group(
-	validator_groups: &[Vec<ValidatorIndex>],
-	validator: ValidatorIndex,
-	group: GroupIndex,
-) -> bool {
-	validator_groups.get(group.0 as usize).map_or(false, |g| g.contains(&validator))
 }
 
 fn check_and_import_approval(

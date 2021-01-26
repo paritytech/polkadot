@@ -165,6 +165,7 @@ pub(crate) trait AssignmentCriteria {
 		config: &Config,
 		relay_vrf_story: RelayVRFStory,
 		assignment: &AssignmentCert,
+		backing_group: GroupIndex,
 	) -> Result<DelayTranche, InvalidAssignment>;
 }
 
@@ -193,6 +194,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		config: &Config,
 		relay_vrf_story: RelayVRFStory,
 		assignment: &AssignmentCert,
+		backing_group: GroupIndex,
 	) -> Result<DelayTranche, InvalidAssignment> {
 		check_assignment_cert(
 			claimed_core_index,
@@ -200,6 +202,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 			config,
 			relay_vrf_story,
 			assignment,
+			backing_group,
 		)
 	}
 }
@@ -237,10 +240,7 @@ pub(crate) fn compute_assignments(
 
 	// Ignore any cores where the assigned group is our own.
 	let leaving_cores = leaving_cores.into_iter()
-		.filter(|&(_, ref g)|
-			config.validator_groups.get(g.0 as usize)
-				.filter(|group| group.contains(&index)).is_none()
-		)
+		.filter(|&(_, ref g)| !is_in_backing_group(&config.validator_groups, index, *g))
 		.map(|(c, _)| c)
 		.collect::<Vec<_>>();
 
@@ -384,6 +384,7 @@ impl std::error::Error for InvalidAssignment { }
 ///   * Core is not covered by extra data in signature
 ///   * Core index out of bounds
 ///   * Sample is out of bounds
+///   * Validator is present in backing group.
 ///
 /// This function does not check whether the core is actually a valid assignment or not. That should be done
 /// outside of the scope of this function.
@@ -393,6 +394,7 @@ pub(crate) fn check_assignment_cert(
 	config: &Config,
 	relay_vrf_story: RelayVRFStory,
 	assignment: &AssignmentCert,
+	backing_group: GroupIndex,
 ) -> Result<DelayTranche, InvalidAssignment> {
 	let validator_public = config.assignment_keys
 		.get(validator_index as usize)
@@ -402,6 +404,18 @@ pub(crate) fn check_assignment_cert(
 		.map_err(|_| InvalidAssignment)?;
 
 	if claimed_core_index.0 >= config.n_cores {
+		return Err(InvalidAssignment);
+	}
+
+	// Check that the validator was not part of the backing group
+	// and not already assigned.
+	let is_in_backing = is_in_backing_group(
+		&config.validator_groups,
+		validator_index,
+		backing_group,
+	);
+
+	if is_in_backing {
 		return Err(InvalidAssignment);
 	}
 
@@ -444,6 +458,14 @@ pub(crate) fn check_assignment_cert(
 			))
 		}
 	}
+}
+
+fn is_in_backing_group(
+	validator_groups: &[Vec<ValidatorIndex>],
+	validator: ValidatorIndex,
+	group: GroupIndex,
+) -> bool {
+	validator_groups.get(group.0 as usize).map_or(false, |g| g.contains(&validator))
 }
 
 #[cfg(test)]
