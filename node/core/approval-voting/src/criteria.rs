@@ -498,4 +498,24 @@ mod tests {
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
 
 	}
+
+	#[test]
+	fn check_rejects_out_of_bounds() {
+
+	}
+
+	#[test]
+	fn check_rejects_invalid_delay() {
+
+	}
+
+	#[test]
+	fn check_rejects_invalid_modulo() {
+
+	}
+
+	#[test]
+	fn check_rejects_in_backing_group() {
+
+	}
 }
