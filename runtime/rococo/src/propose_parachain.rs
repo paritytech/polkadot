@@ -365,6 +365,7 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 
 		let queued = ValidatorsToAdd::<T>::take();
 		validators.extend(queued);
+		validators.sort();
 		validators.dedup();
 
 		Some(validators)
