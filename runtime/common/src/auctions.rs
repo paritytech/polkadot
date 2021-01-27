@@ -133,7 +133,7 @@ decl_error! {
 		LeasePeriodInPast,
 		/// The origin for this call must be a parachain.
 		NotParaOrigin,
-		/// The parachain ID is not onboarding.
+		/// The parachain ID is not on-boarding.
 		ParaNotOnboarding,
 		/// The origin for this call must be the origin who registered the parachain.
 		InvalidOrigin,
@@ -163,6 +163,19 @@ decl_module! {
 		fn deposit_event() = default;
 
 		fn on_initialize(n: T::BlockNumber) -> Weight {
+			// If the current auction was in its ending period last block, then ensure that the (sub-)range
+			// winner information is duplicated from the previous block in case no bids happened in the
+			// last block.
+			if let Some(offset) = n.checked_sub(&One::one()).and_then(|n| Self::is_ending(n)) {
+				if !Winning::<T>::contains_key(&offset) {
+					Winning::<T>::insert(offset,
+						offset.checked_sub(&One::one())
+							.and_then(Winning::<T>::get)
+							.unwrap_or_default()
+					);
+				}
+			}
+
 			// Check to see if an auction just ended.
 			if let Some((winning_ranges, auction_lease_period_index)) = Self::check_auction_end(n) {
 				// Auction is ended now. We have the winning ranges and the lease period index which
@@ -173,23 +186,8 @@ decl_module! {
 				);
 			}
 
-			// TODO: both initialize and finalize weights, or move finalize into here.
+			// TODO: weight
 			0
-		}
-
-		fn on_finalize(now: T::BlockNumber) {
-			// If the current auction is in it ending period, then ensure that the (sub-)range
-			// winner information is duplicated from the previous block in case no bids happened
-			// in this block.
-			if let Some(offset) = Self::is_ending(now) {
-				if !Winning::<T>::contains_key(&offset) {
-					Winning::<T>::insert(offset,
-						offset.checked_sub(&One::one())
-							.and_then(Winning::<T>::get)
-							.unwrap_or_default()
-					);
-				}
-			}
 		}
 
 		/// Create a new auction.
