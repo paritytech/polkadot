@@ -14,20 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::pin::Pin;
-
 use futures::channel::oneshot;
 use futures::prelude::Future;
-use futures::task::{Context, Poll};
 
-use parity_scale_codec::{codec, Decode, Encode, Error as DecodingError};
+use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 use sc_network as network;
-use sc_network::{PeerId, RequestFailure};
+use sc_network::PeerId;
 
-use crate::request_response::{v1, IsRequest};
+use super::v1;
 
 /// Common properties of any `Request`.
-trait IsRequest {
+pub trait IsRequest {
 	/// Each request has a corresponding `Response`.
 	type Response;
 }
@@ -45,19 +42,44 @@ pub enum Request {
 pub struct OutgoingRequest<Req> {
 	peer: PeerId,
 	payload: Req,
-	pending_response: oneshot::Sender<Vec<u8>>,
+	pending_response: oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>,
 }
 
 /// Any error that can occur when sending a request.
-enum RequestError {
+pub enum RequestError {
 	/// Response could not be decoded.
-	InvalidResponse { invalid_response: Vec<u8> },
+	InvalidResponse(DecodingError),
 
 	/// Some error in substrate/libp2p happened.
 	NetworkError(network::RequestFailure),
+
+	/// Response got canceled by networking.
+	Canceled(oneshot::Canceled),
 }
 
-impl<Req> OutgoingRequest<Req> {
+impl From<DecodingError> for RequestError {
+	fn from(err: DecodingError) -> Self {
+		Self::InvalidResponse(err)
+	}
+}
+
+impl From<network::RequestFailure> for RequestError {
+	fn from(err: network::RequestFailure) -> Self {
+		Self::NetworkError(err)
+	}
+}
+
+impl From<oneshot::Canceled> for RequestError {
+	fn from(err: oneshot::Canceled) -> Self {
+		Self::Canceled(err)
+	}
+}
+
+impl<Req> OutgoingRequest<Req>
+where
+	Req: IsRequest,
+	Req::Response: Decode,
+{
 	pub fn new(
 		peer: PeerId,
 		payload: Req,
@@ -71,10 +93,10 @@ impl<Req> OutgoingRequest<Req> {
 			payload,
 			pending_response: tx,
 		};
-		(r, ResponseFuture { raw: rx })
+		(r, receive_response::<Req>(rx))
 	}
 
-	/// To what peer this 
+	/// To what peer this
 	pub fn get_peer(&self) -> &PeerId {
 		&self.peer
 	}
@@ -98,28 +120,17 @@ where
 	///
 	/// On success we return Ok(()), on error we return the not sent `Response`.
 	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
-		self.pending_response.send(resp.encode())
+		self.pending_response.send(resp.encode()).map_err(|_| resp)
 	}
 }
 
-/// Internal future used for implementing the return value of `OutgoinRequest::new`
-struct ResponseFuture<Req> {
-	raw: oneshot::Receiver<Result<Vec<u8>, network::RequestFailure>>,
-}
-
-impl<Req: IsRequest> Future for ResponseFuture<Req> {
-	type Output = Result<Req::Response, RequestError>;
-
-	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-		match self.raw.poll(cx) {
-			Poll::Pending => Poll::Pending,
-			Poll::Ready(Ok(v)) => match v.decode() {
-				Ok(v) => Ok(v),
-				Err(err) => Err(RequestError::InvalidResponse {
-					invalid_response: v,
-				}),
-			},
-			Poll::Ready(Err(err)) => Err(RequestError::NetworkError(err)),
-		}
-	}
+async fn receive_response<Req>(
+	rec: oneshot::Receiver<Result<Vec<u8>, network::RequestFailure>>,
+) -> Result<Req::Response, RequestError>
+where
+	Req: IsRequest,
+	Req::Response: Decode,
+{
+	let raw = rec.await??;
+	Ok(Decode::decode(&mut raw.as_ref())?)
 }
