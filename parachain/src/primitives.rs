@@ -28,6 +28,9 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
+#[cfg(feature = "std")]
+use parity_util_mem::MallocSizeOf;
+
 use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 
 /// Block number type used by the relay chain.
@@ -35,7 +38,7 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash, MallocSizeOf))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 #[cfg(feature = "std")]
@@ -49,14 +52,14 @@ impl HeadData {
 
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.
@@ -64,7 +67,9 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u
 	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
 	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
+#[cfg_attr(feature = "std", derive(
+	serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
+)]
 pub struct Id(u32);
 
 impl TypeId for Id {
