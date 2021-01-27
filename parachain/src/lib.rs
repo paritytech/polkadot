@@ -52,7 +52,7 @@ mod wasm_api;
 #[cfg(all(not(feature = "std"), feature = "wasm-api"))]
 pub use wasm_api::*;
 
-use std::{any::{TypeId, Any}, path::PathBuf, sync::Arc};
+use sp_std::{vec::Vec, any::{TypeId, Any}};
 use crate::primitives::{ValidationParams, ValidationResult, ValidationCode};
 
 use sp_runtime_interface::runtime_interface;
@@ -87,7 +87,8 @@ pub trait Validation: Send + 'static {
 	fn validation_code(&self) -> Vec<u8>;
 }
 
-impl Validation for Arc<ValidationCode> {
+#[cfg(featuer = "std")]
+impl Validation for std::sync::Arc<ValidationCode> {
 	fn validation_code(&self) -> Vec<u8> {
 		self.0.clone()
 	}
@@ -98,5 +99,3 @@ impl Validation for &'static [u8] {
 		self.to_vec()
 	}
 }
-
-
