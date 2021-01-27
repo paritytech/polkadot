@@ -15,8 +15,22 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::convert::From;
+use std::result::Result;
+use std::pin::Pin;
 
-use futures::future::{Fuse, fuse};
+use futures::future::Fuse;
+use futures::prelude::stream::{Stream, StreamExt};
+use futures::task::{Poll, Context};
+use strum::IntoEnumIterator;
+
+use parity_scale_codec::{Error as DecodingError, Decode};
+
+use sc_network::config as network;
+
+
+use super::request::IncomingRequest;
+use super::v1;
+use super::{RequestResponseConfig, Protocol};
 
 /// Multiplex incoming network requests.
 ///
@@ -28,7 +42,7 @@ pub struct RequestMultiplexer<R: Stream> {
 }
 
 /// Message type where all incoming request can be multiplexed into.
-pub trait MultiplexMessage: From<IncomingRequest<v1: AvailabilityFetchingRequest>> {}
+pub trait MultiplexMessage: From<IncomingRequest<v1::AvailabilityFetchingRequest>> {}
 
 /// Multiplexing can fail in case of invalid messages.
 pub struct MultiplexError {
@@ -38,9 +52,9 @@ pub struct MultiplexError {
 	pub request: network::IncomingRequest,
 }
 
-impl<M> RequestMultiplexer<S>
+impl<M, S> RequestMultiplexer<S>
 where
-	S: Stream<Result<M, MultiplexError>>,
+	S: Stream<Item = Result<M, MultiplexError>>,
 	M: MultiplexMessage,
 {
 	/// Create a new `RequestMultiplexer`.
@@ -52,11 +66,11 @@ where
 		let (receivers, cfgs): (Vec<_>, Vec<_>) = Protocol::iter()
 			.map(|p| {
 				let (rx, cfg) = p.get_config();
-				let receiver = rx.map(|raw| match dispatch_single(p, raw) {
+				let receiver = rx.map(|raw| match multiplex_single(p, raw) {
 					Ok(v) => Ok(v),
-					Err(error) => MultiplexError { error, request: raw },
+					Err(error) => Err(MultiplexError { error, request: raw }),
 				});
-				(receiver, cfg)
+				(receiver.fuse(), cfg)
 			})
 			.unzip();
 
@@ -70,7 +84,7 @@ where
 	}
 }
 
-impl Stream for RequestMultiplexer<S>
+impl<M,S> Stream for RequestMultiplexer<S>
 where
 	S: Stream<Item = Result<M, MultiplexError>>,
 	M: MultiplexMessage,
@@ -83,12 +97,12 @@ where
 		let mut pending = false;
 		// Poll streams in round robin fashion:
 		while count > 0 {
-			let next = self.receivers[self.next_poll % len];
+			let rx = self.receivers[self.next_poll % len];
 			self.next_poll += 1;
-			match next.poll_next(cx) {
-				Pending => pending = true,
-				Ready(None) => {}
-				Ready(Some(v)) => return (Some(v)),
+			match rx.poll_next(cx) {
+				Poll::Pending => pending = true,
+				Poll::Ready(None) => {}
+				Poll::Ready(Some(v)) => return Poll::Ready(Some(v)),
 			}
 			count -= 1;
 		}
@@ -101,49 +115,21 @@ where
 }
 
 /// Convert a single raw incoming request into a `MultiplexMessage`.
-fn dispatch_single(
+fn multiplex_single(
 	p: Protocol,
-	raw: &network::IncomingRequest,
+	network::IncomingRequest { payload, peer, pending_response }: network::IncomingRequest,
 ) -> Result<impl MultiplexMessage, DecodingError> {
-	fn mk_incoming<R>(decoded: R) -> IncomingRequest<R> {
+	let mk_incoming = |decoded| {
 		IncomingRequest {
-			peer: raw.peer,
+			peer,
 			payload: decoded,
-			pending_response: raw.pending_response,
+			pending_response,
 		}
-	}
-	match p {
+	};
+	let r = match p {
 		AvailabilityFetching => {
-			mk_incoming(From::from(AvailabilityFetchingRequest::decode(rx.payload)?))
+			From::from(mk_incoming(v1::AvailabilityFetchingRequest::decode(&mut payload.as_ref())?))
 		}
-	}
+	};
+	Ok(r)
 }
-
-//// Stream for receiving decoded Requests.
-////
-//// Used by the network bridge for forwarding decoded requests to interested subsystems.
-// struct RequestReceiver<Req> {
-//     raw: mpsc::Receiver<network::IncomingRequest>,
-// }
-
-// impl<Req> Stream for RequestReceiver<Req> {
-//     type Item = Result<IncomingRequest<Req>, DecodingError>;
-
-//     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         match self.raw.poll_next(cx) {
-//             Poll::Pending => Poll::Pending,
-//             Poll::Ready(IncomingRequest {
-//                 peer,
-//                 payload,
-//                 pending_response,
-//             }) => match Decode::decode(payload) {
-//                 Result::Ok(req) => Poll::Ready(Some(Ok(IncomingRequest {
-//                     peer,
-//                     payload,
-//                     pending_response,
-//                 }))),
-//                 Result::Err(err) => Err(err),
-//             },
-//         }
-//     }
-// }
