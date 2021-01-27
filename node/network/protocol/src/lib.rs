@@ -282,15 +282,18 @@ impl View {
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex,
+		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex,
 	};
-	use polkadot_node_primitives::SignedFullStatement;
+	use polkadot_node_primitives::{
+		SignedFullStatement,
+		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+	};
 	use parity_scale_codec::{Encode, Decode};
 	use super::RequestId;
 	use std::convert::TryFrom;
 
 	/// Network messages used by the availability distribution subsystem
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AvailabilityDistributionMessage {
 		/// An erasure chunk for a given candidate hash.
 		#[codec(index = "0")]
@@ -298,7 +301,7 @@ pub mod v1 {
 	}
 
 	/// Network messages used by the availability recovery subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AvailabilityRecoveryMessage {
 		/// Request a chunk for a given candidate hash and validator index.
 		RequestChunk(RequestId, CandidateHash, ValidatorIndex),
@@ -308,7 +311,7 @@ pub mod v1 {
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
 		/// A signed availability bitfield for a given relay-parent hash.
 		#[codec(index = "0")]
@@ -316,7 +319,7 @@ pub mod v1 {
 	}
 
 	/// Network messages used by the PoV distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum PoVDistributionMessage {
 		/// Notification that we are awaiting the given PoVs (by hash) against a
 		/// specific relay-parent hash.
@@ -329,14 +332,27 @@ pub mod v1 {
 	}
 
 	/// Network messages used by the statement distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = "0")]
 		Statement(Hash, SignedFullStatement)
 	}
 
-	#[derive(Debug, Clone, Copy, PartialEq, thiserror::Error)]
+	/// Network messages used by the approval distribution subsystem.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub enum ApprovalDistributionMessage {
+		/// Assignments for candidates in recent, unfinalized blocks.
+		///
+		/// Actually checking the assignment may yield a different result.
+		#[codec(index = "0")]
+		Assignments(Vec<(IndirectAssignmentCert, CandidateIndex)>),
+		/// Approvals for candidates in some recent, unfinalized block.
+		#[codec(index = "1")]
+		Approvals(Vec<IndirectSignedApprovalVote>),
+	}
+
+	#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 	#[allow(missing_docs)]
 	pub enum CompressedPoVError {
 		#[error("Failed to compress a PoV")]
@@ -350,7 +366,7 @@ pub mod v1 {
 	}
 
 	/// SCALE and Zstd encoded [`PoV`].
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub struct CompressedPoV(Vec<u8>);
 
 	impl CompressedPoV {
@@ -398,7 +414,7 @@ pub mod v1 {
 	}
 
 	/// Network messages used by the collator protocol subsystem
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
 		/// Declare the intent to advertise collations under a collator ID.
 		#[codec(index = "0")]
@@ -416,7 +432,7 @@ pub mod v1 {
 	}
 
 	/// All network messages on the validation peer-set.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum ValidationProtocol {
 		/// Availability distribution messages
 		#[codec(index = "0")]
@@ -433,15 +449,19 @@ pub mod v1 {
 		/// Availability recovery messages
 		#[codec(index = "4")]
 		AvailabilityRecovery(AvailabilityRecoveryMessage),
+		/// Approval distribution messages
+		#[codec(index = "5")]
+		ApprovalDistribution(ApprovalDistributionMessage),
 	}
 
 	impl_try_from!(ValidationProtocol, AvailabilityDistribution, AvailabilityDistributionMessage);
 	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
 	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
+	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
 
 	/// All network messages on the collation peer-set.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollationProtocol {
 		/// Collator protocol messages
 		#[codec(index = "0")]

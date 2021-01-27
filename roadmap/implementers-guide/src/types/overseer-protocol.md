@@ -95,6 +95,8 @@ struct BlockApprovalMeta {
 	hash: Hash,
 	/// The number of the block.
 	number: BlockNumber,
+	/// The hash of the parent block.
+	parent_hash: Hash,
 	/// The candidates included by the block. Note that these are not the same as the candidates that appear within the
 	/// block body.
 	candidates: Vec<CandidateHash>,
@@ -108,9 +110,7 @@ enum ApprovalDistributionMessage {
 	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
 	/// to be valid, relevant, and for the given relay-parent and validator index.
-	///
-	/// The `u32` param is the candidate index in the fully-included list.
-	DistributeAssignment(IndirectAssignmentCert, u32),
+	DistributeAssignment(IndirectAssignmentCert, CandidateIndex),
 	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
 	/// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
 	/// the message.
