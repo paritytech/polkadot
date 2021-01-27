@@ -21,7 +21,7 @@ derive_more = "0.99.11"
 # all optional crates.
 thiserror = { version = "1.0.22", optional = true }
 serde = { version = "1.0.117", default-features = false, features = [ "derive" ], optional = true }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 parking_lot = { version = "0.11.1", optional = true }
@@ -44,7 +44,7 @@ std = [
 	"sp-core/std",
 	"parking_lot",
 	"log",
-	"sp-externalities",
+	"sp-externalities/std",
 	"sc-executor",
 	"sp-io",
 	"polkadot-core-primitives/std",
