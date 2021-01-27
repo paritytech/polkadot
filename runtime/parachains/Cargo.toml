@@ -39,7 +39,7 @@ xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", defa
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
 
-rand = { version = "0.8.2", default-features = false }
+rand = { version = "0.8.3", default-features = false }
 rand_chacha = { version = "0.3.0", default-features = false }
 
 [dev-dependencies]

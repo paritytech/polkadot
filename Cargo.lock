@@ -1469,7 +1469,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcf0ed7fe52a17a03854ec54a9f76d6d84508d1c0e66bc1793301c73fc8493c"
 dependencies = [
  "byteorder",
- "rand 0.8.2",
+ "rand 0.8.3",
  "rustc-hex",
  "static_assertions",
 ]
@@ -5016,7 +5016,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "rand 0.7.3",
+ "rand 0.8.3",
  "smallvec 1.6.1",
  "sp-application-crypto",
  "sp-core",
@@ -5720,7 +5720,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
- "rand 0.8.2",
+ "rand 0.8.3",
  "rand_chacha 0.3.0",
  "rustc-hex",
  "sc-keystore",
@@ -5964,7 +5964,7 @@ dependencies = [
  "polkadot-runtime-parachains",
  "polkadot-service",
  "polkadot-test-runtime",
- "rand 0.8.2",
+ "rand 0.8.3",
  "sc-authority-discovery",
  "sc-chain-spec",
  "sc-cli",
@@ -6334,9 +6334,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.2"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18519b42a40024d661e1714153e9ad0c3de27cd495760ceb09710920f1098b1e"
+checksum = "0ef9e7e66b4468674bfcb0c81af8b7fa0bb154fa9f28eb840da5c447baeb8d7e"
 dependencies = [
  "libc",
  "rand_chacha 0.3.0",
@@ -9147,7 +9147,7 @@ checksum = "dac1c663cfc93810f88aed9b8941d48cabf856a1b111c29a40439018d870eb22"
 dependencies = [
  "cfg-if 1.0.0",
  "libc",
- "rand 0.8.2",
+ "rand 0.8.3",
  "redox_syscall 0.2.4",
  "remove_dir_all",
  "winapi 0.3.9",
