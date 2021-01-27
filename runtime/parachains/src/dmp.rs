@@ -202,7 +202,8 @@ impl<T: Config> Module<T> {
 
 	/// Returns the Head of Message Queue Chain for the given para or `None` if there is none
 	/// associated with it.
-	pub(crate) fn dmq_mqc_head(para: ParaId) -> Hash {
+	#[cfg(test)]
+	fn dmq_mqc_head(para: ParaId) -> Hash {
 		<Self as Store>::DownwardMessageQueueHeads::get(&para)
 	}
 

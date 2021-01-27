@@ -380,11 +380,6 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	pub relay_parent_number: N,
 	/// The relay-chain block storage root this is in the context of.
 	pub relay_storage_root: Hash,
-	/// The MQC head for the DMQ.
-	///
-	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
-	/// passed by the collator.
-	pub dmq_mqc_head: Hash,
 	/// The maximum legal size of a POV block, in bytes.
 	pub max_pov_size: u32,
 }

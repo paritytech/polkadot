@@ -202,7 +202,6 @@ impl Default for TestState {
 		let persisted_validation_data = PersistedValidationData {
 			parent_head: HeadData(vec![7, 8, 9]),
 			relay_parent_number: Default::default(),
-			dmq_mqc_head: Default::default(),
 			max_pov_size: 1024,
 			relay_storage_root: Default::default(),
 		};

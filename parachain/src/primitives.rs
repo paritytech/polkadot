@@ -270,11 +270,6 @@ pub struct ValidationParams {
 	pub relay_parent_number: RelayChainBlockNumber,
 	/// The relay-chain block's storage root.
 	pub relay_storage_root: Hash,
-	/// The MQC head for the DMQ.
-	///
-	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
-	/// passed by the collator.
-	pub dmq_mqc_head: Hash,
 }
 
 /// The result of parachain validation.
