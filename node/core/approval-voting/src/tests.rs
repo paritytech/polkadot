@@ -94,3 +94,73 @@ impl MockClockInner {
 		rx
 	}
 }
+
+// TODO [now]: mock `AssignmentCriteria` implementation.
+
+// TODO [now]: mock `AuxStore`.
+
+#[test]
+fn rejects_bad_assignment() {
+
+}
+
+
+#[test]
+fn rejects_assignment_in_future() {
+
+}
+
+#[test]
+fn loads_blocks_back_to_finality_or_stored() {
+
+}
+
+#[test]
+fn rejects_approval_before_assignment() {
+
+}
+
+#[test]
+fn full_approval_sets_flag_and_bit() {
+
+}
+
+#[test]
+fn assignment_triggered_only_when_needed() {
+
+}
+
+#[test]
+fn background_requests_are_forwarded() {
+
+}
+
+#[test]
+fn triggered_assignment_leads_to_recovery_and_validation() {
+
+}
+
+#[test]
+fn finalization_event_prunes() {
+
+}
+
+#[test]
+fn load_initial_session_window() {
+
+}
+
+#[test]
+fn adjust_session_window() {
+
+}
+
+#[test]
+fn same_candidate_in_multiple_blocks() {
+
+}
+
+#[test]
+fn approved_ancestor() {
+
+}
