@@ -27,11 +27,11 @@ use sp_runtime::{
 use parity_scale_codec::Decode;
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
-	traits::{Currency, ReservableCurrency, Get, Randomness},
+	traits::{Currency, ReservableCurrency, Get, Randomness, EnsureOrigin},
 	weights::{DispatchClass, Weight},
 };
 use primitives::v1::Id as ParaId;
-use frame_system::{ensure_signed, ensure_root};
+use frame_system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use crate::slots::{Leaser, LeaseError};
 
@@ -51,6 +51,9 @@ pub trait Config: frame_system::Config {
 
 	/// Something that provides randomness in the runtime.
 	type Randomness: Randomness<Self::Hash>;
+
+	/// The origin which may initiate auctions.
+	type InitiateOrigin: EnsureOrigin<Self::Origin>;
 }
 
 /// An auction index. We count auctions in this type.
@@ -67,8 +70,8 @@ type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, Balan
 // This module's storage items.
 decl_storage! {
 	trait Store for Module<T: Config> as Slots {
-		/// The number of auctions that have been started so far.
-		pub AuctionCounter get(fn auction_counter): AuctionIndex;
+		/// Number of auctions started so far.
+		pub AuctionCounter: AuctionIndex;
 
 		/// Information relating to the current auction, if there is one.
 		///
@@ -199,13 +202,13 @@ decl_module! {
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>
 		) {
-			// TODO: Allow for configurable origin
-			ensure_root(origin)?;
+			T::InitiateOrigin::ensure_origin(origin)?;
+
 			ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
 			ensure!(lease_period_index >= T::Leaser::lease_period_index(), Error::<T>::LeasePeriodInPast);
 
 			// Bump the counter.
-			let n = <AuctionCounter>::mutate(|n| { *n += 1; *n });
+			let n = AuctionCounter::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
 			let ending = frame_system::Module::<T>::block_number() + duration;
@@ -296,7 +299,7 @@ impl<T: Config> Module<T> {
 		auction_lease_period_index: LeasePeriodOf<T>,
 		winning_ranges: WinningData<T>,
 	) {
-		Self::deposit_event(RawEvent::AuctionClosed(Self::auction_counter()));
+		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get()));
 
 		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
@@ -487,9 +490,10 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
-		impl_outer_origin, parameter_types, assert_ok, assert_noop, assert_storage_noop,
-		traits::{OnInitialize, OnFinalize}
+		impl_outer_origin, parameter_types, ord_parameter_types, assert_ok, assert_noop, assert_storage_noop,
+		traits::{OnInitialize, OnFinalize}, dispatch::DispatchError::BadOrigin,
 	};
+	use frame_system::EnsureSignedBy;
 	use pallet_balances;
 	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 
@@ -609,11 +613,16 @@ mod tests {
 		pub const EndingPeriod: BlockNumber = 3;
 	}
 
+	ord_parameter_types!{
+		pub const Six: u64 = 6;
+	}
+
 	impl Config for Test {
 		type Event = ();
 		type Leaser = TestLeaser;
 		type EndingPeriod = EndingPeriod;
 		type Randomness = RandomnessCollectiveFlip;
+		type InitiateOrigin = EnsureSignedBy<Six, u64>;
 	}
 
 	type System = frame_system::Module<Test>;
@@ -646,14 +655,14 @@ mod tests {
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Auctions::auction_counter(), 0);
+			assert_eq!(AuctionCounter::get(), 0);
 			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
 			assert_eq!(Auctions::is_in_progress(), false);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 
-			assert_eq!(Auctions::auction_counter(), 0);
+			assert_eq!(AuctionCounter::get(), 0);
 			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
 			assert_eq!(Auctions::is_in_progress(), false);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
@@ -665,9 +674,10 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_noop!(Auctions::new_auction(Origin::signed(1), 5, 1), BadOrigin);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
-			assert_eq!(Auctions::auction_counter(), 1);
+			assert_eq!(AuctionCounter::get(), 1);
 			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 		});
@@ -677,7 +687,7 @@ mod tests {
 	fn bidding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 5));
 
 			assert_eq!(Balances::reserved_balance(1), 5);
@@ -693,7 +703,7 @@ mod tests {
 	fn under_bidding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 5));
 
@@ -707,7 +717,7 @@ mod tests {
 	fn over_bidding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 5));
 			assert_ok!(Auctions::bid(Origin::signed(2), 0.into(), 1, 1, 4, 6));
 
@@ -727,9 +737,9 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
-			assert_eq!(Auctions::auction_counter(), 1);
+			assert_eq!(AuctionCounter::get(), 1);
 			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
@@ -771,7 +781,7 @@ mod tests {
 	fn can_win_auction() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(1), 1);
 			assert_eq!(Balances::free_balance(1), 9);
@@ -791,7 +801,7 @@ mod tests {
 	fn can_win_incomplete_auction() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 4, 4, 5));
 			run_to_block(9);
 
@@ -806,7 +816,7 @@ mod tests {
 	fn should_choose_best_combination() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 1));
 			assert_ok!(Auctions::bid(Origin::signed(2), 0.into(), 1, 2, 3, 4));
 			assert_ok!(Auctions::bid(Origin::signed(3), 0.into(), 1, 4, 4, 2));
@@ -830,7 +840,7 @@ mod tests {
 	fn independent_bids_should_fail() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 1, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 1, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 2, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 4, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 2, 1));
@@ -845,7 +855,7 @@ mod tests {
 	fn deposit_credit_should_work() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
 			assert_eq!(Balances::reserved_balance(1), 5);
 			run_to_block(10);
@@ -855,7 +865,7 @@ mod tests {
 			]);
 			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 5);
 
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 2));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 2));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 2, 2, 2, 6));
 			// Only 1 reserved since we have a deposit credit of 5.
 			assert_eq!(Balances::reserved_balance(1), 1);
@@ -873,7 +883,7 @@ mod tests {
 	fn deposit_credit_on_alt_para_should_not_count() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
 			assert_eq!(Balances::reserved_balance(1), 5);
 			run_to_block(10);
@@ -883,7 +893,7 @@ mod tests {
 			]);
 			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 5);
 
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 2));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 2));
 			assert_ok!(Auctions::bid(Origin::signed(1), 1.into(), 2, 2, 2, 6));
 			// 6 reserved since we are bidding on a new para; only works because we don't
 			assert_eq!(Balances::reserved_balance(1), 6);
@@ -903,7 +913,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
 			for i in 1..6u64 {
 				run_to_block(i as _);
@@ -929,7 +939,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
 			for i in 1..6u64 {
 				run_to_block((i + 3) as _);

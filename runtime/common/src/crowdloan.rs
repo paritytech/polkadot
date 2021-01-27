@@ -446,7 +446,7 @@ decl_module! {
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
 			if let Some(n) = auctions::Module::<T>::is_ending(n) {
-				let auction_index = auctions::Module::<T>::auction_counter();
+				let auction_index = auctions::AuctionCounter::get();
 				if n.is_zero() {
 					// first block of ending period.
 					EndingsCount::mutate(|c| *c += 1);
