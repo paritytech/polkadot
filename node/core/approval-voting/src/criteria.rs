@@ -427,7 +427,7 @@ pub(crate) fn check_assignment_cert(
 				relay_vrf_modulo_transcript(relay_vrf_story, sample),
 				&vrf_output.0,
 				&vrf_proof.0,
-				assigned_core_transcript(claimed_core_index)
+				assigned_core_transcript(claimed_core_index),
 			).map_err(|_| InvalidAssignment)?;
 
 			// ensure that the `vrf_in_out` actually gives us the claimed core.
@@ -524,7 +524,85 @@ mod tests {
 	}
 
 	#[test]
-	fn check_rejects_out_of_bounds() {
+	fn assign_to_nonzero_core() {
+		let keystore = futures::executor::block_on(
+			make_keystore(&[Sr25519Keyring::Alice])
+		);
+
+		let relay_vrf_story = RelayVRFStory([42u8; 32]);
+		let assignments = compute_assignments(
+			&keystore,
+			relay_vrf_story,
+			&Config {
+				assignment_keys: assignment_keys(&[
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				]),
+				validator_groups: vec![vec![0], vec![1, 2]],
+				n_cores: 2,
+				zeroth_delay_tranche_width: 10,
+				relay_vrf_modulo_samples: 3,
+				n_delay_tranches: 40,
+			},
+			vec![(CoreIndex(0), GroupIndex(0)), (CoreIndex(1), GroupIndex(1))],
+		);
+
+		assert_eq!(assignments.len(), 1);
+		assert!(assignments.get(&CoreIndex(1)).is_some());
+	}
+
+	#[test]
+	fn assigned_cores_check_passes() {
+		let keystore = futures::executor::block_on(
+			make_keystore(&[Sr25519Keyring::Alice])
+		);
+
+		let config = Config {
+			assignment_keys: assignment_keys(&[
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+			]),
+			validator_groups: vec![vec![0], vec![1, 2]],
+			n_cores: 2,
+			zeroth_delay_tranche_width: 10,
+			relay_vrf_modulo_samples: 3,
+			n_delay_tranches: 40,
+		};
+
+		let relay_vrf_story = RelayVRFStory([42u8; 32]);
+		let assignments = compute_assignments(
+			&keystore,
+			relay_vrf_story.clone(),
+			&config,
+			vec![(CoreIndex(0), GroupIndex(0)), (CoreIndex(1), GroupIndex(1))],
+		);
+
+		for (core, assignment) in assignments {
+			check_assignment_cert(
+				core,
+				0,
+				&config,
+				relay_vrf_story.clone(),
+				assignment.cert(),
+				GroupIndex(core.0), // true in this case, but not always.
+			).unwrap();
+		}
+	}
+
+	#[test]
+	fn check_rejects_claimed_core_out_of_bounds() {
+
+	}
+
+	#[test]
+	fn check_rejects_in_backing_group() {
+
+	}
+
+	#[test]
+	fn check_rejects_nonexistent_key() {
 
 	}
 
@@ -539,7 +617,12 @@ mod tests {
 	}
 
 	#[test]
-	fn check_rejects_in_backing_group() {
+	fn check_rejects_delay_core_wrong() {
+
+	}
+
+	#[test]
+	fn check_rejects_modulo_core_wrong() {
 
 	}
 }
