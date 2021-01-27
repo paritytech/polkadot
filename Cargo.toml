@@ -118,3 +118,11 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.rpm.files]
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
+
+[patch.'https://github.com/paritytech/substrate']
+sp-io = { git = "https://github.com/cheme/substrate", branch = "validation_io" }
+sp-keystore = { git = "https://github.com/cheme/substrate", branch = "validation_io" }
+sp-core = { git = "https://github.com/cheme/substrate", branch = "validation_io" }
+sp-externalities = { git = "https://github.com/cheme/substrate", branch = "validation_io" }
+sp-state-machine = { git = "https://github.com/cheme/substrate", branch = "validation_io" }
+sp-wasm-interface = { git = "https://github.com/cheme/substrate", branch = "validation_io" }

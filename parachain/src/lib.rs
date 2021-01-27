@@ -58,7 +58,7 @@ use crate::primitives::{ValidationParams, ValidationResult, ValidationCode};
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
-impl Validation for std::sync::Arc<ValidationCode> {
+impl sp_io::Validation for ValidationCode {
 	fn validation_code(&self) -> Vec<u8> {
 		self.0.clone()
 	}
