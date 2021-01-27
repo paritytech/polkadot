@@ -386,4 +386,25 @@ mod tests {
 			assert!(queue_downward_message(a, big).is_err());
 		});
 	}
+
+	#[test]
+	fn verify_dmq_mqc_head_is_externally_accessible() {
+		use primitives::v1::well_known_keys;
+		use hex_literal::hex;
+
+		let a = ParaId::from(2020);
+
+		new_test_ext(default_genesis_config()).execute_with(|| {
+			let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+			assert_eq!(head, None);
+
+			queue_downward_message(a, vec![1, 2, 3]).unwrap();
+
+			let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+			assert_eq!(
+				head,
+				Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
+			);
+		});
+	}
 }

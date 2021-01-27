@@ -134,6 +134,23 @@ pub mod well_known_keys {
 				.collect()
 		})
 	}
+
+	/// The MQC head for the downward message queue of the given para. See more in the `Dmp` module.
+	///
+	/// The storage entry stores a `Hash`. This is polkadot hash which is at the moment
+	/// `blake2b-256`.
+	pub fn dmq_mqc_head(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
 }
 
 /// Unique identifier for the Inclusion Inherent
