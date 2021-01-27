@@ -26,6 +26,7 @@ use parity_scale_codec::{Decode, Encode};
 use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
+use super::*;
 
 #[cfg(not(any(target_os = "android", target_os = "unknown")))]
 pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC, WORKER_ARGS};
@@ -195,38 +196,6 @@ pub fn validate_candidate(
 /// The host functions provided by the wasm executor to the parachain wasm blob.
 type HostFunctions = sp_io::SubstrateHostFunctions;
 
-sp_externalities::decl_extension! {
-	///  executor extension.
-	pub struct ValidationExt(Box<dyn Validation>);
-}
-
-impl ValidationExt {
-	/// New instance of task executor extension.
-	pub fn new(validation_ext: impl Validation) -> Self {
-		Self(Box::new(validation_ext))
-	}
-}
-
-/// Base methods to implement validation extension.
-pub trait Validation: Send + 'static {
-	/// Get the validation code currently running.
-	/// This can be use to check validity or to complete
-	/// proofs.
-	fn validation_code(&self) -> Vec<u8>;
-}
-
-impl Validation for Arc<ValidationCode> {
-	fn validation_code(&self) -> Vec<u8> {
-		self.0.clone()
-	}
-}
-
-impl Validation for &'static [u8] {
-	fn validation_code(&self) -> Vec<u8> {
-		self.to_vec()
-	}
-}
-
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
@@ -269,18 +238,6 @@ pub fn validate_candidate_internal(
 		.map_err(|_| ValidationError::InvalidCandidate(InvalidCandidate::BadReturn).into())
 }
 
-
-use sp_runtime_interface::runtime_interface;
-#[runtime_interface]
-pub trait Validation {
-	/// TODO
-	fn validation_code(&mut self) -> Vec<u8> {
-		use sp_externalities::ExternalitiesExt;
-		let extension = self.extension::<ValidationExt>()
-			.expect("Cannot set capacity without dynamic runtime dispatcher (RuntimeSpawnExt)");
-		extension.validation_code()
-	}
-}
 
 /// The validation externalities that will panic on any storage related access. They just provide
 /// access to the parachain extension.
