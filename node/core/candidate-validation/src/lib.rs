@@ -124,7 +124,7 @@ async fn run(
 				}
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
-					validation_code,
+					validation_code, // TODO could Arc in message, could only be a win
 					descriptor,
 					pov,
 					response_sender,
@@ -135,7 +135,7 @@ async fn run(
 						&mut ctx,
 						isolation_strategy.clone(),
 						persisted_validation_data,
-						validation_code,
+						Arc::new(validation_code),
 						descriptor,
 						pov,
 						spawn.clone(),
@@ -295,7 +295,7 @@ async fn spawn_validate_from_chain_state(
 		ctx,
 		isolation_strategy,
 		validation_data,
-		validation_code,
+		Arc::new(validation_code), // TODO arc before
 		descriptor.clone(),
 		pov,
 		spawn,
@@ -333,7 +333,7 @@ async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	isolation_strategy: IsolationStrategy,
 	persisted_validation_data: PersistedValidationData,
-	validation_code: ValidationCode,
+	validation_code: Arc<ValidationCode>,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
@@ -390,7 +390,7 @@ trait ValidationBackend {
 
 	fn validate<S: SpawnNamed + 'static>(
 		arg: Self::Arg,
-		validation_code: &ValidationCode,
+		validation_code: Arc<ValidationCode>,
 		params: ValidationParams,
 		spawn: S,
 	) -> Result<WasmValidationResult, ValidationError>;
@@ -403,12 +403,14 @@ impl ValidationBackend for RealValidationBackend {
 
 	fn validate<S: SpawnNamed + 'static>(
 		isolation_strategy: IsolationStrategy,
-		validation_code: &ValidationCode,
+		validation_code: Arc<ValidationCode>,
 		params: ValidationParams,
 		spawn: S,
 	) -> Result<WasmValidationResult, ValidationError> {
+		let ext = validation_code.clone();
 		wasm_executor::validate_candidate(
-			&validation_code.0,
+			validation_code.0.as_slice(),
+			ext,
 			params,
 			&isolation_strategy,
 			spawn,
@@ -423,7 +425,7 @@ impl ValidationBackend for RealValidationBackend {
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,
-	validation_code: ValidationCode,
+	validation_code: Arc<ValidationCode>,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: S,
@@ -444,7 +446,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
-	match B::validate(backend_arg, &validation_code, params, spawn) {
+	match B::validate(backend_arg, validation_code, params, spawn) {
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Timeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::ParamsTooLarge(l))) =>
@@ -571,6 +573,7 @@ mod tests {
 	use futures::executor;
 	use assert_matches::assert_matches;
 	use sp_keyring::Sr25519Keyring;
+	use std::sync::Arc;
 
 	struct MockValidationBackend;
 
@@ -583,7 +586,7 @@ mod tests {
 
 		fn validate<S: SpawnNamed + 'static>(
 			arg: Self::Arg,
-			_validation_code: &ValidationCode,
+			_validation_code: Arc<ValidationCode>,
 			_params: ValidationParams,
 			_spawn: S,
 		) -> Result<WasmValidationResult, ValidationError> {
@@ -906,7 +909,7 @@ mod tests {
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
 			validation_data.clone(),
-			vec![1, 2, 3].into(),
+			Arc::new(vec![1, 2, 3].into()),
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -942,7 +945,7 @@ mod tests {
 				))
 			},
 			validation_data,
-			vec![1, 2, 3].into(),
+			Arc::new(vec![1, 2, 3].into()),
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -971,7 +974,7 @@ mod tests {
 				))
 			},
 			validation_data,
-			vec![1, 2, 3].into(),
+			Arc::new(vec![1, 2, 3].into()),
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),

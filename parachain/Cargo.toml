@@ -14,6 +14,7 @@ sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", d
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
 

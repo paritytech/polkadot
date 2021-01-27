@@ -20,8 +20,8 @@
 //! Assuming the parameters are correct, this module provides a wrapper around
 //! a WASM VM for re-execution of a parachain candidate.
 
-use std::{any::{TypeId, Any}, path::PathBuf};
-use crate::primitives::{ValidationParams, ValidationResult};
+use std::{any::{TypeId, Any}, path::PathBuf, sync::Arc};
+use crate::primitives::{ValidationParams, ValidationResult, ValidationCode};
 use parity_scale_codec::{Decode, Encode};
 use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
@@ -166,13 +166,19 @@ pub enum InternalError {
 /// This will fail if the validation code is not a proper parachain validation module.
 pub fn validate_candidate(
 	validation_code: &[u8],
+	validation_ext: impl Validation,
 	params: ValidationParams,
 	isolation_strategy: &IsolationStrategy,
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
 	match isolation_strategy {
 		IsolationStrategy::InProcess => {
-			validate_candidate_internal(validation_code, &params.encode(), spawner)
+			validate_candidate_internal(
+				validation_code,
+				&params.encode(),
+				spawner,
+				validation_ext,
+			)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		IsolationStrategy::ExternalProcessSelfHost(pool) => {
@@ -189,6 +195,38 @@ pub fn validate_candidate(
 /// The host functions provided by the wasm executor to the parachain wasm blob.
 type HostFunctions = sp_io::SubstrateHostFunctions;
 
+sp_externalities::decl_extension! {
+	///  executor extension.
+	pub struct ValidationExt(Box<dyn Validation>);
+}
+
+impl ValidationExt {
+	/// New instance of task executor extension.
+	pub fn new(validation_ext: impl Validation) -> Self {
+		Self(Box::new(validation_ext))
+	}
+}
+
+/// Base methods to implement validation extension.
+pub trait Validation: Send + 'static {
+	/// Get the validation code currently running.
+	/// This can be use to check validity or to complete
+	/// proofs.
+	fn validation_code(&self) -> Vec<u8>;
+}
+
+impl Validation for Arc<ValidationCode> {
+	fn validation_code(&self) -> Vec<u8> {
+		self.0.clone()
+	}
+}
+
+impl Validation for &'static [u8] {
+	fn validation_code(&self) -> Vec<u8> {
+		self.to_vec()
+	}
+}
+
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
@@ -196,16 +234,23 @@ pub fn validate_candidate_internal(
 	validation_code: &[u8],
 	encoded_call_data: &[u8],
 	spawner: impl SpawnNamed + 'static,
+	validation_ext: impl Validation,
 ) -> Result<ValidationResult, ValidationError> {
+	let mut host_functions = HostFunctions::host_functions();
+	host_functions.extend(validation::HostFunctions::host_functions().into_iter());
 	let executor = sc_executor::WasmExecutor::new(
+		#[cfg(all(feature = "wasmtime", not(any(target_os = "android", target_os = "unknown"))))]
+		sc_executor::WasmExecutionMethod::Compiled,
+		#[cfg(any(not(feature = "wasmtime"), target_os = "android", target_os = "unknown"))]
 		sc_executor::WasmExecutionMethod::Interpreted,
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
 		Some(1024),
-		HostFunctions::host_functions(),
+		host_functions,
 		8
 	);
 
 	let mut extensions = Extensions::new();
+	extensions.register(ValidationExt::new(validation_ext));
 	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
 	extensions.register(sp_core::traits::CallInWasmExt::new(executor.clone()));
 
@@ -222,6 +267,19 @@ pub fn validate_candidate_internal(
 
 	ValidationResult::decode(&mut &res[..])
 		.map_err(|_| ValidationError::InvalidCandidate(InvalidCandidate::BadReturn).into())
+}
+
+
+use sp_runtime_interface::runtime_interface;
+#[runtime_interface]
+pub trait Validation {
+	/// TODO
+	fn validation_code(&mut self) -> Vec<u8> {
+		use sp_externalities::ExternalitiesExt;
+		let extension = self.extension::<ValidationExt>()
+			.expect("Cannot set capacity without dynamic runtime dispatcher (RuntimeSpawnExt)");
+		extension.validation_code()
+	}
 }
 
 /// The validation externalities that will panic on any storage related access. They just provide
