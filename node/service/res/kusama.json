@@ -2,12 +2,6 @@
   "name": "Kusama",
   "id": "ksmcc3",
   "bootNodes": [
-    "/dns/p2p.cc3-0.kusama.network/tcp/30100/p2p/12D3KooWDgtynm4S9M3m6ZZhXYu2RrWKdvkCSScc25xKDVSg1Sjd",
-    "/dns/p2p.cc3-1.kusama.network/tcp/30100/p2p/12D3KooWNpGriWPmf621Lza9UWU9eLLBdCFaErf6d4HSK7Bcqnv4",
-    "/dns/p2p.cc3-2.kusama.network/tcp/30100/p2p/12D3KooWLmLiB4AenmN2g2mHbhNXbUcNiGi99sAkSk1kAQedp8uE",
-    "/dns/p2p.cc3-3.kusama.network/tcp/30100/p2p/12D3KooWEGHw84b4hfvXEfyq4XWEmWCbRGuHMHQMpby4BAtZ4xJf",
-    "/dns/p2p.cc3-4.kusama.network/tcp/30100/p2p/12D3KooWF9KDPRMN8WpeyXhEeURZGP8Dmo7go1tDqi7hTYpxV9uW",
-    "/dns/p2p.cc3-5.kusama.network/tcp/30100/p2p/12D3KooWDiwMeqzvgWNreS9sV1HW3pZv1PA7QGA7HUCo7FzN5gcA",
     "/dns/p2p.0.kusama.network/tcp/30333/p2p/12D3KooWJDohybWd7FvRmyeGjgi56yy36mRWLHmgRprFdUadUt6b",
     "/dns/p2p.1.kusama.network/tcp/30333/p2p/12D3KooWC7dnTvDY97afoLrvQSBrh7dDFEkWniTwyxAsBjfpaZk6",
     "/dns/p2p.2.kusama.network/tcp/30333/p2p/12D3KooWGGK6Mj1pWF1bk4R1HjBQ4E7bgkfSJ5gmEfVRuwRZapT5",

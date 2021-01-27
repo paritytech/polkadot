@@ -30,7 +30,7 @@ use polkadot_subsystem::{
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
-	CollatorProtocolMessage,
+	CollatorProtocolMessage, ApprovalDistributionMessage,
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
@@ -401,7 +401,9 @@ async fn handle_peer_messages<M>(
 	for message in messages {
 		outgoing_messages.push(match message {
 			WireMessage::ViewUpdate(new_view) => {
-				if new_view.heads.len() > MAX_VIEW_HEADS {
+				if new_view.heads.len() > MAX_VIEW_HEADS ||
+					new_view.finalized_number < peer_data.view.finalized_number
+				{
 					net.report_peer(
 						peer.clone(),
 						MALFORMED_VIEW_COST,
@@ -502,7 +504,11 @@ async fn dispatch_validation_events_to_all<I>(
 			StatementDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
 
-		a.chain(b).chain(p).chain(s).filter_map(|x| x)
+		let ap = std::iter::once(event.focus().ok().map(|m| AllMessages::ApprovalDistribution(
+			ApprovalDistributionMessage::NetworkBridgeUpdateV1(m)
+		)));
+
+		a.chain(b).chain(p).chain(s).chain(ap).filter_map(|x| x)
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
@@ -545,8 +551,11 @@ mod tests {
 
 	use sc_network::Event as NetworkEvent;
 
-	use polkadot_subsystem::messages::{StatementDistributionMessage, BitfieldDistributionMessage};
 	use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
+	use polkadot_subsystem::messages::{
+		StatementDistributionMessage, BitfieldDistributionMessage,
+		ApprovalDistributionMessage,
+	};
 	use polkadot_node_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 	};
@@ -740,6 +749,13 @@ mod tests {
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ApprovalDistribution(
+				ApprovalDistributionMessage::NetworkBridgeUpdateV1(e)
 			) if e == event.focus().expect("could not focus message")
 		);
 	}
@@ -1241,6 +1257,46 @@ mod tests {
 					peer_a.clone(),
 					PeerSet::Validation,
 					wire_message.clone(),
+				),
+			);
+		});
+	}
+
+	#[test]
+	fn view_finalized_number_can_not_go_down() {
+		test_harness(|test_harness| async move {
+			let TestHarness { mut network_handle, .. } = test_harness;
+
+			let peer_a = PeerId::random();
+
+			network_handle.connect_peer(
+				peer_a.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
+
+			network_handle.peer_message(
+				peer_a.clone(),
+				PeerSet::Validation,
+				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+					View { heads: vec![Hash::repeat_byte(0x01)], finalized_number: 1 },
+				).encode(),
+			).await;
+
+			network_handle.peer_message(
+				peer_a.clone(),
+				PeerSet::Validation,
+				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+					View { heads: vec![], finalized_number: 0 },
+				).encode(),
+			).await;
+
+			let actions = network_handle.next_network_actions(1).await;
+			assert_network_actions_contains(
+				&actions,
+				&NetworkAction::ReputationChange(
+					peer_a.clone(),
+					MALFORMED_VIEW_COST,
 				),
 			);
 		});

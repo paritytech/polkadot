@@ -50,6 +50,7 @@ use std::sync::Arc;
 use prometheus_endpoint::Registry;
 use sc_executor::native_executor_instance;
 use service::RpcHandlers;
+use telemetry::TelemetryConnectionNotifier;
 
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
@@ -215,6 +216,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 				babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
+			Option<telemetry::TelemetrySpan>,
 		)
 	>,
 	Error
@@ -230,7 +232,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-	let (client, backend, keystore_container, task_manager) =
+	let (client, backend, keystore_container, task_manager, telemetry_span) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
@@ -282,8 +284,10 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
-	let finality_proof_provider =
-		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
+	let finality_proof_provider = GrandpaFinalityProofProvider::new_for_service(
+		backend.clone(),
+		Some(shared_authority_set.clone()),
+	);
 
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
 	let rpc_setup = shared_voter_state.clone();
@@ -332,7 +336,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup)
+		other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry_span)
 	})
 }
 
@@ -398,6 +402,7 @@ where
 	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
+	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -467,6 +472,9 @@ where
 			spawner.clone(),
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
 	};
@@ -558,7 +566,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup)
+		other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry_span)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
@@ -571,6 +579,25 @@ pub fn new_full<RuntimeApi, Executor>(
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 	#[cfg(feature = "real-overseer")]
 	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
+
+	// TODO: At the moment, the collator protocol uses notifications protocols to download
+	// collations. Because of DoS-protection measures, notifications protocols have a very limited
+	// bandwidth capacity, resulting in the collation download taking a long time.
+	// The lines of code below considerably relaxes this DoS protection in order to circumvent
+	// this problem. This configuraiton change should preferably not reach any live network, and
+	// should be removed once the collation protocol is finished.
+	// Tracking issue: https://github.com/paritytech/polkadot/issues/2283
+	#[cfg(feature = "real-overseer")]
+	fn adjust_yamux(cfg: &mut sc_network::config::NetworkConfiguration) {
+		cfg.yamux_window_size = Some(5 * 1024 * 1024);
+	}
+	#[cfg(not(feature = "real-overseer"))]
+	fn adjust_yamux(_: &mut sc_network::config::NetworkConfiguration) {}
+	adjust_yamux(&mut config.network);
+
+	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
+		&config, task_manager.spawn_handle(), backend.clone(),
+	));
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -589,11 +616,9 @@ pub fn new_full<RuntimeApi, Executor>(
 		);
 	}
 
-	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
-
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
 
-	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
+	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
@@ -604,9 +629,9 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager: &mut task_manager,
 		on_demand: None,
 		remote_blockchain: None,
-		telemetry_connection_sinks: telemetry_connection_sinks.clone(),
 		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
+		telemetry_span,
 	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
@@ -779,7 +804,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			config,
 			link: link_half,
 			network: network.clone(),
-			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
+			telemetry_on_connect: telemetry_connection_notifier.map(|x| x.on_connect_stream()),
 			voting_rule,
 			prometheus_registry: prometheus_registry.clone(),
 			shared_voter_state,
@@ -805,7 +830,11 @@ pub fn new_full<RuntimeApi, Executor>(
 }
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, RpcHandlers), Error>
+fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
+	TaskManager,
+	RpcHandlers,
+	Option<TelemetryConnectionNotifier>,
+), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
@@ -815,7 +844,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
-	let (client, backend, keystore_container, mut task_manager, on_demand) =
+	let (client, backend, keystore_container, mut task_manager, on_demand, telemetry_span) =
 		service::new_light_parts::<Block, Runtime, Dispatch>(&config)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
@@ -886,12 +915,11 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
+	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		on_demand: Some(on_demand),
 		remote_blockchain: Some(backend.remote_blockchain()),
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
 		task_manager: &mut task_manager,
-		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
 		config,
 		keystore: keystore_container.sync_keystore(),
 		backend,
@@ -900,11 +928,12 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		network,
 		network_status_sinks,
 		system_rpc_tx,
+		telemetry_span,
 	})?;
 
 	network_starter.start_network();
 
-	Ok((task_manager, rpc_handlers))
+	Ok((task_manager, rpc_handlers, telemetry_connection_notifier))
 }
 
 /// Builds a new object suitable for chain operations.
@@ -940,7 +969,11 @@ pub fn new_chain_ops(mut config: &mut Configuration, jaeger_agent: Option<std::n
 }
 
 /// Build a new light node.
-pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), Error> {
+pub fn build_light(config: Configuration) -> Result<(
+	TaskManager,
+	RpcHandlers,
+	Option<TelemetryConnectionNotifier>,
+), Error> {
 	if config.chain_spec.is_rococo() {
 		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	} else if config.chain_spec.is_kusama() {
