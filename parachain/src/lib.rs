@@ -68,11 +68,13 @@ pub trait Validation {
 	}
 }
 
+#[cfg(feature = "std")]
 sp_externalities::decl_extension! {
 	///  executor extension.
 	pub struct ValidationExt(Box<dyn Validation>);
 }
 
+#[cfg(feature = "std")]
 impl ValidationExt {
 	/// New instance of task executor extension.
 	pub fn new(validation_ext: impl Validation) -> Self {
