@@ -168,7 +168,7 @@ impl Collator {
 					block_data: block_data.encode().into(),
 				},
 				processed_downward_messages: 0,
-				hrmp_watermark: validation_data.block_number,
+				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
 			async move { Some(collation) }.boxed()

@@ -103,7 +103,7 @@ impl Default for TestState {
 	fn default() -> Self {
 		let persisted_validation_data = PersistedValidationData {
 			parent_head: HeadData(vec![7, 8, 9]),
-			block_number: 5,
+			relay_parent_number: 5,
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 			max_pov_size: 1024,

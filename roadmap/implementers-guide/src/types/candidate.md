@@ -107,7 +107,7 @@ struct PersistedValidationData {
 	/// The parent head-data.
 	parent_head: HeadData,
 	/// The relay-chain block number this is in the context of. This informs the collator.
-	block_number: BlockNumber,
+	relay_parent_number: BlockNumber,
 	/// The relay-chain block storage root this is in the context of.
 	relay_storage_root: Hash,
 	/// The MQC head for the DMQ.

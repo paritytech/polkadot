@@ -34,7 +34,7 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 
 	Some(PersistedValidationData {
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
-		block_number: relay_parent_number,
+		relay_parent_number,
 		relay_storage_root,
 		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
 		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
