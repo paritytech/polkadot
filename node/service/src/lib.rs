@@ -38,6 +38,7 @@ use {
 	sp_keystore::SyncCryptoStorePtr,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
+	babe_primitives::BabeApi,
 };
 
 use sp_core::traits::SpawnNamed;
@@ -386,7 +387,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-	RuntimeClient::Api: ParachainHost<Block>,
+	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;

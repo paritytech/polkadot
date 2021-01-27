@@ -524,8 +524,8 @@ impl From<u32> for CoreIndex {
 }
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy, Debug)]
-#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq))]
+#[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Hash))]
 pub struct GroupIndex(pub u32);
 
 impl From<u32> for GroupIndex {
