@@ -26,3 +26,4 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 futures = { version = "0.3.12", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+polkadot-primitives = { path = "../../../primitives", features = [ "test-features" ] }
