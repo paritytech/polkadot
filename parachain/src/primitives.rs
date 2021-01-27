@@ -267,7 +267,7 @@ pub struct ValidationParams {
 	/// The collation body.
 	pub block_data: BlockData,
 	/// The current relay-chain block number.
-	pub relay_chain_height: RelayChainBlockNumber,
+	pub relay_parent_number: RelayChainBlockNumber,
 	/// The relay-chain block's storage root.
 	pub relay_storage_root: Hash,
 	/// The MQC head for the DMQ.

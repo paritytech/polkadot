@@ -67,7 +67,7 @@ fn execute_good_on_parent(isolation_strategy: IsolationStrategy) {
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			relay_chain_height: 1,
+			relay_parent_number: 1,
 			relay_storage_root: Default::default(),
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
@@ -107,7 +107,7 @@ fn execute_good_chain_on_parent() {
 			ValidationParams {
 				parent_head: GenericHeadData(parent_head.encode()),
 				block_data: GenericBlockData(block_data.encode()),
-				relay_chain_height: number as RelayChainBlockNumber + 1,
+				relay_parent_number: number as RelayChainBlockNumber + 1,
 				relay_storage_root: Default::default(),
 				hrmp_mqc_heads: Vec::new(),
 				dmq_mqc_head: Default::default(),
@@ -148,7 +148,7 @@ fn execute_bad_on_parent() {
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			relay_chain_height: 1,
+			relay_parent_number: 1,
 			relay_storage_root: Default::default(),
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),

@@ -401,7 +401,7 @@ digraph {
             <tr><td border="0" colspan="2" port="name">ValidationParams</td></tr>
             <tr><td>parent_head</td><td port="parent_head">HeadData</td></tr>
             <tr><td>block_data</td><td port="block_data">BlockData</td></tr>
-            <tr><td>relay_chain_height</td><td port="relay_chain_height">RelayChainBlockNumber</td></tr>
+            <tr><td>relay_parent_number</td><td port="relay_parent_number">RelayChainBlockNumber</td></tr>
             <tr><td>relay_storage_root</td><td port="relay_storage_root">Hash</td></tr>
             <tr><td>dmq_mqc_head</td><td port="dmq_mqc_head">Hash</td></tr>
             <tr><td>hrmp_mqc_heads</td><td port="hrmp_mqc_heads">Vec&lt;(Id, Hash)&gt;</td></tr>
@@ -410,7 +410,7 @@ digraph {
 
     ValidationParams:parent_head -> HeadData:name
     ValidationParams:block_data -> BlockData:name
-    ValidationParams:relay_chain_height -> RelayChainBlockNumber:w
+    ValidationParams:relay_parent_number -> RelayChainBlockNumber:w
 
     RelayChainBlockNumber [label = "polkadot_core_primitives::BlockNumber"]
 
