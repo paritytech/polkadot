@@ -36,7 +36,6 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
 		relay_parent_number,
 		relay_storage_root,
-		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
 		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
 		max_pov_size: config.max_pov_size,
 	})

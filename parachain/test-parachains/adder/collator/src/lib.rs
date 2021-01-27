@@ -232,7 +232,6 @@ mod tests {
 				block_data: collation.proof_of_validity.block_data,
 				relay_parent_number: 1,
 				relay_storage_root: Default::default(),
-				hrmp_mqc_heads: Vec::new(),
 				dmq_mqc_head: Default::default(),
 			},
 			&IsolationStrategy::InProcess,

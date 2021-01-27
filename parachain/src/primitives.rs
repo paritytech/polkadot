@@ -275,10 +275,6 @@ pub struct ValidationParams {
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
 	/// passed by the collator.
 	pub dmq_mqc_head: Hash,
-	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
 }
 
 /// The result of parachain validation.

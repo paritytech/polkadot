@@ -441,7 +441,6 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		relay_parent_number: persisted_validation_data.relay_parent_number,
 		relay_storage_root: persisted_validation_data.relay_storage_root,
 		dmq_mqc_head: persisted_validation_data.dmq_mqc_head,
-		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {

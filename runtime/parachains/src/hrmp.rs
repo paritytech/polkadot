@@ -1084,7 +1084,8 @@ impl<T: Config> Module<T> {
 	/// Returns the list of MQC heads for the inbound channels of the given recipient para paired
 	/// with the sender para ids. This vector is sorted ascending by the para id and doesn't contain
 	/// multiple entries with the same sender.
-	pub(crate) fn hrmp_mqc_heads(recipient: ParaId) -> Vec<(ParaId, Hash)> {
+	#[cfg(test)]
+	fn hrmp_mqc_heads(recipient: ParaId) -> Vec<(ParaId, Hash)> {
 		let sender_set = <Self as Store>::HrmpIngressChannelsIndex::get(&recipient);
 
 		// The ingress channels vector is sorted, thus `mqc_heads` is sorted as well.

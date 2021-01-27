@@ -94,15 +94,12 @@ digraph {
             <tr><td>parent_head</td><td port="parent_head">HeadData</td></tr>
             <tr><td>block_number</td><td port="block_number">N</td></tr>
             <tr><td>relay_storage_root</td><td port="relay_storage_root">Hash</td></tr>
-            <tr><td>hrmp_mqc_heads</td><td port="hrmp_mqc_heads">Vec&lt;(Id, Hash)&gt;</td></tr>
             <tr><td>dmq_mqc_head</td><td port="dmq_mqc_head">Hash</td></tr>
             <tr><td>max_pov_size</td><td port="max_pov_size">u32</td></tr>
         </table>
     >]
 
     PersistedValidationData:parent_head -> HeadData:w
-    PersistedValidationData:hrmp_mqc_heads -> Id:w
-    PersistedValidationData:hrmp_mqc_heads -> MQCHash
     PersistedValidationData:dmq_mqc_head -> MQCHash
 
     PersistedValidationDataHash [label = "Hash", shape="doublecircle", fill="gray90"]
@@ -404,7 +401,6 @@ digraph {
             <tr><td>relay_parent_number</td><td port="relay_parent_number">RelayChainBlockNumber</td></tr>
             <tr><td>relay_storage_root</td><td port="relay_storage_root">Hash</td></tr>
             <tr><td>dmq_mqc_head</td><td port="dmq_mqc_head">Hash</td></tr>
-            <tr><td>hrmp_mqc_heads</td><td port="hrmp_mqc_heads">Vec&lt;(Id, Hash)&gt;</td></tr>
         </table>
     >]
 

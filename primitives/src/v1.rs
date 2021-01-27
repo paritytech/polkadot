@@ -380,10 +380,6 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	pub relay_parent_number: N,
 	/// The relay-chain block storage root this is in the context of.
 	pub relay_storage_root: Hash,
-	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
 	/// The MQC head for the DMQ.
 	///
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
