@@ -66,16 +66,15 @@ use std::task::Poll;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::{oneshot, mpsc};
 use futures::{
 	poll, select,
 	future::BoxFuture,
-	stream::{self, FuturesUnordered},
-	Future, FutureExt, SinkExt, StreamExt,
+	stream::{FuturesUnordered, Fuse},
+	Future, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
 use oorandom::Rand32;
-use streamunordered::{StreamYield, StreamUnordered};
 
 use polkadot_primitives::v1::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -85,13 +84,14 @@ use polkadot_subsystem::messages::{
 	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
 	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
-	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage, CollatorProtocolMessage,
+	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage,
+	CollatorProtocolMessage, AvailabilityRecoveryMessage, ApprovalDistributionMessage,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, JaegerSpan, jaeger,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}};
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
 
 // A capacity of bounded channels inside the overseer.
@@ -102,6 +102,8 @@ const STOP_DELAY: u64 = 1;
 const LOG_TARGET: &'static str = "overseer";
 // Rate at which messages are timed.
 const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
+
+
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -137,7 +139,7 @@ enum ToOverseer {
 /// This structure exists solely for the purposes of decoupling
 /// `Overseer` code from the client code and the necessity to call
 /// `HeaderBackend::block_number_from_id()`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockInfo {
 	/// hash of the block.
 	pub hash: Hash,
@@ -189,7 +191,7 @@ enum ExternalRequest {
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
 pub struct OverseerHandler {
-	events_tx: mpsc::Sender<Event>,
+	events_tx: metered::MeteredSender<Event>,
 }
 
 impl OverseerHandler {
@@ -290,7 +292,7 @@ impl Debug for ToOverseer {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M> {
-	tx: mpsc::Sender<FromOverseer<M>>,
+	tx: metered::MeteredSender<FromOverseer<M>>,
 	name: &'static str,
 }
 
@@ -323,8 +325,8 @@ impl<T> From<T> for MaybeTimed<T> {
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 #[derive(Debug)]
 pub struct OverseerSubsystemContext<M>{
-	rx: mpsc::Receiver<FromOverseer<M>>,
-	tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
+	rx: metered::MeteredReceiver<FromOverseer<M>>,
+	tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	metrics: Metrics,
 	rng: Rand32,
 	threshold: u32,
@@ -339,8 +341,8 @@ impl<M> OverseerSubsystemContext<M> {
 	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
 	/// to the range `0.0..=1.0`.
 	fn new(
-		rx: mpsc::Receiver<FromOverseer<M>>,
-		tx: mpsc::Sender<MaybeTimed<ToOverseer>>,
+		rx: metered::MeteredReceiver<FromOverseer<M>>,
+		tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 		metrics: Metrics,
 		increment: u64,
 		mut capture_rate: f64,
@@ -361,7 +363,10 @@ impl<M> OverseerSubsystemContext<M> {
 	///
 	/// Intended for tests.
 	#[allow(unused)]
-	fn new_unmetered(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<MaybeTimed<ToOverseer>>) -> Self {
+	fn new_unmetered(
+		rx: metered::MeteredReceiver<FromOverseer<M>>,
+		tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
+	) -> Self {
 		let metrics = Metrics::default();
 		OverseerSubsystemContext::new(rx, tx, metrics, 0, 0.0)
 	}
@@ -374,31 +379,6 @@ impl<M> OverseerSubsystemContext<M> {
 		};
 
 		MaybeTimed { timer, t }
-	}
-
-	/// Make a standalone function which can construct a `MaybeTimed` wrapper around some `T`
-	/// without borrowing `self`.
-	///
-	/// This is somewhat more expensive than `self.maybe_timed` because it must clone some stuff.
-	fn make_maybe_timed<T>(&mut self) -> impl FnMut(T) -> MaybeTimed<T> {
-		// We don't want to simply clone this RNG because we don't want to duplicate its state.
-		// It's not ever going to be used for cryptographic purposes, but it's still better to
-		// keep good habits.
-		let (seed, increment) = self.rng.state();
-		let mut rng = Rand32::new_inc(seed, increment + 1);
-
-		let metrics = self.metrics.clone();
-		let threshold = self.threshold;
-
-		move |t| {
-			let timer = if rng.rand_u32() <= threshold {
-				metrics.time_message_hold()
-			} else {
-				None
-			};
-
-			MaybeTimed { timer, t }
-		}
 	}
 }
 
@@ -428,7 +408,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		self.send_timed(ToOverseer::SpawnJob {
 			name,
 			s,
-		}).await.map_err(Into::into)
+		}).map_err(|s| s.into_send_error().into())
 	}
 
 	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
@@ -437,23 +417,25 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		self.send_timed(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
-		}).await.map_err(Into::into)
+		}).map_err(|s| s.into_send_error().into())
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) {
-		self.send_and_log_error(ToOverseer::SubsystemMessage(msg)).await
+		self.send_and_log_error(ToOverseer::SubsystemMessage(msg))
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
 	{
-		self.send_all_timed_or_log(msgs).await
+		for msg in msgs {
+			self.send_and_log_error(ToOverseer::SubsystemMessage(msg));
+		}
 	}
 }
 
 impl<M> OverseerSubsystemContext<M> {
-	async fn send_and_log_error(&mut self, msg: ToOverseer) {
-		if self.send_timed(msg).await.is_err() {
+	fn send_and_log_error(&mut self, msg: ToOverseer) {
+		if self.send_timed(msg).is_err() {
 			tracing::debug!(
 				target: LOG_TARGET,
 				msg_type = std::any::type_name::<M>(),
@@ -462,33 +444,13 @@ impl<M> OverseerSubsystemContext<M> {
 		}
 	}
 
-	async fn send_timed(&mut self, msg: ToOverseer) -> Result<
+	fn send_timed(&mut self, msg: ToOverseer) -> Result<
 		(),
-		<mpsc::Sender<MaybeTimed<ToOverseer>> as futures::Sink<MaybeTimed<ToOverseer>>>::Error
+		mpsc::TrySendError<MaybeTimed<ToOverseer>>,
 	>
 	{
 		let msg = self.maybe_timed(msg);
-		self.tx.send(msg).await
-	}
-
-	async fn send_all_timed_or_log<Msg, Msgs>(&mut self, msgs: Msgs)
-	where
-		Msgs: IntoIterator<Item = Msg> + Send,
-		Msgs::IntoIter: Send,
-		Msg: Into<AllMessages> + Send,
-	{
-		let mut maybe_timed = self.make_maybe_timed();
-		let mut msgs = stream::iter(
-			msgs.into_iter()
-				.map(move |msg| Ok(maybe_timed(ToOverseer::SubsystemMessage(msg.into()))))
-		);
-		if self.tx.send_all(&mut msgs).await.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				msg_type = std::any::type_name::<M>(),
-				"Failed to send messages to Overseer",
-			);
-		}
+		self.tx.unbounded_send(msg)
 	}
 }
 
@@ -563,6 +525,9 @@ pub struct Overseer<S> {
 	/// An availability distribution subsystem.
 	availability_distribution_subsystem: OverseenSubsystem<AvailabilityDistributionMessage>,
 
+	/// An availability recovery subsystem.
+	availability_recovery_subsystem: OverseenSubsystem<AvailabilityRecoveryMessage>,
+
 	/// A bitfield signing subsystem.
 	bitfield_signing_subsystem: OverseenSubsystem<BitfieldSigningMessage>,
 
@@ -593,6 +558,9 @@ pub struct Overseer<S> {
 	/// A Collator Protocol subsystem.
 	collator_protocol_subsystem: OverseenSubsystem<CollatorProtocolMessage>,
 
+	/// An Approval Distribution subsystem.
+	approval_distribution_subsystem: OverseenSubsystem<ApprovalDistributionMessage>,
+
 	/// Spawner to spawn tasks to.
 	s: S,
 
@@ -600,10 +568,10 @@ pub struct Overseer<S> {
 	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
 	/// Gather running subsystems' outbound streams into one.
-	running_subsystems_rx: StreamUnordered<mpsc::Receiver<MaybeTimed<ToOverseer>>>,
+	to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<MaybeTimed<ToOverseer>>>,
 
 	/// Events that are sent to the overseer from the outside world
-	events_rx: mpsc::Receiver<Event>,
+	events_rx: metered::MeteredReceiver<Event>,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
@@ -632,8 +600,8 @@ pub struct Overseer<S> {
 /// message type that is specific to this [`Subsystem`]. At the moment not all
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
 pub struct AllSubsystems<
-	CV = (), CB = (), CS = (), SD = (), AD = (), BS = (), BD = (), P = (),
-	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = ()
+	CV = (), CB = (), CS = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
+	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (),
 > {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
@@ -645,6 +613,8 @@ pub struct AllSubsystems<
 	pub statement_distribution: SD,
 	/// An availability distribution subsystem.
 	pub availability_distribution: AD,
+	/// An availability recovery subsystem.
+	pub availability_recovery: AR,
 	/// A bitfield signing subsystem.
 	pub bitfield_signing: BS,
 	/// A bitfield distribution subsystem.
@@ -665,10 +635,12 @@ pub struct AllSubsystems<
 	pub collation_generation: CG,
 	/// A Collator Protocol subsystem.
 	pub collator_protocol: CP,
+	/// An Approval Distribution subsystem.
+	pub approval_distribution: ApD,
 }
 
-impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
-	AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
+impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
+	AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 {
 	/// Create a new instance of [`AllSubsystems`].
 	///
@@ -697,7 +669,9 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
-		DummySubsystem
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
 	> {
 		AllSubsystems {
 			candidate_validation: DummySubsystem,
@@ -705,6 +679,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			candidate_selection: DummySubsystem,
 			statement_distribution: DummySubsystem,
 			availability_distribution: DummySubsystem,
+			availability_recovery: DummySubsystem,
 			bitfield_signing: DummySubsystem,
 			bitfield_distribution: DummySubsystem,
 			provisioner: DummySubsystem,
@@ -715,6 +690,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: DummySubsystem,
 			collation_generation: DummySubsystem,
 			collator_protocol: DummySubsystem,
+			approval_distribution: DummySubsystem,
 		}
 	}
 
@@ -722,13 +698,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_candidate_validation<NEW>(
 		self,
 		candidate_validation: NEW,
-	) -> AllSubsystems<NEW, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<NEW, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -739,6 +716,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -746,13 +724,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_candidate_backing<NEW>(
 		self,
 		candidate_backing: NEW,
-	) -> AllSubsystems<CV, NEW, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, NEW, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -763,6 +742,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -770,13 +750,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_candidate_selection<NEW>(
 		self,
 		candidate_selection: NEW,
-	) -> AllSubsystems<CV, CB, NEW, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, NEW, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -787,6 +768,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -794,13 +776,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_statement_distribution<NEW>(
 		self,
 		statement_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, NEW, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, NEW, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -811,6 +794,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -818,13 +802,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_availability_distribution<NEW>(
 		self,
 		availability_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, NEW, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -835,6 +820,33 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
+		}
+	}
+
+	/// Replace the `availability_recovery` instance in `self`.
+	pub fn replace_availability_recovery<NEW>(
+		self,
+		availability_recovery: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			availability_recovery,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -842,13 +854,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_bitfield_signing<NEW>(
 		self,
 		bitfield_signing: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, NEW, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -859,6 +872,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -866,13 +880,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_bitfield_distribution<NEW>(
 		self,
 		bitfield_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, NEW, P, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, NEW, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution,
 			provisioner: self.provisioner,
@@ -883,6 +898,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -890,13 +906,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_provisioner<NEW>(
 		self,
 		provisioner: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, NEW, PoVD, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, NEW, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner,
@@ -907,6 +924,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -914,13 +932,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_pov_distribution<NEW>(
 		self,
 		pov_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, NEW, RA, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, NEW, RA, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -931,6 +950,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -938,13 +958,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_runtime_api<NEW>(
 		self,
 		runtime_api: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, NEW, AS, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, NEW, AS, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -955,6 +976,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -962,13 +984,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_availability_store<NEW>(
 		self,
 		availability_store: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, NEW, NB, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, NEW, NB, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -979,6 +1002,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -986,13 +1010,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_network_bridge<NEW>(
 		self,
 		network_bridge: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NEW, CA, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NEW, CA, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -1003,6 +1028,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -1010,13 +1036,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_chain_api<NEW>(
 		self,
 		chain_api: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, NEW, CG, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, NEW, CG, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -1027,6 +1054,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -1034,13 +1062,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_collation_generation<NEW>(
 		self,
 		collation_generation: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, NEW, CP> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, NEW, CP, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -1051,6 +1080,7 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation,
 			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
 		}
 	}
 
@@ -1058,13 +1088,14 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 	pub fn replace_collator_protocol<NEW>(
 		self,
 		collator_protocol: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, NEW> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, NEW, ApD> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
 			candidate_selection: self.candidate_selection,
 			statement_distribution: self.statement_distribution,
 			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
 			bitfield_signing: self.bitfield_signing,
 			bitfield_distribution: self.bitfield_distribution,
 			provisioner: self.provisioner,
@@ -1075,6 +1106,33 @@ impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
 			chain_api: self.chain_api,
 			collation_generation: self.collation_generation,
 			collator_protocol,
+			approval_distribution: self.approval_distribution,
+		}
+	}
+
+	/// Replace the `approval_distribution` instance in `self`.
+	pub fn replace_approval_distribution<NEW>(
+		self,
+		approval_distribution: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, NEW> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+			approval_distribution,
 		}
 	}
 }
@@ -1085,7 +1143,9 @@ struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
-	message_relay_timing: prometheus::Histogram,
+	message_relay_timings: prometheus::Histogram,
+	to_overseer_channel_queue_size: prometheus::Gauge<prometheus::U64>,
+	from_overseer_channel_queue_size: prometheus::Gauge<prometheus::U64>,
 }
 
 #[derive(Default, Clone)]
@@ -1112,7 +1172,12 @@ impl Metrics {
 
 	/// Provide a timer for the duration between receiving a message and passing it to `route_message`
 	fn time_message_hold(&self) -> MaybeTimer {
-		self.0.as_ref().map(|metrics| metrics.message_relay_timing.start_timer())
+		self.0.as_ref().map(|metrics| metrics.message_relay_timings.start_timer())
+	}
+
+	fn channel_fill_level_snapshot(&self, from_overseer: usize, to_overseer: usize) {
+		self.0.as_ref().map(|metrics| metrics.to_overseer_channel_queue_size.set(to_overseer as u64));
+		self.0.as_ref().map(|metrics| metrics.from_overseer_channel_queue_size.set(from_overseer as u64));
 	}
 }
 
@@ -1140,11 +1205,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			message_relay_timing: prometheus::register(
+			message_relay_timings: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts {
 						common_opts: prometheus::Opts::new(
-							"overseer_messages_relay_timing",
+							"parachain_overseer_messages_relay_timings",
 							"Time spent holding a message in the overseer before passing it to `route_message`",
 						),
 						// guessing at the desired resolution, but we know that messages will time
@@ -1159,6 +1224,24 @@ impl metrics::Metrics for Metrics {
 						// - `! 0`
 						buckets: prometheus::exponential_buckets(0.0001, 1.6, 18).expect("inputs are within documented range; qed"),
 					}
+				)?,
+				registry,
+			)?,
+			from_overseer_channel_queue_size: prometheus::register(
+				prometheus::Gauge::<prometheus::U64>::with_opts(
+					prometheus::Opts::new(
+						"parachain_from_overseer_channel_queue_size",
+						"Number of elements sitting in the channel waiting to be processed.",
+					),
+				)?,
+				registry,
+			)?,
+			to_overseer_channel_queue_size: prometheus::register(
+				prometheus::Gauge::<prometheus::U64>::with_opts(
+					prometheus::Opts::new(
+						"parachain_to_overseer_channel_queue_size",
+						"Number of elements sitting in the channel waiting to be processed.",
+					),
 				)?,
 				registry,
 			)?,
@@ -1260,9 +1343,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>(
+	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
@@ -1272,6 +1355,7 @@ where
 		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
 		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
 		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>> + Send,
 		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
 		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
 		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
@@ -1282,8 +1366,9 @@ where
 		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
 		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
 		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
+		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>> + Send,
 	{
-		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY, "overseer_events");
 
 		let handler = OverseerHandler {
 			events_tx: events_tx.clone(),
@@ -1291,7 +1376,23 @@ where
 
 		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 
-		let mut running_subsystems_rx = StreamUnordered::new();
+		let (to_overseer_tx, to_overseer_rx) = metered::unbounded("to_overseer");
+
+		{
+			let meter_from_overseer = events_rx.meter().clone();
+			let meter_to_overseer = to_overseer_rx.meter().clone();
+			let metronome_metrics = metrics.clone();
+			let metronome = Metronome::new(std::time::Duration::from_millis(950))
+			.for_each(move |_| {
+				metronome_metrics.channel_fill_level_snapshot(meter_from_overseer.queue_count(), meter_to_overseer.queue_count());
+
+				async move {
+					()
+				}
+			});
+			s.spawn("metrics_metronome", Box::pin(metronome));
+		}
+
 		let mut running_subsystems = FuturesUnordered::new();
 
 		let mut seed = 0x533d; // arbitrary
@@ -1299,7 +1400,7 @@ where
 		let candidate_validation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_validation,
 			&metrics,
 			&mut seed,
@@ -1308,7 +1409,7 @@ where
 		let candidate_backing_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_backing,
 			&metrics,
 			&mut seed,
@@ -1317,7 +1418,7 @@ where
 		let candidate_selection_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.candidate_selection,
 			&metrics,
 			&mut seed,
@@ -1326,7 +1427,7 @@ where
 		let statement_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.statement_distribution,
 			&metrics,
 			&mut seed,
@@ -1335,8 +1436,17 @@ where
 		let availability_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_distribution,
+			&metrics,
+			&mut seed,
+		)?;
+
+		let availability_recovery_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
+			all_subsystems.availability_recovery,
 			&metrics,
 			&mut seed,
 		)?;
@@ -1344,7 +1454,7 @@ where
 		let bitfield_signing_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.bitfield_signing,
 			&metrics,
 			&mut seed,
@@ -1353,7 +1463,7 @@ where
 		let bitfield_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.bitfield_distribution,
 			&metrics,
 			&mut seed,
@@ -1362,7 +1472,7 @@ where
 		let provisioner_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.provisioner,
 			&metrics,
 			&mut seed,
@@ -1371,7 +1481,7 @@ where
 		let pov_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.pov_distribution,
 			&metrics,
 			&mut seed,
@@ -1380,7 +1490,7 @@ where
 		let runtime_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.runtime_api,
 			&metrics,
 			&mut seed,
@@ -1389,7 +1499,7 @@ where
 		let availability_store_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.availability_store,
 			&metrics,
 			&mut seed,
@@ -1398,7 +1508,7 @@ where
 		let network_bridge_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.network_bridge,
 			&metrics,
 			&mut seed,
@@ -1407,7 +1517,7 @@ where
 		let chain_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.chain_api,
 			&metrics,
 			&mut seed,
@@ -1416,7 +1526,7 @@ where
 		let collation_generation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.collation_generation,
 			&metrics,
 			&mut seed,
@@ -1426,8 +1536,17 @@ where
 		let collator_protocol_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
-			&mut running_subsystems_rx,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
 			all_subsystems.collator_protocol,
+			&metrics,
+			&mut seed,
+		)?;
+
+		let approval_distribution_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
+			all_subsystems.approval_distribution,
 			&metrics,
 			&mut seed,
 		)?;
@@ -1446,6 +1565,7 @@ where
 			candidate_selection_subsystem,
 			statement_distribution_subsystem,
 			availability_distribution_subsystem,
+			availability_recovery_subsystem,
 			bitfield_signing_subsystem,
 			bitfield_distribution_subsystem,
 			provisioner_subsystem,
@@ -1456,9 +1576,10 @@ where
 			chain_api_subsystem,
 			collation_generation_subsystem,
 			collator_protocol_subsystem,
+			approval_distribution_subsystem,
 			s,
 			running_subsystems,
-			running_subsystems_rx,
+			to_overseer_rx: to_overseer_rx.fuse(),
 			events_rx,
 			activation_external_listeners,
 			leaves,
@@ -1477,6 +1598,7 @@ where
 		let _ = self.candidate_selection_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.statement_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.availability_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
+		let _ = self.availability_recovery_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.bitfield_signing_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.bitfield_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.provisioner_subsystem.send_signal(OverseerSignal::Conclude).await;
@@ -1487,6 +1609,7 @@ where
 		let _ = self.chain_api_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.collator_protocol_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.collation_generation_subsystem.send_signal(OverseerSignal::Conclude).await;
+		let _ = self.approval_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
 
 		let mut stop_delay = Delay::new(Duration::from_secs(STOP_DELAY)).fuse();
 
@@ -1510,11 +1633,13 @@ where
 
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			let span = self.on_head_activated(&hash);
+			let span = self.on_head_activated(&hash, None);
 			update.activated.push((hash, span));
 		}
 
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		if !update.is_empty() {
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		}
 
 		loop {
 			select! {
@@ -1544,11 +1669,14 @@ where
 						}
 					}
 				},
-				msg = self.running_subsystems_rx.next().fuse() => {
-					let MaybeTimed { timer, t: msg } = if let Some((StreamYield::Item(msg), _)) = msg {
-						msg
-					} else {
-						continue
+				msg = self.to_overseer_rx.next() => {
+					let MaybeTimed { timer, t: msg } = match msg {
+						Some(m) => m,
+						None => {
+							// This is a fused stream so we will shut down after receiving all
+							// shutdown notifications.
+							continue
+						}
 					};
 
 					match msg {
@@ -1589,7 +1717,7 @@ where
 			}
 		};
 
-		let span = self.on_head_activated(&block.hash);
+		let span = self.on_head_activated(&block.hash, Some(block.parent_hash));
 		let mut update = ActiveLeavesUpdate::start_work(block.hash, span);
 
 		if let Some(number) = self.active_leaves.remove(&block.parent_hash) {
@@ -1620,10 +1748,14 @@ where
 			self.on_head_deactivated(deactivated)
 		}
 
-
 		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
-		// broadcast `ActiveLeavesUpdate` even if empty to issue view updates
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+
+		// If there are no leaves being deactivated, we don't need to send an update.
+		//
+		// Our peers will be informed about our finalized block the next time we activating/deactivating some leaf.
+		if !update.is_empty() {
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+		}
 
 		Ok(())
 	}
@@ -1635,6 +1767,7 @@ where
 		self.candidate_selection_subsystem.send_signal(signal.clone()).await?;
 		self.statement_distribution_subsystem.send_signal(signal.clone()).await?;
 		self.availability_distribution_subsystem.send_signal(signal.clone()).await?;
+		self.availability_recovery_subsystem.send_signal(signal.clone()).await?;
 		self.bitfield_signing_subsystem.send_signal(signal.clone()).await?;
 		self.bitfield_distribution_subsystem.send_signal(signal.clone()).await?;
 		self.provisioner_subsystem.send_signal(signal.clone()).await?;
@@ -1644,7 +1777,8 @@ where
 		self.network_bridge_subsystem.send_signal(signal.clone()).await?;
 		self.chain_api_subsystem.send_signal(signal.clone()).await?;
 		self.collator_protocol_subsystem.send_signal(signal.clone()).await?;
-		self.collation_generation_subsystem.send_signal(signal).await?;
+		self.collation_generation_subsystem.send_signal(signal.clone()).await?;
+		self.approval_distribution_subsystem.send_signal(signal).await?;
 
 		Ok(())
 	}
@@ -1668,6 +1802,9 @@ where
 			},
 			AllMessages::AvailabilityDistribution(msg) => {
 				self.availability_distribution_subsystem.send_message(msg).await?;
+			},
+			AllMessages::AvailabilityRecovery(msg) => {
+				let _ = self.availability_recovery_subsystem.send_message(msg).await;
 			},
 			AllMessages::BitfieldDistribution(msg) => {
 				self.bitfield_distribution_subsystem.send_message(msg).await?;
@@ -1699,13 +1836,19 @@ where
 			AllMessages::CollatorProtocol(msg) => {
 				self.collator_protocol_subsystem.send_message(msg).await?;
 			},
+			AllMessages::ApprovalDistribution(msg) => {
+				let _ = self.approval_distribution_subsystem.send_message(msg).await;
+			},
+			AllMessages::ApprovalVoting(_msg) => {
+				// FIXME: https://github.com/paritytech/polkadot/issues/1975
+			},
 		}
 
 		Ok(())
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn on_head_activated(&mut self, hash: &Hash) -> Arc<JaegerSpan> {
+	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>) -> Arc<JaegerSpan> {
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			for listener in listeners {
@@ -1714,7 +1857,13 @@ where
 			}
 		}
 
-		let span = Arc::new(jaeger::hash_span(hash, "leave activated"));
+		let mut span = jaeger::hash_span(hash, "leaf-activated");
+
+		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
+			span.add_follows_from(&*parent_span);
+		}
+
+		let span = Arc::new(span);
 		self.span_per_active_leaf.insert(*hash, span.clone());
 		span
 	}
@@ -1761,14 +1910,19 @@ where
 fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-	streams: &mut StreamUnordered<mpsc::Receiver<MaybeTimed<ToOverseer>>>,
+	to_overseer: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
 	seed: &mut u64,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
-	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
-	let (from_tx, from_rx) = mpsc::channel(CHANNEL_CAPACITY);
-	let ctx = OverseerSubsystemContext::new(to_rx, from_tx, metrics.clone(), *seed, MESSAGE_TIMER_METRIC_CAPTURE_RATE);
+	let (to_tx, to_rx) = metered::channel(CHANNEL_CAPACITY, "subsystem_spawn");
+	let ctx = OverseerSubsystemContext::new(
+		to_rx,
+		to_overseer,
+		metrics.clone(),
+		*seed,
+		MESSAGE_TIMER_METRIC_CAPTURE_RATE,
+	);
 	let SpawnedSubsystem { future, name } = s.start(ctx);
 
 	// increment the seed now that it's been used, so the next context will have its own distinct RNG
@@ -1787,7 +1941,6 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	spawner.spawn(name, fut);
 
-	let _ = streams.push(from_rx);
 	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
@@ -1805,18 +1958,19 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 mod tests {
 	use std::sync::atomic;
 	use std::collections::HashMap;
-	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt, pending};
+	use futures::{executor, pin_mut, select, FutureExt, pending};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, JaegerSpan};
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
+	use polkadot_node_subsystem_util::metered;
 
 	use sp_core::crypto::Pair as _;
 
 	use super::*;
 
-	struct TestSubsystem1(mpsc::Sender<usize>);
+	struct TestSubsystem1(metered::MeteredSender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
@@ -1844,7 +1998,7 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem2(mpsc::Sender<usize>);
+	struct TestSubsystem2(metered::MeteredSender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
@@ -1892,9 +2046,9 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem4;
+	struct ReturnOnStart;
 
-	impl<C> Subsystem<C> for TestSubsystem4
+	impl<C> Subsystem<C> for ReturnOnStart
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
 		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
@@ -1915,8 +2069,11 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, mut s1_rx) = mpsc::channel::<usize>(64);
-			let (s2_tx, mut s2_rx) = mpsc::channel::<usize>(64);
+			let (s1_tx, s1_rx) = metered::channel::<usize>(64, "overseer_test");
+			let (s2_tx, s2_rx) = metered::channel::<usize>(64, "overseer_test");
+
+			let mut s1_rx = s1_rx.fuse();
+			let mut s2_rx = s2_rx.fuse();
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem1(s1_tx))
@@ -2021,12 +2178,14 @@ mod tests {
 
 	fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 		let gather = registry.gather();
-		assert_eq!(gather[0].get_name(), "overseer_messages_relay_timing");
-		assert_eq!(gather[1].get_name(), "parachain_activated_heads_total");
-		assert_eq!(gather[2].get_name(), "parachain_deactivated_heads_total");
+		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
+		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
+		assert_eq!(gather[2].get_name(), "parachain_from_overseer_channel_queue_size");
 		assert_eq!(gather[3].get_name(), "parachain_messages_relayed_total");
-		let activated = gather[1].get_metric()[0].get_counter().get_value() as u64;
-		let deactivated = gather[2].get_metric()[0].get_counter().get_value() as u64;
+		assert_eq!(gather[4].get_name(), "parachain_overseer_messages_relay_timings");
+		assert_eq!(gather[5].get_name(), "parachain_to_overseer_channel_queue_size");
+		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
+		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
 		let relayed = gather[3].get_metric()[0].get_counter().get_value() as u64;
 		let mut result = HashMap::new();
 		result.insert("activated", activated);
@@ -2037,33 +2196,26 @@ mod tests {
 
 	// Spawn a subsystem that immediately exits.
 	//
-	// Should immediately conclude the overseer itself with an error.
+	// Should immediately conclude the overseer itself.
 	#[test]
-	fn overseer_panics_on_subsystem_exit() {
+	fn overseer_ends_on_subsystem_exit() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, _) = mpsc::channel(64);
 			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_validation(TestSubsystem1(s1_tx))
-				.replace_candidate_backing(TestSubsystem4);
+				.replace_candidate_backing(ReturnOnStart);
 			let (overseer, _handle) = Overseer::new(
 				vec![],
 				all_subsystems,
 				None,
 				spawner,
 			).unwrap();
-			let overseer_fut = overseer.run().fuse();
-			pin_mut!(overseer_fut);
 
-			select! {
-				res = overseer_fut => assert!(res.is_err()),
-				complete => (),
-			}
+			overseer.run().await.unwrap();
 		})
 	}
 
-	struct TestSubsystem5(mpsc::Sender<OverseerSignal>);
+	struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
@@ -2094,7 +2246,7 @@ mod tests {
 		}
 	}
 
-	struct TestSubsystem6(mpsc::Sender<OverseerSignal>);
+	struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
@@ -2152,8 +2304,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
-			let (tx_6, mut rx_6) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
 				.replace_candidate_backing(TestSubsystem6(tx_6));
@@ -2245,8 +2397,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = mpsc::channel(64);
-			let (tx_6, mut rx_6) = mpsc::channel(64);
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
@@ -2303,9 +2455,8 @@ mod tests {
 					complete => break,
 				}
 
-				if ss5_results.len() == expected_heartbeats.len() &&
-					ss6_results.len() == expected_heartbeats.len() {
-						handler.stop().await;
+				if ss5_results.len() == expected_heartbeats.len() && ss6_results.len() == expected_heartbeats.len() {
+					handler.stop().await;
 				}
 			}
 
@@ -2317,6 +2468,79 @@ mod tests {
 			for expected in expected_heartbeats {
 				assert!(ss5_results.contains(&expected));
 				assert!(ss6_results.contains(&expected));
+			}
+		});
+	}
+
+	#[test]
+	fn do_not_send_empty_leaves_update_on_block_finalization() {
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		executor::block_on(async move {
+			let imported_block = BlockInfo {
+				hash: Hash::random(),
+				parent_hash: Hash::random(),
+				number: 1,
+			};
+
+			let finalized_block = BlockInfo {
+				hash: Hash::random(),
+				parent_hash: Hash::random(),
+				number: 1,
+			};
+
+			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+
+			let all_subsystems = AllSubsystems::<()>::dummy()
+				.replace_candidate_backing(TestSubsystem6(tx_5));
+
+			let (overseer, mut handler) = Overseer::new(
+				Vec::new(),
+				all_subsystems,
+				None,
+				spawner,
+			).unwrap();
+
+			let overseer_fut = overseer.run().fuse();
+			pin_mut!(overseer_fut);
+
+			let mut ss5_results = Vec::new();
+
+			handler.block_finalized(finalized_block.clone()).await;
+			handler.block_imported(imported_block.clone()).await;
+
+			let expected_heartbeats = vec![
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [
+						(imported_block.hash, Arc::new(JaegerSpan::Disabled)),
+					].as_ref().into(),
+					..Default::default()
+				}),
+				OverseerSignal::BlockFinalized(finalized_block.hash, 1),
+			];
+
+			loop {
+				select! {
+					res = overseer_fut => {
+						assert!(res.is_ok());
+						break;
+					},
+					res = rx_5.next() => {
+						if let Some(res) = dbg!(res) {
+							ss5_results.push(res);
+						}
+					}
+				}
+
+				if ss5_results.len() == expected_heartbeats.len() {
+					handler.stop().await;
+				}
+			}
+
+			assert_eq!(ss5_results.len(), expected_heartbeats.len());
+
+			for expected in expected_heartbeats {
+				assert!(ss5_results.contains(&expected));
 			}
 		});
 	}
@@ -2432,6 +2656,15 @@ mod tests {
 		AvailabilityDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
 	}
 
+	fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
+		let (sender, _) = oneshot::channel();
+		AvailabilityRecoveryMessage::RecoverAvailableData(
+			Default::default(),
+			Default::default(),
+			sender,
+		)
+	}
+
 	fn test_bitfield_distribution_msg() -> BitfieldDistributionMessage {
 		BitfieldDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
 	}
@@ -2459,6 +2692,10 @@ mod tests {
 		NetworkBridgeMessage::ReportPeer(PeerId::random(), ReputationChange::new(42, ""))
 	}
 
+	fn test_approval_distribution_msg() -> ApprovalDistributionMessage {
+		ApprovalDistributionMessage::NewBlocks(Default::default())
+	}
+
 	// Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 	#[test]
 	fn overseer_all_subsystems_receive_signals_and_messages() {
@@ -2483,6 +2720,7 @@ mod tests {
 				collator_protocol: subsystem.clone(),
 				statement_distribution: subsystem.clone(),
 				availability_distribution: subsystem.clone(),
+				availability_recovery: subsystem.clone(),
 				bitfield_signing: subsystem.clone(),
 				bitfield_distribution: subsystem.clone(),
 				provisioner: subsystem.clone(),
@@ -2491,6 +2729,7 @@ mod tests {
 				availability_store: subsystem.clone(),
 				network_bridge: subsystem.clone(),
 				chain_api: subsystem.clone(),
+				approval_distribution: subsystem.clone(),
 			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
@@ -2518,6 +2757,7 @@ mod tests {
 			handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
 			handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
 			handler.send_msg(AllMessages::AvailabilityDistribution(test_availability_distribution_msg())).await;
+			handler.send_msg(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
 			// handler.send_msg(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
 			handler.send_msg(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
 			handler.send_msg(AllMessages::Provisioner(test_provisioner_msg())).await;
@@ -2526,17 +2766,18 @@ mod tests {
 			handler.send_msg(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
 			handler.send_msg(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
 			handler.send_msg(AllMessages::ChainApi(test_chain_api_msg())).await;
+			handler.send_msg(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
 
 			// send a stop signal to each subsystems
 			handler.stop().await;
 
 			select! {
 				res = overseer_fut => {
-					const NUM_SUBSYSTEMS: usize = 15;
+					const NUM_SUBSYSTEMS: usize = 17;
 
 					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// x2 because of broadcast_signal on startup
-					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), 2 * NUM_SUBSYSTEMS);
+					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// -1 for BitfieldSigning
 					assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS - 1);
 

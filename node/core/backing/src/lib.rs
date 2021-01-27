@@ -384,7 +384,7 @@ struct BackgroundValidationParams<F> {
 }
 
 async fn validate_and_make_available(
-	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand>,
+	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync>,
 ) -> Result<(), Error> {
 	let BackgroundValidationParams {
 		mut tx_from,
@@ -419,11 +419,17 @@ async fn validate_and_make_available(
 
 	let res = match v {
 		ValidationResult::Valid(commitments, validation_data) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation successful",
+			);
+
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
-					candidate_receipt = ?candidate,
+					candidate_hash = ?candidate.hash(),
 					actual_commitments = ?commitments,
 					"Commitments obtained with validation don't match the announced by the candidate receipt",
 				);
@@ -443,9 +449,9 @@ async fn validate_and_make_available(
 				match erasure_valid {
 					Ok(()) => Ok((candidate, commitments, pov.clone())),
 					Err(InvalidErasureRoot) => {
-						tracing::trace!(
+						tracing::debug!(
 							target: LOG_TARGET,
-							candidate_receipt = ?candidate,
+							candidate_hash = ?candidate.hash(),
 							actual_commitments = ?commitments,
 							"Erasure root doesn't match the announced by the candidate receipt",
 						);
@@ -455,9 +461,9 @@ async fn validate_and_make_available(
 			}
 		}
 		ValidationResult::Invalid(reason) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				candidate_receipt = ?candidate,
+				candidate_hash = ?candidate.hash(),
 				reason = ?reason,
 				"Validation yielded an invalid candidate",
 			);
@@ -465,9 +471,7 @@ async fn validate_and_make_available(
 		}
 	};
 
-	let command = make_command(res);
-	tx_command.send(command).await?;
-	Ok(())
+	tx_command.send(make_command(res)).await.map_err(Into::into)
 }
 
 impl CandidateBackingJob {
@@ -556,7 +560,7 @@ impl CandidateBackingJob {
 	async fn background_validate_and_make_available(
 		&mut self,
 		params: BackgroundValidationParams<
-			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static
+			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync
 		>,
 	) -> Result<(), Error> {
 		let candidate_hash = params.candidate.hash();
@@ -601,6 +605,13 @@ impl CandidateBackingJob {
 
 		let candidate_hash = candidate.hash();
 		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate,
+			"Validate and second candidate",
+		);
 
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
@@ -654,6 +665,12 @@ impl CandidateBackingJob {
 		statement: &SignedFullStatement,
 		parent_span: &JaegerSpan,
 	) -> Result<Option<TableSummary>, Error> {
+		tracing::debug!(
+			target: LOG_TARGET,
+			statement = ?statement.payload().to_compact(),
+			"Importing statement",
+		);
+
 		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
 			let candidate_hash = statement.payload().candidate_hash();
@@ -675,6 +692,12 @@ impl CandidateBackingJob {
 				if let Some(backed) =
 					table_attested_to_backed(attested, &self.table_context)
 				{
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate_hash,
+						"Candidate backed",
+					);
+
 					let message = ProvisionerMessage::ProvisionableData(
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
@@ -772,6 +795,13 @@ impl CandidateBackingJob {
 		// and not just those things that the function uses.
 		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?.to_plain();
 		let descriptor = candidate.descriptor().clone();
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate,
+			"Kicking off validation",
+		);
 
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
@@ -1148,8 +1178,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures::{future, Future};
 	use polkadot_primitives::v1::{
-		ScheduledCore, BlockData, PersistedValidationData, ValidationData,
-		TransientValidationData, HeadData, GroupRotationInfo,
+		ScheduledCore, BlockData, PersistedValidationData, HeadData, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
@@ -1171,7 +1200,7 @@ mod tests {
 		keystore: SyncCryptoStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		validation_data: ValidationData,
+		validation_data: PersistedValidationData,
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		availability_cores: Vec<CoreState>,
 		head_data: HashMap<ParaId, HeadData>,
@@ -1236,22 +1265,13 @@ mod tests {
 				parent_hash: relay_parent,
 			};
 
-			let validation_data = ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: HeadData(vec![7, 8, 9]),
-					block_number: Default::default(),
-					hrmp_mqc_heads: Vec::new(),
-					dmq_mqc_head: Default::default(),
-					max_pov_size: 1024,
-					relay_storage_root: Default::default(),
-				},
-				transient: TransientValidationData {
-					max_code_size: 1000,
-					max_head_data_size: 1000,
-					balance: Default::default(),
-					code_upgrade_allowed: None,
-					dmq_length: 0,
-				},
+			let validation_data = PersistedValidationData {
+				parent_head: HeadData(vec![7, 8, 9]),
+				block_number: Default::default(),
+				hrmp_mqc_heads: Vec::new(),
+				dmq_mqc_head: Default::default(),
+				max_pov_size: 1024,
+				relay_storage_root: Default::default(),
 			};
 
 			Self {
@@ -1291,7 +1311,7 @@ mod tests {
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let available_data = AvailableData {
-			validation_data: test.validation_data.persisted.clone(),
+			validation_data: test.validation_data.clone(),
 			pov: Arc::new(pov),
 		};
 
@@ -1432,7 +1452,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1570,7 +1590,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1865,7 +1885,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -2052,7 +2072,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);

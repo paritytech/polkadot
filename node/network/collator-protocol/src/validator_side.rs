@@ -353,7 +353,7 @@ async fn received_collation<Context>(
 	origin: PeerId,
 	request_id: RequestId,
 	receipt: CandidateReceipt,
-	pov: PoV,
+	pov: protocol_v1::CompressedPoV,
 )
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
@@ -368,6 +368,27 @@ where
 			if let Some(per_request) = state.requests_info.remove(&id) {
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
+					let pov = match pov.decompress() {
+						Ok(pov) => pov,
+						Err(error) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								%request_id,
+								?error,
+								"Failed to extract PoV",
+							);
+							return;
+						}
+					};
+
+					let _span = jaeger::pov_span(&pov, "received-collation");
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						%request_id,
+						"Received collation",
+					);
+
 					let _ = per_request.result.send((receipt.clone(), pov.clone()));
 					state.metrics.on_request(Ok(()));
 
@@ -420,8 +441,8 @@ where
 		tracing::trace!(
 			target: LOG_TARGET,
 			peer_id = %peer_id,
-			para_id = %para_id,
-			relay_parent = %relay_parent,
+			%para_id,
+			?relay_parent,
 			"collation has already been requested",
 		);
 		return;
@@ -448,6 +469,15 @@ where
 	state.requests_info.insert(request_id, per_request);
 
 	state.requests_in_progress.push(request.wait().boxed());
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		peer_id = %peer_id,
+		%para_id,
+		%request_id,
+		?relay_parent,
+		"Requesting collation",
+	);
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::RequestCollation(
 		request_id,
@@ -514,9 +544,8 @@ where
 			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 		Collation(request_id, receipt, pov) => {
-			let _span1 = state.span_per_relay_parent.get(&receipt.descriptor.relay_parent)
+			let _span = state.span_per_relay_parent.get(&receipt.descriptor.relay_parent)
 				.map(|s| s.child("received-collation"));
-			let _span2 = jaeger::pov_span(&pov, "received-collation");
 			received_collation(ctx, state, origin, request_id, receipt, pov).await;
 		}
 	}
@@ -737,7 +766,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					tracing::trace!(target: LOG_TARGET, id, "request timed out");
+					tracing::debug!(target: LOG_TARGET, request_id=%id, "Collation timed out");
 					request_timed_out(&mut ctx, &mut state, id).await;
 				}
 				CollationRequestResult::Received(id) => {
@@ -1280,9 +1309,9 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(
 							request_id,
 							candidate_a.clone(),
-							PoV {
+							protocol_v1::CompressedPoV::compress(&PoV {
 								block_data: BlockData(vec![]),
-							},
+							}).unwrap(),
 						)
 					)
 				)
@@ -1318,9 +1347,9 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::Collation(
 							request_id,
 							candidate_b.clone(),
-							PoV {
+							protocol_v1::CompressedPoV::compress(&PoV {
 								block_data: BlockData(vec![1, 2, 3]),
-							},
+							}).unwrap(),
 						)
 					)
 				)

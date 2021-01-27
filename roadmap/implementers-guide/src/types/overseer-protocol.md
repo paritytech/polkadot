@@ -91,6 +91,7 @@ Messages received by the approval Distribution subsystem.
 ```rust
 /// Metadata about a block which is now live in the approval protocol.
 struct BlockApprovalMeta {
+<<<<<<< HEAD
     /// The hash of the block.
     hash: Hash,
     /// The number of the block.
@@ -117,6 +118,34 @@ enum ApprovalDistributionMessage {
     DistributeApproval(IndirectSignedApprovalVote),
     /// An update from the network bridge.
     NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
+=======
+	/// The hash of the block.
+	hash: Hash,
+	/// The number of the block.
+	number: BlockNumber,
+	/// The hash of the parent block.
+	parent_hash: Hash,
+	/// The candidates included by the block. Note that these are not the same as the candidates that appear within the
+	/// block body.
+	candidates: Vec<CandidateHash>,
+	/// The consensus slot number of the block.
+	slot_number: SlotNumber,
+}
+
+enum ApprovalDistributionMessage {
+	/// Notify the `ApprovalDistribution` subsystem about new blocks and the candidates contained within
+	/// them.
+	NewBlocks(Vec<BlockApprovalMeta>),
+	/// Distribute an assignment cert from the local validator. The cert is assumed
+	/// to be valid, relevant, and for the given relay-parent and validator index.
+	DistributeAssignment(IndirectAssignmentCert, CandidateIndex),
+	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
+	/// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
+	/// the message.
+	DistributeApproval(IndirectSignedApprovalVote),
+	/// An update from the network bridge.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
+>>>>>>> origin/master
 }
 ```
 
@@ -167,6 +196,7 @@ Messages to and from the availability store.
 
 ```rust
 enum AvailabilityStoreMessage {
+<<<<<<< HEAD
     /// Query the `AvailableData` of a candidate by hash.
     QueryAvailableData(CandidateHash, ResponseChannel<Option<AvailableData>>),
     /// Query whether an `AvailableData` exists within the AV Store.
@@ -180,6 +210,21 @@ enum AvailabilityStoreMessage {
     /// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
     /// `AvailabilityChunkAndProof`.
     StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
+=======
+	/// Query the `AvailableData` of a candidate by hash.
+	QueryAvailableData(CandidateHash, ResponseChannel<Option<AvailableData>>),
+	/// Query whether an `AvailableData` exists within the AV Store.
+	QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
+	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
+	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
+	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<ErasureChunk>>),
+	/// Store a specific chunk of the candidate's erasure-coding, with an
+	/// accompanying proof.
+	StoreChunk(CandidateHash, ErasureChunk, ResponseChannel<Result<()>>),
+	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
+	/// `ErasureChunk`.
+	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
+>>>>>>> origin/master
 }
 ```
 
@@ -321,6 +366,10 @@ enum NetworkBridgeMessage {
     SendValidationMessage([PeerId], ValidationProtocolV1),
     /// Send a message to one or more peers on the collation peerset.
     SendCollationMessage([PeerId], ValidationProtocolV1),
+    /// Send multiple validation messages.
+    SendValidationMessages([([PeerId, ValidationProtocolV1])]),
+    /// Send multiple collation messages.
+    SendCollationMessages([([PeerId, ValidationProtocolV1])]),
     /// Connect to peers who represent the given `validator_ids`.
     ///
     /// Also ask the network to stay connected to these peers at least
@@ -476,12 +525,6 @@ enum RuntimeApiRequest {
         ParaId,
         OccupiedCoreAssumption,
         ResponseChannel<Option<PersistedValidationData>>,
-    ),
-    /// Get the full validation data for a specific para, with the given occupied core assumption.
-    FullValidationData(
-        ParaId,
-        OccupiedCoreAssumption,
-        ResponseChannel<Option<ValidationData>>,
     ),
     /// Sends back `true` if the commitments pass all acceptance criteria checks.
     CheckValidationOutputs(

@@ -27,7 +27,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement,
 	EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, PoV,
-	Signed, UpwardMessage, ValidationCode, ValidationData,
+	Signed, UpwardMessage, ValidationCode,
 };
 use std::pin::Pin;
 
@@ -77,6 +77,12 @@ impl Statement {
 	}
 }
 
+impl From<&'_ Statement> for CompactStatement {
+	fn from(stmt: &Statement) -> Self {
+		stmt.to_compact()
+	}
+}
+
 impl EncodeAs<CompactStatement> for Statement {
 	fn encode_as(&self) -> Vec<u8> {
 		self.to_compact().encode()
@@ -112,6 +118,8 @@ pub enum InvalidCandidate {
 	HashMismatch,
 	/// Bad collator signature.
 	BadSignature,
+	/// Para head hash does not match.
+	ParaHeadHashMismatch,
 }
 
 /// Result of the validation of the candidate.
@@ -154,7 +162,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 /// block should be build on and the [`ValidationData`] that provides
 /// information about the state of the parachain on the relay chain.
 pub type CollatorFn = Box<
-	dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
+	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
 		+ Send
 		+ Sync,
 >;
