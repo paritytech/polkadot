@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
-
 //! Overview over request/responses as used in `Polkadot`.
 //!
 //! enum  Protocol .... List of all supported protocols.
@@ -35,28 +33,22 @@
 //!  Versioned (v1 module): The actual requests and responses as sent over the network.
 
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::time::Duration;
-use std::iter::FromIterator;
-use std::pin::Pin;
-use strum::{EnumIter, IntoEnumIterator};
 
 use futures::channel::mpsc;
-use futures::channel::oneshot;
-use futures::prelude::Stream;
-use futures::task::{Context, Poll};
+use strum::EnumIter;
 
-pub use sc_network::config::{RequestResponseConfig};
 pub use sc_network::config as network;
-use parity_scale_codec::{Encode, Decode, Error as DecodingError};
+pub use sc_network::config::RequestResponseConfig;
 
 /// All requests that can be sent to the network bridge.
 pub mod request;
-pub use request::{Request, IncomingRequest, OutgoingRequest};
+pub use request::{IncomingRequest, OutgoingRequest, Request};
 
 /// Multiplexer for incoming requests.
 pub mod multiplexer;
 
+/// Actual versioned requests and responses, that are sent over the wire.
 pub mod v1;
 
 /// A protocol per subsystem seems to make the most sense, this way we don't need any dispatching
@@ -75,7 +67,12 @@ impl Protocol {
 	///
 	/// See also `dispatcher::RequestDispatcher`,  which makes use of this function and provides a more
 	/// high-level interface.
-	pub fn get_config(self) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
+	pub fn get_config(
+		self,
+	) -> (
+		mpsc::Receiver<network::IncomingRequest>,
+		RequestResponseConfig,
+	) {
 		let p_name = self.into_protocol_name();
 		// Channel size again a number I made up. Hundreds of validators will start requesting
 		// their chunks once they see a candidate awaiting availability on chain. Given that they
@@ -88,7 +85,7 @@ impl Protocol {
 				name: p_name,
 				// Arbitrary numbers, which I guess right now should be fine:
 				// TODO: Get better numbers.
-				max_request_size: 100_000,
+				max_request_size: 10_000,
 				max_response_size: 1_000_000,
 				// Also just some relative conservative guess:
 				request_timeout: Duration::new(8, 0),

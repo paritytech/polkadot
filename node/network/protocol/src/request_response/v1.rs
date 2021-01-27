@@ -16,20 +16,19 @@
 
 //! Requests and responses as sent over the wire for the individual protocols.
 
-use parity_scale_codec::codec;
+use parity_scale_codec::{Decode, Encode};
 
-use super::IsRequest;
+use polkadot_primitives::v1::{CandidateHash, ErasureChunk, ValidatorIndex};
 
-use polkadot_primitives::v1::{
-	CandidateHash, CandidateReceipt, CollatorId, ErasureChunk, Hash, Id as ParaId, PoV,
-	SignedAvailabilityBitfield, ValidatorIndex,
-};
+use super::request::IsRequest;
 
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct AvailabilityFetchingRequest {
 	candidate_hash: CandidateHash,
 	index: ValidatorIndex,
 }
 
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum AvailabilityFetchingResponse {
 	#[codec(index = "1")]
 	Chunk(ErasureChunk),
