@@ -507,7 +507,7 @@ impl<T: Config> Module<T> {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 }
-
+/*
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -629,13 +629,6 @@ mod tests {
 
 	pub struct TestParachains;
 	impl Registrar<u64> for TestParachains {
-		fn new_id() -> ParaId {
-			PARACHAIN_COUNT.with(|p| {
-				*p.borrow_mut() += 1;
-				(*p.borrow() - 1).into()
-			})
-		}
-
 		fn head_data_size_allowed(head_data_size: u32) -> bool {
 			head_data_size <= MAX_HEAD_DATA_SIZE
 		}
@@ -1626,3 +1619,4 @@ mod benchmarking {
 		}
 	}
 }
+*/

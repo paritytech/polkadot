@@ -21,21 +21,16 @@
 //! This doesn't handle the mechanics of determining which para ID actually ends up with a parachain lease. This
 //! must handled by a separately, through the trait interface that this pallet provides or the root dispatchables.
 
-use sp_std::{prelude::*, mem::swap, convert::TryInto};
-use sp_runtime::traits::{
-	CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion,
-};
-use parity_scale_codec::{Encode, Decode, Codec};
+use sp_std::prelude::*;
+use sp_runtime::traits::{CheckedSub, Zero, CheckedConversion};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
-	traits::{Currency, ReservableCurrency, WithdrawReasons, ExistenceRequirement, Get, Randomness},
-	weights::{DispatchClass, Weight},
+	traits::{Currency, ReservableCurrency, Get}, weights::Weight,
 };
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData,
 };
 use frame_system::{ensure_signed, ensure_root};
-use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
 type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -256,7 +251,7 @@ decl_module! {
 		fn claim(origin, id: ParaId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(!Paras::<T>::contains_key(id), Error::<T>::InUse);
-			T::Currency::reserve(&who, T::ParaDeposit::get());
+			T::Currency::reserve(&who, T::ParaDeposit::get())?;
 			Paras::<T>::insert(id, (who, T::ParaDeposit::get()));
 			Self::deposit_event(RawEvent::Claimed(id));
 			Ok(())
@@ -551,6 +546,7 @@ impl<T: Config> Leaser for Module<T> {
 ///
 /// If neither item exists, or if both items exist this will do nothing. If exactly one of the
 /// items exists, then it will be removed and the other inserted.
+#[allow(dead_code)]
 fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, other: T) {
 	let maybe_one_pos = ids.binary_search(&one);
 	let maybe_other_pos = ids.binary_search(&other);
@@ -564,7 +560,7 @@ fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, oth
 
 // TODO: This will need rejigging...
 impl<T: Config> SwapAux for Module<T> {
-	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str> {
+	fn ensure_can_swap(_one: ParaId, _other: ParaId) -> Result<(), &'static str> {
 		// if Onboarding::<T>::contains_key(one) || Onboarding::<T>::contains_key(other) {
 		// 	Err("can't swap an undeployed parachain")?
 		// }
@@ -576,6 +572,7 @@ impl<T: Config> SwapAux for Module<T> {
 	}
 }
 
+/*
 /// tests for this module
 #[cfg(test)]
 mod tests {
@@ -1386,3 +1383,4 @@ mod tests {
 		});
 	}
 }
+*/

@@ -20,20 +20,17 @@
 
 use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::{
-	RuntimeDebug,
 	traits::{
-		CheckedSub, StaticLookup, Zero, One, CheckedConversion, Hash, AccountIdConversion, Saturating,
+		CheckedSub, Zero, One, Saturating,
 	},
 };
-use parity_scale_codec::{Encode, Decode, Codec};
+use parity_scale_codec::Decode;
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
-	traits::{Currency, ReservableCurrency, WithdrawReasons, ExistenceRequirement, Get, Randomness},
+	traits::{Currency, ReservableCurrency, Get, Randomness},
 	weights::{DispatchClass, Weight},
 };
-use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData,
-};
+use primitives::v1::Id as ParaId;
 use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use crate::slots::{Leaser, LeaseError};
@@ -163,16 +160,11 @@ decl_module! {
 		fn deposit_event() = default;
 
 		fn on_initialize(n: T::BlockNumber) -> Weight {
-
 			// Check to see if an auction just ended.
 			if let Some((winning_ranges, auction_lease_period_index)) = Self::check_auction_end(n) {
-				let lease_period = T::Leaser::lease_period();
-				let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
-
 				// Auction is ended now. We have the winning ranges and the lease period index which
 				// acts as the offset. Handle it.
 				Self::manage_auction_end(
-					lease_period_index,
 					auction_lease_period_index,
 					winning_ranges,
 				);
@@ -301,7 +293,6 @@ impl<T: Config> Module<T> {
 	/// is guaranteed to be at least the current period) and the bidders that were winning each
 	/// range at the time of the auction's close.
 	fn manage_auction_end(
-		lease_period_index: LeasePeriodOf<T>,
 		auction_lease_period_index: LeasePeriodOf<T>,
 		winning_ranges: WinningData<T>,
 	) {
@@ -334,11 +325,9 @@ impl<T: Config> Module<T> {
 				Err(LeaseError::AlreadyLeased) => {
 					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
 					// keep the amount reserved and let governance sort it out.
-					CurrencyOf::<T>::reserve(&leaser, amount);
-					/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
-					/// but no parachain slot has been leased.
-					/// \[parachain_id, leaser, amount\]
-					Self::deposit_event(RawEvent::ReserveConfiscated(para, leaser, amount));
+					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
+						Self::deposit_event(RawEvent::ReserveConfiscated(para, leaser, amount));
+					}
 				}
 				Ok(()) => {}, // Nothing to report.
 			}
@@ -419,8 +408,7 @@ impl<T: Config> Module<T> {
 			// bids.
 			let mut outgoing_winner = Some((bidder, para, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
-			if let Some((who, para, amount)) = outgoing_winner {
-
+			if let Some((who, para, _amount)) = outgoing_winner {
 				if current_winning.iter()
 					.filter_map(Option::as_ref)
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
@@ -494,12 +482,12 @@ impl<T: Config> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::{collections::HashMap, cell::RefCell};
+	use std::{collections::BTreeMap, cell::RefCell};
 
 	use sp_core::H256;
-	use sp_runtime::traits::{BlakeTwo256, Hash, IdentityLookup};
+	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
-		impl_outer_origin, parameter_types, assert_ok, assert_noop,
+		impl_outer_origin, parameter_types, assert_ok, assert_noop, assert_storage_noop,
 		traits::{OnInitialize, OnFinalize}
 	};
 	use pallet_balances;
@@ -548,91 +536,90 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = ();
 		type DustRemoval = ();
+		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
-		type MaxLocks = ();
 		type WeightInfo = ();
+		type MaxLocks = ();
+	}
+
+	#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug)]
+	pub struct LeaseData {
+		leaser: u64,
+		amount: u64,
 	}
 
 	thread_local! {
-		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
-		pub static PARACHAINS:
-			RefCell<HashMap<u32, (ValidationCode, HeadData)>> = RefCell::new(HashMap::new());
+		pub static LEASES:
+			RefCell<BTreeMap<(ParaId, BlockNumber), LeaseData>> = RefCell::new(BTreeMap::new());
 	}
 
-	const MAX_CODE_SIZE: u32 = 100;
-	const MAX_HEAD_DATA_SIZE: u32 = 10;
+	fn leases() -> Vec<((ParaId, BlockNumber), LeaseData)> {
+		LEASES.with(|p| (&*p.borrow()).clone().into_iter().collect::<Vec<_>>())
+	}
 
-	pub struct TestParachains;
-	impl Registrar<u64> for TestParachains {
-		fn new_id() -> ParaId {
-			PARACHAIN_COUNT.with(|p| {
-				*p.borrow_mut() += 1;
-				(*p.borrow() - 1).into()
-			})
-		}
+	pub struct TestLeaser;
+	impl Leaser for TestLeaser {
+		type AccountId = u64;
+		type LeasePeriod = BlockNumber;
+		type Currency = Balances;
 
-		fn head_data_size_allowed(head_data_size: u32) -> bool {
-			head_data_size <= MAX_HEAD_DATA_SIZE
-		}
-
-		fn code_size_allowed(code_size: u32) -> bool {
-			code_size <= MAX_CODE_SIZE
-		}
-
-		fn register_para(
-			id: ParaId,
-			_parachain: bool,
-			code: ValidationCode,
-			initial_head_data: HeadData,
-		) -> DispatchResult {
-			PARACHAINS.with(|p| {
-				if p.borrow().contains_key(&id.into()) {
-					panic!("ID already exists")
+		fn lease_out(
+			para: ParaId,
+			leaser: &Self::AccountId,
+			amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
+			period_begin: Self::LeasePeriod,
+			period_count: Self::LeasePeriod,
+		) -> Result<(), LeaseError> {
+			LEASES.with(|l| {
+				let mut leases = l.borrow_mut();
+				if period_begin < Self::lease_period_index() {
+					return Err(LeaseError::AlreadyEnded)
 				}
-				p.borrow_mut().insert(id.into(), (code, initial_head_data));
+				for period in period_begin..(period_begin + period_count) {
+					if leases.contains_key(&(para, period)) {
+						return Err(LeaseError::AlreadyLeased)
+					}
+					leases.insert((para, period), LeaseData { leaser: leaser.clone(), amount });
+				}
 				Ok(())
 			})
 		}
-		fn deregister_para(id: ParaId) -> DispatchResult {
-			PARACHAINS.with(|p| {
-				if !p.borrow().contains_key(&id.into()) {
-					panic!("ID doesn't exist")
-				}
-				p.borrow_mut().remove(&id.into());
-				Ok(())
-			})
+
+		fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
+			leases().iter()
+				.filter_map(|((id, _period), data)|
+					if id == &para && &data.leaser == leaser { Some(data.amount) } else { None }
+				)
+				.max()
+				.unwrap_or_default()
 		}
-	}
 
-	fn reset_count() {
-		PARACHAIN_COUNT.with(|p| *p.borrow_mut() = 0);
-	}
+		fn lease_period() -> Self::LeasePeriod {
+			10
+		}
 
-	fn with_parachains<T>(f: impl FnOnce(&HashMap<u32, (ValidationCode, HeadData)>) -> T) -> T {
-		PARACHAINS.with(|p| f(&*p.borrow()))
+		fn lease_period_index() -> Self::LeasePeriod {
+			(System::block_number() / Self::lease_period()).into()
+		}
 	}
 
 	parameter_types!{
-		pub const LeasePeriod: BlockNumber = 10;
 		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	impl Config for Test {
 		type Event = ();
-		type Currency = Balances;
-		type Parachains = TestParachains;
-		type LeasePeriod = LeasePeriod;
+		type Leaser = TestLeaser;
 		type EndingPeriod = EndingPeriod;
 		type Randomness = RandomnessCollectiveFlip;
 	}
 
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
-	type Slots = Module<Test>;
 	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
+	type Auctions = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
@@ -646,30 +633,30 @@ mod tests {
 
 	fn run_to_block(n: BlockNumber) {
 		while System::block_number() < n {
-			Slots::on_finalize(System::block_number());
+			Auctions::on_finalize(System::block_number());
 			Balances::on_finalize(System::block_number());
 			System::on_finalize(System::block_number());
 			System::set_block_number(System::block_number() + 1);
 			System::on_initialize(System::block_number());
 			Balances::on_initialize(System::block_number());
-			Slots::on_initialize(System::block_number());
+			Auctions::on_initialize(System::block_number());
 		}
 	}
 
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(Slots::auction_counter(), 0);
-			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
-			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::auction_counter(), 0);
+			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
+			assert_eq!(Auctions::is_in_progress(), false);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 
-			assert_eq!(Slots::auction_counter(), 0);
-			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
-			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::auction_counter(), 0);
+			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
+			assert_eq!(Auctions::is_in_progress(), false);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 		});
 	}
 
@@ -678,11 +665,60 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
 
-			assert_eq!(Slots::auction_counter(), 1);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::auction_counter(), 1);
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+		});
+	}
+
+	#[test]
+	fn bidding_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 5));
+
+			assert_eq!(Balances::reserved_balance(1), 5);
+			assert_eq!(Balances::free_balance(1), 5);
+			assert_eq!(
+				Auctions::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
+				Some((1, 0.into(), 5))
+			);
+		});
+	}
+
+	#[test]
+	fn under_bidding_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 5));
+
+			assert_storage_noop!(
+				{assert_ok!(Auctions::bid(Origin::signed(2), 0.into(), 1, 1, 4, 1));}
+			);
+		});
+	}
+
+	#[test]
+	fn over_bidding_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 5));
+			assert_ok!(Auctions::bid(Origin::signed(2), 0.into(), 1, 1, 4, 6));
+
+			assert_eq!(Balances::reserved_balance(1), 0);
+			assert_eq!(Balances::free_balance(1), 10);
+			assert_eq!(Balances::reserved_balance(2), 6);
+			assert_eq!(Balances::free_balance(2), 14);
+			assert_eq!(
+				Auctions::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
+				Some((2, 0.into(), 6))
+			);
 		});
 	}
 
@@ -691,43 +727,43 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
 
-			assert_eq!(Slots::auction_counter(), 1);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::auction_counter(), 1);
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(2);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(3);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(4);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(5);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(6);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), Some(0));
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
 
 			run_to_block(7);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), Some(1));
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
 
 			run_to_block(8);
-			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), Some(2));
+			assert_eq!(Auctions::is_in_progress(), true);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
 
 			run_to_block(9);
-			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::is_in_progress(), false);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 		});
 	}
 
@@ -735,312 +771,19 @@ mod tests {
 	fn can_win_auction() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(1), 1);
 			assert_eq!(Balances::free_balance(1), 9);
-
 			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(Slots::onboarding(ParaId::from(0)),
-				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
-			);
-			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Balances::reserved_balance(1), 0);
-			assert_eq!(Balances::free_balance(1), 9);
-		});
-	}
 
-	#[test]
-	fn offboarding_works() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::free_balance(1), 9);
-
-			run_to_block(9);
-			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Slots::deposits(ParaId::from(0))[0], 0);
-
-			run_to_block(50);
-			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(1), 10);
-		});
-	}
-
-	#[test]
-	fn set_offboarding_works() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-
-			run_to_block(9);
-			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_eq!(Slots::deposits(ParaId::from(0))[0], 0);
-
-			run_to_block(49);
-			assert_eq!(Slots::deposit_held(&0.into()), 1);
-			assert_ok!(Slots::set_offboarding(Origin::signed(ParaId::from(0).into_account()), 10));
-
-			run_to_block(50);
-			assert_eq!(Slots::deposit_held(&0.into()), 0);
-			assert_eq!(Balances::free_balance(10), 1);
-		});
-	}
-
-	#[test]
-	fn onboarding_works() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-
-			run_to_block(9);
-			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69].into()));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42].into()));
-
-			run_to_block(10);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![42].into(), vec![69].into()));
-			});
-		});
-	}
-
-	#[test]
-	fn late_onboarding_works() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
-
-			run_to_block(10);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 0);
-			});
-
-			run_to_block(11);
-			let h = BlakeTwo256::hash(&[42u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![69].into()));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![42].into()));
-			with_parachains(|p| {
-				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![42].into(), vec![69].into()));
-			});
-		});
-	}
-
-	#[test]
-	fn under_bidding_works() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
-			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
-			assert_eq!(Balances::reserved_balance(2), 0);
-			assert_eq!(Balances::free_balance(2), 20);
-			assert_eq!(
-				Slots::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
-				Some((Bidder::New(NewBidder{who: 1, sub: 0}), 5))
-			);
-		});
-	}
-
-	#[test]
-	fn should_choose_best_combination() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
-			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
-			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 2));
-			assert_ok!(Slots::bid(Origin::signed(1), 1, 1, 1, 4, 1));
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(0)),
-				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
-			);
-			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(1)),
-				Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 })))
-			);
-			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(2)),
-				Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
-			);
-		});
-	}
-
-	#[test]
-	fn independent_bids_should_fail() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 1, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 2, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 4, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 2, 1));
-			assert_noop!(
-				Slots::bid(Origin::signed(1), 0, 1, 3, 3, 1),
-				Error::<Test>::NonIntersectingRange
-			);
-		});
-	}
-
-	#[test]
-	fn multiple_onboards_offboards_should_work() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 1, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
-			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
-			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 1));
-
-			run_to_block(5);
-			assert_ok!(Slots::new_auction(Origin::root(), 1, 1));
-			assert_ok!(Slots::bid(Origin::signed(4), 1, 2, 1, 2, 1));
-			assert_ok!(Slots::bid(Origin::signed(5), 1, 2, 3, 4, 1));
-
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into(), 3.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(0)),
-				Some((1, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
-			);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(3)),
-				Some((1, IncomingParachain::Unset(NewBidder { who: 4, sub: 1 })))
-			);
-			assert_eq!(Slots::onboard_queue(2), vec![1.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(1)),
-				Some((2, IncomingParachain::Unset(NewBidder { who: 2, sub: 0 })))
-			);
-			assert_eq!(Slots::onboard_queue(3), vec![4.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(4)),
-				Some((3, IncomingParachain::Unset(NewBidder { who: 5, sub: 1 })))
-			);
-			assert_eq!(Slots::onboard_queue(4), vec![2.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(2)),
-				Some((4, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
-			);
-
-			for &(para, sub, acc) in &[(0, 0, 1), (1, 0, 2), (2, 0, 3), (3, 1, 4), (4, 1, 5)] {
-				let h = BlakeTwo256::hash(&[acc][..]);
-				assert_ok!(Slots::fix_deploy_data(Origin::signed(acc as _), sub, para.into(), h, 1, vec![acc].into()));
-				assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), para.into(), vec![acc].into()));
-			}
-
-			run_to_block(10);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 2);
-				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
-				assert_eq!(p[&3], (vec![4].into(), vec![4].into()));
-			});
-			run_to_block(20);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 2);
-				assert_eq!(p[&1], (vec![2].into(), vec![2].into()));
-				assert_eq!(p[&3], (vec![4].into(), vec![4].into()));
-			});
-			run_to_block(30);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 2);
-				assert_eq!(p[&1], (vec![2].into(), vec![2].into()));
-				assert_eq!(p[&4], (vec![5].into(), vec![5].into()));
-			});
-			run_to_block(40);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 2);
-				assert_eq!(p[&2], (vec![3].into(), vec![3].into()));
-				assert_eq!(p[&4], (vec![5].into(), vec![5].into()));
-			});
-			run_to_block(50);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 0);
-			});
-		});
-	}
-
-	#[test]
-	fn extensions_should_work() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
-
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-
-			run_to_block(10);
-			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1].into()));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1].into()));
-
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
-			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 1));
-
-			with_parachains(|p| {
-				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
-			});
-
-			run_to_block(20);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
-			});
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
-			assert_ok!(Balances::transfer(Origin::signed(1), ParaId::from(0).into_account(), 1));
-			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 2));
-
-			run_to_block(30);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 1);
-				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
-			});
-
-			run_to_block(40);
-			with_parachains(|p| {
-				assert_eq!(p.len(), 0);
-			});
-		});
-	}
-
-	#[test]
-	fn renewal_with_lower_value_should_work() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
-
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-
-			run_to_block(10);
-			let h = BlakeTwo256::hash(&[1u8][..]);
-			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1].into()));
-			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1].into()));
-
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
-			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
-
-			run_to_block(20);
-			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 2);
-
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
-			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
-
-			run_to_block(30);
-			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 1);
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 3), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 4), LeaseData { leaser: 1, amount: 1 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 1);
 		});
 	}
 
@@ -1048,20 +791,110 @@ mod tests {
 	fn can_win_incomplete_auction() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 4, 4, 5));
-
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 4, 4, 5));
 			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![]);
-			assert_eq!(Slots::onboard_queue(2), vec![]);
-			assert_eq!(Slots::onboard_queue(3), vec![]);
-			assert_eq!(Slots::onboard_queue(4), vec![0.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(0)),
-				Some((4, IncomingParachain::Unset(NewBidder { who: 1, sub: 0 })))
+
+			assert_eq!(leases(), vec![
+				((0.into(), 4), LeaseData { leaser: 1, amount: 5 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 5);
+		});
+	}
+
+	#[test]
+	fn should_choose_best_combination() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 1));
+			assert_ok!(Auctions::bid(Origin::signed(2), 0.into(), 1, 2, 3, 4));
+			assert_ok!(Auctions::bid(Origin::signed(3), 0.into(), 1, 4, 4, 2));
+			assert_ok!(Auctions::bid(Origin::signed(1), 1.into(), 1, 1, 4, 2));
+			run_to_block(9);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 2), LeaseData { leaser: 2, amount: 4 }),
+				((0.into(), 3), LeaseData { leaser: 2, amount: 4 }),
+				((0.into(), 4), LeaseData { leaser: 3, amount: 2 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 1);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &1), 0);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &2), 4);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &3), 2);
+		});
+	}
+
+	#[test]
+	fn independent_bids_should_fail() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::root(), 1, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 2, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 4, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 2, 1));
+			assert_noop!(
+				Auctions::bid(Origin::signed(1), 0.into(), 1, 3, 3, 1),
+				Error::<Test>::NonIntersectingRange
 			);
-			assert_eq!(Slots::deposit_held(&0.into()), 5);
+		});
+	}
+
+	#[test]
+	fn deposit_credit_should_work() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
+			assert_eq!(Balances::reserved_balance(1), 5);
+			run_to_block(10);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 5 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 5);
+
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 2));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 2, 2, 2, 6));
+			// Only 1 reserved since we have a deposit credit of 5.
+			assert_eq!(Balances::reserved_balance(1), 1);
+			run_to_block(20);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 5 }),
+				((0.into(), 2), LeaseData { leaser: 1, amount: 6 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 6);
+		});
+	}
+
+	#[test]
+	fn deposit_credit_on_alt_para_should_not_count() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
+			assert_eq!(Balances::reserved_balance(1), 5);
+			run_to_block(10);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 5 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 5);
+
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 2));
+			assert_ok!(Auctions::bid(Origin::signed(1), 1.into(), 2, 2, 2, 6));
+			// 6 reserved since we are bidding on a new para; only works because we don't
+			assert_eq!(Balances::reserved_balance(1), 6);
+			run_to_block(20);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 5 }),
+				((1.into(), 2), LeaseData { leaser: 1, amount: 6 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 5);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &1), 6);
 		});
 	}
 
@@ -1070,11 +903,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
 
 			for i in 1..6u64 {
 				run_to_block(i as _);
-				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
+				assert_ok!(Auctions::bid(Origin::signed(i), 0.into(), 1, 1, 4, i));
 				for j in 1..6 {
 					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
 					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
@@ -1082,14 +915,12 @@ mod tests {
 			}
 
 			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(0)),
-				Some((1, IncomingParachain::Unset(NewBidder { who: 5, sub: 0 })))
-			);
-			assert_eq!(Slots::deposit_held(&0.into()), 5);
-			assert_eq!(Balances::reserved_balance(5), 0);
-			assert_eq!(Balances::free_balance(5), 45);
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 5, amount: 5 }),
+				((0.into(), 2), LeaseData { leaser: 5, amount: 5 }),
+				((0.into(), 3), LeaseData { leaser: 5, amount: 5 }),
+				((0.into(), 4), LeaseData { leaser: 5, amount: 5 }),
+			]);
 		});
 	}
 
@@ -1098,11 +929,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::root(), 5, 1));
 
 			for i in 1..6u64 {
 				run_to_block((i + 3) as _);
-				assert_ok!(Slots::bid(Origin::signed(i), 0, 1, 1, 4, i));
+				assert_ok!(Auctions::bid(Origin::signed(i), 0.into(), 1, 1, 4, i));
 				for j in 1..6 {
 					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
 					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
@@ -1110,14 +941,12 @@ mod tests {
 			}
 
 			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-			assert_eq!(
-				Slots::onboarding(ParaId::from(0)),
-				Some((1, IncomingParachain::Unset(NewBidder { who: 3, sub: 0 })))
-			);
-			assert_eq!(Slots::deposit_held(&0.into()), 3);
-			assert_eq!(Balances::reserved_balance(3), 0);
-			assert_eq!(Balances::free_balance(3), 27);
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 3, amount: 3 }),
+				((0.into(), 2), LeaseData { leaser: 3, amount: 3 }),
+				((0.into(), 3), LeaseData { leaser: 3, amount: 3 }),
+				((0.into(), 4), LeaseData { leaser: 3, amount: 3 }),
+			]);
 		});
 	}
 
@@ -1133,19 +962,19 @@ mod tests {
 			None,
 			None,
 			None,
-			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 1)),
+			Some((1, 0.into(), 1)),
 		];
 		let winners = vec![
-			(Some(NewBidder{who: 1, sub: 0}), 0.into(), 1, SlotRange::ThreeThree)
+			(1, 0.into(), 1, SlotRange::ThreeThree)
 		];
 
-		assert_eq!(Slots::calculate_winners(winning, TestParachains::new_id), winners);
+		assert_eq!(Auctions::calculate_winners(winning), winners);
 	}
 
 	#[test]
 	fn first_incomplete_calculate_winners_works() {
 		let winning = [
-			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 1)),
+			Some((1, 0.into(), 1)),
 			None,
 			None,
 			None,
@@ -1157,153 +986,56 @@ mod tests {
 			None,
 		];
 		let winners = vec![
-			(Some(NewBidder{who: 1, sub: 0}), 0.into(), 1, SlotRange::ZeroZero)
+			(1, 0.into(), 1, SlotRange::ZeroZero)
 		];
 
-		assert_eq!(Slots::calculate_winners(winning, TestParachains::new_id), winners);
+		assert_eq!(Auctions::calculate_winners(winning), winners);
 	}
 
 	#[test]
 	fn calculate_winners_works() {
 		let mut winning = [
 			/*0..0*/
-			Some((Bidder::New(NewBidder{who: 2, sub: 0}), 2)),
+			Some((2, 0.into(), 2)),
 			/*0..1*/
 			None,
 			/*0..2*/
 			None,
 			/*0..3*/
-			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 1)),
+			Some((1, 100.into(), 1)),
 			/*1..1*/
-			Some((Bidder::New(NewBidder{who: 3, sub: 0}), 1)),
+			Some((3, 1.into(), 1)),
 			/*1..2*/
 			None,
 			/*1..3*/
 			None,
 			/*2..2*/
-			//Some((Bidder::New(NewBidder{who: 4, sub: 0}), 1)),
-			Some((Bidder::New(NewBidder{who: 1, sub: 0}), 53)),
+			Some((1, 2.into(), 53)),
 			/*2..3*/
 			None,
 			/*3..3*/
-			Some((Bidder::New(NewBidder{who: 5, sub: 0}), 1)),
+			Some((5, 3.into(), 1)),
 		];
 		let winners = vec![
-			(Some(NewBidder{who: 2,sub: 0}), 0.into(), 2, SlotRange::ZeroZero),
-			(Some(NewBidder{who: 3,sub: 0}), 1.into(), 1, SlotRange::OneOne),
-			(Some(NewBidder{who: 1,sub: 0}), 2.into(), 53, SlotRange::TwoTwo),
-			(Some(NewBidder{who: 5,sub: 0}), 3.into(), 1, SlotRange::ThreeThree)
+			(2, 0.into(), 2, SlotRange::ZeroZero),
+			(3, 1.into(), 1, SlotRange::OneOne),
+			(1, 2.into(), 53, SlotRange::TwoTwo),
+			(5, 3.into(), 1, SlotRange::ThreeThree),
 		];
+		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
 
-		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
-
-		reset_count();
-		winning[SlotRange::ZeroThree as u8 as usize] = Some((Bidder::New(NewBidder{who: 1, sub: 0}), 2));
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((4, 10.into(), 3));
 		let winners = vec![
-			(Some(NewBidder{who: 2,sub: 0}), 0.into(), 2, SlotRange::ZeroZero),
-			(Some(NewBidder{who: 3,sub: 0}), 1.into(), 1, SlotRange::OneOne),
-			(Some(NewBidder{who: 1,sub: 0}), 2.into(), 53, SlotRange::TwoTwo),
-			(Some(NewBidder{who: 5,sub: 0}), 3.into(), 1, SlotRange::ThreeThree)
+			(4, 10.into(), 3, SlotRange::ZeroOne),
+			(1, 2.into(), 53, SlotRange::TwoTwo),
+			(5, 3.into(), 1, SlotRange::ThreeThree),
 		];
-		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
+		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
 
-		reset_count();
-		winning[SlotRange::ZeroOne as u8 as usize] = Some((Bidder::New(NewBidder{who: 4, sub: 0}), 3));
+		winning[SlotRange::ZeroThree as u8 as usize] = Some((1, 100.into(), 100));
 		let winners = vec![
-			(Some(NewBidder{who: 4,sub: 0}), 0.into(), 3, SlotRange::ZeroOne),
-			(Some(NewBidder{who: 1,sub: 0}), 1.into(), 53, SlotRange::TwoTwo),
-			(Some(NewBidder{who: 5,sub: 0}), 2.into(), 1, SlotRange::ThreeThree)
+			(1, 100.into(), 100, SlotRange::ZeroThree),
 		];
-		assert_eq!(Slots::calculate_winners(winning.clone(), TestParachains::new_id), winners);
-	}
-
-	#[test]
-	fn deploy_code_too_large() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
-
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-
-			run_to_block(10);
-
-			let code = vec![0u8; (MAX_CODE_SIZE + 1) as _];
-			let h = BlakeTwo256::hash(&code[..]);
-			assert_eq!(
-				Slots::fix_deploy_data(
-					Origin::signed(1), 0, 0.into(), h, code.len() as _, vec![1].into(),
-				),
-				Err(Error::<Test>::CodeTooLarge.into()),
-			);
-		});
-	}
-
-	#[test]
-	fn deploy_maximum_ok() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
-
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-
-			run_to_block(10);
-
-			let code = vec![0u8; MAX_CODE_SIZE as _];
-			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _].into();
-			let h = BlakeTwo256::hash(&code[..]);
-			assert_ok!(Slots::fix_deploy_data(
-				Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
-			));
-		});
-	}
-
-	#[test]
-	fn deploy_head_data_too_large() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
-
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-
-			run_to_block(10);
-
-			let code = vec![0u8; MAX_CODE_SIZE as _];
-			let head_data = vec![1u8; (MAX_HEAD_DATA_SIZE + 1) as _].into();
-			let h = BlakeTwo256::hash(&code[..]);
-			assert_eq!(
-				Slots::fix_deploy_data(
-					Origin::signed(1), 0, 0.into(), h, code.len() as _, head_data,
-				),
-				Err(Error::<Test>::HeadDataTooLarge.into()),
-			);
-		});
-	}
-
-	#[test]
-	fn code_size_must_be_correct() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
-
-			run_to_block(9);
-			assert_eq!(Slots::onboard_queue(1), vec![0.into()]);
-
-			run_to_block(10);
-
-			let code = vec![0u8; MAX_CODE_SIZE as _];
-			let head_data = vec![1u8; MAX_HEAD_DATA_SIZE as _].into();
-			let h = BlakeTwo256::hash(&code[..]);
-			assert_ok!(Slots::fix_deploy_data(
-				Origin::signed(1), 0, 0.into(), h, (code.len() - 1) as _, head_data,
-			));
-			assert!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), code.into()).is_err());
-		});
+		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
 	}
 }
