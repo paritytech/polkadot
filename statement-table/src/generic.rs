@@ -24,7 +24,7 @@
 //! indicating whether the candidate is valid or invalid. Once a threshold of the committee
 //! has signed validity statements, the candidate may be marked includable.
 
-use std::collections::hash_map::{HashMap, Entry};
+use std::collections::hash_map::{self, Entry, HashMap};
 use std::hash::Hash;
 use std::fmt::Debug;
 
@@ -449,11 +449,10 @@ impl<Ctx: Context> Table<Ctx> {
 	/// Create a draining iterator of misbehaviors.
 	///
 	/// This consumes all detected misbehaviors, even if the iterator is not completely consumed.
-	pub fn drain_misbehaviors(&mut self) -> impl '_ + Iterator<Item = MisbehaviorFor<Ctx>> {
+	pub fn drain_misbehaviors(&mut self) -> DrainMisbehaviors<'_, Ctx> {
 		self.detected_misbehavior
 			.drain()
-			.map(|(_authority, report)| report.into_iter())
-			.flatten()
+			.into()
 	}
 
 	/// Get the current number of parachains with includable candidates.
@@ -628,6 +627,65 @@ impl<Ctx: Context> Table<Ctx> {
 		update_includable_count(&mut self.includable_count, &votes.group_id, was_includable, is_includable);
 
 		Ok(Some(votes.summary(digest)))
+	}
+}
+
+type Drain<'a, Ctx> = hash_map::Drain<'a, <Ctx as Context>::AuthorityId, Vec<MisbehaviorFor<Ctx>>>;
+
+struct MisbehaviorForAuthority<Ctx: Context> {
+	id: Ctx::AuthorityId,
+	misbehaviors: Vec<MisbehaviorFor<Ctx>>,
+}
+
+impl<Ctx: Context> From<(Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>)> for MisbehaviorForAuthority<Ctx> {
+	fn from((id, mut misbehaviors): (Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>)) -> Self {
+		// we're going to be popping items off this list in the iterator, so reverse it now to
+		// preserve the original ordering.
+		misbehaviors.reverse();
+		Self { id, misbehaviors }
+	}
+}
+
+impl<Ctx: Context> Iterator for MisbehaviorForAuthority<Ctx> {
+	type Item = (Ctx::AuthorityId, MisbehaviorFor<Ctx>);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.misbehaviors.pop().map(|misbehavior| (self.id.clone(), misbehavior))
+	}
+}
+
+pub struct DrainMisbehaviors<'a, Ctx: Context> {
+	drain: Drain<'a, Ctx>,
+	in_progress: Option<MisbehaviorForAuthority<Ctx>>,
+}
+
+impl<'a, Ctx: Context> From<Drain<'a, Ctx>> for DrainMisbehaviors<'a, Ctx> {
+	fn from(drain: Drain<'a, Ctx>) -> Self {
+		Self {
+			drain,
+			in_progress: None,
+		}
+	}
+}
+
+impl<'a, Ctx: Context> DrainMisbehaviors<'a, Ctx> {
+	fn maybe_item(&mut self) -> Option<(Ctx::AuthorityId, MisbehaviorFor<Ctx>)> {
+		self.in_progress.as_mut().and_then(Iterator::next)
+	}
+}
+
+impl<'a, Ctx: Context> Iterator for DrainMisbehaviors<'a, Ctx> {
+	type Item = (Ctx::AuthorityId, MisbehaviorFor<Ctx>);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		// Note: this implementation will prematurely return `None` if `self.drain.next()` ever returns a
+		// tuple whose vector is empty. That will never currently happen, as the only modification
+		// to the backing map is currently via `drain` and `entry(...).or_default().push(...)`.
+		// However, future code changes might change that property.
+		self.maybe_item().or_else(|| {
+			self.in_progress = self.drain.next().map(Into::into);
+			self.maybe_item()
+		})
 	}
 }
 
