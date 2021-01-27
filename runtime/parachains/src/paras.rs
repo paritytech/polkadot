@@ -208,13 +208,17 @@ decl_storage! {
 		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 
 		/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
-		/// entry in the upcoming-genesis map.
+		/// entry in the upcoming-genesis map. Ordered.
 		UpcomingParas get(fn upcoming_paras): Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.
 		OutgoingParas get(fn outgoing_paras): Vec<ParaId>;
 
+		/// Existing Parathreads that should upgrade to be a Parachain.
+		UpcomingUpgrades: Vec<ParaId>;
+		/// Existing Parachains that should downgrade to be a Parathread.
+		UpcomingDowngrades: Vec<ParaId>;
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
@@ -268,6 +272,8 @@ impl<T: Config> Module<T> {
 		let now = <frame_system::Module<T>>::block_number();
 		let mut parachains = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
+		Self::apply_upgrades(&mut parachains);
+		Self::apply_downgrades(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
 	}
 
@@ -315,6 +321,29 @@ impl<T: Config> Module<T> {
 
 			<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
 			<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
+		}
+	}
+
+	/// Take an existing parathread and upgrade it to be a parachain.
+	fn apply_upgrades(parachains: &mut Vec<ParaId>) {
+		let upgrades = UpcomingUpgrades::take();
+		for para in upgrades {
+			if Parathreads::take(&para).is_some() {
+				if let Err(i) = parachains.binary_search(&para) {
+					parachains.insert(i, para);
+				}
+			}
+		}
+	}
+
+	/// Take an existing parachain and downgrade it to be a parathread. Update the list of parachains.
+	fn apply_downgrades(parachains: &mut Vec<ParaId>) {
+		let downgrades = UpcomingDowngrades::take();
+		for para in downgrades {
+			if let Ok(i) = parachains.binary_search(&para) {
+				parachains.remove(i);
+				Parathreads::insert(&para, ());
+			}
 		}
 	}
 
@@ -444,6 +473,18 @@ impl<T: Config> Module<T> {
 		outgoing_weight + upcoming_weight
 	}
 
+	#[allow(dead_code)]
+	pub(crate) fn schedule_para_upgrade(para: ParaId) -> Weight {
+		UpcomingUpgrades::append(para);
+		T::DbWeight::get().writes(1)
+	}
+
+	#[allow(dead_code)]
+	pub(crate) fn schedule_para_downgrade(para: ParaId) -> Weight {
+		UpcomingDowngrades::append(para);
+		T::DbWeight::get().writes(1)
+	}
+
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
 	/// of a block of the same parachain executed in the context of a relay-chain block
 	/// with number >= `expected_at`
@@ -543,13 +584,22 @@ impl<T: Config> Module<T> {
 
 	/// Returns whether the given ID refers to a valid para.
 	pub fn is_valid_para(id: ParaId) -> bool {
-		Self::parachains().binary_search(&id).is_ok()
-			|| Self::is_parathread(id)
+		Self::is_parachain(id) || Self::is_parathread(id)
 	}
 
 	/// Whether a para ID corresponds to any live parathread.
-	pub(crate) fn is_parathread(id: ParaId) -> bool {
+	pub fn is_parachain(id: ParaId) -> bool {
+		Parachains::get().binary_search(&id).is_ok()
+	}
+
+	/// Whether a para ID corresponds to any live parathread.
+	pub fn is_parathread(id: ParaId) -> bool {
 		Parathreads::get(&id).is_some()
+	}
+
+	/// Wether a para ID is in in the onboarding queue.
+	pub fn is_upcoming(id: ParaId) -> bool {
+		UpcomingParas::get().binary_search(&id).is_ok()
 	}
 
 	/// The block number of the last scheduled upgrade of the requested para. Includes future upgrades

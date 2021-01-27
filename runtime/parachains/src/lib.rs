@@ -43,17 +43,18 @@ mod util;
 mod mock;
 
 pub use origin::{Origin, ensure_parachain};
+use primitives::v1::Id as ParaId;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(
-	id: primitives::v1::Id,
+	id: ParaId,
 	genesis: paras::ParaGenesisArgs,
 ) {
 	<paras::Module<T>>::schedule_para_initialize(id, genesis);
 }
 
 /// Schedule a para to be cleaned up at the start of the next session.
-pub fn schedule_para_cleanup<T>(id: primitives::v1::Id)
+pub fn schedule_para_cleanup<T>(id: ParaId)
 where
 	T: paras::Config
 	+ dmp::Config
@@ -64,4 +65,14 @@ where
 	<dmp::Module<T>>::schedule_para_cleanup(id);
 	<ump::Module<T>>::schedule_para_cleanup(id);
 	<hrmp::Module<T>>::schedule_para_cleanup(id);
+}
+
+/// TODO: doc
+pub fn schedule_para_upgrade<T: paras::Config>(id: ParaId) {
+	paras::Module::<T>::schedule_para_upgrade(id);
+}
+
+/// TODO: doc
+pub fn schedule_para_downgrade<T: paras::Config>(id: ParaId) {
+	paras::Module::<T>::schedule_para_downgrade(id);
 }

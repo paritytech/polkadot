@@ -27,6 +27,7 @@ pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
+pub mod traits;
 
 use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};

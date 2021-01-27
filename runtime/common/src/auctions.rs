@@ -19,11 +19,7 @@
 //! happens elsewhere.
 
 use sp_std::{prelude::*, mem::swap, convert::TryInto};
-use sp_runtime::{
-	traits::{
-		CheckedSub, Zero, One, Saturating,
-	},
-};
+use sp_runtime::traits::{CheckedSub, Zero, One, Saturating};
 use parity_scale_codec::Decode;
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
@@ -33,7 +29,7 @@ use frame_support::{
 use primitives::v1::Id as ParaId;
 use frame_system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use crate::slots::{Leaser, LeaseError};
+use crate::traits::{Leaser, LeaseError};
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;

@@ -82,11 +82,11 @@ use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 
-type CurrencyOf<T> = <<T as auctions::Config>::Leaser as slots::Leaser>::Currency;
-type BalanceOf<T> = <<<T as auctions::Config>::Leaser as slots::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type CurrencyOf<T> = <<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency;
+type BalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[allow(dead_code)]
-type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as slots::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 pub trait Config: slots::Config + auctions::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
