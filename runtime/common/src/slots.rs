@@ -136,7 +136,7 @@ decl_module! {
 			// If we're beginning a new lease period then handle that.
 			let lease_period = T::LeasePeriod::get();
 			if (n % lease_period).is_zero() {
-				let lease_period_index: LeasePeriodOf<T> = (n / lease_period).into();
+				let lease_period_index = n / lease_period;
 				Self::manage_lease_period_start(lease_period_index);
 			}
 
