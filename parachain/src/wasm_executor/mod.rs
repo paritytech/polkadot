@@ -181,7 +181,6 @@ impl Default for ExecutorCache {
 }
 
 /// Validate a candidate under the given validation code.
-/// The provided cache is only used if the isolation strategy is local.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
 pub fn validate_candidate(
