@@ -44,7 +44,7 @@ use sp_runtime::RuntimeDebug;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
-	manager: Account,
+	pub(crate) manager: Account,
 	deposit: Balance,
 	parachain: bool,
 }
@@ -220,7 +220,7 @@ decl_module! {
 	}
 }
 
-impl<T: Config> crate::traits::Registrar for Module<T> {
+impl<T: Config> Registrar for Module<T> {
 	// Upgrade a registered parathread into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {
@@ -284,12 +284,10 @@ mod tests {
 	};
 	use frame_system::limits;
 	use frame_support::{
-		traits::{Randomness, OnInitialize, OnFinalize},
-		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
+		traits::Randomness, impl_outer_origin, impl_outer_dispatch, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
 	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp};
-	use pallet_session::OneSessionHandler;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {
@@ -560,14 +558,14 @@ mod tests {
 		type MaxHeadSize = MaxHeadSize;
 	}
 
-	type Balances = pallet_balances::Module<Test>;
+//	type Balances = pallet_balances::Module<Test>;
 	type Parachains = paras::Module<Test>;
 	type Inclusion = inclusion::Module<Test>;
 	type System = frame_system::Module<Test>;
 	type Registrar = Module<Test>;
 	type Session = pallet_session::Module<Test>;
 	type Staking = pallet_staking::Module<Test>;
-	type Initializer = initializer::Module<Test>;
+//	type Initializer = initializer::Module<Test>;
 
 	fn new_test_ext() -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
@@ -601,7 +599,7 @@ mod tests {
 		t.into()
 	}
 
-	fn run_to_block(n: BlockNumber) {
+/*	fn run_to_block(n: BlockNumber) {
 		// NOTE that this function only simulates modules of interest. Depending on new module may
 		// require adding it here.
 		println!("Running until block {}", n);
@@ -627,7 +625,7 @@ mod tests {
 			System::on_initialize(System::block_number());
 			Initializer::on_initialize(System::block_number());
 		}
-	}
+	}*/
 
 	#[test]
 	fn basic_setup_works() {

@@ -77,7 +77,7 @@ use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
 };
-use crate::{slots, auctions};
+use crate::{slots, auctions, paras_registrar};
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
@@ -88,7 +88,7 @@ type BalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>:
 #[allow(dead_code)]
 type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-pub trait Config: slots::Config + auctions::Config {
+pub trait Config: slots::Config + auctions::Config + paras_registrar::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// ModuleID for the crowdloan module. An appropriate value could be ```ModuleId(*b"py/cfund")```
@@ -255,7 +255,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
 		const ModuleId: ModuleId = T::ModuleId::get();
@@ -277,7 +277,7 @@ decl_module! {
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
-			let (manager, _) = slots::Paras::<T>::get(index).ok_or(Error::<T>::InvalidParaId)?;
+			let manager = paras_registrar::Paras::<T>::get(index).ok_or(Error::<T>::InvalidParaId)?.manager;
 			ensure!(owner == manager, Error::<T>::InvalidOrigin);
 
 			let deposit = T::SubmissionDeposit::get();
