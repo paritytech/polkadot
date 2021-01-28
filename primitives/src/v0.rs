@@ -674,13 +674,13 @@ pub struct ErasureChunk {
 #[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Candidate(CandidateHash),
 	/// State that a parachain candidate is valid.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Valid(CandidateHash),
 	/// State that a parachain candidate is invalid.
-	#[codec(index = "3")]
+	#[codec(index = 3)]
 	Invalid(CandidateHash),
 }
 
@@ -705,11 +705,11 @@ pub type SignedStatement = Signed<CompactStatement>;
 pub enum ValidityAttestation {
 	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Implicit(ValidatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Explicit(ValidatorSignature),
 }
 
