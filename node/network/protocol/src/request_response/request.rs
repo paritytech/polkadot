@@ -19,21 +19,47 @@ use futures::prelude::Future;
 
 use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 use sc_network as network;
+use sc_network::config as netconfig;
 use sc_network::PeerId;
 
-use super::v1;
+use super::{v1, Protocol};
 
 /// Common properties of any `Request`.
 pub trait IsRequest {
 	/// Each request has a corresponding `Response`.
 	type Response;
+
+	/// What protocol this `Request` implements.
+	const PROTOCOL: Protocol;
 }
 
 /// All requests that can be sent to the network bridge via `NetworkBridgeMessage::SendRequest`.
 #[derive(Debug)]
-pub enum Request {
+pub enum Requests {
 	/// Request an availability chunk from a node.
 	AvailabilityFetching(OutgoingRequest<v1::AvailabilityFetchingRequest>),
+}
+
+impl Requests {
+	/// Get the protocol this request conforms to.
+	pub fn get_protocol(&self) -> Protocol {
+		match self {
+			Self::AvailabilityFetching(_) => Protocol::AvailabilityFetching,
+		}
+	}
+
+	/// Encode the request.
+	///
+	/// The corresponding protocol is returned as well, as we are now leaving typed territory.
+	///
+	/// Note: `Requests` is just an enum collecting all supported requests supported by network
+	/// bridge, it is never sent over the wire. This function just encodes the individual requests
+	/// contained in the enum.
+	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
+		match self {
+			Self::AvailabilityFetching(r) => r.encode_request(),
+		}
+	}
 }
 
 /// A request to be sent to the network bridge, including a sender for sending responses/failures.
@@ -79,7 +105,7 @@ impl From<oneshot::Canceled> for RequestError {
 
 impl<Req> OutgoingRequest<Req>
 where
-	Req: IsRequest,
+	Req: IsRequest + Encode,
 	Req::Response: Decode,
 {
 	pub fn new(
@@ -102,6 +128,24 @@ where
 	pub fn get_peer(&self) -> &PeerId {
 		&self.peer
 	}
+
+	/// Encode a request into a `Vec<u8>`.
+	///
+	/// As this throws away type information, we also return the `Protocol` this encoded request
+	/// adheres to.
+	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
+		let OutgoingRequest {
+			peer,
+			payload,
+			pending_response,
+		} = self;
+		let encoded = OutgoingRequest {
+			peer,
+			payload: payload.encode(),
+			pending_response,
+		};
+		(Req::PROTOCOL, encoded)
+	}
 }
 
 /// A request coming in, including a sender for sending responses.
@@ -110,7 +154,7 @@ where
 pub struct IncomingRequest<Req> {
 	pub peer: PeerId,
 	pub payload: Req,
-	pub(crate) pending_response: oneshot::Sender<Vec<u8>>,
+	pub(crate) pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
 }
 
 impl<Req> IncomingRequest<Req>
@@ -121,8 +165,16 @@ where
 	/// Send the response back.
 	///
 	/// On success we return Ok(()), on error we return the not sent `Response`.
+	///
+	/// netconfig::OutgoingResponse exposes a way of modifying the peer's reputation. If needed we
+	/// can change this function to expose this feature as well.
 	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
-		self.pending_response.send(resp.encode()).map_err(|_| resp)
+		self.pending_response
+			.send(netconfig::OutgoingResponse {
+				result: Ok(resp.encode()),
+				reputation_changes: Vec::new(),
+			})
+			.map_err(|_| resp)
 	}
 }
 

@@ -25,10 +25,11 @@ use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
 
-use super::LOG_TARGET;
-use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId, ReputationChange};
+use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId, ReputationChange, request_response::{Requests, OutgoingRequest},};
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
+
+use super::LOG_TARGET;
 
 /// Send a message to the network.
 ///
@@ -86,7 +87,6 @@ pub enum NetworkAction {
 }
 
 /// An abstraction over networking for the purposes of this subsystem.
-///
 pub trait Network: Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
@@ -98,6 +98,8 @@ pub trait Network: Send + 'static {
 	fn action_sink<'a>(
 		&'a mut self,
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>;
+
+	fn send_request(&self, req: Requests);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
 	fn report_peer(
@@ -179,5 +181,13 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		}
 
 		Box::pin(ActionSink(&**self))
+	}
+
+	fn send_request(&self, req: Requests,) {
+		let (protocol, OutgoingRequest { peer, payload, pending_response })
+			= req.encode_request();
+
+		// Use the exact same method as implemented in `NetworkService`:
+		self.as_ref().send_request(peer, protocol.into_protocol_name(), payload, pending_response, true);
 	}
 }

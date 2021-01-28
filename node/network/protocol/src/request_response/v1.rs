@@ -21,6 +21,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{CandidateHash, ErasureChunk, ValidatorIndex};
 
 use super::request::IsRequest;
+use super::Protocol;
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct AvailabilityFetchingRequest {
@@ -36,4 +37,5 @@ pub enum AvailabilityFetchingResponse {
 
 impl IsRequest for AvailabilityFetchingRequest {
 	type Response = AvailabilityFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::AvailabilityFetching;
 }

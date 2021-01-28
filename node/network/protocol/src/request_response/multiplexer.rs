@@ -17,9 +17,11 @@
 use std::convert::From;
 use std::result::Result;
 use std::pin::Pin;
+use std::marker::PhantomData;
 
-use futures::future::Fuse;
-use futures::prelude::stream::{Stream, StreamExt};
+use futures::stream::{Stream, StreamExt};
+use futures::stream::FusedStream;
+use futures::channel::mpsc;
 use futures::task::{Poll, Context};
 use strum::IntoEnumIterator;
 
@@ -36,25 +38,21 @@ use super::{RequestResponseConfig, Protocol};
 ///
 /// This multiplexer consumes all request streams and makes them a `Stream` of a single message
 /// type, useful for the network bridge to send them via the `Overseer` to other subsystems.
-pub struct RequestMultiplexer<R: Stream> {
-	receivers: Vec<Fuse<R>>,
+pub struct RequestMultiplexer<M> {
+	receivers: Vec<Box<dyn MultiplexStream<M>>>,
 	next_poll: usize,
 }
+
 
 /// Message type where all incoming request can be multiplexed into.
 pub trait MultiplexMessage: From<IncomingRequest<v1::AvailabilityFetchingRequest>> {}
 
 /// Multiplexing can fail in case of invalid messages.
-pub struct MultiplexError {
-	/// The actual error.
-	pub error: DecodingError,
-	/// The request that triggered could not be decoded.
-	pub request: network::IncomingRequest,
-}
+pub type MultiplexError = DecodingError;
 
 impl<M, S> RequestMultiplexer<S>
 where
-	S: Stream<Item = Result<M, MultiplexError>>,
+	S: Stream<Item = Result<M, MultiplexError>> + FusedStream,
 	M: MultiplexMessage,
 {
 	/// Create a new `RequestMultiplexer`.
@@ -66,11 +64,8 @@ where
 		let (receivers, cfgs): (Vec<_>, Vec<_>) = Protocol::iter()
 			.map(|p| {
 				let (rx, cfg) = p.get_config();
-				let receiver = rx.map(|raw| match multiplex_single(p, raw) {
-					Ok(v) => Ok(v),
-					Err(error) => Err(MultiplexError { error, request: raw }),
-				});
-				(receiver.fuse(), cfg)
+				let receiver = rx.map(|raw| Self::multiplex_single(p, raw));
+				(Box::new(receiver), cfg)
 			})
 			.unzip();
 
@@ -81,6 +76,23 @@ where
 			},
 			cfgs,
 		)
+	}
+
+	/// Convert a single raw incoming request into a `MultiplexMessage`.
+	fn multiplex_single(
+		p: Protocol,
+		network::IncomingRequest { payload, peer, pending_response }: network::IncomingRequest,
+		) -> Result<M, MultiplexError> {
+		let r = match p {
+			AvailabilityFetching => {
+				From::from(IncomingRequest{
+					peer,
+					payload: v1::AvailabilityFetchingRequest::decode(&mut payload.as_ref())?,
+					pending_response,
+				})
+			}
+		};
+		Ok(r)
 	}
 }
 
@@ -114,22 +126,17 @@ where
 	}
 }
 
-/// Convert a single raw incoming request into a `MultiplexMessage`.
-fn multiplex_single(
-	p: Protocol,
-	network::IncomingRequest { payload, peer, pending_response }: network::IncomingRequest,
-) -> Result<impl MultiplexMessage, DecodingError> {
-	let mk_incoming = |decoded| {
-		IncomingRequest {
-			peer,
-			payload: decoded,
-			pending_response,
-		}
-	};
-	let r = match p {
-		AvailabilityFetching => {
-			From::from(mk_incoming(v1::AvailabilityFetchingRequest::decode(&mut payload.as_ref())?))
-		}
-	};
-	Ok(r)
+/// Internal structure for converting the received messages to a `MultiplexMessage`.
+///
+/// Normally this would be a simple `map` on the stream, unfortunately that gets us unweildly types
+/// not really suitable for having in a struct.
+struct MultiplexStream<M> {
+	rx: mpsc::Receiver<network::IncomingRequest>,
+	marker: PhantomData<M>,
+}
+
+impl Stream for MultiplexStream<M>
+where M: MultiplexMessage
+{
+	type Item = M;
 }

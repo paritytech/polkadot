@@ -43,10 +43,10 @@ pub use sc_network::config::RequestResponseConfig;
 
 /// All requests that can be sent to the network bridge.
 pub mod request;
-pub use request::{IncomingRequest, OutgoingRequest, Request};
+pub use request::{IncomingRequest, OutgoingRequest, Requests};
 
-/// Multiplexer for incoming requests.
-pub mod multiplexer;
+///// Multiplexer for incoming requests.
+// pub mod multiplexer;
 
 /// Actual versioned requests and responses, that are sent over the wire.
 pub mod v1;
