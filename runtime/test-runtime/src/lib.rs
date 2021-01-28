@@ -748,7 +748,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn generate_key_ownership_proof(
-			_slot_number: babe_primitives::Slot,
+			_slot: babe_primitives::Slot,
 			_authority_id: babe_primitives::AuthorityId,
 		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
 			None
