@@ -27,10 +27,9 @@ use futures::{channel::{mpsc, oneshot}, Future, FutureExt, SinkExt, StreamExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
-	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
-	ValidatorIndex, SigningContext, PoV, CandidateHash,
-	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
-	CoreState, CoreIndex, CollatorId, ValidityAttestation, CandidateCommitments,
+	AvailableData, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
+	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
+	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_node_primitives::{
 	Statement, SignedFullStatement, ValidationResult,
@@ -646,11 +645,11 @@ impl CandidateBackingJob {
 	async fn issue_new_misbehaviors(&mut self) -> Result<(), Error> {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
-		for report in misbehaviors {
+		for (validator_id, report) in misbehaviors {
 			self.send_to_provisioner(
 				ProvisionerMessage::ProvisionableData(
 					self.parent,
-					ProvisionableData::MisbehaviorReport(self.parent, report)
+					ProvisionableData::MisbehaviorReport(self.parent, validator_id, report)
 				)
 			).await?
 		}
@@ -1177,9 +1176,7 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use futures::{future, Future};
-	use polkadot_primitives::v1::{
-		ScheduledCore, BlockData, PersistedValidationData, HeadData, GroupRotationInfo,
-	};
+	use polkadot_primitives::v1::{BlockData, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
@@ -1193,6 +1190,16 @@ mod tests {
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
+	fn table_statement_to_primitive(
+		statement: TableStatement,
+	) -> Statement {
+		match statement {
+			TableStatement::Candidate(committed_candidate_receipt) => Statement::Seconded(committed_candidate_receipt),
+			TableStatement::Valid(candidate_hash) => Statement::Valid(candidate_hash),
+			TableStatement::Invalid(candidate_hash) => Statement::Invalid(candidate_hash),
+		}
 	}
 
 	struct TestState {
@@ -1929,20 +1936,30 @@ mod tests {
 						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
-							Misbehavior::DoubleSign(double_sign), // TODO: which inner variant?
+							validator_index,
+							Misbehavior::ValidityDoubleVote(vdv),
 						)
 					)
 				) if relay_parent == test_state.relay_parent => {
-					let (s1, s2) = double_sign.contradiction();
-					s1.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[s1.validator_index() as usize],
-					).unwrap();
+					let ((t1, s1), (t2, s2)) = vdv.deconstruct::<TableContext>();
+					let t1 = table_statement_to_primitive(t1);
+					let t2 = table_statement_to_primitive(t2);
 
-					s2.check_signature(
+					SignedFullStatement::new(
+						t1,
+						validator_index,
+						s1,
 						&test_state.signing_context,
-						&test_state.validator_public[s2.validator_index() as usize],
-					).unwrap();
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
+
+					SignedFullStatement::new(
+						t2,
+						validator_index,
+						s2,
+						&test_state.signing_context,
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
 				}
 			);
 
@@ -1959,20 +1976,30 @@ mod tests {
 						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
-							Misbehavior::DoubleSign(double_sign), // TODO: which inner variant?
+							validator_index,
+							Misbehavior::ValidityDoubleVote(vdv),
 						)
 					)
 				) if relay_parent == test_state.relay_parent => {
-					let (s1, s2) = double_sign.contradiction();
-					s1.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[s1.validator_index() as usize],
-					).unwrap();
+					let ((t1, s1), (t2, s2)) = vdv.deconstruct::<TableContext>();
+					let t1 = table_statement_to_primitive(t1);
+					let t2 = table_statement_to_primitive(t2);
 
-					s2.check_signature(
+					SignedFullStatement::new(
+						t1,
+						validator_index,
+						s1,
 						&test_state.signing_context,
-						&test_state.validator_public[s2.validator_index() as usize],
-					).unwrap();
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
+
+					SignedFullStatement::new(
+						t2,
+						validator_index,
+						s2,
+						&test_state.signing_context,
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
 				}
 			);
 		});

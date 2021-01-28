@@ -509,7 +509,7 @@ pub enum ProvisionableData {
 	/// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
 	BackedCandidate(CandidateReceipt),
 	/// Misbehavior reports are self-contained proofs of validator misbehavior.
-	MisbehaviorReport(Hash, Misbehavior),
+	MisbehaviorReport(Hash, ValidatorIndex, Misbehavior),
 	/// Disputes trigger a broad dispute resolution process.
 	Dispute(Hash, ValidatorSignature),
 }

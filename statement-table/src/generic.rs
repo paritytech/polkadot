@@ -100,6 +100,36 @@ pub enum ValidityDoubleVote<Candidate, Digest, Signature> {
 	ValidityAndInvalidity(Candidate, Signature, Signature),
 }
 
+impl<Candidate, Digest, Signature> ValidityDoubleVote<Candidate, Digest, Signature> {
+	/// Deconstruct this misbehavior into two `(Statement, Signature)` pairs, erasing the information
+	/// about precisely what the problem was.
+	pub fn deconstruct<Ctx>(self) -> (
+		(Statement<Candidate, Digest>, Signature),
+		(Statement<Candidate, Digest>, Signature),
+	)
+	where
+		Ctx: Context<Candidate=Candidate, Digest=Digest, Signature=Signature>,
+		Candidate: Debug + Ord + Eq + Clone,
+		Digest: Debug + Hash + Eq + Clone,
+		Signature: Debug + Eq + Clone,
+	{
+		match self {
+			Self::IssuedAndValidity((c, s1), (d, s2)) => {
+				((Statement::Candidate(c), s1), (Statement::Valid(d), s2))
+			}
+			Self::IssuedAndInvalidity((c, s1), (d, s2)) => {
+				((Statement::Candidate(c), s1), (Statement::Invalid(d), s2))
+			}
+			Self::ValidityAndInvalidity(c, s1, s2) => {
+				(
+					(Statement::Valid(Ctx::candidate_digest(&c)), s1),
+					(Statement::Invalid(Ctx::candidate_digest(&c)), s2),
+				)
+			}
+		}
+	}
+}
+
 /// Misbehavior: multiple signatures on same statement.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum DoubleSign<Candidate, Digest, Signature> {
@@ -112,12 +142,13 @@ pub enum DoubleSign<Candidate, Digest, Signature> {
 }
 
 impl<Candidate, Digest, Signature> DoubleSign<Candidate, Digest, Signature> {
-	/// Get the pair of contradicting signatures, regardless of what precisely was signed.
-	pub fn contradiction(&self) -> (&Signature, &Signature) {
+	/// Deconstruct this misbehavior into a statement with two signatures, erasing the information about
+	/// precisely where in the process the issue was detected.
+	pub fn deconstruct(self) -> (Statement<Candidate, Digest>, Signature, Signature) {
 		match self {
-			Self::Candidate(_, a, b) => (a, b),
-			Self::Validity(_, a, b) => (a, b),
-			Self::Invalidity(_, a, b) => (a, b),
+			Self::Candidate(candidate, a, b) => (Statement::Candidate(candidate), a, b),
+			Self::Validity(digest, a, b) => (Statement::Valid(digest), a, b),
+			Self::Invalidity(digest, a, b) => (Statement::Invalid(digest), a, b),
 		}
 	}
 }

@@ -907,22 +907,6 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		Some(s)
 	}
 
-	/// Used to create a `Signed` from already existing parts without checking validity.
-	///
-	/// **WARNING**: this does not perform any checks and should only be used within test functions.
-	pub fn new_unchecked(
-		payload: Payload,
-		validator_index: ValidatorIndex,
-		signature: ValidatorSignature,
-	) -> Self {
-		Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		}
-	}
-
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
 	pub async fn sign<H: Encode>(
