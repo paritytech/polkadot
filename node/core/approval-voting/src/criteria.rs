@@ -593,7 +593,10 @@ mod tests {
 
 	#[test]
 	fn check_rejects_claimed_core_out_of_bounds() {
-
+		let assignment = AssignmentCert {
+			kind: AssignmentCertKind::RelayVRFModulo { sample: 0 },
+			vrf: (Default::default(), Default::default()),
+		};
 	}
 
 	#[test]
