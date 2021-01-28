@@ -16,7 +16,7 @@
 
 //! Traits used across pallets for Polkadot.
 
-use primitives::v1::{Id as ParaId};
+use primitives::v1::Id as ParaId;
 
 use frame_support::{
 	dispatch::DispatchResult,
@@ -36,7 +36,7 @@ pub trait Registrar {
 pub enum LeaseError {
 	/// Unable to reserve the funds in the leaser's account.
 	ReserveFailed,
-	/// There is already a lease on at lease one period for the given para.
+	/// There is already a lease on at least one period for the given para.
 	AlreadyLeased,
 	/// The period to be leased has already ended.
 	AlreadyEnded,
