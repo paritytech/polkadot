@@ -30,6 +30,7 @@ pub trait IsRequest {
 }
 
 /// All requests that can be sent to the network bridge via `NetworkBridgeMessage::SendRequest`.
+#[derive(Debug)]
 pub enum Request {
 	/// Request an availability chunk from a node.
 	AvailabilityFetching(OutgoingRequest<v1::AvailabilityFetchingRequest>),
@@ -39,6 +40,7 @@ pub enum Request {
 ///
 /// The network implementation will make use of that sender for informing the requesting subsystem
 /// about responses/errors.
+#[derive(Debug)]
 pub struct OutgoingRequest<Req> {
 	peer: PeerId,
 	payload: Req,
