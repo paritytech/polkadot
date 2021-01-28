@@ -101,7 +101,7 @@ struct BlockApprovalMeta {
 	/// block body.
 	candidates: Vec<CandidateHash>,
 	/// The consensus slot number of the block.
-	slot_number: SlotNumber,
+	slot_number: Slot,
 }
 
 enum ApprovalDistributionMessage {
