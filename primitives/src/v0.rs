@@ -907,11 +907,10 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		Some(s)
 	}
 
-	/// Used to create a `Signed` from already existing parts.
+	/// Used to create a `Signed` from already existing parts without checking validity.
 	///
-	/// This does not perform any checks and should only be used within test functions.
-	#[cfg(all(feature = "std", feature = "test-features"))]
-	pub fn new_unchecked<H: Encode>(
+	/// **WARNING**: this does not perform any checks and should only be used within test functions.
+	pub fn new_unchecked(
 		payload: Payload,
 		validator_index: ValidatorIndex,
 		signature: ValidatorSignature,

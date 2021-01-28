@@ -55,4 +55,3 @@ std = [
 	"bitvec/std",
 	"frame-system/std",
 ]
-test-features = []
