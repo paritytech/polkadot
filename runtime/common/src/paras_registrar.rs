@@ -102,10 +102,10 @@ decl_event! {
 
 decl_error! {
 	pub enum Error for Module<T: Config> {
-		/// The Id is not registered.
+		/// The ID is not registered.
 		NotRegistered,
-		/// The Id given is already in use.
-		InUse,
+		/// The ID is already registered.
+		AlreadyRegistered,
 		/// The caller is not the owner of this Id.
 		NotOwner,
 		/// Invalid para code size.
@@ -145,7 +145,7 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(!Paras::<T>::contains_key(id), Error::<T>::InUse);
+			ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
 			let genesis = Self::validate_onboarding_data(
 				genesis_head,
 				validation_code,
@@ -285,11 +285,13 @@ mod tests {
 	use frame_system::limits;
 	use frame_support::{
 		traits::{Randomness, OnInitialize, OnFinalize},
-		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
+		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_noop, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
 	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp};
 	use pallet_session::OneSessionHandler;
+	use pallet_balances::Error as BalancesError;
+	use crate::traits::Registrar as RegistrarTrait;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {
@@ -629,11 +631,126 @@ mod tests {
 		}
 	}
 
+	fn test_genesis_head(size: usize) -> HeadData {
+		HeadData(vec![0u8; size])
+	}
+
+	fn test_validation_code(size: usize) -> ValidationCode {
+		let mut validation_code = vec![0u8; size as usize];
+		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
+		let _ = validation_code.splice(
+			..crate::WASM_MAGIC.len(),
+			crate::WASM_MAGIC.iter().cloned(),
+		).collect::<Vec<_>>();
+		ValidationCode(validation_code)
+	}
+
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(PendingSwap::get(&ParaId::from(0u32)), None);
 			assert_eq!(Paras::<Test>::get(&ParaId::from(0u32)), None);
+		});
+	}
+
+	#[test]
+	fn end_to_end_scenario_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			// 32 is not yet registered
+			assert!(!Parachains::is_parathread(32.into()));
+			// We register the Para ID
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				32.into(),
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+			run_to_block(4); // Move to the next session
+			// It is now a parathread.
+			assert!(Parachains::is_parathread(32.into()));
+			assert!(!Parachains::is_parachain(32.into()));
+			// Some other external process will elevate parathread to parachain
+			assert_ok!(Registrar::make_parachain(32.into()));
+			run_to_block(8); // Move to the next session
+			// It is now a parachain.
+			assert!(!Parachains::is_parathread(32.into()));
+			assert!(Parachains::is_parachain(32.into()));
+			// Turn it back into a parathread
+			assert_ok!(Registrar::make_parathread(32.into()));
+			run_to_block(12); // Move to the next session
+			assert!(Parachains::is_parathread(32.into()));
+			assert!(!Parachains::is_parachain(32.into()));
+			// Deregister it
+			assert_ok!(Registrar::deregister(
+				Origin::root(),
+				32.into(),
+			));
+			run_to_block(16); // Move to the next session
+			// It is nothing
+			assert!(!Parachains::is_parathread(32.into()));
+			assert!(!Parachains::is_parachain(32.into()));
+		});
+	}
+
+	#[test]
+	fn register_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert!(!Parachains::is_parathread(32.into()));
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				32.into(),
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+			run_to_block(4); // Move to the next session
+			assert!(Parachains::is_parathread(32.into()));
+		});
+	}
+
+	#[test]
+	fn register_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			// Successfully register 32
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				32.into(),
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			));
+
+			// Can't do it again
+			assert_noop!(Registrar::register(
+				Origin::signed(1),
+				32.into(),
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			), Error::<Test>::AlreadyRegistered);
+
+			// Head Size Check
+			assert_noop!(Registrar::register(
+				Origin::signed(2),
+				23.into(),
+				test_genesis_head((<Test as super::Config>::MaxHeadSize::get() + 1) as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			), Error::<Test>::HeadDataTooLarge);
+
+			// Code Size Check
+			assert_noop!(Registrar::register(
+				Origin::signed(2),
+				23.into(),
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code((<Test as super::Config>::MaxCodeSize::get() + 1) as usize),
+			), Error::<Test>::CodeTooLarge);
+
+			// Needs enough funds for deposit
+			assert_noop!(Registrar::register(
+				Origin::signed(1337),
+				23.into(),
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			), BalancesError::<Test, _>::InsufficientBalance);
 		});
 	}
 /*
