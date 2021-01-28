@@ -89,7 +89,7 @@ fn make_block_entry(
 	BlockEntry {
 		block_hash,
 		session: 1,
-		slot: 1,
+		slot: 1.into(),
 		relay_vrf_story: RelayVRF([0u8; 32]),
 		approved_bitfield: make_bitvec(candidates.len()),
 		candidates,

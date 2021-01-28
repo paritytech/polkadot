@@ -71,7 +71,7 @@ struct CandidateEntry {
 struct BlockEntry {
     block_hash: Hash,
     session: SessionIndex,
-    slot: SlotNumber,
+    slot: Slot,
     // random bytes derived from the VRF submitted within the block by the block
     // author as a credential and used as input to approval assignment criteria.
     relay_vrf_story: [u8; 32],

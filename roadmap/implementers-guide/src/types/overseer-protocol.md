@@ -101,8 +101,8 @@ struct BlockApprovalMeta {
     /// The candidates included by the block. Note that these are not the same as the candidates that appear within the
     /// block body.
     candidates: Vec<CandidateHash>,
-    /// The consensus slot number of the block.
-    slot_number: SlotNumber,
+    /// The consensus slot of the block.
+    slot: Slot,
 }
 
 enum ApprovalDistributionMessage {
