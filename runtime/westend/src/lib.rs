@@ -93,7 +93,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 3,
+	transaction_version: 4,
 };
 
 /// Native version.
@@ -950,7 +950,7 @@ sp_api::impl_runtime_apis! {
 			}
 		}
 
-		fn current_epoch_start() -> babe_primitives::SlotNumber {
+		fn current_epoch_start() -> babe_primitives::Slot {
 			Babe::current_epoch_start()
 		}
 
@@ -963,7 +963,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn generate_key_ownership_proof(
-			_slot_number: babe_primitives::SlotNumber,
+			_slot: babe_primitives::Slot,
 			authority_id: babe_primitives::AuthorityId,
 		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
 			use parity_scale_codec::Encode;

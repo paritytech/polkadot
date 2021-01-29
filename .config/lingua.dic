@@ -86,3 +86,11 @@ XCM/S
 XCMP/M
 include/BG
 isolate/BG
+dispatchable/SM
+VMP/SM
+HMP/SM
+DMP/SM
+MQC/SM
+VRF/SM
+assignee/SM
+adversary/SM
