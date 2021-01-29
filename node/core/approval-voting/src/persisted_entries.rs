@@ -42,6 +42,18 @@ pub struct TrancheEntry {
 	assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
+impl TrancheEntry {
+	/// Get the tranche of this entry.
+	pub fn tranche(&self) -> DelayTranche {
+		self.tranche
+	}
+
+	/// Get the assignments for this entry.
+	pub fn assignments(&self) -> &[(ValidatorIndex, Tick)] {
+		&self.assignments
+	}
+}
+
 impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
 	fn from(entry: crate::approval_db::v1::TrancheEntry) -> Self {
 		TrancheEntry {
@@ -151,6 +163,16 @@ impl ApprovalEntry {
 	/// Mark the approval entry as approved.
 	pub fn mark_approved(&mut self) {
 		self.approved = true;
+	}
+
+	/// Access the tranches.
+	pub fn tranches(&self) -> &[TrancheEntry]{
+		&self.tranches
+	}
+
+	/// Get the number of validators in this approval entry.
+	pub fn n_validators(&self) -> usize {
+		self.assignments.len()
 	}
 }
 
