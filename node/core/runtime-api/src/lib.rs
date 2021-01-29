@@ -556,7 +556,7 @@ mod tests {
 				unimplemented!()
 			}
 
-			fn current_epoch_start(&self) -> sp_consensus_babe::SlotNumber {
+			fn current_epoch_start(&self) -> sp_consensus_babe::Slot {
 				self.babe_epoch.as_ref().unwrap().start_slot
 			}
 
@@ -569,7 +569,7 @@ mod tests {
 			}
 
 			fn generate_key_ownership_proof(
-				_slot_number: sp_consensus_babe::SlotNumber,
+				_slot: sp_consensus_babe::Slot,
 				_authority_id: sp_consensus_babe::AuthorityId,
 			) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
 				None
@@ -1156,7 +1156,7 @@ mod tests {
 		let mut runtime_api = MockRuntimeApi::default();
 		let epoch = BabeEpoch {
 			epoch_index: 100,
-			start_slot: 1000,
+			start_slot: sp_consensus_babe::Slot::from(1000),
 			duration: 10,
 			authorities: Vec::new(),
 			randomness: [1u8; 32],
