@@ -44,6 +44,24 @@ pub struct TrancheEntry {
 	assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
+impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
+	fn from(entry: crate::approval_db::v1::TrancheEntry) -> Self {
+		TrancheEntry {
+			tranche: entry.tranche,
+			assignments: entry.assignments.into_iter().map(|(v, t)| (v, t.into())).collect(),
+		}
+	}
+}
+
+impl From<TrancheEntry> for crate::approval_db::v1::TrancheEntry {
+	fn from(entry: TrancheEntry) -> Self {
+		Self {
+			tranche: entry.tranche,
+			assignments: entry.assignments.into_iter().map(|(v, t)| (v, t.into())).collect(),
+		}
+	}
+}
+
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
 #[derive(Debug, Clone, PartialEq)]
@@ -138,6 +156,30 @@ impl ApprovalEntry {
 	}
 }
 
+impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
+	fn from(entry: crate::approval_db::v1::ApprovalEntry) -> Self {
+		ApprovalEntry {
+			tranches: entry.tranches.into_iter().map(Into::into).collect(),
+			backing_group: entry.backing_group,
+			our_assignment: entry.our_assignment.map(Into::into),
+			assignments: entry.assignments,
+			approved: entry.approved,
+		}
+	}
+}
+
+impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
+	fn from(entry: ApprovalEntry) -> Self {
+		Self {
+			tranches: entry.tranches.into_iter().map(Into::into).collect(),
+			backing_group: entry.backing_group,
+			our_assignment: entry.our_assignment.map(Into::into),
+			assignments: entry.assignments,
+			approved: entry.approved,
+		}
+	}
+}
+
 /// Metadata regarding approval of a particular candidate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CandidateEntry {
@@ -195,6 +237,28 @@ impl CandidateEntry {
 	}
 }
 
+impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
+	fn from(entry: crate::approval_db::v1::CandidateEntry) -> Self {
+		CandidateEntry {
+			candidate: entry.candidate,
+			session: entry.session,
+			block_assignments: entry.block_assignments.into_iter().map(|(h, ae)| (h, ae.into())).collect(),
+			approvals: entry.approvals,
+		}
+	}
+}
+
+impl From<CandidateEntry> for crate::approval_db::v1::CandidateEntry {
+	fn from(entry: CandidateEntry) -> Self {
+		Self {
+			candidate: entry.candidate,
+			session: entry.session,
+			block_assignments: entry.block_assignments.into_iter().map(|(h, ae)| (h, ae.into())).collect(),
+			approvals: entry.approvals,
+		}
+	}
+}
+
 /// Metadata regarding approval of a particular block, by way of approval of the
 /// candidates contained within it.
 #[derive(Debug, Clone, PartialEq)]
@@ -224,5 +288,33 @@ impl BlockEntry {
 	/// Whether the block entry is fully approved.
 	pub fn is_fully_approved(&self) -> bool {
 		self.approved_bitfield.all()
+	}
+}
+
+impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
+	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
+		BlockEntry {
+			block_hash: entry.block_hash,
+			session: entry.session,
+			slot: entry.slot,
+			relay_vrf_story: RelayVRFStory(entry.relay_vrf_story),
+			candidates: entry.candidates,
+			approved_bitfield: entry.approved_bitfield,
+			children: entry.children,
+		}
+	}
+}
+
+impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
+	fn from(entry: BlockEntry) -> Self {
+		Self {
+			block_hash: entry.block_hash,
+			session: entry.session,
+			slot: entry.slot,
+			relay_vrf_story: entry.relay_vrf_story.0,
+			candidates: entry.candidates,
+			approved_bitfield: entry.approved_bitfield,
+			children: entry.children,
+		}
 	}
 }

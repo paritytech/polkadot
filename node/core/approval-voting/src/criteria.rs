@@ -66,6 +66,28 @@ impl OurAssignment {
 	}
 }
 
+impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
+	fn from(entry: crate::approval_db::v1::OurAssignment) -> Self {
+		OurAssignment {
+			cert: entry.cert,
+			tranche: entry.tranche,
+			validator_index: entry.validator_index,
+			triggered: entry.triggered,
+		}
+	}
+}
+
+impl From<OurAssignment> for crate::approval_db::v1::OurAssignment {
+	fn from(entry: OurAssignment) -> Self {
+		Self {
+			cert: entry.cert,
+			tranche: entry.tranche,
+			validator_index: entry.validator_index,
+			triggered: entry.triggered,
+		}
+	}
+}
+
 fn relay_vrf_modulo_transcript(
 	relay_vrf_story: RelayVRFStory,
 	sample: u32,
