@@ -174,6 +174,11 @@ impl ApprovalEntry {
 	pub fn n_validators(&self) -> usize {
 		self.assignments.len()
 	}
+
+	/// Get the backing group index of the approval entry.
+	pub fn backing_group(&self) -> GroupIndex {
+		self.backing_group
+	}
 }
 
 impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
@@ -255,6 +260,16 @@ impl CandidateEntry {
 			(Some(t1), Some(t2)) => Some(std::cmp::min(t1, t2)),
 		}
 	}
+
+	/// Get the approval entry, mutably, for this candidate under a specific block.
+	pub fn approval_entry_mut(&mut self, block_hash: &Hash) -> Option<&mut ApprovalEntry> {
+		self.block_assignments.get_mut(block_hash)
+	}
+
+	/// Iterate over approval entries.
+	pub fn iter_approval_entries(&self) -> impl IntoIterator<Item = (&Hash, &ApprovalEntry)> {
+		self.block_assignments.iter()
+	}
 }
 
 impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
@@ -308,6 +323,26 @@ impl BlockEntry {
 	/// Whether the block entry is fully approved.
 	pub fn is_fully_approved(&self) -> bool {
 		self.approved_bitfield.all()
+	}
+
+	/// Get the slot of the block.
+	pub fn slot(&self) -> Slot {
+		self.slot
+	}
+
+	/// Get the relay-vrf-story of the block.
+	pub fn relay_vrf_story(&self) -> RelayVRFStory {
+		self.relay_vrf_story.clone()
+	}
+
+	/// Get the session index of the block.
+	pub fn session(&self) -> SessionIndex {
+		self.session
+	}
+
+	/// Get the i'th candidate.
+	pub fn candidate(&self, i: usize) -> Option<&(CoreIndex, CandidateHash)> {
+		self.candidates.get(i)
 	}
 }
 

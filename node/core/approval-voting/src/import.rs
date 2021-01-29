@@ -81,7 +81,7 @@ pub struct RollingSessionWindow {
 }
 
 impl RollingSessionWindow {
-	fn session_info(&self, index: SessionIndex) -> Option<&SessionInfo> {
+	pub fn session_info(&self, index: SessionIndex) -> Option<&SessionInfo> {
 		self.earliest_session.and_then(|earliest| {
 			if index < earliest {
 				None
@@ -92,7 +92,7 @@ impl RollingSessionWindow {
 
 	}
 
-	fn latest_session(&self) -> Option<SessionIndex> {
+	pub fn latest_session(&self) -> Option<SessionIndex> {
 		self.earliest_session
 			.map(|earliest| earliest + (self.session_info.len() as SessionIndex).saturating_sub(1))
 	}

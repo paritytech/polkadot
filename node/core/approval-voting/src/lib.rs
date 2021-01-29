@@ -185,6 +185,12 @@ struct State<T> {
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
 
+impl<T> State<T> {
+	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
+		self.session_window.session_info(i)
+	}
+}
+
 enum Action {
 	ScheduleWakeup {
 		candidate_entry: CandidateEntry,
@@ -310,6 +316,24 @@ async fn run<T, C>(
 	Ok(())
 }
 
+fn load_block_entry(
+	db: &impl AuxStore,
+	block_hash: &Hash,
+) -> SubsystemResult<Option<BlockEntry>> {
+	approval_db::v1::load_block_entry(db, block_hash)
+		.map(|e| e.map(Into::into))
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+}
+
+fn load_candidate_entry(
+	db: &impl AuxStore,
+	candidate_hash: &CandidateHash,
+) -> SubsystemResult<Option<CandidateEntry>> {
+	approval_db::v1::load_candidate_entry(db, candidate_hash)
+		.map(|e| e.map(Into::into))
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+}
+
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
@@ -408,209 +432,201 @@ async fn handle_background_request(
 	Ok(())
 }
 
-// async fn handle_approved_ancestor(
-// 	ctx: &mut impl SubsystemContext,
-// 	db: &impl AuxStore,
-// 	target: Hash,
-// 	lower_bound: BlockNumber,
-// ) -> SubsystemResult<Option<Hash>> {
-// 	let mut all_approved_max = None;
+async fn handle_approved_ancestor(
+	ctx: &mut impl SubsystemContext,
+	db: &impl AuxStore,
+	target: Hash,
+	lower_bound: BlockNumber,
+) -> SubsystemResult<Option<Hash>> {
+	let mut all_approved_max = None;
 
-// 	let block_number = {
-// 		let (tx, rx) = oneshot::channel();
+	let block_number = {
+		let (tx, rx) = oneshot::channel();
 
-// 		ctx.send_message(ChainApiMessage::BlockNumber(target, tx).into()).await;
+		ctx.send_message(ChainApiMessage::BlockNumber(target, tx).into()).await;
 
-// 		match rx.await? {
-// 			Ok(Some(n)) => n,
-// 			Ok(None) => return Ok(None),
-// 			Err(_) => return Ok(None),
-// 		}
-// 	};
+		match rx.await? {
+			Ok(Some(n)) => n,
+			Ok(None) => return Ok(None),
+			Err(_) => return Ok(None),
+		}
+	};
 
-// 	if block_number <= lower_bound { return Ok(None) }
+	if block_number <= lower_bound { return Ok(None) }
 
-// 	// request ancestors up to but not including the lower bound,
-// 	// as a vote on the lower bound is implied if we cannot find
-// 	// anything else.
-// 	let ancestry = if block_number > lower_bound + 1 {
-// 		let (tx, rx) = oneshot::channel();
+	// request ancestors up to but not including the lower bound,
+	// as a vote on the lower bound is implied if we cannot find
+	// anything else.
+	let ancestry = if block_number > lower_bound + 1 {
+		let (tx, rx) = oneshot::channel();
 
-// 		ctx.send_message(ChainApiMessage::Ancestors {
-// 			hash: target,
-// 			k: (block_number - (lower_bound + 1)) as usize,
-// 			response_channel: tx,
-// 		}.into()).await;
+		ctx.send_message(ChainApiMessage::Ancestors {
+			hash: target,
+			k: (block_number - (lower_bound + 1)) as usize,
+			response_channel: tx,
+		}.into()).await;
 
-// 		match rx.await? {
-// 			Ok(a) => a,
-// 			Err(_) => return Ok(None),
-// 		}
-// 	} else {
-// 		Vec::new()
-// 	};
+		match rx.await? {
+			Ok(a) => a,
+			Err(_) => return Ok(None),
+		}
+	} else {
+		Vec::new()
+	};
 
-// 	for block_hash in std::iter::once(target).chain(ancestry) {
-// 		// Block entries should be present as the assumption is that
-// 		// nothing here is finalized. If we encounter any missing block
-// 		// entries we can fail.
-// 		let entry = match approval_db::v1::load_block_entry(db, &block_hash)
-// 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 		{
-// 			None => return Ok(None),
-// 			Some(b) => b,
-// 		};
+	for block_hash in std::iter::once(target).chain(ancestry) {
+		// Block entries should be present as the assumption is that
+		// nothing here is finalized. If we encounter any missing block
+		// entries we can fail.
+		let entry = match load_block_entry(db, &block_hash)? {
+			None => return Ok(None),
+			Some(b) => b,
+		};
 
-// 		if entry.is_fully_approved() {
-// 			if all_approved_max.is_none() {
-// 				all_approved_max = Some(block_hash);
-// 			}
-// 		} else {
-// 			all_approved_max = None;
-// 		}
-// 	}
+		if entry.is_fully_approved() {
+			if all_approved_max.is_none() {
+				all_approved_max = Some(block_hash);
+			}
+		} else {
+			all_approved_max = None;
+		}
+	}
 
-// 	Ok(all_approved_max)
-// }
+	Ok(all_approved_max)
+}
 
-// fn approval_signing_payload(
-// 	approval_vote: ApprovalVote,
-// 	session_index: SessionIndex,
-// ) -> Vec<u8> {
-// 	(approval_vote, session_index).encode()
-// }
+fn approval_signing_payload(
+	approval_vote: ApprovalVote,
+	session_index: SessionIndex,
+) -> Vec<u8> {
+	(approval_vote, session_index).encode()
+}
 
-// fn check_and_import_assignment(
-// 	state: &mut State<impl AuxStore>,
-// 	assignment: IndirectAssignmentCert,
-// 	candidate_index: CandidateIndex,
-// ) -> SubsystemResult<AssignmentCheckResult> {
-// 	const SLOT_TOO_FAR_IN_FUTURE: u64 = 5;
+fn check_and_import_assignment(
+	state: &mut State<impl AuxStore>,
+	assignment: IndirectAssignmentCert,
+	candidate_index: CandidateIndex,
+) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
+	const SLOT_TOO_FAR_IN_FUTURE: u64 = 5;
 
-// 	let tick_now = state.clock.tick_now();
+	let tick_now = state.clock.tick_now();
+	let block_entry = match load_block_entry(&*state.db, &assignment.block_hash)? {
+		Some(b) => b,
+		None => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+	};
 
-// 	let block_entry = approval_db::v1::load_block_entry(&*state.db, &assignment.block_hash)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+	let session_info = match state.session_info(block_entry.session()) {
+		Some(s) => s,
+		None => {
+			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
+			return Ok((AssignmentCheckResult::Bad, Vec::new()));
+		}
+	};
 
-// 	let block_entry = match block_entry {
-// 		Some(b) => b,
-// 		None => return Ok(AssignmentCheckResult::Bad),
-// 	};
+	let (claimed_core_index, assigned_candidate_hash)
+		= match block_entry.candidate(candidate_index as usize)
+	{
+		Some((c, h)) => (*c, *h),
+		None => return Ok((AssignmentCheckResult::Bad, Vec::new())), // no candidate at core.
+	};
 
-// 	let session_info = match state.session_info(block_entry.session) {
-// 		Some(s) => s,
-// 		None => {
-// 			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session);
-// 			return Ok(AssignmentCheckResult::Bad);
-// 		}
-// 	};
+	let mut candidate_entry = match load_candidate_entry(
+		&*state.db,
+		&assigned_candidate_hash,
+	)? {
+		Some(c) => c,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Missing candidate entry {} referenced in live block {}",
+				assigned_candidate_hash,
+				assignment.block_hash,
+			);
 
-// 	let (claimed_core_index, assigned_candidate_hash)
-// 		= match block_entry.candidates.get(candidate_index as usize)
-// 	{
-// 		Some((c, h)) => (*c, *h),
-// 		None => return Ok(AssignmentCheckResult::Bad), // no candidate at core.
-// 	};
+			return Ok((AssignmentCheckResult::Bad, Vec::new()));
+		}
+	};
 
-// 	let mut candidate_entry = match approval_db::v1::load_candidate_entry(
-// 		&*state.db,
-// 		&assigned_candidate_hash,
-// 	)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 	{
-// 		Some(c) => c,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Missing candidate entry {} referenced in live block {}",
-// 				assigned_candidate_hash,
-// 				assignment.block_hash,
-// 			);
+	let res = {
+		// import the assignment.
+		let approval_entry = match
+			candidate_entry.approval_entry_mut(&assignment.block_hash)
+		{
+			Some(a) => a,
+			None => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+		};
 
-// 			return Ok(AssignmentCheckResult::Bad);
-// 		}
-// 	};
+		let res = state.assignment_criteria.check_assignment_cert(
+			claimed_core_index,
+			assignment.validator,
+			&criteria::Config::from(session_info),
+			block_entry.relay_vrf_story(),
+			&assignment.cert,
+			approval_entry.backing_group(),
+		);
 
-// 	let res = {
-// 		// import the assignment.
-// 		let assignment_entry = match
-// 			candidate_entry.block_assignments.get_mut(&assignment.block_hash)
-// 		{
-// 			Some(a) => a,
-// 			None => return Ok(AssignmentCheckResult::Bad),
-// 		};
+		let tranche = match res {
+			Err(crate::criteria::InvalidAssignment) => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+			Ok(tranche) => {
+				let tranche_now_of_prev_slot = state.clock.tranche_now(
+					state.slot_duration_millis,
+					block_entry.slot().saturating_sub(SLOT_TOO_FAR_IN_FUTURE),
+				);
 
+				if tranche >= tranche_now_of_prev_slot {
+					return Ok((AssignmentCheckResult::TooFarInFuture, Vec::new()));
+				}
 
-// 		let res = state.assignment_criteria.check_assignment_cert(
-// 			claimed_core_index,
-// 			assignment.validator,
-// 			&criteria::Config::from(session_info),
-// 			block_entry.relay_vrf_story.clone(),
-// 			&assignment.cert,
-// 			assignment_entry.backing_group,
-// 		);
+				tranche
+			}
+		};
 
-// 		let tranche = match res {
-// 			Err(crate::criteria::InvalidAssignment) => return Ok(AssignmentCheckResult::Bad),
-// 			Ok(tranche) => {
-// 				let tranche_now_of_prev_slot = state.clock.tranche_now(
-// 					state.slot_duration_millis,
-// 					block_entry.slot.saturating_sub(SLOT_TOO_FAR_IN_FUTURE),
-// 				);
+		let is_duplicate =  approval_entry.is_assigned(assignment.validator);
+		approval_entry.import_assignment(tranche, assignment.validator, tick_now);
 
-// 				if tranche >= tranche_now_of_prev_slot {
-// 					return Ok(AssignmentCheckResult::TooFarInFuture);
-// 				}
+		if is_duplicate {
+			AssignmentCheckResult::AcceptedDuplicate
+		} else {
+			AssignmentCheckResult::Accepted
+		}
+	};
 
-// 				tranche
-// 			}
-// 		};
+	let (block_tick, no_show_duration) = {
+		let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
+		let no_show_duration = slot_number_to_tick(
+			state.slot_duration_millis,
+			Slot::from(u64::from(session_info.no_show_slots)),
+		);
 
-// 		let is_duplicate =  assignment_entry.is_assigned(assignment.validator);
-// 		assignment_entry.import_assignment(tranche, assignment.validator, tick_now);
+		(block_tick, no_show_duration)
+	};
 
-// 		if is_duplicate {
-// 			AssignmentCheckResult::AcceptedDuplicate
-// 		} else {
-// 			AssignmentCheckResult::Accepted
-// 		}
-// 	};
+	// We check for approvals here because we may be late in seeing a block containing a
+	// candidate for which we have already seen approvals by the same validator.
+	//
+	// For these candidates, we will receive the assignments potentially after a corresponding
+	// approval, and so we must check for approval here.
+	//
+	// Note that this already produces actions for writing
+	// the candidate entry and any modified block entries to disk.
+	let (mut actions, candidate_entry) = check_full_approvals(
+		state,
+		Some((assignment.block_hash, block_entry)),
+		assigned_candidate_hash,
+		candidate_entry,
+		|h, _| h == &assignment.block_hash,
+	)?;
 
-// 	let (block_tick, no_show_duration) = {
-// 		let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot);
-// 		let no_show_duration = slot_number_to_tick(
-// 			state.slot_duration_millis,
-// 			Slot::from(u64::from(session_info.no_show_slots)),
-// 		);
+	actions.push(Action::ScheduleWakeup {
+		candidate_entry,
+		block_hash: assignment.block_hash,
+		block_tick,
+		no_show_duration,
+		candidate_hash: assigned_candidate_hash,
+	});
 
-// 		(block_tick, no_show_duration)
-// 	};
-
-// 	// We check for approvals here because we may be late in seeing a block containing a
-// 	// candidate for which we have already seen approvals by the same validator.
-// 	//
-// 	// For these candidates, we will receive the assignments potentially after a corresponding
-// 	// approval, and so we must check for approval here.
-// 	//
-// 	// Note that this writes the candidate entry and any modified block entries to disk.
-// 	let candidate_entry = check_full_approvals(
-// 		state,
-// 		Some((assignment.block_hash, block_entry)),
-// 		candidate_entry,
-// 		|h, _| h == &assignment.block_hash,
-// 	)?;
-
-// 	schedule_wakeup(
-// 		state,
-// 		&candidate_entry,
-// 		assignment.block_hash,
-// 		block_tick,
-// 		no_show_duration,
-// 		assigned_candidate_hash,
-// 	);
-
-// 	Ok(res)
-// }
+	Ok((res, actions))
+}
 
 // fn check_and_import_approval(
 // 	state: &mut State<impl AuxStore>,
@@ -632,10 +648,10 @@ async fn handle_background_request(
 // 		None => respond!(ApprovalCheckResult::Bad)
 // 	};
 
-// 	let session_info = match state.session_info(block_entry.session) {
+// 	let session_info = match state.session_info(block_entry.session()) {
 // 		Some(s) => s,
 // 		None => {
-// 			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session);
+// 			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
 // 			respond!(ApprovalCheckResult::Bad)
 // 		}
 // 	};
@@ -647,7 +663,7 @@ async fn handle_background_request(
 
 // 	let approval_payload = approval_signing_payload(
 // 		ApprovalVote(approved_candidate_hash),
-// 		block_entry.session,
+// 		block_entry.session(),
 // 	);
 
 // 	let pubkey = match session_info.validators.get(approval.validator as usize) {
@@ -682,116 +698,123 @@ async fn handle_background_request(
 // 	import_checked_approval(
 // 		state,
 // 		Some((approval.block_hash, block_entry)),
+//		approved_candidate_hash,
 // 		candidate_entry,
 // 		approval.validator,
 // 	)
 // }
 
-// fn import_checked_approval(
-// 	state: &State<impl AuxStore>,
-// 	already_loaded: Option<(Hash, BlockEntry)>,
-// 	mut candidate_entry: CandidateEntry,
-// 	validator: ValidatorIndex,
-// ) -> SubsystemResult<()> {
-// 	if candidate_entry.mark_approval(validator) {
-// 		// already approved - nothing to do here.
-// 		return Ok(());
-// 	}
+fn import_checked_approval(
+	state: &State<impl AuxStore>,
+	already_loaded: Option<(Hash, BlockEntry)>,
+	candidate_hash: CandidateHash,
+	mut candidate_entry: CandidateEntry,
+	validator: ValidatorIndex,
+) -> SubsystemResult<Vec<Action>> {
+	if candidate_entry.mark_approval(validator) {
+		// already approved - nothing to do here.
+		return Ok(Vec::new());
+	}
 
-// 	// Check if this approval vote alters the approval state of any blocks.
-// 	//
-// 	// This may include blocks beyond the already loaded block.
-// 	check_full_approvals(state, already_loaded, candidate_entry, |_, a| a.is_assigned(validator))?;
-// 	Ok(())
-// }
+	// Check if this approval vote alters the approval state of any blocks.
+	//
+	// This may include blocks beyond the already loaded block.
+	let (actions, _) = check_full_approvals(
+		state,
+		already_loaded,
+		candidate_hash,
+		candidate_entry,
+		|_, a| a.is_assigned(validator),
+	)?;
 
-// // Checks the candidate for approval under all blocks matching the given filter.
-// //
-// // If returning without error, is guaranteed to have written all modified block entries and the
-// // candidate entry itself.
-// fn check_full_approvals(
-// 	state: &State<impl AuxStore>,
-// 	mut already_loaded: Option<(Hash, BlockEntry)>,
-// 	mut candidate_entry: CandidateEntry,
-// 	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
-// ) -> SubsystemResult<CandidateEntry> {
-// 	// We only query this max once per hash.
-// 	let db = &*state.db;
-// 	let mut load_block_entry = move |block_hash| -> SubsystemResult<Option<BlockEntry>> {
-// 		if already_loaded.as_ref().map_or(false, |(h, _)| h == block_hash) {
-// 			Ok(already_loaded.take().map(|(_, c)| c))
-// 		} else {
-// 			approval_db::v1::load_block_entry(db, block_hash)
-// 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-// 		}
-// 	};
+	Ok(actions)
+}
 
-// 	let candidate_hash = candidate_entry.candidate.hash();
+// Checks the candidate for approval under all blocks matching the given filter.
+//
+// If returning without error, is guaranteed to have produced actions
+// to write all modified block entries and the candidate entry itself.
+fn check_full_approvals(
+	state: &State<impl AuxStore>,
+	mut already_loaded: Option<(Hash, BlockEntry)>,
+	candidate_hash: CandidateHash,
+	mut candidate_entry: CandidateEntry,
+	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
+) -> SubsystemResult<(Vec<Action>, CandidateEntry)> {
+	// We only query this max once per hash.
+	let db = &*state.db;
+	let mut load_block_entry = move |block_hash| -> SubsystemResult<Option<BlockEntry>> {
+		if already_loaded.as_ref().map_or(false, |(h, _)| h == block_hash) {
+			Ok(already_loaded.take().map(|(_, c)| c))
+		} else {
+			load_block_entry(db, block_hash)
+		}
+	};
 
-// 	let mut transaction = approval_db::v1::Transaction::default();
+	let mut newly_approved = Vec::new();
+	let mut actions = Vec::new();
+	for (block_hash, approval_entry) in candidate_entry.iter_approval_entries()
+		.into_iter()
+		.filter(|(h, a)| !a.is_approved() && filter(h, a))
+	{
+		let mut block_entry = match load_block_entry(block_hash)? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Missing block entry {} referenced by candidate {}",
+					block_hash,
+					candidate_hash,
+				);
+				continue
+			}
+			Some(b) => b,
+		};
 
-// 	let mut newly_approved = Vec::new();
-// 	for (block_hash, approval_entry) in candidate_entry.block_assignments.iter()
-// 		.filter(|(h, a)| !a.is_approved() && filter(h, a))
-// 	{
-// 		let mut block_entry = match load_block_entry(block_hash)? {
-// 			None => {
-// 				tracing::warn!(
-// 					target: LOG_TARGET,
-// 					"Missing block entry {} referenced by candidate {}",
-// 					block_hash,
-// 					candidate_entry.candidate.hash(),
-// 				);
-// 				continue
-// 			}
-// 			Some(b) => b,
-// 		};
+		let session_info = match state.session_info(block_entry.session()) {
+			Some(s) => s,
+			None => {
+				tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
+				continue
+			}
+		};
 
-// 		let session_info = match state.session_info(block_entry.session) {
-// 			Some(s) => s,
-// 			None => {
-// 				tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session);
-// 				continue
-// 			}
-// 		};
+		let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
-// 		let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot);
+		let required_tranches = approval_checking::tranches_to_approve(
+			approval_entry,
+			candidate_entry.approvals(),
+			tranche_now,
+			slot_number_to_tick(state.slot_duration_millis, block_entry.slot()),
+			slot_number_to_tick(
+				state.slot_duration_millis,
+				Slot::from(u64::from(session_info.no_show_slots)),
+			),
+			session_info.needed_approvals as _
+		);
 
-// 		let required_tranches = approval_checking::tranches_to_approve(
-// 			approval_entry,
-// 			&candidate_entry.approvals,
-// 			tranche_now,
-// 			slot_number_to_tick(state.slot_duration_millis, block_entry.slot),
-// 			slot_number_to_tick(state.slot_duration_millis, Slot::from(u64::from(session_info.no_show_slots))),
-// 			session_info.needed_approvals as _
-// 		);
+		let now_approved = approval_checking::check_approval(
+			&candidate_entry,
+			approval_entry,
+			required_tranches,
+		);
 
-// 		let now_approved = approval_checking::check_approval(
-// 			&candidate_entry,
-// 			approval_entry,
-// 			required_tranches,
-// 		);
+		if now_approved {
+			newly_approved.push(*block_hash);
+			block_entry.mark_approved_by_hash(&candidate_hash);
 
-// 		if now_approved {
-// 			newly_approved.push(*block_hash);
-// 			block_entry.mark_approved_by_hash(&candidate_hash);
+			actions.push(Action::WriteBlockEntry(block_entry));
+		}
+	}
 
-// 			transaction.put_block_entry(block_entry);
-// 		}
-// 	}
+	for b in &newly_approved {
+		if let Some(a) = candidate_entry.approval_entry_mut(b) {
+			a.mark_approved();
+		}
+	}
 
-// 	for b in &newly_approved {
-// 		if let Some(a) = candidate_entry.block_assignments.get_mut(b) {
-// 			a.mark_approved();
-// 		}
-// 	}
-
-// 	transaction.put_candidate_entry(candidate_hash, candidate_entry.clone());
-// 	transaction.write(db)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
-// 	Ok(candidate_entry)
-// }
+	actions.push(Action::WriteCandidateEntry(candidate_hash, candidate_entry.clone()));
+	Ok((actions, candidate_entry))
+}
 
 // async fn process_wakeup(
 // 	ctx: &mut impl SubsystemContext,
@@ -812,21 +835,21 @@ async fn handle_background_request(
 // 		_ => return Ok(()),
 // 	};
 
-// 	let session_info = match state.session_info(block_entry.session) {
+// 	let session_info = match state.session_info(block_entry.session()) {
 // 		Some(i) => i,
 // 		None => {
 // 			tracing::warn!(
 // 				target: LOG_TARGET,
 // 				"Missing session info for live block {} in session {}",
 // 				relay_block,
-// 				block_entry.session,
+// 				block_entry.session(),
 // 			);
 
 // 			return Ok(())
 // 		}
 // 	};
 
-// 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot);
+// 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
 // 	let no_show_duration = slot_number_to_tick(
 // 		state.slot_duration_millis,
 // 		Slot::from(u64::from(session_info.no_show_slots)),
@@ -841,7 +864,7 @@ async fn handle_background_request(
 // 		let tranches_to_approve = approval_checking::tranches_to_approve(
 // 			&approval_entry,
 // 			&candidate_entry.approvals,
-// 			state.clock.tranche_now(state.slot_duration_millis, block_entry.slot),
+// 			state.clock.tranche_now(state.slot_duration_millis, block_entry.slot()),
 // 			block_tick,
 // 			no_show_duration,
 // 			session_info.needed_approvals as _,
@@ -903,7 +926,7 @@ async fn handle_background_request(
 // 			launch_approval(
 // 				ctx,
 // 				background_tx.clone(),
-// 				block_entry.session,
+// 				block_entry.session(),
 // 				&candidate_entry.candidate,
 // 				val_index,
 // 				relay_block,
@@ -1048,14 +1071,14 @@ async fn handle_background_request(
 // 		None => return Ok(()), // not a cause for alarm - just lost a race with pruning, most likely.
 // 	};
 
-// 	let session_info = match state.session_info(block_entry.session) {
+// 	let session_info = match state.session_info(block_entry.session()) {
 // 		Some(s) => s,
 // 		None => {
 // 			tracing::warn!(
 // 				target: LOG_TARGET,
 // 				"Missing session info for live block {} in session {}",
 // 				block_hash,
-// 				block_entry.session,
+// 				block_entry.session(),
 // 			);
 
 // 			return Ok(());
@@ -1099,7 +1122,7 @@ async fn handle_background_request(
 // 				target: LOG_TARGET,
 // 				"Validator index {} out of bounds in session {}",
 // 				validator_index,
-// 				block_entry.session,
+// 				block_entry.session(),
 // 			);
 
 // 			return Ok(());
@@ -1110,7 +1133,7 @@ async fn handle_background_request(
 // 		&state.keystore,
 // 		&validator_pubkey,
 // 		*candidate_hash,
-// 		block_entry.session,
+// 		block_entry.session(),
 // 	) {
 // 		Some(sig) => sig,
 // 		None => {
@@ -1118,7 +1141,7 @@ async fn handle_background_request(
 // 				target: LOG_TARGET,
 // 				"Could not issue approval signature with validator index {} in session {}. Assignment key present but not validator key?",
 // 				validator_index,
-// 				block_entry.session,
+// 				block_entry.session(),
 // 			);
 
 // 			return Ok(());
@@ -1128,6 +1151,7 @@ async fn handle_background_request(
 // 	import_checked_approval(
 // 		state,
 // 		Some((block_hash, block_entry)),
+//		*candidate_hash,
 // 		candidate_entry,
 // 		validator_index as _,
 // 	)?;

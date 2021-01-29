@@ -17,7 +17,7 @@
 //! Utilities for checking whether a candidate has been approved under a given block.
 
 use polkadot_node_primitives::approval::DelayTranche;
-use bitvec::vec::BitVec;
+use bitvec::slice::BitSlice;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use crate::persisted_entries::{ApprovalEntry, CandidateEntry};
@@ -66,9 +66,9 @@ pub fn check_approval(
 }
 
 /// Determine the amount of tranches of assignments needed to determine approval of a candidate.
-fn tranches_to_approve(
+pub fn tranches_to_approve(
 	approval_entry: &ApprovalEntry,
-	approvals: &BitVec<BitOrderLsb0, u8>,
+	approvals: &BitSlice<BitOrderLsb0, u8>,
 	tranche_now: DelayTranche,
 	block_tick: Tick,
 	no_show_duration: Tick,
