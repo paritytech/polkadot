@@ -184,10 +184,10 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 	}
 
 	fn send_request(&self, req: Requests,) {
-		let (protocol, OutgoingRequest { peer, payload, pending_response })
+		let (protocol, OutgoingRequest {peer, payload, pending_response})
 			= req.encode_request();
 
-		// Use the exact same method as implemented in `NetworkService`:
+		// Use the exact equally named method as implemented in `NetworkService`:
 		self.as_ref().send_request(peer, protocol.into_protocol_name(), payload, pending_response, true);
 	}
 }

@@ -81,9 +81,9 @@ impl Protocol {
 		// would need to be measured as well.
 		let (tx, rx) = mpsc::channel(100);
 		let cfg = match self {
-			AvailabilityFetching => RequestResponseConfig {
+			Protocol::AvailabilityFetching => RequestResponseConfig {
 				name: p_name,
-				// Arbitrary numbers, which I guess right now should be fine:
+				// Arbitrary very conservative numbers:
 				// TODO: Get better numbers.
 				max_request_size: 10_000,
 				max_response_size: 1_000_000,

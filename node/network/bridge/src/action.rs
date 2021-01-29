@@ -22,12 +22,13 @@ use polkadot_node_network_protocol::{
 	peer_set::PeerSet, v1 as protocol_v1, PeerId, ReputationChange,
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockNumber};
-use polkadot_subsystem::messages::NetworkBridgeMessage;
+use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 use sc_network::Event as NetworkEvent;
 
-use polkadot_node_network_protocol::{ObservedRole, request_response::Requests};
+use polkadot_node_network_protocol::{request_response::Requests, ObservedRole};
 
+use super::multiplexer::RequestMultiplexError;
 use super::{WireMessage, LOG_TARGET, MALFORMED_MESSAGE_COST};
 
 /// Internal type combining all actions a `NetworkBridge` might perform.
@@ -79,13 +80,20 @@ pub(crate) enum Action {
 		Vec<WireMessage<protocol_v1::CollationProtocol>>,
 	),
 
+	/// Send a message to another subsystem or the overseer.
+	///
+	/// Used for handling incoming requests.
+	SendMessage(AllMessages),
+
 	Abort,
 	Nop,
 }
 
 impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>> for Action {
 	#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
-	fn from(res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>) -> Self {
+	fn from(
+		res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
+	) -> Self {
 		match res {
 			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
 				Action::ActiveLeaves(active_leaves)
@@ -102,9 +110,7 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 				NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
 					Action::SendCollationMessages(vec![(peers, msg)])
 				}
-				NetworkBridgeMessage::SendRequests(reqs) => {
-					Action::SendRequests(reqs)
-				}
+				NetworkBridgeMessage::SendRequests(reqs) => Action::SendRequests(reqs),
 				NetworkBridgeMessage::SendValidationMessages(msgs) => {
 					Action::SendValidationMessages(msgs)
 				}
@@ -159,7 +165,9 @@ impl From<Option<NetworkEvent>> for Action {
 			Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
 				let v_messages: Result<Vec<_>, _> = messages
 					.iter()
-					.filter(|(protocol, _)| protocol == &PeerSet::Validation.into_protocol_name())
+					.filter(|(protocol, _)| {
+						protocol == &PeerSet::Validation.into_protocol_name()
+					})
 					.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
 					.collect();
 
@@ -170,7 +178,9 @@ impl From<Option<NetworkEvent>> for Action {
 
 				let c_messages: Result<Vec<_>, _> = messages
 					.iter()
-					.filter(|(protocol, _)| protocol == &PeerSet::Collation.into_protocol_name())
+					.filter(|(protocol, _)| {
+						protocol == &PeerSet::Collation.into_protocol_name()
+					})
 					.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
 					.collect();
 
@@ -185,6 +195,30 @@ impl From<Option<NetworkEvent>> for Action {
 					}
 				}
 			}
+		}
+	}
+}
+
+impl From<Option<Result<AllMessages, RequestMultiplexError>>> for Action {
+	fn from(event: Option<Result<AllMessages, RequestMultiplexError>>) -> Self {
+		match event {
+			None => {
+				tracing::info!(
+					target: LOG_TARGET,
+					"Shutting down Network Bridge: underlying request stream concluded"
+				);
+				Action::Abort
+			}
+			Some(Err(err)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Peer '{}' sent us an invalid request: {}",
+					err.peer,
+					err.error
+				);
+				Self::ReportPeer(err.peer, MALFORMED_MESSAGE_COST)
+			}
+			Some(Ok(msg)) => Self::SendMessage(msg),
 		}
 	}
 }

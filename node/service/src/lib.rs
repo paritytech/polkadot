@@ -32,7 +32,6 @@ use {
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
-	polkadot_network_bridge::RequestMultiplexer,
 	polkadot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
@@ -40,6 +39,8 @@ use {
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
 };
+#[cfg(feature = "real-overseer")]
+use polkadot_network_bridge::RequestMultiplexer;
 
 use sp_core::traits::SpawnNamed;
 
@@ -602,15 +603,14 @@ pub fn new_full<RuntimeApi, Executor>(
 		&config, task_manager.spawn_handle(), backend.clone(),
 	));
 	#[cfg(feature = "real-overseer")]
-	fn register_request_response() -> RequestMultiplexer {
+	fn register_request_response(config: &mut sc_network::config::NetworkConfiguration) -> RequestMultiplexer {
 		let (multiplexer, configs) = RequestMultiplexer::new();
-		config.network.request_response_protocols.extend(configs);
+		config.request_response_protocols.extend(configs);
 		multiplexer
 	}
-	#[cfg(feature = "real-overseer")]
-	let request_multiplexer = register_request_response();
 	#[cfg(not(feature = "real-overseer"))]
-	let request_multiplexer = ();
+	fn register_request_response(_: &mut sc_network::config::NetworkConfiguration) {}
+	let request_multiplexer = register_request_response(&mut config.network);
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {

@@ -26,7 +26,7 @@ use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, ReputationChange, PeerId,
-	request_response::Requests,
+	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
@@ -256,6 +256,8 @@ impl NetworkBridgeMessage {
 pub enum AvailabilityDistributionMessage {
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
+	/// Incoming request for an availability chunk.
+	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>)
 }
 
 /// Availability Recovery Message.
@@ -276,6 +278,7 @@ impl AvailabilityDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::AvailabilityFetchingRequest(_) => None,
 		}
 	}
 }
@@ -702,4 +705,10 @@ pub enum AllMessages {
 	ApprovalVoting(ApprovalVotingMessage),
 	/// Message for the Approval Distribution subsystem.
 	ApprovalDistribution(ApprovalDistributionMessage),
+}
+
+impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::AvailabilityFetchingRequest>) -> Self {
+		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
 }

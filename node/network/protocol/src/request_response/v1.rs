@@ -23,14 +23,17 @@ use polkadot_primitives::v1::{CandidateHash, ErasureChunk, ValidatorIndex};
 use super::request::IsRequest;
 use super::Protocol;
 
+/// Request an availability chunk.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct AvailabilityFetchingRequest {
 	candidate_hash: CandidateHash,
 	index: ValidatorIndex,
 }
 
+/// Receive a rqeuested erasure chunk.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum AvailabilityFetchingResponse {
+	/// The requested chunk.
 	#[codec(index = "1")]
 	Chunk(ErasureChunk),
 }

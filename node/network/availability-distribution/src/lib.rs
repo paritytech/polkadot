@@ -843,6 +843,12 @@ impl AvailabilityDistributionSubsystem {
 						);
 					}
 				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
+				} => { 
+					// TODO: Implement:
+					panic!("To be implemented!");
+				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: _,
 					deactivated: _,

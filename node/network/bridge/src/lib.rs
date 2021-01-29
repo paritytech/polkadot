@@ -34,7 +34,7 @@ use polkadot_subsystem::messages::{
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
-	ReputationChange, PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView, request_response::Protocol,
+	ReputationChange, PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView,
 };
 
 /// Peer set infos for network initialization.
@@ -169,11 +169,13 @@ where
 		let action = {
 			let subsystem_next = ctx.recv().fuse();
 			let mut net_event_next = event_stream.next().fuse();
+			let mut req_res_event_next = bridge.request_multiplexer.next().fuse();
 			futures::pin_mut!(subsystem_next);
 
 			futures::select! {
 				subsystem_msg = subsystem_next => Action::from(subsystem_msg),
 				net_event = net_event_next => Action::from(net_event),
+				req_res_event = req_res_event_next  => Action::from(req_res_event),
 			}
 		};
 
@@ -334,6 +336,7 @@ where
 					dispatch_collation_events_to_all(events, &mut ctx).await;
 				}
 			},
+			Action::SendMessage(msg) => ctx.send_message(msg).await,
 		}
 	}
 }

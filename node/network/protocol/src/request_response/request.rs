@@ -68,9 +68,12 @@ impl Requests {
 /// about responses/errors.
 #[derive(Debug)]
 pub struct OutgoingRequest<Req> {
-	peer: PeerId,
-	payload: Req,
-	pending_response: oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>,
+	/// Intendent recipient of this request.
+	pub peer: PeerId,
+	/// The actual request to send over the wire.
+	pub payload: Req,
+	/// Sender which is used by networking to get us back a response.
+	pub pending_response: oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>,
 }
 
 /// Any error that can occur when sending a request.
@@ -85,29 +88,15 @@ pub enum RequestError {
 	Canceled(oneshot::Canceled),
 }
 
-impl From<DecodingError> for RequestError {
-	fn from(err: DecodingError) -> Self {
-		Self::InvalidResponse(err)
-	}
-}
-
-impl From<network::RequestFailure> for RequestError {
-	fn from(err: network::RequestFailure) -> Self {
-		Self::NetworkError(err)
-	}
-}
-
-impl From<oneshot::Canceled> for RequestError {
-	fn from(err: oneshot::Canceled) -> Self {
-		Self::Canceled(err)
-	}
-}
-
 impl<Req> OutgoingRequest<Req>
 where
 	Req: IsRequest + Encode,
 	Req::Response: Decode,
 {
+	/// Create a new `OutgoingRequest`.
+	///
+	/// It will contain a sender that is used by the networking for sending back responses. The
+	/// connected receiver is returned as the second element in the returned tuple.
 	pub fn new(
 		peer: PeerId,
 		payload: Req,
@@ -148,13 +137,34 @@ where
 	}
 }
 
+impl From<DecodingError> for RequestError {
+	fn from(err: DecodingError) -> Self {
+		Self::InvalidResponse(err)
+	}
+}
+
+impl From<network::RequestFailure> for RequestError {
+	fn from(err: network::RequestFailure) -> Self {
+		Self::NetworkError(err)
+	}
+}
+
+impl From<oneshot::Canceled> for RequestError {
+	fn from(err: oneshot::Canceled) -> Self {
+		Self::Canceled(err)
+	}
+}
+
 /// A request coming in, including a sender for sending responses.
 ///
 /// `IncomingRequest`s are produced by `RequestReceiver` on behalf of the network bridge.
+#[derive(Debug)]
 pub struct IncomingRequest<Req> {
+	/// PeerId of sending peer.
 	pub peer: PeerId,
+	/// The sent request.
 	pub payload: Req,
-	pub(crate) pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
+	pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
 }
 
 impl<Req> IncomingRequest<Req>
@@ -162,6 +172,19 @@ where
 	Req: IsRequest,
 	Req::Response: Encode,
 {
+	/// Create new `IncomingRequest`.
+	pub fn new(
+		peer: PeerId,
+		payload: Req,
+		pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
+	) -> Self {
+		Self {
+			peer,
+			payload,
+			pending_response,
+		}
+	}
+
 	/// Send the response back.
 	///
 	/// On success we return Ok(()), on error we return the not sent `Response`.
@@ -178,6 +201,7 @@ where
 	}
 }
 
+/// Future for actually receiving a typed response for an OutgoingRequest.
 async fn receive_response<Req>(
 	rec: oneshot::Receiver<Result<Vec<u8>, network::RequestFailure>>,
 ) -> Result<Req::Response, RequestError>

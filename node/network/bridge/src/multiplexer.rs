@@ -19,16 +19,19 @@ use std::pin::Pin;
 use std::result::Result;
 
 use futures::channel::mpsc;
-use futures::stream::{Stream};
+use futures::stream::Stream;
 use futures::task::{Context, Poll};
 use strum::IntoEnumIterator;
 
 use parity_scale_codec::{Decode, Error as DecodingError};
 
 use sc_network::config as network;
+use sc_network::PeerId;
 
+use polkadot_node_network_protocol::request_response::{
+	request::IncomingRequest, v1, Protocol, RequestResponseConfig,
+};
 use polkadot_subsystem::messages::AllMessages;
-use polkadot_node_network_protocol::request_response::{v1, Protocol, RequestResponseConfig, request::IncomingRequest};
 
 /// Multiplex incoming network requests.
 ///
@@ -40,7 +43,12 @@ pub struct RequestMultiplexer {
 }
 
 /// Multiplexing can fail in case of invalid messages.
-pub type RequestMultiplexError = DecodingError;
+pub struct RequestMultiplexError {
+	/// The peer that sent the invalid message.
+	pub peer: PeerId,
+	/// The error that occurred.
+	pub error: DecodingError,
+}
 
 impl RequestMultiplexer {
 	/// Create a new `RequestMultiplexer`.
@@ -56,33 +64,41 @@ impl RequestMultiplexer {
 			})
 			.unzip();
 
-		(Self { receivers, next_poll: 0, }, cfgs,)
+		(
+			Self {
+				receivers,
+				next_poll: 0,
+			},
+			cfgs,
+		)
 	}
 }
 
 impl Stream for RequestMultiplexer {
 	type Item = Result<AllMessages, RequestMultiplexError>;
 
-	fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		let len = self.receivers.len();
 		let mut count = len;
-		let mut pending = false;
+		let mut i = self.next_poll;
+		let mut result = Poll::Ready(None);
 		// Poll streams in round robin fashion:
 		while count > 0 {
-			let (p, rx) = self.receivers[self.next_poll % len];
-			self.next_poll += 1;
-			match Pin::new(&mut rx).poll_next(cx) {
-				Poll::Pending => pending = true,
+			let (p, rx): &mut (_, _) = &mut self.receivers[i % len];
+			i += 1;
+			match Pin::new(rx).poll_next(cx) {
+				// If at least one stream is pending, we are pending as well:
+				Poll::Pending => result = Poll::Pending,
 				Poll::Ready(None) => {}
-				Poll::Ready(Some(v)) => return Poll::Ready(Some(multiplex_single(p, v))),
+				Poll::Ready(Some(v)) => {
+					result = Poll::Ready(Some(multiplex_single(*p, v)));
+					break;
+				}
 			}
 			count -= 1;
 		}
-		if pending {
-			Poll::Pending
-		} else {
-			Poll::Ready(None)
-		}
+		self.next_poll = i % len;
+		result
 	}
 }
 
@@ -96,11 +112,21 @@ fn multiplex_single(
 	}: network::IncomingRequest,
 ) -> Result<AllMessages, RequestMultiplexError> {
 	let r = match p {
-		AvailabilityFetching => From::from(IncomingRequest {
+		Protocol::AvailabilityFetching => From::from(IncomingRequest::new(
 			peer,
-			payload: v1::AvailabilityFetchingRequest::decode(&mut payload.as_ref())?,
+			decode_with_peer::<v1::AvailabilityFetchingRequest>(peer, payload)?,
 			pending_response,
-		}),
+		)),
 	};
 	Ok(r)
+}
+
+fn decode_with_peer<Req: Decode>(
+	peer: PeerId,
+	payload: Vec<u8>,
+) -> Result<Req, RequestMultiplexError> {
+	match Req::decode(&mut payload.as_ref()) {
+		Err(error) => Err(RequestMultiplexError { peer, error }),
+		Ok(req) => Ok(req),
+	}
 }
