@@ -502,6 +502,10 @@ impl Transaction {
 
 	/// Write the contents of the transaction, atomically, to the DB.
 	pub(crate) fn write(self, db: &impl AuxStore) -> sp_blockchain::Result<()> {
+		if self.block_entries.is_empty() && self.candidate_entries.is_empty() {
+			return Ok(())
+		}
+
 		let blocks: Vec<_> = self.block_entries.into_iter().map(|(hash, entry)| {
 			let k = block_entry_key(&hash);
 			let v = entry.encode();

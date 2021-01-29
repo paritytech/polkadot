@@ -178,12 +178,23 @@ impl Wakeups {
 struct State<T> {
 	session_window: import::RollingSessionWindow,
 	keystore: LocalKeystore,
-	wakeups: Wakeups,
 	slot_duration_millis: u64,
 	db: Arc<T>,
-	background_tx: mpsc::Sender<BackgroundRequest>,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+}
+
+enum Action {
+	ScheduleWakeup {
+		candidate_entry: CandidateEntry,
+		block_hash: Hash,
+		block_tick: Tick,
+		no_show_duration: Tick,
+		candidate_hash: CandidateHash,
+	},
+	WriteBlockEntry(BlockEntry),
+	WriteCandidateEntry(CandidateHash, CandidateEntry),
+	Conclude,
 }
 
 async fn run<T, C>(
@@ -194,17 +205,17 @@ async fn run<T, C>(
 ) -> SubsystemResult<()>
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
-	let (background_tx, background_rx) = mpsc::channel(64);
+	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state: State<T> = State {
 		session_window: Default::default(),
 		keystore: subsystem.keystore,
-		wakeups: Default::default(),
 		slot_duration_millis: subsystem.slot_duration_millis,
 		db: subsystem.db,
-		background_tx,
 		clock,
 		assignment_criteria,
 	};
+
+	let mut wakeups = Wakeups::default();
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 	let mut background_rx = background_rx.fuse();
@@ -223,9 +234,11 @@ async fn run<T, C>(
 		// };
 		// futures::pin_mut!(wait_til_next_tick);
 
+		let actions: Vec<Action> = unimplemented!();
+
 		// futures::select! {
 			// tick_wakeup = wait_til_next_tick.fuse() => {
-			// 	let woken = state.wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
+			// 	let woken = wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
 
 			// 	for (woken_block, woken_candidate) in woken {
 			// 		process_wakeup(
@@ -257,6 +270,40 @@ async fn run<T, C>(
 			// 	}
 			// }
 		// }
+
+		let mut transaction = approval_db::v1::Transaction::default();
+		let mut conclude = false;
+		for action in actions {
+			match action {
+				Action::ScheduleWakeup {
+					candidate_entry,
+					block_hash,
+					block_tick,
+					no_show_duration,
+					candidate_hash,
+				} => {
+					if let Some(tick) = candidate_entry.next_wakeup(
+						&block_hash,
+						block_tick,
+						no_show_duration,
+					) {
+						wakeups.schedule(block_hash, candidate_hash, tick);
+					}
+				}
+				Action::WriteBlockEntry(block_entry) => {
+					transaction.put_block_entry(block_entry.into());
+				}
+				Action::WriteCandidateEntry(candidate_hash, candidate_entry) => {
+					transaction.put_candidate_entry(candidate_hash, candidate_entry.into());
+				}
+				Action::Conclude => { conclude = true; }
+			}
+		}
+
+		transaction.write(&*state.db)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+		if conclude { break }
 	}
 
 	Ok(())
@@ -268,7 +315,9 @@ async fn handle_from_overseer(
 	state: &mut State<impl AuxStore>,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
-) -> SubsystemResult<bool> {
+) -> SubsystemResult<Vec<Action>> {
+	let mut actions = Vec::new();
+
 	match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			for (head, _span) in update.activated {
@@ -278,29 +327,28 @@ async fn handle_from_overseer(
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
 							for (c_hash, c_entry) in block_batch.imported_candidates {
-								schedule_wakeup(
-									state,
-									&c_entry,
-									block_batch.block_hash,
-									block_batch.block_tick,
-									block_batch.no_show_duration,
-									c_hash,
-								)
+								actions.push(Action::ScheduleWakeup {
+									candidate_entry: c_entry,
+									block_hash: block_batch.block_hash,
+									block_tick: block_batch.block_tick,
+									no_show_duration: block_batch.no_show_duration,
+									candidate_hash: c_hash,
+								});
 							}
 						}
 					}
 				}
 			}
-			Ok(false)
 		}
-		// FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
-		// 	*last_finalized_height = Some(block_number);
+		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			*last_finalized_height = Some(block_number);
 
-		// 	approval_db::v1::canonicalize(&*state.db, block_number, block_hash)
-		// 		.map(|_| false)
-		// 		.map_err(|e| SubsystemError::with_origin("db", e))
-		// }
-		// FromOverseer::Signal(OverseerSignal::Conclude) => Ok(true),
+			approval_db::v1::canonicalize(&*state.db, block_number, block_hash)
+				.map_err(|e| SubsystemError::with_origin("db", e))?;
+		}
+		FromOverseer::Signal(OverseerSignal::Conclude) => {
+			actions.push(Action::Conclude);
+		}
 		// FromOverseer::Communication { msg } => match msg {
 		// 	ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
 		// 		let _ = res.send(check_and_import_assignment(state, a, claimed_core)?);
@@ -325,6 +373,8 @@ async fn handle_from_overseer(
 		// }
 		_ => unimplemented!(), // TODO [now]
 	}
+
+	Ok(actions)
 }
 
 // async fn handle_background_request(
@@ -918,24 +968,12 @@ async fn handle_from_overseer(
 // 		.unwrap_or(RequiredTranches::Pending(tranche_now))
 // }
 
-fn schedule_wakeup(
-	state: &mut State<impl AuxStore>,
-	candidate_entry: &CandidateEntry,
-	block_hash: Hash,
-	block_tick: Tick,
-	no_show_duration: Tick,
-	candidate_hash: CandidateHash,
-) {
-	if let Some(tick) = candidate_entry.next_wakeup(&block_hash, block_tick, no_show_duration) {
-		state.wakeups.schedule(block_hash, candidate_hash, tick);
-	}
-}
-
 // async fn process_wakeup(
 // 	ctx: &mut impl SubsystemContext,
 // 	state: &mut State<impl AuxStore>,
 // 	relay_block: Hash,
 // 	candidate_hash: CandidateHash,
+//	background_tx: &mpsc::Sender<BackgroundRequest>,
 // ) -> SubsystemResult<()> {
 // 	let block_entry = approval_db::v1::load_block_entry(&*state.db, &relay_block)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
@@ -1039,7 +1077,7 @@ fn schedule_wakeup(
 
 // 			launch_approval(
 // 				ctx,
-// 				state.background_tx.clone(),
+// 				background_tx.clone(),
 // 				block_entry.session,
 // 				&candidate_entry.candidate,
 // 				val_index,
