@@ -344,10 +344,11 @@ async fn handle_from_overseer(
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 ) -> SubsystemResult<Vec<Action>> {
-	let mut actions = Vec::new();
 
-	match x {
+	let actions = match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			let mut actions = Vec::new();
+
 			for (head, _span) in update.activated {
 				match import::handle_new_head(ctx, state, head, &*last_finalized_height).await {
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
@@ -367,40 +368,44 @@ async fn handle_from_overseer(
 					}
 				}
 			}
+
+			actions
 		}
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			*last_finalized_height = Some(block_number);
 
 			approval_db::v1::canonicalize(&*state.db, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
+
+			Vec::new()
 		}
 		FromOverseer::Signal(OverseerSignal::Conclude) => {
-			actions.push(Action::Conclude);
+			vec![Action::Conclude]
 		}
-		// FromOverseer::Communication { msg } => match msg {
-		// 	ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
-		// 		let _ = res.send(check_and_import_assignment(state, a, claimed_core)?);
-		// 		Ok(false)
-		// 	}
-		// 	ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
-		// 		check_and_import_approval(state, a, res)?;
-		// 		Ok(false)
-		// 	}
-		// 	ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
-		// 		match handle_approved_ancestor(ctx, &*state.db, target, lower_bound).await {
-		// 			Ok(v) => {
-		// 				let _ = res.send(v);
-		// 				Ok(false)
-		// 			}
-		// 			Err(e) => {
-		// 				let _ = res.send(None);
-		// 				Err(e)
-		// 			}
-		// 		}
-		// 	}
-		// }
-		_ => unimplemented!(), // TODO [now]
-	}
+		FromOverseer::Communication { msg } => match msg {
+			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
+				let (check_outcome, actions) = check_and_import_assignment(state, a, claimed_core)?;
+				let _ = res.send(check_outcome);
+				actions
+			}
+			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
+				check_and_import_approval(state, a, res)?
+			}
+			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
+				match handle_approved_ancestor(ctx, &*state.db, target, lower_bound).await {
+					Ok(v) => {
+						let _ = res.send(v);
+					}
+					Err(e) => {
+						let _ = res.send(None);
+						return Err(e);
+					}
+				}
+
+				Vec::new()
+			}
+		}
+	};
 
 	Ok(actions)
 }
