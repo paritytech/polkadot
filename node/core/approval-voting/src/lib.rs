@@ -280,43 +280,54 @@ async fn run<T, C>(
 			}
 		};
 
-		let mut transaction = approval_db::v1::Transaction::default();
-		let mut conclude = false;
-
-		for action in actions {
-			match action {
-				Action::ScheduleWakeup {
-					candidate_entry,
-					block_hash,
-					block_tick,
-					no_show_duration,
-					candidate_hash,
-				} => {
-					if let Some(tick) = candidate_entry.next_wakeup(
-						&block_hash,
-						block_tick,
-						no_show_duration,
-					) {
-						wakeups.schedule(block_hash, candidate_hash, tick);
-					}
-				}
-				Action::WriteBlockEntry(block_entry) => {
-					transaction.put_block_entry(block_entry.into());
-				}
-				Action::WriteCandidateEntry(candidate_hash, candidate_entry) => {
-					transaction.put_candidate_entry(candidate_hash, candidate_entry.into());
-				}
-				Action::Conclude => { conclude = true; }
-			}
+		if handle_actions(&mut wakeups, &*state.db, actions)? {
+			break;
 		}
-
-		transaction.write(&*state.db)
-			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
-		if conclude { break }
 	}
 
 	Ok(())
+}
+
+// returns `true` if any of the actions was a `Conclude` command.
+fn handle_actions(
+	wakeups: &mut Wakeups,
+	db: &impl AuxStore,
+	actions: impl IntoIterator<Item = Action>,
+) -> SubsystemResult<bool> {
+	let mut transaction = approval_db::v1::Transaction::default();
+	let mut conclude = false;
+
+	for action in actions {
+		match action {
+			Action::ScheduleWakeup {
+				candidate_entry,
+				block_hash,
+				block_tick,
+				no_show_duration,
+				candidate_hash,
+			} => {
+				if let Some(tick) = candidate_entry.next_wakeup(
+					&block_hash,
+					block_tick,
+					no_show_duration,
+				) {
+					wakeups.schedule(block_hash, candidate_hash, tick);
+				}
+			}
+			Action::WriteBlockEntry(block_entry) => {
+				transaction.put_block_entry(block_entry.into());
+			}
+			Action::WriteCandidateEntry(candidate_hash, candidate_entry) => {
+				transaction.put_candidate_entry(candidate_hash, candidate_entry.into());
+			}
+			Action::Conclude => { conclude = true; }
+		}
+	}
+
+	transaction.write(db)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+	Ok(conclude)
 }
 
 fn load_block_entry(
