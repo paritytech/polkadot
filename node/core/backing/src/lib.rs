@@ -1794,7 +1794,10 @@ mod tests {
 			assert!(candidates[0].validity_votes.contains(
 				&ValidityAttestation::Explicit(signed_c.signature().clone())
 			));
-			assert_eq!(candidates[0].validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
+			assert_eq!(
+				candidates[0].validator_indices,
+				bitvec::bitvec![bitvec::order::Lsb0, u8; 1, 0, 1, 1],
+			);
 
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))

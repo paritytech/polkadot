@@ -44,13 +44,13 @@ pub mod approval;
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
 	/// A statement that a validator seconds a candidate.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Seconded(CommittedCandidateReceipt),
 	/// A statement that a validator has deemed a candidate valid.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Valid(CandidateHash),
 	/// A statement that a validator has deemed a candidate invalid.
-	#[codec(index = "3")]
+	#[codec(index = 3)]
 	Invalid(CandidateHash),
 }
 

@@ -65,13 +65,13 @@ pub enum Statement<Candidate, Digest> {
 	/// Broadcast by an authority to indicate that this is its candidate for inclusion.
 	///
 	/// Broadcasting two different candidate messages per round is not allowed.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Candidate(Candidate),
 	/// Broadcast by a authority to attest that the candidate with given digest is valid.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Valid(Digest),
 	/// Broadcast by a authority to attest that the candidate with given digest is invalid.
-	#[codec(index = "3")]
+	#[codec(index = 3)]
 	Invalid(Digest),
 }
 
