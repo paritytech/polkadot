@@ -79,6 +79,9 @@ impl Stream for RequestMultiplexer {
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		let len = self.receivers.len();
+		if len == 0 {
+			return Poll::Ready(None)
+		}
 		let mut count = len;
 		let mut i = self.next_poll;
 		let mut result = Poll::Ready(None);

@@ -847,7 +847,10 @@ impl AvailabilityDistributionSubsystem {
 					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
 				} => { 
 					// TODO: Implement issue 2306:
-					panic!("To be implemented, see: https://github.com/paritytech/polkadot/issues/2306!");
+					tracing::warn!(
+						target: LOG_TARGET,
+						"To be implemented, see: https://github.com/paritytech/polkadot/issues/2306!",
+					);
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: _,
