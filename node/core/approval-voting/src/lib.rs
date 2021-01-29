@@ -1046,131 +1046,127 @@ async fn launch_approval(
 	ctx.spawn("approval-checks", Box::pin(background)).await
 }
 
-// // Issue and import a local approval vote. Should only be invoked after approval checks
-// // have been done.
-// async fn issue_approval(
-// 	ctx: &mut impl SubsystemContext,
-// 	state: &mut State<impl AuxStore>,
-// 	request: ApprovalVoteRequest,
-// ) -> SubsystemResult<()> {
-// 	let ApprovalVoteRequest { validator_index, block_hash, candidate_index } = request;
+// Issue and import a local approval vote. Should only be invoked after approval checks
+// have been done.
+async fn issue_approval(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl AuxStore>,
+	request: ApprovalVoteRequest,
+) -> SubsystemResult<Vec<Action>> {
+	let ApprovalVoteRequest { validator_index, block_hash, candidate_index } = request;
 
-// 	let block_entry = match approval_db::v1::load_block_entry(&*state.db, &block_hash)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 	{
-// 		Some(b) => b,
-// 		None => return Ok(()), // not a cause for alarm - just lost a race with pruning, most likely.
-// 	};
+	let block_entry = match load_block_entry(&*state.db, &block_hash)? {
+		Some(b) => b,
+		None => return Ok(Vec::new()), // not a cause for alarm - just lost a race with pruning, most likely.
+	};
 
-// 	let session_info = match state.session_info(block_entry.session()) {
-// 		Some(s) => s,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Missing session info for live block {} in session {}",
-// 				block_hash,
-// 				block_entry.session(),
-// 			);
+	let session_info = match state.session_info(block_entry.session()) {
+		Some(s) => s,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Missing session info for live block {} in session {}",
+				block_hash,
+				block_entry.session(),
+			);
 
-// 			return Ok(());
-// 		}
-// 	};
+			return Ok(Vec::new());
+		}
+	};
 
-// 	let candidate_hash = match block_entry.candidates.get(candidate_index) {
-// 		Some((_, h)) => h,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Received malformed request to approve out-of-bounds candidate index {} included at block {:?}",
-// 				candidate_index,
-// 				block_hash,
-// 			);
+	let candidate_hash = match block_entry.candidate(candidate_index) {
+		Some((_, h)) => h.clone(),
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Received malformed request to approve out-of-bounds candidate index {} included at block {:?}",
+				candidate_index,
+				block_hash,
+			);
 
-// 			return Ok(());
-// 		}
-// 	};
+			return Ok(Vec::new());
+		}
+	};
 
-// 	let candidate_entry = match approval_db::v1::load_candidate_entry(&*state.db, &candidate_hash)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 	{
-// 		Some(c) => c,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Missing entry for candidate index {} included at block {:?}",
-// 				candidate_index,
-// 				block_hash,
-// 			);
+	let candidate_entry = match load_candidate_entry(&*state.db, &candidate_hash)? {
+		Some(c) => c,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Missing entry for candidate index {} included at block {:?}",
+				candidate_index,
+				block_hash,
+			);
 
-// 			return Ok(());
-// 		}
-// 	};
+			return Ok(Vec::new());
+		}
+	};
 
-// 	let validator_pubkey = match session_info.validators.get(validator_index as usize) {
-// 		Some(p) => p,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Validator index {} out of bounds in session {}",
-// 				validator_index,
-// 				block_entry.session(),
-// 			);
+	let validator_pubkey = match session_info.validators.get(validator_index as usize) {
+		Some(p) => p,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Validator index {} out of bounds in session {}",
+				validator_index,
+				block_entry.session(),
+			);
 
-// 			return Ok(());
-// 		}
-// 	};
+			return Ok(Vec::new());
+		}
+	};
 
-// 	let sig = match sign_approval(
-// 		&state.keystore,
-// 		&validator_pubkey,
-// 		*candidate_hash,
-// 		block_entry.session(),
-// 	) {
-// 		Some(sig) => sig,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Could not issue approval signature with validator index {} in session {}. Assignment key present but not validator key?",
-// 				validator_index,
-// 				block_entry.session(),
-// 			);
+	let sig = match sign_approval(
+		&state.keystore,
+		&validator_pubkey,
+		candidate_hash,
+		block_entry.session(),
+	) {
+		Some(sig) => sig,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Could not issue approval signature with validator index {} in session {}. Assignment key present but not validator key?",
+				validator_index,
+				block_entry.session(),
+			);
 
-// 			return Ok(());
-// 		}
-// 	};
+			return Ok(Vec::new());
+		}
+	};
 
-// 	import_checked_approval(
-// 		state,
-// 		Some((block_hash, block_entry)),
-//		*candidate_hash,
-// 		candidate_entry,
-// 		validator_index as _,
-// 	)?;
+	let actions = import_checked_approval(
+		state,
+		Some((block_hash, block_entry)),
+		candidate_hash,
+		candidate_entry,
+		validator_index as _,
+	)?;
 
-// 	// dispatch to approval distribution.
-// 	ctx.send_message(ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
-// 		block_hash,
-// 		candidate_index: candidate_index as _,
-// 		validator: validator_index,
-// 		signature: sig,
-// 	}).into()).await;
+	// dispatch to approval distribution.
+	ctx.send_message(ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
+		block_hash,
+		candidate_index: candidate_index as _,
+		validator: validator_index,
+		signature: sig,
+	}).into()).await;
 
-// 	Ok(())
-// }
+	Ok(actions)
+}
 
-// // Sign an approval vote. Fails if the key isn't present in the store.
-// fn sign_approval(
-// 	keystore: &LocalKeystore,
-// 	public: &ValidatorId,
-// 	candidate_hash: CandidateHash,
-// 	session_index: SessionIndex,
-// ) -> Option<ValidatorSignature> {
-// 	let key = keystore.key_pair::<ValidatorPair>(public).ok()?;
+// Sign an approval vote. Fails if the key isn't present in the store.
+fn sign_approval(
+	keystore: &LocalKeystore,
+	public: &ValidatorId,
+	candidate_hash: CandidateHash,
+	session_index: SessionIndex,
+) -> Option<ValidatorSignature> {
+	let key = keystore.key_pair::<ValidatorPair>(public).ok()?;
 
-// 	let payload = approval_signing_payload(
-// 		ApprovalVote(candidate_hash),
-// 		session_index,
-// 	);
+	let payload = approval_signing_payload(
+		ApprovalVote(candidate_hash),
+		session_index,
+	);
 
-// 	Some(key.sign(&payload[..]))
-// }
+	Some(key.sign(&payload[..]))
+}
