@@ -17,60 +17,32 @@
 //! Tests for the aux-schema of approval voting.
 
 use super::*;
-use std::cell::RefCell;
+use crate::tests::TestStore;
 use polkadot_primitives::v1::Id as ParaId;
 
-#[derive(Default)]
-struct TestStore {
-	inner: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
-}
-
-impl AuxStore for TestStore {
-	fn insert_aux<'a, 'b: 'a, 'c: 'a, I, D>(&self, insertions: I, deletions: D) -> sp_blockchain::Result<()>
-		where I: IntoIterator<Item = &'a (&'c [u8], &'c [u8])>, D: IntoIterator<Item = &'a &'b [u8]>
-	{
-		let mut store = self.inner.borrow_mut();
-
-		// insertions before deletions.
-		for (k, v) in insertions {
-			store.insert(k.to_vec(), v.to_vec());
-		}
-
-		for k in deletions {
-			store.remove(&k[..]);
-		}
-
-		Ok(())
-	}
-
-	fn get_aux(&self, key: &[u8]) -> sp_blockchain::Result<Option<Vec<u8>>> {
-		Ok(self.inner.borrow().get(key).map(|v| v.clone()))
-	}
-}
-
 impl TestStore {
-	fn write_stored_blocks(&self, range: StoredBlockRange) {
+	pub(crate) fn write_stored_blocks(&self, range: StoredBlockRange) {
 		self.inner.borrow_mut().insert(
 			STORED_BLOCKS_KEY.to_vec(),
 			range.encode(),
 		);
 	}
 
-	fn write_blocks_at_height(&self, height: BlockNumber, blocks: &[Hash]) {
+	pub(crate) fn write_blocks_at_height(&self, height: BlockNumber, blocks: &[Hash]) {
 		self.inner.borrow_mut().insert(
 			blocks_at_height_key(height).to_vec(),
 			blocks.encode(),
 		);
 	}
 
-	fn write_block_entry(&self, block_hash: &Hash, entry: &BlockEntry) {
+	pub(crate) fn write_block_entry(&self, block_hash: &Hash, entry: &BlockEntry) {
 		self.inner.borrow_mut().insert(
 			block_entry_key(block_hash).to_vec(),
 			entry.encode(),
 		);
 	}
 
-	fn write_candidate_entry(&self, candidate_hash: &CandidateHash, entry: &CandidateEntry) {
+	pub(crate) fn write_candidate_entry(&self, candidate_hash: &CandidateHash, entry: &CandidateEntry) {
 		self.inner.borrow_mut().insert(
 			candidate_entry_key(candidate_hash).to_vec(),
 			entry.encode(),

@@ -17,6 +17,7 @@
 use super::*;
 
 use parking_lot::Mutex;
+use std::cell::RefCell;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -97,7 +98,33 @@ impl MockClockInner {
 
 // TODO [now]: mock `AssignmentCriteria` implementation.
 
-// TODO [now]: mock `AuxStore`.
+#[derive(Default)]
+pub(crate) struct TestStore {
+	pub(crate) inner: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
+}
+
+impl AuxStore for TestStore {
+	fn insert_aux<'a, 'b: 'a, 'c: 'a, I, D>(&self, insertions: I, deletions: D) -> sp_blockchain::Result<()>
+		where I: IntoIterator<Item = &'a (&'c [u8], &'c [u8])>, D: IntoIterator<Item = &'a &'b [u8]>
+	{
+		let mut store = self.inner.borrow_mut();
+
+		// insertions before deletions.
+		for (k, v) in insertions {
+			store.insert(k.to_vec(), v.to_vec());
+		}
+
+		for k in deletions {
+			store.remove(&k[..]);
+		}
+
+		Ok(())
+	}
+
+	fn get_aux(&self, key: &[u8]) -> sp_blockchain::Result<Option<Vec<u8>>> {
+		Ok(self.inner.borrow().get(key).map(|v| v.clone()))
+	}
+}
 
 #[test]
 fn rejects_bad_assignment() {
