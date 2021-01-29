@@ -202,7 +202,7 @@ fn try_import_the_same_assignment() {
 			parent_hash,
 			number: 2,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -288,7 +288,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 			parent_hash,
 			number: 2,
 			candidates: vec![Default::default(); candidates_count],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
@@ -363,7 +363,7 @@ fn import_approval_happy_path() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -447,7 +447,7 @@ fn import_approval_bad() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -521,21 +521,21 @@ fn update_our_view() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_b = BlockApprovalMeta {
 			hash: hash_b,
 			parent_hash: hash_a,
 			number: 2,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_c = BlockApprovalMeta {
 			hash: hash_c,
 			parent_hash: hash_b,
 			number: 3,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
@@ -591,21 +591,21 @@ fn update_peer_view() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_b = BlockApprovalMeta {
 			hash: hash_b,
 			parent_hash: hash_a,
 			number: 2,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_c = BlockApprovalMeta {
 			hash: hash_c,
 			parent_hash: hash_b,
 			number: 3,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
@@ -742,7 +742,7 @@ fn import_remotely_then_locally() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
