@@ -30,3 +30,4 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 parking_lot = "0.11.1"
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

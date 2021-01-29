@@ -120,6 +120,7 @@ fn assigned_core_transcript(core_index: CoreIndex) -> Transcript {
 }
 
 /// Information about the world assignments are being produced in.
+#[derive(Clone)]
 pub(crate) struct Config {
 	/// The assignment public keys for validators.
 	assignment_keys: Vec<AssignmentId>,
@@ -470,7 +471,10 @@ mod tests {
 	use super::*;
 	use sp_keystore::CryptoStore;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
+	use sp_application_crypto::sr25519;
+	use sp_core::crypto::Pair as PairT;
 	use polkadot_primitives::v1::ASSIGNMENT_KEY_TYPE_ID;
+	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 
 	// sets up a keystore with the given keyring accounts.
 	async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
@@ -487,9 +491,40 @@ mod tests {
 	}
 
 	fn assignment_keys(accounts: &[Sr25519Keyring]) -> Vec<AssignmentId> {
-		accounts.iter().map(|k|
-			AssignmentId::from(k.public())
-		).collect()
+		assignment_keys_plus_random(accounts, 0)
+	}
+
+	fn assignment_keys_plus_random(accounts: &[Sr25519Keyring], random: usize) -> Vec<AssignmentId> {
+		let gen_random = (0..random).map(|_|
+			AssignmentId::from(sr25519::Pair::generate().0.public())
+		);
+
+		accounts.iter()
+			.map(|k| AssignmentId::from(k.public()))
+			.chain(gen_random)
+			.collect()
+	}
+
+	fn basic_groups(n_validators: usize, n_groups: usize) -> Vec<Vec<ValidatorIndex>> {
+		let size = n_validators / n_groups;
+		let big_groups = n_validators % n_groups;
+		let scraps = n_groups * size;
+
+		(0..n_groups).map(|i| {
+			(i * size .. (i + 1) *size)
+				.chain(if i < big_groups { Some(scraps + i) } else { None })
+				.map(|j| j as ValidatorIndex)
+				.collect::<Vec<_>>()
+		}).collect()
+	}
+
+	// used for generating assignments where the validity of the VRF doesn't matter.
+	fn garbage_vrf() -> (VRFOutput, VRFProof) {
+		let key = Sr25519Keyring::Alice.pair();
+		let key: &schnorrkel::Keypair = key.as_ref();
+
+		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
+		(VRFOutput(o.to_output()), VRFProof(p))
 	}
 
 	#[test]
@@ -552,20 +587,32 @@ mod tests {
 		assert!(assignments.get(&CoreIndex(1)).is_some());
 	}
 
-	#[test]
-	fn assigned_cores_check_passes() {
+	struct MutatedAssignment {
+		core: CoreIndex,
+		cert: AssignmentCert,
+		group: GroupIndex,
+		own_group: GroupIndex,
+		val_index: ValidatorIndex,
+		config: Config,
+	}
+
+	// This fails if the closure requests to skip everything.
+	fn check_mutated_assignments(
+		n_validators: usize,
+		n_cores: usize,
+		rotation_offset: usize,
+		f: impl Fn(&mut MutatedAssignment) -> Option<bool>, // None = skip
+	) {
 		let keystore = futures::executor::block_on(
 			make_keystore(&[Sr25519Keyring::Alice])
 		);
 
+		let group_for_core = |i| GroupIndex(((i + rotation_offset) % n_cores) as _);
+
 		let config = Config {
-			assignment_keys: assignment_keys(&[
-				Sr25519Keyring::Alice,
-				Sr25519Keyring::Bob,
-				Sr25519Keyring::Charlie,
-			]),
-			validator_groups: vec![vec![0], vec![1, 2]],
-			n_cores: 2,
+			assignment_keys: assignment_keys_plus_random(&[Sr25519Keyring::Alice], n_validators - 1),
+			validator_groups: basic_groups(n_validators, n_cores),
+			n_cores: n_cores as u32,
 			zeroth_delay_tranche_width: 10,
 			relay_vrf_modulo_samples: 3,
 			n_delay_tranches: 40,
@@ -576,56 +623,138 @@ mod tests {
 			&keystore,
 			relay_vrf_story.clone(),
 			&config,
-			vec![(CoreIndex(0), GroupIndex(0)), (CoreIndex(1), GroupIndex(1))],
+			(0..n_cores)
+				.map(|i| (
+					CoreIndex(i as u32),
+					group_for_core(i),
+				))
+				.collect::<Vec<_>>(),
 		);
 
+		let mut counted = 0;
 		for (core, assignment) in assignments {
-			check_assignment_cert(
+			let mut mutated = MutatedAssignment {
 				core,
-				0,
-				&config,
+				group: group_for_core(core.0 as _),
+				cert: assignment.cert,
+				own_group: GroupIndex(0),
+				val_index: 0,
+				config: config.clone(),
+			};
+
+			let expected = match f(&mut mutated) {
+				None => continue,
+				Some(e) => e,
+			};
+
+			counted += 1;
+
+			let is_good = check_assignment_cert(
+				mutated.core,
+				mutated.val_index,
+				&mutated.config,
 				relay_vrf_story.clone(),
-				assignment.cert(),
-				GroupIndex(core.0), // true in this case, but not always.
-			).unwrap();
+				&mutated.cert,
+				mutated.group,
+			).is_ok();
+
+			assert_eq!(expected, is_good)
 		}
+
+		assert!(counted > 0);
+	}
+
+	#[test]
+	fn computed_assignments_pass_checks() {
+		check_mutated_assignments(200, 100, 25, |_| Some(true));
 	}
 
 	#[test]
 	fn check_rejects_claimed_core_out_of_bounds() {
-		let assignment = AssignmentCert {
-			kind: AssignmentCertKind::RelayVRFModulo { sample: 0 },
-			vrf: (Default::default(), Default::default()),
-		};
+		check_mutated_assignments(200, 100, 25, |m| {
+			m.core.0 += 100;
+			Some(false)
+		});
 	}
 
 	#[test]
 	fn check_rejects_in_backing_group() {
-
+		check_mutated_assignments(200, 100, 25, |m| {
+			m.group = m.own_group;
+			Some(false)
+		});
 	}
 
 	#[test]
 	fn check_rejects_nonexistent_key() {
-
+		check_mutated_assignments(200, 100, 25, |m| {
+			m.val_index += 200;
+			Some(false)
+		});
 	}
 
 	#[test]
-	fn check_rejects_invalid_delay() {
-
+	fn check_rejects_delay_bad_vrf() {
+		check_mutated_assignments(40, 10, 8, |m| {
+			match m.cert.kind.clone() {
+				AssignmentCertKind::RelayVRFDelay { .. } => {
+					m.cert.vrf = garbage_vrf();
+					Some(false)
+				}
+				_ => None, // skip everything else.
+			}
+		});
 	}
 
 	#[test]
-	fn check_rejects_invalid_modulo() {
-
+	fn check_rejects_modulo_bad_vrf() {
+		check_mutated_assignments(200, 100, 25, |m| {
+			match m.cert.kind.clone() {
+				AssignmentCertKind::RelayVRFModulo { .. } => {
+					m.cert.vrf = garbage_vrf();
+					Some(false)
+				}
+				_ => None, // skip everything else.
+			}
+		});
 	}
 
 	#[test]
-	fn check_rejects_delay_core_wrong() {
+	fn check_rejects_modulo_sample_out_of_bounds() {
+		check_mutated_assignments(200, 100, 25, |m| {
+			match m.cert.kind.clone() {
+				AssignmentCertKind::RelayVRFModulo { sample } => {
+					m.config.relay_vrf_modulo_samples = sample;
+					Some(false)
+				}
+				_ => None, // skip everything else.
+			}
+		});
+	}
 
+	#[test]
+	fn check_rejects_delay_claimed_core_wrong() {
+		check_mutated_assignments(200, 100, 25, |m| {
+			match m.cert.kind.clone() {
+				AssignmentCertKind::RelayVRFDelay { .. } => {
+					m.core = CoreIndex((m.core.0 + 1) % 100);
+					Some(false)
+				}
+				_ => None, // skip everything else.
+			}
+		});
 	}
 
 	#[test]
 	fn check_rejects_modulo_core_wrong() {
-
+		check_mutated_assignments(200, 100, 25, |m| {
+			match m.cert.kind.clone() {
+				AssignmentCertKind::RelayVRFModulo { sample } => {
+					m.core = CoreIndex((m.core.0 + 1) % 100);
+					Some(false)
+				}
+				_ => None, // skip everything else.
+			}
+		});
 	}
 }
