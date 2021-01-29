@@ -41,9 +41,6 @@ pub trait Config: frame_system::Config {
 	/// The currency type used for bidding.
 	type Currency: ReservableCurrency<Self::AccountId>;
 
-	/// The amount required for a basic parathread deposit.
-	type ParaDeposit: Get<BalanceOf<Self>>;
-
 	/// The parachain registrar type.
 	type Registrar: Registrar;
 
@@ -73,9 +70,6 @@ decl_storage! {
 		///
 		/// It is illegal for a `None` value to trail in the list.
 		pub Leases: map hasher(twox_64_concat) ParaId => Vec<Option<(T::AccountId, BalanceOf<T>)>>;
-
-		/// The ordered set of Para IDs that are full parachains currently.
-		pub CurrentChains: Vec<ParaId>;
 	}
 }
 
@@ -169,7 +163,7 @@ impl<T: Config> Module<T> {
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) {
 		Self::deposit_event(RawEvent::NewLeasePeriod(lease_period_index));
 
-		let old_parachains = CurrentChains::get();
+		let old_parachains = T::Registrar::parachains();
 
 		// Figure out what chains need bringing on.
 		let mut parachains = Vec::new();
@@ -218,7 +212,6 @@ impl<T: Config> Module<T> {
 			}
 		}
 		parachains.sort();
-		CurrentChains::put(&parachains);
 
 		for para in parachains.iter() {
 			if old_parachains.binary_search(para).is_err() {
@@ -402,17 +395,60 @@ mod tests {
 
 	thread_local! {
 		pub static OPERATIONS: RefCell<Vec<(ParaId, BlockNumber, bool)>> = RefCell::new(Vec::new());
+		pub static PARACHAINS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
+		pub static PARATHREADS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
+
 	}
 
 	pub struct TestRegistrar;
 
 	impl Registrar for TestRegistrar {
+		fn parachains() -> Vec<ParaId> {
+			PARACHAINS.with(|x| x.borrow().clone())
+		}
+
+		fn is_parathread(id: ParaId) -> bool {
+			PARATHREADS.with(|x| x.borrow().binary_search(&id).is_ok())
+		}
+
 		fn make_parachain(id: ParaId) -> DispatchResult {
 			OPERATIONS.with(|x| x.borrow_mut().push((id, System::block_number(), true)));
+			PARACHAINS.with(|x| {
+				let mut parachains = x.borrow_mut();
+				match parachains.binary_search(&id) {
+					Ok(_) => {},
+					Err(i) => parachains.insert(i, id),
+				}
+			});
+			PARATHREADS.with(|x| {
+				let mut parathreads = x.borrow_mut();
+				match parathreads.binary_search(&id) {
+					Ok(i) => {
+						parathreads.remove(i);
+					},
+					Err(_) => {},
+				}
+			});
 			Ok(())
 		}
 		fn make_parathread(id: ParaId) -> DispatchResult {
 			OPERATIONS.with(|x| x.borrow_mut().push((id, System::block_number(), false)));
+			PARACHAINS.with(|x| {
+				let mut parachains = x.borrow_mut();
+				match parachains.binary_search(&id) {
+					Ok(i) => {
+						parachains.remove(i);
+					},
+					Err(_) =>{},
+				}
+			});
+			PARATHREADS.with(|x| {
+				let mut parathreads = x.borrow_mut();
+				match parathreads.binary_search(&id) {
+					Ok(_) => {},
+					Err(i) => parathreads.insert(i, id),
+				}
+			});
 			Ok(())
 		}
 	}
@@ -429,7 +465,6 @@ mod tests {
 	impl Config for Test {
 		type Event = ();
 		type Currency = Balances;
-		type ParaDeposit = ParaDeposit;
 		type Registrar = TestRegistrar;
 		type LeasePeriod = LeasePeriod;
 	}

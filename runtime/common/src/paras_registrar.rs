@@ -221,6 +221,15 @@ decl_module! {
 }
 
 impl<T: Config> Registrar for Module<T> {
+	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+	fn parachains() -> Vec<ParaId> {
+		paras::Module::<T>::parachains()
+	}
+
+	fn is_parathread(id: ParaId) -> bool {
+		paras::Module::<T>::is_parathread(id)
+	}
+
 	// Upgrade a registered parathread into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {

@@ -25,6 +25,22 @@ use frame_support::{
 
 /// Parachain registration API.
 pub trait Registrar {
+	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+	fn parachains() -> Vec<ParaId>;
+
+	/// Return if a ParaId is a Parachain.
+	fn is_parachain(id: ParaId) -> bool {
+		Self::parachains().binary_search(&id).is_ok()
+	}
+
+	/// Return if a ParaId is a Parathread.
+	fn is_parathread(id: ParaId) -> bool;
+
+	/// Return if a ParaId is registered in the system.
+	fn is_registered(id: ParaId) -> bool {
+		Self::is_parathread(id) || Self::is_parachain(id)
+	}
+
 	/// Elevate a para to parachain status.
 	fn make_parachain(id: ParaId) -> DispatchResult;
 
