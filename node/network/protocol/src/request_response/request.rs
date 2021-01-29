@@ -113,11 +113,6 @@ where
 		(r, receive_response::<Req>(rx))
 	}
 
-	/// To what peer this
-	pub fn get_peer(&self) -> &PeerId {
-		&self.peer
-	}
-
 	/// Encode a request into a `Vec<u8>`.
 	///
 	/// As this throws away type information, we also return the `Protocol` this encoded request
@@ -157,7 +152,7 @@ impl From<oneshot::Canceled> for RequestError {
 
 /// A request coming in, including a sender for sending responses.
 ///
-/// `IncomingRequest`s are produced by `RequestReceiver` on behalf of the network bridge.
+/// `IncomingRequest`s are produced by `RequestMultiplexer` on behalf of the network bridge.
 #[derive(Debug)]
 pub struct IncomingRequest<Req> {
 	/// PeerId of sending peer.
