@@ -128,49 +128,49 @@ impl AuxStore for TestStore {
 	}
 }
 
-fn blank_state() -> (State<TestStore>, mpsc::Receiver<BackgroundRequest>) {
-	let (tx, rx) = mpsc::channel(1024);
-	(
-		State {
-			earliest_session: None,
-			session_info: Vec::new(),
-			keystore: LocalKeystore::in_memory(),
-			wakeups: Wakeups::default(),
-			slot_duration_millis: SLOT_DURATION_MILLIS,
-			db: Arc::new(TestStore::default()),
-			background_tx: tx,
-			clock: Box::new(MockClock::default()),
-			assignment_criteria: unimplemented!(),
-		},
-		rx,
-	)
-}
+// fn blank_state() -> (State<TestStore>, mpsc::Receiver<BackgroundRequest>) {
+// 	let (tx, rx) = mpsc::channel(1024);
+// 	(
+// 		State {
+// 			earliest_session: None,
+// 			session_info: Vec::new(),
+// 			keystore: LocalKeystore::in_memory(),
+// 			wakeups: Wakeups::default(),
+// 			slot_duration_millis: SLOT_DURATION_MILLIS,
+// 			db: Arc::new(TestStore::default()),
+// 			background_tx: tx,
+// 			clock: Box::new(MockClock::default()),
+// 			assignment_criteria: unimplemented!(),
+// 		},
+// 		rx,
+// 	)
+// }
 
-fn single_session_state(index: SessionIndex, info: SessionInfo)
-	-> (State<TestStore>, mpsc::Receiver<BackgroundRequest>)
-{
-	let (mut s, rx) = blank_state();
-	s.earliest_session = Some(index);
-	s.session_info = vec![info];
-	(s, rx)
-}
+// fn single_session_state(index: SessionIndex, info: SessionInfo)
+// 	-> (State<TestStore>, mpsc::Receiver<BackgroundRequest>)
+// {
+// 	let (mut s, rx) = blank_state();
+// 	s.earliest_session = Some(index);
+// 	s.session_info = vec![info];
+// 	(s, rx)
+// }
 
-#[test]
-fn rejects_bad_assignment() {
-	let (mut state, rx) = single_session_state(1, unimplemented!());
-	let assignment = unimplemented!();
-	let candidate_index = unimplemented!();
+// #[test]
+// fn rejects_bad_assignment() {
+// 	let (mut state, rx) = single_session_state(1, unimplemented!());
+// 	let assignment = unimplemented!();
+// 	let candidate_index = unimplemented!();
 
-	// TODO [now]: instantiate test store with block data.
+// 	// TODO [now]: instantiate test store with block data.
 
-	check_and_import_assignment(
-		&mut state,
-		assignment,
-		candidate_index,
-	).unwrap();
+// 	check_and_import_assignment(
+// 		&mut state,
+// 		assignment,
+// 		candidate_index,
+// 	).unwrap();
 
-	// Check that the assignment's been imported.
-}
+// 	// Check that the assignment's been imported.
+// }
 
 #[test]
 fn rejects_assignment_in_future() {
