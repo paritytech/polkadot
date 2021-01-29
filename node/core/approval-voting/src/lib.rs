@@ -1271,7 +1271,7 @@ fn check_approval(
 			let approvals = candidate.approvals();
 
 			let n_assigned = assigned_mask.count_ones();
-			assigned_mask &= approvals.iter().cloned();
+			assigned_mask &= approvals.iter().by_val();
 			let n_approved = assigned_mask.count_ones();
 
 			// note: the process of computing `required` only chooses `exact` if
@@ -1355,7 +1355,7 @@ fn tranches_to_approve(
 			// after a fixed duration.
 			let no_shows = tranche.assignments.iter().filter(|(v_index, tick)| {
 				tick + no_show_duration >= tick_now
-					&& *approvals.get(*v_index as usize).unwrap_or(&true)
+					&& approvals.get(*v_index as usize).map(|b| *b).unwrap_or(true)
 			}).count();
 
 			*state = Some(match s {
