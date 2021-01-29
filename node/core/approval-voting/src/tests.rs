@@ -130,17 +130,20 @@ impl AuxStore for TestStore {
 
 fn blank_state() -> (State<TestStore>, mpsc::Receiver<BackgroundRequest>) {
 	let (tx, rx) = mpsc::channel(1024);
-	State {
-		earliest_session: None,
-		session_info: Vec::new(),
-		keystore: LocalKeystore::in_memory(),
-		wakeups: Wakeups::default(),
-		slot_duration_millis: SLOT_DURATION_MILLIS,
-		db: Arc::new(TestStore::default()),
-		background_tx: tx,
-		clock: Box::new(MockClock::default()),
-		assignment_criteria: unimplemented!(),
-	}
+	(
+		State {
+			earliest_session: None,
+			session_info: Vec::new(),
+			keystore: LocalKeystore::in_memory(),
+			wakeups: Wakeups::default(),
+			slot_duration_millis: SLOT_DURATION_MILLIS,
+			db: Arc::new(TestStore::default()),
+			background_tx: tx,
+			clock: Box::new(MockClock::default()),
+			assignment_criteria: unimplemented!(),
+		},
+		rx,
+	)
 }
 
 fn single_session_state(index: SessionIndex, info: SessionInfo)
@@ -154,14 +157,14 @@ fn single_session_state(index: SessionIndex, info: SessionInfo)
 
 #[test]
 fn rejects_bad_assignment() {
-	let state = single_session_state(1, unimplemented!());
+	let (mut state, rx) = single_session_state(1, unimplemented!());
 	let assignment = unimplemented!();
 	let candidate_index = unimplemented!();
 
 	// TODO [now]: instantiate test store with block data.
 
 	check_and_import_assignment(
-		state,
+		&mut state,
 		assignment,
 		candidate_index,
 	).unwrap();

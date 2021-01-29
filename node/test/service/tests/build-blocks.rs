@@ -21,7 +21,7 @@ use sp_keyring::Sr25519Keyring;
 
 #[substrate_test_utils::test]
 async fn ensure_test_service_build_blocks(task_executor: TaskExecutor) {
-	let mut builder = sc_cli::GlobalLoggerBuilder::new("");
+	let mut builder = sc_cli::LoggerBuilder::new("");
 	builder.with_colors(false);
 	builder.init().expect("Sets up logger");
 

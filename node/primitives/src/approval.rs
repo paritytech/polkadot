@@ -17,7 +17,7 @@
 //! Types relevant for approval.
 
 pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof, Randomness};
-pub use sp_consensus_babe::SlotNumber;
+pub use sp_consensus_babe::Slot;
 
 use polkadot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex, ValidatorSignature, CoreIndex,
@@ -147,13 +147,13 @@ pub enum ApprovalError {
 /// An unsafe VRF output. Provide BABE Epoch info to create a `RelayVRFStory`.
 pub struct UnsafeVRFOutput {
 	vrf_output: VRFOutput,
-	slot: SlotNumber,
+	slot: Slot,
 	authority_index: u32,
 }
 
 impl UnsafeVRFOutput {
-	/// Get the slot number.
-	pub fn slot_number(&self) -> SlotNumber {
+	/// Get the slot.
+	pub fn slot(&self) -> Slot {
 		self.slot
 	}
 
@@ -194,7 +194,7 @@ pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
 
 	for digest in &header.digest.logs {
 		if let Some(pre) = digest.as_babe_pre_digest() {
-			let slot = pre.slot_number();
+			let slot = pre.slot();
 			let authority_index = pre.authority_index();
 
 			// exhaustive match to defend against upstream variant changes.

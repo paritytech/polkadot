@@ -17,7 +17,7 @@
 //! Time utilities for approval voting.
 
 use polkadot_node_primitives::approval::DelayTranche;
-use sp_consensus_slots::SlotNumber;
+use sp_consensus_slots::Slot;
 use futures::prelude::*;
 use std::time::{Duration, SystemTime};
 use std::pin::Pin;
@@ -39,11 +39,11 @@ pub(crate) trait Clock {
 
 /// Extension methods for clocks.
 pub(crate) trait ClockExt {
-	fn tranche_now(&self, slot_duration_millis: u64, base_slot: SlotNumber) -> DelayTranche;
+	fn tranche_now(&self, slot_duration_millis: u64, base_slot: Slot) -> DelayTranche;
 }
 
 impl<C: Clock + ?Sized> ClockExt for C {
-	fn tranche_now(&self, slot_duration_millis: u64, base_slot: SlotNumber) -> DelayTranche {
+	fn tranche_now(&self, slot_duration_millis: u64, base_slot: Slot) -> DelayTranche {
 		self.tick_now()
 			.saturating_sub(slot_number_to_tick(slot_duration_millis, base_slot)) as u32
 	}
@@ -82,7 +82,7 @@ fn tick_to_time(tick: Tick) -> SystemTime {
 }
 
 /// assumes `slot_duration_millis` evenly divided by tick duration.
-pub(crate) fn slot_number_to_tick(slot_duration_millis: u64, slot: SlotNumber) -> Tick {
+pub(crate) fn slot_number_to_tick(slot_duration_millis: u64, slot: Slot) -> Tick {
 	let ticks_per_slot = slot_duration_millis / TICK_DURATION_MILLIS;
-	slot * ticks_per_slot
+	u64::from(slot) * ticks_per_slot
 }

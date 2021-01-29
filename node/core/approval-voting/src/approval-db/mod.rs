@@ -97,7 +97,7 @@ impl ApprovalEntry {
 
 	/// Whether a validator is already assigned.
 	pub(crate) fn is_assigned(&self, validator_index: ValidatorIndex) -> bool {
-		*self.assignments.get(validator_index as usize).unwrap_or(&false)
+		self.assignments.get(validator_index as usize).map(|b| *b).unwrap_or(false)
 	}
 
 	/// Import an assignment. No-op if already assigned on the same tranche.
@@ -177,7 +177,7 @@ impl CandidateEntry {
 
 	/// Note that a given validator has approved. Return the previous approval state.
 	pub(crate) fn mark_approval(&mut self, validator: ValidatorIndex) -> bool {
-		let prev = *self.approvals.get(validator as usize).unwrap_or(&false);
+		let prev = self.approvals.get(validator as usize).map(|b| *b).unwrap_or(false);
 		self.approvals.set(validator as usize, true);
 		prev
 	}
@@ -203,7 +203,7 @@ impl CandidateEntry {
 		// The earliest-received assignment which has no corresponding approval
 		let next_no_show = approval_entry.tranches.iter()
 			.flat_map(|t| t.assignments.iter())
-			.filter(|(v, _)| *self.approvals.get(*v as usize).unwrap_or(&false))
+			.filter(|(v, _)| self.approvals.get(*v as usize).map(|b| *b).unwrap_or(false))
 			.map(|(_, tick)| tick + no_show_duration)
 			.min();
 
@@ -221,7 +221,7 @@ impl CandidateEntry {
 pub(crate) struct BlockEntry {
 	pub block_hash: Hash,
 	pub session: SessionIndex,
-	pub slot: SlotNumber,
+	pub slot: Slot,
 	pub relay_vrf_story: RelayVRFStory,
 	// The candidates included as-of this block and the index of the core they are
 	// leaving. Sorted ascending by core index.
