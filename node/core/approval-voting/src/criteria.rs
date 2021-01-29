@@ -749,7 +749,7 @@ mod tests {
 	fn check_rejects_modulo_core_wrong() {
 		check_mutated_assignments(200, 100, 25, |m| {
 			match m.cert.kind.clone() {
-				AssignmentCertKind::RelayVRFModulo { sample } => {
+				AssignmentCertKind::RelayVRFModulo { .. } => {
 					m.core = CoreIndex((m.core.0 + 1) % 100);
 					Some(false)
 				}
