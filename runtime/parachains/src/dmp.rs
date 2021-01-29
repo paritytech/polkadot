@@ -227,7 +227,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use hex_literal::hex;
-    use primitives::v1::BlockNumber;
+	use primitives::v1::BlockNumber;
 	use frame_support::StorageValue;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use parity_scale_codec::Encode;
