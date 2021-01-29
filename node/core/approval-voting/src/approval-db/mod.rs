@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Auxiliary DB schema, accessors, and writers for on-disk persisted approval storage
+//! Approval DB accessors and writers for on-disk persisted approval storage
 //! data.
 //!
 //! We persist data to disk although it is not intended to be used across runs of the
@@ -49,13 +49,14 @@ use bitvec::{slice::BitSlice, vec::BitVec, order::Lsb0 as BitOrderLsb0};
 use super::time::Tick;
 use super::criteria::OurAssignment;
 
+mod v1;
 #[cfg(test)]
 mod tests;
 
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TrancheEntry {
 	pub tranche: DelayTranche,
 	// Assigned validators, and the instant we received their assignment, rounded
@@ -65,7 +66,7 @@ pub(crate) struct TrancheEntry {
 
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ApprovalEntry {
 	pub tranches: Vec<TrancheEntry>,
 	pub backing_group: GroupIndex,
@@ -158,7 +159,7 @@ impl ApprovalEntry {
 }
 
 /// Metadata regarding approval of a particular candidate.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CandidateEntry {
 	pub candidate: CandidateReceipt,
 	pub session: SessionIndex,
@@ -216,7 +217,7 @@ impl CandidateEntry {
 
 /// Metadata regarding approval of a particular block, by way of approval of the
 /// candidates contained within it.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct BlockEntry {
 	pub block_hash: Hash,
 	pub session: SessionIndex,
@@ -245,10 +246,6 @@ impl BlockEntry {
 		self.approved_bitfield.all()
 	}
 }
-
-/// A range from earliest..last block number stored within the DB.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
 
 /// Canonicalize some particular block, pruning everything before it and
 /// pruning any competing branches at the same height.
@@ -678,7 +675,7 @@ pub(crate) fn write_block_entry(store: &impl AuxStore, entry: &BlockEntry)
 }
 
 /// Load the stored-blocks key from the state.
-pub(crate) fn load_stored_blocks(store: &impl AuxStore)
+fn load_stored_blocks(store: &impl AuxStore)
 	-> sp_blockchain::Result<Option<StoredBlockRange>>
 {
 	load_decode(store, STORED_BLOCKS_KEY)
