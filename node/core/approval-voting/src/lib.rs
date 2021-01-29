@@ -61,10 +61,11 @@ use std::ops::{RangeBounds, Bound as RangeBound};
 
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
 use criteria::{AssignmentCriteria, RealAssignmentCriteria, OurAssignment};
-use time::{slot_number_to_tick,Tick, Clock, ClockExt, SystemClock};
+use time::{slot_number_to_tick, Tick, Clock, ClockExt, SystemClock};
 
 mod approval_db;
 mod criteria;
+mod import;
 mod time;
 mod persisted_entries;
 
@@ -74,212 +75,192 @@ mod tests;
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const LOG_TARGET: &str = "approval_voting";
 
-// /// The approval voting subsystem.
-// pub struct ApprovalVotingSubsystem<T> {
-// 	keystore: LocalKeystore,
-// 	slot_duration_millis: u64,
-// 	db: Arc<T>,
-// }
+/// The approval voting subsystem.
+pub struct ApprovalVotingSubsystem<T> {
+	keystore: LocalKeystore,
+	slot_duration_millis: u64,
+	db: Arc<T>,
+}
 
-// impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
-// 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage> {
-// 	fn start(self, ctx: C) -> SpawnedSubsystem {
-// 		let future = run::<T, C>(
-// 			ctx,
-// 			self,
-// 			Box::new(SystemClock),
-// 			Box::new(RealAssignmentCriteria),
-// 		)
-// 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-// 			.boxed();
+impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
+	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage> {
+	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = run::<T, C>(
+			ctx,
+			self,
+			Box::new(SystemClock),
+			Box::new(RealAssignmentCriteria),
+		)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+			.boxed();
 
-// 		SpawnedSubsystem {
-// 			name: "approval-voting-subsystem",
-// 			future,
-// 		}
-// 	}
-// }
+		SpawnedSubsystem {
+			name: "approval-voting-subsystem",
+			future,
+		}
+	}
+}
 
-// enum BackgroundRequest {
-// 	ApprovalVote(ApprovalVoteRequest),
-// 	CandidateValidation(
-// 		PersistedValidationData,
-// 		ValidationCode,
-// 		CandidateDescriptor,
-// 		Arc<PoV>,
-// 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-// 	),
-// }
+enum BackgroundRequest {
+	ApprovalVote(ApprovalVoteRequest),
+	CandidateValidation(
+		PersistedValidationData,
+		ValidationCode,
+		CandidateDescriptor,
+		Arc<PoV>,
+		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+	),
+}
 
-// struct ApprovalVoteRequest {
-// 	validator_index: ValidatorIndex,
-// 	block_hash: Hash,
-// 	candidate_index: usize,
-// }
+struct ApprovalVoteRequest {
+	validator_index: ValidatorIndex,
+	block_hash: Hash,
+	candidate_index: usize,
+}
 
-// #[derive(Default)]
-// struct Wakeups {
-// 	// Tick -> [(Relay Block, Candidate Hash)]
-// 	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
-// 	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
-// }
+#[derive(Default)]
+struct Wakeups {
+	// Tick -> [(Relay Block, Candidate Hash)]
+	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
+	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
+}
 
-// impl Wakeups {
-// 	// Returns the first tick there exist wakeups for, if any.
-// 	fn first(&self) -> Option<Tick> {
-// 		self.wakeups.keys().next().map(|t| *t)
-// 	}
+impl Wakeups {
+	// Returns the first tick there exist wakeups for, if any.
+	fn first(&self) -> Option<Tick> {
+		self.wakeups.keys().next().map(|t| *t)
+	}
 
-// 	// Schedules a wakeup at the given tick. no-op if there is already an earlier or equal wake-up
-// 	// for these values. replaces any later wakeup.
-// 	fn schedule(&mut self, block_hash: Hash, candidate_hash: CandidateHash, tick: Tick) {
-// 		if let Some(prev) = self.reverse_wakeups.get(&(block_hash, candidate_hash)) {
-// 			if prev >= &tick { return }
+	// Schedules a wakeup at the given tick. no-op if there is already an earlier or equal wake-up
+	// for these values. replaces any later wakeup.
+	fn schedule(&mut self, block_hash: Hash, candidate_hash: CandidateHash, tick: Tick) {
+		if let Some(prev) = self.reverse_wakeups.get(&(block_hash, candidate_hash)) {
+			if prev >= &tick { return }
 
-// 			// we are replacing previous wakeup.
-// 			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
-// 				if let Some(pos) = entry.get().iter()
-// 					.position(|x| x == &(block_hash, candidate_hash))
-// 				{
-// 					entry.get_mut().remove(pos);
-// 				}
+			// we are replacing previous wakeup.
+			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
+				if let Some(pos) = entry.get().iter()
+					.position(|x| x == &(block_hash, candidate_hash))
+				{
+					entry.get_mut().remove(pos);
+				}
 
-// 				if entry.get().is_empty() {
-// 					let _ = entry.remove_entry();
-// 				}
-// 			}
-// 		}
+				if entry.get().is_empty() {
+					let _ = entry.remove_entry();
+				}
+			}
+		}
 
-// 		self.reverse_wakeups.insert((block_hash, candidate_hash), tick);
-// 		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
-// 	}
+		self.reverse_wakeups.insert((block_hash, candidate_hash), tick);
+		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
+	}
 
-// 	// drains all wakeups within the given range.
-// 	// panics if the given range is empty.
-// 	fn drain<'a, R: RangeBounds<Tick>>(&'a mut self, range: R)
-// 		-> impl Iterator<Item = (Hash, CandidateHash)> + 'a
-// 	{
-// 		let reverse = &mut self.reverse_wakeups;
+	// drains all wakeups within the given range.
+	// panics if the given range is empty.
+	fn drain<'a, R: RangeBounds<Tick>>(&'a mut self, range: R)
+		-> impl Iterator<Item = (Hash, CandidateHash)> + 'a
+	{
+		let reverse = &mut self.reverse_wakeups;
 
-// 		// BTreeMap has no `drain` method :(
-// 		let after = match range.end_bound() {
-// 			RangeBound::Unbounded => BTreeMap::new(),
-// 			RangeBound::Included(last) => self.wakeups.split_off(&(last + 1)),
-// 			RangeBound::Excluded(last) => self.wakeups.split_off(&last),
-// 		};
-// 		let prev = std::mem::replace(&mut self.wakeups, after);
-// 		prev.into_iter()
-// 			.flat_map(|(_, wakeup)| wakeup)
-// 			.inspect(move |&(ref b, ref c)| { let _ = reverse.remove(&(*b, *c)); })
-// 	}
-// }
+		// BTreeMap has no `drain` method :(
+		let after = match range.end_bound() {
+			RangeBound::Unbounded => BTreeMap::new(),
+			RangeBound::Included(last) => self.wakeups.split_off(&(last + 1)),
+			RangeBound::Excluded(last) => self.wakeups.split_off(&last),
+		};
+		let prev = std::mem::replace(&mut self.wakeups, after);
+		prev.into_iter()
+			.flat_map(|(_, wakeup)| wakeup)
+			.inspect(move |&(ref b, ref c)| { let _ = reverse.remove(&(*b, *c)); })
+	}
+}
 
-// struct State<T> {
-// 	earliest_session: Option<SessionIndex>,
-// 	session_info: Vec<SessionInfo>,
-// 	keystore: LocalKeystore,
-// 	wakeups: Wakeups,
-// 	slot_duration_millis: u64,
-// 	db: Arc<T>,
-// 	background_tx: mpsc::Sender<BackgroundRequest>,
-// 	clock: Box<dyn Clock + Send + Sync>,
-// 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
-// }
+struct State<T> {
+	session_window: import::RollingSessionWindow,
+	keystore: LocalKeystore,
+	wakeups: Wakeups,
+	slot_duration_millis: u64,
+	db: Arc<T>,
+	background_tx: mpsc::Sender<BackgroundRequest>,
+	clock: Box<dyn Clock + Send + Sync>,
+	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+}
 
-// impl<T> State<T> {
-// 	fn session_info(&self, index: SessionIndex) -> Option<&SessionInfo> {
-// 		self.earliest_session.and_then(|earliest| {
-// 			if index < earliest {
-// 				None
-// 			} else {
-// 				self.session_info.get((index - earliest) as usize)
-// 			}
-// 		})
+async fn run<T, C>(
+	mut ctx: C,
+	subsystem: ApprovalVotingSubsystem<T>,
+	clock: Box<dyn Clock + Send + Sync>,
+	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+) -> SubsystemResult<()>
+	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
+{
+	let (background_tx, background_rx) = mpsc::channel(64);
+	let mut state: State<T> = State {
+		session_window: Default::default(),
+		keystore: subsystem.keystore,
+		wakeups: Default::default(),
+		slot_duration_millis: subsystem.slot_duration_millis,
+		db: subsystem.db,
+		background_tx,
+		clock,
+		assignment_criteria,
+	};
 
-// 	}
+	let mut last_finalized_height: Option<BlockNumber> = None;
+	let mut background_rx = background_rx.fuse();
 
-// 	fn latest_session(&self) -> Option<SessionIndex> {
-// 		self.earliest_session
-// 			.map(|earliest| earliest + (self.session_info.len() as SessionIndex).saturating_sub(1))
-// 	}
-// }
+	if let Err(e) = approval_db::v1::clear(&*state.db) {
+		tracing::warn!(target: LOG_TARGET, "Failed to clear DB: {:?}", e);
+		return Err(SubsystemError::with_origin("db", e));
+	}
 
-// async fn run<T, C>(
-// 	mut ctx: C,
-// 	subsystem: ApprovalVotingSubsystem<T>,
-// 	clock: Box<dyn Clock + Send + Sync>,
-// 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
-// ) -> SubsystemResult<()>
-// 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
-// {
-// 	let (background_tx, background_rx) = mpsc::channel(64);
-// 	let mut state: State<T> = State {
-// 		earliest_session: None,
-// 		session_info: Vec::new(),
-// 		keystore: subsystem.keystore,
-// 		wakeups: Default::default(),
-// 		slot_duration_millis: subsystem.slot_duration_millis,
-// 		db: subsystem.db,
-// 		background_tx,
-// 		clock,
-// 		assignment_criteria,
-// 	};
+	loop {
+		// let wait_til_next_tick = match state.wakeups.first() {
+		// 	None => future::Either::Left(future::pending()),
+		// 	Some(tick) => future::Either::Right(
+		// 		state.clock.wait(tick).map(move |()| tick)
+		// 	),
+		// };
+		// futures::pin_mut!(wait_til_next_tick);
 
-// 	let mut last_finalized_height = None;
-// 	let mut background_rx = background_rx.fuse();
+		// futures::select! {
+			// tick_wakeup = wait_til_next_tick.fuse() => {
+			// 	let woken = state.wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
 
-// 	if let Err(e) = aux_schema::clear(&*state.db) {
-// 		tracing::warn!(target: LOG_TARGET, "Failed to clear DB: {:?}", e);
-// 		return Err(SubsystemError::with_origin("db", e));
-// 	}
+			// 	for (woken_block, woken_candidate) in woken {
+			// 		process_wakeup(
+			// 			&mut ctx,
+			// 			&mut state,
+			// 			woken_block,
+			// 			woken_candidate,
+			// 		).await?;
+			// 	}
 
-// 	loop {
-// 		let wait_til_next_tick = match state.wakeups.first() {
-// 			None => future::Either::Left(future::pending()),
-// 			Some(tick) => future::Either::Right(
-// 				state.clock.wait(tick).map(move |()| tick)
-// 			),
-// 		};
-// 		futures::pin_mut!(wait_til_next_tick);
+			// }
+			// next_msg = ctx.recv().fuse() => {
+			// 	if handle_from_overseer(
+			// 		&mut ctx,
+			// 		&mut state,
+			// 		next_msg?,
+			// 		&mut last_finalized_height,
+			// 	).await? {
+			// 		break
+			// 	}
+			// }
+			// background_request = background_rx.next().fuse() => {
+			// 	if let Some(req) = background_request {
+			// 		handle_background_request(
+			// 			&mut ctx,
+			// 			&mut state,
+			// 			req,
+			// 		).await?
+			// 	}
+			// }
+		// }
+	}
 
-// 		futures::select! {
-// 			tick_wakeup = wait_til_next_tick.fuse() => {
-// 				let woken = state.wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
-
-// 				for (woken_block, woken_candidate) in woken {
-// 					process_wakeup(
-// 						&mut ctx,
-// 						&mut state,
-// 						woken_block,
-// 						woken_candidate,
-// 					).await?;
-// 				}
-
-// 			}
-// 			next_msg = ctx.recv().fuse() => {
-// 				if handle_from_overseer(
-// 					&mut ctx,
-// 					&mut state,
-// 					next_msg?,
-// 					&mut last_finalized_height,
-// 				).await? {
-// 					break
-// 				}
-// 			}
-// 			background_request = background_rx.next().fuse() => {
-// 				if let Some(req) = background_request {
-// 					handle_background_request(
-// 						&mut ctx,
-// 						&mut state,
-// 						req,
-// 					).await?
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	Ok(())
-// }
+	Ok(())
+}
 
 // // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 // async fn handle_from_overseer(
@@ -294,13 +275,14 @@ const LOG_TARGET: &str = "approval_voting";
 // 				if let Err(e) = handle_new_head(ctx, state, head, &*last_finalized_height).await {
 // 					return Err(SubsystemError::with_origin("db", e));
 // 				}
+//				// TODO [now]: schedule wakeups for each candidate.
 // 			}
 // 			Ok(false)
 // 		}
 // 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 // 			*last_finalized_height = Some(block_number);
 
-// 			aux_schema::canonicalize(&*state.db, block_number, block_hash)
+// 			approval_db::v1::canonicalize(&*state.db, block_number, block_hash)
 // 				.map(|_| false)
 // 				.map_err(|e| SubsystemError::with_origin("db", e))
 // 		}
@@ -405,7 +387,7 @@ const LOG_TARGET: &str = "approval_voting";
 // 		// Block entries should be present as the assumption is that
 // 		// nothing here is finalized. If we encounter any missing block
 // 		// entries we can fail.
-// 		let entry = match aux_schema::load_block_entry(db, &block_hash)
+// 		let entry = match approval_db::v1::load_block_entry(db, &block_hash)
 // 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
 // 		{
 // 			None => return Ok(None),
@@ -424,505 +406,6 @@ const LOG_TARGET: &str = "approval_voting";
 // 	Ok(all_approved_max)
 // }
 
-// // Given a new chain-head hash, this determines the hashes of all new blocks we should track
-// // metadata for, given this head. The list will typically include the `head` hash provided unless
-// // that block is already known, in which case the list should be empty. This is guaranteed to be
-// // a subset of the ancestry of `head`, as well as `head`, starting from `head` and moving
-// // backwards.
-// //
-// // This returns the entire ancestry up to the last finalized block's height or the last item we
-// // have in the DB. This may be somewhat expensive when first recovering from major sync.
-// async fn determine_new_blocks(
-// 	ctx: &mut impl SubsystemContext,
-// 	db: &impl AuxStore,
-// 	head: Hash,
-// 	header: &Header,
-// 	finalized_number: BlockNumber,
-// ) -> SubsystemResult<Vec<(Hash, Header)>> {
-// 	const ANCESTRY_STEP: usize = 4;
-
-// 	// Early exit if the block is in the DB or too early.
-// 	{
-// 		let already_known = aux_schema::load_block_entry(db, &head)
-// 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 			.is_some();
-
-// 		let before_relevant = header.number <= finalized_number;
-
-// 		if already_known || before_relevant {
-// 			return Ok(Vec::new());
-// 		}
-// 	}
-
-// 	let mut ancestry = vec![(head, header.clone())];
-
-// 	// Early exit if the parent hash is in the DB.
-// 	if aux_schema::load_block_entry(db, &header.parent_hash)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 		.is_some()
-// 	{
-// 		return Ok(ancestry);
-// 	}
-
-// 	loop {
-// 		let &(ref last_hash, ref last_header) = ancestry.last()
-// 			.expect("ancestry has length 1 at initialization and is only added to; qed");
-
-// 		// If we iterated back to genesis, which can happen at the beginning of chains.
-// 		if last_header.number <= 1 {
-// 			break
-// 		}
-
-// 		let (tx, rx) = oneshot::channel();
-// 		ctx.send_message(ChainApiMessage::Ancestors {
-// 			hash: *last_hash,
-// 			k: ANCESTRY_STEP,
-// 			response_channel: tx,
-// 		}.into()).await;
-
-// 		// Continue past these errors.
-// 		let batch_hashes = match rx.await {
-// 			Err(_) | Ok(Err(_)) => break,
-// 			Ok(Ok(ancestors)) => ancestors,
-// 		};
-
-// 		let batch_headers = {
-// 			let (batch_senders, batch_receivers) = (0..batch_hashes.len())
-// 				.map(|_| oneshot::channel())
-// 				.unzip::<_, _, Vec<_>, Vec<_>>();
-
-// 			for (hash, sender) in batch_hashes.iter().cloned().zip(batch_senders) {
-// 				ctx.send_message(ChainApiMessage::BlockHeader(hash, sender).into()).await;
-// 			}
-
-// 			let mut requests = futures::stream::FuturesOrdered::new();
-// 			batch_receivers.into_iter().map(|rx| async move {
-// 				match rx.await {
-// 					Err(_) | Ok(Err(_)) => None,
-// 					Ok(Ok(h)) => h,
-// 				}
-// 			})
-// 				.for_each(|x| requests.push(x));
-
-// 			let batch_headers: Vec<_> = requests
-// 				.flat_map(|x: Option<Header>| stream::iter(x))
-// 				.collect()
-// 				.await;
-
-// 			// Any failed header fetch of the batch will yield a `None` result that will
-// 			// be skipped. Any failure at this stage means we'll just ignore those blocks
-// 			// as the chain DB has failed us.
-// 			if batch_headers.len() != batch_hashes.len() { break }
-// 			batch_headers
-// 		};
-
-// 		for (hash, header) in batch_hashes.into_iter().zip(batch_headers) {
-// 			let is_known = aux_schema::load_block_entry(db, &hash)
-// 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 				.is_some();
-
-// 			let is_relevant = header.number > finalized_number;
-
-// 			if is_known || !is_relevant {
-// 				break
-// 			}
-
-// 			ancestry.push((hash, header));
-// 		}
-// 	}
-
-// 	ancestry.reverse();
-// 	Ok(ancestry)
-// }
-
-// async fn load_all_sessions(
-// 	ctx: &mut impl SubsystemContext,
-// 	block_hash: Hash,
-// 	start: SessionIndex,
-// 	end_inclusive: SessionIndex,
-// ) -> SubsystemResult<Option<Vec<SessionInfo>>> {
-// 	let mut v = Vec::new();
-// 	for i in start..=end_inclusive {
-// 		let (tx, rx)= oneshot::channel();
-// 		ctx.send_message(RuntimeApiMessage::Request(
-// 			block_hash,
-// 			RuntimeApiRequest::SessionInfo(i, tx),
-// 		).into()).await;
-
-// 		let session_info = match rx.await {
-// 			Ok(Ok(Some(s))) => s,
-// 			Ok(Ok(None)) => return Ok(None),
-// 			Ok(Err(e)) => return Err(SubsystemError::with_origin("approval-voting", e)),
-// 			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
-// 		};
-
-// 		v.push(session_info);
-// 	}
-
-// 	Ok(Some(v))
-// }
-
-// // Sessions unavailable in state to cache.
-// struct SessionsUnavailable;
-
-// // When inspecting a new import notification, updates the session info cache to match
-// // the session of the imported block.
-// //
-// // this only needs to be called on heads where we are directly notified about import, as sessions do
-// // not change often and import notifications are expected to be typically increasing in session number.
-// //
-// // some backwards drift in session index is acceptable.
-// async fn cache_session_info_for_head(
-// 	ctx: &mut impl SubsystemContext,
-// 	state: &mut State<impl AuxStore>,
-// 	block_hash: Hash,
-// 	block_header: &Header,
-// ) -> SubsystemResult<Result<(), SessionsUnavailable>> {
-// 	let session_index = {
-// 		let (s_tx, s_rx) = oneshot::channel();
-// 		ctx.send_message(RuntimeApiMessage::Request(
-// 			block_header.parent_hash,
-// 			RuntimeApiRequest::SessionIndexForChild(s_tx),
-// 		).into()).await;
-
-// 		match s_rx.await? {
-// 			Ok(s) => s,
-// 			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
-// 		}
-// 	};
-
-// 	match state.earliest_session {
-// 		None => {
-// 			// First block processed on start-up.
-
-// 			let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
-
-// 			tracing::info!(
-// 				target: LOG_TARGET, "Loading approval window from session {}..={}",
-// 				window_start, session_index,
-// 			);
-
-// 			match load_all_sessions(ctx, block_hash, window_start, session_index).await? {
-// 				None => {
-// 					tracing::warn!(
-// 						target: LOG_TARGET,
-// 						"Could not load sessions {}..={} from block {:?} in session {}",
-// 						window_start, session_index, block_hash, session_index,
-// 					);
-
-// 					return Ok(Err(SessionsUnavailable));
-// 				},
-// 				Some(s) => {
-// 					state.earliest_session = Some(window_start);
-// 					state.session_info = s;
-// 				}
-// 			}
-// 		}
-// 		Some(old_window_start) => {
-// 			let latest = state.latest_session().expect("latest always exists if earliest does; qed");
-
-// 			// Either cached or ancient.
-// 			if session_index <= latest { return Ok(Ok(())) }
-
-// 			let old_window_end = latest;
-
-// 			let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
-// 			tracing::info!(
-// 				target: LOG_TARGET, "Moving approval window from session {}..={} to {}..={}",
-// 				old_window_start, old_window_end,
-// 				window_start, session_index,
-// 			);
-
-// 			// keep some of the old window, if applicable.
-// 			let overlap_start = window_start - old_window_start;
-
-// 			match load_all_sessions(ctx, block_hash, latest + 1, session_index).await? {
-// 				None => {
-// 					tracing::warn!(
-// 						target: LOG_TARGET,
-// 						"Could not load sessions {}..={} from block {:?} in session {}",
-// 						latest + 1, session_index, block_hash, session_index,
-// 					);
-
-// 					return Ok(Err(SessionsUnavailable));
-// 				}
-// 				Some(s) => {
-// 					state.session_info.drain(..overlap_start as usize);
-// 					state.session_info.extend(s);
-// 					state.earliest_session = Some(window_start);
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	Ok(Ok(()))
-// }
-
-// struct ImportedBlockInfo {
-// 	included_candidates: Vec<(CandidateHash, CandidateReceipt, CoreIndex, GroupIndex)>,
-// 	session_index: SessionIndex,
-// 	assignments: HashMap<CoreIndex, OurAssignment>,
-// 	n_validators: usize,
-// 	relay_vrf_story: RelayVRFStory,
-// 	slot: Slot,
-// }
-
-// // Computes information about the imported block. Returns `None` if the info couldn't be extracted -
-// // failure to communicate with overseer,
-// async fn imported_block_info(
-// 	ctx: &mut impl SubsystemContext,
-// 	state: &'_ State<impl AuxStore>,
-// 	block_hash: Hash,
-// 	block_header: &Header,
-// ) -> SubsystemResult<Option<ImportedBlockInfo>> {
-// 	// Ignore any runtime API errors - that means these blocks are old and finalized.
-// 	// Only unfinalized blocks factor into the approval voting process.
-
-// 	// fetch candidates
-// 	let included_candidates: Vec<_> = {
-// 		let (c_tx, c_rx) = oneshot::channel();
-// 		ctx.send_message(RuntimeApiMessage::Request(
-// 			block_hash,
-// 			RuntimeApiRequest::CandidateEvents(c_tx),
-// 		).into()).await;
-
-// 		let events: Vec<CandidateEvent> = match c_rx.await {
-// 			Ok(Ok(events)) => events,
-// 			Ok(Err(_)) => return Ok(None),
-// 			Err(_) => return Ok(None),
-// 		};
-
-// 		events.into_iter().filter_map(|e| match e {
-// 			CandidateEvent::CandidateIncluded(receipt, _, core, group)
-// 				=> Some((receipt.hash(), receipt, core, group)),
-// 			_ => None,
-// 		}).collect()
-// 	};
-
-// 	// fetch session. ignore blocks that are too old, but unless sessions are really
-// 	// short, that shouldn't happen.
-// 	let session_index = {
-// 		let (s_tx, s_rx) = oneshot::channel();
-// 		ctx.send_message(RuntimeApiMessage::Request(
-// 			block_header.parent_hash,
-// 			RuntimeApiRequest::SessionIndexForChild(s_tx),
-// 		).into()).await;
-
-// 		let session_index = match s_rx.await {
-// 			Ok(Ok(s)) => s,
-// 			Ok(Err(_)) => return Ok(None),
-// 			Err(_) => return Ok(None),
-// 		};
-
-// 		if state.earliest_session.as_ref().map_or(true, |e| &session_index < e) {
-// 			tracing::debug!(target: LOG_TARGET, "Block {} is from ancient session {}. Skipping",
-// 				block_hash, session_index);
-
-// 			return Ok(None);
-// 		}
-
-// 		session_index
-// 	};
-
-// 	let babe_epoch = {
-// 		let (s_tx, s_rx) = oneshot::channel();
-// 		ctx.send_message(RuntimeApiMessage::Request(
-// 			block_hash,
-// 			RuntimeApiRequest::CurrentBabeEpoch(s_tx),
-// 		).into()).await;
-
-// 		match s_rx.await {
-// 			Ok(Ok(s)) => s,
-// 			Ok(Err(_)) => return Ok(None),
-// 			Err(_) => return Ok(None),
-// 		}
-// 	};
-
-// 	let session_info = match state.session_info(session_index) {
-// 		Some(s) => s,
-// 		None => {
-// 			tracing::debug!(
-// 				target: LOG_TARGET,
-// 				"Session info unavailable for block {}",
-// 				block_hash,
-// 			);
-
-// 			return Ok(None);
-// 		}
-// 	};
-
-// 	let (assignments, slot, relay_vrf_story) = {
-// 		let unsafe_vrf = approval_types::babe_unsafe_vrf_info(&block_header);
-
-// 		match unsafe_vrf {
-// 			Some(unsafe_vrf) => {
-// 				let slot = unsafe_vrf.slot();
-
-// 				match unsafe_vrf.compute_randomness(
-// 					&babe_epoch.authorities,
-// 					&babe_epoch.randomness,
-// 					babe_epoch.epoch_index,
-// 				) {
-// 					Ok(relay_vrf) => {
-// 						let assignments = state.assignment_criteria.compute_assignments(
-// 							&state.keystore,
-// 							relay_vrf.clone(),
-// 							&criteria::Config::from(session_info),
-// 							included_candidates.iter()
-// 								.map(|(_, _, core, group)| (*core, *group))
-// 								.collect(),
-// 						);
-
-// 						(assignments, slot, relay_vrf)
-// 					},
-// 					Err(_) => return Ok(None),
-// 				}
-// 			}
-// 			None => {
-// 				tracing::debug!(
-// 					target: LOG_TARGET,
-// 					"BABE VRF info unavailable for block {}",
-// 					block_hash,
-// 				);
-
-// 				return Ok(None);
-// 			}
-// 		}
-// 	};
-
-// 	Ok(Some(ImportedBlockInfo {
-// 		included_candidates,
-// 		session_index,
-// 		assignments,
-// 		n_validators: session_info.validators.len(),
-// 		relay_vrf_story,
-// 		slot,
-// 	}))
-// }
-
-// async fn handle_new_head(
-// 	ctx: &mut impl SubsystemContext,
-// 	state: &mut State<impl AuxStore>,
-// 	head: Hash,
-// 	finalized_number: &Option<BlockNumber>,
-// ) -> SubsystemResult<()> {
-// 	// Update session info based on most recent head.
-// 	let header = {
-// 		let (h_tx, h_rx) = oneshot::channel();
-// 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx).into()).await;
-
-// 		match h_rx.await? {
-// 			Err(e) => {
-// 				return Err(SubsystemError::with_origin("approval-voting", e));
-// 			}
-// 			Ok(None) => {
-// 				tracing::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
-// 				return Ok(());
-// 			}
-// 			Ok(Some(h)) => h
-// 		}
-// 	};
-
-// 	if let Err(SessionsUnavailable)
-// 		= cache_session_info_for_head(ctx, state, head, &header).await?
-// 	{
-// 		tracing::warn!(
-// 			target: LOG_TARGET,
-// 			"Could not cache session info when processing head {:?}",
-// 			head,
-// 		);
-
-// 		return Ok(())
-// 	}
-
-// 	// If we've just started the node and haven't yet received any finality notifications,
-// 	// we don't do any look-back. Approval voting is only for nodes were already online.
-// 	let finalized_number = finalized_number.unwrap_or(header.number.saturating_sub(1));
-
-// 	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header, finalized_number)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-// 		.await?;
-
-// 	let mut approval_meta: Vec<BlockApprovalMeta> = Vec::with_capacity(new_blocks.len());
-
-// 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
-// 	for (block_hash, block_header) in new_blocks.into_iter().rev() {
-// 		let ImportedBlockInfo {
-// 			included_candidates,
-// 			session_index,
-// 			assignments,
-// 			n_validators,
-// 			relay_vrf_story,
-// 			slot,
-// 		} = match imported_block_info(ctx, &*state, block_hash, &block_header).await? {
-// 			Some(i) => i,
-// 			None => continue,
-// 		};
-
-// 		let candidate_entries = aux_schema::add_block_entry(
-// 			&*state.db,
-// 			block_header.parent_hash,
-// 			block_header.number,
-// 			BlockEntry {
-// 				block_hash: block_hash,
-// 				session: session_index,
-// 				slot,
-// 				relay_vrf_story,
-// 				candidates: included_candidates.iter()
-// 					.map(|(hash, _, core, _)| (*core, *hash)).collect(),
-// 				approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
-// 				children: Vec::new(),
-// 			},
-// 			n_validators,
-// 			|candidate_hash| {
-// 				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash)
-// 					.map(|(_, receipt, core, backing_group)| aux_schema::NewCandidateInfo {
-// 						candidate: receipt.clone(),
-// 						backing_group: *backing_group,
-// 						our_assignment: assignments.get(core).map(|a| a.clone()),
-// 					})
-// 			}
-// 		).map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-// 		approval_meta.push(BlockApprovalMeta {
-// 			hash: block_hash,
-// 			number: block_header.number,
-// 			parent_hash: block_header.parent_hash,
-// 			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
-// 			slot,
-// 		});
-
-// 		let (block_tick, no_show_duration) = {
-// 			let session_info = state.session_info(session_index)
-// 				.expect("imported_block_info requires session to be available; qed");
-
-// 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
-// 			let no_show_duration = slot_number_to_tick(
-// 				state.slot_duration_millis,
-// 				Slot::from(u64::from(session_info.no_show_slots)),
-// 			);
-
-// 			(block_tick, no_show_duration)
-// 		};
-
-// 		// schedule a wakeup for each candidate in the block.
-
-// 		for (candidate_hash, candidate_entry) in candidate_entries {
-// 			schedule_wakeup(
-// 				state,
-// 				&candidate_entry,
-// 				block_hash,
-// 				block_tick,
-// 				no_show_duration,
-// 				candidate_hash,
-// 			);
-// 		}
-// 	}
-
-// 	ctx.send_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into()).await;
-
-// 	Ok(())
-// }
-
 // fn approval_signing_payload(
 // 	approval_vote: ApprovalVote,
 // 	session_index: SessionIndex,
@@ -939,7 +422,7 @@ const LOG_TARGET: &str = "approval_voting";
 
 // 	let tick_now = state.clock.tick_now();
 
-// 	let block_entry = aux_schema::load_block_entry(&*state.db, &assignment.block_hash)
+// 	let block_entry = approval_db::v1::load_block_entry(&*state.db, &assignment.block_hash)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 // 	let block_entry = match block_entry {
@@ -962,7 +445,7 @@ const LOG_TARGET: &str = "approval_voting";
 // 		None => return Ok(AssignmentCheckResult::Bad), // no candidate at core.
 // 	};
 
-// 	let mut candidate_entry = match aux_schema::load_candidate_entry(
+// 	let mut candidate_entry = match approval_db::v1::load_candidate_entry(
 // 		&*state.db,
 // 		&assigned_candidate_hash,
 // 	)
@@ -1074,7 +557,7 @@ const LOG_TARGET: &str = "approval_voting";
 // 		} }
 // 	}
 
-// 	let block_entry = aux_schema::load_block_entry(&*state.db, &approval.block_hash)
+// 	let block_entry = approval_db::v1::load_block_entry(&*state.db, &approval.block_hash)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 // 	let block_entry = match block_entry {
@@ -1111,7 +594,7 @@ const LOG_TARGET: &str = "approval_voting";
 // 		respond!(ApprovalCheckResult::Bad)
 // 	}
 
-// 	let candidate_entry = match aux_schema::load_candidate_entry(&*state.db, &approved_candidate_hash)
+// 	let candidate_entry = match approval_db::v1::load_candidate_entry(&*state.db, &approved_candidate_hash)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
 // 	{
 // 		Some(c) => c,
@@ -1171,14 +654,14 @@ const LOG_TARGET: &str = "approval_voting";
 // 		if already_loaded.as_ref().map_or(false, |(h, _)| h == block_hash) {
 // 			Ok(already_loaded.take().map(|(_, c)| c))
 // 		} else {
-// 			aux_schema::load_block_entry(db, block_hash)
+// 			approval_db::v1::load_block_entry(db, block_hash)
 // 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 // 		}
 // 	};
 
 // 	let candidate_hash = candidate_entry.candidate.hash();
 
-// 	let mut transaction = aux_schema::Transaction::default();
+// 	let mut transaction = approval_db::v1::Transaction::default();
 
 // 	let mut newly_approved = Vec::new();
 // 	for (block_hash, approval_entry) in candidate_entry.block_assignments.iter()
@@ -1439,10 +922,10 @@ const LOG_TARGET: &str = "approval_voting";
 // 	relay_block: Hash,
 // 	candidate_hash: CandidateHash,
 // ) -> SubsystemResult<()> {
-// 	let block_entry = aux_schema::load_block_entry(&*state.db, &relay_block)
+// 	let block_entry = approval_db::v1::load_block_entry(&*state.db, &relay_block)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
-// 	let candidate_entry = aux_schema::load_candidate_entry(&*state.db, &candidate_hash)
+// 	let candidate_entry = approval_db::v1::load_candidate_entry(&*state.db, &candidate_hash)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 // 	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
@@ -1514,7 +997,7 @@ const LOG_TARGET: &str = "approval_voting";
 // 			approval_entry.trigger_our_assignment(state.clock.tick_now())
 // 		};
 
-// 		aux_schema::write_candidate_entry(&*state.db, &candidate_hash, &candidate_entry)
+// 		approval_db::v1::write_candidate_entry(&*state.db, &candidate_hash, &candidate_entry)
 // 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 
 // 		maybe_cert
@@ -1680,7 +1163,7 @@ const LOG_TARGET: &str = "approval_voting";
 // ) -> SubsystemResult<()> {
 // 	let ApprovalVoteRequest { validator_index, block_hash, candidate_index } = request;
 
-// 	let block_entry = match aux_schema::load_block_entry(&*state.db, &block_hash)
+// 	let block_entry = match approval_db::v1::load_block_entry(&*state.db, &block_hash)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
 // 	{
 // 		Some(b) => b,
@@ -1715,7 +1198,7 @@ const LOG_TARGET: &str = "approval_voting";
 // 		}
 // 	};
 
-// 	let candidate_entry = match aux_schema::load_candidate_entry(&*state.db, &candidate_hash)
+// 	let candidate_entry = match approval_db::v1::load_candidate_entry(&*state.db, &candidate_hash)
 // 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
 // 	{
 // 		Some(c) => c,
