@@ -262,55 +262,70 @@ async fn run<T, C>(
 	Ok(())
 }
 
-// // Handle an incoming signal from the overseer. Returns true if execution should conclude.
-// async fn handle_from_overseer(
-// 	ctx: &mut impl SubsystemContext,
-// 	state: &mut State<impl AuxStore>,
-// 	x: FromOverseer<ApprovalVotingMessage>,
-// 	last_finalized_height: &mut Option<BlockNumber>,
-// ) -> SubsystemResult<bool> {
-// 	match x {
-// 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-// 			for (head, _span) in update.activated {
-// 				if let Err(e) = handle_new_head(ctx, state, head, &*last_finalized_height).await {
-// 					return Err(SubsystemError::with_origin("db", e));
-// 				}
-//				// TODO [now]: schedule wakeups for each candidate.
-// 			}
-// 			Ok(false)
-// 		}
-// 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
-// 			*last_finalized_height = Some(block_number);
+// Handle an incoming signal from the overseer. Returns true if execution should conclude.
+async fn handle_from_overseer(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl AuxStore>,
+	x: FromOverseer<ApprovalVotingMessage>,
+	last_finalized_height: &mut Option<BlockNumber>,
+) -> SubsystemResult<bool> {
+	match x {
+		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			for (head, _span) in update.activated {
+				match import::handle_new_head(ctx, state, head, &*last_finalized_height).await {
+					Err(e) => return Err(SubsystemError::with_origin("db", e)),
+					Ok(block_imported_candidates) => {
+						// Schedule wakeups for all imported candidates.
+						for block_batch in block_imported_candidates {
+							for (c_hash, c_entry) in block_batch.imported_candidates {
+								schedule_wakeup(
+									state,
+									&c_entry,
+									block_batch.block_hash,
+									block_batch.block_tick,
+									block_batch.no_show_duration,
+									c_hash,
+								)
+							}
+						}
+					}
+				}
+			}
+			Ok(false)
+		}
+		// FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+		// 	*last_finalized_height = Some(block_number);
 
-// 			approval_db::v1::canonicalize(&*state.db, block_number, block_hash)
-// 				.map(|_| false)
-// 				.map_err(|e| SubsystemError::with_origin("db", e))
-// 		}
-// 		FromOverseer::Signal(OverseerSignal::Conclude) => Ok(true),
-// 		FromOverseer::Communication { msg } => match msg {
-// 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
-// 				let _ = res.send(check_and_import_assignment(state, a, claimed_core)?);
-// 				Ok(false)
-// 			}
-// 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
-// 				check_and_import_approval(state, a, res)?;
-// 				Ok(false)
-// 			}
-// 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
-// 				match handle_approved_ancestor(ctx, &*state.db, target, lower_bound).await {
-// 					Ok(v) => {
-// 						let _ = res.send(v);
-// 						Ok(false)
-// 					}
-// 					Err(e) => {
-// 						let _ = res.send(None);
-// 						Err(e)
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
+		// 	approval_db::v1::canonicalize(&*state.db, block_number, block_hash)
+		// 		.map(|_| false)
+		// 		.map_err(|e| SubsystemError::with_origin("db", e))
+		// }
+		// FromOverseer::Signal(OverseerSignal::Conclude) => Ok(true),
+		// FromOverseer::Communication { msg } => match msg {
+		// 	ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
+		// 		let _ = res.send(check_and_import_assignment(state, a, claimed_core)?);
+		// 		Ok(false)
+		// 	}
+		// 	ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
+		// 		check_and_import_approval(state, a, res)?;
+		// 		Ok(false)
+		// 	}
+		// 	ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
+		// 		match handle_approved_ancestor(ctx, &*state.db, target, lower_bound).await {
+		// 			Ok(v) => {
+		// 				let _ = res.send(v);
+		// 				Ok(false)
+		// 			}
+		// 			Err(e) => {
+		// 				let _ = res.send(None);
+		// 				Err(e)
+		// 			}
+		// 		}
+		// 	}
+		// }
+		_ => unimplemented!(), // TODO [now]
+	}
+}
 
 // async fn handle_background_request(
 // 	ctx: &mut impl SubsystemContext,
@@ -903,18 +918,18 @@ async fn run<T, C>(
 // 		.unwrap_or(RequiredTranches::Pending(tranche_now))
 // }
 
-// fn schedule_wakeup(
-// 	state: &mut State<impl AuxStore>,
-// 	candidate_entry: &CandidateEntry,
-// 	block_hash: Hash,
-// 	block_tick: Tick,
-// 	no_show_duration: Tick,
-// 	candidate_hash: CandidateHash,
-// ) {
-// 	if let Some(tick) = candidate_entry.next_wakeup(&block_hash, block_tick, no_show_duration) {
-// 		state.wakeups.schedule(block_hash, candidate_hash, tick);
-// 	}
-// }
+fn schedule_wakeup(
+	state: &mut State<impl AuxStore>,
+	candidate_entry: &CandidateEntry,
+	block_hash: Hash,
+	block_tick: Tick,
+	no_show_duration: Tick,
+	candidate_hash: CandidateHash,
+) {
+	if let Some(tick) = candidate_entry.next_wakeup(&block_hash, block_tick, no_show_duration) {
+		state.wakeups.schedule(block_hash, candidate_hash, tick);
+	}
+}
 
 // async fn process_wakeup(
 // 	ctx: &mut impl SubsystemContext,
