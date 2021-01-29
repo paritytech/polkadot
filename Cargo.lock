@@ -5197,6 +5197,7 @@ dependencies = [
  "sc-network",
  "sp-core",
  "sp-keyring",
+ "strum 0.20.0",
  "tracing",
  "tracing-futures",
 ]

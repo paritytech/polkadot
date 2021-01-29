@@ -34,7 +34,7 @@ pub struct AvailabilityFetchingRequest {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum AvailabilityFetchingResponse {
 	/// The requested chunk.
-	#[codec(index = "0")]
+	#[codec(index = 0)]
 	Chunk(ErasureChunk),
 }
 
