@@ -846,8 +846,8 @@ impl AvailabilityDistributionSubsystem {
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
 				} => { 
-					// TODO: Implement:
-					panic!("To be implemented!");
+					// TODO: Implement issue 2306:
+					panic!("To be implemented, see: https://github.com/paritytech/polkadot/issues/2306!");
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: _,
