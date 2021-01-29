@@ -234,53 +234,55 @@ async fn run<T, C>(
 	}
 
 	loop {
-		// let wait_til_next_tick = match state.wakeups.first() {
-		// 	None => future::Either::Left(future::pending()),
-		// 	Some(tick) => future::Either::Right(
-		// 		state.clock.wait(tick).map(move |()| tick)
-		// 	),
-		// };
-		// futures::pin_mut!(wait_til_next_tick);
+		let wait_til_next_tick = match wakeups.first() {
+			None => future::Either::Left(future::pending()),
+			Some(tick) => future::Either::Right(
+				state.clock.wait(tick).map(move |()| tick)
+			),
+		};
+		futures::pin_mut!(wait_til_next_tick);
 
-		let actions: Vec<Action> = unimplemented!();
+		let actions = futures::select! {
+			tick_wakeup = wait_til_next_tick.fuse() => {
+				let woken = wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
 
-		// futures::select! {
-			// tick_wakeup = wait_til_next_tick.fuse() => {
-			// 	let woken = wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
+				let mut actions = Vec::new();
+				for (woken_block, woken_candidate) in woken {
+					actions.extend(process_wakeup(
+						&mut ctx,
+						&mut state,
+						woken_block,
+						woken_candidate,
+						&background_tx,
+					).await?);
+				}
 
-			// 	for (woken_block, woken_candidate) in woken {
-			// 		process_wakeup(
-			// 			&mut ctx,
-			// 			&mut state,
-			// 			woken_block,
-			// 			woken_candidate,
-			// 		).await?;
-			// 	}
+				actions
+			}
+			next_msg = ctx.recv().fuse() => {
+				handle_from_overseer(
+					&mut ctx,
+					&mut state,
+					next_msg?,
+					&mut last_finalized_height,
+				).await?
+			}
+			background_request = background_rx.next().fuse() => {
+				if let Some(req) = background_request {
+					handle_background_request(
+						&mut ctx,
+						&mut state,
+						req,
+					).await?
+				}
 
-			// }
-			// next_msg = ctx.recv().fuse() => {
-			// 	if handle_from_overseer(
-			// 		&mut ctx,
-			// 		&mut state,
-			// 		next_msg?,
-			// 		&mut last_finalized_height,
-			// 	).await? {
-			// 		break
-			// 	}
-			// }
-			// background_request = background_rx.next().fuse() => {
-			// 	if let Some(req) = background_request {
-			// 		handle_background_request(
-			// 			&mut ctx,
-			// 			&mut state,
-			// 			req,
-			// 		).await?
-			// 	}
-			// }
-		// }
+				Vec::new()
+			}
+		};
 
 		let mut transaction = approval_db::v1::Transaction::default();
 		let mut conclude = false;
+
 		for action in actions {
 			match action {
 				Action::ScheduleWakeup {
