@@ -59,6 +59,7 @@ use std::collections::btree_map::Entry;
 use std::sync::Arc;
 use std::ops::{RangeBounds, Bound as RangeBound};
 
+use approval_checking::RequiredTranches;
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
 use criteria::{AssignmentCriteria, RealAssignmentCriteria, OurAssignment};
 use time::{slot_number_to_tick, Tick, Clock, ClockExt, SystemClock};
@@ -628,81 +629,76 @@ fn check_and_import_assignment(
 	Ok((res, actions))
 }
 
-// fn check_and_import_approval(
-// 	state: &mut State<impl AuxStore>,
-// 	approval: IndirectSignedApprovalVote,
-// 	response: oneshot::Sender<ApprovalCheckResult>,
-// ) -> SubsystemResult<()> {
-// 	macro_rules! respond {
-// 		($e: expr) => { {
-// 			let _ = response.send($e);
-// 			return Ok(());
-// 		} }
-// 	}
+fn check_and_import_approval(
+	state: &mut State<impl AuxStore>,
+	approval: IndirectSignedApprovalVote,
+	response: oneshot::Sender<ApprovalCheckResult>,
+) -> SubsystemResult<Vec<Action>> {
+	macro_rules! respond_early {
+		($e: expr) => { {
+			let _ = response.send($e);
+			return Ok(Vec::new());
+		} }
+	}
 
-// 	let block_entry = approval_db::v1::load_block_entry(&*state.db, &approval.block_hash)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+	let block_entry = match load_block_entry(&*state.db, &approval.block_hash)? {
+		Some(b) => b,
+		None => respond_early!(ApprovalCheckResult::Bad)
+	};
 
-// 	let block_entry = match block_entry {
-// 		Some(b) => b,
-// 		None => respond!(ApprovalCheckResult::Bad)
-// 	};
+	let session_info = match state.session_info(block_entry.session()) {
+		Some(s) => s,
+		None => {
+			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
+			respond_early!(ApprovalCheckResult::Bad)
+		}
+	};
 
-// 	let session_info = match state.session_info(block_entry.session()) {
-// 		Some(s) => s,
-// 		None => {
-// 			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
-// 			respond!(ApprovalCheckResult::Bad)
-// 		}
-// 	};
+	let approved_candidate_hash = match block_entry.candidate(approval.candidate_index as usize) {
+		Some((_, h)) => *h,
+		None => respond_early!(ApprovalCheckResult::Bad)
+	};
 
-// 	let approved_candidate_hash = match block_entry.candidates.get(approval.candidate_index as usize) {
-// 		Some((_, h)) => *h,
-// 		None => respond!(ApprovalCheckResult::Bad)
-// 	};
+	let approval_payload = approval_signing_payload(
+		ApprovalVote(approved_candidate_hash),
+		block_entry.session(),
+	);
 
-// 	let approval_payload = approval_signing_payload(
-// 		ApprovalVote(approved_candidate_hash),
-// 		block_entry.session(),
-// 	);
+	let pubkey = match session_info.validators.get(approval.validator as usize) {
+		Some(k) => k,
+		None => respond_early!(ApprovalCheckResult::Bad)
+	};
 
-// 	let pubkey = match session_info.validators.get(approval.validator as usize) {
-// 		Some(k) => k,
-// 		None => respond!(ApprovalCheckResult::Bad)
-// 	};
+	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
 
-// 	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
+	if !approval_sig_valid {
+		respond_early!(ApprovalCheckResult::Bad)
+	}
 
-// 	if !approval_sig_valid {
-// 		respond!(ApprovalCheckResult::Bad)
-// 	}
+	let candidate_entry = match load_candidate_entry(&*state.db, &approved_candidate_hash)? {
+		Some(c) => c,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Unknown candidate entry for {}",
+				approved_candidate_hash,
+			);
 
-// 	let candidate_entry = match approval_db::v1::load_candidate_entry(&*state.db, &approved_candidate_hash)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-// 	{
-// 		Some(c) => c,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Unknown candidate entry for {}",
-// 				approved_candidate_hash,
-// 			);
+			respond_early!(ApprovalCheckResult::Bad)
+		}
+	};
 
-// 			respond!(ApprovalCheckResult::Bad)
-// 		}
-// 	};
+	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
+	let _ = response.send(ApprovalCheckResult::Accepted);
 
-// 	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
-// 	let _ = response.send(ApprovalCheckResult::Accepted);
-
-// 	import_checked_approval(
-// 		state,
-// 		Some((approval.block_hash, block_entry)),
-//		approved_candidate_hash,
-// 		candidate_entry,
-// 		approval.validator,
-// 	)
-// }
+	import_checked_approval(
+		state,
+		Some((approval.block_hash, block_entry)),
+		approved_candidate_hash,
+		candidate_entry,
+		approval.validator,
+	)
+}
 
 fn import_checked_approval(
 	state: &State<impl AuxStore>,
@@ -816,244 +812,239 @@ fn check_full_approvals(
 	Ok((actions, candidate_entry))
 }
 
-// async fn process_wakeup(
-// 	ctx: &mut impl SubsystemContext,
-// 	state: &mut State<impl AuxStore>,
-// 	relay_block: Hash,
-// 	candidate_hash: CandidateHash,
-//	background_tx: &mpsc::Sender<BackgroundRequest>,
-// ) -> SubsystemResult<()> {
-// 	let block_entry = approval_db::v1::load_block_entry(&*state.db, &relay_block)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+async fn process_wakeup(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl AuxStore>,
+	relay_block: Hash,
+	candidate_hash: CandidateHash,
+	background_tx: &mpsc::Sender<BackgroundRequest>,
+) -> SubsystemResult<Vec<Action>> {
+	let block_entry = load_block_entry(&*state.db, &relay_block)?;
+	let candidate_entry = load_candidate_entry(&*state.db, &candidate_hash)?;
 
-// 	let candidate_entry = approval_db::v1::load_candidate_entry(&*state.db, &candidate_hash)
-// 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
+	let (block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
+		(Some(b), Some(c)) => (b, c),
+		_ => return Ok(Vec::new()),
+	};
 
-// 	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
-// 	let (block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
-// 		(Some(b), Some(c)) => (b, c),
-// 		_ => return Ok(()),
-// 	};
+	let session_info = match state.session_info(block_entry.session()) {
+		Some(i) => i,
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Missing session info for live block {} in session {}",
+				relay_block,
+				block_entry.session(),
+			);
 
-// 	let session_info = match state.session_info(block_entry.session()) {
-// 		Some(i) => i,
-// 		None => {
-// 			tracing::warn!(
-// 				target: LOG_TARGET,
-// 				"Missing session info for live block {} in session {}",
-// 				relay_block,
-// 				block_entry.session(),
-// 			);
+			return Ok(Vec::new())
+		}
+	};
 
-// 			return Ok(())
-// 		}
-// 	};
+	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
+	let no_show_duration = slot_number_to_tick(
+		state.slot_duration_millis,
+		Slot::from(u64::from(session_info.no_show_slots)),
+	);
 
-// 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
-// 	let no_show_duration = slot_number_to_tick(
-// 		state.slot_duration_millis,
-// 		Slot::from(u64::from(session_info.no_show_slots)),
-// 	);
+	let should_broadcast = {
+		let approval_entry = match candidate_entry.approval_entry(&relay_block) {
+			Some(e) => e,
+			None => return Ok(Vec::new()),
+		};
 
-// 	let should_broadcast = {
-// 		let approval_entry = match candidate_entry.block_assignments.get(&relay_block) {
-// 			Some(e) => e,
-// 			None => return Ok(()),
-// 		};
+		let tranches_to_approve = approval_checking::tranches_to_approve(
+			&approval_entry,
+			candidate_entry.approvals(),
+			state.clock.tranche_now(state.slot_duration_millis, block_entry.slot()),
+			block_tick,
+			no_show_duration,
+			session_info.needed_approvals as _,
+		);
 
-// 		let tranches_to_approve = approval_checking::tranches_to_approve(
-// 			&approval_entry,
-// 			&candidate_entry.approvals,
-// 			state.clock.tranche_now(state.slot_duration_millis, block_entry.slot()),
-// 			block_tick,
-// 			no_show_duration,
-// 			session_info.needed_approvals as _,
-// 		);
+		match approval_entry.our_assignment() {
+			None => false,
+			Some(ref assignment) if assignment.triggered() => false,
+			Some(ref assignment) => {
+				match tranches_to_approve {
+					RequiredTranches::All => approval_checking::check_approval(
+						&candidate_entry,
+						&approval_entry,
+						RequiredTranches::All,
+					),
+					RequiredTranches::Pending(max) => assignment.tranche() <= max,
+					RequiredTranches::Exact(_, _) => {
+						// indicates that no new assignments are needed at the moment.
+						false
+					}
+				}
+			}
+		}
+	};
 
-// 		match approval_entry.our_assignment {
-// 			None => false,
-// 			Some(ref assignment) if assignment.triggered() => false,
-// 			Some(ref assignment) => {
-// 				match tranches_to_approve {
-// 					RequiredTranches::All => approval_checking::check_approval(
-// 						&candidate_entry,
-// 						&approval_entry,
-// 						RequiredTranches::All,
-// 					),
-// 					RequiredTranches::Pending(max) => assignment.tranche() <= max,
-// 					RequiredTranches::Exact(_, _) => {
-// 						// indicates that no new assignments are needed at the moment.
-// 						false
-// 					}
-// 				}
-// 			}
-// 		}
-// 	};
+	let (mut actions, maybe_cert) = if should_broadcast {
+		let maybe_cert = {
+			let approval_entry = candidate_entry.approval_entry_mut(&relay_block)
+				.expect("should_broadcast only true if this fetched earlier; qed");
 
-// 	let maybe_cert = if should_broadcast {
-// 		let maybe_cert = {
-// 			let approval_entry = candidate_entry.block_assignments.get_mut(&relay_block)
-// 				.expect("should_broadcast only true if this fetched earlier; qed");
+			approval_entry.trigger_our_assignment(state.clock.tick_now())
+		};
 
-// 			approval_entry.trigger_our_assignment(state.clock.tick_now())
-// 		};
+		let actions = vec![Action::WriteCandidateEntry(candidate_hash, candidate_entry.clone())];
 
-// 		approval_db::v1::write_candidate_entry(&*state.db, &candidate_hash, &candidate_entry)
-// 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+		(actions, maybe_cert)
+	} else {
+		(Vec::new(), None)
+	};
 
-// 		maybe_cert
-// 	} else {
-// 		None
-// 	};
+	if let Some((cert, val_index)) = maybe_cert {
+		let indirect_cert = IndirectAssignmentCert {
+			block_hash: relay_block,
+			validator: val_index,
+			cert,
+		};
 
-// 	if let Some((cert, val_index)) = maybe_cert {
-// 		let indirect_cert = IndirectAssignmentCert {
-// 			block_hash: relay_block,
-// 			validator: val_index,
-// 			cert,
-// 		};
+		let index_in_candidate = block_entry.candidates().iter()
+			.position(|(_, h)| &candidate_hash == h);
 
-// 		let index_in_candidate = block_entry.candidates.iter()
-// 			.position(|(_, h)| &candidate_hash == h);
+		if let Some(i) = index_in_candidate {
+			// sanity: should always be present.
+			ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
+				indirect_cert,
+				i as CandidateIndex,
+			).into()).await;
 
-// 		if let Some(i) = index_in_candidate {
-// 			// sanity: should always be present.
-// 			ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
-// 				indirect_cert,
-// 				i as CandidateIndex,
-// 			).into()).await;
+			launch_approval(
+				ctx,
+				background_tx.clone(),
+				block_entry.session(),
+				candidate_entry.candidate_receipt(),
+				val_index,
+				relay_block,
+				i,
+			).await?;
+		}
+	}
 
-// 			launch_approval(
-// 				ctx,
-// 				background_tx.clone(),
-// 				block_entry.session(),
-// 				&candidate_entry.candidate,
-// 				val_index,
-// 				relay_block,
-// 				i,
-// 			).await?;
-// 		}
-// 	}
+	actions.push(Action::ScheduleWakeup {
+		candidate_entry,
+		block_hash: relay_block,
+		block_tick,
+		no_show_duration,
+		candidate_hash,
+	});
 
-// 	schedule_wakeup(
-// 		state,
-// 		&candidate_entry,
-// 		relay_block,
-// 		block_tick,
-// 		no_show_duration,
-// 		candidate_hash,
-// 	);
+	Ok(actions)
+}
 
-// 	Ok(())
-// }
+async fn launch_approval(
+	ctx: &mut impl SubsystemContext,
+	mut background_tx: mpsc::Sender<BackgroundRequest>,
+	session_index: SessionIndex,
+	candidate: &CandidateReceipt,
+	validator_index: ValidatorIndex,
+	block_hash: Hash,
+	candidate_index: usize,
+) -> SubsystemResult<()> {
+	let (a_tx, a_rx) = oneshot::channel();
+	let (code_tx, code_rx) = oneshot::channel();
+	let (context_num_tx, context_num_rx) = oneshot::channel();
 
-// async fn launch_approval(
-// 	ctx: &mut impl SubsystemContext,
-// 	mut background_tx: mpsc::Sender<BackgroundRequest>,
-// 	session_index: SessionIndex,
-// 	candidate: &CandidateReceipt,
-// 	validator_index: ValidatorIndex,
-// 	block_hash: Hash,
-// 	candidate_index: usize,
-// ) -> SubsystemResult<()> {
-// 	let (a_tx, a_rx) = oneshot::channel();
-// 	let (code_tx, code_rx) = oneshot::channel();
-// 	let (context_num_tx, context_num_rx) = oneshot::channel();
+	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
+		candidate.clone(),
+		session_index,
+		a_tx,
+	).into()).await;
 
-// 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
-// 		candidate.clone(),
-// 		session_index,
-// 		a_tx,
-// 	).into()).await;
+	ctx.send_message(
+		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
+	).await;
 
-// 	ctx.send_message(
-// 		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
-// 	).await;
+	let in_context_number = match context_num_rx.await?
+		.map_err(|e| SubsystemError::with_origin("chain-api", e))?
+	{
+		Some(n) => n,
+		None => return Ok(()),
+	};
 
-// 	let in_context_number = match context_num_rx.await?
-// 		.map_err(|e| SubsystemError::with_origin("chain-api", e))?
-// 	{
-// 		Some(n) => n,
-// 		None => return Ok(()),
-// 	};
+	ctx.send_message(
+		RuntimeApiMessage::Request(
+			block_hash,
+			RuntimeApiRequest::HistoricalValidationCode(
+				candidate.descriptor.para_id,
+				in_context_number,
+				code_tx,
+			),
+		).into()
+	).await;
 
-// 	ctx.send_message(
-// 		RuntimeApiMessage::Request(
-// 			block_hash,
-// 			RuntimeApiRequest::HistoricalValidationCode(
-// 				candidate.descriptor.para_id,
-// 				in_context_number,
-// 				code_tx,
-// 			),
-// 		).into()
-// 	).await;
+	let candidate = candidate.clone();
+	let background = async move {
+		let available_data = match a_rx.await {
+			Err(_) => return,
+			Ok(Ok(a)) => a,
+			Ok(Err(RecoveryError::Unavailable)) => {
+				// do nothing. we'll just be a no-show and that'll cause others to rise up.
+				return;
+			}
+			Ok(Err(RecoveryError::Invalid)) => {
+				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
+				// https://github.com/paritytech/polkadot/issues/2176
+				return;
+			}
+		};
 
-// 	let candidate = candidate.clone();
-// 	let background = async move {
-// 		let available_data = match a_rx.await {
-// 			Err(_) => return,
-// 			Ok(Ok(a)) => a,
-// 			Ok(Err(RecoveryError::Unavailable)) => {
-// 				// do nothing. we'll just be a no-show and that'll cause others to rise up.
-// 				return;
-// 			}
-// 			Ok(Err(RecoveryError::Invalid)) => {
-// 				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
-// 				// https://github.com/paritytech/polkadot/issues/2176
-// 				return;
-// 			}
-// 		};
+		let validation_code = match code_rx.await {
+			Err(_) => return,
+			Ok(Err(_)) => return,
+			Ok(Ok(Some(code))) => code,
+			Ok(Ok(None)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Validation code unavailable for block {:?} in the state of block {:?} (a recent descendant)",
+					candidate.descriptor.relay_parent,
+					block_hash,
+				);
 
-// 		let validation_code = match code_rx.await {
-// 			Err(_) => return,
-// 			Ok(Err(_)) => return,
-// 			Ok(Ok(Some(code))) => code,
-// 			Ok(Ok(None)) => {
-// 				tracing::warn!(
-// 					target: LOG_TARGET,
-// 					"Validation code unavailable for block {:?} in the state of block {:?} (a recent descendant)",
-// 					candidate.descriptor.relay_parent,
-// 					block_hash,
-// 				);
+				// No dispute necessary, as this indicates that the chain is not behaving
+				// according to expectations.
+				return;
+			}
+		};
 
-// 				// No dispute necessary, as this indicates that the chain is not behaving
-// 				// according to expectations.
-// 				return;
-// 			}
-// 		};
+		let (val_tx, val_rx) = oneshot::channel();
 
-// 		let (val_tx, val_rx) = oneshot::channel();
+		let _ = background_tx.send(BackgroundRequest::CandidateValidation(
+			available_data.validation_data,
+			validation_code,
+			candidate.descriptor,
+			available_data.pov,
+			val_tx,
+		)).await;
 
-// 		let _ = background_tx.send(BackgroundRequest::CandidateValidation(
-// 			available_data.validation_data,
-// 			validation_code,
-// 			candidate.descriptor,
-// 			available_data.pov,
-// 			val_tx,
-// 		)).await;
+		match val_rx.await {
+			Err(_) => return,
+			Ok(Ok(ValidationResult::Valid(_, _))) => {
+				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
+				// then there isn't anything we can do.
 
-// 		match val_rx.await {
-// 			Err(_) => return,
-// 			Ok(Ok(ValidationResult::Valid(_, _))) => {
-// 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
-// 				// then there isn't anything we can do.
+				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
+					validator_index,
+					block_hash,
+					candidate_index,
+				})).await;
+			}
+			Ok(Ok(ValidationResult::Invalid(_))) => {
+				// TODO: issue dispute, but not for timeouts.
+				// https://github.com/paritytech/polkadot/issues/2176
+			}
+			Ok(Err(_)) => return, // internal error.
+		}
+	};
 
-// 				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
-// 					validator_index,
-// 					block_hash,
-// 					candidate_index,
-// 				})).await;
-// 			}
-// 			Ok(Ok(ValidationResult::Invalid(_))) => {
-// 				// TODO: issue dispute, but not for timeouts.
-// 				// https://github.com/paritytech/polkadot/issues/2176
-// 			}
-// 			Ok(Err(_)) => return, // internal error.
-// 		}
-// 	};
-
-// 	ctx.spawn("approval-checks", Box::pin(background)).await
-// }
+	ctx.spawn("approval-checks", Box::pin(background)).await
+}
 
 // // Issue and import a local approval vote. Should only be invoked after approval checks
 // // have been done.

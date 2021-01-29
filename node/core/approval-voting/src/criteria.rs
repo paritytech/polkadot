@@ -36,7 +36,7 @@ use super::LOG_TARGET;
 
 /// Details pertaining to our assignment on a block.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct OurAssignment {
+pub struct OurAssignment {
 	cert: AssignmentCert,
 	tranche: DelayTranche,
 	validator_index: ValidatorIndex,

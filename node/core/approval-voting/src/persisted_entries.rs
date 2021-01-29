@@ -85,6 +85,11 @@ pub struct ApprovalEntry {
 }
 
 impl ApprovalEntry {
+	// Access our assignment for this approval entry.
+	pub fn our_assignment(&self) -> Option<&OurAssignment> {
+		self.our_assignment.as_ref()
+	}
+
 	// Note that our assignment is triggered. No-op if already triggered.
 	pub fn trigger_our_assignment(&mut self, tick_now: Tick)
 		-> Option<(AssignmentCert, ValidatorIndex)>
@@ -229,6 +234,11 @@ impl CandidateEntry {
 		prev
 	}
 
+	/// Get the candidate receipt.
+	pub fn candidate_receipt(&self) -> &CandidateReceipt {
+		&self.candidate
+	}
+
 	/// Get the next tick this should be woken up to process the approval entry
 	/// under the given block hash, if any.
 	///
@@ -264,6 +274,11 @@ impl CandidateEntry {
 	/// Get the approval entry, mutably, for this candidate under a specific block.
 	pub fn approval_entry_mut(&mut self, block_hash: &Hash) -> Option<&mut ApprovalEntry> {
 		self.block_assignments.get_mut(block_hash)
+	}
+
+	/// Get the approval entry for this candidate under a specific block.
+	pub fn approval_entry(&self, block_hash: &Hash) -> Option<&ApprovalEntry> {
+		self.block_assignments.get(block_hash)
 	}
 
 	/// Iterate over approval entries.
@@ -343,6 +358,11 @@ impl BlockEntry {
 	/// Get the i'th candidate.
 	pub fn candidate(&self, i: usize) -> Option<&(CoreIndex, CandidateHash)> {
 		self.candidates.get(i)
+	}
+
+	/// Access the underlying candidates as a slice.
+	pub fn candidates(&self) -> &[(CoreIndex, CandidateHash)] {
+		&self.candidates
 	}
 }
 
