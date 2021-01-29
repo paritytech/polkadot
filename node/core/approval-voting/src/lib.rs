@@ -59,13 +59,14 @@ use std::collections::btree_map::Entry;
 use std::sync::Arc;
 use std::ops::{RangeBounds, Bound as RangeBound};
 
-use approval_db::v1::{ApprovalEntry, CandidateEntry, BlockEntry};
+use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
 use criteria::{AssignmentCriteria, RealAssignmentCriteria, OurAssignment};
 use time::{slot_number_to_tick,Tick, Clock, ClockExt, SystemClock};
 
 mod approval_db;
 mod criteria;
 mod time;
+mod persisted_entries;
 
 #[cfg(test)]
 mod tests;
