@@ -234,7 +234,10 @@ impl<T: Config> Registrar for Module<T> {
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {
 			if let Some(info) = maybe_info {
+				// Registrar should think this is a parathread...
 				ensure!(!info.parachain, Error::<T>::NotParathread);
+				// And Runtime Parachains backend should think it is a parathread...
+				ensure!(paras::Module::<T>::is_parathread(id), Error::<T>::NotParathread);
 				runtime_parachains::schedule_para_upgrade::<T>(id);
 				info.parachain = true;
 				Ok(())
@@ -248,7 +251,10 @@ impl<T: Config> Registrar for Module<T> {
 	fn make_parathread(id: ParaId) -> DispatchResult {
 		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {
 			if let Some(info) = maybe_info {
+				// Registrar should think this is a parachain...
 				ensure!(info.parachain, Error::<T>::NotParachain);
+				// And Runtime Parachains backend should think it is a parachain...
+				ensure!(paras::Module::<T>::is_parachain(id), Error::<T>::NotParathread);
 				runtime_parachains::schedule_para_downgrade::<T>(id);
 				info.parachain = false;
 				Ok(())
@@ -655,6 +661,10 @@ mod tests {
 		ValidationCode(validation_code)
 	}
 
+	fn para_origin(id: ParaId) -> Origin {
+		runtime_parachains::Origin::Parachain(id).into()
+	}
+
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
@@ -761,6 +771,56 @@ mod tests {
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			), BalancesError::<Test, _>::InsufficientBalance);
+		});
+	}
+
+	#[test]
+	fn swap_works() {
+		new_test_ext().execute_with(|| {
+			// Successfully register 23 and 32
+			// Successfully register 32
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				23.into(),
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			));
+			assert_ok!(Registrar::register(
+				Origin::signed(2),
+				32.into(),
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			));
+			run_to_block(4); // Move to the next session
+
+			// Upgrade 23 into a parachain
+			assert_ok!(Registrar::make_parachain(23.into()));
+
+			run_to_block(8); // Move to the next session
+
+			// Roles are as we expect
+			assert!(Parachains::is_parachain(23.into()));
+			assert!(!Parachains::is_parathread(23.into()));
+			assert!(!Parachains::is_parachain(32.into()));
+			assert!(Parachains::is_parathread(32.into()));
+
+			// Both paras initiate a swap
+			assert_ok!(Registrar::swap(
+				para_origin(23.into()),
+				32.into()
+			));
+			assert_ok!(Registrar::swap(
+				para_origin(32.into()),
+				23.into()
+			));
+
+			run_to_block(12); // Move to the next session
+
+			// Roles are swapped
+			assert!(!Parachains::is_parachain(23.into()));
+			assert!(Parachains::is_parathread(23.into()));
+			assert!(Parachains::is_parachain(32.into()));
+			assert!(!Parachains::is_parathread(32.into()));
 		});
 	}
 /*
