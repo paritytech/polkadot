@@ -220,7 +220,7 @@ impl CandidateEntry {
 pub(crate) struct BlockEntry {
 	pub block_hash: Hash,
 	pub session: SessionIndex,
-	pub slot: SlotNumber,
+	pub slot: Slot,
 	pub relay_vrf_story: RelayVRFStory,
 	// The candidates included as-of this block and the index of the core they are
 	// leaving. Sorted ascending by core index.

@@ -30,7 +30,6 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 	BabeEpoch,
 };
 use polkadot_primitives::v1::{

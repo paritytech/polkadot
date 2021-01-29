@@ -44,7 +44,7 @@ use polkadot_node_primitives::approval::{
 };
 use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
-use sp_consensus_slots::SlotNumber;
+use sp_consensus_slots::Slot;
 use sc_client_api::backend::AuxStore;
 use sp_runtime::traits::AppVerify;
 use sp_application_crypto::Pair;
@@ -71,7 +71,7 @@ mod time;
 mod tests;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
-const LOG_TARGET: &str = "approval-voting";
+const LOG_TARGET: &str = "approval_voting";
 
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem<T> {
@@ -663,7 +663,7 @@ struct ImportedBlockInfo {
 	assignments: HashMap<CoreIndex, OurAssignment>,
 	n_validators: usize,
 	relay_vrf_story: RelayVRFStory,
-	slot: SlotNumber,
+	slot: Slot,
 }
 
 // Computes information about the imported block. Returns `None` if the info couldn't be extracted -
@@ -755,7 +755,7 @@ async fn imported_block_info(
 
 		match unsafe_vrf {
 			Some(unsafe_vrf) => {
-				let slot = unsafe_vrf.slot_number();
+				let slot = unsafe_vrf.slot();
 
 				match unsafe_vrf.compute_randomness(
 					&babe_epoch.authorities,
@@ -887,7 +887,7 @@ async fn handle_new_head(
 			number: block_header.number,
 			parent_hash: block_header.parent_hash,
 			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
-			slot_number: slot,
+			slot,
 		});
 
 		let (block_tick, no_show_duration) = {
@@ -897,7 +897,7 @@ async fn handle_new_head(
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
 			let no_show_duration = slot_number_to_tick(
 				state.slot_duration_millis,
-				session_info.no_show_slots as _,
+				Slot::from(u64::from(session_info.no_show_slots)),
 			);
 
 			(block_tick, no_show_duration)
@@ -934,7 +934,7 @@ fn check_and_import_assignment(
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<AssignmentCheckResult> {
-	const TOO_FAR_IN_FUTURE: SlotNumber = 5;
+	const SLOT_TOO_FAR_IN_FUTURE: u64 = 5;
 
 	let tick_now = state.clock.tick_now();
 
@@ -1004,7 +1004,7 @@ fn check_and_import_assignment(
 			Ok(tranche) => {
 				let tranche_now_of_prev_slot = state.clock.tranche_now(
 					state.slot_duration_millis,
-					block_entry.slot.saturating_sub(TOO_FAR_IN_FUTURE),
+					block_entry.slot.saturating_sub(SLOT_TOO_FAR_IN_FUTURE),
 				);
 
 				if tranche >= tranche_now_of_prev_slot {
@@ -1029,7 +1029,7 @@ fn check_and_import_assignment(
 		let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot);
 		let no_show_duration = slot_number_to_tick(
 			state.slot_duration_millis,
-			session_info.no_show_slots as _,
+			Slot::from(u64::from(session_info.no_show_slots)),
 		);
 
 		(block_tick, no_show_duration)
@@ -1211,7 +1211,7 @@ fn check_full_approvals(
 			&candidate_entry.approvals,
 			tranche_now,
 			slot_number_to_tick(state.slot_duration_millis, block_entry.slot),
-			slot_number_to_tick(state.slot_duration_millis, session_info.no_show_slots as _),
+			slot_number_to_tick(state.slot_duration_millis, Slot::from(u64::from(session_info.no_show_slots))),
 			session_info.needed_approvals as _
 		);
 
@@ -1467,7 +1467,7 @@ async fn process_wakeup(
 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot);
 	let no_show_duration = slot_number_to_tick(
 		state.slot_duration_millis,
-		session_info.no_show_slots as _,
+		Slot::from(u64::from(session_info.no_show_slots)),
 	);
 
 	let should_broadcast = {
