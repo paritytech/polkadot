@@ -59,28 +59,29 @@ enum ApprovalCheckResult {
 }
 
 enum ApprovalVotingMessage {
-    /// Check if the assignment is valid and can be accepted by our view of the protocol.
-    /// Should not be sent unless the block hash is known.
-    CheckAndImportAssignment(
-        IndirectAssignmentCert,
-        ResponseChannel<AssignmentCheckResult>,
-    ),
-    /// Check if the approval vote is valid and can be accepted by our view of the
-    /// protocol.
-    ///
-    /// Should not be sent unless the block hash within the indirect vote is known.
-    CheckAndImportApproval(
-        IndirectSignedApprovalVote,
-        ResponseChannel<ApprovalCheckResult>,
-    ),
-    /// Returns the highest possible ancestor hash of the provided block hash which is
-    /// acceptable to vote on finality for.
-    /// The `BlockNumber` provided is the number of the block's ancestor which is the
-    /// earliest possible vote.
-    ///
-    /// It can also return the same block hash, if that is acceptable to vote upon.
-    /// Return `None` if the input hash is unrecognized.
-    ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
+	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	/// Should not be sent unless the block hash is known.
+	CheckAndImportAssignment(
+		IndirectAssignmentCert,
+		CandidateIndex, // The index of the candidate included in the block.
+		ResponseChannel<AssignmentCheckResult>,
+	),
+	/// Check if the approval vote is valid and can be accepted by our view of the
+	/// protocol.
+	///
+	/// Should not be sent unless the block hash within the indirect vote is known.
+	CheckAndImportApproval(
+		IndirectSignedApprovalVote,
+		ResponseChannel<ApprovalCheckResult>,
+	),
+	/// Returns the highest possible ancestor hash of the provided block hash which is
+	/// acceptable to vote on finality for.
+	/// The `BlockNumber` provided is the number of the block's ancestor which is the
+	/// earliest possible vote.
+	///
+	/// It can also return the same block hash, if that is acceptable to vote upon.
+	/// Return `None` if the input hash is unrecognized.
+	ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
 }
 ```
 
@@ -472,43 +473,45 @@ This is fueled by an auxiliary type encapsulating all request types defined in t
 
 ```rust
 enum RuntimeApiRequest {
-    /// Get the current validator set.
-    Validators(ResponseChannel<Vec<ValidatorId>>),
-    /// Get the validator groups and rotation info.
-    ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
-    /// Get information about all availability cores.
-    AvailabilityCores(ResponseChannel<Vec<CoreState>>),
-    /// with the given occupied core assumption.
-    PersistedValidationData(
-        ParaId,
-        OccupiedCoreAssumption,
-        ResponseChannel<Option<PersistedValidationData>>,
-    ),
-    /// Sends back `true` if the commitments pass all acceptance criteria checks.
-    CheckValidationOutputs(
-        ParaId,
-        CandidateCommitments,
-        RuntimeApiSender<bool>,
-    ),
-    /// Get the session index for children of the block. This can be used to construct a signing
-    /// context.
-    SessionIndexForChild(ResponseChannel<SessionIndex>),
-    /// Get the validation code for a specific para, using the given occupied core assumption.
-    ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-    /// Fetch the historical validation code used by a para for candidates executed in
-    /// the context of a given block height in the current chain.
-    HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
-    /// Get a committed candidate receipt for all candidates pending availability.
-    CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
-    /// Get all events concerning candidates in the last block.
-    CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
-    /// Get the session info for the given session, if stored.
-    SessionInfo(SessionIndex, ResponseChannel<Option<SessionInfo>>),
-    /// Get all the pending inbound messages in the downward message queue for a para.
-    DmqContents(ParaId, ResponseChannel<Vec<InboundDownwardMessage<BlockNumber>>>),
-    /// Get the contents of all channels addressed to the given recipient. Channels that have no
-    /// messages in them are also included.
-    InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
+	/// Get the current validator set.
+	Validators(ResponseChannel<Vec<ValidatorId>>),
+	/// Get the validator groups and rotation info.
+	ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
+	/// Get information about all availability cores.
+	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
+	/// with the given occupied core assumption.
+	PersistedValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		ResponseChannel<Option<PersistedValidationData>>,
+	),
+	/// Sends back `true` if the commitments pass all acceptance criteria checks.
+	CheckValidationOutputs(
+		ParaId,
+		CandidateCommitments,
+		RuntimeApiSender<bool>,
+	),
+	/// Get the session index for children of the block. This can be used to construct a signing
+	/// context.
+	SessionIndexForChild(ResponseChannel<SessionIndex>),
+	/// Get the validation code for a specific para, using the given occupied core assumption.
+	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
+	/// Fetch the historical validation code used by a para for candidates executed in
+	/// the context of a given block height in the current chain.
+	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
+	/// Get a committed candidate receipt for all candidates pending availability.
+	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
+	/// Get all events concerning candidates in the last block.
+	CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
+	/// Get the session info for the given session, if stored.
+	SessionInfo(SessionIndex, ResponseChannel<Option<SessionInfo>>),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(ParaId, ResponseChannel<Vec<InboundDownwardMessage<BlockNumber>>>),
+	/// Get the contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
+	/// Get information about the BABE epoch this block was produced in.
+	BabeEpoch(ResponseChannel<BabeEpoch>),
 }
 
 enum RuntimeApiMessage {

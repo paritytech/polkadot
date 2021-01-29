@@ -51,9 +51,6 @@ struct OurAssignment {
 struct ApprovalEntry {
     tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
     backing_group: GroupIndex,
-    // When the next wakeup for this entry should occur. This is either to
-    // check a no-show or to check if we need to broadcast an assignment.
-    next_wakeup: Tick,
     our_assignment: Option<OurAssignment>,
     assignments: Bitfield, // n_validators bits
     approved: bool,
@@ -119,6 +116,7 @@ struct ApprovalVoteRequest {
 struct State {
     earliest_session: SessionIndex,
     session_info: Vec<SessionInfo>,
+    babe_epoch: Option<BabeEpoch>, // information about a cached BABE epoch.
     keystore: KeyStorePtr,
     wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>, // Tick -> [(Relay Block, Candidate Hash)]
 
@@ -168,16 +166,25 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
 #### `ApprovalVotingMessage::CheckAndImportAssignment`
 
 On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we check the assignment cert against the block entry. The cert itself contains information necessary to determine the candidate that is being assigned-to. In detail:
-  * Load the `BlockEntry` for the relay-parent referenced by the message. If there is none, return `VoteCheckResult::Report`.
+  * Load the `BlockEntry` for the relay-parent referenced by the message. If there is none, return `AssignmentCheckResult::Bad`.
   * Fetch the `SessionInfo` for the session of the block
   * Determine the assignment key of the validator based on that.
+  * Determine the claimed core index by looking up the candidate with given index in `block_entry.candidates`. Return `AssignmentCheckResult::Bad` if missing.
   * Check the assignment cert
     * If the cert kind is `RelayVRFModulo`, then the certificate is valid as long as `sample < session_info.relay_vrf_samples` and the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ sample.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We set `core_index = vrf.make_bytes().to_u32() % session_info.n_cores`. If the `BlockEntry` causes inclusion of a candidate at `core_index`, then this is a valid assignment for the candidate at `core_index` and has delay tranche 0. Otherwise, it can be ignored.
     * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate. The delay tranche for the assignment is determined by reducing `(vrf.make_bytes().to_u64() % (session_info.n_delay_tranches + session_info.zeroth_delay_tranche_width)).saturating_sub(session_info.zeroth_delay_tranche_width)`.
     * We also check that the core index derived by the output is covered by the `VRFProof` by means of an auxiliary signature.
-    * If the delay tranche is too far in the future, return `VoteCheckResult::Ignore`.
-    * `import_checked_assignment`
-    * return the appropriate `VoteCheckResult` on the response channel.
+    * If the delay tranche is too far in the future, return `AssignmentCheckResult::TooFarInFuture`.
+  * Import the assignment.
+    * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
+    * Ignore if we already observe the validator as having been assigned.
+    * Ensure the validator index is not part of the backing group for the candidate.
+    * Ensure the validator index is not present in the approval entry already.
+    * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
+    * Note the candidate index within the approval entry.
+  * `check_full_approvals(candidate_entry, filter by this specific approval entry)`
+  * Schedule a wakeup with `next_wakeup`.
+  * return the appropriate `AssignmentCheckResult` on the response channel.
 
 #### `ApprovalVotingMessage::CheckAndImportApproval`
 
@@ -203,22 +210,19 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 #### `tranche_now(slot_number, time) -> DelayTranche`
   * Convert `time.saturating_sub(slot_number.to_time())` to a delay tranches value
 
-#### `import_checked_assignment`
-  * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
-  * Ignore if we already observe the validator as having been assigned.
-  * Ensure the validator index is not part of the backing group for the candidate.
-  * Ensure the validator index is not present in the approval entry already.
-  * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
-  * Note the candidate index within the approval entry.
-  * Schedule a wakeup with `next_wakeup`.
 
 #### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
-  * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
-    * If so, set `n_tranches = tranches_to_approve(approval_entry, tranche_now(block.slot, now()))`.
-    * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
+  * `check_full_approvals(candidate_entry, filter by validators assigned to)`
 
-#### `tranches_to_approve(approval_entry, tranche_now) -> RequiredTranches`
+#### `check_full_approvals(CandidateEntry, filter)`:
+  * Checks every `ApprovalEntry` that is not yet `approved` for whether it is now approved.
+    * For each `ApprovalEntry` in the `CandidateEntry` that is not `approved` and passes the `filter`
+    * Load the block entry for the `ApprovalEntry`.
+    * If so, set `n_tranches = tranches_to_approve(approval_entry, tranche_now(block.slot, now()))`.
+    * If `check_approval(block_entry, candidate_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
+
+#### `tranches_to_approve(approval_entry, approvals, tranche_now, block_tick, no_show_duration, needed_approvals) -> RequiredTranches`
 
 ```rust
 enum RequiredTranches {
@@ -232,7 +236,6 @@ enum RequiredTranches {
 }
 ```
 
-  * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry.
   * Ignore all tranches beyond `tranche_now`.
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
     * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take another non-empty tranche for each no-show, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
@@ -242,10 +245,10 @@ enum RequiredTranches {
       * The amount of assignments in non-empty & taken tranches plus the amount of needed extras equals or exceeds the total number of validators for the approval entry, which can be obtained by measuring the bitfield. In this case we return a special value `RequiredTranches::All` indicating that all validators have effectively been assigned to check.
     * return `n_tranches`
 
-#### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
+#### `check_approval(block_entry, candidate_entry, approval_entry, n_tranches) -> bool`
   * If `n_tranches` is `RequiredTranches::Pending`, return false
   * If `n_tranches` is `RequiredTranches::All`,  then we return `3 * n_approvals > 2 * n_validators`.
-  * If `n_tranches` is `RequiredTranches::Exact(tranche, no_shows), then we return whether all assigned validators up to `tranche` less `no_shows` have approved. e.g. if we had 5 tranches and 1 no-show, we would accept all validators in tranches 0..=5 except for 1 approving. In that example, we also accept all validators in tranches 0..=5 approving, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. If there are more missing approvals than there are no-shows, that indicates that there are some assignments which are not yet no-shows, but may become no-shows.
+  * If `n_tranches` is `RequiredTranches::Exact(tranche, no_shows)`, then we return whether all assigned validators up to `tranche` less `no_shows` have approved. e.g. if we had 5 tranches and 1 no-show, we would accept all validators in tranches 0..=5 except for 1 approving. In that example, we also accept all validators in tranches 0..=5 approving, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. If there are more missing approvals than there are no-shows, that indicates that there are some assignments which are not yet no-shows, but may become no-shows.
 
 #### `process_wakeup(relay_block, candidate_hash)`
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
@@ -253,7 +256,7 @@ enum RequiredTranches {
   * Determine if we should trigger our assignment.
     * If we've already triggered or `OurAssignment` is `None`, we do not trigger.
     * If `required` is `RequiredTranches::All`, then we trigger if `check_approval(block_entry, approval_entry, All)` is false.
-    * If `required` is `RequiredTranches::Pending(max), then we trigger if our assignment's tranche is less than or equal to `max`.
+    * If `required` is `RequiredTranches::Pending(max)`, then we trigger if our assignment's tranche is less than or equal to `max`.
     * If `required` is `RequiredTranches::Exact(tranche)` then we do not trigger, because this value indicates that no new assignments are needed at the moment.
   * If we should trigger our assignment
     * Import the assignment to the `ApprovalEntry`
@@ -266,7 +269,7 @@ enum RequiredTranches {
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
 
-#### `launch_approval(SessionIndex, CandidateReceipt, ValidatorIndex, block_hash, candidate_index)`:
+#### `launch_approval(SessionIndex, SessionInfo, CandidateReceipt, ValidatorIndex, block_hash, candidate_index)`:
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, response_sender)`
   * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::HistoricalValidationCode(`descriptor.para_id`, `descriptor.relay_parent`)` against the state of `block_hash`.
