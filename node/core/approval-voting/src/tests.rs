@@ -21,6 +21,8 @@ use std::cell::RefCell;
 use std::pin::Pin;
 use std::sync::Arc;
 
+const SLOT_DURATION_MILLIS: u64 = 5000;
+
 #[derive(Default)]
 struct MockClock {
 	inner: Arc<Mutex<MockClockInner>>,
@@ -96,7 +98,7 @@ impl MockClockInner {
 	}
 }
 
-// TODO [now]: mock `AssignmentCriteria` implementation.
+struct MockAssignmentCriteria;
 
 #[derive(Default)]
 pub(crate) struct TestStore {
@@ -126,14 +128,59 @@ impl AuxStore for TestStore {
 	}
 }
 
-#[test]
-fn rejects_bad_assignment() {
-
+fn blank_state() -> (State<TestStore>, mpsc::Receiver<BackgroundRequest>) {
+	let (tx, rx) = mpsc::channel(1024);
+	State {
+		earliest_session: None,
+		session_info: Vec::new(),
+		keystore: LocalKeystore::in_memory(),
+		wakeups: Wakeups::default(),
+		slot_duration_millis: SLOT_DURATION_MILLIS,
+		db: Arc::new(TestStore::default()),
+		background_tx: tx,
+		clock: Box::new(MockClock::default()),
+		assignment_criteria: unimplemented!(),
+	}
 }
 
+fn single_session_state(index: SessionIndex, info: SessionInfo)
+	-> (State<TestStore>, mpsc::Receiver<BackgroundRequest>)
+{
+	let (mut s, rx) = blank_state();
+	s.earliest_session = Some(index);
+	s.session_info = vec![info];
+	(s, rx)
+}
+
+#[test]
+fn rejects_bad_assignment() {
+	let state = single_session_state(1, unimplemented!());
+	let assignment = unimplemented!();
+	let candidate_index = unimplemented!();
+
+	// TODO [now]: instantiate test store with block data.
+
+	check_and_import_assignment(
+		state,
+		assignment,
+		candidate_index,
+	).unwrap();
+
+	// Check that the assignment's been imported.
+}
 
 #[test]
 fn rejects_assignment_in_future() {
+
+}
+
+#[test]
+fn rejects_assignment_with_unknown_candidate() {
+
+}
+
+#[test]
+fn wakeup_scheduled_after_assignment_import() {
 
 }
 
