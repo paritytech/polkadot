@@ -229,6 +229,16 @@ impl<T: Config> Module<T> {
 	}
 }
 
+impl<T: Config> crate::traits::OnSwap for Module<T> {
+	fn on_swap(one: ParaId, other: ParaId) {
+		Leases::<T>::mutate(one, |x|
+			Leases::<T>::mutate(other, |y|
+				sp_std::mem::swap(x, y)
+			)
+		)
+	}
+}
+
 impl<T: Config> Leaser for Module<T> {
 	type AccountId = T::AccountId;
 	type LeasePeriod = T::BlockNumber;

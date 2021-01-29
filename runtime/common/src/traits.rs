@@ -99,17 +99,14 @@ pub trait Leaser {
 	fn lease_period_index() -> Self::LeasePeriod;
 }
 
-/// Auxilliary for when there's an attempt to swap two parachains/parathreads.
-pub trait SwapAux {
-	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
-	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
-
+/// Runtime hook for when we swap a parachain and parathread.
+pub trait OnSwap {
 	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
 	/// code and `head_data` remain equivalent for all parachains/threads, however other properties
 	/// such as leases, deposits held and thread/chain nature are swapped.
-	///
-	/// May only be called on a state that `ensure_can_swap` has previously returned `Ok` for: if this is
-	/// not the case, the result is undefined. May only return an error if `ensure_can_swap` also returns
-	/// an error.
-	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
+	fn on_swap(one: ParaId, other: ParaId);
+}
+
+impl OnSwap for () {
+	fn on_swap(_: ParaId, _: ParaId) {}
 }

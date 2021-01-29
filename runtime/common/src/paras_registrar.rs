@@ -38,7 +38,7 @@ use runtime_parachains::{
 	Origin,
 };
 
-use crate::traits::Registrar;
+use crate::traits::{Registrar, OnSwap};
 use parity_scale_codec::{Encode, Decode};
 use sp_runtime::RuntimeDebug;
 
@@ -65,6 +65,9 @@ pub trait Config: paras::Config + dmp::Config + ump::Config + hrmp::Config {
 
 	/// The system's currency for parathread payment.
 	type Currency: ReservableCurrency<Self::AccountId>;
+
+	/// Runtime hook for when a parachain and parathread swap.
+	type OnSwap: crate::traits::OnSwap;
 
 	/// The deposit to be paid to run a parathread.
 	/// This should include the cost for storing the genesis head and validation code.
@@ -205,9 +208,11 @@ decl_module! {
 						if id_info.parachain && !other_info.parachain {
 							runtime_parachains::schedule_para_downgrade::<T>(id);
 							runtime_parachains::schedule_para_upgrade::<T>(other);
+							T::OnSwap::on_swap(id, other);
 						} else if !id_info.parachain && other_info.parachain {
 							runtime_parachains::schedule_para_downgrade::<T>(other);
 							runtime_parachains::schedule_para_upgrade::<T>(id);
+							T::OnSwap::on_swap(id, other);
 						}
 
 						PendingSwap::remove(other);
@@ -573,6 +578,7 @@ mod tests {
 		type Event = ();
 		type Origin = Origin;
 		type Currency = pallet_balances::Module<Test>;
+		type OnSwap = ();
 		type ParaDeposit = ParaDeposit;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadSize = MaxHeadSize;
