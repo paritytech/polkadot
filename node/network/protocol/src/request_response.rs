@@ -18,7 +18,7 @@
 //!
 //! enum  Protocol .... List of all supported protocols.
 //!
-//! enum  Request  .... List of all supported requests, each entry matches one in protocols, but
+//! enum  Requests  .... List of all supported requests, each entry matches one in protocols, but
 //! has the actual request as payload.
 //!
 //! struct IncomingRequest .... wrapper for incoming requests, containing a sender for sending
