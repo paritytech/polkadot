@@ -63,6 +63,7 @@ enum ApprovalVotingMessage {
     /// Should not be sent unless the block hash is known.
     CheckAndImportAssignment(
         IndirectAssignmentCert,
+        CandidateIndex, // The index of the candidate included in the block.
         ResponseChannel<AssignmentCheckResult>,
     ),
     /// Check if the approval vote is valid and can be accepted by our view of the
@@ -509,6 +510,8 @@ enum RuntimeApiRequest {
     /// Get the contents of all channels addressed to the given recipient. Channels that have no
     /// messages in them are also included.
     InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
+    /// Get information about the BABE epoch this block was produced in.
+    BabeEpoch(ResponseChannel<BabeEpoch>),
 }
 
 enum RuntimeApiMessage {
