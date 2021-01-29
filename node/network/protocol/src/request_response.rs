@@ -88,7 +88,7 @@ impl Protocol {
 				max_request_size: 10_000,
 				max_response_size: 1_000_000,
 				// Also just some relative conservative guess:
-				request_timeout: Duration::new(8, 0),
+				request_timeout: Duration::from_secs(8),
 				inbound_queue: Some(tx),
 			},
 		};
