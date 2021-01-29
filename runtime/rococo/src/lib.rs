@@ -77,7 +77,7 @@ use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
 
-use polkadot_parachain::primitives::Id as ParaId;
+use pdot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, NetworkId};
 use xcm_executor::traits::IsConcrete;
 use xcm_builder::{

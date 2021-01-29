@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-runtime"
+name = "runtime-polkadot"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -70,8 +70,8 @@ pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate"
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.3.1", optional = true }
 
-runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
-primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+runtime-common = { package = "pdot-runtime-common", path = "../common", default-features = false }
+primitives = { package = "pdot-primitives", path = "../../primitives", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"

@@ -113,13 +113,13 @@ impl SubstrateCli for Cli {
 
 	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
 		if spec.is_kusama() {
-			&service::kusama_runtime::VERSION
+			&service::runtime_kusama::VERSION
 		} else if spec.is_westend() {
-			&service::westend_runtime::VERSION
+			&service::runtime_westend::VERSION
 		} else if spec.is_rococo() {
-			&service::rococo_runtime::VERSION
+			&service::runtime_rococo::VERSION
 		} else {
-			&service::polkadot_runtime::VERSION
+			&service::runtime_polkadot::VERSION
 		}
 	}
 }
@@ -257,7 +257,7 @@ pub fn run() -> Result<()> {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()).into())
 			} else {
 				#[cfg(not(any(target_os = "android", feature = "browser")))]
-				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
+				pdot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
 				Ok(())
 			}
 		},
@@ -268,7 +268,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			Ok(runner.sync_run(|config| {
-				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+				cmd.run::<service::runtime_kusama::Block, service::KusamaExecutor>(config)
 				.map_err(|e| Error::SubstrateCli(e))
 			})?)
 		},

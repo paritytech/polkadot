@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-test-runtime"
+name = "runtime-polkadot-test"
 version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -51,10 +51,10 @@ pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
-primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-polkadot-parachain = { path = "../../parachain", default-features = false }
-polkadot-runtime-parachains = { path = "../parachains", default-features = false }
+runtime-common = { package = "pdot-runtime-common", path = "../common", default-features = false }
+primitives = { package = "pdot-primitives", path = "../../primitives", default-features = false }
+pdot-parachain = { path = "../../parachain", default-features = false }
+pdot-runtime-parachains = { path = "../parachains", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
@@ -80,7 +80,7 @@ std = [
 	"parity-scale-codec/std",
 	"inherents/std",
 	"sp-core/std",
-	"polkadot-parachain/std",
+	"pdot-parachain/std",
 	"sp-api/std",
 	"tx-pool-api/std",
 	"block-builder-api/std",

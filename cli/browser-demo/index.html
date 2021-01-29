@@ -5,7 +5,7 @@
 	<title>Polkadot node</title>
 	<link rel="shortcut icon" href="/favicon.png" />
 	<script type="module">
-import { start_client, default as init } from './pkg/polkadot_cli.js';
+import { start_client, default as init } from './pkg/pdot_cli.js';
 
 function log(msg) {
 	document.getElementsByTagName('body')[0].innerHTML += msg + '\n';
@@ -13,7 +13,7 @@ function log(msg) {
 
 async function start() {
 	log('Loading WASM');
-	await init('./pkg/polkadot_cli_bg.wasm');
+	await init('./pkg/pdot_cli_bg.wasm');
 	log('Successfully loaded WASM');
 	log('Fetching chain spec');
 	const chain_spec_response = await fetch("https://raw.githubusercontent.com/paritytech/polkadot/master/node/service/res/westend.json");

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	BlockNumber, CandidateCommitments, CommittedCandidateReceipt, CandidateEvent,
 	CoreState, GroupRotationInfo, InboundDownwardMessage, InboundHrmpMessage, Hash,
 	PersistedValidationData, Id as ParaId, OccupiedCoreAssumption,

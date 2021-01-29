@@ -18,7 +18,7 @@ use sp_std::marker::PhantomData;
 use frame_support::traits::{Get, OriginTrait};
 use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction};
 use xcm_executor::traits::{LocationConversion, ConvertOrigin};
-use polkadot_parachain::primitives::IsSystem;
+use pdot_parachain::primitives::IsSystem;
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
 /// `LocationConverter`.

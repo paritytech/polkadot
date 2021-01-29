@@ -20,21 +20,34 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::{
-	channel::mpsc,
+	channel::{mpsc, oneshot},
 	task::{Poll, self},
 	stream,
 	StreamExt,
 };
 use streamunordered::{StreamUnordered, StreamYield};
 
-use polkadot_node_subsystem::{
+use pnu_subsystem::{
 	errors::RuntimeApiError,
 	messages::{AllMessages, NetworkBridgeMessage},
 	SubsystemContext,
 };
-use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
+use pdot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
 use sc_network::PeerId;
-use crate::Error;
+
+/// Errors which can occur when connecting to validators
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+	/// Attempted to send or receive on a oneshot channel which had been canceled
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+	/// An error in the Runtime API.
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
+	/// Subsystem utilities erred
+	#[error(transparent)]
+	SubsystemUtil(#[from] pnu_subsystem_util::Error),
+}
 
 /// Utility function to make it easier to connect to validators.
 pub async fn connect_to_validators<Context: SubsystemContext>(
@@ -42,7 +55,7 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
 ) -> Result<ConnectionRequest, Error> {
-	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
+	let current_index = pnu_subsystem_util::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
 	connect_to_past_session_validators(ctx, relay_parent, validators, current_index).await
 }
 
@@ -53,7 +66,7 @@ pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
 	validators: Vec<ValidatorId>,
 	session_index: SessionIndex,
 ) -> Result<ConnectionRequest, Error> {
-	let session_info = crate::request_session_info_ctx(
+	let session_info = pnu_subsystem_util::request_session_info_ctx(
 		relay_parent,
 		session_index,
 		ctx,
@@ -240,7 +253,7 @@ impl stream::Stream for ConnectionRequest {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v1::ValidatorPair;
+	use pdot_primitives::v1::ValidatorPair;
 	use sp_core::{Pair, Public};
 
 	use futures::{executor, poll, SinkExt};

@@ -39,10 +39,10 @@ use application_crypto::AppKey;
 use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
-pub use polkadot_core_primitives::*;
+pub use pdot_core_primitives::*;
 pub use parity_scale_codec::Compact;
 
-pub use polkadot_parachain::primitives::{
+pub use pdot_parachain::primitives::{
 	Id, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
 	ValidationCode,
 };

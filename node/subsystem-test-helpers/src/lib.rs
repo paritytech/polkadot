@@ -18,12 +18,12 @@
 
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem::messages::AllMessages;
-use polkadot_node_subsystem::{
+use pnu_subsystem::messages::AllMessages;
+use pnu_subsystem::{
 	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
 	SpawnedSubsystem, OverseerSignal,
 };
-use polkadot_node_subsystem_util::TimeoutExt;
+use pnu_subsystem_util::TimeoutExt;
 
 use futures::channel::mpsc;
 use futures::poll;
@@ -320,9 +320,9 @@ impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for F
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_overseer::{Overseer, AllSubsystems};
+	use pnc_overseer::{Overseer, AllSubsystems};
 	use futures::executor::block_on;
-	use polkadot_node_subsystem::messages::CandidateSelectionMessage;
+	use pnu_subsystem::messages::CandidateSelectionMessage;
 
 	#[test]
 	fn forward_subsystem_works() {

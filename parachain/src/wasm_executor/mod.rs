@@ -233,7 +233,7 @@ pub fn validate_candidate_internal(
 	// Expensive, but not more-so than recompiling the wasm module.
 	// And we need this hash to access the `sc_executor` cache.
 	let code_hash = {
-		use polkadot_core_primitives::{BlakeTwo256, HashT};
+		use pdot_core_primitives::{BlakeTwo256, HashT};
 		BlakeTwo256::hash(validation_code)
 	};
 

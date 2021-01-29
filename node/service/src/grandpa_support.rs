@@ -17,7 +17,7 @@
 //! Polkadot-specific GRANDPA integration utilities.
 
 #[cfg(feature = "full-node")]
-use polkadot_primitives::v1::Hash;
+use pdot_primitives::v1::Hash;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 /// A custom GRANDPA voting rule that "pauses" voting (i.e. keeps voting for the
@@ -98,7 +98,7 @@ where
 #[cfg(feature = "full-node")]
 pub(crate) fn kusama_hard_forks() -> Vec<(
 	grandpa_primitives::SetId,
-	(Hash, polkadot_primitives::v1::BlockNumber),
+	(Hash, pdot_primitives::v1::BlockNumber),
 	grandpa_primitives::AuthorityList,
 )> {
 	use sp_core::crypto::Ss58Codec;
@@ -234,7 +234,7 @@ pub(crate) fn kusama_hard_forks() -> Vec<(
 #[cfg(test)]
 mod tests {
 	use grandpa::VotingRule;
-	use polkadot_test_client::{
+	use pnu_test_client::{
 		TestClientBuilder, TestClientBuilderExt, DefaultTestClientBuilderExt, InitPolkadotBlockBuilder,
 		ClientBlockImportExt,
 	};

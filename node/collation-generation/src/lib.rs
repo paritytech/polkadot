@@ -26,17 +26,17 @@ use futures::{
 	sink::SinkExt,
 	stream::StreamExt,
 };
-use polkadot_node_primitives::CollationGenerationConfig;
-use polkadot_node_subsystem::{
+use pnu_primitives::CollationGenerationConfig;
+use pnu_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
-use polkadot_node_subsystem_util::{
+use pnu_subsystem_util::{
 	request_availability_cores_ctx, request_persisted_validation_data_ctx,
 	request_validators_ctx,
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	collator_signature_payload, AvailableData, CandidateCommitments,
 	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, PoV,
@@ -117,9 +117,9 @@ impl CollationGenerationSubsystem {
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
 	{
-		use polkadot_node_subsystem::ActiveLeavesUpdate;
-		use polkadot_node_subsystem::FromOverseer::{Communication, Signal};
-		use polkadot_node_subsystem::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
+		use pnu_subsystem::ActiveLeavesUpdate;
+		use pnu_subsystem::FromOverseer::{Communication, Signal};
+		use pnu_subsystem::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
 
 		match incoming {
 			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
@@ -367,8 +367,8 @@ fn erasure_root(
 		pov: Arc::new(pov),
 	};
 
-	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
-	Ok(polkadot_erasure_coding::branches(&chunks).root())
+	let chunks = pdot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
+	Ok(pdot_erasure_coding::branches(&chunks).root())
 }
 
 #[derive(Clone)]
@@ -457,14 +457,14 @@ mod tests {
 			task::{Context as FuturesContext, Poll},
 			Future,
 		};
-		use polkadot_node_primitives::Collation;
-		use polkadot_node_subsystem::messages::{
+		use pnu_primitives::Collation;
+		use pnu_subsystem::messages::{
 			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
 		};
-		use polkadot_node_subsystem_test_helpers::{
+		use pnu_subsystem_test_helpers::{
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
-		use polkadot_primitives::v1::{
+		use pdot_primitives::v1::{
 			BlockData, BlockNumber, CollatorPair, Id as ParaId,
 			PersistedValidationData, PoV, ScheduledCore,
 		};

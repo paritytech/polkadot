@@ -22,7 +22,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Hash, PoV, CandidateDescriptor, ValidatorId, Id as ParaId, CoreIndex, CoreState,
 };
 use polkadot_subsystem::{
@@ -32,14 +32,14 @@ use polkadot_subsystem::{
 		PoVDistributionMessage, AllMessages, NetworkBridgeMessage,
 	},
 };
-use polkadot_node_subsystem_util::{
-	validator_discovery,
+use pnu_subsystem_util::{
 	request_validators_ctx,
 	request_validator_groups_ctx,
 	request_availability_cores_ctx,
 	metrics::{self, prometheus},
 };
-use polkadot_node_network_protocol::{
+use pnu_validator_discovery as validator_discovery;
+use pnn_protocol::{
 	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, OurView,
 };
 

@@ -24,7 +24,7 @@ use sp_runtime::{
 };
 use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
-use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
+use pdot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
 use consensus_common::BlockStatus;
 
 /// A set of APIs that polkadot-like runtimes must implement.
@@ -139,10 +139,10 @@ pub trait ClientHandle {
 /// See [`ExecuteWithClient`] for more information.
 #[derive(Clone)]
 pub enum Client {
-	Polkadot(Arc<crate::FullClient<polkadot_runtime::RuntimeApi, crate::PolkadotExecutor>>),
-	Westend(Arc<crate::FullClient<westend_runtime::RuntimeApi, crate::WestendExecutor>>),
-	Kusama(Arc<crate::FullClient<kusama_runtime::RuntimeApi, crate::KusamaExecutor>>),
-	Rococo(Arc<crate::FullClient<rococo_runtime::RuntimeApi, crate::RococoExecutor>>),
+	Polkadot(Arc<crate::FullClient<runtime_polkadot::RuntimeApi, crate::PolkadotExecutor>>),
+	Westend(Arc<crate::FullClient<runtime_westend::RuntimeApi, crate::WestendExecutor>>),
+	Kusama(Arc<crate::FullClient<runtime_kusama::RuntimeApi, crate::KusamaExecutor>>),
+	Rococo(Arc<crate::FullClient<runtime_rococo::RuntimeApi, crate::RococoExecutor>>),
 }
 
 impl ClientHandle for Client {

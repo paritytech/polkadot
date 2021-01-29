@@ -45,7 +45,7 @@
 //! ```
 
 use sp_core::traits::SpawnNamed;
-use polkadot_primitives::v1::{Hash, PoV, CandidateHash};
+use pdot_primitives::v1::{Hash, PoV, CandidateHash};
 use parking_lot::RwLock;
 use std::{sync::Arc, result};
 

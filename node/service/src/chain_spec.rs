@@ -21,21 +21,21 @@ use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use hex_literal::hex;
 use kusama::constants::currency::DOTS as KSM;
-use kusama_runtime as kusama;
+use runtime_kusama as kusama;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
 use polkadot::constants::currency::DOTS;
-use polkadot_primitives::v1::{AccountId, AccountPublic, ValidatorId, AssignmentId};
-use polkadot_runtime as polkadot;
-use rococo_runtime as rococo;
-use rococo_runtime::constants::currency::DOTS as ROC;
+use pdot_primitives::v1::{AccountId, AccountPublic, ValidatorId, AssignmentId};
+use runtime_polkadot as polkadot;
+use runtime_rococo as rococo;
+use runtime_rococo::constants::currency::DOTS as ROC;
 use sc_chain_spec::{ChainSpecExtension, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{traits::IdentifyAccount, Perbill};
 use telemetry::TelemetryEndpoints;
 use westend::constants::currency::DOTS as WND;
-use westend_runtime as westend;
+use runtime_westend as westend;
 
 const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -51,9 +51,9 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
 	/// Block numbers with known hashes.
-	pub fork_blocks: sc_client_api::ForkBlocks<polkadot_primitives::v1::Block>,
+	pub fork_blocks: sc_client_api::ForkBlocks<pdot_primitives::v1::Block>,
 	/// Known bad block hashes.
-	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::v1::Block>,
+	pub bad_blocks: sc_client_api::BadBlocks<pdot_primitives::v1::Block>,
 }
 
 /// The `ChainSpec` parametrised for the polkadot runtime.
@@ -170,8 +170,8 @@ fn rococo_session_keys(
 	para_validator: ValidatorId,
 	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId
-) -> rococo_runtime::SessionKeys {
-	rococo_runtime::SessionKeys {
+) -> runtime_rococo::SessionKeys {
+	runtime_rococo::SessionKeys {
 		babe,
 		grandpa,
 		im_online,
@@ -657,7 +657,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 	}
 }
 
-fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> runtime_rococo::GenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![
 		// 5FeyRQmjtdHoPH56ASFW76AJEP1yaQC1K9aEMvJTF9nzt9S9
@@ -822,21 +822,21 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
 	const STASH: u128 = 100 * ROC;
 
-	rococo_runtime::GenesisConfig {
-		frame_system: Some(rococo_runtime::SystemConfig {
+	runtime_rococo::GenesisConfig {
+		frame_system: Some(runtime_rococo::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		pallet_balances: Some(rococo_runtime::BalancesConfig {
+		pallet_balances: Some(runtime_rococo::BalancesConfig {
 			balances: endowed_accounts.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
-		pallet_indices: Some(rococo_runtime::IndicesConfig {
+		pallet_indices: Some(runtime_rococo::IndicesConfig {
 			indices: vec![],
 		}),
-		pallet_session: Some(rococo_runtime::SessionConfig {
+		pallet_session: Some(runtime_rococo::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
@@ -853,14 +853,14 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		pallet_babe: Some(Default::default()),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
-		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
+		pallet_authority_discovery: Some(runtime_rococo::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_sudo: Some(rococo_runtime::SudoConfig {
+		pallet_sudo: Some(runtime_rococo::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
-		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
-			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+		parachains_configuration: Some(runtime_rococo::ParachainsConfigurationConfig {
+			config: pdot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
 				validation_upgrade_delay: 300,
 				acceptance_period: 1200,
@@ -1328,23 +1328,23 @@ pub fn rococo_testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> rococo_runtime::GenesisConfig {
+) -> runtime_rococo::GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 
-	rococo_runtime::GenesisConfig {
-		frame_system: Some(rococo_runtime::SystemConfig {
+	runtime_rococo::GenesisConfig {
+		frame_system: Some(runtime_rococo::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		pallet_indices: Some(rococo_runtime::IndicesConfig {
+		pallet_indices: Some(runtime_rococo::IndicesConfig {
 			indices: vec![],
 		}),
-		pallet_balances: Some(rococo_runtime::BalancesConfig {
+		pallet_balances: Some(runtime_rococo::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 		}),
-		pallet_session: Some(rococo_runtime::SessionConfig {
+		pallet_session: Some(runtime_rococo::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
@@ -1361,12 +1361,12 @@ pub fn rococo_testnet_genesis(
 		pallet_babe: Some(Default::default()),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
-		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
+		pallet_authority_discovery: Some(runtime_rococo::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
-		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
-			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+		pallet_sudo: Some(runtime_rococo::SudoConfig { key: root_key }),
+		parachains_configuration: Some(runtime_rococo::ParachainsConfigurationConfig {
+			config: pdot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
 				validation_upgrade_delay: 300,
 				acceptance_period: 1200,
@@ -1570,7 +1570,7 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 	))
 }
 
-fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> runtime_rococo::GenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![

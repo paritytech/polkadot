@@ -41,10 +41,10 @@ pub enum Error {
 	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
 
 	#[error(transparent)]
-	Erasure(#[from] polkadot_erasure_coding::Error),
+	Erasure(#[from] pdot_erasure_coding::Error),
 
 	#[error(transparent)]
-	Util(#[from] polkadot_node_subsystem_util::Error),
+	Util(#[from] pnu_subsystem_util::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

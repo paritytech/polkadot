@@ -34,8 +34,8 @@
 #![allow(unused)]
 
 use sc_client_api::backend::AuxStore;
-use polkadot_node_primitives::approval::{DelayTranche, RelayVRF};
-use polkadot_primitives::v1::{
+use pnu_primitives::approval::{DelayTranche, RelayVRF};
+use pdot_primitives::v1::{
 	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
 	BlockNumber, Hash, CandidateHash,
 };

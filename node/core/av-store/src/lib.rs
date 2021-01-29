@@ -31,7 +31,7 @@ use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
-use polkadot_primitives::v1::{
+use pdot_primitives::v1::{
 	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
 	CandidateReceipt,
 };
@@ -40,7 +40,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use pnu_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };

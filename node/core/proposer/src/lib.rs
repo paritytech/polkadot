@@ -20,12 +20,12 @@
 
 use futures::prelude::*;
 use futures::select;
-use polkadot_node_subsystem::{
+use pnu_subsystem::{
 	jaeger,
 	messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError,
 };
-use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::v1::{
+use pnc_overseer::OverseerHandler;
+use pdot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
@@ -218,7 +218,7 @@ where
 				self.parent_header,
 			);
 			inherent_data.put_data(
-				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
+				pdot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
 				&inclusion_inherent_data,
 			)?;
 

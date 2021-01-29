@@ -20,17 +20,17 @@
 
 mod block_builder;
 
-use polkadot_primitives::v1::Block;
+use pdot_primitives::v1::Block;
 use sc_service::client;
 use sp_core::storage::Storage;
 use sp_runtime::BuildStorage;
 
 pub use block_builder::*;
 pub use substrate_test_client::*;
-pub use polkadot_test_service::{
+pub use pnu_test_service::{
 	Client, construct_extrinsic, construct_transfer_extrinsic, PolkadotTestExecutor, FullBackend,
 };
-pub use polkadot_test_runtime as runtime;
+pub use runtime_polkadot_test as runtime;
 
 /// Test client executor.
 pub type Executor = client::LocalCallExecutor<FullBackend, sc_executor::NativeExecutor<PolkadotTestExecutor>>;
@@ -47,7 +47,7 @@ pub struct GenesisParameters;
 
 impl substrate_test_client::GenesisInit for GenesisParameters {
 	fn genesis_storage(&self) -> Storage {
-		polkadot_test_service::chain_spec::polkadot_local_testnet_genesis()
+		pnu_test_service::chain_spec::polkadot_local_testnet_genesis()
 			.build_storage()
 			.expect("Builds test runtime genesis storage")
 	}

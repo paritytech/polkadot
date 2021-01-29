@@ -30,8 +30,8 @@ use polkadot_subsystem::{
 	},
 	errors::RuntimeApiError,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
+use pnu_subsystem_util::metrics::{self, prometheus};
+use pdot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
 use sp_api::ProvideRuntimeApi;
 use sp_core::traits::SpawnNamed;
@@ -48,7 +48,7 @@ const LOG_TARGET: &str = "runtime_api";
 const MAX_PARALLEL_REQUESTS: usize = 4;
 
 /// The name of the blocking task that executes a runtime api request.
-const API_REQUEST_TASK_NAME: &str = "polkadot-runtime-api-request";
+const API_REQUEST_TASK_NAME: &str = "runtime-polkadot-api-request";
 
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {
@@ -405,13 +405,13 @@ impl metrics::Metrics for Metrics {
 mod tests {
 	use super::*;
 
-	use polkadot_primitives::v1::{
+	use pdot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
 		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
-	use polkadot_node_subsystem_test_helpers as test_helpers;
+	use pnu_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
 	use std::{collections::{HashMap, BTreeMap}, sync::{Arc, Mutex}};
 	use futures::channel::oneshot;
@@ -477,7 +477,7 @@ mod tests {
 			fn check_validation_outputs(
 				&self,
 				para_id: ParaId,
-				_commitments: polkadot_primitives::v1::CandidateCommitments,
+				_commitments: pdot_primitives::v1::CandidateCommitments,
 			) -> bool {
 				self.validation_outputs_results
 					.get(&para_id)
@@ -664,7 +664,7 @@ mod tests {
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
-		let commitments = polkadot_primitives::v1::CandidateCommitments::default();
+		let commitments = pdot_primitives::v1::CandidateCommitments::default();
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		runtime_api.validation_outputs_results.insert(para_a, false);

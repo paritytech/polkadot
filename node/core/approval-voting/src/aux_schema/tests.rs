@@ -18,7 +18,7 @@
 
 use super::*;
 use std::cell::RefCell;
-use polkadot_primitives::v1::Id as ParaId;
+use pdot_primitives::v1::Id as ParaId;
 
 #[derive(Default)]
 struct TestStore {

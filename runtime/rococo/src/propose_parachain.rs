@@ -34,7 +34,7 @@ use frame_support::{
 	decl_storage, ensure, IterableStorageMap,
 };
 use primitives::v1::{Id as ParaId, HeadData, ValidationCode};
-use polkadot_parachain::primitives::AccountIdConversion;
+use pdot_parachain::primitives::AccountIdConversion;
 use frame_system::{ensure_signed, EnsureOneOf, EnsureSigned};
 use sp_runtime::Either;
 use sp_staking::SessionIndex;

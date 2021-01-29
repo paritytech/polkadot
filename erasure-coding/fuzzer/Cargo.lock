@@ -421,8 +421,8 @@ name = "erasure_coding_fuzzer"
 version = "0.1.0"
 dependencies = [
  "honggfuzz",
- "polkadot-erasure-coding",
- "polkadot-primitives",
+ "pdot-erasure-coding",
+ "pdot-primitives",
 ]
 
 [[package]]
@@ -1262,7 +1262,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
-name = "polkadot-core-primitives"
+name = "pdot-core-primitives"
 version = "0.7.30"
 dependencies = [
  "parity-scale-codec",
@@ -1272,11 +1272,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-erasure-coding"
+name = "pdot-erasure-coding"
 version = "0.8.26"
 dependencies = [
  "parity-scale-codec",
- "polkadot-primitives",
+ "pdot-primitives",
  "reed-solomon-erasure",
  "sp-core",
  "sp-trie",
@@ -1284,7 +1284,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-parachain"
+name = "pdot-parachain"
 version = "0.8.26"
 dependencies = [
  "derive_more",
@@ -1292,7 +1292,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "polkadot-core-primitives",
+ "pdot-core-primitives",
  "sc-executor",
  "serde",
  "shared_memory",
@@ -1306,14 +1306,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-primitives"
+name = "pdot-primitives"
 version = "0.8.26"
 dependencies = [
  "bitvec",
  "frame-system",
  "parity-scale-codec",
- "polkadot-core-primitives",
- "polkadot-parachain",
+ "pdot-core-primitives",
+ "pdot-parachain",
  "serde",
  "sp-api",
  "sp-application-crypto",

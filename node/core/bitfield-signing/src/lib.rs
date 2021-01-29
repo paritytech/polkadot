@@ -22,7 +22,8 @@
 
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
-use polkadot_node_subsystem::{
+use pnu_jobs::{JobManager, JobTrait, FromJobCommand};
+use pnu_subsystem::{
 	jaeger, PerLeafSpan, JaegerSpan,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
@@ -30,10 +31,10 @@ use polkadot_node_subsystem::{
 	},
 	errors::RuntimeApiError,
 };
-use polkadot_node_subsystem_util::{
-	self as util, JobManager, JobTrait, Validator, FromJobCommand, metrics::{self, prometheus},
+use pnu_subsystem_util::{
+	self as util, Validator, metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
+use pdot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};
 use wasm_timer::{Delay, Instant};
 
@@ -297,7 +298,7 @@ pub type BitfieldSigningSubsystem<Spawner, Context> = JobManager<Spawner, Contex
 mod tests {
 	use super::*;
 	use futures::{pin_mut, executor::block_on};
-	use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
+	use pdot_primitives::v1::{CandidateHash, OccupiedCore};
 
 	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
 		CoreState::Occupied(OccupiedCore {

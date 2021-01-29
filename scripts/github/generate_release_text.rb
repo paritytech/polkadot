@@ -88,9 +88,9 @@ release_priority = Changelog.highest_priority_for_changes(client_changes)
 # Pulled from the previous Github step
 rustc_stable = ENV['RUSTC_STABLE']
 rustc_nightly = ENV['RUSTC_NIGHTLY']
-polkadot_runtime = get_runtime('polkadot', polkadot_path)
-kusama_runtime = get_runtime('kusama', polkadot_path)
-westend_runtime = get_runtime('westend', polkadot_path)
+runtime_polkadot = get_runtime('polkadot', polkadot_path)
+runtime_kusama = get_runtime('kusama', polkadot_path)
+runtime_westend = get_runtime('westend', polkadot_path)
 
 # These json files should have been downloaded as part of the build-runtimes
 # github action
