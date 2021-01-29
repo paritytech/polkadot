@@ -127,7 +127,7 @@ fn read_write() {
 	];
 
 	let delete_keys: Vec<_> = delete_keys.iter().map(|k| &k[..]).collect();
-	store.insert_aux(&[], &delete_keys);
+	store.insert_aux(&[], &delete_keys).unwrap();
 
 	assert!(load_stored_blocks(&store).unwrap().is_none());
 	assert!(load_blocks_at_height(&store, 1).unwrap().is_empty());

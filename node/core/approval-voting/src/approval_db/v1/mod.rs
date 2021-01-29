@@ -17,7 +17,7 @@
 //! Version 1 of the DB schema.
 
 use sc_client_api::backend::AuxStore;
-use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory, AssignmentCert};
+use polkadot_node_primitives::approval::{DelayTranche, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
 	BlockNumber, Hash, CandidateHash,
@@ -27,7 +27,7 @@ use parity_scale_codec::{Encode, Decode};
 
 use std::collections::{BTreeMap, HashMap};
 use std::collections::hash_map::Entry;
-use bitvec::{slice::BitSlice, vec::BitVec, order::Lsb0 as BitOrderLsb0};
+use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 #[cfg(test)]
 mod tests;

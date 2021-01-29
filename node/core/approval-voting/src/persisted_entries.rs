@@ -20,14 +20,12 @@
 //! Within that context, things are plain-old-data. Within this module,
 //! data and logic are intertwined.
 
-use sc_client_api::backend::AuxStore;
 use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, CandidateReceipt, SessionIndex, GroupIndex, CoreIndex,
 	Hash, CandidateHash,
 };
 use sp_consensus_slots::Slot;
-use parity_scale_codec::{Encode, Decode};
 
 use std::collections::BTreeMap;
 use bitvec::{slice::BitSlice, vec::BitVec, order::Lsb0 as BitOrderLsb0};
