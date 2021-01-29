@@ -119,6 +119,22 @@ pub mod well_known_keys {
 		})
 	}
 
+	/// The list of inbound channels for the given para.
+	///
+	/// The storage entry stores a `Vec<ParaId>`
+	pub fn hrmp_ingress_channel_index(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
 	/// The list of outbound channels for the given para.
 	///
 	/// The storage entry stores a `Vec<ParaId>`
