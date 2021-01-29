@@ -51,8 +51,6 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-// TODO: split this type and change this to hold a plain `CandidateReceipt`.
-// https://github.com/paritytech/polkadot/issues/1357
 #[derive(Encode, Decode, PartialEq)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {

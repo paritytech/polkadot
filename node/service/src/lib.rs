@@ -38,6 +38,7 @@ use {
 	sp_keystore::SyncCryptoStorePtr,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
+	babe_primitives::BabeApi,
 };
 
 use sp_core::traits::SpawnNamed;
@@ -288,7 +289,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 	let finality_proof_provider = GrandpaFinalityProofProvider::new_for_service(
 		backend.clone(),
-		client.clone(),
 		Some(shared_authority_set.clone()),
 	);
 
@@ -386,7 +386,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-	RuntimeClient::Api: ParachainHost<Block>,
+	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
