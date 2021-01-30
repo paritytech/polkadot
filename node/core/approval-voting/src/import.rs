@@ -55,7 +55,7 @@ use crate::persisted_entries::CandidateEntry;
 use crate::criteria::OurAssignment;
 use crate::time::{slot_number_to_tick, Tick};
 
-use super::{APPROVAL_SESSIONS, LOG_TARGET, State};
+use super::{APPROVAL_SESSIONS, LOG_TARGET, State, DBReader};
 
 /// A rolling window of sessions.
 #[derive(Default)]
@@ -92,7 +92,7 @@ impl RollingSessionWindow {
 // have in the DB. This may be somewhat expensive when first recovering from major sync.
 async fn determine_new_blocks(
 	ctx: &mut impl SubsystemContext,
-	db: &impl AuxStore,
+	db: &impl DBReader,
 	head: Hash,
 	header: &Header,
 	finalized_number: BlockNumber,
@@ -101,8 +101,7 @@ async fn determine_new_blocks(
 
 	// Early exit if the block is in the DB or too early.
 	{
-		let already_known = approval_db::v1::load_block_entry(db, &head)
-			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+		let already_known = db.load_block_entry(&head)?
 			.is_some();
 
 		let before_relevant = header.number <= finalized_number;
@@ -115,8 +114,7 @@ async fn determine_new_blocks(
 	let mut ancestry = vec![(head, header.clone())];
 
 	// Early exit if the parent hash is in the DB.
-	if approval_db::v1::load_block_entry(db, &header.parent_hash)
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
+	if db.load_block_entry(&header.parent_hash)?
 		.is_some()
 	{
 		return Ok(ancestry);
@@ -175,9 +173,7 @@ async fn determine_new_blocks(
 		};
 
 		for (hash, header) in batch_hashes.into_iter().zip(batch_headers) {
-			let is_known = approval_db::v1::load_block_entry(db, &hash)
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?
-				.is_some();
+			let is_known = db.load_block_entry(&hash)?.is_some();
 
 			let is_relevant = header.number > finalized_number;
 
@@ -329,7 +325,7 @@ struct ImportedBlockInfo {
 // failure to communicate with overseer,
 async fn imported_block_info(
 	ctx: &mut impl SubsystemContext,
-	state: &State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	block_hash: Hash,
 	block_header: &Header,
 ) -> SubsystemResult<Option<ImportedBlockInfo>> {
@@ -478,7 +474,8 @@ pub struct BlockImportedCandidates {
 /// It is the responsibility of the caller to schedule wakeups for each block.
 pub(crate) async fn handle_new_head(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl AuxStore>,
+	state: &mut State<impl DBReader>,
+	db_writer: &impl AuxStore,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -520,7 +517,7 @@ pub(crate) async fn handle_new_head(
 	// we don't do any look-back. Approval voting is only for nodes were already online.
 	let finalized_number = finalized_number.unwrap_or(header.number.saturating_sub(1));
 
-	let new_blocks = determine_new_blocks(ctx, &*state.db, head, &header, finalized_number)
+	let new_blocks = determine_new_blocks(ctx, &state.db, head, &header, finalized_number)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.await?;
 
@@ -542,7 +539,7 @@ pub(crate) async fn handle_new_head(
 		};
 
 		let candidate_entries = approval_db::v1::add_block_entry(
-			&*state.db,
+			db_writer,
 			block_header.parent_hash,
 			block_header.number,
 			approval_db::v1::BlockEntry {

@@ -174,11 +174,62 @@ impl Wakeups {
 	}
 }
 
+/// A read-only handle to a database.
+trait DBReader {
+	fn load_block_entry(
+		&self,
+		block_hash: &Hash,
+	) -> SubsystemResult<Option<BlockEntry>>;
+
+	fn load_candidate_entry(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>>;
+}
+
+// This is a submodule to enforce opacity of the inner DB type.
+mod approval_db_v1_reader {
+	use super::{
+		DBReader, AuxStore, Hash, CandidateHash, BlockEntry, CandidateEntry,
+		Arc, SubsystemResult, SubsystemError, approval_db,
+	};
+
+	/// A DB reader that uses the approval-db V1 under the hood.
+	pub(super) struct ApprovalDBV1Reader<T>(Arc<T>);
+
+	impl<T> From<Arc<T>> for ApprovalDBV1Reader<T> {
+		fn from(a: Arc<T>) -> Self {
+			ApprovalDBV1Reader(a)
+		}
+	}
+
+	impl<T: AuxStore> DBReader for ApprovalDBV1Reader<T> {
+		fn load_block_entry(
+			&self,
+			block_hash: &Hash,
+		) -> SubsystemResult<Option<BlockEntry>> {
+			approval_db::v1::load_block_entry(&*self.0, block_hash)
+				.map(|e| e.map(Into::into))
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+		}
+
+		fn load_candidate_entry(
+			&self,
+			candidate_hash: &CandidateHash,
+		) -> SubsystemResult<Option<CandidateEntry>> {
+			approval_db::v1::load_candidate_entry(&*self.0, candidate_hash)
+				.map(|e| e.map(Into::into))
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+		}
+	}
+}
+use approval_db_v1_reader::ApprovalDBV1Reader;
+
 struct State<T> {
 	session_window: import::RollingSessionWindow,
 	keystore: LocalKeystore,
 	slot_duration_millis: u64,
-	db: Arc<T>,
+	db: T,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
@@ -211,11 +262,11 @@ async fn run<T, C>(
 	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
 {
 	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
-	let mut state: State<T> = State {
+	let mut state = State {
 		session_window: Default::default(),
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
-		db: subsystem.db,
+		db: ApprovalDBV1Reader::from(subsystem.db.clone()),
 		clock,
 		assignment_criteria,
 	};
@@ -225,7 +276,9 @@ async fn run<T, C>(
 	let mut last_finalized_height: Option<BlockNumber> = None;
 	let mut background_rx = background_rx.fuse();
 
-	if let Err(e) = approval_db::v1::clear(&*state.db) {
+	let db_writer = &*subsystem.db;
+
+	if let Err(e) = approval_db::v1::clear(db_writer) {
 		tracing::warn!(target: LOG_TARGET, "Failed to clear DB: {:?}", e);
 		return Err(SubsystemError::with_origin("db", e));
 	}
@@ -260,6 +313,7 @@ async fn run<T, C>(
 				handle_from_overseer(
 					&mut ctx,
 					&mut state,
+					db_writer,
 					next_msg?,
 					&mut last_finalized_height,
 				).await?
@@ -277,7 +331,7 @@ async fn run<T, C>(
 			}
 		};
 
-		if handle_actions(&mut wakeups, &*state.db, actions)? {
+		if handle_actions(&mut wakeups, db_writer, actions)? {
 			break;
 		}
 	}
@@ -327,28 +381,11 @@ fn handle_actions(
 	Ok(conclude)
 }
 
-fn load_block_entry(
-	db: &impl AuxStore,
-	block_hash: &Hash,
-) -> SubsystemResult<Option<BlockEntry>> {
-	approval_db::v1::load_block_entry(db, block_hash)
-		.map(|e| e.map(Into::into))
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-}
-
-fn load_candidate_entry(
-	db: &impl AuxStore,
-	candidate_hash: &CandidateHash,
-) -> SubsystemResult<Option<CandidateEntry>> {
-	approval_db::v1::load_candidate_entry(db, candidate_hash)
-		.map(|e| e.map(Into::into))
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-}
-
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl AuxStore>,
+	state: &mut State<impl DBReader>,
+	db_writer: &impl AuxStore,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 ) -> SubsystemResult<Vec<Action>> {
@@ -358,7 +395,13 @@ async fn handle_from_overseer(
 			let mut actions = Vec::new();
 
 			for (head, _span) in update.activated {
-				match import::handle_new_head(ctx, state, head, &*last_finalized_height).await {
+				match import::handle_new_head(
+					ctx,
+					state,
+					db_writer,
+					head,
+					&*last_finalized_height,
+				).await {
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
@@ -382,7 +425,7 @@ async fn handle_from_overseer(
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			*last_finalized_height = Some(block_number);
 
-			approval_db::v1::canonicalize(&*state.db, block_number, block_hash)
+			approval_db::v1::canonicalize(db_writer, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
 			Vec::new()
@@ -400,7 +443,7 @@ async fn handle_from_overseer(
 				check_and_import_approval(state, a, res)?
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
-				match handle_approved_ancestor(ctx, &*state.db, target, lower_bound).await {
+				match handle_approved_ancestor(ctx, &state.db, target, lower_bound).await {
 					Ok(v) => {
 						let _ = res.send(v);
 					}
@@ -420,7 +463,7 @@ async fn handle_from_overseer(
 
 async fn handle_background_request(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	request: BackgroundRequest,
 ) -> SubsystemResult<Vec<Action>> {
 	match request {
@@ -449,7 +492,7 @@ async fn handle_background_request(
 
 async fn handle_approved_ancestor(
 	ctx: &mut impl SubsystemContext,
-	db: &impl AuxStore,
+	db: &impl DBReader,
 	target: Hash,
 	lower_bound: BlockNumber,
 ) -> SubsystemResult<Option<Hash>> {
@@ -493,7 +536,7 @@ async fn handle_approved_ancestor(
 		// Block entries should be present as the assumption is that
 		// nothing here is finalized. If we encounter any missing block
 		// entries we can fail.
-		let entry = match load_block_entry(db, &block_hash)? {
+		let entry = match db.load_block_entry(&block_hash)? {
 			None => return Ok(None),
 			Some(b) => b,
 		};
@@ -518,14 +561,14 @@ fn approval_signing_payload(
 }
 
 fn check_and_import_assignment(
-	state: &mut State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
 	const SLOT_TOO_FAR_IN_FUTURE: u64 = 5;
 
 	let tick_now = state.clock.tick_now();
-	let block_entry = match load_block_entry(&*state.db, &assignment.block_hash)? {
+	let block_entry = match state.db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
 		None => return Ok((AssignmentCheckResult::Bad, Vec::new())),
 	};
@@ -545,10 +588,7 @@ fn check_and_import_assignment(
 		None => return Ok((AssignmentCheckResult::Bad, Vec::new())), // no candidate at core.
 	};
 
-	let mut candidate_entry = match load_candidate_entry(
-		&*state.db,
-		&assigned_candidate_hash,
-	)? {
+	let mut candidate_entry = match state.db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
 		None => {
 			tracing::warn!(
@@ -644,7 +684,7 @@ fn check_and_import_assignment(
 }
 
 fn check_and_import_approval(
-	state: &mut State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	approval: IndirectSignedApprovalVote,
 	response: oneshot::Sender<ApprovalCheckResult>,
 ) -> SubsystemResult<Vec<Action>> {
@@ -655,7 +695,7 @@ fn check_and_import_approval(
 		} }
 	}
 
-	let block_entry = match load_block_entry(&*state.db, &approval.block_hash)? {
+	let block_entry = match state.db.load_block_entry(&approval.block_hash)? {
 		Some(b) => b,
 		None => respond_early!(ApprovalCheckResult::Bad)
 	};
@@ -689,7 +729,7 @@ fn check_and_import_approval(
 		respond_early!(ApprovalCheckResult::Bad)
 	}
 
-	let candidate_entry = match load_candidate_entry(&*state.db, &approved_candidate_hash)? {
+	let candidate_entry = match state.db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
 		None => {
 			tracing::warn!(
@@ -715,7 +755,7 @@ fn check_and_import_approval(
 }
 
 fn import_checked_approval(
-	state: &State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	already_loaded: Option<(Hash, BlockEntry)>,
 	candidate_hash: CandidateHash,
 	mut candidate_entry: CandidateEntry,
@@ -745,19 +785,19 @@ fn import_checked_approval(
 // If returning without error, is guaranteed to have produced actions
 // to write all modified block entries and the candidate entry itself.
 fn check_full_approvals(
-	state: &State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	mut already_loaded: Option<(Hash, BlockEntry)>,
 	candidate_hash: CandidateHash,
 	mut candidate_entry: CandidateEntry,
 	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
 ) -> SubsystemResult<(Vec<Action>, CandidateEntry)> {
 	// We only query this max once per hash.
-	let db = &*state.db;
+	let db = &state.db;
 	let mut load_block_entry = move |block_hash| -> SubsystemResult<Option<BlockEntry>> {
 		if already_loaded.as_ref().map_or(false, |(h, _)| h == block_hash) {
 			Ok(already_loaded.take().map(|(_, c)| c))
 		} else {
-			load_block_entry(db, block_hash)
+			db.load_block_entry(block_hash)
 		}
 	};
 
@@ -828,13 +868,13 @@ fn check_full_approvals(
 
 async fn process_wakeup(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
 	background_tx: &mpsc::Sender<BackgroundRequest>,
 ) -> SubsystemResult<Vec<Action>> {
-	let block_entry = load_block_entry(&*state.db, &relay_block)?;
-	let candidate_entry = load_candidate_entry(&*state.db, &candidate_hash)?;
+	let block_entry = state.db.load_block_entry(&relay_block)?;
+	let candidate_entry = state.db.load_candidate_entry(&candidate_hash)?;
 
 	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
 	let (block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
@@ -1064,12 +1104,12 @@ async fn launch_approval(
 // have been done.
 async fn issue_approval(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl AuxStore>,
+	state: &State<impl DBReader>,
 	request: ApprovalVoteRequest,
 ) -> SubsystemResult<Vec<Action>> {
 	let ApprovalVoteRequest { validator_index, block_hash, candidate_index } = request;
 
-	let block_entry = match load_block_entry(&*state.db, &block_hash)? {
+	let block_entry = match state.db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => return Ok(Vec::new()), // not a cause for alarm - just lost a race with pruning, most likely.
 	};
@@ -1102,7 +1142,7 @@ async fn issue_approval(
 		}
 	};
 
-	let candidate_entry = match load_candidate_entry(&*state.db, &candidate_hash)? {
+	let candidate_entry = match state.db.load_candidate_entry(&candidate_hash)? {
 		Some(c) => c,
 		None => {
 			tracing::warn!(
