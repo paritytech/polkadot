@@ -50,10 +50,21 @@ pub fn check_approval(
 			3 * approvals.count_ones() > 2 * approvals.len()
 		}
 		RequiredTranches::Exact(tranche, no_shows) => {
+			// whether all assigned validators up to tranche less no_shows have approved.
+			// e.g. if we had 5 tranches and 1 no-show, we would accept all validators in
+			// tranches 0..=5 except for 1 approving. In that example, we also accept all
+			// validators in tranches 0..=5 approving, but that would indicate that the
+			// RequiredTranches value was incorrectly constructed, so it is not realistic.
+			// If there are more missing approvals than there are no-shows, that indicates
+			// that there are some assignments which are not yet no-shows, but may become
+			// no-shows.
+
 			let mut assigned_mask = approval.assignments_up_to(tranche);
 			let approvals = candidate.approvals();
 
 			let n_assigned = assigned_mask.count_ones();
+
+			// Filter the amount of assigned validators by those which have approved.
 			assigned_mask &= approvals.iter().by_val();
 			let n_approved = assigned_mask.count_ones();
 
@@ -201,4 +212,101 @@ pub fn tranches_to_approve(
 		// Any assignments up to now should be broadcast. Typically this will happen when
 		// `tranche_now == 0`.
 		.unwrap_or(RequiredTranches::Pending(tranche_now))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use polkadot_primitives::v1::GroupIndex;
+	use bitvec::bitvec;
+	use bitvec::order::Lsb0 as BitOrderLsb0;
+
+	use crate::approval_db;
+
+	#[test]
+	fn pending_is_not_approved() {
+		let candidate = approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 0,
+			block_assignments: Default::default(),
+			approvals: Default::default(),
+		}.into();
+
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: Default::default(),
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::Pending(0)));
+	}
+
+	#[test]
+	fn all_requires_supermajority() {
+		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 0,
+			block_assignments: Default::default(),
+			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
+		}.into();
+
+		for i in 0..6 {
+			candidate.mark_approval(i);
+		}
+
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::All));
+
+		candidate.mark_approval(6);
+		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::All));
+	}
+
+	#[test]
+	fn exact_takes_only_assignments_up_to() {
+		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 0,
+			block_assignments: Default::default(),
+			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
+		}.into();
+
+		for i in 0..6 {
+			candidate.mark_approval(i);
+		}
+
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: vec![
+				approval_db::v1::TrancheEntry {
+					tranche: 0,
+					assignments: (0..4).map(|i| (i, 0.into())).collect(),
+				},
+				approval_db::v1::TrancheEntry {
+					tranche: 1,
+					assignments: (4..6).map(|i| (i, 1.into())).collect(),
+				},
+				approval_db::v1::TrancheEntry {
+					tranche: 2,
+					assignments: (6..10).map(|i| (i, 0.into())).collect(),
+				},
+			],
+			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::Exact(1, 0)));
+		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::Exact(2, 0)));
+		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::Exact(2, 4)));
+	}
 }
