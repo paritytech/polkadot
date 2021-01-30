@@ -91,6 +91,8 @@ impl Stream for RequestMultiplexer {
 			match Pin::new(rx).poll_next(cx) {
 				// If at least one stream is pending, we are pending as well:
 				Poll::Pending => result = Poll::Pending,
+				// Receiver is a fused stream, which allows for this simple handling of 
+				// exhausted ones.
 				Poll::Ready(None) => {}
 				Poll::Ready(Some(v)) => {
 					result = Poll::Ready(Some(multiplex_single(*p, v)));
