@@ -208,16 +208,15 @@ decl_storage! {
 		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 
 		/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
-		/// entry in the upcoming-genesis map. Ordered.
+		/// entry in the upcoming-genesis map. Ordered ascending by ParaId.
 		UpcomingParas get(fn upcoming_paras): Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
-		/// Paras that are to be cleaned up at the end of the session.
+		/// Paras that are to be cleaned up at the end of the session. Ordered ascending by ParaId.
 		OutgoingParas get(fn outgoing_paras): Vec<ParaId>;
-
-		/// Existing Parathreads that should upgrade to be a Parachain.
+		/// Existing Parathreads that should upgrade to be a Parachain. Ordered ascending by ParaId.
 		UpcomingUpgrades: Vec<ParaId>;
-		/// Existing Parachains that should downgrade to be a Parathread.
+		/// Existing Parachains that should downgrade to be a Parathread. Ordered ascending by ParaId.
 		UpcomingDowngrades: Vec<ParaId>;
 	}
 	add_extra_genesis {
@@ -331,7 +330,6 @@ impl<T: Config> Module<T> {
 			ParaLifecycles::mutate(&para, |v| {
 				if *v == Some(ParaLifecycle::UpgradingToParachain) {
 					if let Err(i) = parachains.binary_search(&para) {
-						ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
 						parachains.insert(i, para);
 					}
 					*v = Some(ParaLifecycle::Parachain);
@@ -344,10 +342,14 @@ impl<T: Config> Module<T> {
 	fn apply_downgrades(parachains: &mut Vec<ParaId>) {
 		let downgrades = UpcomingDowngrades::take();
 		for para in downgrades {
-			if let Ok(i) = parachains.binary_search(&para) {
-				parachains.remove(i);
-				ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
-			}
+			ParaLifecycles::mutate(&para, |v| {
+				if *v == Some(ParaLifecycle::DowngradingToParathread) {
+					if let Ok(i) = parachains.binary_search(&para) {
+						parachains.remove(i);
+					}
+					*v = Some(ParaLifecycle::Parathread);
+				}
+			});
 		}
 	}
 

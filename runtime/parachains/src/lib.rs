@@ -72,18 +72,18 @@ where
 /// The possible states of a para, to take into account delayed lifecycle changes.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub enum ParaLifecycle {
-	/// Para ID is new and is onboarding as a Parathread.
+	/// Para is new and is onboarding as a Parathread.
 	OnboardingAsParathread,
-	/// Para ID is new and is onboarding as a Parachain.
+	/// Para is new and is onboarding as a Parachain.
 	OnboardingAsParachain,
-	/// Para ID is a Parathread.
+	/// Para is a Parathread.
 	Parathread,
-	/// Para ID is a Parachain.
+	/// Para is a Parachain.
 	Parachain,
-	/// Para ID is a Parathread which is upgrading to a Parachain.
+	/// Para is a Parathread which is upgrading to a Parachain.
 	UpgradingToParachain,
-	/// Para ID is a Parachain which is downgrading to a Parathread.
+	/// Para is a Parachain which is downgrading to a Parathread.
 	DowngradingToParathread,
-	/// Para ID is being offboarded.
+	/// Para is being offboarded.
 	Outgoing,
 }
