@@ -332,7 +332,7 @@ impl<T: Config> Leaser for Module<T> {
 	}
 
 	fn lease_period_index() -> Self::LeasePeriod {
-		(<frame_system::Module<T>>::block_number() / T::LeasePeriod::get()).into()
+		<frame_system::Module<T>>::block_number() / T::LeasePeriod::get()
 	}
 }
 
