@@ -32,15 +32,14 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 };
 use polkadot_primitives::v1::{
-	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber, PersistedValidationData,
+	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
+	CandidateReceipt, BlockNumber, PersistedValidationData,
 	ValidationCode, CandidateDescriptor, PoV, ValidatorPair, ValidatorSignature, ValidatorId,
 	CandidateIndex,
 };
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_primitives::approval::{
-	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
-	BlockApprovalMeta, RelayVRFStory, ApprovalVote,
+	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote,
 };
 use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
@@ -51,8 +50,6 @@ use sp_application_crypto::Pair;
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
-use bitvec::vec::BitVec;
-use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use std::collections::{BTreeMap, HashMap};
 use std::collections::btree_map::Entry;
@@ -61,7 +58,7 @@ use std::ops::{RangeBounds, Bound as RangeBound};
 
 use approval_checking::RequiredTranches;
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
-use criteria::{AssignmentCriteria, RealAssignmentCriteria, OurAssignment};
+use criteria::{AssignmentCriteria, RealAssignmentCriteria};
 use time::{slot_number_to_tick, Tick, Clock, ClockExt, SystemClock};
 
 mod approval_checking;

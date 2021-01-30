@@ -30,46 +30,30 @@
 
 use polkadot_subsystem::{
 	messages::{
-		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ValidationFailed, CandidateValidationMessage, AvailabilityRecoveryMessage,
 	},
-	errors::RecoveryError,
-	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
-	FromOverseer, OverseerSignal,
+	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_primitives::v1::{
-	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber, PersistedValidationData,
-	ValidationCode, CandidateDescriptor, PoV, ValidatorPair, ValidatorSignature, ValidatorId,
-	CandidateIndex,
+	Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
+	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber,
 };
-use polkadot_node_primitives::ValidationResult;
 use polkadot_node_primitives::approval::{
-	self as approval_types, IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche,
-	BlockApprovalMeta, RelayVRFStory, ApprovalVote,
+	self as approval_types, BlockApprovalMeta, RelayVRFStory,
 };
-use parity_scale_codec::Encode;
-use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
 use sc_client_api::backend::AuxStore;
-use sp_runtime::traits::AppVerify;
-use sp_application_crypto::Pair;
 
 use futures::prelude::*;
-use futures::channel::{mpsc, oneshot};
-use bitvec::vec::BitVec;
+use futures::channel::oneshot;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 
-use std::collections::{BTreeMap, HashMap};
-use std::collections::btree_map::Entry;
-use std::sync::Arc;
-use std::ops::{RangeBounds, Bound as RangeBound};
+use std::collections::HashMap;
 
 use crate::approval_db;
-use crate::persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
-use crate::criteria::{AssignmentCriteria, RealAssignmentCriteria, OurAssignment};
-use crate::time::{slot_number_to_tick, Tick, Clock, ClockExt, SystemClock};
+use crate::persisted_entries::CandidateEntry;
+use crate::criteria::OurAssignment;
+use crate::time::{slot_number_to_tick, Tick};
 
 use super::{APPROVAL_SESSIONS, LOG_TARGET, State};
 
@@ -249,7 +233,6 @@ struct SessionsUnavailable;
 async fn cache_session_info_for_head(
 	ctx: &mut impl SubsystemContext,
 	session_window: &mut RollingSessionWindow,
-	db: &impl AuxStore,
 	block_hash: Hash,
 	block_header: &Header,
 ) -> SubsystemResult<Result<(), SessionsUnavailable>> {
@@ -520,7 +503,6 @@ pub(crate) async fn handle_new_head(
 		= cache_session_info_for_head(
 			ctx,
 			&mut state.session_window,
-			&*state.db,
 			head,
 			&header,
 		).await?

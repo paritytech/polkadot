@@ -528,28 +528,6 @@ impl Transaction {
 	}
 }
 
-/// Write a candidate entry to the store.
-pub(crate) fn write_candidate_entry(store: &impl AuxStore, candidate_hash: &CandidateHash, entry: &CandidateEntry)
-	-> sp_blockchain::Result<()>
-{
-	let k = candidate_entry_key(candidate_hash);
-	let v = entry.encode();
-	let kv = (&k[..], &v[..]);
-
-	store.insert_aux(std::iter::once(&kv), &[])
-}
-
-/// Write a block entry to the store.
-pub(crate) fn write_block_entry(store: &impl AuxStore, entry: &BlockEntry)
-	-> sp_blockchain::Result<()>
-{
-	let k = block_entry_key(&entry.block_hash);
-	let v = entry.encode();
-	let kv = (&k[..], &v[..]);
-
-	store.insert_aux(std::iter::once(&kv), &[])
-}
-
 /// Load the stored-blocks key from the state.
 fn load_stored_blocks(store: &impl AuxStore)
 	-> sp_blockchain::Result<Option<StoredBlockRange>>
