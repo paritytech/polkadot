@@ -26,6 +26,7 @@ use frame_support::{
 use frame_system::ensure_root;
 use runtime_parachains::{
 	configuration, dmp, ump, hrmp, paras::{self, ParaGenesisArgs},
+	ParachainCleanup,
 };
 use primitives::v1::Id as ParaId;
 use parity_scale_codec::Encode;
@@ -34,6 +35,8 @@ use parity_scale_codec::Encode;
 pub trait Config:
 	configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config
 {
+	/// Runtime hook for when a parachain should be cleaned up.
+	type ParachainCleanup: runtime_parachains::ParachainCleanup;
 }
 
 decl_error! {
@@ -70,7 +73,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn sudo_schedule_para_cleanup(origin, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
-			runtime_parachains::schedule_para_cleanup::<T>(id);
+			T::ParachainCleanup::schedule_para_cleanup(id);
 			Ok(())
 		}
 

@@ -53,18 +53,27 @@ pub fn schedule_para_initialize<T: paras::Config>(
 	<paras::Module<T>>::schedule_para_initialize(id, genesis);
 }
 
-/// Schedule a para to be cleaned up at the start of the next session.
-pub fn schedule_para_cleanup<T>(id: ParaId)
+/// Trait to trigger parachain cleanup.
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+pub trait ParachainCleanup {
+	fn schedule_para_cleanup(id: ParaId);
+}
+
+/// Helper struct which contains all the needed parachain cleanups.
+pub struct AllParachainCleanup<T>(core::marker::PhantomData<T>);
+impl<T> ParachainCleanup for AllParachainCleanup<T>
 where
 	T: paras::Config
 	+ dmp::Config
 	+ ump::Config
 	+ hrmp::Config,
 {
-	<paras::Module<T>>::schedule_para_cleanup(id);
-	<dmp::Module<T>>::schedule_para_cleanup(id);
-	<ump::Module<T>>::schedule_para_cleanup(id);
-	<hrmp::Module<T>>::schedule_para_cleanup(id);
+	fn schedule_para_cleanup(id: ParaId) {
+		<paras::Module<T>>::schedule_para_cleanup(id);
+		<dmp::Module<T>>::schedule_para_cleanup(id);
+		<ump::Module<T>>::schedule_para_cleanup(id);
+		<hrmp::Module<T>>::schedule_para_cleanup(id);
+	}
 }
 
 /// TODO: doc

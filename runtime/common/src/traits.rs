@@ -23,6 +23,8 @@ use frame_support::{
 	traits::{Currency, ReservableCurrency},
 };
 
+use sp_std::vec::*;
+
 /// Parachain registration API.
 pub trait Registrar {
 	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.

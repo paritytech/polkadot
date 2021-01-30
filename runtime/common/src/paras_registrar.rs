@@ -33,9 +33,8 @@ use runtime_parachains::{
 		self,
 		ParaGenesisArgs,
 	},
-	dmp, ump, hrmp,
 	ensure_parachain,
-	Origin,
+	Origin, ParachainCleanup,
 };
 
 use crate::traits::{Registrar, OnSwap};
@@ -52,7 +51,7 @@ pub struct ParaInfo<Account, Balance> {
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-pub trait Config: paras::Config + dmp::Config + ump::Config + hrmp::Config {
+pub trait Config: paras::Config {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
@@ -68,6 +67,9 @@ pub trait Config: paras::Config + dmp::Config + ump::Config + hrmp::Config {
 
 	/// Runtime hook for when a parachain and parathread swap.
 	type OnSwap: crate::traits::OnSwap;
+
+	/// Runtime hook for when a parachain should be cleaned up.
+	type ParachainCleanup: runtime_parachains::ParachainCleanup;
 
 	/// The deposit to be paid to run a parathread.
 	/// This should include the cost for storing the genesis head and validation code.
@@ -185,7 +187,7 @@ decl_module! {
 				<T as Config>::Currency::unreserve(&info.manager, info.deposit);
 			}
 
-			runtime_parachains::schedule_para_cleanup::<T>(id);
+			T::ParachainCleanup::schedule_para_cleanup(id);
 			Self::deposit_event(RawEvent::Deregistered(id));
 			Ok(())
 		}
@@ -578,6 +580,7 @@ mod tests {
 		type Event = ();
 		type Origin = Origin;
 		type Currency = pallet_balances::Module<Test>;
+		type ParachainCleanup = Parachains;
 		type OnSwap = ();
 		type ParaDeposit = ParaDeposit;
 		type MaxCodeSize = MaxCodeSize;

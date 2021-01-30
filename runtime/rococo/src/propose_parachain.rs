@@ -39,7 +39,10 @@ use frame_system::{ensure_signed, EnsureOneOf, EnsureSigned};
 use sp_runtime::Either;
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
-use runtime_parachains::paras::ParaGenesisArgs;
+use runtime_parachains::{
+	ParachainCleanup,
+	paras::ParaGenesisArgs
+};
 
 type EnsurePriviledgedOrSigned<T> = EnsureOneOf<
 	<T as frame_system::Config>::AccountId,
@@ -54,11 +57,7 @@ type BalanceOf<T> = <T as pallet_balances::Config>::Balance;
 /// Configuration for the parachain proposer.
 pub trait Config: pallet_session::Config
 	+ pallet_balances::Config
-	+ pallet_balances::Config
 	+ runtime_parachains::paras::Config
-	+ runtime_parachains::dmp::Config
-	+ runtime_parachains::ump::Config
-	+ runtime_parachains::hrmp::Config
 {
 	/// The overreaching event type.
 	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
@@ -71,6 +70,9 @@ pub trait Config: pallet_session::Config
 
 	/// Priviledged origin that can approve/cancel/deregister parachain and proposals.
 	type PriviledgedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+
+	/// Runtime hook for when a parachain should be cleaned up.
+	type ParachainCleanup: runtime_parachains::ParachainCleanup;
 }
 
 /// A proposal for adding a parachain to the relay chain.
@@ -285,7 +287,7 @@ decl_module! {
 
 			ParachainInfo::<T>::remove(&para_id);
 			info.validators.into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
-			runtime_parachains::schedule_para_cleanup::<T>(para_id);
+			T::ParachainCleanup::schedule_para_cleanup(para_id);
 
 			pallet_balances::Module::<T>::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
