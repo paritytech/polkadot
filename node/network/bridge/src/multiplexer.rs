@@ -79,16 +79,15 @@ impl Stream for RequestMultiplexer {
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		let len = self.receivers.len();
-		if len == 0 {
-			return Poll::Ready(None)
-		}
 		let mut count = len;
 		let mut i = self.next_poll;
 		let mut result = Poll::Ready(None);
 		// Poll streams in round robin fashion:
 		while count > 0 {
+			// % safe, because count initialized to len, loop would not be entered if 0:
 			let (p, rx): &mut (_, _) = &mut self.receivers[i % len];
 			i += 1;
+			count -= 1;
 			match Pin::new(rx).poll_next(cx) {
 				// If at least one stream is pending, we are pending as well:
 				Poll::Pending => result = Poll::Pending,
@@ -98,9 +97,8 @@ impl Stream for RequestMultiplexer {
 					break;
 				}
 			}
-			count -= 1;
 		}
-		self.next_poll = i % len;
+		self.next_poll = i;
 		result
 	}
 }
