@@ -573,7 +573,7 @@ mod tests {
 	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_primitives::v1::AuthorityDiscoveryId;
-	use polkadot_node_network_protocol::ObservedRole;
+	use polkadot_node_network_protocol::{ObservedRole, request_response::request::Requests};
 
 	use crate::network::{Network, NetworkAction};
 
@@ -625,6 +625,10 @@ mod tests {
 			-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
 		{
 			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
+		}
+
+		fn send_request(&self, _: Requests) {
+			// Tests to be coming soon!
 		}
 	}
 
@@ -709,10 +713,16 @@ mod tests {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (network, network_handle, discovery) = new_test_network();
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+		let (request_multiplexer, _) = RequestMultiplexer::new();
+
+		let bridge = NetworkBridge {
+			network_service: network,
+			authority_discovery_service: discovery,
+			request_multiplexer,
+		};
 
 		let network_bridge = run_network(
-			network,
-			discovery,
+			bridge,
 			context,
 		)
 			.map_err(|_| panic!("subsystem execution failed"))
