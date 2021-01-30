@@ -274,9 +274,9 @@ async fn run<T, C>(
 						&mut state,
 						req,
 					).await?
+				} else {
+					Vec::new()
 				}
-
-				Vec::new()
 			}
 		};
 
@@ -425,11 +425,10 @@ async fn handle_background_request(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl AuxStore>,
 	request: BackgroundRequest,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<Vec<Action>> {
 	match request {
 		BackgroundRequest::ApprovalVote(vote_request) => {
-			// issue_approval(ctx, state, vote_request).await?;
-			unimplemented!()
+			issue_approval(ctx, state, vote_request).await
 		}
 		BackgroundRequest::CandidateValidation(
 			validation_data,
@@ -445,10 +444,10 @@ async fn handle_background_request(
 				pov,
 				tx,
 			).into()).await;
+
+			Ok(Vec::new())
 		}
 	}
-
-	Ok(())
 }
 
 async fn handle_approved_ancestor(
