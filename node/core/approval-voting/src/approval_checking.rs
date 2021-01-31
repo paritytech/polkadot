@@ -24,6 +24,7 @@ use crate::persisted_entries::{ApprovalEntry, CandidateEntry};
 use crate::time::Tick;
 
 /// The required tranches of assignments needed to determine whether a candidate is approved.
+#[derive(Debug, PartialEq)]
 pub enum RequiredTranches {
 	/// All validators appear to be required, based on tranches already taken and remaining
 	/// no-shows.
@@ -97,6 +98,7 @@ pub fn tranches_to_approve(
 	// no-shows encountered along the way. Once all of the no-shows we were previously aware
 	// of are covered, we then progress to cover the no-shows we encountered while covering those,
 	// and so on.
+	#[derive(Debug)]
 	enum State {
 		// (assignments, no-shows)
 		InitialCount(usize, usize),
@@ -108,6 +110,7 @@ pub fn tranches_to_approve(
 		fn output(
 			&self,
 			tranche: DelayTranche,
+			tranche_now: DelayTranche,
 			needed_approvals: usize,
 			n_validators: usize,
 		) -> RequiredTranches {
@@ -116,10 +119,26 @@ pub fn tranches_to_approve(
 					if assignments >= needed_approvals && no_shows == 0 {
 						RequiredTranches::Exact(tranche, 0)
 					} else {
-						// If we have no-shows pending before we have seen enough assignments,
-						// this can happen. In this case we want assignments to broadcast based
+						// This happens only if there are not enough assignments, period.
+						//
+						// However, within the context of this function in particular,
+						// it can happen if there are enough assignments but there are no-shows.
+						// The calling code would have already transitioned the state to
+						// `CoverNoShows` before invoking this function, so that is not possible
+						// in practice.
+						//
+						// In the case of not-enough assignments, we want assignments to broadcast based
 						// on timer, so we treat it as though there are no uncovered no-shows.
-						RequiredTranches::Pending(tranche)
+						if no_shows == 0 {
+							RequiredTranches::Pending(tranche_now)
+						} else if assignments < needed_approvals {
+							// This branch is only hit if there are no-shows before there
+							// are enough initial assignments.
+							RequiredTranches::Pending(tranche_now)
+						} else {
+							// This branch is never hit, as explained above.
+							RequiredTranches::Pending(tranche + no_shows as DelayTranche)
+						}
 					},
 				State::CoverNoShows(total_assignments, covered, covering, uncovered) =>
 					if covering == 0 && uncovered == 0 {
@@ -139,6 +158,7 @@ pub fn tranches_to_approve(
 	approval_entry.tranches().iter()
 		.take_while(|t| t.tranche() <= tranche_now)
 		.scan(Some(State::InitialCount(0, 0)), |state, tranche| {
+			// The `Option` here is used for early exit.
 			let s = match state.take() {
 				None => return None,
 				Some(s) => s,
@@ -149,15 +169,15 @@ pub fn tranches_to_approve(
 			// count no-shows. An assignment is a no-show if there is no corresponding approval vote
 			// after a fixed duration.
 			let no_shows = tranche.assignments().iter().filter(|(v_index, tick)| {
-				tick + no_show_duration >= tick_now
-					&& approvals.get(*v_index as usize).map(|b| *b).unwrap_or(true)
+				tick + no_show_duration <= tick_now
+					&& approvals.get(*v_index as usize).map(|b| !*b).unwrap_or(true)
 			}).count();
 
-			*state = Some(match s {
+			let s = match s {
 				State::InitialCount(total_assignments, no_shows_so_far) => {
 					let no_shows = no_shows + no_shows_so_far;
 					let total_assignments = total_assignments + n_assignments;
-					if total_assignments >= needed_approvals {
+					if dbg!(total_assignments) >= needed_approvals {
 						if no_shows == 0 {
 							// Note that this state will never be advanced
 							// as we will return `RequiredTranches::Exact`.
@@ -189,9 +209,9 @@ pub fn tranches_to_approve(
 						State::CoverNoShows(total_assignments, covered + 1, covering - 1, uncovered)
 					}
 				}
-			});
+			};
 
-			let output = s.output(tranche.tranche(), needed_approvals, n_validators);
+			let output = s.output(tranche.tranche(), tranche_now, needed_approvals, n_validators);
 			match output {
 				RequiredTranches::Exact(_, _) | RequiredTranches::All => {
 					// Wipe the state clean so the next iteration of this closure will terminate
@@ -202,6 +222,7 @@ pub fn tranches_to_approve(
 				RequiredTranches::Pending(_) => {
 					// Pending results are only interesting when they are the last result of the iterator
 					// i.e. we never achieve a satisfactory level of assignment.
+					*state = Some(s);
 				}
 			}
 
@@ -308,5 +329,291 @@ mod tests {
 		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::Exact(1, 0)));
 		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::Exact(2, 0)));
 		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::Exact(2, 4)));
+	}
+
+	#[test]
+	fn tranches_to_approve_everyone_present() {
+		let block_tick = 0;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; 4],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, 0, block_tick);
+		approval_entry.import_assignment(0, 1, block_tick);
+
+		approval_entry.import_assignment(1, 2, block_tick + 1);
+		approval_entry.import_assignment(1, 3, block_tick + 1);
+
+		let approvals = bitvec![BitOrderLsb0, u8; 1; 4];
+
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				2,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Exact(1, 0),
+		);
+	}
+
+	#[test]
+	fn tranches_to_approve_no_shows_before_initial_count() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; 4],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, 0, block_tick);
+		approval_entry.import_assignment(0, 1, block_tick);
+
+		approval_entry.import_assignment(1, 2, block_tick);
+
+		let mut approvals = bitvec![BitOrderLsb0, u8; 0; 4];
+		approvals.set(0, true);
+		approvals.set(1, true);
+
+		let tranche_now = no_show_duration as DelayTranche + 1;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending(tranche_now),
+		);
+	}
+
+	#[test]
+	fn tranches_to_approve_not_enough_initial() {
+		let block_tick = 0;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; 4],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, 0, block_tick);
+		approval_entry.import_assignment(0, 1, block_tick);
+
+		approval_entry.import_assignment(1, 3, block_tick + 1);
+
+		let approvals = bitvec![BitOrderLsb0, u8; 1; 4];
+
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				8,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending(8), // tranche_now
+		);
+	}
+
+	#[test]
+	fn tranches_to_approve_cover_no_show_not_enough() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+		let n_validators = 8;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, 0, block_tick);
+		approval_entry.import_assignment(0, 1, block_tick);
+
+		approval_entry.import_assignment(1, 2, block_tick);
+		approval_entry.import_assignment(1, 3, block_tick);
+
+		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		approvals.set(0, true);
+		approvals.set(1, true);
+		// skip 2
+		approvals.set(3, true);
+
+		let tranche_now = no_show_duration as DelayTranche + 1;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending(2), // tranche 1 + 1 no-show.
+		);
+
+		approvals.set(0, false);
+
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending(3), // tranche 1 + 2 no-show.
+		);
+	}
+
+	#[test]
+	fn tranches_to_approve_multi_cover_not_enough() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+		let n_validators = 8;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+
+		approval_entry.import_assignment(0, 0, block_tick);
+		approval_entry.import_assignment(0, 1, block_tick);
+
+		approval_entry.import_assignment(1, 2, block_tick);
+		approval_entry.import_assignment(1, 3, block_tick);
+
+		approval_entry.import_assignment(2, 4, block_tick);
+		approval_entry.import_assignment(2, 5, block_tick);
+
+		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		approvals.set(0, true);
+		approvals.set(1, true);
+		// skip 2
+		approvals.set(3, true);
+		// skip 4
+		approvals.set(5, true);
+
+		let tranche_now = no_show_duration as DelayTranche + 1;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending(3), // tranche 2 + 1 uncovered no-show
+		);
+	}
+
+	#[test]
+	fn tranches_to_approve_cover_no_show() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+		let n_validators = 8;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, 0, block_tick);
+		approval_entry.import_assignment(0, 1, block_tick);
+
+		approval_entry.import_assignment(1, 2, block_tick);
+		approval_entry.import_assignment(1, 3, block_tick);
+
+		approval_entry.import_assignment(2, 4, block_tick);
+		approval_entry.import_assignment(2, 5, block_tick);
+
+		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		approvals.set(0, true);
+		approvals.set(1, true);
+		// skip 2
+		approvals.set(3, true);
+		approvals.set(4, true);
+		approvals.set(5, true);
+
+		let tranche_now = no_show_duration as DelayTranche + 1;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Exact(2, 1),
+		);
+
+		// Even though tranche 2 has 2 validators, it only covers 1 no-show.
+		// to cover a second no-show, we need to take another non-empty tranche.
+
+		approvals.set(0, false);
+
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending(3),
+		);
+
+		approval_entry.import_assignment(3, 6, block_tick);
+		approvals.set(6, true);
+
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Exact(3, 2),
+		);
 	}
 }
