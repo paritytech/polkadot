@@ -282,6 +282,14 @@ impl<T: Config> Module<T> {
 		let outgoing = <Self as Store>::OutgoingParas::take();
 
 		for outgoing_para in outgoing {
+			// Warn if there is a state error... but still perform the offboarding to be defensive.
+			if ParaLifecycles::get(&outgoing_para) != Some(ParaLifecycle::Outgoing) {
+				frame_support::debug::error!(
+					target: "parachains",
+					"Outgoing parachain has wrong lifecycle state."
+				)
+			}
+
 			if let Ok(i) = parachains.binary_search(&outgoing_para) {
 				parachains.remove(i);
 			}
@@ -304,22 +312,38 @@ impl<T: Config> Module<T> {
 	fn apply_incoming(parachains: &mut Vec<ParaId>) {
 		let upcoming = <Self as Store>::UpcomingParas::take();
 		for upcoming_para in upcoming {
+			let state = match ParaLifecycles::get(&upcoming_para) {
+				Some(ParaLifecycle::OnboardingAsParachain) => ParaLifecycle::OnboardingAsParachain,
+				Some(ParaLifecycle::OnboardingAsParathread) => ParaLifecycle::OnboardingAsParathread,
+				_ => continue,
+			};
+
 			let genesis_data = match <Self as Store>::UpcomingParasGenesis::take(&upcoming_para) {
 				None => continue,
 				Some(g) => g,
 			};
 
+			let mut onboarded = false;
+
 			if genesis_data.parachain {
 				if let Err(i) = parachains.binary_search(&upcoming_para) {
-					ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parachain);
-					parachains.insert(i, upcoming_para);
+					if state == ParaLifecycle::OnboardingAsParachain {
+						parachains.insert(i, upcoming_para);
+						ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parachain);
+						onboarded = true;
+					}
 				}
 			} else {
-				ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parathread);
+				if state == ParaLifecycle::OnboardingAsParathread {
+					ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parathread);
+					onboarded = true
+				}
 			}
 
-			<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
-			<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
+			if onboarded {
+				<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
+				<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
+			}
 		}
 	}
 
@@ -327,12 +351,12 @@ impl<T: Config> Module<T> {
 	fn apply_upgrades(parachains: &mut Vec<ParaId>) {
 		let upgrades = UpcomingUpgrades::take();
 		for para in upgrades {
-			ParaLifecycles::mutate(&para, |v| {
-				if *v == Some(ParaLifecycle::UpgradingToParachain) {
+			ParaLifecycles::mutate(&para, |state| {
+				if *state == Some(ParaLifecycle::UpgradingToParachain) {
 					if let Err(i) = parachains.binary_search(&para) {
 						parachains.insert(i, para);
 					}
-					*v = Some(ParaLifecycle::Parachain);
+					*state = Some(ParaLifecycle::Parachain);
 				}
 			});
 		}
@@ -342,12 +366,12 @@ impl<T: Config> Module<T> {
 	fn apply_downgrades(parachains: &mut Vec<ParaId>) {
 		let downgrades = UpcomingDowngrades::take();
 		for para in downgrades {
-			ParaLifecycles::mutate(&para, |v| {
-				if *v == Some(ParaLifecycle::DowngradingToParathread) {
+			ParaLifecycles::mutate(&para, |state| {
+				if *state == Some(ParaLifecycle::DowngradingToParathread) {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
-					*v = Some(ParaLifecycle::Parathread);
+					*state = Some(ParaLifecycle::Parathread);
 				}
 			});
 		}
@@ -432,6 +456,14 @@ impl<T: Config> Module<T> {
 
 	/// Schedule a para to be initialized at the start of the next session.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+		let mut weight = T::DbWeight::get().reads_writes(0, 0);
+
+		// Make sure parachain isn't already in our system.
+		if ParaLifecycles::contains_key(&id) {
+			weight = weight.saturating_add(T::DbWeight::get().reads(1));
+			return weight;
+		}
+
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -443,19 +475,20 @@ impl<T: Config> Module<T> {
 		});
 
 		if dup {
-			let weight = T::DbWeight::get().reads_writes(1, 0);
+			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			return weight;
 		}
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
 		if genesis.parachain {
 			ParaLifecycles::insert(&id, ParaLifecycle::OnboardingAsParachain);
 		} else {
 			ParaLifecycles::insert(&id, ParaLifecycle::OnboardingAsParathread);
 		}
-
 		UpcomingParasGenesis::insert(&id, &genesis);
+		weight = weight.saturating_add(T::DbWeight::get().writes(2));
 
-		T::DbWeight::get().reads_writes(1, 2)
+		weight
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
@@ -467,7 +500,7 @@ impl<T: Config> Module<T> {
 					UpcomingParasGenesis::remove(&id);
 					ParaLifecycles::remove(&id);
 					// If a para was only in the pending state it should not be moved to `Outgoing`
-					return T::DbWeight::get().reads_writes(2, 3);
+					return T::DbWeight::get().reads_writes(1, 3);
 				}
 				Err(_) => T::DbWeight::get().reads_writes(1, 0),
 			}
@@ -484,10 +517,10 @@ impl<T: Config> Module<T> {
 			}
 		});
 
-		outgoing_weight + upcoming_weight
+		outgoing_weight.saturating_add(upcoming_weight)
 	}
 
-	#[allow(dead_code)]
+	#[allow(unused)]
 	pub(crate) fn schedule_para_upgrade(id: ParaId) -> Weight {
 		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parathread) {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
@@ -514,7 +547,7 @@ impl<T: Config> Module<T> {
 		T::DbWeight::get().reads_writes(2, 2)
 	}
 
-	#[allow(dead_code)]
+	#[allow(unused)]
 	pub(crate) fn schedule_para_downgrade(id: ParaId) -> Weight {
 		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parachain) {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
