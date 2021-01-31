@@ -605,4 +605,34 @@ pub(crate) async fn handle_new_head(
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn determine_new_blocks_back_to_finalized() {
+
+	}
+
+	#[test]
+	fn determine_new_blocks_back_to_known() {
+
+	}
+
+	#[test]
+	fn imported_block_info() {
+
+	}
+
+	#[test]
+	fn cache_session_info_first() {
+
+	}
+
+	#[test]
+	fn cache_session_info_jump() {
+
+	}
+
+	#[test]
+	fn cache_session_info_roll() {
+
+	}
 }
