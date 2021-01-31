@@ -650,7 +650,7 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	/// Whether a para ID corresponds to any live parathread.
+	/// Whether a para ID corresponds to any live parachain.
 	pub fn is_parachain(id: ParaId) -> bool {
 		match ParaLifecycles::get(&id) {
 			Some(ParaLifecycle::Parachain) => true,
