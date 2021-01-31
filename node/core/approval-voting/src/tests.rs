@@ -15,6 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use polkadot_node_primitives::approval::{
+	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
+	RELAY_VRF_MODULO_CONTEXT,
+};
 
 use parking_lot::Mutex;
 use std::cell::RefCell;
@@ -100,9 +104,36 @@ impl MockClockInner {
 
 struct MockAssignmentCriteria;
 
+impl AssignmentCriteria for MockAssignmentCriteria {
+	fn compute_assignments(
+		&self,
+		_keystore: &LocalKeystore,
+		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+		_config: &criteria::Config,
+		_leaving_cores: Vec<(polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
+		HashMap::new()
+	}
+
+	fn check_assignment_cert(
+		&self,
+		_claimed_core_index: polkadot_primitives::v1::CoreIndex,
+		_validator_index: ValidatorIndex,
+		_config: &criteria::Config,
+		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+		_assignment: &polkadot_node_primitives::approval::AssignmentCert,
+		_backing_group: polkadot_primitives::v1::GroupIndex,
+	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
+		Ok(0)
+	}
+}
+
 #[derive(Default)]
-pub(crate) struct TestStore {
-	pub(crate) inner: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
+pub struct TestStore {
+	pub inner: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
+	// TODO: make sure these are consistent with inner
+	pub block_entries: HashMap<Hash, BlockEntry>,
+	pub candidate_entries: HashMap<CandidateHash, CandidateEntry>,
 }
 
 impl AuxStore for TestStore {
@@ -128,49 +159,84 @@ impl AuxStore for TestStore {
 	}
 }
 
-// fn blank_state() -> (State<TestStore>, mpsc::Receiver<BackgroundRequest>) {
-// 	let (tx, rx) = mpsc::channel(1024);
-// 	(
-// 		State {
-// 			earliest_session: None,
-// 			session_info: Vec::new(),
-// 			keystore: LocalKeystore::in_memory(),
-// 			wakeups: Wakeups::default(),
-// 			slot_duration_millis: SLOT_DURATION_MILLIS,
-// 			db: Arc::new(TestStore::default()),
-// 			background_tx: tx,
-// 			clock: Box::new(MockClock::default()),
-// 			assignment_criteria: unimplemented!(),
-// 		},
-// 		rx,
-// 	)
-// }
+impl DBReader for TestStore {
+	fn load_block_entry(
+		&self,
+		block_hash: &Hash,
+	) -> SubsystemResult<Option<BlockEntry>> {
+		Ok(self.block_entries.get(block_hash).cloned())
+	}
 
-// fn single_session_state(index: SessionIndex, info: SessionInfo)
-// 	-> (State<TestStore>, mpsc::Receiver<BackgroundRequest>)
-// {
-// 	let (mut s, rx) = blank_state();
-// 	s.earliest_session = Some(index);
-// 	s.session_info = vec![info];
-// 	(s, rx)
-// }
+	fn load_candidate_entry(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
+		Ok(self.candidate_entries.get(candidate_hash).cloned())
+	}
+}
 
-// #[test]
-// fn rejects_bad_assignment() {
-// 	let (mut state, rx) = single_session_state(1, unimplemented!());
-// 	let assignment = unimplemented!();
-// 	let candidate_index = unimplemented!();
+fn blank_state() -> State<TestStore> {
+	State {
+		session_window: import::RollingSessionWindow::default(),
+		keystore: LocalKeystore::in_memory(),
+		slot_duration_millis: SLOT_DURATION_MILLIS,
+		db: TestStore::default(),
+		clock: Box::new(MockClock::default()),
+		assignment_criteria: Box::new(MockAssignmentCriteria),
+	}
+}
 
-// 	// TODO [now]: instantiate test store with block data.
+fn single_session_state(index: SessionIndex, info: SessionInfo)
+	-> State<TestStore>
+{
+	State {
+		session_window: import::RollingSessionWindow {
+			earliest_session: Some(index),
+			session_info: vec![info],
+		},
+		..blank_state()
+	}
+}
 
-// 	check_and_import_assignment(
-// 		&mut state,
-// 		assignment,
-// 		candidate_index,
-// 	).unwrap();
+fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
+	let ctx = schnorrkel::signing_context(RELAY_VRF_MODULO_CONTEXT);
+	let msg = b"test-garbage";
+	let mut prng = rand_core::OsRng;
+	let keypair = schnorrkel::Keypair::generate_with(&mut prng);
+	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
+	let out = inout.to_output();
 
-// 	// Check that the assignment's been imported.
-// }
+	AssignmentCert {
+		kind,
+		vrf: (VRFOutput(out), VRFProof(proof)),
+	}
+}
+
+#[test]
+fn rejects_bad_assignment() {
+	let mut state = single_session_state(1, SessionInfo::default());
+
+	let assignment = IndirectAssignmentCert {
+		block_hash: Hash::repeat_byte(0x01),
+		validator: 0,
+		cert: garbage_assignment_cert(
+			AssignmentCertKind::RelayVRFModulo {
+				sample: 0,
+			},
+		),
+	};
+	let candidate_index = 0;
+
+	// TODO [now]: instantiate test store with block data.
+
+	check_and_import_assignment(
+		&mut state,
+		assignment,
+		candidate_index,
+	).unwrap();
+
+	// Check that the assignment's been imported.
+}
 
 #[test]
 fn rejects_assignment_in_future() {
