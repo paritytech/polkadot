@@ -42,10 +42,8 @@ mod util;
 #[cfg(test)]
 mod mock;
 
-use parity_scale_codec::{Encode, Decode};
-use sp_core::RuntimeDebug;
-
 pub use origin::{Origin, ensure_parachain};
+pub use paras::ParaLifecycle;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(
@@ -67,23 +65,4 @@ where
 	<dmp::Module<T>>::schedule_para_cleanup(id);
 	<ump::Module<T>>::schedule_para_cleanup(id);
 	<hrmp::Module<T>>::schedule_para_cleanup(id);
-}
-
-/// The possible states of a para, to take into account delayed lifecycle changes.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-pub enum ParaLifecycle {
-	/// Para is new and is onboarding as a Parathread.
-	OnboardingAsParathread,
-	/// Para is new and is onboarding as a Parachain.
-	OnboardingAsParachain,
-	/// Para is a Parathread.
-	Parathread,
-	/// Para is a Parachain.
-	Parachain,
-	/// Para is a Parathread which is upgrading to a Parachain.
-	UpgradingToParachain,
-	/// Para is a Parachain which is downgrading to a Parathread.
-	DowngradingToParathread,
-	/// Para is being offboarded.
-	Outgoing,
 }

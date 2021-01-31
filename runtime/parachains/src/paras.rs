@@ -37,7 +37,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use crate::{configuration, initializer::SessionChangeNotification, ParaLifecycle};
+use crate::{configuration, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
@@ -90,6 +90,74 @@ enum UseCodeAt<N> {
 	/// This is an inclusive endpoint - a parablock in the context of a relay-chain block on this fork
 	/// with number N should use the code that is replaced at N.
 	ReplacedAt(N),
+}
+
+/// The possible states of a para, to take into account delayed lifecycle changes.
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+pub enum ParaLifecycle {
+	/// Para is new and is onboarding as a Parathread.
+	OnboardingAsParathread,
+	/// Para is new and is onboarding as a Parachain.
+	OnboardingAsParachain,
+	/// Para is a Parathread.
+	Parathread,
+	/// Para is a Parachain.
+	Parachain,
+	/// Para is a Parathread which is upgrading to a Parachain.
+	UpgradingToParachain,
+	/// Para is a Parachain which is downgrading to a Parathread.
+	DowngradingToParathread,
+	/// Para is being offboarded.
+	Outgoing,
+}
+
+impl ParaLifecycle {
+	pub fn is_onboarding(&self) -> bool {
+		match self {
+			ParaLifecycle::OnboardingAsParathread |
+			ParaLifecycle::OnboardingAsParachain
+				=> true,
+			_ => false,
+		}
+	}
+
+	pub fn is_stable(&self) -> bool {
+		match self {
+			ParaLifecycle::Parathread |
+			ParaLifecycle::Parachain
+				=> true,
+			_ => false,
+		}
+	}
+
+	pub fn is_parachain(&self) -> bool {
+		match self {
+			ParaLifecycle::Parachain |
+			ParaLifecycle::DowngradingToParathread
+				=> true,
+			_ => false,
+		}
+	}
+
+	pub fn is_parathread(&self) -> bool {
+		match self {
+			ParaLifecycle::Parathread |
+			ParaLifecycle::UpgradingToParachain
+				=> true,
+			_ => false,
+		}
+	}
+
+	pub fn is_outgoing(&self) -> bool {
+		match self {
+			ParaLifecycle::Outgoing => true,
+			_ => false,
+		}
+	}
+
+	pub fn is_transitioning(&self) -> bool {
+		!Self::is_stable(self)
+	}
 }
 
 impl<N: Ord + Copy> ParaPastCodeMeta<N> {
@@ -283,12 +351,14 @@ impl<T: Config> Module<T> {
 
 		for outgoing_para in outgoing {
 			// Warn if there is a state error... but still perform the offboarding to be defensive.
-			if ParaLifecycles::get(&outgoing_para) != Some(ParaLifecycle::Outgoing) {
-				frame_support::debug::error!(
-					target: "parachains",
-					"Outgoing parachain has wrong lifecycle state."
-				)
-			}
+			if let Some(state) = ParaLifecycles::get(&outgoing_para) {
+				if !state.is_outgoing() {
+					frame_support::debug::error!(
+						target: "parachains",
+						"Outgoing parachain has wrong lifecycle state."
+					)
+				}
+			};
 
 			if let Ok(i) = parachains.binary_search(&outgoing_para) {
 				parachains.remove(i);
@@ -455,6 +525,8 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
+	///
+	/// Noop if Para ID is already registered in the system with some `ParaLifecycle`.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let mut weight = T::DbWeight::get().reads_writes(0, 0);
 
@@ -520,8 +592,11 @@ impl<T: Config> Module<T> {
 		outgoing_weight.saturating_add(upcoming_weight)
 	}
 
+	/// Schedule a parathread to be upgraded to a parachain.
+	///
+	/// Noop if `ParaLifecycle` is not `Parathread`.
 	#[allow(unused)]
-	pub(crate) fn schedule_para_upgrade(id: ParaId) -> Weight {
+	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> Weight {
 		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parathread) {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
 			return weight;
@@ -547,8 +622,11 @@ impl<T: Config> Module<T> {
 		T::DbWeight::get().reads_writes(2, 2)
 	}
 
+	/// Schedule a parachain to be downgraded to a parathread.
+	///
+	/// Noop if `ParaLifecycle` is not `Parachain`.
 	#[allow(unused)]
-	pub(crate) fn schedule_para_downgrade(id: ParaId) -> Weight {
+	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> Weight {
 		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parachain) {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
 			return weight;
@@ -678,13 +756,10 @@ impl<T: Config> Module<T> {
 
 	/// Returns whether the given ID refers to a valid para.
 	pub fn is_valid_para(id: ParaId) -> bool {
-		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parachain) |
-			Some(ParaLifecycle::Parathread) |
-			Some(ParaLifecycle::UpgradingToParachain) |
-			Some(ParaLifecycle::DowngradingToParathread)
-				=> true,
-			_ => false,
+		if let Some(state) = ParaLifecycles::get(&id) {
+			!state.is_onboarding() && !state.is_outgoing()
+		} else {
+			false
 		}
 	}
 
@@ -692,11 +767,10 @@ impl<T: Config> Module<T> {
 	///
 	/// Includes parachains which will downgrade to a parathread in the future.
 	pub fn is_parachain(id: ParaId) -> bool {
-		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parachain) |
-			Some(ParaLifecycle::DowngradingToParathread)
-				=> true,
-			_ => false,
+		if let Some(state) = ParaLifecycles::get(&id) {
+			state.is_parachain()
+		} else {
+			false
 		}
 	}
 
@@ -704,11 +778,10 @@ impl<T: Config> Module<T> {
 	///
 	/// Includes parathreads which will upgrade to parachains in the future.
 	pub fn is_parathread(id: ParaId) -> bool {
-		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parathread) |
-			Some(ParaLifecycle::UpgradingToParachain)
-				=> true,
-			_ => false,
+		if let Some(state) = ParaLifecycles::get(&id) {
+			state.is_parathread()
+		} else {
+			false
 		}
 	}
 
