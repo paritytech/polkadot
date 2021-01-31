@@ -671,6 +671,11 @@ impl<T: Config> Module<T> {
 		}
 	}
 
+	/// Returns the current lifecycle state of the para.
+	pub fn lifecycle(id: ParaId) -> Option<ParaLifecycle> {
+		ParaLifecycles::get(&id)
+	}
+
 	/// Returns whether the given ID refers to a valid para.
 	pub fn is_valid_para(id: ParaId) -> bool {
 		match ParaLifecycles::get(&id) {
@@ -684,17 +689,25 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Whether a para ID corresponds to any live parachain.
+	///
+	/// Includes parachains which will downgrade to a parathread in the future.
 	pub fn is_parachain(id: ParaId) -> bool {
 		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parachain) => true,
+			Some(ParaLifecycle::Parachain) |
+			Some(ParaLifecycle::DowngradingToParathread)
+				=> true,
 			_ => false,
 		}
 	}
 
 	/// Whether a para ID corresponds to any live parathread.
+	///
+	/// Includes parathreads which will upgrade to parachains in the future.
 	pub fn is_parathread(id: ParaId) -> bool {
 		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parathread) => true,
+			Some(ParaLifecycle::Parathread) |
+			Some(ParaLifecycle::UpgradingToParachain)
+				=> true,
 			_ => false,
 		}
 	}
