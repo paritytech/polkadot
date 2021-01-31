@@ -601,3 +601,8 @@ pub(crate) async fn handle_new_head(
 
 	Ok(imported_candidates)
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+}
