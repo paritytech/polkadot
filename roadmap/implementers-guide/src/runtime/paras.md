@@ -99,10 +99,10 @@ None                 Parathread                  Parachain
  |                        |  DowngradingToParathread |
  |                        |                          |
  |<-----------------------+                          |
- |        Outgoing        |                          |
+ |   OutgoingParathread   |                          |
  |                        |                          |
  +<--------------------------------------------------+
- |                        |         Outgoing         |
+ |                        |    OutgoingParachain     |
  |                        |                          |
  +                        +                          +
 ```
