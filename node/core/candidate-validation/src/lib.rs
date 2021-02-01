@@ -439,7 +439,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
 		relay_parent_number: persisted_validation_data.relay_parent_number,
-		relay_storage_root: persisted_validation_data.relay_storage_root,
+		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {

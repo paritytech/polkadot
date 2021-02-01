@@ -1276,7 +1276,7 @@ mod tests {
 				parent_head: HeadData(vec![7, 8, 9]),
 				relay_parent_number: Default::default(),
 				max_pov_size: 1024,
-				relay_storage_root: Default::default(),
+				relay_parent_storage_root: Default::default(),
 			};
 
 			Self {

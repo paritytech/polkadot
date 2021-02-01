@@ -109,7 +109,7 @@ struct PersistedValidationData {
 	/// The relay-chain block number this is in the context of. This informs the collator.
 	relay_parent_number: BlockNumber,
 	/// The relay-chain block storage root this is in the context of.
-	relay_storage_root: Hash,
+	relay_parent_storage_root: Hash,
 	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.

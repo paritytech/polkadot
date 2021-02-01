@@ -395,7 +395,7 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// The relay-chain block number this is in the context of.
 	pub relay_parent_number: N,
 	/// The relay-chain block storage root this is in the context of.
-	pub relay_storage_root: Hash,
+	pub relay_parent_storage_root: Hash,
 	/// The maximum legal size of a POV block, in bytes.
 	pub max_pov_size: u32,
 }

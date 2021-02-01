@@ -231,7 +231,7 @@ mod tests {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,
 				relay_parent_number: 1,
-				relay_storage_root: Default::default(),
+				relay_parent_storage_root: Default::default(),
 			},
 			&IsolationStrategy::InProcess,
 			sp_core::testing::TaskExecutor::new(),

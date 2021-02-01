@@ -93,7 +93,7 @@ digraph {
             <tr><td border="0" colspan="2" port="name">PersistedValidationData&lt;N = BlockNumber&gt;</td></tr>
             <tr><td>parent_head</td><td port="parent_head">HeadData</td></tr>
             <tr><td>block_number</td><td port="block_number">N</td></tr>
-            <tr><td>relay_storage_root</td><td port="relay_storage_root">Hash</td></tr>
+            <tr><td>relay_parent_storage_root</td><td port="relay_parent_storage_root">Hash</td></tr>
             <tr><td>max_pov_size</td><td port="max_pov_size">u32</td></tr>
         </table>
     >]
@@ -397,7 +397,7 @@ digraph {
             <tr><td>parent_head</td><td port="parent_head">HeadData</td></tr>
             <tr><td>block_data</td><td port="block_data">BlockData</td></tr>
             <tr><td>relay_parent_number</td><td port="relay_parent_number">RelayChainBlockNumber</td></tr>
-            <tr><td>relay_storage_root</td><td port="relay_storage_root">Hash</td></tr>
+            <tr><td>relay_parent_storage_root</td><td port="relay_parent_storage_root">Hash</td></tr>
         </table>
     >]
 

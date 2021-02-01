@@ -269,7 +269,7 @@ pub struct ValidationParams {
 	/// The current relay-chain block number.
 	pub relay_parent_number: RelayChainBlockNumber,
 	/// The relay-chain block's storage root.
-	pub relay_storage_root: Hash,
+	pub relay_parent_storage_root: Hash,
 }
 
 /// The result of parachain validation.
