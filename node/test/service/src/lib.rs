@@ -62,7 +62,7 @@ native_executor_instance!(
 	polkadot_test_runtime::native_version,
 	(
 		frame_benchmarking::benchmarking::HostFunctions,
-		polkadot_runtime::Validation::HostFunctions,
+		polkadot_runtime::validation::HostFunctions,
 	),
 );
 
