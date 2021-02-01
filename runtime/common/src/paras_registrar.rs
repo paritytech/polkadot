@@ -150,6 +150,7 @@ decl_module! {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
+			ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 			let genesis = Self::validate_onboarding_data(
 				genesis_head,
 				validation_code,
@@ -170,7 +171,7 @@ decl_module! {
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
-		/// The caller must be the Para Id itself or Root.
+		/// The caller must be the para itself or Root and the para must be a parathread.
 		#[weight = 0]
 		fn deregister(origin, id: ParaId) -> DispatchResult {
 			match ensure_root(origin.clone()) {
@@ -180,6 +181,8 @@ decl_module! {
 					ensure!(caller_id == id, Error::<T>::NotOwner);
 				},
 			};
+
+			ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
 
 			if let Some(info) = Paras::<T>::take(&id) {
 				<T as Config>::Currency::unreserve(&info.manager, info.deposit);
@@ -816,57 +819,14 @@ mod tests {
 			assert!(!Parachains::is_parathread(32.into()));
 		});
 	}
-/*
-	#[test]
-	fn swap_handles_funds_correctly() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-
-			assert_ok!(Registrar::enable_parathread_registration(
-				Origin::root(),
-			));
-			run_to_block(2);
-
-			let initial_1_balance = Balances::free_balance(1);
-			let initial_2_balance = Balances::free_balance(2);
-
-			// User 1 register a new parathread
-			assert_ok!(Registrar::register_parathread(
-				Origin::signed(1),
-				8u32.into(),
-				vec![1; 3].into(),
-				WASM_MAGIC.to_vec().into(),
-			));
-
-			assert_ok!(Registrar::register_parachain(
-				2u32.into(),
-				vec![1; 3].into(),
-				WASM_MAGIC.to_vec().into(),
-			));
-
-			run_to_block(9);
-
-			// Swap the parachain and parathread
-			assert_ok!(Registrar::swap(runtime_parachains::Origin::Parachain(2u32.into()).into(), 8u32.into()));
-			assert_ok!(Registrar::swap(runtime_parachains::Origin::Parachain(8u32.into()).into(), 2u32.into()));
-
-			// Deregister a parathread that was originally a parachain
-			assert_ok!(Registrar::deregister_parathread(runtime_parachains::Origin::Parachain(2u32.into()).into()));
-
-			run_to_block(12);
-
-			// Funds are correctly returned
-			assert_eq!(Balances::free_balance(1), initial_1_balance);
-			assert_eq!(Balances::free_balance(2), initial_2_balance);
-		});
-	}
 
 	#[test]
 	fn cannot_register_until_para_is_cleaned_up() {
 		new_test_ext().execute_with(|| {
 			run_to_block(2);
 
-			assert_ok!(Registrar::register_parachain(
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
 				WASM_MAGIC.to_vec().into(),
@@ -874,10 +834,11 @@ mod tests {
 
 			run_to_block(4);
 
-			assert_ok!(Registrar::deregister_parachain(1u32.into()));
+			assert_ok!(Registrar::deregister(Origin::root(), 1u32.into()));
 			run_to_block(5);
 
-			assert!(Registrar::register_parachain(
+			assert!(Registrar::register(
+				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
 				WASM_MAGIC.to_vec().into(),
@@ -886,11 +847,12 @@ mod tests {
 			// The session will be changed on the 6th block, as part of finalization. The change
 			// will be observed on the 7th.
 			run_to_block(7);
-			assert_ok!(Registrar::register_parachain(
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
 				WASM_MAGIC.to_vec().into(),
 			));
 		});
-	}*/
+	}
 }
