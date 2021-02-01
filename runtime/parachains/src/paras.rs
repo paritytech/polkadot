@@ -37,7 +37,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use crate::{configuration, initializer::SessionChangeNotification, ParaLifecycle};
+use crate::{configuration, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
@@ -180,8 +180,8 @@ decl_storage! {
 	trait Store for Module<T: Config> as Paras {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 		Parachains get(fn parachains): Vec<ParaId>;
-		/// The current lifecycle of a all known Para IDs.
-		ParaLifecycles: map hasher(twox_64_concat) ParaId => Option<ParaLifecycle>;
+		/// All parathreads.
+		Parathreads: map hasher(twox_64_concat) ParaId => Option<()>;
 		/// The head-data of every registered para.
 		Heads get(fn para_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
 		/// The validation code of every live para.
@@ -285,12 +285,13 @@ impl<T: Config> Module<T> {
 		for outgoing_para in outgoing {
 			if let Ok(i) = parachains.binary_search(&outgoing_para) {
 				parachains.remove(i);
+			} else {
+				<Self as Store>::Parathreads::remove(&outgoing_para);
 			}
 
 			<Self as Store>::Heads::remove(&outgoing_para);
 			<Self as Store>::FutureCodeUpgrades::remove(&outgoing_para);
 			<Self as Store>::FutureCode::remove(&outgoing_para);
-			ParaLifecycles::remove(&outgoing_para);
 
 			let removed_code = <Self as Store>::CurrentCode::take(&outgoing_para);
 			if let Some(removed_code) = removed_code {
@@ -312,11 +313,10 @@ impl<T: Config> Module<T> {
 
 			if genesis_data.parachain {
 				if let Err(i) = parachains.binary_search(&upcoming_para) {
-					ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parachain);
 					parachains.insert(i, upcoming_para);
 				}
 			} else {
-				ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parathread);
+				<Self as Store>::Parathreads::insert(&upcoming_para, ());
 			}
 
 			<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
@@ -328,15 +328,11 @@ impl<T: Config> Module<T> {
 	fn apply_upgrades(parachains: &mut Vec<ParaId>) {
 		let upgrades = UpcomingUpgrades::take();
 		for para in upgrades {
-			ParaLifecycles::mutate(&para, |v| {
-				if *v == Some(ParaLifecycle::UpgradingToParachain) {
-					if let Err(i) = parachains.binary_search(&para) {
-						ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
-						parachains.insert(i, para);
-					}
-					*v = Some(ParaLifecycle::Parachain);
+			if Parathreads::take(&para).is_some() {
+				if let Err(i) = parachains.binary_search(&para) {
+					parachains.insert(i, para);
 				}
-			});
+			}
 		}
 	}
 
@@ -346,7 +342,7 @@ impl<T: Config> Module<T> {
 		for para in downgrades {
 			if let Ok(i) = parachains.binary_search(&para) {
 				parachains.remove(i);
-				ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
+				Parathreads::insert(&para, ());
 			}
 		}
 	}
@@ -445,12 +441,6 @@ impl<T: Config> Module<T> {
 			return weight;
 		}
 
-		if genesis.parachain {
-			ParaLifecycles::insert(&id, ParaLifecycle::OnboardingAsParachain);
-		} else {
-			ParaLifecycles::insert(&id, ParaLifecycle::OnboardingAsParathread);
-		}
-
 		UpcomingParasGenesis::insert(&id, &genesis);
 
 		T::DbWeight::get().reads_writes(1, 2)
@@ -462,10 +452,9 @@ impl<T: Config> Module<T> {
 			match v.binary_search(&id) {
 				Ok(i) => {
 					v.remove(i);
-					UpcomingParasGenesis::remove(&id);
-					ParaLifecycles::remove(&id);
+					UpcomingParasGenesis::remove(id);
 					// If a para was only in the pending state it should not be moved to `Outgoing`
-					return T::DbWeight::get().reads_writes(2, 3);
+					return T::DbWeight::get().reads_writes(2, 2);
 				}
 				Err(_) => T::DbWeight::get().reads_writes(1, 0),
 			}
@@ -476,8 +465,7 @@ impl<T: Config> Module<T> {
 				Ok(_) => T::DbWeight::get().reads_writes(1, 0),
 				Err(i) => {
 					v.insert(i, id);
-					ParaLifecycles::insert(&id, ParaLifecycle::Outgoing);
-					T::DbWeight::get().reads_writes(1, 2)
+					T::DbWeight::get().reads_writes(1, 1)
 				}
 			}
 		});
@@ -486,57 +474,15 @@ impl<T: Config> Module<T> {
 	}
 
 	#[allow(dead_code)]
-	pub(crate) fn schedule_para_upgrade(id: ParaId) -> Weight {
-		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parathread) {
-			let weight = T::DbWeight::get().reads_writes(1, 0);
-			return weight;
-		}
-
-		let dup = UpcomingUpgrades::mutate(|v| {
-			match v.binary_search(&id) {
-				Ok(_) => true,
-				Err(i) => {
-					v.insert(i, id);
-					false
-				}
-			}
-		});
-
-		ParaLifecycles::insert(&id, ParaLifecycle::UpgradingToParachain);
-
-		if dup {
-			let weight = T::DbWeight::get().reads_writes(2, 1);
-			return weight;
-		}
-
-		T::DbWeight::get().reads_writes(2, 2)
+	pub(crate) fn schedule_para_upgrade(para: ParaId) -> Weight {
+		UpcomingUpgrades::append(para);
+		T::DbWeight::get().writes(1)
 	}
 
 	#[allow(dead_code)]
-	pub(crate) fn schedule_para_downgrade(id: ParaId) -> Weight {
-		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parachain) {
-			let weight = T::DbWeight::get().reads_writes(1, 0);
-			return weight;
-		}
-
-		let dup = UpcomingDowngrades::mutate(|v| {
-			match v.binary_search(&id) {
-				Ok(_) => true,
-				Err(i) => {
-					v.insert(i, id);
-					false
-				}
-			}
-		});
-
-		ParaLifecycles::insert(&id, ParaLifecycle::DowngradingToParathread);
-
-		if dup {
-			let weight = T::DbWeight::get().reads_writes(2, 1);
-			return weight;
-		}
-
-		T::DbWeight::get().reads_writes(2, 2)
+	pub(crate) fn schedule_para_downgrade(para: ParaId) -> Weight {
+		UpcomingDowngrades::append(para);
+		T::DbWeight::get().writes(1)
 	}
 
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
@@ -638,30 +584,22 @@ impl<T: Config> Module<T> {
 
 	/// Returns whether the given ID refers to a valid para.
 	pub fn is_valid_para(id: ParaId) -> bool {
-		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parachain) |
-			Some(ParaLifecycle::Parathread) |
-			Some(ParaLifecycle::UpgradingToParachain) |
-			Some(ParaLifecycle::DowngradingToParathread)
-				=> true,
-			_ => false,
-		}
+		Self::is_parachain(id) || Self::is_parathread(id)
 	}
 
 	/// Whether a para ID corresponds to any live parathread.
 	pub fn is_parachain(id: ParaId) -> bool {
-		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parachain) => true,
-			_ => false,
-		}
+		Parachains::get().binary_search(&id).is_ok()
 	}
 
 	/// Whether a para ID corresponds to any live parathread.
 	pub fn is_parathread(id: ParaId) -> bool {
-		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Parathread) => true,
-			_ => false,
-		}
+		Parathreads::get(&id).is_some()
+	}
+
+	/// Wether a para ID is in in the onboarding queue.
+	pub fn is_upcoming(id: ParaId) -> bool {
+		UpcomingParas::get().binary_search(&id).is_ok()
 	}
 
 	/// The block number of the last scheduled upgrade of the requested para. Includes future upgrades
@@ -1240,22 +1178,15 @@ mod tests {
 			);
 
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
 
-			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
 
 			// run to block without session change.
 			run_to_block(2, None);
 
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
-
-			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
 
 
 			run_to_block(3, Some(vec![3]));
@@ -1263,10 +1194,7 @@ mod tests {
 			assert_eq!(Paras::parachains(), vec![c, b]);
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
 
-			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Parachain));
+			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
 
 			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
@@ -1311,11 +1239,7 @@ mod tests {
 			);
 
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
-
-			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
 
 
 			// run to block without session change.
@@ -1323,11 +1247,7 @@ mod tests {
 
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
-
-			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
 
 			Paras::schedule_para_cleanup(c);
 
@@ -1338,10 +1258,7 @@ mod tests {
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
 			assert!(<Paras as Store>::UpcomingParasGenesis::get(a).is_none());
 
-			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
-			assert_eq!(ParaLifecycles::get(&c), None);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
 
 			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));

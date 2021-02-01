@@ -44,8 +44,6 @@ mod mock;
 
 pub use origin::{Origin, ensure_parachain};
 use primitives::v1::Id as ParaId;
-use parity_scale_codec::{Encode, Decode};
-use sp_core::RuntimeDebug;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(
@@ -86,23 +84,4 @@ pub fn schedule_para_upgrade<T: paras::Config>(id: ParaId) {
 /// TODO: doc
 pub fn schedule_para_downgrade<T: paras::Config>(id: ParaId) {
 	paras::Module::<T>::schedule_para_downgrade(id);
-}
-
-/// The possible states of a para, to take into account delayed lifecycle changes.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-pub enum ParaLifecycle {
-	/// Para ID is new and is onboarding as a Parathread.
-	OnboardingAsParathread,
-	/// Para ID is new and is onboarding as a Parachain.
-	OnboardingAsParachain,
-	/// Para ID is a Parathread.
-	Parathread,
-	/// Para ID is a Parachain.
-	Parachain,
-	/// Para ID is a Parathread which is upgrading to a Parachain.
-	UpgradingToParachain,
-	/// Para ID is a Parachain which is downgrading to a Parathread.
-	DowngradingToParathread,
-	/// Para ID is being offboarded.
-	Outgoing,
 }
