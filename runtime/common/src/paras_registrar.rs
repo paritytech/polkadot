@@ -34,7 +34,7 @@ use runtime_parachains::{
 		ParaGenesisArgs,
 	},
 	ensure_parachain,
-	Origin, ParachainCleanup,
+	Origin, ParachainCleanup, ParaLifecycle,
 };
 
 use crate::traits::{Registrar, OnSwap};
@@ -45,7 +45,6 @@ use sp_runtime::RuntimeDebug;
 pub struct ParaInfo<Account, Balance> {
 	pub(crate) manager: Account,
 	deposit: Balance,
-	parachain: bool,
 }
 
 type BalanceOf<T> =
@@ -161,7 +160,6 @@ decl_module! {
 			let info = ParaInfo {
 				manager: who.clone(),
 				deposit: T::ParaDeposit::get(),
-				parachain: false,
 			};
 
 			Paras::<T>::insert(id, info);
@@ -204,16 +202,20 @@ decl_module! {
 		fn swap(origin, other: ParaId) {
 			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			if PendingSwap::get(other) == Some(id) {
-				if let Some(other_info) = Paras::<T>::get(other) {
-					if let Some(id_info) = Paras::<T>::get(id) {
+				if let Some(other_lifecycle) = paras::Module::<T>::lifecycle(other) {
+					if let Some(id_lifecycle) = paras::Module::<T>::lifecycle(id) {
 						// identify which is a parachain and which is a parathread
-						if id_info.parachain && !other_info.parachain {
-							runtime_parachains::schedule_para_downgrade::<T>(id);
-							runtime_parachains::schedule_para_upgrade::<T>(other);
+						if id_lifecycle == ParaLifecycle::Parachain &&
+							other_lifecycle == ParaLifecycle::Parathread
+						{
+							runtime_parachains::schedule_parachain_downgrade::<T>(id);
+							runtime_parachains::schedule_parathread_upgrade::<T>(other);
 							T::OnSwap::on_swap(id, other);
-						} else if !id_info.parachain && other_info.parachain {
-							runtime_parachains::schedule_para_downgrade::<T>(other);
-							runtime_parachains::schedule_para_upgrade::<T>(id);
+						} else if id_lifecycle == ParaLifecycle::Parathread &&
+							other_lifecycle == ParaLifecycle::Parachain
+						{
+							runtime_parachains::schedule_parachain_downgrade::<T>(other);
+							runtime_parachains::schedule_parathread_upgrade::<T>(id);
 							T::OnSwap::on_swap(id, other);
 						}
 
@@ -239,36 +241,18 @@ impl<T: Config> Registrar for Module<T> {
 
 	// Upgrade a registered parathread into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
-		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {
-			if let Some(info) = maybe_info {
-				// Registrar should think this is a parathread...
-				ensure!(!info.parachain, Error::<T>::NotParathread);
-				// And Runtime Parachains backend should think it is a parathread...
-				ensure!(paras::Module::<T>::is_parathread(id), Error::<T>::NotParathread);
-				runtime_parachains::schedule_para_upgrade::<T>(id);
-				info.parachain = true;
-				Ok(())
-			} else {
-				Err(Error::<T>::NotRegistered.into())
-			}
-		})
+		// Para backend should think this is a parathread...
+		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
+		runtime_parachains::schedule_parathread_upgrade::<T>(id);
+		Ok(())
 	}
 
 	// Downgrade a registered para into a parathread.
 	fn make_parathread(id: ParaId) -> DispatchResult {
-		Paras::<T>::try_mutate_exists(&id, |maybe_info| -> DispatchResult {
-			if let Some(info) = maybe_info {
-				// Registrar should think this is a parachain...
-				ensure!(info.parachain, Error::<T>::NotParachain);
-				// And Runtime Parachains backend should think it is a parachain...
-				ensure!(paras::Module::<T>::is_parachain(id), Error::<T>::NotParathread);
-				runtime_parachains::schedule_para_downgrade::<T>(id);
-				info.parachain = false;
-				Ok(())
-			} else {
-				Err(Error::<T>::NotRegistered.into())
-			}
-		})
+		// Para backend should think this is a parachain...
+		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain), Error::<T>::NotParachain);
+		runtime_parachains::schedule_parachain_downgrade::<T>(id);
+		Ok(())
 	}
 }
 
@@ -587,7 +571,6 @@ mod tests {
 		type MaxHeadSize = MaxHeadSize;
 	}
 
-	type Balances = pallet_balances::Module<Test>;
 	type Parachains = paras::Module<Test>;
 	type Inclusion = inclusion::Module<Test>;
 	type System = frame_system::Module<Test>;
@@ -787,7 +770,6 @@ mod tests {
 	fn swap_works() {
 		new_test_ext().execute_with(|| {
 			// Successfully register 23 and 32
-			// Successfully register 32
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				23.into(),
