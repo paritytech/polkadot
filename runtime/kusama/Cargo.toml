@@ -1,16 +1,16 @@
 [package]
 name = "kusama-runtime"
-version = "0.8.27"
+version = "0.8.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
 
 [dependencies]
-bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
+bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.13", optional = true }
 rustc-hex = { version = "2.1.0", default-features = false }
-serde = { version = "1.0.119", default-features = false }
+serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 smallvec = "1.6.1"

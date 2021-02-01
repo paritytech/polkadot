@@ -44,6 +44,7 @@ mod mock;
 
 pub use origin::{Origin, ensure_parachain};
 use primitives::v1::Id as ParaId;
+pub use paras::ParaLifecycle;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(
@@ -76,12 +77,16 @@ where
 	}
 }
 
-/// TODO: doc
-pub fn schedule_para_upgrade<T: paras::Config>(id: ParaId) {
-	paras::Module::<T>::schedule_para_upgrade(id);
+/// Schedule a parathread to be upgraded to a parachain.
+///
+/// Noop if `ParaLifecycle` is not `Parathread`.
+pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) {
+	paras::Module::<T>::schedule_parathread_upgrade(id);
 }
 
-/// TODO: doc
-pub fn schedule_para_downgrade<T: paras::Config>(id: ParaId) {
-	paras::Module::<T>::schedule_para_downgrade(id);
+/// Schedule a parachain to be downgraded to a parathread.
+///
+/// Noop if `ParaLifecycle` is not `Parachain`.
+pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) {
+	paras::Module::<T>::schedule_parachain_downgrade(id);
 }
