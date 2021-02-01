@@ -573,7 +573,7 @@ impl<T: Config> Module<T> {
 
 	/// Schedule a para to be cleaned up at the start of the next session.
 	///
-	/// Noop if para is transitioning or already outgoing.
+	/// Noop if para is already outgoing or not known.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
 		match ParaLifecycles::get(&id) {
 			Some(ParaLifecycle::OnboardingAsParathread) |
@@ -585,23 +585,24 @@ impl<T: Config> Module<T> {
 							UpcomingParasGenesis::remove(&id);
 							ParaLifecycles::remove(&id);
 							// If a para was only in the pending state it should not be moved to `Outgoing`
-							return T::DbWeight::get().reads_writes(1, 3);
+							T::DbWeight::get().reads_writes(1, 3)
 						}
-						Err(_) => return T::DbWeight::get().reads_writes(1, 0),
+						Err(_) => T::DbWeight::get().reads_writes(1, 0),
 					}
 				})
 			},
 			Some(ParaLifecycle::Parathread) => {
+				ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
 				OutgoingParas::mutate(|v| {
 					match v.binary_search(&id) {
-						Ok(_) => T::DbWeight::get().reads_writes(1, 0),
+						Ok(_) => T::DbWeight::get().reads_writes(1, 1),
 						Err(i) => {
 							v.insert(i, id);
-							ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
 							T::DbWeight::get().reads_writes(1, 2)
 						}
 					}
 				})
+
 			},
 			Some(ParaLifecycle::Parachain) => {
 				OutgoingParas::mutate(|v| {
@@ -615,7 +616,54 @@ impl<T: Config> Module<T> {
 					}
 				})
 			},
-			_ => { T::DbWeight::get().reads(1) },
+			Some(ParaLifecycle::UpgradingToParachain) => {
+				let upgrade_weight = UpcomingUpgrades::mutate(|v| {
+					match v.binary_search(&id) {
+						Ok(i) => {
+							v.remove(i);
+							T::DbWeight::get().reads_writes(1, 1)
+						},
+						Err(_) => T::DbWeight::get().reads(1),
+					}
+				});
+				let outgoing_weight = OutgoingParas::mutate(|v| {
+					match v.binary_search(&id) {
+						Ok(_) => T::DbWeight::get().reads_writes(1, 0),
+						Err(i) => {
+							v.insert(i, id);
+							ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
+							T::DbWeight::get().reads_writes(1, 2)
+						}
+					}
+				});
+				upgrade_weight.saturating_add(outgoing_weight)
+			},
+			Some(ParaLifecycle::DowngradingToParathread) => {
+				let downgrade_weight = UpcomingDowngrades::mutate(|v| {
+					match v.binary_search(&id) {
+						Ok(i) => {
+							v.remove(i);
+							T::DbWeight::get().reads_writes(1, 1)
+						},
+						Err(_) => T::DbWeight::get().reads(1),
+					}
+				});
+				let outgoing_weight = OutgoingParas::mutate(|v| {
+					match v.binary_search(&id) {
+						Ok(_) => T::DbWeight::get().reads_writes(1, 0),
+						Err(i) => {
+							v.insert(i, id);
+							ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
+							T::DbWeight::get().reads_writes(1, 2)
+						}
+					}
+				});
+				downgrade_weight.saturating_add(outgoing_weight)
+			},
+			None |
+			Some(ParaLifecycle::OutgoingParathread) |
+			Some(ParaLifecycle::OutgoingParachain)
+				=> { T::DbWeight::get().reads(1) },
 		}
 	}
 
