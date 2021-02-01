@@ -19,7 +19,6 @@
 #![deny(unused_crate_dependencies)]
 
 use std::collections::{HashMap, HashSet};
-use std::convert::TryFrom;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -28,13 +27,12 @@ use futures::{channel::{mpsc, oneshot}, Future, FutureExt, SinkExt, StreamExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
-	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
-	ValidatorIndex, SigningContext, PoV, CandidateHash,
-	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
-	CoreState, CoreIndex, CollatorId, ValidityAttestation, CandidateCommitments,
+	AvailableData, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
+	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
+	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
+	Statement, SignedFullStatement, ValidationResult,
 };
 use polkadot_subsystem::{
 	JaegerSpan, PerLeafSpan,
@@ -60,8 +58,9 @@ use statement_table::{
 	Context as TableContextTrait,
 	Table,
 	v1::{
+		SignedStatement as TableSignedStatement,
 		Statement as TableStatement,
-		SignedStatement as TableSignedStatement, Summary as TableSummary,
+		Summary as TableSummary,
 	},
 };
 use thiserror::Error;
@@ -145,8 +144,6 @@ struct CandidateBackingJob {
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
 	backed: HashSet<CandidateHash>,
-	/// We have already reported misbehaviors for these validators.
-	reported_misbehavior_for: HashSet<ValidatorIndex>,
 	keystore: SyncCryptoStorePtr,
 	table: Table<TableContext>,
 	table_context: TableContext,
@@ -386,7 +383,7 @@ struct BackgroundValidationParams<F> {
 }
 
 async fn validate_and_make_available(
-	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand>,
+	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync>,
 ) -> Result<(), Error> {
 	let BackgroundValidationParams {
 		mut tx_from,
@@ -421,11 +418,17 @@ async fn validate_and_make_available(
 
 	let res = match v {
 		ValidationResult::Valid(commitments, validation_data) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation successful",
+			);
+
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
-					candidate_receipt = ?candidate,
+					candidate_hash = ?candidate.hash(),
 					actual_commitments = ?commitments,
 					"Commitments obtained with validation don't match the announced by the candidate receipt",
 				);
@@ -445,9 +448,9 @@ async fn validate_and_make_available(
 				match erasure_valid {
 					Ok(()) => Ok((candidate, commitments, pov.clone())),
 					Err(InvalidErasureRoot) => {
-						tracing::trace!(
+						tracing::debug!(
 							target: LOG_TARGET,
-							candidate_receipt = ?candidate,
+							candidate_hash = ?candidate.hash(),
 							actual_commitments = ?commitments,
 							"Erasure root doesn't match the announced by the candidate receipt",
 						);
@@ -457,9 +460,9 @@ async fn validate_and_make_available(
 			}
 		}
 		ValidationResult::Invalid(reason) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				candidate_receipt = ?candidate,
+				candidate_hash = ?candidate.hash(),
 				reason = ?reason,
 				"Validation yielded an invalid candidate",
 			);
@@ -467,9 +470,7 @@ async fn validate_and_make_available(
 		}
 	};
 
-	let command = make_command(res);
-	tx_command.send(command).await?;
-	Ok(())
+	tx_command.send(make_command(res)).await.map_err(Into::into)
 }
 
 impl CandidateBackingJob {
@@ -558,7 +559,7 @@ impl CandidateBackingJob {
 	async fn background_validate_and_make_available(
 		&mut self,
 		params: BackgroundValidationParams<
-			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static
+			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync
 		>,
 	) -> Result<(), Error> {
 		let candidate_hash = params.candidate.hash();
@@ -604,6 +605,13 @@ impl CandidateBackingJob {
 		let candidate_hash = candidate.hash();
 		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
 
+		tracing::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate,
+			"Validate and second candidate",
+		);
+
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
 			tx_command: self.background_validation_tx.clone(),
@@ -633,36 +641,17 @@ impl CandidateBackingJob {
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	///
-	/// TODO: Report multiple misbehaviors (https://github.com/paritytech/polkadot/issues/1387)
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn issue_new_misbehaviors(&mut self) -> Result<(), Error> {
-		let mut reports = Vec::new();
-
-		for (k, v) in self.table.get_misbehavior().iter() {
-			if !self.reported_misbehavior_for.contains(k) {
-				self.reported_misbehavior_for.insert(*k);
-
-				let f = FromTableMisbehavior {
-					id: *k,
-					report: v.clone(),
-					signing_context: self.table_context.signing_context.clone(),
-					key: self.table_context.validators[*k as usize].clone(),
-				};
-
-				if let Ok(report) = MisbehaviorReport::try_from(f) {
-					let message = ProvisionerMessage::ProvisionableData(
-						self.parent,
-						ProvisionableData::MisbehaviorReport(self.parent, report),
-					);
-
-					reports.push(message);
-				}
-			}
-		}
-
-		for report in reports.drain(..) {
-			self.send_to_provisioner(report).await?
+		// collect the misbehaviors to avoid double mutable self borrow issues
+		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
+		for (validator_id, report) in misbehaviors {
+			self.send_to_provisioner(
+				ProvisionerMessage::ProvisionableData(
+					self.parent,
+					ProvisionableData::MisbehaviorReport(self.parent, validator_id, report)
+				)
+			).await?
 		}
 
 		Ok(())
@@ -675,6 +664,12 @@ impl CandidateBackingJob {
 		statement: &SignedFullStatement,
 		parent_span: &JaegerSpan,
 	) -> Result<Option<TableSummary>, Error> {
+		tracing::debug!(
+			target: LOG_TARGET,
+			statement = ?statement.payload().to_compact(),
+			"Importing statement",
+		);
+
 		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
 			let candidate_hash = statement.payload().candidate_hash();
@@ -696,6 +691,12 @@ impl CandidateBackingJob {
 				if let Some(backed) =
 					table_attested_to_backed(attested, &self.table_context)
 				{
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate_hash,
+						"Candidate backed",
+					);
+
 					let message = ProvisionerMessage::ProvisionableData(
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
@@ -793,6 +794,13 @@ impl CandidateBackingJob {
 		// and not just those things that the function uses.
 		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?.to_plain();
 		let descriptor = candidate.descriptor().clone();
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate,
+			"Kicking off validation",
+		);
 
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
@@ -1056,7 +1064,6 @@ impl util::JobTrait for CandidateBackingJob {
 				seconded: None,
 				unbacked_candidates: HashMap::new(),
 				backed: HashSet::new(),
-				reported_misbehavior_for: HashSet::new(),
 				keystore,
 				table: Table::default(),
 				table_context,
@@ -1169,10 +1176,7 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use futures::{future, Future};
-	use polkadot_primitives::v1::{
-		ScheduledCore, BlockData, PersistedValidationData, ValidationData,
-		TransientValidationData, HeadData, GroupRotationInfo,
-	};
+	use polkadot_primitives::v1::{BlockData, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
@@ -1181,10 +1185,21 @@ mod tests {
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStore};
+	use statement_table::v1::Misbehavior;
 	use std::collections::HashMap;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
+	fn table_statement_to_primitive(
+		statement: TableStatement,
+	) -> Statement {
+		match statement {
+			TableStatement::Candidate(committed_candidate_receipt) => Statement::Seconded(committed_candidate_receipt),
+			TableStatement::Valid(candidate_hash) => Statement::Valid(candidate_hash),
+			TableStatement::Invalid(candidate_hash) => Statement::Invalid(candidate_hash),
+		}
 	}
 
 	struct TestState {
@@ -1192,7 +1207,7 @@ mod tests {
 		keystore: SyncCryptoStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		validation_data: ValidationData,
+		validation_data: PersistedValidationData,
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		availability_cores: Vec<CoreState>,
 		head_data: HashMap<ParaId, HeadData>,
@@ -1257,22 +1272,13 @@ mod tests {
 				parent_hash: relay_parent,
 			};
 
-			let validation_data = ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: HeadData(vec![7, 8, 9]),
-					block_number: Default::default(),
-					hrmp_mqc_heads: Vec::new(),
-					dmq_mqc_head: Default::default(),
-					max_pov_size: 1024,
-					relay_storage_root: Default::default(),
-				},
-				transient: TransientValidationData {
-					max_code_size: 1000,
-					max_head_data_size: 1000,
-					balance: Default::default(),
-					code_upgrade_allowed: None,
-					dmq_length: 0,
-				},
+			let validation_data = PersistedValidationData {
+				parent_head: HeadData(vec![7, 8, 9]),
+				block_number: Default::default(),
+				hrmp_mqc_heads: Vec::new(),
+				dmq_mqc_head: Default::default(),
+				max_pov_size: 1024,
+				relay_storage_root: Default::default(),
 			};
 
 			Self {
@@ -1312,7 +1318,7 @@ mod tests {
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let available_data = AvailableData {
-			validation_data: test.validation_data.persisted.clone(),
+			validation_data: test.validation_data.clone(),
 			pov: Arc::new(pov),
 		};
 
@@ -1453,7 +1459,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1591,7 +1597,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1788,7 +1794,10 @@ mod tests {
 			assert!(candidates[0].validity_votes.contains(
 				&ValidityAttestation::Explicit(signed_c.signature().clone())
 			));
-			assert_eq!(candidates[0].validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
+			assert_eq!(
+				candidates[0].validator_indices,
+				bitvec::bitvec![bitvec::order::Lsb0, u8; 1, 0, 1, 1],
+			);
 
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
@@ -1886,7 +1895,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1930,19 +1939,30 @@ mod tests {
 						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
-							MisbehaviorReport::SelfContradiction(_, s1, s2),
+							validator_index,
+							Misbehavior::ValidityDoubleVote(vdv),
 						)
 					)
 				) if relay_parent == test_state.relay_parent => {
-					s1.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[s1.validator_index() as usize],
-					).unwrap();
+					let ((t1, s1), (t2, s2)) = vdv.deconstruct::<TableContext>();
+					let t1 = table_statement_to_primitive(t1);
+					let t2 = table_statement_to_primitive(t2);
 
-					s2.check_signature(
+					SignedFullStatement::new(
+						t1,
+						validator_index,
+						s1,
 						&test_state.signing_context,
-						&test_state.validator_public[s2.validator_index() as usize],
-					).unwrap();
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
+
+					SignedFullStatement::new(
+						t2,
+						validator_index,
+						s2,
+						&test_state.signing_context,
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
 				}
 			);
 
@@ -1959,19 +1979,30 @@ mod tests {
 						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
-							MisbehaviorReport::SelfContradiction(_, s1, s2),
+							validator_index,
+							Misbehavior::ValidityDoubleVote(vdv),
 						)
 					)
 				) if relay_parent == test_state.relay_parent => {
-					s1.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[s1.validator_index() as usize],
-					).unwrap();
+					let ((t1, s1), (t2, s2)) = vdv.deconstruct::<TableContext>();
+					let t1 = table_statement_to_primitive(t1);
+					let t2 = table_statement_to_primitive(t2);
 
-					s2.check_signature(
+					SignedFullStatement::new(
+						t1,
+						validator_index,
+						s1,
 						&test_state.signing_context,
-						&test_state.validator_public[s2.validator_index() as usize],
-					).unwrap();
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
+
+					SignedFullStatement::new(
+						t2,
+						validator_index,
+						s2,
+						&test_state.signing_context,
+						&test_state.validator_public[validator_index as usize],
+					).expect("signature must be valid");
 				}
 			);
 		});
@@ -2071,7 +2102,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -2444,6 +2475,7 @@ mod tests {
 	#[test]
 	fn candidate_backing_reorders_votes() {
 		use sp_core::Encode;
+		use std::convert::TryFrom;
 
 		let relay_parent = [1; 32].into();
 		let para_id = ParaId::from(10);

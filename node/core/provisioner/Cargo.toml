@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-futures = "0.3.8"
+bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+futures = "0.3.12"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
 thiserror = "1.0.23"

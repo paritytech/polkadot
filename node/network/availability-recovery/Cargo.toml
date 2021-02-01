@@ -1,0 +1,34 @@
+[package]
+name = "polkadot-availability-recovery"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.12"
+lru = "0.6.1"
+rand = "0.8.3"
+thiserror = "1.0.21"
+tracing = "0.1.22"
+tracing-futures = "0.2.4"
+
+polkadot-erasure-coding = { path = "../../../erasure-coding" }
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-node-network-protocol = { path = "../../network/protocol" }
+futures-timer = "3.0.2"
+streamunordered = "0.5.1"
+
+[dev-dependencies]
+assert_matches = "1.4.0"
+env_logger = "0.8.1"
+futures-timer = "3.0.2"
+log = "0.4.11"
+smallvec = "1.5.1"
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
