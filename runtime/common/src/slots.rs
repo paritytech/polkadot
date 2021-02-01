@@ -346,7 +346,7 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
-		impl_outer_origin, parameter_types, assert_ok, assert_noop,
+		impl_outer_origin, parameter_types,
 		traits::{OnInitialize, OnFinalize}
 	};
 	use pallet_balances;
