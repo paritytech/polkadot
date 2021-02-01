@@ -120,6 +120,10 @@ polkadot = { path = "/usr/bin/polkadot" }
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
 
 
+[patch.crates-io]
+trie-db = { git = 'https://github.com/cheme/trie', branch = 'skip_compact_values_alt' }
+hash-db = { git = 'https://github.com/cheme/trie', branch = 'skip_compact_values_alt' }
+
 [patch.'https://github.com/paritytech/substrate']
 sp-core = { git="https://github.com/cheme/substrate", branch="validation_io" }
 sc-client-api = { git="https://github.com/cheme/substrate", branch="validation_io" }
@@ -226,8 +230,4 @@ substrate-test-client = { git="https://github.com/cheme/substrate", branch="vali
 substrate-test-runtime = { git="https://github.com/cheme/substrate", branch="validation_io" }
 substrate-test-runtime-client = { git="https://github.com/cheme/substrate", branch="validation_io" }
 substrate-test-utils = { git="https://github.com/cheme/substrate", branch="validation_io" }
-substrate-wasm-builder = { git="https://github.com/cheme/substrate", branch="validation_io" }
 
-[patch.crates-io]
-trie-db = { git = 'https://github.com/cheme/trie', branch = 'skip_compact_values_alt' }
-hash-db = { git = 'https://github.com/cheme/trie', branch = 'skip_compact_values_alt' }
