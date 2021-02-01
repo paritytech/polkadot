@@ -205,15 +205,11 @@ decl_module! {
 				if let Some(other_lifecycle) = paras::Module::<T>::lifecycle(other) {
 					if let Some(id_lifecycle) = paras::Module::<T>::lifecycle(id) {
 						// identify which is a parachain and which is a parathread
-						if id_lifecycle == ParaLifecycle::Parachain &&
-							other_lifecycle == ParaLifecycle::Parathread
-						{
+						if id_lifecycle.is_parachain() && other_lifecycle.is_parathread() {
 							runtime_parachains::schedule_parachain_downgrade::<T>(id);
 							runtime_parachains::schedule_parathread_upgrade::<T>(other);
 							T::OnSwap::on_swap(id, other);
-						} else if id_lifecycle == ParaLifecycle::Parathread &&
-							other_lifecycle == ParaLifecycle::Parachain
-						{
+						} else if id_lifecycle.is_parathread() && other_lifecycle.is_parachain() {
 							runtime_parachains::schedule_parachain_downgrade::<T>(other);
 							runtime_parachains::schedule_parathread_upgrade::<T>(id);
 							T::OnSwap::on_swap(id, other);
@@ -230,13 +226,19 @@ decl_module! {
 }
 
 impl<T: Config> Registrar for Module<T> {
-	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+	// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 	fn parachains() -> Vec<ParaId> {
 		paras::Module::<T>::parachains()
 	}
 
+	// Return if a para is a parathread
 	fn is_parathread(id: ParaId) -> bool {
 		paras::Module::<T>::is_parathread(id)
+	}
+
+	// Return if a para is a parachain
+	fn is_parachain(id: ParaId) -> bool {
+		paras::Module::<T>::is_parachain(id)
 	}
 
 	// Upgrade a registered parathread into a parachain.
