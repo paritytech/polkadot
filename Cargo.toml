@@ -226,7 +226,7 @@ substrate-test-client = { git="https://github.com/cheme/substrate", branch="vali
 substrate-test-runtime = { git="https://github.com/cheme/substrate", branch="validation_io" }
 substrate-test-runtime-client = { git="https://github.com/cheme/substrate", branch="validation_io" }
 substrate-test-utils = { git="https://github.com/cheme/substrate", branch="validation_io" }
-#substrate-wasm-builder = { git="https://github.com/cheme/substrate", branch="validation_io" }
+substrate-wasm-builder = { git="https://github.com/cheme/substrate", branch="validation_io" }
 
 [patch.crates-io]
 trie-db = { git = 'https://github.com/cheme/trie', branch = 'skip_compact_values_alt' }
