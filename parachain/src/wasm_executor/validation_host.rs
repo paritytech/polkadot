@@ -29,7 +29,6 @@ use parking_lot::Mutex;
 use log::{debug, trace};
 use futures::executor::ThreadPool;
 use sp_core::traits::SpawnNamed;
-use sp_io::Validation;
 
 const WORKER_ARG: &'static str = "validation-worker";
 /// CLI Argument to start in validation worker mode.
@@ -140,7 +139,7 @@ impl ReadSharedMemValidation {
 	}
 }
 
-impl Validation for ReadSharedMemValidation {
+impl super::Validation for ReadSharedMemValidation {
 	fn validation_code(&self) -> Vec<u8> {
 		// TODO maybe change proto to avoid panic
 		let memory = match SharedMem::open(self.mem_id.as_str()) {

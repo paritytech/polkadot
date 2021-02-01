@@ -26,7 +26,6 @@ use parity_scale_codec::{Decode, Encode};
 use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
-use sp_io::{Validation, ValidationExt};
 use super::*;
 
 #[cfg(not(any(target_os = "android", target_os = "unknown")))]
@@ -206,6 +205,9 @@ pub fn validate_candidate_internal(
 	spawner: impl SpawnNamed + 'static,
 	validation_ext: impl Validation,
 ) -> Result<ValidationResult, ValidationError> {
+	let mut host_functions = HostFunctions::host_functions();
+	host_functions.extend(validation::HostFunctions::host_functions().into_iter());
+
 	let executor = sc_executor::WasmExecutor::new(
 		#[cfg(all(feature = "wasmtime", not(any(target_os = "android", target_os = "unknown"))))]
 		sc_executor::WasmExecutionMethod::Compiled,
@@ -213,7 +215,7 @@ pub fn validate_candidate_internal(
 		sc_executor::WasmExecutionMethod::Interpreted,
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
 		Some(1024),
-		HostFunctions::host_functions(),
+		host_functions,
 		8
 	);
 

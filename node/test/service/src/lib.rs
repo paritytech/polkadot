@@ -60,7 +60,10 @@ native_executor_instance!(
 	pub PolkadotTestExecutor,
 	polkadot_test_runtime::api::dispatch,
 	polkadot_test_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
+	(
+		frame_benchmarking::benchmarking::HostFunctions,
+		polkadot_runtime::Validation::HostFunctions,
+	),
 );
 
 /// The client type being used by the test service.
