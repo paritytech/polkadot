@@ -225,6 +225,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	}
 }
 
+// one block with one candidate
 fn some_state(block_hash: Hash, slot: Slot, at: Tick) -> State<TestStore> {
 	let session_index = 1;
 	let mut state = State {
@@ -336,7 +337,7 @@ fn rejects_assignment_in_future() {
 			},
 		),
 	};
-	// too far in future
+
 	let tick = 9;
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
@@ -381,11 +382,31 @@ fn rejects_assignment_in_future() {
 		candidate_index,
 	).unwrap();
 	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
-
 }
 
 #[test]
 fn rejects_assignment_with_unknown_candidate() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_index = 1;
+	let assignment = IndirectAssignmentCert {
+		block_hash,
+		validator: 0,
+		cert: garbage_assignment_cert(
+			AssignmentCertKind::RelayVRFModulo {
+				sample: 0,
+			},
+		),
+	};
+
+	let tick = 10;
+	let mut state = some_state(block_hash, Slot::from(0), tick);
+
+	let res = check_and_import_assignment(
+		&mut state,
+		assignment.clone(),
+		candidate_index,
+	).unwrap();
+	assert_eq!(res.0, AssignmentCheckResult::Bad);
 
 }
 
