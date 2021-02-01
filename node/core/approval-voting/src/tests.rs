@@ -188,11 +188,6 @@ fn wakeup_scheduled_after_assignment_import() {
 }
 
 #[test]
-fn loads_blocks_back_to_finality_or_stored() {
-
-}
-
-#[test]
 fn rejects_approval_before_assignment() {
 
 }
