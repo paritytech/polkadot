@@ -189,6 +189,7 @@ decl_module! {
 			}
 
 			T::ParachainCleanup::schedule_para_cleanup(id);
+			PendingSwap::remove(id);
 			Self::deposit_event(RawEvent::Deregistered(id));
 			Ok(())
 		}
