@@ -366,7 +366,7 @@ pub mod v1 {
 	}
 
 	/// SCALE and Zstd encoded [`PoV`].
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	#[derive(Clone, Encode, Decode, PartialEq, Eq)]
 	pub struct CompressedPoV(Vec<u8>);
 
 	impl CompressedPoV {
@@ -410,6 +410,12 @@ pub mod v1 {
 		#[cfg(target_os = "unknown")]
 		pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 			Err(CompressedPoVError::NotSupported)
+		}
+	}
+
+	impl std::fmt::Debug for CompressedPoV {
+    	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+			write!(f, "CompressedPoV({} bytes)", self.0.len())
 		}
 	}
 
