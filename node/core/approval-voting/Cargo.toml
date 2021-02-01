@@ -32,3 +32,4 @@ rand_core = "0.5.1" # should match schnorrkel
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+maplit = "1.0.2"

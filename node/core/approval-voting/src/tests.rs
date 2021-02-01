@@ -15,12 +15,14 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use polkadot_primitives::v1::GroupIndex;
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
-	RELAY_VRF_MODULO_CONTEXT,
+	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
 };
 
 use parking_lot::Mutex;
+use bitvec::order::Lsb0 as BitOrderLsb0;
 use std::cell::RefCell;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -30,6 +32,14 @@ const SLOT_DURATION_MILLIS: u64 = 5000;
 #[derive(Default)]
 struct MockClock {
 	inner: Arc<Mutex<MockClockInner>>,
+}
+
+impl MockClock {
+	fn new(tick: Tick) -> Self {
+		let me = Self::default();
+		me.inner.lock().set_tick(tick);
+		me
+	}
 }
 
 impl Clock for MockClock {
@@ -102,9 +112,12 @@ impl MockClockInner {
 	}
 }
 
-struct MockAssignmentCriteria;
+struct MockAssignmentCriteria<F>(F);
 
-impl AssignmentCriteria for MockAssignmentCriteria {
+impl<F> AssignmentCriteria for MockAssignmentCriteria<F>
+where
+	F: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>
+{
 	fn compute_assignments(
 		&self,
 		_keystore: &LocalKeystore,
@@ -124,16 +137,16 @@ impl AssignmentCriteria for MockAssignmentCriteria {
 		_assignment: &polkadot_node_primitives::approval::AssignmentCert,
 		_backing_group: polkadot_primitives::v1::GroupIndex,
 	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
-		Ok(0)
+		self.0()
 	}
 }
 
 #[derive(Default)]
 pub struct TestStore {
 	pub inner: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
-	// TODO: make sure these are consistent with inner
-	pub block_entries: HashMap<Hash, BlockEntry>,
-	pub candidate_entries: HashMap<CandidateHash, CandidateEntry>,
+	// Note: these are inconsistent with `inner`
+	block_entries: HashMap<Hash, BlockEntry>,
+	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
 }
 
 impl AuxStore for TestStore {
@@ -182,7 +195,7 @@ fn blank_state() -> State<TestStore> {
 		slot_duration_millis: SLOT_DURATION_MILLIS,
 		db: TestStore::default(),
 		clock: Box::new(MockClock::default()),
-		assignment_criteria: Box::new(MockAssignmentCriteria),
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| { Ok(0) })),
 	}
 }
 
@@ -212,12 +225,51 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	}
 }
 
+fn some_state(block_hash: Hash, at: Tick) -> State<TestStore> {
+	let session_index = 1;
+	let mut state = State {
+		clock: Box::new(MockClock::new(at)),
+		..single_session_state(session_index, SessionInfo::default())
+	};
+	let core_index = 0.into();
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let slot = 0.into();
+
+	let block_entry = approval_db::v1::BlockEntry {
+		block_hash,
+		session: session_index,
+		slot,
+		candidates: vec![(core_index, candidate_hash)],
+		relay_vrf_story: Default::default(),
+		approved_bitfield: Default::default(),
+		children: Default::default(),
+	};
+	let approval_entry = approval_db::v1::ApprovalEntry {
+		tranches: Vec::new(),
+		backing_group: GroupIndex(0),
+		our_assignment: None,
+		assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 1],
+		approved: false,
+	};
+	let candidate_entry = approval_db::v1::CandidateEntry {
+		session: session_index,
+		block_assignments: maplit::btreemap! {
+			block_hash => approval_entry,
+		},
+		candidate: CandidateReceipt::default(),
+		approvals: Default::default(),
+	};
+
+	state.db.block_entries.insert(block_hash, block_entry.into());
+	state.db.candidate_entries.insert(candidate_hash, candidate_entry.into());
+	state
+}
+
 #[test]
 fn rejects_bad_assignment() {
-	let mut state = single_session_state(1, SessionInfo::default());
-
-	let assignment = IndirectAssignmentCert {
-		block_hash: Hash::repeat_byte(0x01),
+	let block_hash = Hash::repeat_byte(0x01);
+	let assignment_good = IndirectAssignmentCert {
+		block_hash,
 		validator: 0,
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
@@ -225,17 +277,51 @@ fn rejects_bad_assignment() {
 			},
 		),
 	};
+	let tick = 10;
+	let mut state = some_state(block_hash, tick);
 	let candidate_index = 0;
 
-	// TODO [now]: instantiate test store with block data.
+	let res = check_and_import_assignment(
+		&mut state,
+		assignment_good.clone(),
+		candidate_index,
+	).unwrap();
+	assert_eq!(res.0, AssignmentCheckResult::Accepted);
+	// Check that the assignment's been imported.
+	assert!(res.1.iter().any(|action| matches!(action, Action::WriteCandidateEntry(..))));
 
-	check_and_import_assignment(
+	// unknown hash
+	let assignment = IndirectAssignmentCert {
+		block_hash: Hash::repeat_byte(0x02),
+		validator: 0,
+		cert: garbage_assignment_cert(
+			AssignmentCertKind::RelayVRFModulo {
+				sample: 0,
+			},
+		),
+	};
+
+	let res = check_and_import_assignment(
 		&mut state,
 		assignment,
 		candidate_index,
 	).unwrap();
+	assert_eq!(res.0, AssignmentCheckResult::Bad);
 
-	// Check that the assignment's been imported.
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+			Err(criteria::InvalidAssignment)
+		})),
+		..some_state(block_hash, tick)
+	};
+
+	// same assignment, but this time rejected
+	let res = check_and_import_assignment(
+		&mut state,
+		assignment_good,
+		candidate_index,
+	).unwrap();
+	assert_eq!(res.0, AssignmentCheckResult::Bad);
 }
 
 #[test]
