@@ -837,12 +837,12 @@ mod tests {
 			assert_ok!(Registrar::deregister(Origin::root(), 1u32.into()));
 			run_to_block(5);
 
-			assert!(Registrar::register(
+			assert_noop!(Registrar::register(
 				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
 				WASM_MAGIC.to_vec().into(),
-			).is_err());
+			), Error::<Test>::AlreadyRegistered);
 
 			// The session will be changed on the 6th block, as part of finalization. The change
 			// will be observed on the 7th.
