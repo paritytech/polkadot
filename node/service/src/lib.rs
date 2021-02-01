@@ -79,7 +79,7 @@ native_executor_instance!(
 	polkadot_runtime::native_version,
 	(
 		frame_benchmarking::benchmarking::HostFunctions,
-		polkadot_runtime::validation::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
 	),
 );
 
@@ -89,7 +89,7 @@ native_executor_instance!(
 	kusama_runtime::native_version,
 	(
 		frame_benchmarking::benchmarking::HostFunctions,
-		polkadot_runtime::validation::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
 	),
 );
 
@@ -99,7 +99,7 @@ native_executor_instance!(
 	westend_runtime::native_version,
 	(
 		frame_benchmarking::benchmarking::HostFunctions,
-		polkadot_runtime::validation::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
 	),
 );
 
