@@ -109,7 +109,7 @@ native_executor_instance!(
 	rococo_runtime::native_version,
 	(
 		frame_benchmarking::benchmarking::HostFunctions,
-		polkadot_runtime::validation::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
 	),
 );
 
