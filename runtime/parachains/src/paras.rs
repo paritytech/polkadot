@@ -134,18 +134,14 @@ impl ParaLifecycle {
 
 	pub fn is_parachain(&self) -> bool {
 		match self {
-			ParaLifecycle::Parachain |
-			ParaLifecycle::DowngradingToParathread
-				=> true,
+			ParaLifecycle::Parachain => true,
 			_ => false,
 		}
 	}
 
 	pub fn is_parathread(&self) -> bool {
 		match self {
-			ParaLifecycle::Parathread |
-			ParaLifecycle::UpgradingToParachain
-				=> true,
+			ParaLifecycle::Parathread => true,
 			_ => false,
 		}
 	}
