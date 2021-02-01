@@ -604,7 +604,8 @@ pub(crate) async fn handle_new_head(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	// TODO [now]
+	// use super::*;
 
 	#[test]
 	fn determine_new_blocks_back_to_finalized() {
