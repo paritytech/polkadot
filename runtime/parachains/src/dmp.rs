@@ -226,6 +226,7 @@ impl<T: Config> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use hex_literal::hex;
 	use primitives::v1::BlockNumber;
 	use frame_support::StorageValue;
 	use frame_support::traits::{OnFinalize, OnInitialize};
@@ -319,6 +320,25 @@ mod tests {
 			assert_eq!(Dmp::dmq_length(b), 0);
 			assert!(!Dmp::dmq_mqc_head(a).is_zero());
 			assert!(Dmp::dmq_mqc_head(b).is_zero());
+		});
+	}
+
+	#[test]
+	fn dmp_mqc_head_fixture() {
+		let a = ParaId::from(2000);
+
+		new_test_ext(default_genesis_config()).execute_with(|| {
+			run_to_block(2, None);
+			assert!(Dmp::dmq_mqc_head(a).is_zero());
+			queue_downward_message(a, vec![1, 2, 3]).unwrap();
+
+			run_to_block(3, None);
+			queue_downward_message(a, vec![4, 5, 6]).unwrap();
+
+			assert_eq!(
+				Dmp::dmq_mqc_head(a),
+				hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
+			);
 		});
 	}
 
