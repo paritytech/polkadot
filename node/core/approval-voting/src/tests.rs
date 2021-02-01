@@ -225,7 +225,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	}
 }
 
-fn some_state(block_hash: Hash, at: Tick) -> State<TestStore> {
+fn some_state(block_hash: Hash, slot: Slot, at: Tick) -> State<TestStore> {
 	let session_index = 1;
 	let mut state = State {
 		clock: Box::new(MockClock::new(at)),
@@ -233,7 +233,6 @@ fn some_state(block_hash: Hash, at: Tick) -> State<TestStore> {
 	};
 	let core_index = 0.into();
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let slot = 0.into();
 
 	let block_entry = approval_db::v1::BlockEntry {
 		block_hash,
@@ -278,7 +277,7 @@ fn rejects_bad_assignment() {
 		),
 	};
 	let tick = 10;
-	let mut state = some_state(block_hash, tick);
+	let mut state = some_state(block_hash, Slot::from(0), tick);
 	let candidate_index = 0;
 
 	let res = check_and_import_assignment(
@@ -312,7 +311,7 @@ fn rejects_bad_assignment() {
 		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
 			Err(criteria::InvalidAssignment)
 		})),
-		..some_state(block_hash, tick)
+		..some_state(block_hash, Slot::from(0), tick)
 	};
 
 	// same assignment, but this time rejected
@@ -326,6 +325,62 @@ fn rejects_bad_assignment() {
 
 #[test]
 fn rejects_assignment_in_future() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_index = 0;
+	let assignment = IndirectAssignmentCert {
+		block_hash,
+		validator: 0,
+		cert: garbage_assignment_cert(
+			AssignmentCertKind::RelayVRFModulo {
+				sample: 0,
+			},
+		),
+	};
+	// too far in future
+	let tick = 9;
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+			Ok(10)
+		})),
+		..some_state(block_hash, Slot::from(0), tick)
+	};
+
+	let res = check_and_import_assignment(
+		&mut state,
+		assignment.clone(),
+		candidate_index,
+	).unwrap();
+	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
+
+	let tick = 10;
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+			Ok(10)
+		})),
+		..some_state(block_hash, Slot::from(0),tick)
+	};
+
+	let res = check_and_import_assignment(
+		&mut state,
+		assignment.clone(),
+		candidate_index,
+	).unwrap();
+	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
+
+	let tick = 11;
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+			Ok(10)
+		})),
+		..some_state(block_hash, Slot::from(6), tick)
+	};
+
+	let res = check_and_import_assignment(
+		&mut state,
+		assignment,
+		candidate_index,
+	).unwrap();
+	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
 
 }
 
