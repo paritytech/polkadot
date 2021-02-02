@@ -463,6 +463,7 @@ impl parachains_session_info::Config for Runtime {}
 
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
+	type ParachainCleanup = (Dmp, Hrmp, Ump);
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -522,6 +523,9 @@ construct_runtime! {
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 		SessionInfo: parachains_session_info::{Module, Call, Storage},
+		Dmp: parachains_dmp::{Module, Call, Storage},
+		Ump: parachains_ump::{Module, Call, Storage},
+		Hrmp: parachains_hrmp::{Module, Call, Storage},
 
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}

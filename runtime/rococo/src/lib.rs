@@ -511,6 +511,7 @@ impl parachains_inclusion::Config for Runtime {
 
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
+	type ParachainCleanup = (Dmp, Hrmp, Ump);
 }
 
 parameter_types! {
