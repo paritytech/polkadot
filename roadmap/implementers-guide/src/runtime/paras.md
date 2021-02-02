@@ -198,7 +198,8 @@ UpcomingDowngrades: Vec<ParaId>;
   current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if
   provided, must be before `at`. If the validation code has been pruned, this will return `None`.
 * `lifecycle(ParaId) -> Option<ParaLifecycle>`: Return the `ParaLifecycle` of a para.
-* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain, including those which may be transitioning to a parathread in the future.
+* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain, including
+  those which may be transitioning to a parathread in the future.
 * `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread, including those which may be transitioning to a parachain in the future.
 * `is_valid_para(ParaId) -> bool`: Returns true if the para ID references either a live parathread
   or live parachain.
