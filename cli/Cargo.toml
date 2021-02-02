@@ -23,20 +23,20 @@ wasm-bindgen-futures = { version = "0.4.19", optional = true }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-parachain = { path = "../parachain", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 tracing-futures = "0.2.4"
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", optional = true }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", optional = true }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", optional = true }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", default-features = false }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]

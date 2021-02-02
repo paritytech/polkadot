@@ -23,7 +23,7 @@ assert_matches = "1.4.0"
 smallvec = "1.5.1"
 futures-timer = "3.0.2"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", features = ["std"] }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", features = ["std"] }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

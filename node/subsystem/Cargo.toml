@@ -19,10 +19,10 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 smallvec = "1.5.1"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 thiserror = "1.0.22"
 
 [dev-dependencies]

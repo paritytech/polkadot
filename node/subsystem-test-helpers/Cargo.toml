@@ -19,9 +19,9 @@ polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 smallvec = "1.5.1"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 
 [dev-dependencies]
 polkadot-overseer = { path = "../overseer" }

@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
@@ -19,10 +19,10 @@ tracing-futures = "0.2.4"
 thiserror = "1.0.22"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 futures = { version = "0.3.8", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

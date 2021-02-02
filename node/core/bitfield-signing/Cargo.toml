@@ -11,6 +11,6 @@ tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 wasm-timer = "0.2.5"
 thiserror = "1.0.22"

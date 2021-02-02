@@ -11,14 +11,14 @@ tracing = "0.1.22"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }

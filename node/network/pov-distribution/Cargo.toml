@@ -21,7 +21,7 @@ env_logger = "0.8.1"
 log = "0.4.11"
 smallvec = "1.5.1"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

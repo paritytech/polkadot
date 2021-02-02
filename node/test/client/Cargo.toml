@@ -14,18 +14,18 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }

@@ -20,7 +20,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", default-features = false }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", default-features = false }
 
 [dev-dependencies]
 log = "0.4.11"
@@ -29,6 +29,6 @@ assert_matches = "1.4.0"
 smallvec = "1.5.1"
 kvdb-memorydb = "0.7.0"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

@@ -11,7 +11,7 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun", default-features = false }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
@@ -21,8 +21,8 @@ indexmap = "1.6.0"
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }

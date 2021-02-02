@@ -9,4 +9,4 @@ description = "Primitives types for the Node-side"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-release-v0.8.27" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-OCW-rerun-dryrun" }
