@@ -168,7 +168,7 @@ impl Collator {
 					block_data: block_data.encode().into(),
 				},
 				processed_downward_messages: 0,
-				hrmp_watermark: validation_data.block_number,
+				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
 			async move { Some(collation) }.boxed()
@@ -230,10 +230,8 @@ mod tests {
 			ValidationParams {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,
-				relay_chain_height: 1,
-				relay_storage_root: Default::default(),
-				hrmp_mqc_heads: Vec::new(),
-				dmq_mqc_head: Default::default(),
+				relay_parent_number: 1,
+				relay_parent_storage_root: Default::default(),
 			},
 			&IsolationStrategy::InProcess,
 			sp_core::testing::TaskExecutor::new(),

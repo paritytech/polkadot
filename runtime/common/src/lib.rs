@@ -31,7 +31,7 @@ use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
 use frame_support::{
-	parameter_types, traits::{Currency},
+	parameter_types, traits::{Currency, OneSessionHandler},
 	weights::{Weight, constants::WEIGHT_PER_SECOND, DispatchClass},
 };
 use pallet_transaction_payment::{TargetedFeeAdjustment, Multiplier};
@@ -136,8 +136,7 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for ParachainSessionKeyPlaceholder<T
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Config>
-	pallet_session::OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
+impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
 {
 	type Key = ValidatorId;
 
@@ -165,8 +164,7 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for AssignmentSessionKeyPlaceholder<
 	type Public = AssignmentId;
 }
 
-impl<T: pallet_session::Config>
-	pallet_session::OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
+impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
 {
 	type Key = AssignmentId;
 
