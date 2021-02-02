@@ -124,7 +124,7 @@ async fn run(
 				}
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
-					validation_code, // TODO could Arc in message, could only be a win
+					validation_code,
 					descriptor,
 					pov,
 					response_sender,
@@ -135,7 +135,7 @@ async fn run(
 						&mut ctx,
 						isolation_strategy.clone(),
 						persisted_validation_data,
-						Arc::new(validation_code),
+						validation_code,
 						descriptor,
 						pov,
 						spawn.clone(),

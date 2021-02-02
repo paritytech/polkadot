@@ -139,7 +139,7 @@ impl ReadSharedMemValidation {
 	}
 }
 
-impl super::Validation for ReadSharedMemValidation {
+impl crate::Validation for ReadSharedMemValidation {
 	fn validation_code(&self) -> Vec<u8> {
 		// TODO maybe change proto to avoid panic
 		let memory = match SharedMem::open(self.mem_id.as_str()) {
@@ -204,11 +204,10 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 			debug!("{} Processing candidate", process::id());
 			// we have candidate data
 			let result = {
-				// TODO need to ensure there is no concurrent access, but
-				// I see no point in having concurrent access except if we
-				// force a single process for all validation (in this case
-				// this change needs an additional lock state to be written),
-				// SO TODO read code an/or doc
+				// Locking as read only to allow access to code memory from
+				// host validation extension.
+				// Note that this only work if two process are communicating only.
+				// Would be racy otherwhise.
 				let slice = memory.rlock_as_slice(0)
 					.map_err(|e| format!("Error locking shared memory: {:?}", e))?;
 				let data: &[u8] = & **slice;

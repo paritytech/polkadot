@@ -57,13 +57,14 @@ use crate::primitives::{ValidationParams, ValidationResult, ValidationCode};
 
 use sp_runtime_interface::runtime_interface;
 
+/// Validation specific host functions.
 #[runtime_interface]
 pub trait Validation {
-	/// TODO
+	/// Get validation wasm bytecode.
 	fn validation_code(&mut self) -> Vec<u8> {
 		use sp_externalities::ExternalitiesExt;
 		let extension = self.extension::<ValidationExt>()
-			.expect("Cannot set capacity without dynamic runtime dispatcher (RuntimeSpawnExt)");
+			.expect("Cannot get validation code without dynamic runtime dispatcher (ValidationExt)");
 		extension.validation_code()
 	}
 }

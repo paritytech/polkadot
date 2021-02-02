@@ -553,7 +553,7 @@ pub enum CandidateValidationMessage {
 	/// performed by the relay-chain.
 	ValidateFromExhaustive(
 		PersistedValidationData,
-		ValidationCode,
+		Arc<ValidationCode>,
 		CandidateDescriptor,
 		Arc<PoV>,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
