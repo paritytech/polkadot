@@ -99,7 +99,8 @@ pub trait Network: Send + 'static {
 		&'a mut self,
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>;
 
-	fn send_request(&self, req: Requests);
+	/// Send a request to a remote peer.
+	fn start_request(&self, req: Requests);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
 	fn report_peer(
@@ -183,11 +184,11 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		Box::pin(ActionSink(&**self))
 	}
 
-	fn send_request(&self, req: Requests,) {
+	fn start_request(&self, req: Requests,) {
 		let (protocol, OutgoingRequest {peer, payload, pending_response})
 			= req.encode_request();
 
 		// Use the equally named method as implemented in `NetworkService`:
-		self.as_ref().send_request(peer, protocol.into_protocol_name(), payload, pending_response, true);
+		self.as_ref().start_request(peer, protocol.into_protocol_name(), payload, pending_response, true);
 	}
 }
