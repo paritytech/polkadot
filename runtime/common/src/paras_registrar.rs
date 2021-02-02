@@ -297,6 +297,7 @@ mod tests {
 	use frame_system::limits;
 	use frame_support::{
 		traits::{Randomness, OnInitialize, OnFinalize},
+		error::BadOrigin,
 		impl_outer_origin, impl_outer_dispatch, parameter_types,
 		assert_ok, assert_noop
 	};
@@ -584,6 +585,7 @@ mod tests {
 	type Session = pallet_session::Module<Test>;
 	type Staking = pallet_staking::Module<Test>;
 	type Initializer = initializer::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
 
 	fn new_test_ext() -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
@@ -724,6 +726,7 @@ mod tests {
 			));
 			run_to_block(4); // Move to the next session
 			assert!(Parachains::is_parathread(32.into()));
+			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 		});
 	}
 
@@ -769,6 +772,63 @@ mod tests {
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			), BalancesError::<Test, _>::InsufficientBalance);
+		});
+	}
+
+	#[test]
+	fn deregister_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert!(!Parachains::is_parathread(32.into()));
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				32.into(),
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
+			run_to_block(4); // Move to the next session
+			assert!(Parachains::is_parathread(32.into()));
+			assert_ok!(Registrar::deregister(
+				Origin::root(),
+				32.into(),
+			));
+			run_to_block(8); // Move to the next session
+			assert!(paras::Module::<Test>::lifecycle(32.into()).is_none());
+			assert_eq!(Balances::reserved_balance(&1), 0);
+		});
+	}
+
+	#[test]
+	fn deregister_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert!(!Parachains::is_parathread(32.into()));
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				32.into(),
+				test_genesis_head(32),
+				test_validation_code(32),
+			));
+			run_to_block(4); // Move to the next session
+			assert!(Parachains::is_parathread(32.into()));
+			// Origin check
+			assert_noop!(Registrar::deregister(
+				Origin::signed(1),
+				32.into(),
+			), BadOrigin);
+			// not registered
+			assert_noop!(Registrar::deregister(
+				Origin::root(),
+				33.into(),
+			), Error::<Test>::NotParathread);
+			assert_ok!(Registrar::make_parachain(32.into()));
+			run_to_block(8); // Move to the next session
+			// Cant directly deregister parachain
+			assert_noop!(Registrar::deregister(
+				Origin::root(),
+				32.into(),
+			), Error::<Test>::NotParathread);
 		});
 	}
 
