@@ -608,6 +608,7 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
+	use sp_consensus_slots::Slot;
 	use assert_matches::assert_matches;
 
 	use crate::BlockEntry;
@@ -735,7 +736,6 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = Box::pin(async move {
-
 			let ancestry = determine_new_blocks(
 				&mut ctx,
 				&db,
@@ -802,17 +802,243 @@ mod tests {
 
 	#[test]
 	fn determine_new_blocks_back_to_known() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
+		let mut db = TestDB::default();
+
+		let chain = TestChain::new(10, 9);
+
+		let head = chain.header_by_number(18).unwrap().clone();
+		let head_hash = head.hash();
+		let finalized_number = 12;
+		let known_number = 15;
+		let known_hash = chain.hash_by_number(known_number).unwrap();
+
+		db.block_entries.insert(
+			known_hash,
+			crate::approval_db::v1::BlockEntry {
+				block_hash: known_hash,
+				session: 1,
+				slot: Slot::from(100),
+				relay_vrf_story: Default::default(),
+				candidates: Vec::new(),
+				approved_bitfield: Default::default(),
+				children: Vec::new(),
+			}.into(),
+		);
+
+		// Known block should be omitted. The head provided to `determine_new_blocks`
+		// should be included.
+		let expected_ancestry = (16..18)
+			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
+			.rev()
+			.collect::<Vec<_>>();
+
+		let test_fut = Box::pin(async move {
+			let ancestry = determine_new_blocks(
+				&mut ctx,
+				&db,
+				head_hash,
+				&head,
+				finalized_number,
+			).await.unwrap();
+
+			assert_eq!(
+				ancestry,
+				expected_ancestry,
+			);
+		});
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash: h,
+					k,
+					response_channel: tx,
+				}) => {
+					assert_eq!(h, head_hash);
+					assert_eq!(k, 4);
+					let _ = tx.send(Ok(chain.ancestry(&h, k as _)));
+				}
+			);
+
+			for _ in 0u32..4 {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+						let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
 	}
 
 	#[test]
 	fn determine_new_blocks_already_known_is_empty() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, _handle) = make_subsystem_context::<(), _>(pool.clone());
 
+		let mut db = TestDB::default();
+
+		let chain = TestChain::new(10, 9);
+
+		let head = chain.header_by_number(18).unwrap().clone();
+		let head_hash = head.hash();
+		let finalized_number = 0;
+
+		db.block_entries.insert(
+			head_hash,
+			crate::approval_db::v1::BlockEntry {
+				block_hash: head_hash,
+				session: 1,
+				slot: Slot::from(100),
+				relay_vrf_story: Default::default(),
+				candidates: Vec::new(),
+				approved_bitfield: Default::default(),
+				children: Vec::new(),
+			}.into(),
+		);
+
+		// Known block should be omitted.
+		let expected_ancestry = Vec::new();
+
+		let test_fut = Box::pin(async move {
+			let ancestry = determine_new_blocks(
+				&mut ctx,
+				&db,
+				head_hash,
+				&head,
+				finalized_number,
+			).await.unwrap();
+
+			assert_eq!(
+				ancestry,
+				expected_ancestry,
+			);
+		});
+
+		futures::executor::block_on(test_fut);
 	}
 
 	#[test]
 	fn determine_new_blocks_parent_known_is_fast() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, _handle) = make_subsystem_context::<(), _>(pool.clone());
 
+		let mut db = TestDB::default();
+
+		let chain = TestChain::new(10, 9);
+
+		let head = chain.header_by_number(18).unwrap().clone();
+		let head_hash = head.hash();
+		let finalized_number = 0;
+		let parent_hash = chain.hash_by_number(17).unwrap();
+
+		db.block_entries.insert(
+			parent_hash,
+			crate::approval_db::v1::BlockEntry {
+				block_hash: parent_hash,
+				session: 1,
+				slot: Slot::from(100),
+				relay_vrf_story: Default::default(),
+				candidates: Vec::new(),
+				approved_bitfield: Default::default(),
+				children: Vec::new(),
+			}.into(),
+		);
+
+		// New block should be the only new one.
+		let expected_ancestry = vec![(head_hash, head.clone())];
+
+		let test_fut = Box::pin(async move {
+			let ancestry = determine_new_blocks(
+				&mut ctx,
+				&db,
+				head_hash,
+				&head,
+				finalized_number,
+			).await.unwrap();
+
+			assert_eq!(
+				ancestry,
+				expected_ancestry,
+			);
+		});
+
+		futures::executor::block_on(test_fut);
+	}
+
+	#[test]
+	fn determine_new_block_before_finality_is_empty() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, _handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let chain = TestChain::new(10, 9);
+
+		let head = chain.header_by_number(18).unwrap().clone();
+		let head_hash = head.hash();
+		let parent_hash = chain.hash_by_number(17).unwrap();
+		let mut db = TestDB::default();
+
+		db.block_entries.insert(
+			parent_hash,
+			crate::approval_db::v1::BlockEntry {
+				block_hash: parent_hash,
+				session: 1,
+				slot: Slot::from(100),
+				relay_vrf_story: Default::default(),
+				candidates: Vec::new(),
+				approved_bitfield: Default::default(),
+				children: Vec::new(),
+			}.into(),
+		);
+
+		let test_fut = Box::pin(async move {
+			let after_finality = determine_new_blocks(
+				&mut ctx,
+				&db,
+				head_hash,
+				&head,
+				17,
+			).await.unwrap();
+
+			let at_finality = determine_new_blocks(
+				&mut ctx,
+				&db,
+				head_hash,
+				&head,
+				18,
+			).await.unwrap();
+
+			let before_finality = determine_new_blocks(
+				&mut ctx,
+				&db,
+				head_hash,
+				&head,
+				19,
+			).await.unwrap();
+
+			assert_eq!(
+				after_finality,
+				vec![(head_hash, head.clone())],
+			);
+
+			assert_eq!(
+				at_finality,
+				Vec::new(),
+			);
+
+			assert_eq!(
+				before_finality,
+				Vec::new(),
+			);
+		});
+
+		futures::executor::block_on(test_fut);
 	}
 
 	#[test]
