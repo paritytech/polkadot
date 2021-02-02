@@ -107,9 +107,9 @@ pub enum ParaLifecycle {
 	UpgradingToParachain,
 	/// Para is a Parachain which is downgrading to a Parathread.
 	DowngradingToParathread,
-	/// Parachain is being offboarded.
-	OutgoingParathread,
 	/// Parathread is being offboarded.
+	OutgoingParathread,
+	/// Parachain is being offboarded.
 	OutgoingParachain,
 }
 
