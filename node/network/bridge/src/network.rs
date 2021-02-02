@@ -25,7 +25,11 @@ use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
 
-use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId, ReputationChange, request_response::{Requests, OutgoingRequest},};
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet,
+	request_response::{OutgoingRequest, Requests},
+	PeerId, ReputationChange,
+};
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
@@ -184,11 +188,23 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		Box::pin(ActionSink(&**self))
 	}
 
-	fn start_request(&self, req: Requests,) {
-		let (protocol, OutgoingRequest {peer, payload, pending_response})
-			= req.encode_request();
+	fn start_request(&self, req: Requests) {
+		let (
+			protocol,
+			OutgoingRequest {
+				peer,
+				payload,
+				pending_response,
+			},
+		) = req.encode_request();
 
 		// Use the equally named method as implemented in `NetworkService`:
-		self.as_ref().start_request(peer, protocol.into_protocol_name(), payload, pending_response, true);
+		self.as_ref().start_request(
+			peer,
+			protocol.into_protocol_name(),
+			payload,
+			pending_response,
+			sc_network::IfDisconnected::TryConnect,
+		);
 	}
 }
