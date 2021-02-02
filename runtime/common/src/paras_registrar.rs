@@ -233,7 +233,7 @@ impl<T: Config> Registrar for Module<T> {
 	type AccountId = T::AccountId;
 
 	fn manager_of(id: ParaId) -> Option<T::AccountId> {
-		Paras::<T>::get(index)?.manager
+		Some(Paras::<T>::get(id)?.manager)
 	}
 
 	// All parachains. Ordered ascending by ParaId. Parathreads are not included.

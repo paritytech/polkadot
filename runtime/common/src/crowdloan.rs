@@ -77,14 +77,13 @@ use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
 };
-use crate::{slots, auctions};
+use crate::{slots, auctions, traits::Registrar};
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 
 type CurrencyOf<T> = <<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type RegistrarOf<T> = <<T as auctions::Config>::Leaser as crate::traits::Leaser>::Registrar;
 
 #[allow(dead_code)]
 type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
@@ -111,6 +110,10 @@ pub trait Config: auctions::Config {
 
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
+
+	/// The parachain registrar type.
+	type Registrar: Registrar<AccountId=Self::AccountId>;
+
 }
 
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
@@ -278,7 +281,7 @@ decl_module! {
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
-			let manager = RegistrarOf::<T>::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
+			let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(owner == manager, Error::<T>::InvalidOrigin);
 
 			let deposit = T::SubmissionDeposit::get();
@@ -365,7 +368,7 @@ decl_module! {
 			let parachain_id = fund.parachain;
 
 			// No deposit information implies the parachain was off-boarded
-			ensure!(!RegistrarOf::<T>::is_registered(parachain_id), Error::<T>::ParaAlive);
+			ensure!(!T::Registrar::is_registered(parachain_id), Error::<T>::ParaAlive);
 
 			let account = Self::fund_account_id(index);
 			// Funds should be returned at the end of off-boarding

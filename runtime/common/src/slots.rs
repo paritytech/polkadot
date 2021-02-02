@@ -42,7 +42,7 @@ pub trait Config: frame_system::Config {
 	type Currency: ReservableCurrency<Self::AccountId>;
 
 	/// The parachain registrar type.
-	type Registrar: Registrar;
+	type Registrar: Registrar<AccountId=Self::AccountId>;
 
 	/// The number of blocks over which a single period lasts.
 	type LeasePeriod: Get<Self::BlockNumber>;
@@ -243,7 +243,6 @@ impl<T: Config> Leaser for Module<T> {
 	type AccountId = T::AccountId;
 	type LeasePeriod = T::BlockNumber;
 	type Currency = T::Currency;
-	type Registrar = T::Registrar;
 
 	fn lease_out(
 		para: ParaId,

@@ -77,9 +77,6 @@ pub trait Leaser {
 	/// The currency type in which the lease is taken.
 	type Currency: ReservableCurrency<Self::AccountId>;
 
-	/// The registrar type used when registering the leases.
-	type Registrar: Registrar<AccountId=Self::AccountId>;
-
 	/// Lease a new parachain slot for `para`.
 	///
 	/// `leaser` shall have a total of `amount` balance reserved by the implementor of this trait.
