@@ -27,6 +27,12 @@ use sp_std::vec::*;
 
 /// Parachain registration API.
 pub trait Registrar {
+	/// The account ID type that encodes a parachain manager ID.
+	type AccountId;
+
+	/// Report the manager (permissioned owner) of a parachain, if there is one.
+	fn manager_of(id: ParaId) -> Option<Self::AccountId>;
+
 	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 	fn parachains() -> Vec<ParaId>;
 
@@ -70,6 +76,9 @@ pub trait Leaser {
 
 	/// The currency type in which the lease is taken.
 	type Currency: ReservableCurrency<Self::AccountId>;
+
+	/// The registrar type used when registering the leases.
+	type Registrar: Registrar<AccountId=Self::AccountId>;
 
 	/// Lease a new parachain slot for `para`.
 	///

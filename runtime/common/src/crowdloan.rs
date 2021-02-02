@@ -77,18 +77,19 @@ use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
 };
-use crate::{slots, auctions, paras_registrar};
+use crate::{slots, auctions};
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 
 type CurrencyOf<T> = <<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency;
-type BalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type RegistrarOf<T> = <<T as auctions::Config>::Leaser as crate::traits::Leaser>::Registrar;
 
 #[allow(dead_code)]
 type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-pub trait Config: slots::Config + auctions::Config + paras_registrar::Config {
+pub trait Config: auctions::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// ModuleID for the crowdloan module. An appropriate value could be ```ModuleId(*b"py/cfund")```
@@ -238,7 +239,7 @@ decl_error! {
 		/// This crowdloan does not correspond to a parachain.
 		NotParachain,
 		/// This parachain still has its deposit. Implies that it has already been offboarded.
-		ParaHasDeposit,
+		ParaAlive,
 		/// Funds have not yet been returned.
 		FundsNotReturned,
 		/// Fund has not yet retired.
@@ -277,7 +278,7 @@ decl_module! {
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
-			let manager = paras_registrar::Paras::<T>::get(index).ok_or(Error::<T>::InvalidParaId)?.manager;
+			let manager = RegistrarOf::<T>::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(owner == manager, Error::<T>::InvalidOrigin);
 
 			let deposit = T::SubmissionDeposit::get();
@@ -364,9 +365,7 @@ decl_module! {
 			let parachain_id = fund.parachain;
 
 			// No deposit information implies the parachain was off-boarded
-			// TODO: Better way of doing this, maybe just check the reserved amount is zero or otherwise through
-			//   a trait.
-			ensure!(slots::Leases::<T>::get(parachain_id).len() == 0, Error::<T>::ParaHasDeposit);
+			ensure!(!RegistrarOf::<T>::is_registered(parachain_id), Error::<T>::ParaAlive);
 
 			let account = Self::fund_account_id(index);
 			// Funds should be returned at the end of off-boarding
@@ -1071,7 +1070,7 @@ mod tests {
 			assert_eq!(fund.parachain, Some(0.into()));
 
 			// Cannot retire fund whose deposit has not been returned
-			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 0), Error::<Test>::ParaHasDeposit);
+			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 0), Error::<Test>::ParaAlive);
 
 			run_to_block(50);
 

@@ -243,6 +243,7 @@ impl<T: Config> Leaser for Module<T> {
 	type AccountId = T::AccountId;
 	type LeasePeriod = T::BlockNumber;
 	type Currency = T::Currency;
+	type Registrar = T::Registrar;
 
 	fn lease_out(
 		para: ParaId,
@@ -407,12 +408,15 @@ mod tests {
 		pub static OPERATIONS: RefCell<Vec<(ParaId, BlockNumber, bool)>> = RefCell::new(Vec::new());
 		pub static PARACHAINS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
 		pub static PARATHREADS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
-
 	}
 
 	pub struct TestRegistrar;
 
 	impl Registrar for TestRegistrar {
+		type AccountId = u64;
+
+		fn manager_of(id: ParaId) -> Option<Self::AccountId> { None }
+
 		fn parachains() -> Vec<ParaId> {
 			PARACHAINS.with(|x| x.borrow().clone())
 		}
