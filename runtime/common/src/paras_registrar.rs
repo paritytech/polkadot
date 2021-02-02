@@ -271,7 +271,7 @@ mod tests {
 	};
 	use keyring::Sr25519Keyring;
 	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp};
-	use pallet_session::OneSessionHandler;
+	use frame_support::traits::OneSessionHandler;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {

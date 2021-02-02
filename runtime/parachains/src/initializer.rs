@@ -23,7 +23,7 @@ use sp_std::prelude::*;
 use frame_support::weights::Weight;
 use primitives::v1::ValidatorId;
 use frame_support::{
-	decl_storage, decl_module, decl_error, traits::Randomness,
+	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
 use parity_scale_codec::{Encode, Decode};
 use crate::{
@@ -237,7 +237,7 @@ impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
