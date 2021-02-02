@@ -82,10 +82,10 @@ const LOG_TARGET: &'static str = "network_bridge";
 #[derive(Debug, Encode, Decode, Clone)]
 pub enum WireMessage<M> {
 	/// A message from a peer on a specific protocol.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	ProtocolMessage(M),
 	/// A view update from a peer.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	ViewUpdate(View),
 }
 

@@ -20,10 +20,12 @@
 //!
 //! These core Polkadot types are used by the relay chain and the Parachains.
 
-use sp_runtime::{generic, MultiSignature, traits::{Verify, BlakeTwo256, IdentifyAccount}};
+use sp_runtime::{generic, MultiSignature, traits::{Verify, IdentifyAccount}};
 use parity_scale_codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use parity_util_mem::MallocSizeOf;
+
+pub use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
 /// The block number type used by Polkadot.
 /// 32-bits will allow for 136 years of blocks assuming 1 block per second.

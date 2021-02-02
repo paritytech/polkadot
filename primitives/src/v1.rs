@@ -677,18 +677,18 @@ pub struct ScheduledCore {
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
-	#[codec(index = "0")]
+	#[codec(index = 0)]
 	Occupied(OccupiedCore<H, N>),
 	/// The core is currently free, with a para scheduled and given the opportunity
 	/// to occupy.
 	///
 	/// If a particular Collator is required to author this block, that is also present in this
 	/// variant.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
 	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
 	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Free,
 }
 
@@ -713,13 +713,13 @@ impl<N> CoreState<N> {
 #[cfg_attr(feature = "std", derive(PartialEq, Eq, Hash, Debug))]
 pub enum OccupiedCoreAssumption {
 	/// The candidate occupying the core was made available and included to free the core.
-	#[codec(index = "0")]
+	#[codec(index = 0)]
 	Included,
 	/// The candidate occupying the core timed out and freed the core without advancing the para.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	TimedOut,
 	/// The core was not occupied to begin with.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Free,
 }
 
@@ -728,13 +728,13 @@ pub enum OccupiedCoreAssumption {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
 pub enum CandidateEvent<H = Hash> {
 	/// This candidate receipt was backed in the most recent block.
-	#[codec(index = "0")]
+	#[codec(index = 0)]
 	CandidateBacked(CandidateReceipt<H>, HeadData),
 	/// This candidate receipt was included and became a parablock at the most recent block.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	CandidateIncluded(CandidateReceipt<H>, HeadData),
 	/// This candidate receipt was not made available in time and timed out.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	CandidateTimedOut(CandidateReceipt<H>, HeadData),
 }
 

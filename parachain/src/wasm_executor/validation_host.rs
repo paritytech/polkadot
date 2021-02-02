@@ -151,6 +151,8 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	memory.set(Event::WorkerReady as usize, EventState::Signaled)
 		.map_err(|e| format!("{} Error setting shared event: {:?}", process::id(), e))?;
 
+	let executor = super::ExecutorCache::default();
+
 	loop {
 		if watch_exit.load(atomic::Ordering::Relaxed) {
 			break;
@@ -184,7 +186,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
 				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
 
-				let result = validate_candidate_internal(code, call_data, task_executor.clone());
+				let result = validate_candidate_internal(&executor, code, call_data, task_executor.clone());
 				debug!(target: LOG_TARGET, "{} Candidate validated: {:?}", process::id(), result);
 
 				match result {
