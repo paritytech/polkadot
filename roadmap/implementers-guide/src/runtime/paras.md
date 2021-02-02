@@ -182,9 +182,9 @@ UpcomingDowngrades: Vec<ParaId>;
   session. Noop if para is already registered in the system with some `ParaLifecycle`.
 * `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up at the next session.
 * `schedule_parathread_upgrade(ParaId)`: Schedule a parathread to be upgraded to a parachain. Noop
-  if `ParaLifecycle` is not `Parachain`.
+  if `ParaLifecycle` is not `Parathread`.
 * `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread.
-  Noop if `ParaLifecycle` is not `Parachain`. `ParaLifecycle` is not `Parathread`.
+  Noop if `ParaLifecycle` is not `Parachain`.
 * `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code
   upgrade of the given parachain, to be applied after inclusion of a block of the same parachain
   executed in the context of a relay-chain block with number >= `expected_at`.
