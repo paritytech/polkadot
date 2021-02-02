@@ -33,3 +33,5 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 maplit = "1.0.2"
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+assert_matches = "1.4.0"

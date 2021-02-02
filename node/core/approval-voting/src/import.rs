@@ -604,16 +604,214 @@ pub(crate) async fn handle_new_head(
 
 #[cfg(test)]
 mod tests {
-	// TODO [now]
-	// use super::*;
+	use super::*;
+	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_subsystem::messages::AllMessages;
+	use sp_core::testing::TaskExecutor;
+	use assert_matches::assert_matches;
+
+	use crate::BlockEntry;
+
+	#[derive(Default)]
+	struct TestDB {
+		block_entries: HashMap<Hash, BlockEntry>,
+		candidate_entries: HashMap<CandidateHash, CandidateEntry>,
+	}
+
+	impl DBReader for TestDB {
+		fn load_block_entry(
+			&self,
+			block_hash: &Hash,
+		) -> SubsystemResult<Option<BlockEntry>> {
+			Ok(self.block_entries.get(block_hash).map(|c| c.clone()))
+		}
+
+		fn load_candidate_entry(
+			&self,
+			candidate_hash: &CandidateHash,
+		) -> SubsystemResult<Option<CandidateEntry>> {
+			Ok(self.candidate_entries.get(candidate_hash).map(|c| c.clone()))
+		}
+	}
+
+	#[derive(Clone)]
+	struct TestChain {
+		start_number: BlockNumber,
+		headers: Vec<Header>,
+		numbers: HashMap<Hash, BlockNumber>,
+	}
+
+	impl TestChain {
+		fn new(start: BlockNumber, len: usize) -> Self {
+			assert!(len > 0, "len must be at least 1");
+
+			let base = Header {
+				digest: Default::default(),
+				extrinsics_root: Default::default(),
+				number: start,
+				state_root: Default::default(),
+				parent_hash: Default::default(),
+			};
+
+			let base_hash = base.hash();
+
+			let mut chain = TestChain {
+				start_number: start,
+				headers: vec![base],
+				numbers: vec![(base_hash, start)].into_iter().collect(),
+			};
+
+			for _ in 1..len {
+				chain.grow()
+			}
+
+			chain
+		}
+
+		fn grow(&mut self) {
+			let next = {
+				let last = self.headers.last().unwrap();
+				Header {
+					digest: Default::default(),
+					extrinsics_root: Default::default(),
+					number: last.number + 1,
+					state_root: Default::default(),
+					parent_hash: last.hash(),
+				}
+			};
+
+			self.numbers.insert(next.hash(), next.number);
+			self.headers.push(next);
+		}
+
+		fn header_by_number(&self, number: BlockNumber) -> Option<&Header> {
+			if number < self.start_number {
+				None
+			} else {
+				self.headers.get((number - self.start_number) as usize)
+			}
+		}
+
+		fn header_by_hash(&self, hash: &Hash) -> Option<&Header> {
+			self.numbers.get(hash).and_then(|n| self.header_by_number(*n))
+		}
+
+		fn hash_by_number(&self, number: BlockNumber) -> Option<Hash> {
+			self.header_by_number(number).map(|h| h.hash())
+		}
+
+		fn ancestry(&self, hash: &Hash, k: BlockNumber) -> Vec<Hash> {
+			let n = match self.numbers.get(hash) {
+				None => return Vec::new(),
+				Some(&n) => n,
+			};
+
+			(0..k)
+				.map(|i| i + 1)
+				.filter_map(|i| self.header_by_number(n - i))
+				.map(|h| h.hash())
+				.collect()
+		}
+	}
 
 	#[test]
 	fn determine_new_blocks_back_to_finalized() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
+		let db = TestDB::default();
+
+		let chain = TestChain::new(10, 9);
+
+		let head = chain.header_by_number(18).unwrap().clone();
+		let head_hash = head.hash();
+		let finalized_number = 12;
+
+		// Finalized block should be omitted. The head provided to `determine_new_blocks`
+		// should be included.
+		let expected_ancestry = (13..18)
+			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
+			.rev()
+			.collect::<Vec<_>>();
+
+		let test_fut = Box::pin(async move {
+
+			let ancestry = determine_new_blocks(
+				&mut ctx,
+				&db,
+				head_hash,
+				&head,
+				finalized_number,
+			).await.unwrap();
+
+			assert_eq!(
+				ancestry,
+				expected_ancestry,
+			);
+		});
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash: h,
+					k,
+					response_channel: tx,
+				}) => {
+					assert_eq!(h, head_hash);
+					assert_eq!(k, 4);
+					let _ = tx.send(Ok(chain.ancestry(&h, k as _)));
+				}
+			);
+
+			for _ in 0..4 {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+						let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
+					}
+				);
+			}
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash: h,
+					k,
+					response_channel: tx,
+				}) => {
+					assert_eq!(h, chain.hash_by_number(14).unwrap());
+					assert_eq!(k, 4);
+					let _ = tx.send(Ok(chain.ancestry(&h, k as _)));
+				}
+			);
+
+			for _ in 0..4 {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+						let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
+					}
+				);
+			}
+
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
 	}
 
 	#[test]
 	fn determine_new_blocks_back_to_known() {
+
+	}
+
+	#[test]
+	fn determine_new_blocks_already_known_is_empty() {
+
+	}
+
+	#[test]
+	fn determine_new_blocks_parent_known_is_fast() {
 
 	}
 
