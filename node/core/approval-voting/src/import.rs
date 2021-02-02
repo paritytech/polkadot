@@ -41,8 +41,9 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::approval::{
 	self as approval_types, BlockApprovalMeta, RelayVRFStory,
 };
-use sp_consensus_slots::Slot;
+use sc_keystore::LocalKeystore;
 use sc_client_api::backend::AuxStore;
+use sp_consensus_slots::Slot;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
@@ -52,7 +53,7 @@ use std::collections::HashMap;
 
 use crate::approval_db;
 use crate::persisted_entries::CandidateEntry;
-use crate::criteria::OurAssignment;
+use crate::criteria::{AssignmentCriteria, OurAssignment};
 use crate::time::{slot_number_to_tick, Tick};
 
 use super::{APPROVAL_SESSIONS, LOG_TARGET, State, DBReader};
@@ -321,11 +322,17 @@ struct ImportedBlockInfo {
 	slot: Slot,
 }
 
+struct ImportedBlockInfoEnv<'a> {
+	session_window: &'a RollingSessionWindow,
+	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
+	keystore: &'a LocalKeystore,
+}
+
 // Computes information about the imported block. Returns `None` if the info couldn't be extracted -
 // failure to communicate with overseer,
 async fn imported_block_info(
 	ctx: &mut impl SubsystemContext,
-	state: &State<impl DBReader>,
+	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
 ) -> SubsystemResult<Option<ImportedBlockInfo>> {
@@ -368,7 +375,7 @@ async fn imported_block_info(
 			Err(_) => return Ok(None),
 		};
 
-		if state.session_window.earliest_session.as_ref().map_or(true, |e| &session_index < e) {
+		if env.session_window.earliest_session.as_ref().map_or(true, |e| &session_index < e) {
 			tracing::debug!(target: LOG_TARGET, "Block {} is from ancient session {}. Skipping",
 				block_hash, session_index);
 
@@ -392,7 +399,7 @@ async fn imported_block_info(
 		}
 	};
 
-	let session_info = match state.session_window.session_info(session_index) {
+	let session_info = match env.session_window.session_info(session_index) {
 		Some(s) => s,
 		None => {
 			tracing::debug!(
@@ -418,8 +425,8 @@ async fn imported_block_info(
 					babe_epoch.epoch_index,
 				) {
 					Ok(relay_vrf) => {
-						let assignments = state.assignment_criteria.compute_assignments(
-							&state.keystore,
+						let assignments = env.assignment_criteria.compute_assignments(
+							&env.keystore,
 							relay_vrf.clone(),
 							&crate::criteria::Config::from(session_info),
 							included_candidates.iter()
@@ -526,6 +533,12 @@ pub(crate) async fn handle_new_head(
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
 	for (block_hash, block_header) in new_blocks.into_iter().rev() {
+		let env = ImportedBlockInfoEnv {
+			session_window: &state.session_window,
+			assignment_criteria: &*state.assignment_criteria,
+			keystore: &state.keystore,
+		};
+
 		let ImportedBlockInfo {
 			included_candidates,
 			session_index,
@@ -533,7 +546,7 @@ pub(crate) async fn handle_new_head(
 			n_validators,
 			relay_vrf_story,
 			slot,
-		} = match imported_block_info(ctx, &*state, block_hash, &block_header).await? {
+		} = match imported_block_info(ctx, env, block_hash, &block_header).await? {
 			Some(i) => i,
 			None => continue,
 		};
@@ -608,7 +621,6 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
-	use sp_consensus_slots::Slot;
 	use assert_matches::assert_matches;
 
 	use crate::BlockEntry;
