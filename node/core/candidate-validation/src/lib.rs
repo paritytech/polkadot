@@ -227,7 +227,7 @@ async fn check_assumption_validation_data(
 
 		match validation_code {
 			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
-			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
+			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, Arc::new(v)),
 		}
 	} else {
 		AssumptionCheckOutcome::DoesNotMatch
@@ -295,7 +295,7 @@ async fn spawn_validate_from_chain_state(
 		ctx,
 		isolation_strategy,
 		validation_data,
-		Arc::new(validation_code),
+		validation_code,
 		descriptor.clone(),
 		pov,
 		spawn,
@@ -663,7 +663,7 @@ mod tests {
 
 			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
 				assert_eq!(o, validation_data);
-				assert_eq!(v, validation_code);
+				assert_eq!(v.as_ref(), &validation_code);
 			});
 		};
 
@@ -727,7 +727,7 @@ mod tests {
 
 			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
 				assert_eq!(o, validation_data);
-				assert_eq!(v, validation_code);
+				assert_eq!(v.as_ref(), &validation_code);
 			});
 		};
 
