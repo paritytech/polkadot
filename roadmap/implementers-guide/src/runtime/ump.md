@@ -4,14 +4,6 @@ A module responsible for Upward Message Passing (UMP). See [Messaging Overview](
 
 ## Storage
 
-General storage entries
-
-```rust
-/// Paras that are to be cleaned up at the end of the session.
-/// The entries are sorted ascending by the para id.
-OutgoingParas: Vec<ParaId>;
-```
-
 Storage related to UMP
 
 ```rust

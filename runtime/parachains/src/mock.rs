@@ -116,7 +116,7 @@ impl crate::configuration::Config for Test { }
 
 impl crate::paras::Config for Test {
 	type Origin = Origin;
-	type ParachainCleanup = Dmp;
+	type ParachainCleanup = (Dmp, Hrmp, Ump);
 }
 
 impl crate::dmp::Config for Test { }

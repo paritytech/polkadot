@@ -4,14 +4,6 @@ A module responsible for Horizontally Relay-routed Message Passing (HRMP). See [
 
 ## Storage
 
-General storage entries
-
-```rust
-/// Paras that are to be cleaned up at the end of the session.
-/// The entries are sorted ascending by the para id.
-OutgoingParas: Vec<ParaId>;
-```
-
 HRMP related structs:
 
 ```rust

@@ -229,10 +229,6 @@ pub trait Config: frame_system::Config + configuration::Config + paras::Config +
 
 decl_storage! {
 	trait Store for Module<T: Config> as Hrmp {
-		/// Paras that are to be cleaned up at the end of the session.
-		/// The entries are sorted ascending by the para id.
-		OutgoingParas: Vec<ParaId>;
-
 		/// The set of pending HRMP open channel requests.
 		///
 		/// The set is accompanied by a list for iteration.
@@ -405,27 +401,8 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 	) {
-		Self::perform_outgoing_para_cleanup();
 		Self::process_hrmp_open_channel_requests(&notification.prev_config);
 		Self::process_hrmp_close_channel_requests();
-	}
-
-	/// Iterate over all paras that were registered for offboarding and remove all the data
-	/// associated with them.
-	fn perform_outgoing_para_cleanup() {
-		let outgoing = OutgoingParas::take();
-		for outgoing_para in outgoing {
-			Self::clean_hrmp_after_outgoing(outgoing_para);
-		}
-	}
-
-	/// Schedule a para to be cleaned up at the start of the next session.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) {
-		OutgoingParas::mutate(|v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
 	}
 
 	/// Remove all storage entries associated with the given para.
@@ -1119,6 +1096,14 @@ impl<T: Config> Module<T> {
 	}
 }
 
+impl<T: Config> crate::ParachainCleanup for Module<T> {
+	// Remove all data about a parachain from this pallet when the parachain is
+	// being removed from the system.
+	fn parachain_cleanup(id: ParaId) {
+		Self::clean_hrmp_after_outgoing(id);
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -1246,7 +1231,6 @@ mod tests {
 
 	fn deregister_parachain(id: ParaId) {
 		Paras::schedule_para_cleanup(id);
-		Hrmp::schedule_para_cleanup(id);
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {

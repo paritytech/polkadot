@@ -4,14 +4,6 @@ A module responsible for Downward Message Processing (DMP). See [Messaging Overv
 
 ## Storage
 
-General storage entries
-
-```rust
-/// Paras that are to be cleaned up at the end of the session.
-/// The entries are sorted ascending by the para id.
-OutgoingParas: Vec<ParaId>;
-```
-
 Storage layout required for implementation of DMP.
 
 ```rust

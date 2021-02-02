@@ -57,13 +57,8 @@ pub fn schedule_para_initialize<T: paras::Config>(
 pub fn schedule_para_cleanup<T>(id: primitives::v1::Id)
 where
 	T: paras::Config
-	+ dmp::Config
-	+ ump::Config
-	+ hrmp::Config,
 {
 	<paras::Module<T>>::schedule_para_cleanup(id);
-	<ump::Module<T>>::schedule_para_cleanup(id);
-	<hrmp::Module<T>>::schedule_para_cleanup(id);
 }
 
 /// Trait to trigger the removal of any data about a parachain when the parachain will be removed.

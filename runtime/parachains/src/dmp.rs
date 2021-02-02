@@ -66,10 +66,6 @@ pub trait Config: frame_system::Config + configuration::Config {}
 
 decl_storage! {
 	trait Store for Module<T: Config> as Dmp {
-		/// Paras that are to be cleaned up at the end of the session.
-		/// The entries are sorted ascending by the para id.
-		OutgoingParas: Vec<ParaId>;
-
 		/// The downward messages addressed for a certain para.
 		DownwardMessageQueues: map hasher(twox_64_concat) ParaId => Vec<InboundDownwardMessage<T::BlockNumber>>;
 		/// A mapping that stores the downward message queue MQC head for each para.
@@ -216,7 +212,6 @@ mod tests {
 	use super::*;
 	use hex_literal::hex;
 	use primitives::v1::BlockNumber;
-	use frame_support::StorageValue;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use parity_scale_codec::Encode;
 	use crate::mock::{Configuration, new_test_ext, System, Dmp, GenesisConfig as MockGenesisConfig};
