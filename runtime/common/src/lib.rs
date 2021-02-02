@@ -166,7 +166,7 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for AssignmentSessionKeyPlaceholder<
 }
 
 impl<T: pallet_session::Config>
-	pallet_session::OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
+	sp_session::OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
 {
 	type Key = AssignmentId;
 
