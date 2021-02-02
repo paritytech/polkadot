@@ -228,7 +228,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 				babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
-			Option<telemetry::TelemetrySpan>,
 		)
 	>,
 	Error
@@ -244,7 +243,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-	let (client, backend, keystore_container, task_manager, telemetry_span) =
+	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
@@ -298,7 +297,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 	let finality_proof_provider = GrandpaFinalityProofProvider::new_for_service(
 		backend.clone(),
-		client.clone(),
 		Some(shared_authority_set.clone()),
 	);
 
@@ -349,7 +347,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry_span)
+		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
 }
 
@@ -415,6 +413,7 @@ where
 	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
+	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -484,6 +483,9 @@ where
 			spawner.clone(),
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
 	};
@@ -575,7 +577,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry_span)
+		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
@@ -640,7 +642,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		remote_blockchain: None,
 		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
-		telemetry_span,
 	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
@@ -853,7 +854,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
-	let (client, backend, keystore_container, mut task_manager, on_demand, telemetry_span) =
+	let (client, backend, keystore_container, mut task_manager, on_demand) =
 		service::new_light_parts::<Block, Runtime, Dispatch>(&config)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
@@ -937,7 +938,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		network,
 		network_status_sinks,
 		system_rpc_tx,
-		telemetry_span,
 	})?;
 
 	network_starter.start_network();

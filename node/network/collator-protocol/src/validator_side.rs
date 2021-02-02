@@ -656,6 +656,7 @@ where
 			// want to track it's view or take any other actions.
 		},
 		PeerDisconnected(peer_id) => {
+			state.known_collators.remove(&peer_id);
 			state.peer_views.remove(&peer_id);
 		},
 		PeerViewChange(peer_id, view) => {

@@ -249,7 +249,7 @@ pub fn run() -> Result<()> {
 			})?)
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-			let mut builder = sc_cli::GlobalLoggerBuilder::new("");
+			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(false);
 			let _ = builder.init();
 
