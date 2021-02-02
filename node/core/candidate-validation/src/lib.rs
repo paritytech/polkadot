@@ -178,7 +178,7 @@ async fn runtime_api_request<T>(
 
 #[derive(Debug)]
 enum AssumptionCheckOutcome {
-	Matches(PersistedValidationData, ValidationCode),
+	Matches(PersistedValidationData, Arc<ValidationCode>),
 	DoesNotMatch,
 	BadRequest,
 }
@@ -295,7 +295,7 @@ async fn spawn_validate_from_chain_state(
 		ctx,
 		isolation_strategy,
 		validation_data,
-		Arc::new(validation_code), // TODO arc before
+		Arc::new(validation_code),
 		descriptor.clone(),
 		pov,
 		spawn,
