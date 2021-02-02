@@ -537,6 +537,12 @@ where
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					"advertise collation received from an unknown collator",
+				);
 			}
 		}
 		RequestCollation(_, _, _) => {
