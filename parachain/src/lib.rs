@@ -51,3 +51,55 @@ mod wasm_api;
 
 #[cfg(all(not(feature = "std"), feature = "wasm-api"))]
 pub use wasm_api::*;
+
+use sp_std::{vec::Vec, boxed::Box};
+use crate::primitives::ValidationCode;
+
+use sp_runtime_interface::runtime_interface;
+
+/// Validation specific host functions.
+#[runtime_interface]
+pub trait Validation {
+	/// Get validation wasm bytecode.
+	fn validation_code(&mut self) -> Vec<u8> {
+		use sp_externalities::ExternalitiesExt;
+		let extension = self.extension::<ValidationExt>()
+			.expect("Cannot get validation code without dynamic runtime dispatcher (ValidationExt)");
+		extension.validation_code()
+	}
+}
+
+#[cfg(feature = "std")]
+sp_externalities::decl_extension! {
+	///  executor extension.
+	pub struct ValidationExt(Box<dyn Validation>);
+}
+
+#[cfg(feature = "std")]
+impl ValidationExt {
+	/// New instance of task executor extension.
+	pub fn new(validation_ext: impl Validation) -> Self {
+		Self(Box::new(validation_ext))
+	}
+}
+
+/// Base methods to implement validation extension.
+pub trait Validation: Send + 'static {
+	/// Get the validation code currently running.
+	/// This can be use to check validity or to complete
+	/// proofs.
+	fn validation_code(&self) -> Vec<u8>;
+}
+
+#[cfg(feature = "std")]
+impl Validation for std::sync::Arc<ValidationCode> {
+	fn validation_code(&self) -> Vec<u8> {
+		self.0.clone()
+	}
+}
+
+impl<'a> Validation for &'static [u8] {
+	fn validation_code(&self) -> Vec<u8> {
+		self.to_vec()
+	}
+}

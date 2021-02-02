@@ -38,6 +38,7 @@ fn terminates_on_timeout() {
 
 	let result = parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
+		halt::wasm_binary_unwrap(),
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
@@ -67,6 +68,7 @@ fn parallel_execution() {
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
+		halt::wasm_binary_unwrap(),
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
@@ -79,6 +81,7 @@ fn parallel_execution() {
 		sp_core::testing::TaskExecutor::new(),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
+		halt::wasm_binary_unwrap(),
 		halt::wasm_binary_unwrap(),
 		ValidationParams {
 			block_data: BlockData(Vec::new()),

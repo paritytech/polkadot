@@ -23,7 +23,8 @@ use super::{
 	validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
 	MAX_CODE_MEM, MAX_RUNTIME_MEM, MAX_VALIDATION_RESULT_HEADER_MEM,
 };
-use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
+use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable,
+	ReadLockable, EventWait, EventSet};
 use parking_lot::Mutex;
 use log::{debug, trace};
 use futures::executor::ThreadPool;
@@ -124,6 +125,39 @@ impl ValidationPool {
 	}
 }
 
+struct ReadSharedMemValidation {
+	mem_id: String,
+	code_size: usize,
+}
+
+impl ReadSharedMemValidation {
+	fn new(mem_id: &str, code_size: u64) -> Self {
+		ReadSharedMemValidation {
+			mem_id: mem_id.to_string(),
+			code_size: code_size as usize,
+		}
+	}
+}
+
+impl crate::Validation for ReadSharedMemValidation {
+	fn validation_code(&self) -> Vec<u8> {
+		// TODO maybe change proto to avoid panic
+		let memory = match SharedMem::open(self.mem_id.as_str()) {
+			Ok(memory) => memory,
+			Err(e) => {
+				debug!(target: LOG_TARGET, "{} Error opening shared memory: {:?}", process::id(), e);
+				panic!(format!("Error opening shared memory: {:?}", e));
+			}
+		};
+		let slice = memory.rlock_as_slice(0)
+			.expect("Error locking shared memory");
+		let data: &[u8] = & **slice;
+		let (_header_buf, rest) = data.split_at(1024);
+		let (code, _) = rest.split_at(self.code_size);
+		code.to_vec()
+	}
+}
+
 /// Validation worker process entry point. Runs a loop waiting for candidates to validate
 /// and sends back results via shared memory.
 pub fn run_worker(mem_id: &str) -> Result<(), String> {
@@ -169,22 +203,30 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 		{
 			debug!(target: LOG_TARGET, "{} Processing candidate", process::id());
 			// we have candidate data
-			let mut slice = memory.wlock_as_slice(0)
-				.map_err(|e| format!("Error locking shared memory: {:?}", e))?;
-
 			let result = {
-				let data: &mut[u8] = &mut **slice;
-				let (header_buf, rest) = data.split_at_mut(1024);
+				// Locking as read only to allow access to code memory from
+				// host validation extension.
+				// Note that this only work if two process are communicating only.
+				// Would be racy otherwhise.
+				let slice = memory.rlock_as_slice(0)
+					.map_err(|e| format!("Error locking shared memory: {:?}", e))?;
+				let data: &[u8] = & **slice;
+				let (header_buf, rest) = data.split_at(1024);
 				let mut header_buf: &[u8] = header_buf;
 				let header = ValidationHeader::decode(&mut header_buf)
 					.map_err(|_| format!("Error decoding validation request."))?;
 				debug!(target: LOG_TARGET, "{} Candidate header: {:?}", process::id(), header);
-				let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
-				let (code, _) = code.split_at_mut(header.code_size as usize);
-				let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
-				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
+				let (code, rest) = rest.split_at(MAX_CODE_MEM);
+				let (code, _) = code.split_at(header.code_size as usize);
+				let (call_data, _) = rest.split_at(MAX_RUNTIME_MEM);
+				let (call_data, _) = call_data.split_at(header.params_size as usize);
 
-				let result = validate_candidate_internal(code, call_data, task_executor.clone());
+				let result = validate_candidate_internal(
+					code,
+					call_data,
+					task_executor.clone(),
+					ReadSharedMemValidation::new(mem_id, header.code_size),
+				);
 				debug!(target: LOG_TARGET, "{} Candidate validated: {:?}", process::id(), result);
 
 				match result {
@@ -195,6 +237,8 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 						ValidationResultHeader::Error(WorkerValidationError::ValidationError(e.to_string())),
 				}
 			};
+			let mut slice = memory.wlock_as_slice(0)
+				.map_err(|e| format!("Error locking shared memory: {:?}", e))?;
 			let mut data: &mut[u8] = &mut **slice;
 			result.encode_to(&mut data);
 		}

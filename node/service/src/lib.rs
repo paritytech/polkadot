@@ -78,28 +78,40 @@ native_executor_instance!(
 	pub PolkadotExecutor,
 	polkadot_runtime::api::dispatch,
 	polkadot_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
+	(
+		frame_benchmarking::benchmarking::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
+	),
 );
 
 native_executor_instance!(
 	pub KusamaExecutor,
 	kusama_runtime::api::dispatch,
 	kusama_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
+	(
+		frame_benchmarking::benchmarking::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
+	),
 );
 
 native_executor_instance!(
 	pub WestendExecutor,
 	westend_runtime::api::dispatch,
 	westend_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
+	(
+		frame_benchmarking::benchmarking::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
+	),
 );
 
 native_executor_instance!(
 	pub RococoExecutor,
 	rococo_runtime::api::dispatch,
 	rococo_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
+	(
+		frame_benchmarking::benchmarking::HostFunctions,
+		polkadot_parachain::validation::HostFunctions,
+	),
 );
 
 #[derive(thiserror::Error, Debug)]

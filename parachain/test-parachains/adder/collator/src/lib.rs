@@ -196,7 +196,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
-	use polkadot_primitives::v1::PersistedValidationData;
+	use polkadot_primitives::v1::{PersistedValidationData, ValidationCode};
 
 	#[test]
 	fn collator_works() {
@@ -225,8 +225,10 @@ mod tests {
 	}
 
 	fn validate_collation(collator: &Collator, parent_head: HeadData, collation: Collation) {
+		let validation_ext = Arc::new(ValidationCode(collator.validation_code().to_vec()));
 		let ret = polkadot_parachain::wasm_executor::validate_candidate(
 			collator.validation_code(),
+			validation_ext,
 			ValidationParams {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,

@@ -64,6 +64,7 @@ fn execute_good_on_parent(isolation_strategy: IsolationStrategy) {
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
+		adder::wasm_binary_unwrap(),
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
@@ -103,6 +104,7 @@ fn execute_good_chain_on_parent() {
 		};
 
 		let ret = parachain::wasm_executor::validate_candidate(
+			adder::wasm_binary_unwrap(),
 			adder::wasm_binary_unwrap(),
 			ValidationParams {
 				parent_head: GenericHeadData(parent_head.encode()),
@@ -144,6 +146,7 @@ fn execute_bad_on_parent() {
 	};
 
 	let _ret = parachain::wasm_executor::validate_candidate(
+		adder::wasm_binary_unwrap(),
 		adder::wasm_binary_unwrap(),
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),

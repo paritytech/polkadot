@@ -14,13 +14,14 @@ sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", d
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 # all optional crates.
 thiserror = { version = "1.0.22", optional = true }
 serde = { version = "1.0.117", default-features = false, features = [ "derive" ], optional = true }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 parking_lot = { version = "0.11.1", optional = true }
@@ -44,7 +45,7 @@ std = [
 	"sp-core/std",
 	"parking_lot",
 	"log",
-	"sp-externalities",
+	"sp-externalities/std",
 	"sc-executor",
 	"sp-io",
 	"polkadot-core-primitives/std",
