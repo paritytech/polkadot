@@ -35,25 +35,24 @@ Has no interaction with the runtime.
 
 Receives messages from
 
-* network gossip containing
-  * Individual `Vote`s or sets of `Votes`
+* network gossip containing..
+  * individual `Vote`s or sets of `Votes`
   * `Code` + `PoV` as a response to such as request
-  * A request to another validator that voted to send `Code` + `PoV` our way
+  * a request to another validator (from which a vote was received before) to send `Code` + `PoV` our way
 
 Sends messages
 
-* to the `VotesDB` to
+* to the `VotesDB` to ..
   * store `Vote`s
   * query `Vote`s for a particular
 
-* to the network for
+* to the network for ..
   * requesting `Code` + `PoV`
   * broadcasting received `Vote`s
 
-* Acts on disputes messages by..
+* Acts on disputes messages by ..
   * fetching the `PoV` + `Code` blocks
-    * running validation for the block/candidate
-
+    * running the validation code for the block/candidate
 
 #### Transition Node -> Runtime
 
@@ -63,7 +62,7 @@ Sends messages
 
 #### Runtime
 
-* incoming message via propose/inherents are
+* incoming message via proposer/inherents are
   * stored them within the runtime (not the state root!)
   * decided upon set of stored votes for the particular dispute
   * decided upon set of stored votes if the dispute is concluded
@@ -75,3 +74,7 @@ Sends messages
 
 * Tracks closed disputes
   * transplants them on newly appearing forks without it
+
+
+Keep votes around for lt 24 h after block inclusion
+Cleanup:
