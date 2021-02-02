@@ -207,7 +207,7 @@ where
 
 			Action::SendRequests(reqs) => {
 				for req in reqs {
-					bridge.network_service.send_request(req);
+					bridge.network_service.start_request(req);
 				}
 			},
 
@@ -627,8 +627,8 @@ mod tests {
 			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
 		}
 
-		fn send_request(&self, _: Requests) {
-			// Tests to be coming soon!
+		fn start_request(&self, _: Requests) {
+			// TODO: Tests to be coming soon!
 		}
 	}
 
