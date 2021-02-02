@@ -115,43 +115,23 @@ pub enum ParaLifecycle {
 
 impl ParaLifecycle {
 	pub fn is_onboarding(&self) -> bool {
-		match self {
-			ParaLifecycle::OnboardingAsParathread |
-			ParaLifecycle::OnboardingAsParachain
-				=> true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::OnboardingAsParathread | ParaLifecycle::OnboardingAsParachain)
 	}
 
 	pub fn is_stable(&self) -> bool {
-		match self {
-			ParaLifecycle::Parathread |
-			ParaLifecycle::Parachain
-				=> true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::Parathread | ParaLifecycle::Parachain)
 	}
 
 	pub fn is_parachain(&self) -> bool {
-		match self {
-			ParaLifecycle::Parachain => true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::Parachain)
 	}
 
 	pub fn is_parathread(&self) -> bool {
-		match self {
-			ParaLifecycle::Parathread => true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::Parathread)
 	}
 
 	pub fn is_outgoing(&self) -> bool {
-		match self {
-			ParaLifecycle::OutgoingParathread |
-			ParaLifecycle::OutgoingParachain => true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::OutgoingParathread | ParaLifecycle::OutgoingParachain)
 	}
 
 	pub fn is_transitioning(&self) -> bool {
