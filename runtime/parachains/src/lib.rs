@@ -43,6 +43,7 @@ mod util;
 mod mock;
 
 pub use origin::{Origin, ensure_parachain};
+use primitives::v1::Id as ParaId;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(
@@ -61,7 +62,12 @@ where
 	+ hrmp::Config,
 {
 	<paras::Module<T>>::schedule_para_cleanup(id);
-	<dmp::Module<T>>::schedule_para_cleanup(id);
 	<ump::Module<T>>::schedule_para_cleanup(id);
 	<hrmp::Module<T>>::schedule_para_cleanup(id);
+}
+
+/// Trait to trigger the removal of any data about a parachain when the parachain will be removed.
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+pub trait ParachainCleanup {
+	fn parachain_cleanup(id: ParaId);
 }

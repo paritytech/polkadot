@@ -5712,6 +5712,7 @@ dependencies = [
  "frame-system",
  "futures 0.3.12",
  "hex-literal",
+ "impl-trait-for-tuples 0.2.0",
  "libsecp256k1",
  "log",
  "pallet-authority-discovery",

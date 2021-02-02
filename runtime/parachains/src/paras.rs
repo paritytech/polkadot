@@ -37,7 +37,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use crate::{configuration, initializer::SessionChangeNotification};
+use crate::{configuration, initializer::SessionChangeNotification, ParachainCleanup};
 use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
@@ -50,6 +50,9 @@ pub trait Config: frame_system::Config + configuration::Config {
 	type Origin: From<Origin>
 		+ From<<Self as frame_system::Config>::Origin>
 		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
+
+	/// Runtime hook to call when a parachain is being removed and data should be cleaned up.
+	type ParachainCleanup: ParachainCleanup;
 }
 
 // the two key times necessary to track for every code replacement.
@@ -286,6 +289,7 @@ impl<T: Config> Module<T> {
 			<Self as Store>::Heads::remove(&outgoing_para);
 			<Self as Store>::FutureCodeUpgrades::remove(&outgoing_para);
 			<Self as Store>::FutureCode::remove(&outgoing_para);
+			T::ParachainCleanup::parachain_cleanup(outgoing_para);
 
 			let removed_code = <Self as Store>::CurrentCode::take(&outgoing_para);
 			if let Some(removed_code) = removed_code {

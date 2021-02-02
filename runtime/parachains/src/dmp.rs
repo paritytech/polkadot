@@ -101,31 +101,11 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
 		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
-	) {
-		Self::perform_outgoing_para_cleanup();
-	}
-
-	/// Iterate over all paras that were registered for offboarding and remove all the data
-	/// associated with them.
-	fn perform_outgoing_para_cleanup() {
-		let outgoing = OutgoingParas::take();
-		for outgoing_para in outgoing {
-			Self::clean_dmp_after_outgoing(outgoing_para);
-		}
-	}
+	) {}
 
 	fn clean_dmp_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::DownwardMessageQueues::remove(&outgoing_para);
 		<Self as Store>::DownwardMessageQueueHeads::remove(&outgoing_para);
-	}
-
-	/// Schedule a para to be cleaned up at the start of the next session.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) {
-		OutgoingParas::mutate(|v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
 	}
 
 	/// Enqueue a downward message to a specific recipient para.
@@ -223,6 +203,14 @@ impl<T: Config> Module<T> {
 	}
 }
 
+impl<T: Config> crate::ParachainCleanup for Module<T> {
+	// Remove all data about a parachain from this pallet when the parachain is
+	// being removed from the system.
+	fn parachain_cleanup(id: ParaId) {
+		Self::clean_dmp_after_outgoing(id);
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -232,6 +220,7 @@ mod tests {
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use parity_scale_codec::Encode;
 	use crate::mock::{Configuration, new_test_ext, System, Dmp, GenesisConfig as MockGenesisConfig};
+	use crate::ParachainCleanup;
 
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
@@ -269,7 +258,7 @@ mod tests {
 	}
 
 	#[test]
-	fn scheduled_cleanup_performed() {
+	fn parachain_cleanup_works() {
 		let a = ParaId::from(1312);
 		let b = ParaId::from(228);
 		let c = ParaId::from(123);
@@ -282,26 +271,12 @@ mod tests {
 			queue_downward_message(b, vec![4, 5, 6]).unwrap();
 			queue_downward_message(c, vec![7, 8, 9]).unwrap();
 
-			Dmp::schedule_para_cleanup(a);
-
-			// run to block without session change.
-			run_to_block(2, None);
-
-			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
-			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
-			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
-
-			Dmp::schedule_para_cleanup(b);
-
-			// run to block changing the session.
-			run_to_block(3, Some(vec![3]));
+			Dmp::parachain_cleanup(a);
+			Dmp::parachain_cleanup(b);
 
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
 			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
-
-			// verify that the outgoing paras are emptied.
-			assert!(OutgoingParas::get().is_empty())
 		});
 	}
 
