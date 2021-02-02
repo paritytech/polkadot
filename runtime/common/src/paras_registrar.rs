@@ -470,6 +470,7 @@ mod tests {
 
 	impl paras::Config for Test {
 		type Origin = Origin;
+		type ParachainCleanup = ();
 	}
 
 	impl configuration::Config for Test { }
