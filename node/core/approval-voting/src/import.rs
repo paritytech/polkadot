@@ -387,6 +387,24 @@ async fn imported_block_info(
 
 	let babe_epoch = {
 		let (s_tx, s_rx) = oneshot::channel();
+
+		// It's not obvious whether to use the hash or the parent hash for this, intuitively. We
+		// want to use the block hash itself, and here's why:
+		//
+		// First off, 'epoch' in BABE means 'session' in other places. 'epoch' is the terminology from
+		// the paper, which we fulfill using 'session's, which are a Substrate consensus concept.
+		//
+		// In BABE, the on-chain and off-chain view of the current epoch can differ at epoch boundaries
+		// because epochs change precisely at a slot. When a block triggers a new epoch, the state of
+		// its parent will still have the old epoch. Conversely, we have the invariant that every
+		// block in BABE has the epoch _it was authored in_ within its post-state. So we use the
+		// block, and not its parent.
+		//
+		// It's worth nothing that Polkadot session changes, at least for the purposes of parachains,
+		// would function the same way, except for the fact that they're always delayed by one block.
+		// This gives us the opposite invariant for sessions - the parent block's post-state gives
+		// us the canonical information about the session index for any of its children, regardless
+		// of which slot number they might be produced at.
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::CurrentBabeEpoch(s_tx),
@@ -619,11 +637,17 @@ pub(crate) async fn handle_new_head(
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
+	use sp_runtime::{Digest, DigestItem};
+	use sp_consensus_babe::Epoch as BabeEpoch;
+	use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest};
+	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
+	use merlin::Transcript;
 
-	use crate::BlockEntry;
+	use crate::{criteria, BlockEntry};
 
 	#[derive(Default)]
 	struct TestDB {
@@ -725,6 +749,41 @@ mod tests {
 				.map(|h| h.hash())
 				.collect()
 		}
+	}
+
+	struct MockAssignmentCriteria;
+
+	impl AssignmentCriteria for MockAssignmentCriteria {
+		fn compute_assignments(
+			&self,
+			_keystore: &LocalKeystore,
+			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+			_config: &criteria::Config,
+			_leaving_cores: Vec<(polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+		) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
+			HashMap::new()
+		}
+
+		fn check_assignment_cert(
+			&self,
+			_claimed_core_index: polkadot_primitives::v1::CoreIndex,
+			_validator_index: polkadot_primitives::v1::ValidatorIndex,
+			_config: &criteria::Config,
+			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
+			_assignment: &polkadot_node_primitives::approval::AssignmentCert,
+			_backing_group: polkadot_primitives::v1::GroupIndex,
+		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
+			Ok(0)
+		}
+	}
+
+	// used for generating assignments where the validity of the VRF doesn't matter.
+	fn garbage_vrf() -> (VRFOutput, VRFProof) {
+		let key = Sr25519Keyring::Alice.pair();
+		let key: &schnorrkel::Keypair = key.as_ref();
+
+		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
+		(VRFOutput(o.to_output()), VRFProof(p))
 	}
 
 	#[test]
@@ -1054,8 +1113,339 @@ mod tests {
 	}
 
 	#[test]
-	fn imported_block_info() {
+	fn imported_block_info_is_good() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
+		let session = 5;
+		let session_info = SessionInfo {
+			validators: Vec::new(),
+			discovery_keys: Vec::new(),
+			assignment_keys: Vec::new(),
+			validator_groups: Vec::new(),
+			n_cores: 0,
+			zeroth_delay_tranche_width: 0,
+			relay_vrf_modulo_samples: 0,
+			n_delay_tranches: 0,
+			no_show_slots: 0,
+			needed_approvals: 0,
+		};
+
+		let slot = Slot::from(10);
+
+		let header = Header {
+			digest: {
+				let mut d = Digest::default();
+				let (vrf_output, vrf_proof) = garbage_vrf();
+				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+					SecondaryVRFPreDigest {
+						authority_index: 0,
+						slot,
+						vrf_output,
+						vrf_proof,
+					}
+				)));
+
+				d
+			},
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let hash = header.hash();
+		let make_candidate = |para_id| {
+			let mut r = CandidateReceipt::default();
+			r.descriptor.para_id = para_id;
+			r.descriptor.relay_parent = hash;
+			r
+		};
+		let candidates = vec![
+			(make_candidate(1.into()), CoreIndex(0), GroupIndex(2)),
+			(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
+		];
+
+
+		let inclusion_events = candidates.iter().cloned()
+			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
+			.collect::<Vec<_>>();
+
+		let test_fut = {
+			let included_candidates = candidates.iter()
+				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
+				.collect::<Vec<_>>();
+
+			let session_window = {
+				let mut window = RollingSessionWindow::default();
+
+				window.earliest_session = Some(session);
+				window.session_info.push(session_info);
+
+				window
+			};
+
+			let header = header.clone();
+			Box::pin(async move {
+				let env = ImportedBlockInfoEnv {
+					session_window: &session_window,
+					assignment_criteria: &MockAssignmentCriteria,
+					keystore: &LocalKeystore::in_memory(),
+				};
+
+				let info = imported_block_info(
+					&mut ctx,
+					env,
+					hash,
+					&header,
+				).await.unwrap().unwrap();
+
+				assert_eq!(info.included_candidates, included_candidates);
+				assert_eq!(info.session_index, session);
+				assert!(info.assignments.is_empty());
+				assert_eq!(info.n_validators, 0);
+				assert_eq!(info.slot, slot);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::CandidateEvents(c_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = c_tx.send(Ok(inclusion_events));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(c_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = c_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::CurrentBabeEpoch(c_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = c_tx.send(Ok(BabeEpoch {
+						epoch_index: session as _,
+						start_slot: Slot::from(0),
+						duration: 200,
+						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
+						randomness: [0u8; 32],
+					}));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn imported_block_info_fails_if_no_babe_vrf() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let session = 5;
+		let session_info = SessionInfo {
+			validators: Vec::new(),
+			discovery_keys: Vec::new(),
+			assignment_keys: Vec::new(),
+			validator_groups: Vec::new(),
+			n_cores: 0,
+			zeroth_delay_tranche_width: 0,
+			relay_vrf_modulo_samples: 0,
+			n_delay_tranches: 0,
+			no_show_slots: 0,
+			needed_approvals: 0,
+		};
+
+		let header = Header {
+			digest: Digest::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let hash = header.hash();
+		let make_candidate = |para_id| {
+			let mut r = CandidateReceipt::default();
+			r.descriptor.para_id = para_id;
+			r.descriptor.relay_parent = hash;
+			r
+		};
+		let candidates = vec![
+			(make_candidate(1.into()), CoreIndex(0), GroupIndex(2)),
+			(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
+		];
+
+		let inclusion_events = candidates.iter().cloned()
+			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
+			.collect::<Vec<_>>();
+
+		let test_fut = {
+			let session_window = {
+				let mut window = RollingSessionWindow::default();
+
+				window.earliest_session = Some(session);
+				window.session_info.push(session_info);
+
+				window
+			};
+
+			let header = header.clone();
+			Box::pin(async move {
+				let env = ImportedBlockInfoEnv {
+					session_window: &session_window,
+					assignment_criteria: &MockAssignmentCriteria,
+					keystore: &LocalKeystore::in_memory(),
+				};
+
+				let info = imported_block_info(
+					&mut ctx,
+					env,
+					hash,
+					&header,
+				).await.unwrap();
+
+				assert!(info.is_none());
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::CandidateEvents(c_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = c_tx.send(Ok(inclusion_events));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(c_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = c_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::CurrentBabeEpoch(c_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = c_tx.send(Ok(BabeEpoch {
+						epoch_index: session as _,
+						start_slot: Slot::from(0),
+						duration: 200,
+						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
+						randomness: [0u8; 32],
+					}));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn imported_block_info_fails_if_unknown_session() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let session = 5;
+
+		let header = Header {
+			digest: Digest::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let hash = header.hash();
+		let make_candidate = |para_id| {
+			let mut r = CandidateReceipt::default();
+			r.descriptor.para_id = para_id;
+			r.descriptor.relay_parent = hash;
+			r
+		};
+		let candidates = vec![
+			(make_candidate(1.into()), CoreIndex(0), GroupIndex(2)),
+			(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
+		];
+
+		let inclusion_events = candidates.iter().cloned()
+			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
+			.collect::<Vec<_>>();
+
+		let test_fut = {
+			let session_window = RollingSessionWindow::default();
+
+			let header = header.clone();
+			Box::pin(async move {
+				let env = ImportedBlockInfoEnv {
+					session_window: &session_window,
+					assignment_criteria: &MockAssignmentCriteria,
+					keystore: &LocalKeystore::in_memory(),
+				};
+
+				let info = imported_block_info(
+					&mut ctx,
+					env,
+					hash,
+					&header,
+				).await.unwrap();
+
+				assert!(info.is_none());
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::CandidateEvents(c_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = c_tx.send(Ok(inclusion_events));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(c_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = c_tx.send(Ok(session));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
 	}
 
 	#[test]
