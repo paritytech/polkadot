@@ -261,7 +261,7 @@ where
 					target: LOG_TARGET,
 					peer = ?peer,
 					"Peer sent us an invalid request",
-					);
+				);
 				bridge.network_service.report_peer(peer, rep).await?
 			}
 
