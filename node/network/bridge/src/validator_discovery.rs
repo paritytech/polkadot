@@ -642,7 +642,12 @@ mod tests {
 			).await;
 
 			assert_eq!((validator_id.clone(), validator_peer_id.clone()), receiver.next().await.unwrap());
-			assert!(service.connected_peers.get(&(validator_peer_id, PeerSet::Validation)).unwrap().contains(&validator_id));
+			assert!(
+				service.connected_peers
+					.get(&(validator_peer_id, PeerSet::Validation))
+					.unwrap()
+					.contains(&validator_id)
+			);
 		});
 	}
 }
