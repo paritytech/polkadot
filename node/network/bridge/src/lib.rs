@@ -202,7 +202,6 @@ where
 						"Incoming network event stream concluded.".to_string(),
 					));
 				}
-
 				AbortReason::RequestStreamConcluded => {
 					tracing::info!(
 						target: LOG_TARGET,
@@ -621,7 +620,7 @@ mod tests {
 	struct TestNetwork {
 		net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 		action_tx: metered::UnboundedMeteredSender<NetworkAction>,
-		req_configs: Vec<RequestResponseConfig>,
+		_req_configs: Vec<RequestResponseConfig>,
 	}
 
 	struct TestAuthorityDiscovery;
@@ -645,7 +644,7 @@ mod tests {
 			TestNetwork {
 				net_events: Arc::new(Mutex::new(Some(net_rx))),
 				action_tx,
-				req_configs,
+				_req_configs: req_configs,
 			},
 			TestNetworkHandle {
 				action_rx,
@@ -670,7 +669,6 @@ mod tests {
 		}
 
 		fn start_request(&self, _: Requests) {
-			// TODO: Tests to be coming soon!
 		}
 	}
 
