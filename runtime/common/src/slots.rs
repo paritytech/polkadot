@@ -341,7 +341,6 @@ impl<T: Config> Leaser for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::cell::RefCell;
 
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
@@ -350,7 +349,8 @@ mod tests {
 		traits::{OnInitialize, OnFinalize}
 	};
 	use pallet_balances;
-	use primitives::v1::{BlockNumber, Header, Id as ParaId};
+	use primitives::v1::{BlockNumber, Header};
+	use crate::mock::TestRegistrar;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -403,73 +403,6 @@ mod tests {
 		type MaxLocks = ();
 	}
 
-	thread_local! {
-		pub static OPERATIONS: RefCell<Vec<(ParaId, BlockNumber, bool)>> = RefCell::new(Vec::new());
-		pub static PARACHAINS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
-		pub static PARATHREADS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
-	}
-
-	pub struct TestRegistrar;
-
-	impl Registrar for TestRegistrar {
-		type AccountId = u64;
-
-		fn manager_of(_id: ParaId) -> Option<Self::AccountId> { None }
-
-		fn parachains() -> Vec<ParaId> {
-			PARACHAINS.with(|x| x.borrow().clone())
-		}
-
-		fn is_parathread(id: ParaId) -> bool {
-			PARATHREADS.with(|x| x.borrow().binary_search(&id).is_ok())
-		}
-
-		fn make_parachain(id: ParaId) -> DispatchResult {
-			OPERATIONS.with(|x| x.borrow_mut().push((id, System::block_number(), true)));
-			PARACHAINS.with(|x| {
-				let mut parachains = x.borrow_mut();
-				match parachains.binary_search(&id) {
-					Ok(_) => {},
-					Err(i) => parachains.insert(i, id),
-				}
-			});
-			PARATHREADS.with(|x| {
-				let mut parathreads = x.borrow_mut();
-				match parathreads.binary_search(&id) {
-					Ok(i) => {
-						parathreads.remove(i);
-					},
-					Err(_) => {},
-				}
-			});
-			Ok(())
-		}
-		fn make_parathread(id: ParaId) -> DispatchResult {
-			OPERATIONS.with(|x| x.borrow_mut().push((id, System::block_number(), false)));
-			PARACHAINS.with(|x| {
-				let mut parachains = x.borrow_mut();
-				match parachains.binary_search(&id) {
-					Ok(i) => {
-						parachains.remove(i);
-					},
-					Err(_) =>{},
-				}
-			});
-			PARATHREADS.with(|x| {
-				let mut parathreads = x.borrow_mut();
-				match parathreads.binary_search(&id) {
-					Ok(_) => {},
-					Err(i) => parathreads.insert(i, id),
-				}
-			});
-			Ok(())
-		}
-	}
-
-	fn operations() -> Vec<(ParaId, BlockNumber, bool)> {
-		OPERATIONS.with(|x| x.borrow().clone())
-	}
-
 	parameter_types! {
 		pub const LeasePeriod: BlockNumber = 10;
 		pub const ParaDeposit: u64 = 1;
@@ -478,7 +411,7 @@ mod tests {
 	impl Config for Test {
 		type Event = ();
 		type Currency = Balances;
-		type Registrar = TestRegistrar;
+		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
 	}
 
@@ -538,7 +471,7 @@ mod tests {
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 			assert_eq!(Balances::reserved_balance(1), 0);
 
-			assert_eq!(operations(), vec![
+			assert_eq!(TestRegistrar::<Test>::operations(), vec![
 				(1.into(), 10, true),
 				(1.into(), 20, false),
 			]);
@@ -569,7 +502,7 @@ mod tests {
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 			assert_eq!(Balances::reserved_balance(1), 0);
 
-			assert_eq!(operations(), vec![
+			assert_eq!(TestRegistrar::<Test>::operations(), vec![
 				(1.into(), 10, true),
 				(1.into(), 20, false),
 				(1.into(), 30, true),
@@ -614,7 +547,7 @@ mod tests {
 			assert_eq!(Slots::deposit_held(1.into(), &2), 0);
 			assert_eq!(Balances::reserved_balance(2), 0);
 
-			assert_eq!(operations(), vec![
+			assert_eq!(TestRegistrar::<Test>::operations(), vec![
 				(1.into(), 10, true),
 				(1.into(), 30, false),
 			]);
@@ -642,7 +575,7 @@ mod tests {
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 			assert_eq!(Balances::reserved_balance(1), 0);
 
-			assert_eq!(operations(), vec![
+			assert_eq!(TestRegistrar::<Test>::operations(), vec![
 				(1.into(), 10, true),
 				(1.into(), 30, false),
 			]);
@@ -678,7 +611,7 @@ mod tests {
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 			assert_eq!(Balances::reserved_balance(1), 0);
 
-			assert_eq!(operations(), vec![
+			assert_eq!(TestRegistrar::<Test>::operations(), vec![
 				(1.into(), 10, true),
 				(1.into(), 30, false),
 			]);

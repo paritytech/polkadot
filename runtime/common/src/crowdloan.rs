@@ -507,7 +507,7 @@ impl<T: Config> Module<T> {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 }
-/*
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -525,14 +525,10 @@ mod tests {
 		Permill, testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
 	};
-	use crate::slots::Registrar;
+	use crate::{traits::{Registrar, Auctioneer}, mock::TestRegistrar};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
-	}
-
-	mod runtime_common_slots {
-		pub use crate::slots::Event;
 	}
 
 	mod runtime_common_crowdloan {
@@ -543,8 +539,6 @@ mod tests {
 		pub enum Event for Test {
 			frame_system<T>,
 			pallet_balances<T>,
-			pallet_treasury<T>,
-			runtime_common_slots<T>,
 			runtime_common_crowdloan<T>,
 		}
 	}
@@ -596,86 +590,6 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const ProposalBond: Permill = Permill::from_percent(5);
-		pub const ProposalBondMinimum: u64 = 1;
-		pub const SpendPeriod: u64 = 2;
-		pub const Burn: Permill = Permill::from_percent(50);
-		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
-	}
-	impl pallet_treasury::Config for Test {
-		type Currency = pallet_balances::Module<Test>;
-		type ApproveOrigin = frame_system::EnsureRoot<u64>;
-		type RejectOrigin = frame_system::EnsureRoot<u64>;
-		type Event = Event;
-		type OnSlash = ();
-		type ProposalBond = ProposalBond;
-		type ProposalBondMinimum = ProposalBondMinimum;
-		type SpendPeriod = SpendPeriod;
-		type Burn = Burn;
-		type BurnDestination = ();
-		type ModuleId = TreasuryModuleId;
-		type SpendFunds = ();
-		type WeightInfo = ();
-	}
-
-	thread_local! {
-		pub static PARACHAIN_COUNT: RefCell<u32> = RefCell::new(0);
-		pub static PARACHAINS:
-			RefCell<HashMap<u32, (ValidationCode, HeadData)>> = RefCell::new(HashMap::new());
-	}
-
-	const MAX_CODE_SIZE: u32 = 100;
-	const MAX_HEAD_DATA_SIZE: u32 = 10;
-
-	pub struct TestParachains;
-	impl Registrar<u64> for TestParachains {
-		fn head_data_size_allowed(head_data_size: u32) -> bool {
-			head_data_size <= MAX_HEAD_DATA_SIZE
-		}
-
-		fn code_size_allowed(code_size: u32) -> bool {
-			code_size <= MAX_CODE_SIZE
-		}
-
-		fn register_para(
-			id: ParaId,
-			_parachain: bool,
-			code: ValidationCode,
-			initial_head_data: HeadData,
-		) -> DispatchResult {
-			PARACHAINS.with(|p| {
-				if p.borrow().contains_key(&id.into()) {
-					panic!("ID already exists")
-				}
-				p.borrow_mut().insert(id.into(), (code, initial_head_data));
-				Ok(())
-			})
-		}
-
-		fn deregister_para(id: ParaId) -> DispatchResult {
-			PARACHAINS.with(|p| {
-				if !p.borrow().contains_key(&id.into()) {
-					panic!("ID doesn't exist")
-				}
-				p.borrow_mut().remove(&id.into());
-				Ok(())
-			})
-		}
-	}
-
-	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
-	}
-	impl slots::Config for Test {
-		type Event = Event;
-		type Currency = Balances;
-		type Parachains = TestParachains;
-		type LeasePeriod = LeasePeriod;
-		type EndingPeriod = EndingPeriod;
-		type Randomness = RandomnessCollectiveFlip;
-	}
-	parameter_types! {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
 		pub const RetirementPeriod: u64 = 5;
@@ -687,19 +601,64 @@ mod tests {
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
 		type RetirementPeriod = RetirementPeriod;
-		type OrphanedFunds = Treasury;
+		type OrphanedFunds = ();
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
+		type Registrar = TestRegistrar<Test>;
+		type Auctioneer = TestAuctioneer;
+	}
+
+	#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+	struct BidPlaced {
+		bidder: u64,
+		para: ParaId,
+		first_slot: u64,
+		last_slot: u64,
+		amount: u64
+	}
+	thread_local! {
+		static END_PERIOD: RefCell<(u64, u64)> = RefCell::new((5, 10));
+		static BIDS_PLACED: RefCell<Vec<BidPlaced>> = RefCell::new(Vec::new());
+	}
+	fn set_end_period(begin: u64, end: u64) {
+		END_PERIOD.with(|p| *p.borrow_mut() = (begin, end));
+	}
+	fn bids() -> Vec<BidPlaced> {
+		BIDS_PLACED.with(|p| p.borrow().clone())
+	}
+
+	pub struct TestAuctioneer;
+	impl Auctioneer for TestAuctioneer {
+		type AccountId = u64;
+		type BlockNumber = u64;
+		type LeasePeriod = u64;
+		type Currency = Balances;
+
+		fn is_ending(now: u64) -> Option<u64> {
+			let (begin, end) = END_PERIOD.with(|p| *p.borrow());
+			if now < begin || now > end {
+				None
+			} else {
+				Some(end - now)
+			}
+		}
+
+		fn place_bid(
+			bidder: u64,
+			para: ParaId,
+			first_slot: u64,
+			last_slot: u64,
+			amount: u64
+		) -> DispatchResult {
+			BIDS_PLACED.with(|p| p.borrow_mut().push(BidPlaced { bidder, para, first_slot, last_slot, amount }));
+			Ok(())
+		}
 	}
 
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
-	type Slots = slots::Module<Test>;
-	type Treasury = pallet_treasury::Module<Test>;
 	type Crowdloan = Module<Test>;
-	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	use pallet_balances::Error as BalancesError;
-	use slots::Error as SlotsError;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
@@ -714,15 +673,11 @@ mod tests {
 	fn run_to_block(n: u64) {
 		while System::block_number() < n {
 			Crowdloan::on_finalize(System::block_number());
-			Treasury::on_finalize(System::block_number());
-			Slots::on_finalize(System::block_number());
 			Balances::on_finalize(System::block_number());
 			System::on_finalize(System::block_number());
 			System::set_block_number(System::block_number() + 1);
 			System::on_initialize(System::block_number());
 			Balances::on_initialize(System::block_number());
-			Slots::on_initialize(System::block_number());
-			Treasury::on_initialize(System::block_number());
 			Crowdloan::on_initialize(System::block_number());
 		}
 	}
@@ -731,15 +686,22 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(System::block_number(), 0);
-			assert_eq!(Crowdloan::fund_count(), 0);
-			assert_eq!(Crowdloan::funds(0), None);
+			assert_eq!(Crowdloan::funds(ParaId::from(0)), None);
 			let empty: Vec<ParaId> = Vec::new();
 			assert_eq!(Crowdloan::new_raise(), empty);
-			assert_eq!(Crowdloan::contribution_get(0, &1), 0);
+			assert_eq!(Crowdloan::contribution_get(0.into(), &1), 0);
 			assert_eq!(Crowdloan::endings_count(), 0);
+
+			assert_eq!(bids(), vec![]);
+			assert_ok!(TestAuctioneer::place_bid(1, 2.into(), 0, 3, 6));
+			assert_eq!(bids(), vec![BidPlaced { bidder: 1, para: 2.into(), first_slot: 0, last_slot: 3, amount: 6 }]);
+			assert_eq!(TestAuctioneer::is_ending(4), None);
+			assert_eq!(TestAuctioneer::is_ending(5), Some(5));
+			assert_eq!(TestAuctioneer::is_ending(10), Some(0));
+			assert_eq!(TestAuctioneer::is_ending(11), None);
 		});
 	}
-
+/*
 	#[test]
 	fn create_works() {
 		new_test_ext().execute_with(|| {
@@ -1365,9 +1327,9 @@ mod tests {
 			// This parachain is managed by Slots
 			assert_eq!(Slots::managed_ids(), vec![0.into(), 1.into()]);
 		});
-	}
+	}*/
 }
-
+/*
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{*, Module as Crowdloan};
