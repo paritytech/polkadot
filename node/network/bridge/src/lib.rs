@@ -181,29 +181,38 @@ where
 
 		match action {
 			Action::Nop => {}
-			Action::Abort(reason) => {
-				match reason {
-					AbortReason::SubsystemError(err) => { 
-						tracing::warn!(target: LOG_TARGET, err = ?err, "Shutting down Network Bridge due to error");
-						return Err(SubsystemError::Context(format!("Received SubsystemError from overseer: {:?}", err)))
-					}
-					AbortReason::EventStreamConcluded => {
-						tracing::info!(
-							target: LOG_TARGET,
-							"Shutting down Network Bridge: underlying request stream concluded"
-							);
-						return Err(SubsystemError::Context("Incoming network event stream concluded.".to_string()))
-					}
-
-					AbortReason::RequestStreamConcluded => {
-						tracing::info!(
-							target: LOG_TARGET,
-							"Shutting down Network Bridge: underlying request stream concluded"
-							);
-						return Err(SubsystemError::Context("Incoming network request stream concluded".to_string()))
-					}
-					AbortReason::OverseerConcluded => return Ok(()),
+			Action::Abort(reason) => match reason {
+				AbortReason::SubsystemError(err) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						err = ?err,
+						"Shutting down Network Bridge due to error"
+					);
+					return Err(SubsystemError::Context(format!(
+						"Received SubsystemError from overseer: {:?}",
+						err
+					)));
 				}
+				AbortReason::EventStreamConcluded => {
+					tracing::info!(
+						target: LOG_TARGET,
+						"Shutting down Network Bridge: underlying request stream concluded"
+					);
+					return Err(SubsystemError::Context(
+						"Incoming network event stream concluded.".to_string(),
+					));
+				}
+
+				AbortReason::RequestStreamConcluded => {
+					tracing::info!(
+						target: LOG_TARGET,
+						"Shutting down Network Bridge: underlying request stream concluded"
+					);
+					return Err(SubsystemError::Context(
+						"Incoming network request stream concluded".to_string(),
+					));
+				}
+				AbortReason::OverseerConcluded => return Ok(()),
 			}
 
 			Action::SendValidationMessages(msgs) => {
