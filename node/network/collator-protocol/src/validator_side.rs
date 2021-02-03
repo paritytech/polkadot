@@ -537,6 +537,12 @@ where
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					"advertise collation received from an unknown collator",
+				);
 			}
 		}
 		RequestCollation(_, _, _) => {
@@ -656,6 +662,7 @@ where
 			// want to track it's view or take any other actions.
 		},
 		PeerDisconnected(peer_id) => {
+			state.known_collators.remove(&peer_id);
 			state.peer_views.remove(&peer_id);
 		},
 		PeerViewChange(peer_id, view) => {

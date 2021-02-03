@@ -312,6 +312,7 @@ mod tests {
 	use pallet_balances::Error as BalancesError;
 	use pallet_session::OneSessionHandler;
 	use crate::traits::Registrar as RegistrarTrait;
+	use frame_support::traits::OneSessionHandler;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {

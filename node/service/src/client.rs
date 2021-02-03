@@ -229,6 +229,19 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			Self::Rococo(client) => client.block_hash(number),
 		}
 	}
+
+	fn extrinsic(
+		&self,
+		id: &<Block as BlockT>::Hash
+	) -> sp_blockchain::Result<Option<<Block as BlockT>::Extrinsic>> {
+		match self {
+			Self::Polkadot(client) => client.extrinsic(id),
+			Self::Westend(client) => client.extrinsic(id),
+			Self::Kusama(client) => client.extrinsic(id),
+			Self::Rococo(client) => client.extrinsic(id),
+		}
+	}
+
 }
 
 impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {

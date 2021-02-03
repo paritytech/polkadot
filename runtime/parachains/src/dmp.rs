@@ -202,7 +202,8 @@ impl<T: Config> Module<T> {
 
 	/// Returns the Head of Message Queue Chain for the given para or `None` if there is none
 	/// associated with it.
-	pub(crate) fn dmq_mqc_head(para: ParaId) -> Hash {
+	#[cfg(test)]
+	fn dmq_mqc_head(para: ParaId) -> Hash {
 		<Self as Store>::DownwardMessageQueueHeads::get(&para)
 	}
 
@@ -232,6 +233,7 @@ impl<T: Config> crate::ParachainCleanup for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use hex_literal::hex;
 	use primitives::v1::BlockNumber;
 	use frame_support::StorageValue;
 	use frame_support::traits::{OnFinalize, OnInitialize};
@@ -329,6 +331,25 @@ mod tests {
 	}
 
 	#[test]
+	fn dmp_mqc_head_fixture() {
+		let a = ParaId::from(2000);
+
+		new_test_ext(default_genesis_config()).execute_with(|| {
+			run_to_block(2, None);
+			assert!(Dmp::dmq_mqc_head(a).is_zero());
+			queue_downward_message(a, vec![1, 2, 3]).unwrap();
+
+			run_to_block(3, None);
+			queue_downward_message(a, vec![4, 5, 6]).unwrap();
+
+			assert_eq!(
+				Dmp::dmq_mqc_head(a),
+				hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
+			);
+		});
+	}
+
+	#[test]
 	fn check_processed_downward_messages() {
 		let a = ParaId::from(1312);
 
@@ -390,6 +411,27 @@ mod tests {
 			// that's too big
 			assert_eq!(big.encode().len(), 9);
 			assert!(queue_downward_message(a, big).is_err());
+		});
+	}
+
+	#[test]
+	fn verify_dmq_mqc_head_is_externally_accessible() {
+		use primitives::v1::well_known_keys;
+		use hex_literal::hex;
+
+		let a = ParaId::from(2020);
+
+		new_test_ext(default_genesis_config()).execute_with(|| {
+			let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+			assert_eq!(head, None);
+
+			queue_downward_message(a, vec![1, 2, 3]).unwrap();
+
+			let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+			assert_eq!(
+				head,
+				Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
+			);
 		});
 	}
 }
