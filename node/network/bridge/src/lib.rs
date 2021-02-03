@@ -205,10 +205,12 @@ where
 
 			Action::ConnectToValidators {
 				validator_ids,
+				peer_set,
 				connected,
 			} => {
 				let (ns, ads) = validator_discovery.on_request(
 					validator_ids,
+					peer_set,
 					connected,
 					network_service,
 					authority_discovery_service,

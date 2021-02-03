@@ -33,6 +33,7 @@ use polkadot_node_subsystem::{
 	SubsystemContext,
 };
 use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId, SessionIndex};
+use polkadot_node_network_protocol::peer_set::PeerSet;
 use sc_network::PeerId;
 use crate::Error;
 
@@ -41,16 +42,24 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
+	peer_set: PeerSet,
 ) -> Result<ConnectionRequest, Error> {
 	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
-	connect_to_past_session_validators(ctx, relay_parent, validators, current_index).await
+	connect_to_validators_in_session(
+		ctx,
+		relay_parent,
+		validators,
+		peer_set,
+		current_index,
+	).await
 }
 
-/// Utility function to make it easier to connect to validators in the past sessions.
-pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
+/// Utility function to make it easier to connect to validators in the given session.
+pub async fn connect_to_validators_in_session<Context: SubsystemContext>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
+	peer_set: PeerSet,
 	session_index: SessionIndex,
 ) -> Result<ConnectionRequest, Error> {
 	let session_info = crate::request_session_info_ctx(
@@ -88,7 +97,7 @@ pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
 		.filter_map(|(k, v)| v.map(|v| (v, k)))
 		.collect::<HashMap<AuthorityDiscoveryId, ValidatorId>>();
 
-	let connections = connect_to_authorities(ctx, authorities).await;
+	let connections = connect_to_authorities(ctx, authorities, peer_set).await;
 
 	Ok(ConnectionRequest {
 		validator_map,
@@ -99,6 +108,7 @@ pub async fn connect_to_past_session_validators<Context: SubsystemContext>(
 async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
+	peer_set: PeerSet,
 ) -> mpsc::Receiver<(AuthorityDiscoveryId, PeerId)> {
 	const PEERS_CAPACITY: usize = 8;
 
@@ -107,6 +117,7 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ConnectToValidators {
 			validator_ids,
+			peer_set,
 			connected,
 		}
 	)).await;

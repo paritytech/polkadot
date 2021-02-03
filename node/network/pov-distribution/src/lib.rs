@@ -40,7 +40,8 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, OurView,
+	peer_set::PeerSet, v1 as protocol_v1, ReputationChange as Rep,
+	NetworkBridgeEvent, PeerId, OurView,
 };
 
 use futures::prelude::*;
@@ -407,6 +408,7 @@ async fn handle_fetch(
 							ctx,
 							relay_parent,
 							relevant_validators.clone(),
+							PeerSet::Validation,
 						).await {
 							Ok(new_connection_request) => {
 								state.connection_requests.put(relay_parent, new_connection_request);

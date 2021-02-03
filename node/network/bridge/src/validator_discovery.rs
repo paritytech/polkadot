@@ -202,6 +202,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	pub async fn on_request(
 		&mut self,
 		validator_ids: Vec<AuthorityDiscoveryId>,
+		peer_set: PeerSet,
 		mut connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 		mut network_service: N,
 		mut authority_discovery_service: AD,
@@ -277,25 +278,15 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service.add_peers_to_reserved_set(
-			PeerSet::Collation.into_protocol_name(),
+			peer_set.into_protocol_name(),
 			multiaddr_to_add.clone(),
-		).await {
-			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
-		}
-		if let Err(e) = network_service.add_peers_to_reserved_set(
-			PeerSet::Validation.into_protocol_name(),
-			multiaddr_to_add,
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
 		let _ = network_service.remove_peers_from_reserved_set(
-			PeerSet::Collation.into_protocol_name(),
+			peer_set.into_protocol_name(),
 			multiaddr_to_remove.clone()
-		).await;
-		let _ = network_service.remove_peers_from_reserved_set(
-			PeerSet::Validation.into_protocol_name(),
-			multiaddr_to_remove
 		).await;
 
 		let pending = validator_ids.iter()
@@ -457,6 +448,7 @@ mod tests {
 
 			let _ = service.on_request(
 				req1,
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
@@ -485,6 +477,7 @@ mod tests {
 
 			let (_, mut ads) = service.on_request(
 				req1,
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
@@ -521,6 +514,7 @@ mod tests {
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone()],
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
@@ -534,6 +528,7 @@ mod tests {
 
 			let _ = service.on_request(
 				vec![authority_ids[1].clone()],
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
@@ -564,6 +559,7 @@ mod tests {
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone(), authority_ids[2].clone()],
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
@@ -577,6 +573,7 @@ mod tests {
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone(), authority_ids[1].clone()],
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
@@ -593,6 +590,7 @@ mod tests {
 
 			let (ns, _) = service.on_request(
 				vec![authority_ids[0].clone()],
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
@@ -627,6 +625,7 @@ mod tests {
 
 			let _ = service.on_request(
 				vec![validator_id.clone()],
+				PeerSet::Validation,
 				sender,
 				ns,
 				ads,
