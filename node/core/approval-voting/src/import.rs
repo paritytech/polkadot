@@ -218,6 +218,7 @@ async fn load_all_sessions(
 }
 
 // Sessions unavailable in state to cache.
+#[derive(Debug)]
 struct SessionsUnavailable;
 
 // When inspecting a new import notification, updates the session info cache to match
@@ -288,10 +289,24 @@ async fn cache_session_info_for_head(
 				window_start, session_index,
 			);
 
+			println!(
+				"Moving approval window from session {}..={} to {}..={}",
+				old_window_start, old_window_end,
+				window_start, session_index,
+			);
+
 			// keep some of the old window, if applicable.
 			let overlap_start = window_start - old_window_start;
 
-			match load_all_sessions(ctx, block_hash, latest + 1, session_index).await? {
+			let fresh_start = if latest < window_start {
+				window_start
+			} else {
+				latest + 1
+			};
+
+			println!("loading sessions from {}..={}", fresh_start, session_index);
+
+			match load_all_sessions(ctx, block_hash, fresh_start, session_index).await? {
 				None => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -302,6 +317,7 @@ async fn cache_session_info_for_head(
 					return Ok(Err(SessionsUnavailable));
 				}
 				Some(s) => {
+					println!("draining {} and adding {}", overlap_start, s.len());
 					session_window.session_info.drain(..overlap_start as usize);
 					session_window.session_info.extend(s);
 					session_window.earliest_session = Some(window_start);
@@ -1112,24 +1128,29 @@ mod tests {
 		futures::executor::block_on(test_fut);
 	}
 
+	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
+		SessionInfo {
+			validators: Vec::new(),
+			discovery_keys: Vec::new(),
+			assignment_keys: Vec::new(),
+			validator_groups: Vec::new(),
+			n_cores: index as _,
+			zeroth_delay_tranche_width: index as _,
+			relay_vrf_modulo_samples: index as _,
+			n_delay_tranches: index as _,
+			no_show_slots: index as _,
+			needed_approvals: index as _,
+		}
+	}
+
+
 	#[test]
 	fn imported_block_info_is_good() {
 		let pool = TaskExecutor::new();
 		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
 		let session = 5;
-		let session_info = SessionInfo {
-			validators: Vec::new(),
-			discovery_keys: Vec::new(),
-			assignment_keys: Vec::new(),
-			validator_groups: Vec::new(),
-			n_cores: 0,
-			zeroth_delay_tranche_width: 0,
-			relay_vrf_modulo_samples: 0,
-			n_delay_tranches: 0,
-			no_show_slots: 0,
-			needed_approvals: 0,
-		};
+		let session_info = dummy_session_info(session);
 
 		let slot = Slot::from(10);
 
@@ -1258,18 +1279,7 @@ mod tests {
 		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
 		let session = 5;
-		let session_info = SessionInfo {
-			validators: Vec::new(),
-			discovery_keys: Vec::new(),
-			assignment_keys: Vec::new(),
-			validator_groups: Vec::new(),
-			n_cores: 0,
-			zeroth_delay_tranche_width: 0,
-			relay_vrf_modulo_samples: 0,
-			n_delay_tranches: 0,
-			no_show_slots: 0,
-			needed_approvals: 0,
-		};
+		let session_info = dummy_session_info(session);
 
 		let header = Header {
 			digest: Digest::default(),
@@ -1448,18 +1458,231 @@ mod tests {
 		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
 	}
 
-	#[test]
-	fn cache_session_info_first() {
+	fn cache_session_info_test(
+		session: SessionIndex,
+		mut window: RollingSessionWindow,
+		expect_requests_from: SessionIndex,
+	) {
+		let start_session = session.saturating_sub(APPROVAL_SESSIONS - 1);
 
+		let header = Header {
+			digest: Digest::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let hash = header.hash();
+
+		let test_fut = {
+			let header = header.clone();
+			Box::pin(async move {
+				cache_session_info_for_head(
+					&mut ctx,
+					&mut window,
+					hash,
+					&header,
+				).await.unwrap().unwrap();
+
+				assert_eq!(window.earliest_session, Some(0));
+				assert_eq!(
+					window.session_info,
+					(start_session..=session).map(dummy_session_info).collect::<Vec<_>>(),
+				);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			for i in expect_requests_from..=session {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+						let _ = s_tx.send(Ok(Some(dummy_session_info(i))));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn cache_session_info_first_early() {
+		cache_session_info_test(
+			1,
+			RollingSessionWindow::default(),
+			0,
+		);
+	}
+
+	#[test]
+	fn cache_session_info_first_late() {
+		cache_session_info_test(
+			100,
+			RollingSessionWindow::default(),
+			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
+		);
 	}
 
 	#[test]
 	fn cache_session_info_jump() {
+		let window = RollingSessionWindow {
+			earliest_session: Some(50),
+			session_info: vec![dummy_session_info(50), dummy_session_info(51), dummy_session_info(52)],
+		};
 
+		cache_session_info_test(
+			100,
+			window,
+			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
+		);
 	}
 
 	#[test]
-	fn cache_session_info_roll() {
+	fn cache_session_info_roll_full() {
+		let start = 99 - (APPROVAL_SESSIONS - 1);
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (start..=99).map(dummy_session_info).collect(),
+		};
 
+		cache_session_info_test(
+			100,
+			window,
+			100, // should only make one request.
+		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_many_full() {
+		let start = 97 - (APPROVAL_SESSIONS - 1);
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (start..=97).map(dummy_session_info).collect(),
+		};
+
+		cache_session_info_test(
+			100,
+			window,
+			98,
+		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_early() {
+		let start = 0;
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (0..=1).map(dummy_session_info).collect(),
+		};
+
+		cache_session_info_test(
+			2,
+			window,
+			2, // should only make one request.
+		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_many_early() {
+		let start = 0;
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (0..=1).map(dummy_session_info).collect(),
+		};
+
+		cache_session_info_test(
+			3,
+			window,
+			2,
+		);
+	}
+
+	#[test]
+	fn any_session_unavailable_for_caching_means_no_change() {
+		let session: SessionIndex = 6;
+		let start_session = session.saturating_sub(APPROVAL_SESSIONS - 1);
+
+		let header = Header {
+			digest: Digest::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let mut window = RollingSessionWindow::default();
+		let hash = header.hash();
+
+		let test_fut = {
+			let header = header.clone();
+			Box::pin(async move {
+				let res = cache_session_info_for_head(
+					&mut ctx,
+					&mut window,
+					hash,
+					&header,
+				).await.unwrap();
+
+				assert_matches!(res, Err(SessionsUnavailable));
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			for i in start_session..=session {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+
+						let _ = s_tx.send(Ok(if i == session {
+							None
+						} else {
+							Some(dummy_session_info(i))
+						}));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
 	}
 }
