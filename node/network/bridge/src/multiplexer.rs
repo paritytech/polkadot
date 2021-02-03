@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::pin::Pin;
-use std::result::Result;
 
 use futures::channel::mpsc;
 use futures::stream::Stream;
