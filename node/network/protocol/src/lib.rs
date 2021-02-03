@@ -21,7 +21,7 @@
 
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
-use std::{convert::TryFrom, fmt, collections::HashMap};
+use std::{fmt, collections::HashMap};
 
 pub use sc_network::{ReputationChange, PeerId};
 #[doc(hidden)]
@@ -32,6 +32,9 @@ pub use std::sync::Arc;
 
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
+
+/// Request/response protocols used in Polkadot.
+pub mod request_response;
 
 /// A unique identifier of a request.
 pub type RequestId = u64;
@@ -85,25 +88,6 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 	}
 }
 
-/// Events from network.
-#[derive(Debug, Clone, PartialEq)]
-pub enum NetworkBridgeEvent<M> {
-	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole),
-
-	/// A peer has disconnected.
-	PeerDisconnected(PeerId),
-
-	/// Peer has sent a message.
-	PeerMessage(PeerId, M),
-
-	/// Peer's `View` has changed.
-	PeerViewChange(PeerId, View),
-
-	/// Our view has changed.
-	OurViewChange(OurView),
-}
-
 macro_rules! impl_try_from {
 	($m_ty:ident, $variant:ident, $out:ty) => {
 		impl TryFrom<$m_ty> for $out {
@@ -132,29 +116,6 @@ macro_rules! impl_try_from {
 	}
 }
 
-impl<M> NetworkBridgeEvent<M> {
-	/// Focus an overarching network-bridge event into some more specific variant.
-	///
-	/// This acts as a call to `clone`, except in the case where the event is a message event,
-	/// in which case the clone can be expensive and it only clones if the message type can
-	/// be focused.
-	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
-		where T: 'a + Clone, &'a T: TryFrom<&'a M, Error = WrongVariant>
-	{
-		Ok(match *self {
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role)
-				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone()),
-			NetworkBridgeEvent::PeerDisconnected(ref peer)
-				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
-				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
-			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)
-				=> NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
-			NetworkBridgeEvent::OurViewChange(ref view)
-				=> NetworkBridgeEvent::OurViewChange(view.clone()),
-		})
-	}
-}
 
 /// Specialized wrapper around [`View`].
 ///

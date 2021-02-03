@@ -15,6 +15,7 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../protocol" }
+strum = "0.20.0"
 
 [dev-dependencies]
 assert_matches = "1.4.0"
