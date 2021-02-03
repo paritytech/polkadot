@@ -83,13 +83,13 @@ impl Stream for RequestMultiplexer {
 		// Poll streams in round robin fashion:
 		while count > 0 {
 			// % safe, because count initialized to len, loop would not be entered if 0, also
-            // length of receivers is fixed.
+			// length of receivers is fixed.
 			let (p, rx): &mut (_, _) = &mut self.receivers[i % len];
 			i += 1;
 			count -= 1;
 			match Pin::new(rx).poll_next(cx) {
 				// If at least one stream is pending, then we are not done yet (No
-                // Ready(None)).
+				// Ready(None)).
 				Poll::Pending => result = Poll::Pending,
 				// Receiver is a fused stream, which allows for this simple handling of 
 				// exhausted ones.
@@ -128,8 +128,5 @@ fn decode_with_peer<Req: Decode>(
 	peer: PeerId,
 	payload: Vec<u8>,
 ) -> Result<Req, RequestMultiplexError> {
-	match Req::decode(&mut payload.as_ref()) {
-		Err(error) => Err(RequestMultiplexError { peer, error }),
-		Ok(req) => Ok(req),
-	}
+	Req::decode(&mut payload.as_ref()).map_err(|error| RequestMultiplexError { peer, error })
 }
