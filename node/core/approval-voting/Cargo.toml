@@ -14,8 +14,8 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 bitvec = "0.20.1"
 
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dependabot/cargo/wasmtime-0.22.0" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dependabot/cargo/wasmtime-0.22.0" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dependabot/cargo/wasmtime-0.22.0" }
 
 [dev-dependencies]

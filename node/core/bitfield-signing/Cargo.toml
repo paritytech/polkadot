@@ -11,6 +11,6 @@ tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "dependabot/cargo/wasmtime-0.22.0" }
 wasm-timer = "0.2.5"
 thiserror = "1.0.23"

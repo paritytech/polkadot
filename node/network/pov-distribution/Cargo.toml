@@ -20,7 +20,7 @@ assert_matches = "1.4.0"
 env_logger = "0.8.1"
 log = "0.4.13"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "dependabot/cargo/wasmtime-0.22.0" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "dependabot/cargo/wasmtime-0.22.0" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

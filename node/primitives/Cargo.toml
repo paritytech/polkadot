@@ -10,7 +10,7 @@ futures = "0.3.12"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "dependabot/cargo/wasmtime-0.22.0" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "dependabot/cargo/wasmtime-0.22.0" }
+sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "dependabot/cargo/wasmtime-0.22.0" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dependabot/cargo/wasmtime-0.22.0" }

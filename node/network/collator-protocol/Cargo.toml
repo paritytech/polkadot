@@ -22,7 +22,7 @@ env_logger = "0.8.2"
 assert_matches = "1.4.0"
 futures-timer = "3.0.2"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "dependabot/cargo/wasmtime-0.22.0" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "dependabot/cargo/wasmtime-0.22.0" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
