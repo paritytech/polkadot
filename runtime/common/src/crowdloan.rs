@@ -74,27 +74,27 @@ use frame_support::{
 	},
 };
 use frame_system::ensure_signed;
-use sp_runtime::{ModuleId, DispatchResult,
+use sp_runtime::{ModuleId, DispatchResult, RuntimeDebug,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
 };
-use crate::{slots, auctions, traits::Registrar};
+use crate::traits::{Registrar, Auctioneer};
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
 
-type CurrencyOf<T> = <<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency;
+type CurrencyOf<T> = <<T as Config>::Auctioneer as Auctioneer>::Currency;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[allow(dead_code)]
-type NegativeImbalanceOf<T> = <<<T as auctions::Config>::Leaser as crate::traits::Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+type NegativeImbalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-pub trait Config: auctions::Config {
+pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// ModuleID for the crowdloan module. An appropriate value could be ```ModuleId(*b"py/cfund")```
 	type ModuleId: Get<ModuleId>;
 
-	/// The amount to be held on deposit by the owner of a crowdloan.
+	/// The amount to be held on deposit by the depositor of a crowdloan.
 	type SubmissionDeposit: Get<BalanceOf<Self>>;
 
 	/// The minimum amount that may be contributed into a crowdloan. Should almost certainly be at
@@ -111,29 +111,29 @@ pub trait Config: auctions::Config {
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
 
-	/// The parachain registrar type.
+	/// The parachain registrar type. We jus use this to ensure that only the manager of a para is able to
+	/// start a crowdloan for its slot.
 	type Registrar: Registrar<AccountId=Self::AccountId>;
 
+	/// The type representing the auctioning system.
+	type Auctioneer: Auctioneer<AccountId=Self::AccountId, BlockNumber=Self::BlockNumber, LeasePeriod=Self::BlockNumber>;
 }
 
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum LastContribution<BlockNumber> {
 	Never,
-	PreEnding(auctions::AuctionIndex),
+	PreEnding(u32),
 	Ending(BlockNumber),
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 struct DeployData<Hash> {
 	code_hash: Hash,
 	code_size: u32,
 	initial_head_data: HeadData,
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The parachain that this fund is funding or plans to fund.
@@ -141,7 +141,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// As long as this is `true` then the funds may not be withdrawn and the fund cannot be dissolved.
 	is_leased: bool,
 	/// The owning account who placed the deposit.
-	owner: AccountId,
+	depositor: AccountId,
 	/// The amount of deposit placed.
 	deposit: Balance,
 	/// The total amount raised.
@@ -181,7 +181,7 @@ decl_storage! {
 		NewRaise get(fn new_raise): Vec<ParaId>;
 
 		/// The number of auctions that have entered into their ending period so far.
-		EndingsCount get(fn endings_count): auctions::AuctionIndex;
+		EndingsCount get(fn endings_count): u32;
 	}
 }
 
@@ -203,9 +203,9 @@ decl_event! {
 		PartiallyDissolved(ParaId),
 		/// Fund is dissolved. [fund_index]
 		Dissolved(ParaId),
-		/// The deploy data of the funded parachain is setted. [fund_index]
+		/// The deploy data of the funded parachain is set. [fund_index]
 		DeployDataFixed(ParaId),
-		/// Onboarding process for a winning parachain fund is completed. [find_index, parachain_id]
+		/// On-boarding process for a winning parachain fund is completed. [find_index, parachain_id]
 		Onboarded(ParaId, ParaId),
 		/// The result of trying to submit a new bid to the Slots pallet.
 		HandleBidResult(ParaId, DispatchResult),
@@ -275,22 +275,22 @@ decl_module! {
 			#[compact] last_slot: T::BlockNumber,
 			#[compact] end: T::BlockNumber
 		) {
-			let owner = ensure_signed(origin)?;
+			let depositor = ensure_signed(origin)?;
 
 			ensure!(first_slot < last_slot, Error::<T>::LastSlotBeforeFirstSlot);
 			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
 			let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
-			ensure!(owner == manager, Error::<T>::InvalidOrigin);
+			ensure!(depositor == manager, Error::<T>::InvalidOrigin);
 
 			let deposit = T::SubmissionDeposit::get();
-			CurrencyOf::<T>::transfer(&owner, &Self::fund_account_id(index), deposit, AllowDeath)?;
+			CurrencyOf::<T>::transfer(&depositor, &Self::fund_account_id(index), deposit, AllowDeath)?;
 
 			Funds::<T>::insert(index, FundInfo {
 				parachain: index,
 				is_leased: false,
-				owner,
+				depositor,
 				deposit,
 				raised: Zero::zero(),
 				end,
@@ -326,7 +326,7 @@ decl_module! {
 			let balance = balance.saturating_add(value);
 			Self::contribution_put(index, &who, &balance);
 
-			if auctions::Module::<T>::is_ending(now).is_some() {
+			if T::Auctioneer::is_ending(now).is_some() {
 				match fund.last_contribution {
 					// In ending period; must ensure that we are in NewRaise.
 					LastContribution::Ending(n) if n == now => {
@@ -430,7 +430,7 @@ decl_module! {
 			match Self::crowdloan_kill(index) {
 				child::KillOutcome::AllRemoved => {
 					let account = Self::fund_account_id(index);
-					CurrencyOf::<T>::transfer(&account, &fund.owner, fund.deposit, AllowDeath)?;
+					CurrencyOf::<T>::transfer(&account, &fund.depositor, fund.deposit, AllowDeath)?;
 
 					// Remove all other balance from the account into orphaned funds.
 					let (imbalance, _) = CurrencyOf::<T>::slash(&account, BalanceOf::<T>::max_value());
@@ -447,8 +447,7 @@ decl_module! {
 		}
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
-			if let Some(n) = auctions::Module::<T>::is_ending(n) {
-				let auction_index = auctions::AuctionCounter::get();
+			if let Some(n) = T::Auctioneer::is_ending(n) {
 				if n.is_zero() {
 					// first block of ending period.
 					EndingsCount::mutate(|c| *c += 1);
@@ -456,10 +455,9 @@ decl_module! {
 				for (fund, para_id) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
 					// Care needs to be taken by the crowdloan creator that this function will succeed given
 					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
-					let result = auctions::Module::<T>::handle_bid(
+					let result = T::Auctioneer::place_bid(
 						Self::fund_account_id(para_id),
 						para_id,
-						auction_index,
 						fund.first_slot,
 						fund.last_slot,
 						fund.raised,
@@ -751,7 +749,7 @@ mod tests {
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
 				parachain: None,
-				owner: 1,
+				depositor: 1,
 				deposit: 1,
 				raised: 0,
 				// 5 blocks length + 3 block ending period + 1 starting block

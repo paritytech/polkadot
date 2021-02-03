@@ -414,7 +414,7 @@ mod tests {
 	impl Registrar for TestRegistrar {
 		type AccountId = u64;
 
-		fn manager_of(id: ParaId) -> Option<Self::AccountId> { None }
+		fn manager_of(_id: ParaId) -> Option<Self::AccountId> { None }
 
 		fn parachains() -> Vec<ParaId> {
 			PARACHAINS.with(|x| x.borrow().clone())

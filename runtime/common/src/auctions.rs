@@ -29,7 +29,7 @@ use frame_support::{
 use primitives::v1::Id as ParaId;
 use frame_system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use crate::traits::{Leaser, LeaseError};
+use crate::traits::{Leaser, LeaseError, Auctioneer};
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -241,15 +241,13 @@ decl_module! {
 	}
 }
 
-impl<T: Config> Module<T> {
-	/// True if an auction is in progress.
-	pub fn is_in_progress() -> bool {
-		AuctionInfo::<T>::exists()
-	}
+impl<T: Config> Auctioneer for Module<T> {
+	type AccountId = T::AccountId;
+	type BlockNumber = T::BlockNumber;
+	type LeasePeriod = T::BlockNumber;
+	type Currency = CurrencyOf<T>;
 
-	/// Returns `Some(n)` if the now block is part of the ending period of an auction, where `n`
-	/// represents how far into the ending period this block is. Otherwise, returns `None`.
-	pub fn is_ending(now: T::BlockNumber) -> Option<T::BlockNumber> {
+	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber> {
 		if let Some((_, early_end)) = AuctionInfo::<T>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
 				if after_early_end < T::EndingPeriod::get() {
@@ -260,75 +258,21 @@ impl<T: Config> Module<T> {
 		None
 	}
 
-	/// Some when the auction's end is known (with the end block number). None if it is unknown.
-	/// If `Some` then the block number must be at most the previous block and at least the
-	/// previous block minus `T::EndingPeriod::get()`.
-	///
-	/// This mutates the state, cleaning up `AuctionInfo` and `Winning` in the case of an auction
-	/// ending. An immediately subsequent call with the same argument will always return `None`.
-	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
-		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
-			let ending_period = T::EndingPeriod::get();
-			if early_end + ending_period == now {
-				// Just ended!
-				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
-					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
-				let res = Winning::<T>::get(offset).unwrap_or_default();
-				let mut i = T::BlockNumber::zero();
-				while i < ending_period {
-					Winning::<T>::remove(i);
-					i += One::one();
-				}
-				AuctionInfo::<T>::kill();
-				return Some((res, lease_period_index))
-			}
-		}
-		None
+	fn place_bid(
+		bidder: T::AccountId,
+		para: ParaId,
+		first_slot: LeasePeriodOf<T>,
+		last_slot: LeasePeriodOf<T>,
+		amount: BalanceOf<T>,
+	) -> DispatchResult {
+		Self::handle_bid(bidder, para, AuctionCounter::get(), first_slot, last_slot, amount)
 	}
+}
 
-	/// Auction just ended. We have the current lease period, the auction's lease period (which
-	/// is guaranteed to be at least the current period) and the bidders that were winning each
-	/// range at the time of the auction's close.
-	fn manage_auction_end(
-		auction_lease_period_index: LeasePeriodOf<T>,
-		winning_ranges: WinningData<T>,
-	) {
-		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get()));
-
-		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
-		// amounts from the bidders that ended up being assigned the slot so there's no need to
-		// special-case them here.
-		for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
-			ReservedAmounts::<T>::take((bidder.clone(), para));
-			CurrencyOf::<T>::unreserve(&bidder, amount);
-		}
-
-		// Next, calculate the winning combination of slots and thus the final winners of the
-		// auction.
-		let winners = Self::calculate_winners(winning_ranges);
-
-		// Go through those winners and re-reserve their bid, updating our table of deposits
-		// accordingly.
-		for (leaser, para, amount, range) in winners.into_iter() {
-			let begin_offset = LeasePeriodOf::<T>::from(range.as_pair().0 as u32);
-			let period_begin = auction_lease_period_index + begin_offset;
-			let period_count = LeasePeriodOf::<T>::from(range.len() as u32);
-
-			match T::Leaser::lease_out(para, &leaser, amount, period_begin, period_count) {
-				Err(LeaseError::ReserveFailed) | Err(LeaseError::AlreadyEnded) => {
-					// Should never happen since we just unreserved this amount (and our offset is from the
-					// present period). But if it does, there's not much we can do.
-				}
-				Err(LeaseError::AlreadyLeased) => {
-					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
-					// keep the amount reserved and let governance sort it out.
-					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
-						Self::deposit_event(RawEvent::ReserveConfiscated(para, leaser, amount));
-					}
-				}
-				Ok(()) => {}, // Nothing to report.
-			}
-		}
+impl<T: Config> Module<T> {
+	/// True if an auction is in progress.
+	pub fn is_in_progress() -> bool {
+		AuctionInfo::<T>::exists()
 	}
 
 	/// Actually place a bid in the current auction.
@@ -345,7 +289,7 @@ impl<T: Config> Module<T> {
 		auction_index: u32,
 		first_slot: LeasePeriodOf<T>,
 		last_slot: LeasePeriodOf<T>,
-		amount: BalanceOf<T>
+		amount: BalanceOf<T>,
 	) -> DispatchResult {
 		// Bidding on latest auction.
 		ensure!(auction_index == AuctionCounter::get(), Error::<T>::NotCurrentAuction);
@@ -423,6 +367,77 @@ impl<T: Config> Module<T> {
 			Winning::<T>::insert(offset, &current_winning);
 		}
 		Ok(())
+	}
+
+	/// Some when the auction's end is known (with the end block number). None if it is unknown.
+	/// If `Some` then the block number must be at most the previous block and at least the
+	/// previous block minus `T::EndingPeriod::get()`.
+	///
+	/// This mutates the state, cleaning up `AuctionInfo` and `Winning` in the case of an auction
+	/// ending. An immediately subsequent call with the same argument will always return `None`.
+	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
+		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
+			let ending_period = T::EndingPeriod::get();
+			if early_end + ending_period == now {
+				// Just ended!
+				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
+					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
+				let res = Winning::<T>::get(offset).unwrap_or_default();
+				let mut i = T::BlockNumber::zero();
+				while i < ending_period {
+					Winning::<T>::remove(i);
+					i += One::one();
+				}
+				AuctionInfo::<T>::kill();
+				return Some((res, lease_period_index))
+			}
+		}
+		None
+	}
+
+	/// Auction just ended. We have the current lease period, the auction's lease period (which
+	/// is guaranteed to be at least the current period) and the bidders that were winning each
+	/// range at the time of the auction's close.
+	fn manage_auction_end(
+		auction_lease_period_index: LeasePeriodOf<T>,
+		winning_ranges: WinningData<T>,
+	) {
+		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get()));
+
+		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
+		// amounts from the bidders that ended up being assigned the slot so there's no need to
+		// special-case them here.
+		for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
+			ReservedAmounts::<T>::take((bidder.clone(), para));
+			CurrencyOf::<T>::unreserve(&bidder, amount);
+		}
+
+		// Next, calculate the winning combination of slots and thus the final winners of the
+		// auction.
+		let winners = Self::calculate_winners(winning_ranges);
+
+		// Go through those winners and re-reserve their bid, updating our table of deposits
+		// accordingly.
+		for (leaser, para, amount, range) in winners.into_iter() {
+			let begin_offset = LeasePeriodOf::<T>::from(range.as_pair().0 as u32);
+			let period_begin = auction_lease_period_index + begin_offset;
+			let period_count = LeasePeriodOf::<T>::from(range.len() as u32);
+
+			match T::Leaser::lease_out(para, &leaser, amount, period_begin, period_count) {
+				Err(LeaseError::ReserveFailed) | Err(LeaseError::AlreadyEnded) => {
+					// Should never happen since we just unreserved this amount (and our offset is from the
+					// present period). But if it does, there's not much we can do.
+				}
+				Err(LeaseError::AlreadyLeased) => {
+					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
+					// keep the amount reserved and let governance sort it out.
+					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
+						Self::deposit_event(RawEvent::ReserveConfiscated(para, leaser, amount));
+					}
+				}
+				Ok(()) => {}, // Nothing to report.
+			}
+		}
 	}
 
 	/// Calculate the final winners from the winning slots.
