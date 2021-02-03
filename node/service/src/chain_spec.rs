@@ -838,7 +838,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
-		pallet_beefy: Some(rococo_runtime::BeefyConfig {
+		pallet_beefy: Some(Default::default()),
 			// TODO [ToDr] Beefy authorities
 			authorities: vec![],
 		}),
