@@ -61,7 +61,7 @@ use action::Action;
 mod network;
 use network::{Network, send_message};
 
-/// Request multiplexer for combining the multiple request sources into a single `Stream` of  `AllMessages`.
+/// Request multiplexer for combining the multiple request sources into a single `Stream` of `AllMessages`.
 mod multiplexer;
 pub use multiplexer::RequestMultiplexer;
 
