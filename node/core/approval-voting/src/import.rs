@@ -289,12 +289,6 @@ async fn cache_session_info_for_head(
 				window_start, session_index,
 			);
 
-			println!(
-				"Moving approval window from session {}..={} to {}..={}",
-				old_window_start, old_window_end,
-				window_start, session_index,
-			);
-
 			// keep some of the old window, if applicable.
 			let overlap_start = window_start - old_window_start;
 
@@ -303,8 +297,6 @@ async fn cache_session_info_for_head(
 			} else {
 				latest + 1
 			};
-
-			println!("loading sessions from {}..={}", fresh_start, session_index);
 
 			match load_all_sessions(ctx, block_hash, fresh_start, session_index).await? {
 				None => {
@@ -317,7 +309,6 @@ async fn cache_session_info_for_head(
 					return Ok(Err(SessionsUnavailable));
 				}
 				Some(s) => {
-					println!("draining {} and adding {}", overlap_start, s.len());
 					session_window.session_info.drain(..overlap_start as usize);
 					session_window.session_info.extend(s);
 					session_window.earliest_session = Some(window_start);
