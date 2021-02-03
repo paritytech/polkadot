@@ -199,8 +199,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			},
 		) = req.encode_request();
 
-		// Use the equally named method as implemented in `NetworkService`:
-		self.as_ref().start_request(
+		NetworkService::start_request(&*self,
 			peer,
 			protocol.into_protocol_name(),
 			payload,

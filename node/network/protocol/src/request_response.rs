@@ -59,6 +59,9 @@ pub enum Protocol {
 	AvailabilityFetching,
 }
 
+/// Default request timeout in seconds.
+const DEFAULT_REQUEST_TIMEOUT: u64 = 8; 
+
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
 	///
@@ -74,12 +77,7 @@ impl Protocol {
 		RequestResponseConfig,
 	) {
 		let p_name = self.into_protocol_name();
-		// Channel size again a number I made up. Hundreds of validators will start requesting
-		// their chunks once they see a candidate awaiting availability on chain. Given that they
-		// will see that block at different times (due to network delays), 100 seems big enough to
-		// accomodate for "bursts", assuming we can service requests relatively quickly, which
-		// would need to be measured as well.
-		let (tx, rx) = mpsc::channel(100);
+		let (tx, rx) = mpsc::channel(self.get_channel_size());
 		let cfg = match self {
 			Protocol::AvailabilityFetching => RequestResponseConfig {
 				name: p_name,
@@ -88,11 +86,23 @@ impl Protocol {
 				max_request_size: 10_000,
 				max_response_size: 1_000_000,
 				// Also just some relative conservative guess:
-				request_timeout: Duration::from_secs(8),
+				request_timeout: Duration::from_secs(DEFAULT_REQUEST_TIMEOUT),
 				inbound_queue: Some(tx),
 			},
 		};
 		(rx, cfg)
+	}
+
+	// Channel sizes for the supported protocols.
+	fn get_channel_size(self) -> usize {
+		match self {
+			// Hundreds of validators will start requesting their chunks once they see a candidate
+			// awaiting availability on chain. Given that they will see that block at different
+			// times (due to network delays), 100 seems big enough to accomodate for "bursts",
+			// assuming we can service requests relatively quickly, which would need to be measured
+			// as well.
+			Protocol::AvailabilityFetching => 100,
+		}
 	}
 
 	/// Get the protocol name of this protocol, as understood by substrate networking.
