@@ -48,7 +48,7 @@ use sp_runtime::{
 	generic::DigestItem,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
-		self, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
+		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };

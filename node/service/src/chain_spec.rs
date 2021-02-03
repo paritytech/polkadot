@@ -839,9 +839,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				.collect(),
 		}),
 		pallet_beefy: Some(Default::default()),
-			// TODO [ToDr] Beefy authorities
-			authorities: vec![],
-		}),
 		pallet_indices: Some(rococo_runtime::IndicesConfig {
 			indices: vec![],
 		}),

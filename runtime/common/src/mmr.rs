@@ -19,16 +19,16 @@
 use beefy_primitives::ValidatorSetId;
 use sp_core::H256;
 use sp_std::prelude::*;
-use frame_support::{decl_error, decl_module, decl_storage, RuntimeDebug,};
+use frame_support::{decl_module, decl_storage, RuntimeDebug,};
 use pallet_mmr::primitives::LeafDataProvider;
 use parity_scale_codec::{Encode, Decode};
 use runtime_parachains::paras;
 
 /// A leaf that gets added every block to the MMR constructed by [pallet_mmr].
 #[derive(RuntimeDebug, PartialEq, Eq, Clone, Encode, Decode)]
-pub struct MmrLeaf<Hash, MerkleRoot> {
-	/// Current block parent hash.
-	pub parent_hash: Hash,
+pub struct MmrLeaf<BlockNumber, Hash, MerkleRoot> {
+	/// Current block parent number and hash.
+	pub parent_number_and_hash: (BlockNumber, Hash),
 	/// A merkle root of all registered parachain heads.
 	pub parachain_heads: MerkleRoot,
 	/// A merkle root of the next BEEFY authority set.
@@ -62,13 +62,14 @@ impl<T: Config> LeafDataProvider for Module<T> where
 	MerkleRootOf<T>: From<H256>,
 {
 	type LeafData = MmrLeaf<
+		<T as frame_system::Config>::BlockNumber,
 		<T as frame_system::Config>::Hash,
 		MerkleRootOf<T>,
 	>;
 
 	fn leaf_data() -> Self::LeafData {
 		MmrLeaf {
-			parent_hash: frame_system::Module::<T>::leaf_data(),
+			parent_number_and_hash: frame_system::Module::<T>::leaf_data(),
 			parachain_heads: Module::<T>::parachain_heads_merkle_root(),
 			beefy_next_authority_set: (
 				Module::<T>::beefy_next_authority_set_id(),
@@ -129,7 +130,7 @@ impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = <T as pallet_beefy::Config>::AuthorityId;
 }
 
-impl<T: Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> where
+impl<T: Config> frame_support::traits::OneSessionHandler<T::AccountId> for Module<T> where
 	T: pallet_session::Config,
 	MerkleRootOf<T>: From<H256>,
 {
