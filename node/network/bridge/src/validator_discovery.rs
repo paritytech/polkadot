@@ -136,7 +136,7 @@ fn peer_id_from_multiaddr(addr: &Multiaddr) -> Option<PeerId> {
 
 pub(super) struct Service<N, AD> {
 	// Peers that are connected to us and authority ids associated to them.
-	connected_peers: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
+	connected_peers: HashMap<(PeerId, PeerSet), HashSet<AuthorityDiscoveryId>>,
 	// The `u64` counts the number of pending non-revoked requests for this validator
 	// note: the validators in this map are not necessarily present
 	// in the `connected_validators` map.
@@ -164,6 +164,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	async fn find_connected_validators(
 		&mut self,
 		validator_ids: &[AuthorityDiscoveryId],
+		peer_set: PeerSet,
 		authority_discovery_service: &mut AD,
 	) -> HashMap<AuthorityDiscoveryId, PeerId> {
 		let mut result = HashMap::new();
@@ -172,7 +173,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			// First check if we already cached the validator
 			if let Some(pid) = self.connected_peers
 				.iter()
-				.find_map(|(pid, ids)| if ids.contains(&id) { Some(pid) } else { None }) {
+				.find_map(|((pid, _), ids)| if ids.contains(&id) { Some(pid) } else { None }) {
 				result.insert(id.clone(), pid.clone());
 				continue;
 			}
@@ -180,7 +181,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			// If not ask the authority discovery
 			if let Some(addresses) = authority_discovery_service.get_addresses_by_authority_id(id.clone()).await {
 				for peer_id in addresses.iter().filter_map(peer_id_from_multiaddr) {
-					if let Some(ids) = self.connected_peers.get_mut(&peer_id) {
+					if let Some(ids) = self.connected_peers.get_mut(&(peer_id, peer_set)) {
 						ids.insert(id.clone());
 						result.insert(id.clone(), peer_id.clone());
 					}
@@ -211,7 +212,11 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		// Increment the counter of how many times the validators were requested.
 		validator_ids.iter().for_each(|id| *self.requested_validators.entry(id.clone()).or_default() += 1);
-		let already_connected = self.find_connected_validators(&validator_ids, &mut authority_discovery_service).await;
+		let already_connected = self.find_connected_validators(
+			&validator_ids,
+			peer_set,
+			&mut authority_discovery_service,
+		).await;
 
 		// try to send already connected peers
 		for (id, peer) in already_connected.iter() {
@@ -305,23 +310,28 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 	/// Should be called when a peer connected.
 	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), fields(subsystem = LOG_TARGET))]
-	pub async fn on_peer_connected(&mut self, peer_id: &PeerId, authority_discovery_service: &mut AD) {
+	pub async fn on_peer_connected(
+		&mut self,
+		peer_id: PeerId,
+		peer_set: PeerSet,
+		authority_discovery_service: &mut AD,
+	) {
 		// check if it's an authority we've been waiting for
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
 			for request in self.non_revoked_discovery_requests.iter_mut() {
-				let _ = request.on_authority_connected(&authority, peer_id);
+				let _ = request.on_authority_connected(&authority, &peer_id);
 			}
 
-			self.connected_peers.entry(peer_id.clone()).or_default().insert(authority);
+			self.connected_peers.entry((peer_id, peer_set)).or_default().insert(authority);
 		} else {
-			self.connected_peers.insert(peer_id.clone(), Default::default());
+			self.connected_peers.insert((peer_id, peer_set), Default::default());
 		}
 	}
 
 	/// Should be called when a peer disconnected.
-	pub fn on_peer_disconnected(&mut self, peer_id: &PeerId) {
-		self.connected_peers.remove(peer_id);
+	pub fn on_peer_disconnected(&mut self, peer_id: PeerId, peer_set: PeerSet) {
+		self.connected_peers.remove(&(peer_id, peer_set));
 	}
 }
 
