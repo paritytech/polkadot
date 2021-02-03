@@ -269,7 +269,7 @@ decl_module! {
 		/// Create a new crowdloaning campaign for a parachain slot deposit for the current auction.
 		#[weight = 100_000_000]
 		fn create(origin,
-			index: ParaId,
+			#[compact] index: ParaId,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: T::BlockNumber,
 			#[compact] last_slot: T::BlockNumber,
@@ -701,16 +701,21 @@ mod tests {
 			assert_eq!(TestAuctioneer::is_ending(11), None);
 		});
 	}
-/*
+
 	#[test]
 	fn create_works() {
 		new_test_ext().execute_with(|| {
 			// Now try to create a crowdloan campaign
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
-			assert_eq!(Crowdloan::fund_count(), 1);
+			assert_noop!(Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 4, 9), Error::<Test>::InvalidParaId);
+
+			assert_ok!(TestRegistrar::<Test>::make_parathread(0.into()));
+			TestRegistrar::<Test>::set_manager(0.into(), 1);
+
+			assert_ok!(Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 4, 9));
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
-				parachain: None,
+				parachain: 0.into(),
+				is_leased: false,
 				depositor: 1,
 				deposit: 1,
 				raised: 0,
@@ -722,17 +727,17 @@ mod tests {
 				last_slot: 4,
 				deploy_data: None,
 			};
-			assert_eq!(Crowdloan::funds(0), Some(fund_info));
+			assert_eq!(Crowdloan::funds(ParaId::from(0)), Some(fund_info));
 			// User has deposit removed from their free balance
 			assert_eq!(Balances::free_balance(1), 999);
 			// Deposit is placed in crowdloan free balance
-			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0.into())), 1);
 			// No new raise until first contribution
 			let empty: Vec<ParaId> = Vec::new();
 			assert_eq!(Crowdloan::new_raise(), empty);
 		});
 	}
-
+/*
 	#[test]
 	fn create_handles_basic_errors() {
 		new_test_ext().execute_with(|| {

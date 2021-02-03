@@ -16,7 +16,8 @@
 
 //! Mocking utilities for testing.
 
-use sp_std::{prelude::*, cell::RefCell};
+use std::{cell::RefCell, collections::HashMap};
+use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::SaturatedConversion;
 use frame_support::dispatch::DispatchResult;
 use primitives::v1::Id as ParaId;
@@ -26,14 +27,17 @@ thread_local! {
 	static OPERATIONS: RefCell<Vec<(ParaId, u32, bool)>> = RefCell::new(Vec::new());
 	static PARACHAINS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
 	static PARATHREADS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
+	static MANAGERS: RefCell<HashMap<ParaId, Vec<u8>>> = RefCell::new(HashMap::new());
 }
 
 pub struct TestRegistrar<T>(sp_std::marker::PhantomData<T>);
 
 impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
-	type AccountId = u64;
+	type AccountId = T::AccountId;
 
-	fn manager_of(_id: ParaId) -> Option<Self::AccountId> { None }
+	fn manager_of(id: ParaId) -> Option<Self::AccountId> {
+		MANAGERS.with(|x| x.borrow().get(&id).and_then(|v| T::AccountId::decode(&mut &v[..]).ok()))
+	}
 
 	fn parachains() -> Vec<ParaId> {
 		PARACHAINS.with(|x| x.borrow().clone())
@@ -96,5 +100,9 @@ impl<T: frame_system::Config> TestRegistrar<T> {
 
 	pub fn parathreads() -> Vec<ParaId> {
 		PARATHREADS.with(|x| x.borrow().clone())
+	}
+
+	pub fn set_manager(id: ParaId, manager: T::AccountId) {
+		MANAGERS.with(|x| x.borrow_mut().insert(id, manager.encode()));
 	}
 }
