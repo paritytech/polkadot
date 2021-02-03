@@ -77,6 +77,7 @@ struct NonRevokedConnectionRequestState {
 	requested: Vec<AuthorityDiscoveryId>,
 	pending: HashSet<AuthorityDiscoveryId>,
 	sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+	peer_set: PeerSet,
 }
 
 impl NonRevokedConnectionRequestState {
@@ -85,15 +86,25 @@ impl NonRevokedConnectionRequestState {
 		requested: Vec<AuthorityDiscoveryId>,
 		pending: HashSet<AuthorityDiscoveryId>,
 		sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		peer_set: PeerSet,
 	) -> Self {
 		Self {
 			requested,
 			pending,
 			sender,
+			peer_set,
 		}
 	}
 
-	pub fn on_authority_connected(&mut self, authority: &AuthorityDiscoveryId, peer_id: &PeerId) {
+	pub fn on_authority_connected(
+		&mut self,
+		authority: &AuthorityDiscoveryId,
+		peer_id: &PeerId,
+		peer_set: PeerSet,
+	) {
+		if peer_set != self.peer_set {
+			return;
+		}
 		if self.pending.remove(authority) {
 			// an error may happen if the request was revoked or
 			// the channel's buffer is full, ignoring it is fine
@@ -118,7 +129,8 @@ impl NonRevokedConnectionRequestState {
 /// Returns `Some(id)` iff the request counter is `0`.
 fn on_revoke(map: &mut HashMap<AuthorityDiscoveryId, u64>, id: AuthorityDiscoveryId) -> Option<AuthorityDiscoveryId> {
 	if let hash_map::Entry::Occupied(mut entry) = map.entry(id) {
-		if entry.get_mut().saturating_sub(1) == 0 {
+		*entry.get_mut() = entry.get().saturating_sub(1);
+		if *entry.get() == 0 {
 			return Some(entry.remove_entry().0);
 		}
 	}
@@ -173,7 +185,14 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			// First check if we already cached the validator
 			if let Some(pid) = self.connected_peers
 				.iter()
-				.find_map(|((pid, _), ids)| if ids.contains(&id) { Some(pid) } else { None }) {
+				.find_map(|((pid, pset), ids)| {
+					if pset == &peer_set && ids.contains(&id) {
+						Some(pid)
+					 } else {
+						None
+					}
+				})
+			{
 				result.insert(id.clone(), pid.clone());
 				continue;
 			}
@@ -244,10 +263,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			let result = authority_discovery_service.get_addresses_by_authority_id(authority.clone()).await;
 			if let Some(addresses) = result {
 				// We might have several `PeerId`s per `AuthorityId`
-				// depending on the number of sentry nodes,
-				// so we limit the max number of sentries per node to connect to.
-				// They are going to be removed soon though:
-				// https://github.com/paritytech/substrate/issues/6845
 				multiaddr_to_add.extend(addresses.into_iter().take(MAX_ADDR_PER_PEER));
 			}
 		}
@@ -303,6 +318,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			validator_ids,
 			pending,
 			connected,
+			peer_set,
 		));
 
 		(network_service, authority_discovery_service)
@@ -320,7 +336,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
 			for request in self.non_revoked_discovery_requests.iter_mut() {
-				let _ = request.on_authority_connected(&authority, &peer_id);
+				let _ = request.on_authority_connected(&authority, &peer_id, peer_set);
 			}
 
 			self.connected_peers.entry((peer_id, peer_set)).or_default().insert(authority);
@@ -432,6 +448,7 @@ mod tests {
 			Vec::new(),
 			HashSet::new(),
 			sender,
+			PeerSet::Validation,
 		);
 
 		assert!(!request.is_revoked());
