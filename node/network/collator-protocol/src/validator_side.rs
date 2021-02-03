@@ -386,6 +386,9 @@ where
 					tracing::debug!(
 						target: LOG_TARGET,
 						%request_id,
+						?para_id,
+						?relay_parent,
+						candidate_hash = ?receipt.hash(),
 						"Received collation",
 					);
 
