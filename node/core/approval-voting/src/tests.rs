@@ -23,7 +23,6 @@ use polkadot_node_primitives::approval::{
 
 use parking_lot::Mutex;
 use bitvec::order::Lsb0 as BitOrderLsb0;
-use std::cell::RefCell;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -142,34 +141,9 @@ where
 }
 
 #[derive(Default)]
-pub struct TestStore {
-	pub inner: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
-	// Note: these are inconsistent with `inner`
+struct TestStore {
 	block_entries: HashMap<Hash, BlockEntry>,
 	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
-}
-
-impl AuxStore for TestStore {
-	fn insert_aux<'a, 'b: 'a, 'c: 'a, I, D>(&self, insertions: I, deletions: D) -> sp_blockchain::Result<()>
-		where I: IntoIterator<Item = &'a (&'c [u8], &'c [u8])>, D: IntoIterator<Item = &'a &'b [u8]>
-	{
-		let mut store = self.inner.borrow_mut();
-
-		// insertions before deletions.
-		for (k, v) in insertions {
-			store.insert(k.to_vec(), v.to_vec());
-		}
-
-		for k in deletions {
-			store.remove(&k[..]);
-		}
-
-		Ok(())
-	}
-
-	fn get_aux(&self, key: &[u8]) -> sp_blockchain::Result<Option<Vec<u8>>> {
-		Ok(self.inner.borrow().get(key).map(|v| v.clone()))
-	}
 }
 
 impl DBReader for TestStore {
@@ -263,6 +237,11 @@ fn some_state(block_hash: Hash, slot: Slot, at: Tick) -> State<TestStore> {
 	state.db.block_entries.insert(block_hash, block_entry.into());
 	state.db.candidate_entries.insert(candidate_hash, candidate_entry.into());
 	state
+}
+
+struct TestHarness {
+	clock: Arc<Mutex<MockClockInner>>,
+	store: TestStore,
 }
 
 #[test]
