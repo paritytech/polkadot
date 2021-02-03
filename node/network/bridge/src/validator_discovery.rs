@@ -454,7 +454,7 @@ mod tests {
 			let req1 = vec![authority_ids[0].clone(), authority_ids[1].clone()];
 			let (sender, mut receiver) = mpsc::channel(2);
 
-			service.on_peer_connected(&peer_ids[0], &mut ads).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
 
 			let _ = service.on_request(
 				req1,
@@ -494,12 +494,12 @@ mod tests {
 			).await;
 
 
-			service.on_peer_connected(&peer_ids[0], &mut ads).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
 			let reply1 = receiver.next().await.unwrap();
 			assert_eq!(reply1.0, authority_ids[0]);
 			assert_eq!(reply1.1, peer_ids[0]);
 
-			service.on_peer_connected(&peer_ids[1], &mut ads).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
 			let reply2 = receiver.next().await.unwrap();
 			assert_eq!(reply2.0, authority_ids[1]);
 			assert_eq!(reply2.1, peer_ids[1]);
@@ -519,8 +519,8 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(&peer_ids[0], &mut ads).await;
-			service.on_peer_connected(&peer_ids[1], &mut ads).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone()],
@@ -564,8 +564,8 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(&peer_ids[0], &mut ads).await;
-			service.on_peer_connected(&peer_ids[1], &mut ads).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone(), authority_ids[2].clone()],
@@ -627,7 +627,7 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(&validator_peer_id, &mut ads).await;
+			service.on_peer_connected(validator_peer_id.clone(), PeerSet::Validation, &mut ads).await;
 
 			let address = known_multiaddr()[0].clone().with(Protocol::P2p(validator_peer_id.clone().into()));
 			ads.by_peer_id.insert(validator_peer_id.clone(), validator_id.clone());
@@ -642,7 +642,7 @@ mod tests {
 			).await;
 
 			assert_eq!((validator_id.clone(), validator_peer_id.clone()), receiver.next().await.unwrap());
-			assert!(service.connected_peers.get(&validator_peer_id).unwrap().contains(&validator_id));
+			assert!(service.connected_peers.get(&(validator_peer_id, PeerSet::Validation)).unwrap().contains(&validator_id));
 		});
 	}
 }
