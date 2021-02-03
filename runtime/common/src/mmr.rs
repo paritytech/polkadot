@@ -24,14 +24,14 @@ use pallet_mmr::primitives::LeafDataProvider;
 use parity_scale_codec::{Encode, Decode};
 use runtime_parachains::paras;
 
-/// A leaf that get's added every block to the MMR constructed by [pallet_mmr].
+/// A leaf that gets added every block to the MMR constructed by [pallet_mmr].
 #[derive(RuntimeDebug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct MmrLeaf<Hash, MerkleRoot> {
 	/// Current block parent hash.
 	pub parent_hash: Hash,
 	/// A merkle root of all registered parachain heads.
 	pub parachain_heads: MerkleRoot,
-	/// A merkle root of the next beefy authority set.
+	/// A merkle root of the next BEEFY authority set.
 	pub beefy_next_authority_set: (ValidatorSetId, MerkleRoot),
 }
 
@@ -101,9 +101,7 @@ impl<T: Config> Module<T> where
 	fn parachain_heads_merkle_root() -> MerkleRootOf<T> {
 		let para_heads = paras::Module::<T>::parachains()
 			.into_iter()
-			.map(|para_id| {
-				paras::Module::<T>::para_head(para_id)
-			})
+			.map(paras::Module::<T>::para_head)
 			.map(|maybe_para_head| maybe_para_head.encode())
 			.collect::<Vec<_>>();
 
