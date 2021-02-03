@@ -84,7 +84,7 @@ impl Protocol {
 			Protocol::AvailabilityFetching => RequestResponseConfig {
 				name: p_name,
 				// Arbitrary very conservative numbers:
-				// TODO: Get better numbers.
+				// TODO: Get better numbers, see https://github.com/paritytech/polkadot/issues/2370
 				max_request_size: 10_000,
 				max_response_size: 1_000_000,
 				// Also just some relative conservative guess:
