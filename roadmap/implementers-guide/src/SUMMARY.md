@@ -5,6 +5,8 @@
 - [Whence Parachains](whence-parachains.md)
 - [Protocol Overview](protocol-overview.md)
   - [Approval Process](protocol-approval.md)
+  - [Disputes Process](protocol-disputes.md)
+    - [Dispute Flow](disputes-flow.md)
 - [Architecture Overview](architecture.md)
   - [Messaging Overview](messaging.md)
 - [Runtime Architecture](runtime/README.md)

@@ -41,7 +41,7 @@ pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 			upward_messages: sp_std::vec::Vec::new(),
 			horizontal_messages: sp_std::vec::Vec::new(),
 			processed_downward_messages: 0,
-			hrmp_watermark: params.relay_chain_height,
+			hrmp_watermark: params.relay_parent_number,
 		}
 	)
 }
