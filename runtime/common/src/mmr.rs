@@ -35,6 +35,29 @@ pub struct MmrLeaf<Hash, MerkleRoot> {
 	pub beefy_next_authority_set: (ValidatorSetId, MerkleRoot),
 }
 
+type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
+
+/// The module's configuration trait.
+pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config
+{}
+
+/// Blanket-impl the trait for every runtime that has both MMR pallet and parachains configuration.
+///
+/// NOTE Remember that you still need to register the [Module] in `construct_runtime` macro.
+impl<R: pallet_mmr::Config + paras::Config + pallet_beefy::Config> Config for R {}
+
+decl_storage! {
+	trait Store for Module<T: Config> as Beefy {
+		/// The merkle root of the next BEEFY authority set.
+		pub BeefyNextAuthoritiesRoot get(fn beefy_next_authorities_root): MerkleRootOf<T>;
+	}
+}
+
+decl_module! {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
+	}
+}
+
 impl<T: Config> LeafDataProvider for Module<T> where
 	MerkleRootOf<T>: From<H256>,
 {
@@ -52,37 +75,6 @@ impl<T: Config> LeafDataProvider for Module<T> where
 				Module::<T>::beefy_next_authority_set_merkle_root()
 			),
 		}
-	}
-}
-
-type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
-
-/// The module's configuration trait.
-pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config
-{}
-
-/// Blanket-impl the trait for every runtime that has both MMR pallet and parachains configuration.
-///
-/// NOTE Remember that you still need to register the [Module] in `construct_runtime` macro.
-impl<R: pallet_mmr::Config + paras::Config + pallet_beefy::Config> Config for R {}
-
-decl_error! {
-	pub enum Error for Module<T: Config> {
-		/// No error
-		None,
-	}
-}
-
-decl_storage! {
-	trait Store for Module<T: Config> as Beefy {
-		/// The merkle root of the next BEEFY authority set.
-		pub BeefyNextAuthoritiesRoot get(fn beefy_next_authorities_root): MerkleRootOf<T>;
-	}
-}
-
-decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
 	}
 }
 

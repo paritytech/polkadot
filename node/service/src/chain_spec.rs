@@ -1370,10 +1370,7 @@ pub fn rococo_testnet_genesis(
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		pallet_beefy: Some(rococo_runtime::BeefyConfig {
-			// TODO [ToDr] Beefy authorities
-			authorities: vec![],
-		}),
+		pallet_beefy: Some(Default::default()),
 		pallet_indices: Some(rococo_runtime::IndicesConfig {
 			indices: vec![],
 		}),
