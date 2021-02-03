@@ -76,5 +76,68 @@ Sends messages
   * transplants them on newly appearing forks without it
 
 
-Keep votes around for lt 24 h after block inclusion
-Cleanup:
+* Keep votes around for lt 24 h after block inclusion
+Cleanup: whenever
+
+---
+## Node
+
+
+```mermaid
+sequenceDiagram
+  participant Net as Network
+  participant V as Dispute VotesDB
+  participant P as Dispute Participation
+  participant PP as Provisioner / Provider
+  participant X as Undefined Component
+  participant RT as Runtime
+
+  Net --> P: Receive Gossip Msg
+  alt is negative vote
+    P --> V: Store vote
+  else is dispute open msg
+    Net --> P: Receive Gossip Vote
+  else is dispute code/pov
+    P --> X: Store Code
+  end
+
+  P --> Net: Gossip vote to interested peers
+
+  alt did not cast our vote
+    P --> X: retrieve validation code and PoV
+    alt missing PoV or validation code
+      P --> Net: Request them from _one_ randomly picked peer that voted already
+    else
+    end
+    P --> Ne: Gossip Our Vote to all peers
+  else
+  end
+
+  P --> RT: pass vote to runtime via inherent
+```
+
+
+TODO: define interested peers
+
+TODO: describe transplantation duty of proposer/provisioner
+## Runtime
+
+The sequential flow of the runtime logic
+
+```mermaid
+graph TD
+  X -->|Extract information of additional votes via Inherent| Y
+  Y -->|Store Vote| Z
+  Z -->|Super Majority Reached| A
+  A -->|Craft a transaction| B
+  B -->|Resolve| C
+  C --> Exit
+  Z --> Exit
+```
+
+```mermaid
+graph TD
+  X -->|Obtain session info| Y
+  Y -->|purge stored sessions older than k sessions in the past| Z
+  Z --> Exit
+```
