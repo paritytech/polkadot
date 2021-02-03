@@ -29,7 +29,7 @@ use sc_network::Event as NetworkEvent;
 use polkadot_node_network_protocol::{request_response::Requests, ObservedRole};
 
 use super::multiplexer::RequestMultiplexError;
-use super::{WireMessage, LOG_TARGET, MALFORMED_MESSAGE_COST};
+use super::{WireMessage, MALFORMED_MESSAGE_COST};
 
 /// Internal type combining all actions a `NetworkBridge` might perform.
 ///
@@ -85,12 +85,24 @@ pub(crate) enum Action {
 	/// Used for handling incoming requests.
 	SendMessage(AllMessages),
 
-	Abort,
+	/// Abort with reason.
+	Abort(AbortReason),
 	Nop,
 }
 
+#[derive(Debug)]
+pub(crate) enum AbortReason {
+	/// Received error from overseer:
+	SubsystemError(polkadot_subsystem::SubsystemError),
+	/// The stream of incoming events concluded.
+	EventStreamConcluded,
+	/// The stream of incoming requests concluded.
+	RequestStreamConcluded,
+	/// We received OverseerSignal::Conclude
+	OverseerConcluded,
+}
+
 impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>> for Action {
-	#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 	fn from(
 		res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
 	) -> Self {
@@ -101,7 +113,9 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
 				Action::BlockFinalized(number)
 			}
-			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => Action::Abort,
+			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
+				Action::Abort(AbortReason::OverseerConcluded)
+			}
 			Ok(FromOverseer::Communication { msg }) => match msg {
 				NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
 				NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
@@ -125,25 +139,15 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 					connected,
 				},
 			},
-			Err(e) => {
-				tracing::warn!(target: LOG_TARGET, err = ?e, "Shutting down Network Bridge due to error");
-				Action::Abort
-			}
+			Err(e) => Action::Abort(AbortReason::SubsystemError(e)),
 		}
 	}
 }
 
 impl From<Option<NetworkEvent>> for Action {
-	#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 	fn from(event: Option<NetworkEvent>) -> Action {
 		match event {
-			None => {
-				tracing::info!(
-					target: LOG_TARGET,
-					"Shutting down Network Bridge: underlying event stream concluded"
-				);
-				Action::Abort
-			}
+			None => Action::Abort(AbortReason::EventStreamConcluded),
 			Some(NetworkEvent::Dht(_))
 			| Some(NetworkEvent::SyncConnected { .. })
 			| Some(NetworkEvent::SyncDisconnected { .. }) => Action::Nop,
@@ -202,23 +206,9 @@ impl From<Option<NetworkEvent>> for Action {
 impl From<Option<Result<AllMessages, RequestMultiplexError>>> for Action {
 	fn from(event: Option<Result<AllMessages, RequestMultiplexError>>) -> Self {
 		match event {
-			None => {
-				tracing::info!(
-					target: LOG_TARGET,
-					"Shutting down Network Bridge: underlying request stream concluded"
-				);
-				Action::Abort
-			}
-			Some(Err(err)) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Peer '{}' sent us an invalid request: {}",
-					err.peer,
-					err.error
-				);
-				Self::ReportPeer(err.peer, MALFORMED_MESSAGE_COST)
-			}
-			Some(Ok(msg)) => Self::SendMessage(msg),
+			None => Action::Abort(AbortReason::RequestStreamConcluded),
+			Some(Err(err)) => Action::ReportPeer(err.peer, MALFORMED_MESSAGE_COST),
+			Some(Ok(msg)) => Action::SendMessage(msg),
 		}
 	}
 }

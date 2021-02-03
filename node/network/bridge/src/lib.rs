@@ -53,7 +53,7 @@ mod validator_discovery;
 /// All requested `NetworkBridgeMessage` user actions  and `NetworkEvent` network messages are
 /// translated to `Action` before being processed by `run_network`.
 mod action;
-use action::Action;
+use action::{Action, AbortReason};
 
 /// Actual interfacing to the network based on the `Network` trait.
 ///
@@ -181,7 +181,30 @@ where
 
 		match action {
 			Action::Nop => {}
-			Action::Abort => return Ok(()),
+			Action::Abort(reason) => {
+				match reason {
+					AbortReason::SubsystemError(err) => { 
+						tracing::warn!(target: LOG_TARGET, err = ?err, "Shutting down Network Bridge due to error");
+						return Err(SubsystemError::Context(format!("Received SubsystemError from overseer: {:?}", err)))
+					}
+					AbortReason::EventStreamConcluded => {
+						tracing::info!(
+							target: LOG_TARGET,
+							"Shutting down Network Bridge: underlying request stream concluded"
+							);
+						return Err(SubsystemError::Context("Incoming network event stream concluded.".to_string()))
+					}
+
+					AbortReason::RequestStreamConcluded => {
+						tracing::info!(
+							target: LOG_TARGET,
+							"Shutting down Network Bridge: underlying request stream concluded"
+							);
+						return Err(SubsystemError::Context("Incoming network request stream concluded".to_string()))
+					}
+					AbortReason::OverseerConcluded => return Ok(()),
+				}
+			}
 
 			Action::SendValidationMessages(msgs) => {
 				for (peers, msg) in msgs {
@@ -225,7 +248,14 @@ where
 				bridge.authority_discovery_service = ads;
 			},
 
-			Action::ReportPeer(peer, rep) => bridge.network_service.report_peer(peer, rep).await?,
+			Action::ReportPeer(peer, rep) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer = ?peer,
+					"Peer sent us an invalid request",
+					);
+				bridge.network_service.report_peer(peer, rep).await?
+			}
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
