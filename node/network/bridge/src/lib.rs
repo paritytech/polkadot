@@ -610,6 +610,7 @@ mod tests {
 	use polkadot_node_subsystem_util::metered;
 	use polkadot_node_network_protocol::view;
 	use sc_network::Multiaddr;
+	use sc_network::config::RequestResponseConfig;
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_primitives::v1::AuthorityDiscoveryId;
 	use polkadot_node_network_protocol::{ObservedRole, request_response::request::Requests};
@@ -620,6 +621,7 @@ mod tests {
 	struct TestNetwork {
 		net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 		action_tx: metered::UnboundedMeteredSender<NetworkAction>,
+		req_configs: Vec<RequestResponseConfig>,
 	}
 
 	struct TestAuthorityDiscovery;
@@ -631,7 +633,7 @@ mod tests {
 		net_tx: SingleItemSink<NetworkEvent>,
 	}
 
-	fn new_test_network() -> (
+	fn new_test_network(req_configs: Vec<RequestResponseConfig>) -> (
 		TestNetwork,
 		TestNetworkHandle,
 		TestAuthorityDiscovery,
@@ -643,6 +645,7 @@ mod tests {
 			TestNetwork {
 				net_events: Arc::new(Mutex::new(Some(net_rx))),
 				action_tx,
+				req_configs,
 			},
 			TestNetworkHandle {
 				action_rx,
@@ -750,9 +753,9 @@ mod tests {
 
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (network, network_handle, discovery) = new_test_network();
+		let (request_multiplexer, req_configs) = RequestMultiplexer::new();
+		let (network, network_handle, discovery) = new_test_network(req_configs);
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
-		let (request_multiplexer, _) = RequestMultiplexer::new();
 
 		let bridge = NetworkBridge {
 			network_service: network,
