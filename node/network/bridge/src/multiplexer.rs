@@ -128,8 +128,5 @@ fn decode_with_peer<Req: Decode>(
 	peer: PeerId,
 	payload: Vec<u8>,
 ) -> Result<Req, RequestMultiplexError> {
-	match Req::decode(&mut payload.as_ref()) {
-		Err(error) => Err(RequestMultiplexError { peer, error }),
-		Ok(req) => Ok(req),
-	}
+	Req::decode(&mut payload.as_ref()).map_err(|error| RequestMultiplexError { peer, error })
 }
