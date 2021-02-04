@@ -101,6 +101,124 @@ pub fn check_approval(
 	}
 }
 
+// Determining the amount of tranches required for approval or which assignments are pending
+// involves moving through a series of states while looping over the tranches
+//
+// that we are aware of. First, we perform an initial count of the number of assignments
+// until we reach the number of needed assignments for approval. As we progress, we count the
+// number of no-shows in each tranche.
+//
+// Then, if there are any no-shows, we proceed into a series of subsequent states for covering
+// no-shows.
+//
+// We cover each no-show by a non-empty tranche, keeping track of the amount of further
+// no-shows encountered along the way. Once all of the no-shows we were previously aware
+// of are covered, we then progress to cover the no-shows we encountered while covering those,
+// and so on.
+#[derive(Debug)]
+struct State {
+	/// The total number of assignments obtained.
+	assignments: usize,
+	/// The depth of no-shows we are currently covering.
+	depth: usize,
+	/// The amount of no-shows that have been covered at the previous or current depths.
+	covered: usize,
+	/// The amount of assignments that we are attempting to cover at this depth.
+	///
+	/// At depth 0, these are the initial needed approvals, and at other depths these
+	/// are no-shows.
+	covering: usize,
+	/// The number of uncovered no-shows encountered at this depth. These will be the
+	/// `covering` of the next depth.
+	uncovered: usize,
+	/// The next tick at which a no-show would occur, if any.
+	next_no_show: Option<Tick>,
+}
+
+impl State {
+	fn output(
+		&self,
+		tranche: DelayTranche,
+		needed_approvals: usize,
+		n_validators: usize,
+		no_show_duration: Tick,
+	) -> RequiredTranches {
+		if self.assignments + self.covering + self.uncovered >= n_validators {
+			return RequiredTranches::All;
+		}
+
+		// If we have enough assignments and all no-shows are covered, we have reached the number
+		// of tranches that we need to have.
+		if self.assignments > needed_approvals && (self.covering + self.uncovered) == 0 {
+			return RequiredTranches::Exact {
+				needed: tranche,
+				tolerated_missing: self.covered,
+				next_no_show: self.next_no_show,
+			};
+		}
+
+		// We're pending more assignments and should look at more tranches.
+		let clock_drift = self.clock_drift(no_show_duration);
+		if self.depth == 0 {
+			RequiredTranches::Pending {
+				considered: tranche,
+				next_no_show: self.next_no_show,
+				uncovered: (needed_approvals.saturating_sub(self.assignments)) + self.uncovered,
+				// during the initial assignment-gathering phase, we want to accept assignments
+				// from any tranche. Note that honest validators will still not broadcast their
+				// assignment until it is time to do so, regardless of this value.
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift,
+			}
+		} else {
+			RequiredTranches::Pending {
+				considered: tranche,
+				next_no_show: self.next_no_show,
+				uncovered: self.covering + self.uncovered,
+				maximum_broadcast: tranche + (self.covering + self.uncovered) as DelayTranche,
+				clock_drift,
+			}
+		}
+	}
+
+	fn clock_drift(&self, no_show_duration: Tick) -> Tick {
+		self.depth as Tick * no_show_duration
+	}
+
+	fn advance(
+		&self,
+		new_assignments: usize,
+		new_no_shows: usize,
+		next_no_show: Option<Tick>,
+	) -> State {
+		let new_covered = if self.depth == 0 {
+			new_assignments
+		} else {
+			// When covering no-shows, we treat each non-empty tranche as covering 1 assignment,
+			// regardless of how many assignments are within the tranche.
+			new_assignments.min(1)
+		};
+
+		let assignments = self.assignments + new_assignments;
+		let covering = self.covering.saturating_sub(new_covered);
+		let covered = self.covered + new_covered.min(self.covering); // don't 'over-cover'
+		let uncovered = self.uncovered + new_no_shows;
+		let next_no_show = merge_next_no_show(self.next_no_show, next_no_show);
+
+		let (depth, covering, uncovered) = if covering == 0 {
+			if uncovered == 0 {
+				(self.depth, 0, self.uncovered)
+			} else {
+				(self.depth + 1, self.uncovered, 0)
+			}
+		} else {
+			(self.depth, covering, uncovered)
+		};
+
+		State { assignments, depth, covered, covering, uncovered, next_no_show }
+	}
+}
+
 fn merge_next_no_show(
 	a: Option<Tick>,
 	b: Option<Tick>,
@@ -121,122 +239,6 @@ pub fn tranches_to_approve(
 	no_show_duration: Tick,
 	needed_approvals: usize,
 ) -> RequiredTranches {
-	// This function progresses through a series of states while looping over the tranches
-	// that we are aware of. First, we perform an initial count of the number of assignments
-	// until we reach the number of needed assignments for approval. As we progress, we count the
-	// number of no-shows in each tranche.
-	//
-	// Then, if there are any no-shows, we proceed into a series of subsequent states for covering
-	// no-shows.
-	//
-	// We cover each no-show by a non-empty tranche, keeping track of the amount of further
-	// no-shows encountered along the way. Once all of the no-shows we were previously aware
-	// of are covered, we then progress to cover the no-shows we encountered while covering those,
-	// and so on.
-	#[derive(Debug)]
-	struct State {
-		/// The total number of assignments obtained.
-		assignments: usize,
-		/// The depth of no-shows we are currently covering.
-		depth: usize,
-		/// The amount of no-shows that have been covered at the previous or current depths.
-		covered: usize,
-		/// The amount of assignments that we are attempting to cover at this depth.
-		///
-		/// At depth 0, these are the initial needed approvals, and at other depths these
-		/// are no-shows.
-		covering: usize,
-		/// The number of uncovered no-shows encountered at this depth. These will be the
-		/// `covering` of the next depth.
-		uncovered: usize,
-		/// The next tick at which a no-show would occur, if any.
-		next_no_show: Option<Tick>,
-	}
-
-	impl State {
-		fn output(
-			&self,
-			tranche: DelayTranche,
-			needed_approvals: usize,
-			n_validators: usize,
-			no_show_duration: Tick,
-		) -> RequiredTranches {
-			if self.assignments + self.covering + self.uncovered >= n_validators {
-				return RequiredTranches::All;
-			}
-
-			// If we have enough assignments and all no-shows are covered, we have reached the number
-			// of tranches that we need to have.
-			if self.assignments > needed_approvals && (self.covering + self.uncovered) == 0 {
-				return RequiredTranches::Exact {
-					needed: tranche,
-					tolerated_missing: self.covered,
-					next_no_show: self.next_no_show,
-				};
-			}
-
-			// We're pending more assignments and should look at more tranches.
-			let clock_drift = self.clock_drift(no_show_duration);
-			if self.depth == 0 {
-				RequiredTranches::Pending {
-					considered: tranche,
-					next_no_show: self.next_no_show,
-					uncovered: (needed_approvals.saturating_sub(self.assignments)) + self.uncovered,
-					// during the initial assignment-gathering phase, we want to accept assignments
-					// from any tranche. Note that honest validators will still not broadcast their
-					// assignment until it is time to do so, regardless of this value.
-					maximum_broadcast: DelayTranche::max_value(),
-					clock_drift,
-				}
-			} else {
-				RequiredTranches::Pending {
-					considered: tranche,
-					next_no_show: self.next_no_show,
-					uncovered: self.covering + self.uncovered,
-					maximum_broadcast: tranche + (self.covering + self.uncovered) as DelayTranche,
-					clock_drift,
-				}
-			}
-		}
-
-		fn clock_drift(&self, no_show_duration: Tick) -> Tick {
-			self.depth as Tick * no_show_duration
-		}
-
-		fn advance(
-			&self,
-			new_assignments: usize,
-			new_no_shows: usize,
-			next_no_show: Option<Tick>,
-		) -> State {
-			let new_covered = if self.depth == 0 {
-				new_assignments
-			} else {
-				// When covering no-shows, we treat each non-empty tranche as covering 1 assignment,
-				// regardless of how many assignments are within the tranche.
-				new_assignments.min(1)
-			};
-
-			let assignments = self.assignments + new_assignments;
-			let covering = self.covering.saturating_sub(new_covered);
-			let covered = self.covered + new_covered.min(self.covering); // don't 'over-cover'
-			let uncovered = self.uncovered + new_no_shows;
-			let next_no_show = merge_next_no_show(self.next_no_show, next_no_show);
-
-			let (depth, covering, uncovered) = if covering == 0 {
-				if uncovered == 0 {
-					(self.depth, 0, self.uncovered)
-				} else {
-					(self.depth + 1, self.uncovered, 0)
-				}
-			} else {
-				(self.depth, covering, uncovered)
-			};
-
-			State { assignments, depth, covered, covering, uncovered, next_no_show }
-		}
-	}
-
 	let tick_now = tranche_now as Tick + block_tick;
 	let n_validators = approval_entry.n_validators();
 
