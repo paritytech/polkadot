@@ -27,8 +27,8 @@ futures-timer = "3.0.2"
 log = "0.4.11"
 smallvec = "1.5.1"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-keyring = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-application-crypto = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

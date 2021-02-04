@@ -23,11 +23,11 @@ polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-primitives = { path = "../../primitives" }
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-core = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-application-crypto = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-keystore = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+substrate-prometheus-endpoint = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

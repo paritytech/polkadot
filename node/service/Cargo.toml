@@ -6,52 +6,52 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-authority-discovery = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+babe = { package = "sc-consensus-babe", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+grandpa = { package = "sc-finality-grandpa", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-block-builder = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-chain-spec = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-client-api = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-client-db = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-consensus = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-consensus-slots = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-executor = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-finality-grandpa-warp-sync = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix", optional = true }
+sc-network = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sc-transaction-pool = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+service = { package = "sc-service", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix", default-features = false }
+telemetry = { package = "sc-telemetry", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+babe-primitives = { package = "sp-consensus-babe", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+consensus_common = { package = "sp-consensus", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+inherents = { package = "sp-inherents", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-api = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-block-builder = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-blockchain = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-core = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-io = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-keystore = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-offchain = { package = "sp-offchain", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-runtime = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-session = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-storage = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-transaction-pool = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-trie = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+sp-state-machine = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+pallet-im-online = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+pallet-staking = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+pallet-transaction-payment-rpc-runtime-api = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+frame-system-rpc-runtime-api = { git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "file:///home/cecile/repos/substrate", branch = "cecton-test-bug-missing-prefix" }
 
 # External Crates
 futures = "0.3.12"
