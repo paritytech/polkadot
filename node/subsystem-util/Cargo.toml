@@ -23,11 +23,11 @@ polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-primitives = { path = "../../primitives" }
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

@@ -13,27 +13,27 @@ serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
@@ -43,13 +43,13 @@ xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 trie-db = "0.22.2"
 serde_json = "1.0.61"
 libsecp256k1 = "0.3.5"
