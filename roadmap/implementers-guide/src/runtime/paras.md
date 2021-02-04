@@ -56,10 +56,8 @@ struct ParaGenesisArgs {
 
 /// The possible states of a para, to take into account delayed lifecycle changes.
 pub enum ParaLifecycle {
-  /// Para is new and is onboarding as a Parathread.
-  OnboardingAsParathread,
-  /// Para is new and is onboarding as a Parachain.
-  OnboardingAsParachain,
+  /// A Para is new and is onboarding.
+  Onboarding,
   /// Para is a Parathread.
   Parathread,
   /// Para is a Parachain.
@@ -87,10 +85,10 @@ None                 Parathread                  Parachain
  |    (Session Delay)     |                          |
  |                        |                          |
  +----------------------->+                          |
- | OnboardingAsParathread |                          |
+ |       Onboarding       |                          |
  |                        |                          |
  +-------------------------------------------------->+
- | OnboardingAsParachain  |                          |
+ |       Onboarding       |                          |
  |                        |                          |
  |                        +------------------------->+
  |                        |  UpgradingToParachain    |
