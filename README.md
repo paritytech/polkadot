@@ -67,11 +67,9 @@ dnf install polkadot
 
 ### Install via Cargo
 
-Before building, make sure you have the following installed on your system :
+Make sure you have the support software installed from the **Build from Source** section 
+below this section.
 
-- The `build-essential` package (install with ` apt install build-essential`)
-- Nightly Rust version (set it with `rustup override set nightly`)
-- The `wasm32-unknown-unknown` package (install it with `rustup target add wasm32-unknown-unknown`)
 
 If you want to install Polkadot in your PATH, you can do so with with:
 
@@ -79,7 +77,6 @@ If you want to install Polkadot in your PATH, you can do so with with:
 cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot --locked
 ```
 
-Replace the `<version>` with the [release version](https://github.com/paritytech/polkadot/releases).
 ### Build from Source
 
 If you'd like to build from source, first install Rust. You may need to add Cargo's bin directory
