@@ -921,18 +921,20 @@ async fn process_wakeup(
 			None => false,
 			Some(ref assignment) if assignment.triggered() => false,
 			Some(ref assignment) => {
-				match tranches_to_approve {
-					RequiredTranches::All => approval_checking::check_approval(
-						&candidate_entry,
-						&approval_entry,
-						RequiredTranches::All,
-					),
-					RequiredTranches::Pending(max) => assignment.tranche() <= max,
-					RequiredTranches::Exact(_, _) => {
-						// indicates that no new assignments are needed at the moment.
-						false
-					}
-				}
+				// TODO [now]
+				false
+				// match tranches_to_approve {
+				// 	RequiredTranches::All => approval_checking::check_approval(
+				// 		&candidate_entry,
+				// 		&approval_entry,
+				// 		RequiredTranches::All,
+				// 	),
+				// 	RequiredTranches::Pending(max) => assignment.tranche() <= max,
+				// 	RequiredTranches::Exact(_, _) => {
+				// 		// indicates that no new assignments are needed at the moment.
+				// 		false
+				// 	}
+				// }
 			}
 		}
 	};
