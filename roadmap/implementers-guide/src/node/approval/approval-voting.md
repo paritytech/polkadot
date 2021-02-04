@@ -309,9 +309,6 @@ enum RequiredTranches {
     considered: DelayTranche,
     /// The tick at which the next no-show, of the assignments counted, would occur.
     next_no_show: Option<Tick>,
-    /// The amount of uncovered votes that need to be covered. These are either uncovered no-shows
-    /// or the amount of assignments needed to reach the minimum required.
-    uncovered: usize,
     /// The highest tranche to consider when looking to broadcast own assignment.
     /// This should be considered along with the clock drift to avoid broadcasting
     /// assignments that are before the local time.
@@ -347,12 +344,14 @@ Likewise, when considering how many tranches to take, the no-show depth should b
 
 **Procedure**
 
+  * Start with `depth = 0`.
   * Set a clock drift of `depth * no_show_duration`
   * Take tranches up to `tranche_now - clock_drift` until all needed assignments are met. Start with `depth = 0`.
   * Keep track of the `next_no_show` according to the clock drift, as we go.
-  * If running out of tranches before then, return `Pending { considered, next_no_show, uncovered, maximum_broadcast: DelayTranche::max(), clock_drift: 0 }`
-  * If there are no no-shows, return `Exact { considered, tolerated_missing: 0, next_no_show }`
-  * If there are no-shows, return to the beginning, attempting to cover the number of no-shows. Increment depth, and compute `maximum_broadcast` based on the amount of uncovered no-shows at the point where we ran out of tranches to take.
+  * If running out of tranches before then, return `Pending { considered, next_no_show, maximum_broadcast, clock_drift }`
+  * If there are no no-shows, return `Exact { needed, tolerated_missing, next_no_show }`
+  * `maximum_broadcast` is either `DelayTranche::max_value()` at tranche 0 or otherwise by the last considered tranche + the number of uncovered no-shows at this point.
+  * If there are no-shows, return to the beginning, incrementing `depth` and attempting to cover the number of no-shows. Each no-show must be covered by a non-empty tranche. Non-empty tranches are those which have at least one assignment which is not a no-show. Each non-empty tranche covers exactly one no-show.
   * If at any point, it seems that all validators are required, do an early return with `RequiredTranches::All` which indicates that everyone should broadcast.
 
 #### Check Approval
