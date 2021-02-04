@@ -17,7 +17,7 @@
 use std::pin::Pin;
 
 use futures::channel::mpsc;
-use futures::stream::Stream;
+use futures::stream::{FusedStream, Stream};
 use futures::task::{Context, Poll};
 use strum::IntoEnumIterator;
 
@@ -35,12 +35,15 @@ use polkadot_subsystem::messages::AllMessages;
 ///
 /// This multiplexer consumes all request streams and makes them a `Stream` of a single message
 /// type, useful for the network bridge to send them via the `Overseer` to other subsystems.
+///
+/// The resulting stream will end once any of its input ends.
 pub struct RequestMultiplexer {
 	receivers: Vec<(Protocol, mpsc::Receiver<network::IncomingRequest>)>,
 	next_poll: usize,
 }
 
 /// Multiplexing can fail in case of invalid messages.
+#[derive(Debug, PartialEq, Eq)]
 pub struct RequestMultiplexError {
 	/// The peer that sent the invalid message.
 	pub peer: PeerId,
@@ -85,15 +88,17 @@ impl Stream for RequestMultiplexer {
 			// % safe, because count initialized to len, loop would not be entered if 0, also
 			// length of receivers is fixed.
 			let (p, rx): &mut (_, _) = &mut self.receivers[i % len];
+			// Avoid panic:
+			if rx.is_terminated() {
+				// Early return, we don't want to update next_poll.
+				return Poll::Ready(None);
+			}
 			i += 1;
 			count -= 1;
 			match Pin::new(rx).poll_next(cx) {
-				// If at least one stream is pending, then we are not done yet (No
-				// Ready(None)).
 				Poll::Pending => result = Poll::Pending,
-				// Receiver is a fused stream, which allows for this simple handling of 
-				// exhausted ones.
-				Poll::Ready(None) => {}
+				// We are done, once a single receiver is done.
+				Poll::Ready(None) => return Poll::Ready(None),
 				Poll::Ready(Some(v)) => {
 					result = Poll::Ready(Some(multiplex_single(*p, v)));
 					break;
@@ -102,6 +107,17 @@ impl Stream for RequestMultiplexer {
 		}
 		self.next_poll = i;
 		result
+	}
+}
+
+impl FusedStream for RequestMultiplexer {
+	fn is_terminated(&self) -> bool {
+		let len = self.receivers.len();
+		if len == 0 {
+			return true;
+		}
+		let (_, rx) = &self.receivers[self.next_poll % len];
+		rx.is_terminated()
 	}
 }
 
@@ -129,4 +145,30 @@ fn decode_with_peer<Req: Decode>(
 	payload: Vec<u8>,
 ) -> Result<Req, RequestMultiplexError> {
 	Req::decode(&mut payload.as_ref()).map_err(|error| RequestMultiplexError { peer, error })
+}
+
+#[cfg(test)]
+mod tests {
+	use futures::prelude::*;
+	use futures::stream::FusedStream;
+
+	use super::RequestMultiplexer;
+	#[test]
+	fn check_exhaustion_safety() {
+		// Create and end streams:
+		fn drop_configs() -> RequestMultiplexer {
+			let (multiplexer, _) = RequestMultiplexer::new();
+			multiplexer
+		}
+		let multiplexer = drop_configs();
+		futures::executor::block_on(async move {
+			let mut f = multiplexer;
+			assert!(f.next().await.is_none());
+			assert!(f.is_terminated());
+			assert!(f.next().await.is_none());
+			assert!(f.is_terminated());
+			assert!(f.next().await.is_none());
+			assert!(f.is_terminated());
+		});
+	}
 }
