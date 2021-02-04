@@ -35,9 +35,6 @@ pub enum RequiredTranches {
 		considered: DelayTranche,
 		/// The tick at which the next no-show, of the assignments counted, would occur.
 		next_no_show: Option<Tick>,
-		/// The amount of uncovered votes that need to be covered. These are either uncovered no-shows
-		/// or the amount of assignments needed to reach the minimum required.
-		uncovered: usize,
 		/// The highest tranche to consider when looking to broadcast own assignment.
 		/// This should be considered along with the clock drift to avoid broadcasting
 		/// assignments that are before the local time.
@@ -149,7 +146,7 @@ impl State {
 
 		// If we have enough assignments and all no-shows are covered, we have reached the number
 		// of tranches that we need to have.
-		if self.assignments > needed_approvals && (self.covering + self.uncovered) == 0 {
+		if self.assignments >= needed_approvals && (self.covering + self.uncovered) == 0 {
 			return RequiredTranches::Exact {
 				needed: tranche,
 				tolerated_missing: self.covered,
@@ -163,7 +160,6 @@ impl State {
 			RequiredTranches::Pending {
 				considered: tranche,
 				next_no_show: self.next_no_show,
-				uncovered: (needed_approvals.saturating_sub(self.assignments)) + self.uncovered,
 				// during the initial assignment-gathering phase, we want to accept assignments
 				// from any tranche. Note that honest validators will still not broadcast their
 				// assignment until it is time to do so, regardless of this value.
@@ -174,7 +170,6 @@ impl State {
 			RequiredTranches::Pending {
 				considered: tranche,
 				next_no_show: self.next_no_show,
-				uncovered: self.covering + self.uncovered,
 				maximum_broadcast: tranche + (self.covering + self.uncovered) as DelayTranche,
 				clock_drift,
 			}
@@ -201,15 +196,21 @@ impl State {
 
 		let assignments = self.assignments + new_assignments;
 		let covering = self.covering.saturating_sub(new_covered);
-		let covered = self.covered + new_covered.min(self.covering); // don't 'over-cover'
+		let covered = if self.depth == 0 {
+			// If we're at depth 0, we're not actually covering no-shows,
+			// so we don't need to count them as such.
+			0
+		} else {
+			self.covered + new_covered
+		};
 		let uncovered = self.uncovered + new_no_shows;
 		let next_no_show = merge_next_no_show(self.next_no_show, next_no_show);
 
 		let (depth, covering, uncovered) = if covering == 0 {
 			if uncovered == 0 {
-				(self.depth, 0, self.uncovered)
+				(self.depth, 0, uncovered)
 			} else {
-				(self.depth + 1, self.uncovered, 0)
+				(self.depth + 1, uncovered, 0)
 			}
 		} else {
 			(self.depth, covering, uncovered)
@@ -303,13 +304,14 @@ pub fn tranches_to_approve(
 			let no_shows = {
 				let next_no_show = &mut next_no_show;
 				assignments.iter()
-					.map(|(v_index, tick)| (v_index, tick + clock_drift + no_show_duration))
+					.map(|(v_index, tick)| (v_index, tick.saturating_sub(clock_drift) + no_show_duration))
 					.filter(|&(v_index, no_show_at)| {
-						let has_approved = approvals.get(*v_index as usize).map(|b| !*b).unwrap_or(true);
-						let is_no_show = !has_approved && no_show_at >= tick_now;
+						let has_approved = approvals.get(*v_index as usize).map(|b| *b).unwrap_or(false);
+
+						let is_no_show = !has_approved && no_show_at <= drifted_tick_now;
 
 						if !is_no_show && !has_approved {
-							*next_no_show = merge_next_no_show(*next_no_show, Some(no_show_at));
+							*next_no_show = merge_next_no_show(*next_no_show, Some(no_show_at + clock_drift));
 						}
 
 						is_no_show
@@ -366,7 +368,16 @@ mod tests {
 			approved: false,
 		}.into();
 
-		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::Pending(0)));
+		assert!(!check_approval(
+			&candidate,
+			&approval_entry,
+			RequiredTranches::Pending {
+				considered: 0,
+				next_no_show: None,
+				maximum_broadcast: 0,
+				clock_drift: 0,
+			},
+		));
 	}
 
 	#[test]
@@ -430,9 +441,33 @@ mod tests {
 			approved: false,
 		}.into();
 
-		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::Exact(1, 0)));
-		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::Exact(2, 0)));
-		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::Exact(2, 4)));
+		assert!(check_approval(
+			&candidate,
+			&approval_entry,
+			RequiredTranches::Exact {
+				needed: 1,
+				tolerated_missing: 0,
+				next_no_show: None,
+			},
+		));
+		assert!(!check_approval(
+			&candidate,
+			&approval_entry,
+			RequiredTranches::Exact {
+				needed: 2,
+				tolerated_missing: 0,
+				next_no_show: None,
+			},
+		));
+		assert!(check_approval(
+			&candidate,
+			&approval_entry,
+			RequiredTranches::Exact {
+				needed: 2,
+				tolerated_missing: 4,
+				next_no_show: None,
+			},
+		));
 	}
 
 	#[test]
@@ -443,7 +478,7 @@ mod tests {
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; 4],
+			assignments: bitvec![BitOrderLsb0, u8; 0; 5],
 			our_assignment: None,
 			backing_group: GroupIndex(0),
 			approved: false,
@@ -455,7 +490,9 @@ mod tests {
 		approval_entry.import_assignment(1, 2, block_tick + 1);
 		approval_entry.import_assignment(1, 3, block_tick + 1);
 
-		let approvals = bitvec![BitOrderLsb0, u8; 1; 4];
+		approval_entry.import_assignment(2, 4, block_tick + 2);
+
+		let approvals = bitvec![BitOrderLsb0, u8; 1; 5];
 
 		assert_eq!(
 			tranches_to_approve(
@@ -466,19 +503,57 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Exact(1, 0),
+			RequiredTranches::Exact { needed: 1, tolerated_missing: 0, next_no_show: None },
 		);
 	}
 
 	#[test]
-	fn tranches_to_approve_no_shows_before_initial_count() {
+	fn tranches_to_approve_not_enough_initial_count() {
 		let block_tick = 20;
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
 		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; 4],
+			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, 0, block_tick);
+		approval_entry.import_assignment(1, 2, block_tick);
+
+		let approvals = bitvec![BitOrderLsb0, u8; 0; 10];
+
+		let tranche_now = 2;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending {
+				considered: 2,
+				next_no_show: Some(block_tick + no_show_duration),
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift: 0,
+			},
+		);
+	}
+
+	#[test]
+	fn tranches_to_approve_no_shows_before_initial_count_treated_same_as_not_initial() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
 			our_assignment: None,
 			backing_group: GroupIndex(0),
 			approved: false,
@@ -489,7 +564,7 @@ mod tests {
 
 		approval_entry.import_assignment(1, 2, block_tick);
 
-		let mut approvals = bitvec![BitOrderLsb0, u8; 0; 4];
+		let mut approvals = bitvec![BitOrderLsb0, u8; 0; 10];
 		approvals.set(0, true);
 		approvals.set(1, true);
 
@@ -503,41 +578,12 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Pending(tranche_now),
-		);
-	}
-
-	#[test]
-	fn tranches_to_approve_not_enough_initial() {
-		let block_tick = 0;
-		let no_show_duration = 10;
-		let needed_approvals = 4;
-
-		let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
-			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 0; 4],
-			our_assignment: None,
-			backing_group: GroupIndex(0),
-			approved: false,
-		}.into();
-
-		approval_entry.import_assignment(0, 0, block_tick);
-		approval_entry.import_assignment(0, 1, block_tick);
-
-		approval_entry.import_assignment(1, 3, block_tick + 1);
-
-		let approvals = bitvec![BitOrderLsb0, u8; 1; 4];
-
-		assert_eq!(
-			tranches_to_approve(
-				&approval_entry,
-				&approvals,
-				8,
-				block_tick,
-				no_show_duration,
-				needed_approvals,
-			),
-			RequiredTranches::Pending(8), // tranche_now
+			RequiredTranches::Pending {
+				considered: 11,
+				next_no_show: None,
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift: 0,
+			},
 		);
 	}
 
@@ -578,7 +624,12 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Pending(2), // tranche 1 + 1 no-show.
+			RequiredTranches::Pending {
+				considered: 1,
+				next_no_show: None,
+				maximum_broadcast: 2, // tranche 1 + 1 no-show
+				clock_drift: 1 * no_show_duration,
+			}
 		);
 
 		approvals.set(0, false);
@@ -592,7 +643,12 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Pending(3), // tranche 1 + 2 no-show.
+			RequiredTranches::Pending {
+				considered: 1,
+				next_no_show: None,
+				maximum_broadcast: 3, // tranche 1 + 2 no-shows
+				clock_drift: 1 * no_show_duration,
+			}
 		);
 	}
 
@@ -611,15 +667,14 @@ mod tests {
 			approved: false,
 		}.into();
 
-
 		approval_entry.import_assignment(0, 0, block_tick);
 		approval_entry.import_assignment(0, 1, block_tick);
 
-		approval_entry.import_assignment(1, 2, block_tick);
-		approval_entry.import_assignment(1, 3, block_tick);
+		approval_entry.import_assignment(1, 2, block_tick + 1);
+		approval_entry.import_assignment(1, 3, block_tick + 1);
 
-		approval_entry.import_assignment(2, 4, block_tick);
-		approval_entry.import_assignment(2, 5, block_tick);
+		approval_entry.import_assignment(2, 4, block_tick + no_show_duration + 2);
+		approval_entry.import_assignment(2, 5, block_tick + no_show_duration + 2);
 
 		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
 		approvals.set(0, true);
@@ -629,7 +684,7 @@ mod tests {
 		// skip 4
 		approvals.set(5, true);
 
-		let tranche_now = no_show_duration as DelayTranche + 1;
+		let tranche_now = 1;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
@@ -639,7 +694,48 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Pending(3), // tranche 2 + 1 uncovered no-show
+			RequiredTranches::Exact {
+				needed: 1,
+				tolerated_missing: 0,
+				next_no_show: Some(block_tick + no_show_duration + 1),
+			},
+		);
+
+		// first no-show covered.
+		let tranche_now = no_show_duration as DelayTranche + 2;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Exact {
+				needed: 2,
+				tolerated_missing: 1,
+				next_no_show: Some(block_tick + 2*no_show_duration + 2),
+			},
+		);
+
+		// another no-show in tranche 2.
+		let tranche_now = (no_show_duration * 2) as DelayTranche + 2;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending {
+				considered: 2,
+				next_no_show: None,
+				maximum_broadcast: 3, // tranche 2 + 1 uncovered no-show.
+				clock_drift: 2 * no_show_duration,
+			},
 		);
 	}
 
@@ -661,11 +757,11 @@ mod tests {
 		approval_entry.import_assignment(0, 0, block_tick);
 		approval_entry.import_assignment(0, 1, block_tick);
 
-		approval_entry.import_assignment(1, 2, block_tick);
-		approval_entry.import_assignment(1, 3, block_tick);
+		approval_entry.import_assignment(1, 2, block_tick + 1);
+		approval_entry.import_assignment(1, 3, block_tick + 1);
 
-		approval_entry.import_assignment(2, 4, block_tick);
-		approval_entry.import_assignment(2, 5, block_tick);
+		approval_entry.import_assignment(2, 4, block_tick + no_show_duration + 2);
+		approval_entry.import_assignment(2, 5, block_tick + no_show_duration + 2);
 
 		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
 		approvals.set(0, true);
@@ -675,7 +771,7 @@ mod tests {
 		approvals.set(4, true);
 		approvals.set(5, true);
 
-		let tranche_now = no_show_duration as DelayTranche + 1;
+		let tranche_now = no_show_duration as DelayTranche + 2;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
@@ -685,7 +781,11 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Exact(2, 1),
+			RequiredTranches::Exact {
+				needed: 2,
+				tolerated_missing: 1,
+				next_no_show: None,
+			},
 		);
 
 		// Even though tranche 2 has 2 validators, it only covers 1 no-show.
@@ -702,12 +802,18 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Pending(3),
+			RequiredTranches::Pending {
+				considered: 2,
+				next_no_show: None,
+				maximum_broadcast: 3,
+				clock_drift: no_show_duration,
+			},
 		);
 
 		approval_entry.import_assignment(3, 6, block_tick);
 		approvals.set(6, true);
 
+		let tranche_now = no_show_duration as DelayTranche + 3;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
@@ -717,7 +823,11 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Exact(3, 2),
+			RequiredTranches::Exact {
+				needed: 3,
+				tolerated_missing: 2,
+				next_no_show: None,
+			},
 		);
 	}
 }
