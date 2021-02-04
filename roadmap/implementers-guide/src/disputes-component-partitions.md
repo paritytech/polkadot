@@ -80,8 +80,12 @@ Sends messages
 Cleanup: whenever
 
 ---
+
 ## Node
 
+### Gossip / VotesDB / Interaction
+
+TODO: Undefined Component is yet to be discussed with robertk
 
 ```mermaid
 sequenceDiagram
@@ -92,52 +96,65 @@ sequenceDiagram
   participant X as Undefined Component
   participant RT as Runtime
 
-  Net --> P: Receive Gossip Msg
+  Net ->> P: Receive Gossip Msg
   alt is negative vote
-    P --> V: Store vote
+    P ->> V: Store vote
   else is dispute open msg
-    Net --> P: Receive Gossip Vote
-  else is dispute code/pov
-    P --> X: Store Code
-  end
-
-  P --> Net: Gossip vote to interested peers
-
-  alt did not cast our vote
-    P --> X: retrieve validation code and PoV
-    alt missing PoV or validation code
-      P --> Net: Request them from _one_ randomly picked peer that voted already
-    else
+    loop for each vote
+      P ->> V: Store vote
     end
-    P --> Ne: Gossip Our Vote to all peers
-  else
+  else is dispute code/pov
+    P ->> X: Store Code
   end
 
-  P --> RT: pass vote to runtime via inherent
+  P ->> Net: Gossip vote to interested peers
+
+  opt double vote detected
+    P ->> X: Notify other subsystems of double vote of validator
+  end
+
+  opt did not cast our vote
+    P ->> X: retrieve validation code and PoV
+    opt missing PoV or validation code
+      P ->> Net: Request them from _one_ randomly picked peer that voted already
+    end
+    P ->> Ne: Gossip Our Vote to all peers
+  end
+
+  P ->> RT: pass vote to runtime via inherent
 ```
 
+### Proposer / Provisioner
 
-TODO: define interested peers
+TODO: define interested peers, based on active heads?
 
 TODO: describe transplantation duty of proposer/provisioner
+
 ## Runtime
 
-The sequential flow of the runtime logic
+The sequential flow of the runtime logic, on entry.
+Note that the storage is fork aware, as such, each fork might have
+a different set of votes.
 
 ```mermaid
-graph TD
-  X -->|Extract information of additional votes via Inherent| Y
-  Y -->|Store Vote| Z
-  Z -->|Super Majority Reached| A
-  A -->|Craft a transaction| B
-  B -->|Resolve| C
-  C --> Exit
-  Z --> Exit
+stateDiagram-v2
+  [*] --> ExtractInformationFromInherent
+  ExtractInformationFromInherent --> StoreVotes
+  StoreVotes --> SuperMajorityReached
+  SuperMajorityReached --> CreateTransactionWithResolution
+  StoreVotes --> [*]
+  CreateTransactionWithResolution --> [*]
 ```
 
+---
+
+Cleanup obsolete votes of concluded disputes on block finalization.
+
 ```mermaid
-graph TD
-  X -->|Obtain session info| Y
-  Y -->|purge stored sessions older than k sessions in the past| Z
-  Z --> Exit
+stateDiagram-v2
+  [*] --> ObtainSessionIndex
+  note left of ObtainSessionIndex: Metric is arbitrary<br /> but must guarantee, the data is kept<br /> for a sufficent amount of time after finalization
+  ObtainSessionIndex --> CleanupAllResolvedDisputes
+  CleanupAllResolvedDisputes --> [*]
+  ObtainSessionIndex --> [*]
 ```
