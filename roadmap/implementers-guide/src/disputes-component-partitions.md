@@ -108,15 +108,17 @@ sequenceDiagram
     P ->> Ne: Gossip Our Vote to all peers
   end
 
-  P ->> RT: pass vote to runtime via inherent
+  P ->> RT: pass the new votes to runtime via $mechanics
 ```
 
-
-
+TODO: what is $mechanics
 TODO: define interested peers, based on active heads?
 
 
 ##### Enhancement of Existing subsystems
+
+Now the proposer and provisioner need to transplant
+the resolved disputes to all upcoming forks.
 ###### Provisioner
 
 Since the proposer must track all inclusion inherents, up to the point where the block is finalized + time ε, at which point
@@ -127,22 +129,17 @@ there will be no more forks that will need this dispute resolution.
 ```mermaid
 stateDiagram-v2
   [*] --> InherentsContainsDisputeResolution
-  SaveResolution --> [*]
+  [*] --> CheckIfStoredResolution
+  CheckIfStoredResolution --> AddDisputeResolutionInherentData: yes
+  CheckIfStoredResolution --> [*]: no
+  InherentsContainsDisputeResolution --> AddDisputeResolutionInherentData
+  AddDisputeResolutionInherentData --> [*]
 ```
 
 ```mermaid
 stateDiagram-v2
   [*] --> InherentsContainsDisputeResolution
   SaveResolution --> [*]
-```
-
-
-```mermaid
-stateDiagram-v2
-  [*] --> BlockFinalization
-  BlockFinalization --> StartTimeout
-  StartTimeout --> CleanupResolutionInherent
-  CleanupStoredResolution --> [*]
 ```
 
 ```mermaid
