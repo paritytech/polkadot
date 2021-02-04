@@ -6,7 +6,7 @@
 # setting DEPLOY_TAG will only deploy the tagged image
 #
 # please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
-# &rules-pr-only and &rules-build presets. And "kubernetes-env" with "docker-env" to set a runner
+# &rules-pr-only preset. And "kubernetes-env" with "docker-env" to set a runner
 # which executes the job.
 
 stages:
@@ -62,27 +62,9 @@ default:
     - cargo --version
     - sccache -s
 
-.rules-build:                      &rules-build
-  rules:
-    # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
-    # build job so that publish-docker-rococo would "needs" build-linux-rococo job. This leads
-    # either to blocked or to forever running pipeline. It was decided to run these jobs from UI
-    # and on schedule.
-    #
-    # $PIPELINE should be passed in https://gitlab.parity.io/parity/polkadot/-/pipeline_schedules
-    # or other trigger to avoid running these jobs and run just those allowing this variable.
-    # - if: $PIPELINE == "rococo"
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-
 .rules-test:                       &rules-test
   # these jobs run always*
   rules:
-    # - if: $PIPELINE == "rococo"
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
     - when: always
@@ -90,7 +72,6 @@ default:
 .pr-only:                          &rules-pr-only
   # these jobs run only on PRs
   rules:
-    # - if: $PIPELINE == "rococo"
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -209,7 +190,6 @@ build-linux-release:
     EXTRA_FLAGS:                   ""
   rules:
     # .rules-test with manual on PRs
-    # - if: $PIPELINE == "rococo"
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         EXTRA_FLAGS:               "--features=real-overseer"
@@ -221,19 +201,6 @@ build-linux-release:
     - time cargo build --release --verbose ${EXTRA_FLAGS}
     - sccache -s
     - *pack-artifacts
-
-# build-linux-rococo:
-#   stage:                           build
-#   <<:                              *collect-artifacts
-#   <<:                              *docker-env
-#   <<:                              *compiler-info
-#   rules:
-#     # - if: $PIPELINE == "rococo"
-#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-#   script:
-#     - time cargo build --release --verbose --features=real-overseer
-#     - sccache -s
-#     - *pack-artifacts
 
 generate-impl-guide:
   stage:                           build
@@ -288,7 +255,6 @@ publish-docker-polkadot:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
   rules:
-    # - if: $PIPELINE == "rococo"
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         IMAGE_NAME:                docker.io/parity/rococo
@@ -298,20 +264,6 @@ publish-docker-polkadot:
   needs:
     - job:                         build-linux-release
       artifacts:                   true
-
-# publish-docker-rococo:
-#   stage:                           publish
-#   <<:                              *build-push-docker-image
-#   rules:
-#     # - if: $PIPELINE == "rococo"
-#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-#   needs:
-#     - job:                         build-linux-rococo
-#       artifacts:                   true
-#   variables:
-#     GIT_STRATEGY:                  none
-#     # DOCKERFILE:                  scripts/docker/Dockerfile
-#     IMAGE_NAME:                    docker.io/parity/rococo
 
 publish-s3-release:
   stage:                           publish
