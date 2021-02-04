@@ -26,10 +26,10 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::{
 	jaeger, PerLeafSpan,
 	FromOverseer, OverseerSignal, SubsystemContext,
-	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
+	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage, NetworkBridgeEvent},
 };
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, View, PeerId, NetworkBridgeEvent, RequestId, OurView,
+	peer_set::PeerSet, v1 as protocol_v1, View, PeerId, RequestId, OurView,
 };
 use polkadot_node_subsystem_util::{
 	validator_discovery,
