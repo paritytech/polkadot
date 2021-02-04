@@ -737,24 +737,49 @@ mod tests {
 			assert_eq!(Crowdloan::new_raise(), empty);
 		});
 	}
-/*
+
 	#[test]
 	fn create_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot create a crowdloan with bad slots
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1), 1000, 4, 1, 9),
-				Error::<Test>::LastSlotBeforeFirstSlot
+				Crowdloan::create(Origin::signed(1), 0.into(), 1000, 4, 1, 9),
+				Error::<Test>::LastSlotBeforeFirstSlot,
 			);
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1), 1000, 1, 5, 9),
-				Error::<Test>::LastSlotTooFarInFuture
+				Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 5, 9),
+				Error::<Test>::LastSlotTooFarInFuture,
 			);
 
-			// Cannot create a crowdloan without some deposit funds
+			// Cannot end in past
+			System::set_block_number(100);
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1337), 1000, 1, 3, 9),
-				BalancesError::<Test, _>::InsufficientBalance
+				Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 3, 9),
+				Error::<Test>::CannotEndInPast,
+			);
+			System::set_block_number(1);
+
+			// Cannot create a crowdloan if para does not exist
+			assert_noop!(
+				Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 3, 9),
+				Error::<Test>::InvalidParaId,
+			);
+
+			// Setup ParaId
+			assert_ok!(TestRegistrar::<Test>::make_parathread(0.into()));
+			TestRegistrar::<Test>::set_manager(0.into(), 1);
+
+			// Cannot create a crowdloan if you do not own the para id
+			assert_noop!(
+				Crowdloan::create(Origin::signed(1337), 0.into(), 1000, 1, 3, 9),
+				Error::<Test>::InvalidOrigin,
+			);
+
+			// Cannot create a crowdloan if you do not have funds
+			Balances::make_free_balance_be(&1, 0);
+			assert_noop!(
+				Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 3, 9),
+				BalancesError::<Test, _>::InsufficientBalance,
 			);
 		});
 	}
@@ -763,25 +788,27 @@ mod tests {
 	fn contribute_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			assert_ok!(TestRegistrar::<Test>::make_parathread(0.into()));
+			TestRegistrar::<Test>::set_manager(0.into(), 1);
+			assert_ok!(Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
-			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0.into())), 1);
 
 			// No contributions yet
-			assert_eq!(Crowdloan::contribution_get(0, &1), 0);
+			assert_eq!(Crowdloan::contribution_get(0.into(), &1), 0);
 
 			// User 1 contributes to their own crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0.into(), 49));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
-			assert_eq!(Crowdloan::contribution_get(0, &1), 49);
+			assert_eq!(Crowdloan::contribution_get(0.into(), &1), 49);
 			// Contributions appear in free balance of crowdloan
-			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 50);
+			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0.into())), 50);
 			// Crowdloan is added to NewRaise
-			assert_eq!(Crowdloan::new_raise(), vec![0]);
+			assert_eq!(Crowdloan::new_raise(), vec![0.into()]);
 
-			let fund = Crowdloan::funds(0).unwrap();
+			let fund = Crowdloan::funds(ParaId::from(0)).unwrap();
 
 			// Last contribution time recorded
 			assert_eq!(fund.last_contribution, LastContribution::PreEnding(0));
@@ -793,135 +820,49 @@ mod tests {
 	fn contribute_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Cannot contribute to non-existing fund
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49), Error::<Test>::InvalidParaId);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0.into(), 49), Error::<Test>::InvalidParaId);
 			// Cannot contribute below minimum contribution
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 9), Error::<Test>::ContributionTooSmall);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0.into(), 9), Error::<Test>::ContributionTooSmall);
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 101));
+			assert_ok!(TestRegistrar::<Test>::make_parathread(0.into()));
+			TestRegistrar::<Test>::set_manager(0.into(), 1);
+			assert_ok!(Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 4, 9));
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0.into(), 101));
 
 			// Cannot contribute past the limit
-			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0, 900), Error::<Test>::CapExceeded);
+			assert_noop!(Crowdloan::contribute(Origin::signed(2), 0.into(), 900), Error::<Test>::CapExceeded);
 
 			// Move past end date
 			run_to_block(10);
 
 			// Cannot contribute to ended fund
-			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49), Error::<Test>::ContributionPeriodOver);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0.into(), 49), Error::<Test>::ContributionPeriodOver);
 		});
 	}
 
-	#[test]
-	fn fix_deploy_data_works() {
-		new_test_ext().execute_with(|| {
-			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
-			assert_eq!(Balances::free_balance(1), 999);
-
-			// Add deploy data
-			assert_ok!(Crowdloan::fix_deploy_data(
-				Origin::signed(1),
-				0,
-				<Test as frame_system::Config>::Hash::default(),
-				0,
-				vec![0].into()
-			));
-
-			let fund = Crowdloan::funds(0).unwrap();
-
-			// Confirm deploy data is stored correctly
-			assert_eq!(
-				fund.deploy_data,
-				Some(DeployData {
-					code_hash: <Test as frame_system::Config>::Hash::default(),
-					code_size: 0,
-					initial_head_data: vec![0].into(),
-				}),
-			);
-		});
-	}
-
-	#[test]
-	fn fix_deploy_data_handles_basic_errors() {
-		new_test_ext().execute_with(|| {
-			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
-			assert_eq!(Balances::free_balance(1), 999);
-
-			// Cannot set deploy data by non-owner
-			assert_noop!(Crowdloan::fix_deploy_data(
-				Origin::signed(2),
-				0,
-				<Test as frame_system::Config>::Hash::default(),
-				0,
-				vec![0].into()),
-				Error::<Test>::InvalidOrigin
-			);
-
-			// Cannot set deploy data to an invalid index
-			assert_noop!(Crowdloan::fix_deploy_data(
-				Origin::signed(1),
-				1,
-				<Test as frame_system::Config>::Hash::default(),
-				0,
-				vec![0].into()),
-				Error::<Test>::InvalidParaId
-			);
-
-			// Cannot set deploy data after it already has been set
-			assert_ok!(Crowdloan::fix_deploy_data(
-				Origin::signed(1),
-				0,
-				<Test as frame_system::Config>::Hash::default(),
-				0,
-				vec![0].into(),
-			));
-
-			assert_noop!(Crowdloan::fix_deploy_data(
-				Origin::signed(1),
-				0,
-				<Test as frame_system::Config>::Hash::default(),
-				0,
-				vec![1].into()),
-				Error::<Test>::ExistingDeployData
-			);
-		});
-	}
-
+	/*
 	#[test]
 	fn onboard_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
+			//assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
+			assert_ok!(TestRegistrar::<Test>::make_parathread(0.into()));
+			TestRegistrar::<Test>::set_manager(0.into(), 1);
+			assert_ok!(Crowdloan::create(Origin::signed(1),  0.into(), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
-			// Add deploy data
-			assert_ok!(Crowdloan::fix_deploy_data(
-				Origin::signed(1),
-				0,
-				<Test as frame_system::Config>::Hash::default(),
-				0,
-				vec![0].into(),
-			));
-
 			// Fund crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 1000));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0.into(), 1000));
 
 			run_to_block(10);
 
 			// Endings count incremented
 			assert_eq!(Crowdloan::endings_count(), 1);
 
-			// Onboard crowdloan
-			assert_ok!(Crowdloan::onboard(Origin::signed(1), 0, 0.into()));
-
-			let fund = Crowdloan::funds(0).unwrap();
-			// Crowdloan is now assigned a parachain id
-			assert_eq!(fund.parachain, Some(0.into()));
-			// This parachain is managed by Slots
-			assert_eq!(Slots::managed_ids(), vec![0.into()]);
+			let fund = Crowdloan::funds(ParaId::from(0)).unwrap();
+			// Parathread is now a parachain
+			assert!(TestRegistrar::<Test>::is_parachain(0.into()));
 		});
 	}
 
