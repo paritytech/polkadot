@@ -26,7 +26,7 @@ use parachain::{
 
 fn isolation_strategy() -> IsolationStrategy {
 	IsolationStrategy::ExternalProcessCustomHost {
-		pool: ValidationPool::new(),
+		pool: ValidationPool::new(None),
 		binary: std::env::current_exe().unwrap(),
 		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
 	}
