@@ -351,7 +351,7 @@ Likewise, when considering how many tranches to take, the no-show depth should b
   * If running out of tranches before then, return `Pending { considered, next_no_show, maximum_broadcast, clock_drift }`
   * If there are no no-shows, return `Exact { needed, tolerated_missing, next_no_show }`
   * `maximum_broadcast` is either `DelayTranche::max_value()` at tranche 0 or otherwise by the last considered tranche + the number of uncovered no-shows at this point.
-  * If there are no-shows, return to the beginning, incrementing `depth` and attempting to cover the number of no-shows. Each no-show must be covered by a non-empty tranche. Non-empty tranches are those which have at least one assignment which is not a no-show. Each non-empty tranche covers exactly one no-show.
+  * If there are no-shows, return to the beginning, incrementing `depth` and attempting to cover the number of no-shows. Each no-show must be covered by a non-empty tranche, which are tranches that have at least one assignment. Each non-empty tranche covers exactly one no-show.
   * If at any point, it seems that all validators are required, do an early return with `RequiredTranches::All` which indicates that everyone should broadcast.
 
 #### Check Approval
