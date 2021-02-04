@@ -68,22 +68,9 @@ Sends messages
   * decided upon set of stored votes if the dispute is concluded
   * starts the timeout for cleanup of persisted data
 
-### Proposer
-
 #### Node
 
-* Tracks closed disputes
-  * transplants them on newly appearing forks without it
-
-
-* Keep votes around for lt 24 h after block inclusion
-Cleanup: whenever
-
----
-
-## Node
-
-### Gossip / VotesDB / Interaction
+##### Gossip / VotesDB / Interaction
 
 TODO: Undefined Component is yet to be discussed with robertk
 
@@ -124,13 +111,54 @@ sequenceDiagram
   P ->> RT: pass vote to runtime via inherent
 ```
 
-### Proposer / Provisioner
+
 
 TODO: define interested peers, based on active heads?
 
-TODO: describe transplantation duty of proposer/provisioner
 
-## Runtime
+##### Enhancement of Existing subsystems
+###### Provisioner
+
+Since the proposer must track all inclusion inherents, up to the point where the block is finalized + time ε, at which point
+there will be no more forks that will need this dispute resolution.
+
+`InclusionInherent` hence is the mean of transplantation within the subsystem.
+
+```mermaid
+stateDiagram-v2
+  [*] --> InherentsContainsDisputeResolution
+  SaveResolution --> [*]
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> InherentsContainsDisputeResolution
+  SaveResolution --> [*]
+```
+
+
+```mermaid
+stateDiagram-v2
+  [*] --> BlockFinalization
+  BlockFinalization --> StartTimeout
+  StartTimeout --> CleanupResolutionInherent
+  CleanupStoredResolution --> [*]
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> BlockFinalization
+  BlockFinalization --> StartTimeout
+  StartTimeout --> CleanupResolutionInherent
+  CleanupStoredResolution --> [*]
+```
+
+##### Proposer
+
+The proposer only needs to include the additional inherent
+data as received from the `provisioner`, which it then includes in the proposed block.
+
+#### Runtime
 
 The sequential flow of the runtime logic, on entry.
 Note that the storage is fork aware, as such, each fork might have
