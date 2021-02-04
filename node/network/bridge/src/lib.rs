@@ -247,6 +247,12 @@ where
 				peer_set,
 				connected,
 			} => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_set = ?peer_set,
+					ids = ?validator_ids,
+					"Received a validator connection request",
+				);
 				let (ns, ads) = validator_discovery.on_request(
 					validator_ids,
 					peer_set,
@@ -259,11 +265,6 @@ where
 			},
 
 			Action::ReportPeer(peer, rep) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					peer = ?peer,
-					"Peer sent us an invalid request",
-				);
 				bridge.network_service.report_peer(peer, rep).await?
 			}
 
