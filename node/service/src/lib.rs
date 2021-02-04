@@ -349,7 +349,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	_: AvailabilityConfig,
 	_: Arc<sc_network::NetworkService<Block, Hash>>,
 	_: AuthorityDiscoveryService,
-	request_multiplexer: (),
+	_request_multiplexer: (),
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,

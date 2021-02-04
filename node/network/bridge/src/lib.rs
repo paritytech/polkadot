@@ -169,7 +169,7 @@ where
 		let action = {
 			let subsystem_next = ctx.recv().fuse();
 			let mut net_event_next = event_stream.next().fuse();
-			let mut req_res_event_next = bridge.request_multiplexer.next().fuse();
+			let mut req_res_event_next = bridge.request_multiplexer.next();
 			futures::pin_mut!(subsystem_next);
 
 			futures::select! {
