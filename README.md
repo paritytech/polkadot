@@ -70,7 +70,6 @@ dnf install polkadot
 Make sure you have the support software installed from the **Build from Source** section 
 below this section.
 
-
 If you want to install Polkadot in your PATH, you can do so with with:
 
 ```bash
