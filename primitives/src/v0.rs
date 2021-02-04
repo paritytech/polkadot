@@ -114,7 +114,8 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-pub type ValidatorIndex = u32;
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Hash)]
+pub struct ValidatorIndex(u32);
 
 application_crypto::with_pair! {
 	/// A Parachain validator keypair.
