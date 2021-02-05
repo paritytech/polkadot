@@ -245,16 +245,18 @@ generate-impl-guide:
     # only VERSION information is needed for the deployment
     - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
 
-publish-docker-polkadot:
+publish-dockerhub:
   stage:                           publish
   <<:                              *build-push-docker-image
   variables:
     GIT_STRATEGY:                  none
     # DOCKERFILE:                  scripts/docker/Dockerfile
     IMAGE_NAME:                    docker.io/parity/polkadot
+  rules:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
-  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+      when: never
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         IMAGE_NAME:                docker.io/parity/rococo
