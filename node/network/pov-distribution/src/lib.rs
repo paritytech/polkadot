@@ -314,7 +314,7 @@ async fn connect_to_relevant_validators(
 			match validator_discovery::connect_to_validators(
 				ctx,
 				relay_parent,
-				relevant_validators.clone(),
+				relevant_validators,
 				PeerSet::Validation,
 			).await {
 				Ok(new_connection_request) => {
