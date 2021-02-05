@@ -118,7 +118,7 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 	validator_ids: Vec<AuthorityDiscoveryId>,
 	peer_set: PeerSet,
 ) -> mpsc::Receiver<(AuthorityDiscoveryId, PeerId)> {
-	const PEERS_CAPACITY: usize = 8;
+	const PEERS_CAPACITY: usize = 32;
 
 	let (connected, connected_rx) = mpsc::channel(PEERS_CAPACITY);
 
