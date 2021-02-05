@@ -299,7 +299,11 @@ where
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				validator_discovery.on_peer_connected(peer.clone(), peer_set, &mut bridge.authority_discovery_service).await;
+				validator_discovery.on_peer_connected(
+					peer.clone(),
+					peer_set,
+					&mut bridge.authority_discovery_service,
+				).await;
 
 				match peer_map.entry(peer.clone()) {
 					hash_map::Entry::Occupied(_) => continue,
