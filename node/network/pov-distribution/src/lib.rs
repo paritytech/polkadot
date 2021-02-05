@@ -297,16 +297,12 @@ async fn distribute_to_awaiting(
 }
 
 /// Connect to relevant validators in case we are not already.
-///
-/// Return true if there have been any relevant validators to connect to.
 async fn connect_to_relevant_validators(
 	connection_requests: &mut validator_discovery::ConnectionRequests,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	descriptor: &CandidateDescriptor,
-) -> bool {
-	// TODO: I copied that code from `handle_fetch`, but I am not sure it really is fine to just ignore any
-	// error:
+) {
 	if let Ok(Some(relevant_validators)) =
 		determine_relevant_validators(ctx, relay_parent, descriptor.para_id).await
 	{
@@ -320,9 +316,7 @@ async fn connect_to_relevant_validators(
 				relay_parent,
 				relevant_validators.clone(),
 				PeerSet::Validation,
-			)
-			.await
-			{
+			).await {
 				Ok(new_connection_request) => {
 					connection_requests.put(relay_parent, new_connection_request);
 				}
@@ -335,9 +329,6 @@ async fn connect_to_relevant_validators(
 				}
 			}
 		}
-		true
-	} else {
-		false
 	}
 }
 
@@ -439,9 +430,8 @@ async fn handle_fetch(
 				return;
 			}
 			Entry::Vacant(e) => {
-			    if connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await {
-					e.insert(vec![response_sender]);
-				}
+				connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await;
+				e.insert(vec![response_sender]);
 			}
 		}
 	}
@@ -479,7 +469,7 @@ async fn handle_distribute(
 		None => return,
 	};
 
-	let _ = connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await;
+	connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await;
 
 	if let Some(our_awaited) = relay_parent_state.fetching.get_mut(&descriptor.pov_hash) {
 		// Drain all the senders, but keep the entry in the map around intentionally.
@@ -661,7 +651,7 @@ async fn handle_incoming_pov(
 	relay_parent_state.known.insert(pov_hash, (pov, encoded_pov));
 }
 
-/// Handles a newly connected validator in the context of some relay leaf.
+/// Handles a newly or already connected validator in the context of some relay leaf.
 fn handle_validator_connected(state: &mut State, peer_id: PeerId) {
 	state.peer_state.entry(peer_id).or_default();
 }
