@@ -75,6 +75,14 @@ pub async fn connect_to_validators_in_session<Context: SubsystemContext>(
 		).into()),
 	};
 
+	tracing::trace!(
+		target: "network_bridge",
+		validators = ?validators,
+		discovery_keys = ?discovery_keys,
+		session_index,
+		"Trying to serve the validator discovery request",
+	);
+
 	let id_to_index = session_validators.iter()
 		.zip(0usize..)
 		.collect::<HashMap<_, _>>();
