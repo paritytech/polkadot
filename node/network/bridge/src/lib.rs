@@ -339,7 +339,7 @@ where
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				validator_discovery.on_peer_disconnected(peer.clone(), peer_set);
+				validator_discovery.on_peer_disconnected(&peer, peer_set);
 
 				if peer_map.remove(&peer).is_some() {
 					match peer_set {
