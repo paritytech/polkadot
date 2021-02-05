@@ -624,6 +624,18 @@ fn distributes_to_those_awaiting_and_completes_local() {
 		assert!(!state.peer_state[&peer_a].awaited[&hash_a].contains(&pov_hash));
 		assert!(state.peer_state[&peer_c].awaited[&hash_b].contains(&pov_hash));
 
+		// Let's assume runtime call failed and we're already connected to the peers.
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::AvailabilityCores(tx)
+			)) => {
+				assert_eq!(relay_parent, hash_a);
+				tx.send(Err("nope".to_string().into())).unwrap();
+			}
+		);
+
 		// our local sender also completed
 		assert_eq!(&*pov_recv.await.unwrap(), &pov);
 
