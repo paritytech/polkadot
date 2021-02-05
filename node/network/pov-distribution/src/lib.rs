@@ -296,6 +296,51 @@ async fn distribute_to_awaiting(
 	metrics.on_pov_distributed();
 }
 
+/// Connect to relevant validators in case we are not already.
+///
+/// Return true if we actually issued connect requests.
+async fn connect_to_relevant_validators(
+	connection_requests: &mut validator_discovery::ConnectionRequests,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	relay_parent: Hash,
+	descriptor: &CandidateDescriptor,
+) -> bool {
+	// TODO: I copied that code from `handle_fetch`, but I am not sure it really is fine to just ignore any
+	// error:
+	if let Ok(Some(relevant_validators)) =
+		determine_relevant_validators(ctx, relay_parent, descriptor.para_id).await
+	{
+		// We only need one connection request per (relay_parent, para_id)
+		// so here we take this shortcut to avoid calling `connect_to_validators`
+		// more than once.
+		if !connection_requests.contains_request(&relay_parent) {
+			tracing::debug!(target: LOG_TARGET, validators=?relevant_validators, "connecting to validators");
+			match validator_discovery::connect_to_validators(
+				ctx,
+				relay_parent,
+				relevant_validators.clone(),
+				PeerSet::Validation,
+			)
+			.await
+			{
+				Ok(new_connection_request) => {
+					connection_requests.put(relay_parent, new_connection_request);
+				}
+				Err(e) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Failed to create a validator connection request {:?}",
+						e,
+					);
+				}
+			}
+		}
+		true
+	} else {
+		false
+	}
+}
+
 /// Get the Id of the Core that is assigned to the para being collated on if any
 /// and the total number of cores.
 async fn determine_core(
@@ -394,34 +439,7 @@ async fn handle_fetch(
 				return;
 			}
 			Entry::Vacant(e) => {
-				if let Ok(Some(relevant_validators)) = determine_relevant_validators(
-					ctx,
-					relay_parent,
-					descriptor.para_id,
-				).await {
-					// We only need one connection request per (relay_parent, para_id)
-					// so here we take this shortcut to avoid calling `connect_to_validators`
-					// more than once.
-					if !state.connection_requests.contains_request(&relay_parent) {
-						match validator_discovery::connect_to_validators(
-							ctx,
-							relay_parent,
-							relevant_validators.clone(),
-							PeerSet::Validation,
-						).await {
-							Ok(new_connection_request) => {
-								state.connection_requests.put(relay_parent, new_connection_request);
-							}
-							Err(e) => {
-								tracing::debug!(
-									target: LOG_TARGET,
-									"Failed to create a validator connection request {:?}",
-									e,
-								);
-							}
-						}
-					}
-
+			    if connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await {
 					e.insert(vec![response_sender]);
 				}
 			}
@@ -460,6 +478,8 @@ async fn handle_distribute(
 		Some(s) => s,
 		None => return,
 	};
+
+	let _ = connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await;
 
 	if let Some(our_awaited) = relay_parent_state.fetching.get_mut(&descriptor.pov_hash) {
 		// Drain all the senders, but keep the entry in the map around intentionally.
