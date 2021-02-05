@@ -205,7 +205,7 @@ decl_module! {
 			let n = AuctionCounter::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
-			let ending = frame_system::Module::<T>::block_number() + duration;
+			let ending = frame_system::Module::<T>::block_number().saturating_add(duration);
 			AuctionInfo::<T>::put((lease_period_index, ending));
 
 			Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending))
@@ -502,7 +502,7 @@ mod tests {
 		impl_outer_origin, parameter_types, ord_parameter_types, assert_ok, assert_noop, assert_storage_noop,
 		traits::{OnInitialize, OnFinalize}, dispatch::DispatchError::BadOrigin,
 	};
-	use frame_system::EnsureSignedBy;
+	use frame_system::{EnsureSignedBy, EnsureOneOf, EnsureRoot};
 	use pallet_balances;
 	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 
@@ -626,12 +626,18 @@ mod tests {
 		pub const Six: u64 = 6;
 	}
 
+	type RootOrSix = EnsureOneOf<
+		u64,
+		EnsureRoot<u64>,
+		EnsureSignedBy<Six, u64>,
+	>;
+
 	impl Config for Test {
 		type Event = ();
 		type Leaser = TestLeaser;
 		type EndingPeriod = EndingPeriod;
 		type Randomness = RandomnessCollectiveFlip;
-		type InitiateOrigin = EnsureSignedBy<Six, u64>;
+		type InitiateOrigin = RootOrSix;
 	}
 
 	type System = frame_system::Module<Test>;
@@ -641,7 +647,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
-	fn new_test_ext() -> sp_io::TestExternalities {
+	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
@@ -1056,5 +1062,56 @@ mod tests {
 			(1, 100.into(), 100, SlotRange::ZeroThree),
 		];
 		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking {
+	use super::{*, Module as Crowdloan};
+	use crate::slots::Module as Slots;
+	use frame_system::RawOrigin;
+	use frame_support::{
+		assert_ok,
+		traits::OnInitialize,
+	};
+	use sp_runtime::traits::Bounded;
+	use sp_std::prelude::*;
+
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
+
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+		let events = frame_system::Module::<T>::events();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		// compare to the last event record
+		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+		assert_eq!(event, &system_event);
+	}
+
+	benchmarks! {
+		new_auction {
+			let duration = T::BlockNumber::max_value();
+			let lease_period_index = LeasePeriodOf::<T>::max_value();
+			let origin = T::InitiateOrigin::successful_origin();
+		}: _(RawOrigin::Root, duration, lease_period_index)
+		verify {
+			assert_last_event::<T>(RawEvent::AuctionStarted(
+				AuctionCounter::get(),
+				lease_period_index,
+				duration,
+			).into());
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::auctions::tests::{new_test_ext, Test};
+
+		#[test]
+		fn test_benchmarks() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_new_auction::<Test>());
+			});
+		}
 	}
 }
