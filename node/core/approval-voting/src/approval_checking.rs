@@ -24,7 +24,7 @@ use crate::persisted_entries::{ApprovalEntry, CandidateEntry};
 use crate::time::Tick;
 
 /// The required tranches of assignments needed to determine whether a candidate is approved.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RequiredTranches {
 	/// All validators appear to be required, based on tranches already taken and remaining
 	/// no-shows.
@@ -204,7 +204,10 @@ impl State {
 			self.covered + new_covered
 		};
 		let uncovered = self.uncovered + new_no_shows;
-		let next_no_show = merge_next_no_show(self.next_no_show, next_no_show);
+		let next_no_show = super::min_prefer_some(
+			self.next_no_show,
+			next_no_show,
+		);
 
 		let (depth, covering, uncovered) = if covering == 0 {
 			if uncovered == 0 {
@@ -217,17 +220,6 @@ impl State {
 		};
 
 		State { assignments, depth, covered, covering, uncovered, next_no_show }
-	}
-}
-
-fn merge_next_no_show(
-	a: Option<Tick>,
-	b: Option<Tick>,
-) -> Option<Tick> {
-	match (a, b) {
-		(None, None) => None,
-		(None, Some(x)) | (Some(x), None) => Some(x),
-		(Some(x), Some(y)) => Some(x.min(y)),
 	}
 }
 
@@ -311,7 +303,10 @@ pub fn tranches_to_approve(
 						let is_no_show = !has_approved && no_show_at <= drifted_tick_now;
 
 						if !is_no_show && !has_approved {
-							*next_no_show = merge_next_no_show(*next_no_show, Some(no_show_at + clock_drift));
+							*next_no_show = super::min_prefer_some(
+								*next_no_show,
+								Some(no_show_at + clock_drift),
+							);
 						}
 
 						is_no_show

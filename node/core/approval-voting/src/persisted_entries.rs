@@ -171,7 +171,7 @@ impl ApprovalEntry {
 	}
 
 	/// Access the tranches.
-	pub fn tranches(&self) -> &[TrancheEntry]{
+	pub fn tranches(&self) -> &[TrancheEntry] {
 		&self.tranches
 	}
 
@@ -237,38 +237,6 @@ impl CandidateEntry {
 	/// Get the candidate receipt.
 	pub fn candidate_receipt(&self) -> &CandidateReceipt {
 		&self.candidate
-	}
-
-	/// Get the next tick this should be woken up to process the approval entry
-	/// under the given block hash, if any.
-	///
-	/// Returns `None` if there is no approval entry, the approval entry is fully
-	/// approved, or there are no assignments in the approval entry.
-	pub fn next_wakeup(
-		&self,
-		block_hash: &Hash,
-		block_tick: Tick,
-		no_show_duration: Tick,
-	) -> Option<Tick> {
-		let approval_entry = self.block_assignments.get(block_hash)?;
-		if approval_entry.is_approved() { return None }
-
-		let our_assignment_tick = approval_entry.our_assignment.as_ref()
-			.and_then(|a| if a.triggered() { None } else { Some(a.tranche()) })
-			.map(|assignment_tranche| assignment_tranche as Tick + block_tick);
-
-		// The earliest-received assignment which has no corresponding approval
-		let next_no_show = approval_entry.tranches.iter()
-			.flat_map(|t| t.assignments.iter())
-			.filter(|(v, _)| self.approvals.get(*v as usize).map(|b| *b).unwrap_or(false))
-			.map(|(_, tick)| tick + no_show_duration)
-			.min();
-
-		match (our_assignment_tick, next_no_show) {
-			(None, None) => None,
-			(Some(t), None) | (None, Some(t)) => Some(t),
-			(Some(t1), Some(t2)) => Some(std::cmp::min(t1, t2)),
-		}
 	}
 
 	/// Get the approval entry, mutably, for this candidate under a specific block.

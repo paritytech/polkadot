@@ -39,7 +39,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_primitives::approval::{
-	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote,
+	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote, DelayTranche,
 };
 use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
@@ -242,11 +242,9 @@ impl<T> State<T> {
 
 enum Action {
 	ScheduleWakeup {
-		candidate_entry: CandidateEntry,
 		block_hash: Hash,
-		block_tick: Tick,
-		no_show_duration: Tick,
 		candidate_hash: CandidateHash,
+		tick: Tick,
 	},
 	WriteBlockEntry(BlockEntry),
 	WriteCandidateEntry(CandidateHash, CandidateEntry),
@@ -351,20 +349,10 @@ fn handle_actions(
 	for action in actions {
 		match action {
 			Action::ScheduleWakeup {
-				candidate_entry,
 				block_hash,
-				block_tick,
-				no_show_duration,
 				candidate_hash,
-			} => {
-				if let Some(tick) = candidate_entry.next_wakeup(
-					&block_hash,
-					block_tick,
-					no_show_duration,
-				) {
-					wakeups.schedule(block_hash, candidate_hash, tick);
-				}
-			}
+				tick,
+			} => wakeups.schedule(block_hash, candidate_hash, tick),
 			Action::WriteBlockEntry(block_entry) => {
 				transaction.put_block_entry(block_entry.into());
 			}
@@ -407,13 +395,20 @@ async fn handle_from_overseer(
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
 							for (c_hash, c_entry) in block_batch.imported_candidates {
-								actions.push(Action::ScheduleWakeup {
-									candidate_entry: c_entry,
-									block_hash: block_batch.block_hash,
-									block_tick: block_batch.block_tick,
-									no_show_duration: block_batch.no_show_duration,
-									candidate_hash: c_hash,
-								});
+								let our_tranche = c_entry
+									.approval_entry(&block_batch.block_hash)
+									.and_then(|a| a.our_assignment().map(|a| a.tranche()));
+
+								if let Some(our_tranche) = our_tranche {
+									// Our first wakeup will just be the tranche of our assignment,
+									// if any. This will likely be superseded by incoming assignments
+									// and approvals which trigger rescheduling.
+									actions.push(Action::ScheduleWakeup {
+										block_hash: block_batch.block_hash,
+										candidate_hash: c_hash,
+										tick: our_tranche as Tick + block_batch.block_tick,
+									});
+								}
 							}
 						}
 					}
@@ -560,6 +555,65 @@ fn approval_signing_payload(
 	(approval_vote, session_index).encode()
 }
 
+// `Option::cmp` treats `None` as less than `Some`.
+fn min_prefer_some<T: std::cmp::Ord>(
+	a: Option<T>,
+	b: Option<T>,
+) -> Option<T> {
+	match (a, b) {
+		(None, None) => None,
+		(None, Some(x)) | (Some(x), None) => Some(x),
+		(Some(x), Some(y)) => Some(std::cmp::min(x, y)),
+	}
+}
+
+fn schedule_wakeup_action(
+	approval_entry: &ApprovalEntry,
+	block_hash: Hash,
+	candidate_hash: CandidateHash,
+	block_tick: Tick,
+	required_tranches: RequiredTranches,
+) -> Option<Action> {
+	if approval_entry.is_approved() {
+		return None
+	}
+
+	match required_tranches {
+		RequiredTranches::All => None,
+		RequiredTranches::Exact { next_no_show, .. } => next_no_show.map(|tick| Action::ScheduleWakeup {
+			block_hash,
+			candidate_hash,
+			tick,
+		}),
+		RequiredTranches::Pending { considered, next_no_show, clock_drift, .. } => {
+			// select the minimum of `next_no_show`, or the tick of the next non-empty tranche
+			// after `considered`, including any tranche that might contain our own untriggered
+			// assignment.
+			let next_non_empty_tranche = {
+				let next_announced = approval_entry.tranches().iter()
+					.skip_while(|t| t.tranche() <= considered)
+					.map(|t| t.tranche())
+					.next();
+
+				let our_untriggered = approval_entry
+					.our_assignment()
+					.and_then(|t| if !t.triggered() && t.tranche() > considered {
+						Some(t.tranche())
+					} else {
+						None
+					});
+
+				// Apply the clock drift to these tranches.
+				min_prefer_some(next_announced, our_untriggered)
+					.map(|t| t as Tick + block_tick + clock_drift)
+			};
+
+			min_prefer_some(next_non_empty_tranche, next_no_show)
+				.map(|tick| Action::ScheduleWakeup { block_hash, candidate_hash, tick })
+		}
+	}
+}
+
 fn check_and_import_assignment(
 	state: &State<impl DBReader>,
 	assignment: IndirectAssignmentCert,
@@ -646,16 +700,6 @@ fn check_and_import_assignment(
 		}
 	};
 
-	let (block_tick, no_show_duration) = {
-		let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
-		let no_show_duration = slot_number_to_tick(
-			state.slot_duration_millis,
-			Slot::from(u64::from(session_info.no_show_slots)),
-		);
-
-		(block_tick, no_show_duration)
-	};
-
 	// We check for approvals here because we may be late in seeing a block containing a
 	// candidate for which we have already seen approvals by the same validator.
 	//
@@ -664,21 +708,15 @@ fn check_and_import_assignment(
 	//
 	// Note that this already produces actions for writing
 	// the candidate entry and any modified block entries to disk.
-	let (mut actions, candidate_entry) = check_full_approvals(
+	//
+	// It also produces actions to schedule wakeups for the candidate.
+	let (actions, _) = check_full_approvals(
 		state,
 		Some((assignment.block_hash, block_entry)),
 		assigned_candidate_hash,
 		candidate_entry,
 		|h, _| h == &assignment.block_hash,
 	)?;
-
-	actions.push(Action::ScheduleWakeup {
-		candidate_entry,
-		block_hash: assignment.block_hash,
-		block_tick,
-		no_show_duration,
-		candidate_hash: assigned_candidate_hash,
-	});
 
 	Ok((res, actions))
 }
@@ -829,23 +867,25 @@ fn check_full_approvals(
 		};
 
 		let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
+		let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
+		let no_show_duration = slot_number_to_tick(
+			state.slot_duration_millis,
+			Slot::from(u64::from(session_info.no_show_slots)),
+		);
 
 		let required_tranches = approval_checking::tranches_to_approve(
 			approval_entry,
 			candidate_entry.approvals(),
 			tranche_now,
-			slot_number_to_tick(state.slot_duration_millis, block_entry.slot()),
-			slot_number_to_tick(
-				state.slot_duration_millis,
-				Slot::from(u64::from(session_info.no_show_slots)),
-			),
+			block_tick,
+			no_show_duration,
 			session_info.needed_approvals as _
 		);
 
 		let now_approved = approval_checking::check_approval(
 			&candidate_entry,
 			approval_entry,
-			required_tranches,
+			required_tranches.clone(),
 		);
 
 		if now_approved {
@@ -854,6 +894,14 @@ fn check_full_approvals(
 
 			actions.push(Action::WriteBlockEntry(block_entry));
 		}
+
+		actions.extend(schedule_wakeup_action(
+			&approval_entry,
+			*block_hash,
+			candidate_hash,
+			block_tick,
+			required_tranches,
+		));
 	}
 
 	for b in &newly_approved {
@@ -902,6 +950,8 @@ async fn process_wakeup(
 		Slot::from(u64::from(session_info.no_show_slots)),
 	);
 
+	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
+
 	let should_broadcast = {
 		let approval_entry = match candidate_entry.approval_entry(&relay_block) {
 			Some(e) => e,
@@ -911,7 +961,7 @@ async fn process_wakeup(
 		let tranches_to_approve = approval_checking::tranches_to_approve(
 			&approval_entry,
 			candidate_entry.approvals(),
-			state.clock.tranche_now(state.slot_duration_millis, block_entry.slot()),
+			tranche_now,
 			block_tick,
 			no_show_duration,
 			session_info.needed_approvals as _,
@@ -921,20 +971,27 @@ async fn process_wakeup(
 			None => false,
 			Some(ref assignment) if assignment.triggered() => false,
 			Some(ref assignment) => {
-				// TODO [now]
-				false
-				// match tranches_to_approve {
-				// 	RequiredTranches::All => approval_checking::check_approval(
-				// 		&candidate_entry,
-				// 		&approval_entry,
-				// 		RequiredTranches::All,
-				// 	),
-				// 	RequiredTranches::Pending(max) => assignment.tranche() <= max,
-				// 	RequiredTranches::Exact(_, _) => {
-				// 		// indicates that no new assignments are needed at the moment.
-				// 		false
-				// 	}
-				// }
+				match tranches_to_approve {
+					RequiredTranches::All => approval_checking::check_approval(
+						&candidate_entry,
+						&approval_entry,
+						RequiredTranches::All,
+					),
+					RequiredTranches::Pending {
+						maximum_broadcast,
+						clock_drift,
+						..
+					} => {
+						let drifted_tranche_now
+							= tranche_now.saturating_sub(clock_drift as DelayTranche);
+						assignment.tranche() <= maximum_broadcast
+							&& assignment.tranche() <= drifted_tranche_now
+					}
+					RequiredTranches::Exact { .. } => {
+						// indicates that no new assignments are needed at the moment.
+						false
+					}
+				}
 			}
 		}
 	};
@@ -983,13 +1040,27 @@ async fn process_wakeup(
 		}
 	}
 
-	actions.push(Action::ScheduleWakeup {
-		candidate_entry,
-		block_hash: relay_block,
+	let approval_entry = candidate_entry.approval_entry(&relay_block)
+		.expect("this function returned earlier if not available; qed");
+
+	// Although we ran this earlier in the function, we need to run again because we might have
+	// imported our own assignment, which could change things.
+	let tranches_to_approve = approval_checking::tranches_to_approve(
+		&approval_entry,
+		candidate_entry.approvals(),
+		tranche_now,
 		block_tick,
 		no_show_duration,
+		session_info.needed_approvals as _,
+	);
+
+	actions.extend(schedule_wakeup_action(
+		&approval_entry,
+		relay_block,
 		candidate_hash,
-	});
+		block_tick,
+		tranches_to_approve,
+	));
 
 	Ok(actions)
 }
