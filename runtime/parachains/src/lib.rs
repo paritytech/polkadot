@@ -43,6 +43,7 @@ mod util;
 mod mock;
 
 pub use origin::{Origin, ensure_parachain};
+pub use paras::ParaLifecycle;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(
