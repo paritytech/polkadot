@@ -730,9 +730,16 @@ impl PoVDistribution {
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run(
 		self,
-		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
+		ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
 	) -> SubsystemResult<()> {
-		let mut state = State::default();
+		self.run_with_state(ctx, State::default()).await
+	}
+
+	async fn run_with_state(
+		self,
+		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
+		mut state: State,
+	) -> SubsystemResult<()> {
 		state.metrics = self.metrics;
 
 		loop {
