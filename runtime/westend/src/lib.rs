@@ -27,21 +27,21 @@ use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo, AssignmentId,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
-	ParachainSessionKeyPlaceholder,
+	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
-		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
+		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
@@ -60,7 +60,7 @@ use frame_support::{
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use frame_system::{EnsureRoot};
 
@@ -87,13 +87,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 47,
+	spec_version: 48,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 3,
+	transaction_version: 4,
 };
 
 /// Native version.
@@ -115,6 +115,7 @@ impl Filter<Call> for BaseFilter {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
+	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
@@ -128,7 +129,7 @@ impl frame_system::Config for Runtime {
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
-	type Lookup = IdentityLookup<Self::AccountId>;
+	type Lookup = AccountIdLookup<AccountId, ()>;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
@@ -139,6 +140,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
+	type SS58Prefix = SS58Prefix;
 }
 
 parameter_types! {
@@ -254,12 +256,42 @@ parameter_types! {
 }
 
 impl_opaque_keys! {
+	pub struct OldSessionKeys {
+		pub grandpa: Grandpa,
+		pub babe: Babe,
+		pub im_online: ImOnline,
+		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
+		pub authority_discovery: AuthorityDiscovery,
+	}
+}
+
+impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub parachain_validator: ParachainSessionKeyPlaceholder<Runtime>,
+		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
+		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
+	}
+}
+
+fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
+	SessionKeys {
+		grandpa: old.grandpa,
+		babe: old.babe,
+		im_online: old.im_online,
+		para_validator: old.para_validator,
+		para_assignment: {
+			// We need to produce a dummy value that's unique for the validator.
+			let mut id = AssignmentId::default();
+			let id_raw: &mut [u8] = id.as_mut();
+			id_raw.copy_from_slice(v.as_ref());
+			id_raw[0..4].copy_from_slice(b"asgn");
+
+			id
+		},
+		authority_discovery: old.authority_discovery,
 	}
 }
 
@@ -410,6 +442,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 		account: AccountId,
 		nonce: <Runtime as frame_system::Config>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
+		use sp_runtime::traits::StaticLookup;
 		// take the biggest period possible.
 		let period = BlockHashCount::get()
 			.checked_next_power_of_two()
@@ -438,7 +471,8 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			C::sign(payload, public)
 		})?;
 		let (call, extra, _) = raw_payload.deconstruct();
-		Some((call, (account, signature, extra)))
+		let address = <Runtime as frame_system::Config>::Lookup::unlookup(account);
+		Some((call, (address, signature, extra)))
 	}
 }
 
@@ -556,6 +590,7 @@ pub enum ProxyType {
 	Staking,
 	SudoBalances,
 	IdentityJudgement,
+	CancelProxy,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -608,6 +643,9 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
 				Call::Utility(..)
+			),
+			ProxyType::CancelProxy => matches!(c,
+				Call::Proxy(pallet_proxy::Call::remove_announcement(..))
 			)
 		}
 	}
@@ -692,7 +730,7 @@ construct_runtime! {
 }
 
 /// The address format for describing accounts.
-pub type Address = AccountId;
+pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
@@ -722,10 +760,19 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-	CustomOnRuntimeUpgrade,
+	UpgradeSessionKeys,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+// When this is removed, should also remove `OldSessionKeys`.
+pub struct UpgradeSessionKeys;
+impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		Session::upgrade_keys::<OldSessionKeys, _>(transform_session_keys);
+		Perbill::from_percent(50) * BlockWeights::get().max_block
+	}
+}
 
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
@@ -805,13 +852,8 @@ sp_api::impl_runtime_apis! {
 			(Vec::new(), GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 0, now: 0 })
 		}
 
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
 			Vec::new()
-		}
-
-		fn full_validation_data(_: Id, _: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>> {
-			None
 		}
 
 		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
@@ -916,6 +958,14 @@ sp_api::impl_runtime_apis! {
 			Babe::current_epoch_start()
 		}
 
+		fn current_epoch() -> babe_primitives::Epoch {
+			Babe::current_epoch()
+		}
+
+		fn next_epoch() -> babe_primitives::Epoch {
+			Babe::next_epoch()
+		}
+
 		fn generate_key_ownership_proof(
 			_slot_number: babe_primitives::SlotNumber,
 			authority_id: babe_primitives::AuthorityId,
@@ -970,6 +1020,9 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_fee_details(uxt, len)
 		}
 	}
 

@@ -25,7 +25,9 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 	use futures::join;
 	use polkadot_primitives::v1::Id as ParaId;
 
-	sc_cli::init_logger("", Default::default(), None, false).expect("Sets up logger");
+	let mut builder = sc_cli::GlobalLoggerBuilder::new("");
+	builder.with_colors(false);
+	builder.init().expect("Set up logger");
 
 	let para_id = ParaId::from(100);
 

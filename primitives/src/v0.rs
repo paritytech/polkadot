@@ -26,6 +26,8 @@ use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
+#[cfg(feature = "std")]
+use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 
 #[cfg(feature = "std")]
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
@@ -60,12 +62,32 @@ mod collator_app {
 /// Identity that collators use.
 pub type CollatorId = collator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// A Parachain collator keypair.
 #[cfg(feature = "std")]
 pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
 pub type CollatorSignature = collator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// The key type ID for a parachain validator key.
 pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
@@ -81,6 +103,16 @@ mod validator_app {
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = validator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
 
@@ -94,6 +126,16 @@ application_crypto::with_pair! {
 /// For now we assert that parachain validator set is exactly equivalent to the authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// Retriability for a given active para.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
@@ -921,6 +963,16 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	pub fn into_payload(self) -> Payload {
 		self.payload
 	}
+
+	/// Convert `Payload` into `RealPayload`.
+	pub fn convert_payload(&self) -> Signed<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
+		Signed {
+			signature: self.signature.clone(),
+			validator_index: self.validator_index,
+			payload: self.payload().into(),
+			real_payload: sp_std::marker::PhantomData,
+		}
+	}
 }
 
 /// Custom validity errors used in Polkadot while validating transactions.
@@ -991,9 +1043,9 @@ mod tests {
 		assert_eq!(h.as_ref().len(), 32);
 
 		let _payload = collator_signature_payload(
-			&Hash::from([1; 32]),
+			&Hash::repeat_byte(1),
 			&5u32.into(),
-			&Hash::from([2; 32]),
+			&Hash::repeat_byte(2),
 		);
 	}
 }

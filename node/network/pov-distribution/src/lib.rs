@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View,
+	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, OurView,
 };
 
 use futures::prelude::*;
@@ -96,7 +96,7 @@ struct State {
 	peer_state: HashMap<PeerId, PeerState>,
 
 	/// Our own view.
-	our_view: View,
+	our_view: OurView,
 
 	/// Connect to relevant groups of validators at different relay parents.
 	connection_requests: validator_discovery::ConnectionRequests,
@@ -106,7 +106,7 @@ struct State {
 }
 
 struct BlockBasedState {
-	known: HashMap<Hash, Arc<PoV>>,
+	known: HashMap<Hash, (Arc<PoV>, protocol_v1::CompressedPoV)>,
 
 	/// All the PoVs we are or were fetching, coupled with channels expecting the data.
 	///
@@ -131,11 +131,13 @@ fn awaiting_message(relay_parent: Hash, awaiting: Vec<Hash>)
 	)
 }
 
-fn send_pov_message(relay_parent: Hash, pov_hash: Hash, pov: PoV)
-	-> protocol_v1::ValidationProtocol
-{
+fn send_pov_message(
+	relay_parent: Hash,
+	pov_hash: Hash,
+	pov: &protocol_v1::CompressedPoV,
+) -> protocol_v1::ValidationProtocol {
 	protocol_v1::ValidationProtocol::PoVDistribution(
-		protocol_v1::PoVDistributionMessage::SendPoV(relay_parent, pov_hash, pov)
+		protocol_v1::PoVDistributionMessage::SendPoV(relay_parent, pov_hash, pov.clone())
 	)
 }
 
@@ -152,8 +154,8 @@ async fn handle_signal(
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 			let _timer = state.metrics.time_handle_signal();
 
-			for relay_parent in activated {
-				match request_validators_ctx(relay_parent.clone(), ctx).await {
+			for (relay_parent, _span) in activated {
+				match request_validators_ctx(relay_parent, ctx).await {
 					Ok(vals_rx) => {
 						let n_validators = match vals_rx.await? {
 							Ok(v) => v.len(),
@@ -197,7 +199,7 @@ async fn handle_signal(
 
 			Ok(false)
 		}
-		OverseerSignal::BlockFinalized(_) => Ok(false),
+		OverseerSignal::BlockFinalized(..) => Ok(false),
 	}
 }
 
@@ -267,7 +269,7 @@ async fn distribute_to_awaiting(
 	metrics: &Metrics,
 	relay_parent: Hash,
 	pov_hash: Hash,
-	pov: &PoV,
+	pov: &protocol_v1::CompressedPoV,
 ) {
 	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
 	//
@@ -284,7 +286,7 @@ async fn distribute_to_awaiting(
 
 	if peers_to_send.is_empty() { return; }
 
-	let payload = send_pov_message(relay_parent, pov_hash, pov.clone());
+	let payload = send_pov_message(relay_parent, pov_hash, pov);
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
@@ -379,7 +381,7 @@ async fn handle_fetch(
 		None => return,
 	};
 
-	if let Some(pov) = relay_parent_state.known.get(&descriptor.pov_hash) {
+	if let Some((pov, _)) = relay_parent_state.known.get(&descriptor.pov_hash) {
 		let _  = response_sender.send(pov.clone());
 		return;
 	}
@@ -468,7 +470,17 @@ async fn handle_distribute(
 		}
 	}
 
-	relay_parent_state.known.insert(descriptor.pov_hash, pov.clone());
+	let encoded_pov = match protocol_v1::CompressedPoV::compress(&*pov) {
+		Ok(pov) => pov,
+		Err(error) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				error = ?error,
+				"Failed to create `CompressedPov`."
+			);
+			return
+		}
+	};
 
 	distribute_to_awaiting(
 		&mut state.peer_state,
@@ -476,8 +488,10 @@ async fn handle_distribute(
 		&state.metrics,
 		relay_parent,
 		descriptor.pov_hash,
-		&*pov,
-	).await
+		&encoded_pov,
+	).await;
+
+	relay_parent_state.known.insert(descriptor.pov_hash, (pov, encoded_pov));
 }
 
 /// Report a reputation change for a peer.
@@ -499,7 +513,7 @@ async fn handle_awaiting(
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
 ) {
-	if !state.our_view.0.contains(&relay_parent) {
+	if !state.our_view.contains(&relay_parent) {
 		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await;
 		return;
 	}
@@ -527,8 +541,9 @@ async fn handle_awaiting(
 		for pov_hash in pov_hashes {
 			// For all requested PoV hashes, if we have it, we complete the request immediately.
 			// Otherwise, we note that the peer is awaiting the PoV.
-			if let Some(pov) = relay_parent_state.known.get(&pov_hash) {
-				let payload = send_pov_message(relay_parent, pov_hash, (&**pov).clone());
+			if let Some((_, ref pov)) = relay_parent_state.known.get(&pov_hash) {
+				let payload = send_pov_message(relay_parent, pov_hash, pov);
+
 				ctx.send_message(AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
 				)).await;
@@ -544,21 +559,33 @@ async fn handle_awaiting(
 /// Handle an incoming PoV from our peer. Reports them if unexpected, rewards them if not.
 ///
 /// Completes any requests awaiting that PoV.
-#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state, encoded_pov), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_pov(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hash: Hash,
-	pov: PoV,
+	encoded_pov: protocol_v1::CompressedPoV,
 ) {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
-		None =>	{
+		None => {
 			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
 			return;
 		},
 		Some(r) => r,
+	};
+
+	let pov = match encoded_pov.decompress() {
+		Ok(pov) => pov,
+		Err(error) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				error = ?error,
+				"Could not extract PoV",
+			);
+			return;
+		}
 	};
 
 	let pov = {
@@ -607,8 +634,10 @@ async fn handle_incoming_pov(
 		&state.metrics,
 		relay_parent,
 		pov_hash,
-		&*pov,
-	).await
+		&encoded_pov,
+	).await;
+
+	relay_parent_state.known.insert(pov_hash, (pov, encoded_pov));
 }
 
 /// Handles a newly connected validator in the context of some relay leaf.
@@ -635,10 +664,10 @@ async fn handle_network_update(
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 			if let Some(peer_state) = state.peer_state.get_mut(&peer_id) {
 				// prune anything not in the new view.
-				peer_state.awaited.retain(|relay_parent, _| view.0.contains(&relay_parent));
+				peer_state.awaited.retain(|relay_parent, _| view.contains(&relay_parent));
 
 				// introduce things from the new view.
-				for relay_parent in view.0.iter() {
+				for relay_parent in view.heads.iter() {
 					if let Entry::Vacant(entry) = peer_state.awaited.entry(*relay_parent) {
 						entry.insert(HashSet::new());
 

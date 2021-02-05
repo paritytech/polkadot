@@ -10,10 +10,10 @@ name = "adder-collator"
 path = "src/main.rs"
 
 [dependencies]
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
-futures = "0.3.8"
+parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
+futures = "0.3.12"
 futures-timer = "3.0.2"
-log = "0.4.11"
+log = "0.4.13"
 structopt = "0.3.21"
 
 test-parachain-adder = { path = ".." }
@@ -23,18 +23,18 @@ polkadot-service = { path = "../../../../node/service" }
 polkadot-node-primitives = { path = "../../../../node/primitives" }
 polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
 polkadot-test-service = { path = "../../../../node/test/service" }
 
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
 
 tokio = { version = "0.2", features = ["macros"] }
 

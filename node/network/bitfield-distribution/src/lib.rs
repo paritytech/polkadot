@@ -27,11 +27,12 @@ use futures::{channel::oneshot, FutureExt};
 
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
+	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
+	SubsystemResult,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
-use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange};
+use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange, OurView};
 use std::collections::{HashMap, HashSet};
 
 const COST_SIGNATURE_INVALID: ReputationChange =
@@ -78,21 +79,21 @@ impl BitfieldGossipMessage {
 
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Debug)]
 struct ProtocolState {
 	/// track all active peers and their views
 	/// to determine what is relevant to them.
 	peer_views: HashMap<PeerId, View>,
 
 	/// Our current view.
-	view: View,
+	view: OurView,
 
 	/// Additional data particular to a relay parent.
 	per_relay_parent: HashMap<Hash, PerRelayParentData>,
 }
 
 /// Data for a particular relay parent.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 struct PerRelayParentData {
 	/// Signing context for a particular relay parent.
 	signing_context: SigningContext,
@@ -112,9 +113,24 @@ struct PerRelayParentData {
 	/// Track messages that were already received by a peer
 	/// to prevent flooding.
 	message_received_from_peer: HashMap<PeerId, HashSet<ValidatorId>>,
+
+	/// The span for this leaf/relay parent.
+	span: PerLeafSpan,
 }
 
 impl PerRelayParentData {
+	/// Create a new instance.
+	fn new(signing_context: SigningContext, validator_set: Vec<ValidatorId>, span: PerLeafSpan) -> Self {
+		Self {
+			signing_context,
+			validator_set,
+			span,
+			one_per_validator: Default::default(),
+			message_sent_to_peer: Default::default(),
+			message_received_from_peer: Default::default(),
+		}
+	}
+
 	/// Determines if that particular message signed by a validator is needed by the given peer.
 	fn message_from_validator_needed_by_peer(
 		&self,
@@ -175,12 +191,15 @@ impl BitfieldDistribution {
 					// a network message was received
 					handle_network_msg(&mut ctx, &mut state, &self.metrics, event).await;
 				}
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-					for relay_parent in activated {
+					for (relay_parent, span) in activated {
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
-						// query basic system parameters once
+						let span = PerLeafSpan::new(span, "bitfield-distribution");
+						let _span = span.child("query-basics");
+
+						// query validator set and signing context per relay_parent once only
 						match query_basics(&mut ctx, relay_parent).await {
 							Ok(Some((validator_set, signing_context))) => {
 								// If our runtime API fails, we don't take down the node,
@@ -190,11 +209,7 @@ impl BitfieldDistribution {
 								// us anything to do with this relay-parent anyway.
 								let _ = state.per_relay_parent.insert(
 									relay_parent,
-									PerRelayParentData {
-										signing_context,
-										validator_set,
-										..Default::default()
-									},
+									PerRelayParentData::new(signing_context, validator_set, span),
 								);
 							}
 							Err(e) => {
@@ -203,14 +218,9 @@ impl BitfieldDistribution {
 							_ => {},
 						}
 					}
-
-					for relay_parent in deactivated {
-						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "deactivated");
-						// defer the cleanup to the view change
-					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					tracing::trace!(target: LOG_TARGET, hash = %hash, "block finalized");
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+					tracing::trace!(target: LOG_TARGET, hash = %hash, number = %number, "block finalized");
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					tracing::trace!(target: LOG_TARGET, "Conclude");
@@ -232,6 +242,7 @@ where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "reputation change");
+
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
 	))
@@ -306,6 +317,9 @@ async fn relay_message<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
+	let span = job_data.span.child("relay-msg");
+
+	let _span = span.child("provisionable");
 	// notify the overseer about a new and valid signed bitfield
 	ctx.send_message(AllMessages::Provisioner(
 		ProvisionerMessage::ProvisionableData(
@@ -318,6 +332,9 @@ where
 	))
 	.await;
 
+	drop(_span);
+
+	let _span = span.child("interested-peers");
 	// pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
 		.iter()
@@ -341,6 +358,7 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
+	drop(_span);
 
 	if interested_peers.is_empty() {
 		tracing::trace!(
@@ -349,6 +367,7 @@ where
 			"no peers are interested in gossip for relay parent",
 		);
 	} else {
+		let _span = span.child("gossip");
 		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendValidationMessage(
 				interested_peers,
@@ -384,6 +403,16 @@ where
 	} else {
 		modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
 		return;
+	};
+
+	let mut _span = {
+		let mut span = job_data.span.child("msg-received");
+		span.add_string_tag("peer-id", &origin.to_base58());
+		span.add_string_tag(
+			"claimed-validator",
+			&message.signed_availability.validator_index().to_string(),
+		);
+		span
 	};
 
 	let validator_set = &job_data.validator_set;
@@ -497,7 +526,7 @@ where
 
 /// Handle the changes necassary when our view changes.
 #[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
-fn handle_our_view_change(state: &mut ProtocolState, view: View) {
+fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 	let old_view = std::mem::replace(&mut (state.view), view);
 
 	for added in state.view.difference(&old_view) {
@@ -580,6 +609,8 @@ where
 	} else {
 		return;
 	};
+
+	let _span = job_data.span.child("gossip");
 
 	job_data.message_sent_to_peer
 		.entry(dest.clone())
@@ -754,13 +785,8 @@ mod test {
 	use std::sync::Arc;
 	use std::time::Duration;
 	use assert_matches::assert_matches;
-	use polkadot_node_network_protocol::ObservedRole;
-
-	macro_rules! view {
-		( $( $hash:expr ),* $(,)? ) => [
-			View(vec![ $( $hash.clone() ),* ])
-		];
-	}
+	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
+	use polkadot_subsystem::JaegerSpan;
 
 	macro_rules! launch {
 		($fut:expr) => {
@@ -792,18 +818,19 @@ mod test {
 						},
 						message_received_from_peer: hashmap!{},
 						message_sent_to_peer: hashmap!{},
+						span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
 					},
 			},
 			peer_views: peers
 				.into_iter()
 				.map(|peer| (peer, view!(relay_parent)))
 				.collect(),
-			view: view!(relay_parent),
+			view: our_view!(relay_parent),
 		}
 	}
 
 	fn state_with_view(
-		view: View,
+		view: OurView,
 		relay_parent: Hash,
 	) -> (ProtocolState, SigningContext, SyncCryptoStorePtr, ValidatorId) {
 		let mut state = ProtocolState::default();
@@ -817,7 +844,7 @@ mod test {
 		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
 
-		state.per_relay_parent = view.0.iter().map(|relay_parent| {(
+		state.per_relay_parent = view.heads.iter().map(|relay_parent| {(
 				relay_parent.clone(),
 				PerRelayParentData {
 					signing_context: signing_context.clone(),
@@ -825,6 +852,7 @@ mod test {
 					one_per_validator: hashmap!{},
 					message_received_from_peer: hashmap!{},
 					message_sent_to_peer: hashmap!{},
+					span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
 				})
 			}).collect();
 
@@ -919,7 +947,7 @@ mod test {
 		assert_ne!(peer_a, peer_b);
 
 		// validator 0 key pair
-		let (mut state, signing_context, keystore, validator) = state_with_view(view![hash_a, hash_b], hash_a.clone());
+		let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash_a, hash_b], hash_a.clone());
 
 		state.peer_views.insert(peer_b.clone(), view![hash_a]);
 
@@ -977,7 +1005,7 @@ mod test {
 		assert_ne!(peer_a, peer_b);
 
 		// validator 0 key pair
-		let (mut state, signing_context, keystore, validator) = state_with_view(view![hash_a, hash_b], hash_a.clone());
+		let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash_a, hash_b], hash_a.clone());
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
@@ -1092,7 +1120,7 @@ mod test {
 		assert_ne!(peer_a, peer_b);
 
 		// validator 0 key pair
-		let (mut state, signing_context, keystore, validator) = state_with_view(view![hash], hash.clone());
+		let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash.clone());
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
@@ -1188,7 +1216,7 @@ mod test {
 		assert_ne!(peer_a, peer_b);
 
 		// validator 0 key pair
-		let (mut state, signing_context, keystore, validator) = state_with_view(view![hash_a, hash_b], hash_a.clone());
+		let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash_a, hash_b], hash_a.clone());
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
@@ -1305,7 +1333,7 @@ mod test {
 			));
 
 			// we are not interested in any peers at all anymore
-			state.view = view![];
+			state.view = our_view![];
 
 			// on rx of the same message, since we are not interested,
 			// should give penalty
@@ -1347,7 +1375,7 @@ mod test {
 		assert_ne!(peer_a, peer_b);
 
 		// validator 0 key pair
-		let (mut state, signing_context, keystore, validator) = state_with_view(view![hash], hash);
+		let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash);
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);

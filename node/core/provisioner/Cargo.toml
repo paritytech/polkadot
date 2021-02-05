@@ -6,15 +6,15 @@ edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-futures = "0.3.8"
+futures = "0.3.12"
 tracing = "0.1.22"
 tracing-futures = "0.2.4"
-thiserror = "1.0.22"
+thiserror = "1.0.23"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 futures-timer = "3.0.2"
 
 [dev-dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.28" }

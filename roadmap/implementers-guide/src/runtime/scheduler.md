@@ -162,7 +162,10 @@ AvailabilityCores: Vec<Option<CoreOccupied>>;
 ParathreadClaimIndex: Vec<ParaId>;
 /// The block number where the session start occurred. Used to track how many group rotations have occurred.
 SessionStartBlock: BlockNumber;
-/// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
+/// Currently scheduled cores - free but up to be occupied.
+/// The value contained here will not be valid after the end of a block. 
+/// Runtime APIs should be used to determine scheduled cores
+/// for the upcoming block.
 Scheduled: Vec<CoreAssignment>, // sorted ascending by CoreIndex.
 ```
 
@@ -172,31 +175,30 @@ Session changes are the only time that configuration can change, and the [Config
 
 Actions:
 
-1. Set `SessionStartBlock` to current block number.
+1. Set `SessionStartBlock` to current block number + 1, as session changes are applied at the end of the block.
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../types/runtime.md#host-configuration))
-1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
+1. Determine the number of cores & validator groups as `n_cores`. This is the maximum of
+   1. `Paras::parachains().len() + configuration.parathread_cores`
+   1. `n_validators / max_validators_per_core` if `configuration.max_validators_per_core` is `Some` and non-zero.
+1. Resize `AvailabilityCores` to have length `n_cores` with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
-   - We need a total of `N = Paras::parachains().len() + configuration.parathread_cores` validator groups.
-   - First, we obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
-   - Then, we truncate `SV` to have at most `configuration.max_validators_per_core * N` members, if `configuration.max_validators_per_core` is `Some`.
-   - Note that the total number of validators `V` in `SV` may not be evenly divided by `N`.
-   - The groups are selected by partitioning `SV`. The first V % N groups will have (V / N) + 1 members, while the remaining groups will have (V / N) members each.
+   - We obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
+   - Note that the total number of validators `V` in `SV` may not be evenly divided by `n_cores`.
+   - The groups are selected by partitioning `SV`. The first V % N groups will have (V / n_cores) + 1 members, while the remaining groups will have (V / N) members each.
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
    - Also prune all parathread claims corresponding to de-registered parathreads.
    - all pruned claims should have their entry removed from the parathread index.
    - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
-   - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
+   - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores. 
 
 ## Initialization
 
-1. Schedule free cores using the `schedule(Vec::new())`.
+No initialization routine runs for this module.
 
 ## Finalization
 
-Actions:
-
-1. Free all scheduled cores and return parathread claims to queue, with retries incremented.
+No finalization routine runs for this module.
 
 ## Routines
 
@@ -206,12 +208,12 @@ Actions:
   - The core used for the parathread claim is the `next_core` field of the `ParathreadQueue` and adding `Paras::parachains().len()` to it.
   - `next_core` is then updated by adding 1 and taking it modulo `config.parathread_cores`.
   - The claim is then added to the claim index.
-- `schedule(Vec<(CoreIndex, FreedReason)>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
+- `schedule(Vec<(CoreIndex, FreedReason)>, now: BlockNumber)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
   - All freed parachain cores should be assigned to their respective parachain
   - All freed parathread cores whose reason for freeing was `FreedReason::Concluded` should have the claim removed from the claim index.
   - All freed parathread cores whose reason for freeing was `FreedReason::TimedOut` should have the claim added to the parathread queue again without retries incremented
   - All freed parathread cores should take the next parathread entry from the queue.
-  - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
+  - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable. Rotations are based off of `now`.
 - `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
 - `occupied(Vec<CoreIndex>)`. Note that the given cores have become occupied.
   - Behavior undefined if any given cores were not scheduled.
@@ -221,6 +223,8 @@ Actions:
 - `core_para(CoreIndex) -> ParaId`: return the currently-scheduled or occupied ParaId for the given core.
 - `group_validators(GroupIndex) -> Option<Vec<ValidatorIndex>>`: return all validators in a given group, if the group index is valid for this session.
 - `availability_timeout_predicate() -> Option<impl Fn(CoreIndex, BlockNumber) -> bool>`: returns an optional predicate that should be used for timing out occupied cores. if `None`, no timing-out should be done. The predicate accepts the index of the core, and the block number since which it has been occupied. The predicate should be implemented based on the time since the last validator group rotation, and the respective parachain and parathread timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)` of the last rotation would this return `Some`.
-- `group_rotation_info() -> GroupRotationInfo`: Returns a helper for determining group rotation.
+- `group_rotation_info(now: BlockNumber) -> GroupRotationInfo`: Returns a helper for determining group rotation.
 - `next_up_on_available(CoreIndex) -> Option<ScheduledCore>`: Return the next thing that will be scheduled on this core assuming it is currently occupied and the candidate occupying it became available. Returns in `ScheduledCore` format (todo: link to Runtime APIs page; linkcheck doesn't allow this right now). For parachains, this is always the ID of the parachain and no specified collator. For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that core, and is `None` if there isn't one.
 - `next_up_on_time_out(CoreIndex) -> Option<ScheduledCore>`: Return the next thing that will be scheduled on this core assuming it is currently occupied and the candidate occupying it timed out. Returns in `ScheduledCore` format (todo: link to Runtime APIs page; linkcheck doesn't allow this right now). For parachains, this is always the ID of the parachain and no specified collator. For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that core, or if there isn't one, the claim that is currently occupying the core. Otherwise `None`.
+- `clear()`:
+  - Free all scheduled cores and return parathread claims to queue, with retries incremented. Skip parathreads which no longer exist under paras.

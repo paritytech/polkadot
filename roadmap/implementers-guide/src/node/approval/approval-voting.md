@@ -82,7 +82,6 @@ struct BlockEntry {
     // The i'th bit is `true` iff the candidate has been approved in the context of
     // this block. The block can be considered approved has all bits set to 1
     approved_bitfield: Bitfield,
-    rotation_offset: GroupIndex,
     children: Vec<Hash>,
 }
 
@@ -114,7 +113,7 @@ In-memory state:
 struct ApprovalVoteRequest {
   validator_index: ValidatorIndex,
   block_hash: Hash,
-  candidate_index: u32,
+  candidate_index: CandidateIndex,
 }
 
 struct State {
@@ -122,7 +121,7 @@ struct State {
     session_info: Vec<SessionInfo>,
     keystore: KeyStorePtr,
     wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>, // Tick -> [(Relay Block, Candidate Hash)]
-    
+
     // These are connected to each other.
     approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
     approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest>,
@@ -143,13 +142,13 @@ Main loop:
 
 #### `OverseerSignal::BlockFinalized`
 
-On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendents of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`.
+On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendents of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`. We also update each of the `BlockNumber -> Vec<Hash>` keys in the database to reflect the blocks at that height, clearing if empty.
 
 
 #### `OverseerSignal::ActiveLeavesUpdate`
 
 On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
-  * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. 
+  * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem.
   * We update the `StoredBlockRange` and the `BlockNumber` maps.
   * We use the RuntimeApiSubsystem to determine information about these blocks. It is generally safe to assume that runtime state is available for recent, unfinalized blocks. In the case that it isn't, it means that we are catching up to the head of the chain and needn't worry about assignments to those blocks anyway, as the security assumption of the protocol tolerates nodes being temporarily offline or out-of-date.
     * We fetch the set of candidates included by each block by dispatching a `RuntimeApiRequest::CandidateEvents` and checking the `CandidateIncluded` events.
@@ -157,7 +156,7 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
     * If the `session index - APPROVAL_SESSIONS > state.earliest_session`, then bump `state.earliest_sessions` to that amount and prune earlier sessions.
     * If the session isn't in our `state.session_info`, load the session info for it and for all sessions since the earliest-session, including the earliest-session, if that is missing. And it can be, just after pruning, if we've done a big jump forward, as is the case when we've just finished chain synchronization.
     * If any of the runtime API calls fail, we just warn and skip the block.
-  * We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks. 
+  * We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks.
   * We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate obtained from `CandidateIncluded` events after making a `RuntimeApiRequest::CandidateEvents` request.
   * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
@@ -223,7 +222,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 ```rust
 enum RequiredTranches {
-  // All validators appear to be required, based on tranches already taken and remaining no-shows. 
+  // All validators appear to be required, based on tranches already taken and remaining no-shows.
   All,
   // More tranches required - We're awaiting more assignments. The given `DelayTranche` indicates the
   // upper bound of tranches that should broadcast based on the last no-show.
@@ -281,5 +280,5 @@ enum RequiredTranches {
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
   * Construct a `SignedApprovalVote` with the validator index for the session.
   * `import_checked_approval(block_entry, candidate_entry, validator_index)`
-  * Construct a `IndirectSignedApprovalVote` using the informatio about the vote.
+  * Construct a `IndirectSignedApprovalVote` using the information about the vote.
   * Dispatch `ApprovalDistributionMessage::DistributeApproval`.

@@ -37,6 +37,7 @@ use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
+	JaegerSpan, PerLeafSpan,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
@@ -133,11 +134,13 @@ struct CandidateBackingJob {
 	assignment: Option<ParaId>,
 	/// The collator required to author the candidate, if any.
 	required_collator: Option<CollatorId>,
+	/// Spans for all candidates that are not yet backable.
+	unbacked_candidates: HashMap<CandidateHash, JaegerSpan>,
 	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.
 	issued_statements: HashSet<CandidateHash>,
 	/// These candidates are undergoing validation in the background.
 	awaiting_validation: HashSet<CandidateHash>,
-	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
+	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h` hash.
 	seconded: Option<CandidateHash>,
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
@@ -285,7 +288,7 @@ async fn store_available_data(
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
-#[tracing::instrument(level = "trace", skip(tx_from, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(tx_from, pov, span), fields(subsystem = LOG_TARGET))]
 async fn make_pov_available(
 	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	validator_index: Option<ValidatorIndex>,
@@ -294,31 +297,39 @@ async fn make_pov_available(
 	candidate_hash: CandidateHash,
 	validation_data: polkadot_primitives::v1::PersistedValidationData,
 	expected_erasure_root: Hash,
+	span: Option<&JaegerSpan>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
 	let available_data = AvailableData {
 		pov,
 		validation_data,
 	};
 
-	let chunks = erasure_coding::obtain_chunks_v1(
-		n_validators,
-		&available_data,
-	)?;
+	{
+		let _span = span.as_ref().map(|s| s.child("erasure-coding"));
 
-	let branches = erasure_coding::branches(chunks.as_ref());
-	let erasure_root = branches.root();
+		let chunks = erasure_coding::obtain_chunks_v1(
+			n_validators,
+			&available_data,
+		)?;
 
-	if erasure_root != expected_erasure_root {
-		return Ok(Err(InvalidErasureRoot));
+		let branches = erasure_coding::branches(chunks.as_ref());
+		let erasure_root = branches.root();
+
+		if erasure_root != expected_erasure_root {
+			return Ok(Err(InvalidErasureRoot));
+		}
 	}
 
-	store_available_data(
-		tx_from,
-		validator_index,
-		n_validators as u32,
-		candidate_hash,
-		available_data,
-	).await?;
+	{
+		let _span = span.as_ref().map(|s| s.child("store-data"));
+		store_available_data(
+			tx_from,
+			validator_index,
+			n_validators as u32,
+			candidate_hash,
+			available_data,
+		).await?;
+	}
 
 	Ok(Ok(()))
 }
@@ -370,11 +381,12 @@ struct BackgroundValidationParams<F> {
 	pov: Option<Arc<PoV>>,
 	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
+	span: Option<JaegerSpan>,
 	make_command: F,
 }
 
 async fn validate_and_make_available(
-	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand>,
+	params: BackgroundValidationParams<impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync>,
 ) -> Result<(), Error> {
 	let BackgroundValidationParams {
 		mut tx_from,
@@ -384,29 +396,42 @@ async fn validate_and_make_available(
 		pov,
 		validator_index,
 		n_validators,
+		span,
 		make_command,
 	} = params;
 
 	let pov = match pov {
 		Some(pov) => pov,
-		None => request_pov_from_distribution(
-			&mut tx_from,
-			relay_parent,
-			candidate.descriptor.clone(),
-		).await?,
+		None => {
+			let _span = span.as_ref().map(|s| s.child("request-pov"));
+			request_pov_from_distribution(
+				&mut tx_from,
+				relay_parent,
+				candidate.descriptor.clone(),
+			).await?
+		}
 	};
 
-	let v = request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?;
+	let v = {
+		let _span = span.as_ref().map(|s| s.child("request-validation"));
+		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
+	};
 
 	let expected_commitments_hash = candidate.commitments_hash;
 
 	let res = match v {
 		ValidationResult::Valid(commitments, validation_data) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation successful",
+			);
+
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
-					candidate_receipt = ?candidate,
+					candidate_hash = ?candidate.hash(),
 					actual_commitments = ?commitments,
 					"Commitments obtained with validation don't match the announced by the candidate receipt",
 				);
@@ -420,14 +445,15 @@ async fn validate_and_make_available(
 					candidate.hash(),
 					validation_data,
 					candidate.descriptor.erasure_root,
+					span.as_ref(),
 				).await?;
 
 				match erasure_valid {
 					Ok(()) => Ok((candidate, commitments, pov.clone())),
 					Err(InvalidErasureRoot) => {
-						tracing::trace!(
+						tracing::debug!(
 							target: LOG_TARGET,
-							candidate_receipt = ?candidate,
+							candidate_hash = ?candidate.hash(),
 							actual_commitments = ?commitments,
 							"Erasure root doesn't match the announced by the candidate receipt",
 						);
@@ -437,9 +463,9 @@ async fn validate_and_make_available(
 			}
 		}
 		ValidationResult::Invalid(reason) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				candidate_receipt = ?candidate,
+				candidate_hash = ?candidate.hash(),
 				reason = ?reason,
 				"Validation yielded an invalid candidate",
 			);
@@ -447,9 +473,7 @@ async fn validate_and_make_available(
 		}
 	};
 
-	let command = make_command(res);
-	tx_command.send(command).await?;
-	Ok(())
+	tx_command.send(make_command(res)).await.map_err(Into::into)
 }
 
 impl CandidateBackingJob {
@@ -457,12 +481,14 @@ impl CandidateBackingJob {
 	async fn run_loop(
 		mut self,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
+		span: PerLeafSpan,
 	) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
+					let _span = span.child("process-validation-result");
 					if let Some(c) = validated_command {
-						self.handle_validated_candidate_command(c).await?;
+						self.handle_validated_candidate_command(&span, c).await?;
 					} else {
 						panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
 					}
@@ -470,7 +496,10 @@ impl CandidateBackingJob {
 				to_job = rx_to.next() => match to_job {
 					None => break,
 					Some(msg) => {
-						self.process_msg(msg).await?;
+						// we intentionally want spans created in `process_msg` to descend from the
+						// `span ` which is longer-lived than this ephemeral timing span.
+						let _timing_span = span.child("process-message");
+						self.process_msg(&span, msg).await?;
 					}
 				}
 			}
@@ -482,6 +511,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
+		parent_span: &JaegerSpan,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
@@ -501,7 +531,7 @@ impl CandidateBackingJob {
 								descriptor: candidate.descriptor.clone(),
 								commitments,
 							});
-							self.sign_import_and_distribute_statement(statement).await?;
+							self.sign_import_and_distribute_statement(statement, parent_span).await?;
 							self.distribute_pov(candidate.descriptor, pov).await?;
 						}
 					}
@@ -520,7 +550,7 @@ impl CandidateBackingJob {
 					};
 
 					self.issued_statements.insert(candidate_hash);
-					self.sign_import_and_distribute_statement(statement).await?;
+					self.sign_import_and_distribute_statement(statement, &parent_span).await?;
 				}
 			}
 		}
@@ -532,7 +562,7 @@ impl CandidateBackingJob {
 	async fn background_validate_and_make_available(
 		&mut self,
 		params: BackgroundValidationParams<
-			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static
+			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync
 		>,
 	) -> Result<(), Error> {
 		let candidate_hash = params.candidate.hash();
@@ -560,9 +590,10 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off background validation with intent to second.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, parent_span, pov), fields(subsystem = LOG_TARGET))]
 	async fn validate_and_second(
 		&mut self,
+		parent_span: &JaegerSpan,
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
@@ -574,6 +605,16 @@ impl CandidateBackingJob {
 			return Ok(());
 		}
 
+		let candidate_hash = candidate.hash();
+		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate,
+			"Validate and second candidate",
+		);
+
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
 			tx_command: self.background_validation_tx.clone(),
@@ -582,15 +623,20 @@ impl CandidateBackingJob {
 			pov: Some(pov),
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 			n_validators: self.table_context.validators.len(),
+			span,
 			make_command: ValidatedCandidateCommand::Second,
 		}).await?;
 
 		Ok(())
 	}
 
-	async fn sign_import_and_distribute_statement(&mut self, statement: Statement) -> Result<(), Error> {
+	async fn sign_import_and_distribute_statement(
+		&mut self,
+		statement: Statement,
+		parent_span: &JaegerSpan,
+	) -> Result<(), Error> {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.import_statement(&signed_statement).await?;
+			self.import_statement(&signed_statement, parent_span).await?;
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
@@ -638,39 +684,70 @@ impl CandidateBackingJob {
 	async fn import_statement(
 		&mut self,
 		statement: &SignedFullStatement,
+		parent_span: &JaegerSpan,
 	) -> Result<Option<TableSummary>, Error> {
+		tracing::debug!(
+			target: LOG_TARGET,
+			statement = ?statement.payload().to_compact(),
+			"Importing statement",
+		);
+
+		let import_statement_span = {
+			// create a span only for candidates we're already aware of.
+			let candidate_hash = statement.payload().candidate_hash();
+			self.get_unbacked_statement_child(parent_span, candidate_hash, statement.validator_index())
+		};
+
 		let stmt = primitive_statement_to_table(statement);
 
 		let summary = self.table.import_statement(&self.table_context, stmt);
 
-		if let Some(ref summary) = summary {
-			if let Some(attested) = self.table.attested_candidate(
-				&summary.candidate,
-				&self.table_context,
-			) {
-				// `HashSet::insert` returns true if the thing wasn't in there already.
-				// one of the few places the Rust-std folks did a bad job with API
-				if self.backed.insert(summary.candidate) {
-					if let Some(backed) =
-						table_attested_to_backed(attested, &self.table_context)
-					{
-						let message = ProvisionerMessage::ProvisionableData(
-							self.parent,
-							ProvisionableData::BackedCandidate(backed.receipt()),
-						);
-						self.send_to_provisioner(message).await?;
-					}
+		let unbacked_span = if let Some(attested) = summary.as_ref()
+			.and_then(|s| self.table.attested_candidate(&s.candidate, &self.table_context))
+		{
+			let candidate_hash = attested.candidate.hash();
+			// `HashSet::insert` returns true if the thing wasn't in there already.
+			if self.backed.insert(candidate_hash) {
+				let span = self.remove_unbacked_span(&candidate_hash);
+
+				if let Some(backed) =
+					table_attested_to_backed(attested, &self.table_context)
+				{
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate_hash,
+						"Candidate backed",
+					);
+
+					let message = ProvisionerMessage::ProvisionableData(
+						self.parent,
+						ProvisionableData::BackedCandidate(backed.receipt()),
+					);
+					self.send_to_provisioner(message).await?;
+
+					span.as_ref().map(|s| s.child("backed"));
+					span
+				} else {
+					None
 				}
+			} else {
+				None
 			}
-		}
+		} else {
+			None
+		};
 
 		self.issue_new_misbehaviors().await?;
+
+		// It is important that the child span is dropped before its parent span (`unbacked_span`)
+		drop(import_statement_span);
+		drop(unbacked_span);
 
 		Ok(summary)
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	async fn process_msg(&mut self, msg: CandidateBackingMessage) -> Result<(), Error> {
+	#[tracing::instrument(level = "trace", skip(self, span), fields(subsystem = LOG_TARGET))]
+	async fn process_msg(&mut self, span: &JaegerSpan, msg: CandidateBackingMessage) -> Result<(), Error> {
 		match msg {
 			CandidateBackingMessage::Second(_, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
@@ -689,7 +766,7 @@ impl CandidateBackingJob {
 					let pov = Arc::new(pov);
 
 					if !self.issued_statements.contains(&candidate_hash) {
-						self.validate_and_second(&candidate, pov.clone()).await?;
+						self.validate_and_second(&span, &candidate, pov.clone()).await?;
 					}
 				}
 			}
@@ -697,7 +774,7 @@ impl CandidateBackingJob {
 				let _timer = self.metrics.time_process_statement();
 
 				self.check_statement_signature(&statement)?;
-				match self.maybe_validate_and_import(statement).await {
+				match self.maybe_validate_and_import(&span, statement).await {
 					Err(Error::ValidationFailed(_)) => return Ok(()),
 					Err(e) => return Err(e),
 					Ok(()) => (),
@@ -722,10 +799,11 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off validation work and distribute the result as a signed statement.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, span), fields(subsystem = LOG_TARGET))]
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
+		span: Option<JaegerSpan>,
 	) -> Result<(), Error> {
 		let candidate_hash = summary.candidate;
 
@@ -738,6 +816,13 @@ impl CandidateBackingJob {
 		// and not just those things that the function uses.
 		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?.to_plain();
 		let descriptor = candidate.descriptor().clone();
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?candidate_hash,
+			candidate_receipt = ?candidate,
+			"Kicking off validation",
+		);
 
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
@@ -759,20 +844,24 @@ impl CandidateBackingJob {
 			pov: None,
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 			n_validators: self.table_context.validators.len(),
+			span,
 			make_command: ValidatedCandidateCommand::Attest,
 		}).await
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, parent_span), fields(subsystem = LOG_TARGET))]
 	async fn maybe_validate_and_import(
 		&mut self,
+		parent_span: &JaegerSpan,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
-		if let Some(summary) = self.import_statement(&statement).await? {
+		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
 			if let Statement::Seconded(_) = statement.payload() {
 				if Some(summary.group_id) == self.assignment {
-					self.kick_off_validation_work(summary).await?;
+					let span = self.get_unbacked_validation_child(parent_span, summary.candidate);
+
+					self.kick_off_validation_work(summary, span).await?;
 				}
 			}
 		}
@@ -808,6 +897,42 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	/// Insert or get the unbacked-span for the given candidate hash.
+	fn insert_or_get_unbacked_span(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) -> Option<&JaegerSpan> {
+		if !self.backed.contains(&hash) {
+			// only add if we don't consider this backed.
+			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
+				let mut span = parent_span.child("unbacked-candidate");
+				span.add_string_tag("candidate-hash", &format!("{:?}", hash.0));
+				span
+			});
+			Some(span)
+		} else {
+			None
+		}
+	}
+
+	fn get_unbacked_validation_child(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) -> Option<JaegerSpan> {
+		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| span.child("validation"))
+	}
+
+	fn get_unbacked_statement_child(
+		&mut self,
+		parent_span: &JaegerSpan,
+		hash: CandidateHash,
+		validator: ValidatorIndex,
+	) -> Option<JaegerSpan> {
+		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| {
+			let mut span = span.child("import-statement");
+			span.add_string_tag("validator-index", &format!("{}", validator));
+			span
+		})
+	}
+
+	fn remove_unbacked_span(&mut self, hash: &CandidateHash) -> Option<JaegerSpan> {
+		self.unbacked_candidates.remove(hash)
+	}
+
 	async fn send_to_provisioner(&mut self, msg: ProvisionerMessage) -> Result<(), Error> {
 		self.tx_from.send(AllMessages::from(msg).into()).await?;
 
@@ -841,9 +966,10 @@ impl util::JobTrait for CandidateBackingJob {
 
 	const NAME: &'static str = "CandidateBackingJob";
 
-	#[tracing::instrument(skip(keystore, metrics, rx_to, tx_from), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(span, keystore, metrics, rx_to, tx_from), fields(subsystem = LOG_TARGET))]
 	fn run(
 		parent: Hash,
+		span: Arc<JaegerSpan>,
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
@@ -870,6 +996,9 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
+			let span = PerLeafSpan::new(span, "backing");
+			let _span = span.child("runtime-apis");
+
 			let (validators, groups, session_index, cores) = futures::try_join!(
 				try_runtime_api!(request_validators(parent, &mut tx_from).await),
 				try_runtime_api!(request_validator_groups(parent, &mut tx_from).await),
@@ -885,6 +1014,9 @@ impl util::JobTrait for CandidateBackingJob {
 			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 			let session_index = try_runtime_api!(session_index);
 			let cores = try_runtime_api!(cores);
+
+			drop(_span);
+			let _span = span.child("validator-construction");
 
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
@@ -904,6 +1036,10 @@ impl util::JobTrait for CandidateBackingJob {
 					return Ok(())
 				}
 			};
+
+			drop(_span);
+			let _span = span.child("calc-validator-groups");
+
 
 			let mut groups = HashMap::new();
 
@@ -936,6 +1072,9 @@ impl util::JobTrait for CandidateBackingJob {
 				Some((assignment, required_collator)) => (Some(assignment), required_collator),
 			};
 
+			drop(_span);
+			let _span = span.child("wait-for-job");
+
 			let (background_tx, background_rx) = mpsc::channel(16);
 			let job = CandidateBackingJob {
 				parent,
@@ -945,6 +1084,7 @@ impl util::JobTrait for CandidateBackingJob {
 				issued_statements: HashSet::new(),
 				awaiting_validation: HashSet::new(),
 				seconded: None,
+				unbacked_candidates: HashMap::new(),
 				backed: HashSet::new(),
 				reported_misbehavior_for: HashSet::new(),
 				keystore,
@@ -954,10 +1094,10 @@ impl util::JobTrait for CandidateBackingJob {
 				background_validation_tx: background_tx,
 				metrics,
 			};
+			drop(_span);
 
-			job.run_loop(rx_to).await
-		}
-		.boxed()
+			job.run_loop(rx_to, span).await
+		}.boxed()
 	}
 }
 
@@ -1060,8 +1200,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures::{future, Future};
 	use polkadot_primitives::v1::{
-		ScheduledCore, BlockData, PersistedValidationData, ValidationData,
-		TransientValidationData, HeadData, GroupRotationInfo,
+		ScheduledCore, BlockData, PersistedValidationData, HeadData, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
@@ -1082,7 +1221,7 @@ mod tests {
 		keystore: SyncCryptoStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		validation_data: ValidationData,
+		validation_data: PersistedValidationData,
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		availability_cores: Vec<CoreState>,
 		head_data: HashMap<ParaId, HeadData>,
@@ -1140,28 +1279,20 @@ mod tests {
 			let mut head_data = HashMap::new();
 			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
 
-			let relay_parent = Hash::from([5; 32]);
+			let relay_parent = Hash::repeat_byte(5);
 
 			let signing_context = SigningContext {
 				session_index: 1,
 				parent_hash: relay_parent,
 			};
 
-			let validation_data = ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: HeadData(vec![7, 8, 9]),
-					block_number: Default::default(),
-					hrmp_mqc_heads: Vec::new(),
-					dmq_mqc_head: Default::default(),
-					max_pov_size: 1024,
-				},
-				transient: TransientValidationData {
-					max_code_size: 1000,
-					max_head_data_size: 1000,
-					balance: Default::default(),
-					code_upgrade_allowed: None,
-					dmq_length: 0,
-				},
+			let validation_data = PersistedValidationData {
+				parent_head: HeadData(vec![7, 8, 9]),
+				block_number: Default::default(),
+				hrmp_mqc_heads: Vec::new(),
+				dmq_mqc_head: Default::default(),
+				max_pov_size: 1024,
+				relay_storage_root: Default::default(),
 			};
 
 			Self {
@@ -1201,7 +1332,7 @@ mod tests {
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let available_data = AvailableData {
-			validation_data: test.validation_data.persisted.clone(),
+			validation_data: test.validation_data.clone(),
 			pov: Arc::new(pov),
 		};
 
@@ -1243,7 +1374,10 @@ mod tests {
 	) {
 		// Start work on some new parent.
 		virtual_overseer.send(FromOverseer::Signal(
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(test_state.relay_parent)))
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+				test_state.relay_parent,
+				Arc::new(JaegerSpan::Disabled),
+			)))
 		).await;
 
 		// Check that subsystem job issues a request for a validator set.
@@ -1339,7 +1473,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1477,7 +1611,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1772,7 +1906,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);
@@ -1957,7 +2091,7 @@ mod tests {
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,
-						}, test_state.validation_data.persisted),
+						}, test_state.validation_data),
 					)).unwrap();
 				}
 			);

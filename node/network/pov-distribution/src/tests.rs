@@ -1,11 +1,26 @@
+// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use super::*;
 
-use std::time::Duration;
+use std::{time::Duration, sync::Arc};
 
 use assert_matches::assert_matches;
 use futures::executor;
 use tracing::trace;
-use smallvec::smallvec;
 
 use sp_keyring::Sr25519Keyring;
 
@@ -13,9 +28,10 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId,
 	ScheduledCore, ValidatorIndex, SessionIndex, SessionInfo,
 };
-use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_network_protocol::{view, our_view};
 
 fn make_pov(data: Vec<u8>) -> PoV {
 	PoV { block_data: BlockData(data) }
@@ -260,8 +276,8 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![test_state.relay_parent.clone()],
-				deactivated: smallvec![],
+				activated: [(test_state.relay_parent, Arc::new(JaegerSpan::Disabled))][..].into(),
+				deactivated: [][..].into(),
 			}),
 		).await;
 
@@ -358,7 +374,7 @@ fn ask_validators_for_povs() {
 				PoVDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(
 						test_state.validator_peer_id[i].clone(),
-						View(vec![current]),
+						view![current],
 					)
 				)
 			).await;
@@ -380,7 +396,11 @@ fn ask_validators_for_povs() {
 			PoVDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerMessage(
 					test_state.validator_peer_id[2].clone(),
-					protocol_v1::PoVDistributionMessage::SendPoV(current, pov_hash, pov_block.clone()),
+					protocol_v1::PoVDistributionMessage::SendPoV(
+						current,
+						pov_hash,
+						protocol_v1::CompressedPoV::compress(&pov_block).unwrap(),
+					),
 				)
 			)
 		).await;
@@ -405,7 +425,7 @@ fn ask_validators_for_povs() {
 			PoVDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerViewChange(
 					test_state.validator_peer_id[2].clone(),
-					View(vec![next_leaf]),
+					view![next_leaf],
 				)
 			)
 		).await;
@@ -428,8 +448,8 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![next_leaf.clone()],
-				deactivated: smallvec![current.clone()],
+				activated: [(next_leaf, Arc::new(JaegerSpan::Disabled))][..].into(),
+				deactivated: [current.clone()][..].into(),
 			})
 		).await;
 
@@ -582,7 +602,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 
 			s
 		},
-		our_view: View(vec![hash_a, hash_b]),
+		our_view: our_view![hash_a, hash_b],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -615,7 +635,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 				assert_eq!(peers, vec![peer_a.clone()]);
 				assert_eq!(
 					message,
-					send_pov_message(hash_a, pov_hash, pov.clone()),
+					send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 				);
 			}
 		)
@@ -665,7 +685,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -839,7 +859,7 @@ fn peer_view_change_leads_to_us_informing() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -851,7 +871,7 @@ fn peer_view_change_leads_to_us_informing() {
 		handle_network_update(
 			&mut state,
 			&mut ctx,
-			NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View(vec![hash_a, hash_b])),
+			NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a, hash_b]),
 		).await;
 
 		assert_matches!(
@@ -912,7 +932,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -927,7 +947,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -936,7 +956,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_b.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1002,7 +1022,7 @@ fn peer_punished_for_sending_bad_pov() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1017,7 +1037,7 @@ fn peer_punished_for_sending_bad_pov() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, bad_pov.clone()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&bad_pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1067,7 +1087,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1082,7 +1102,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1130,7 +1150,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1145,7 +1165,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_b, pov_hash, pov.clone()),
+				send_pov_message(hash_b, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1190,7 +1210,7 @@ fn peer_reported_for_awaiting_too_much() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1277,7 +1297,7 @@ fn peer_reported_for_awaiting_outside_their_view() {
 
 			s
 		},
-		our_view: View(vec![hash_a, hash_b]),
+		our_view: our_view![hash_a, hash_b],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1341,7 +1361,7 @@ fn peer_reported_for_awaiting_outside_our_view() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1420,7 +1440,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1434,7 +1454,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1458,7 +1478,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 				assert_eq!(peers, vec![peer_b.clone()]);
 				assert_eq!(
 					message,
-					send_pov_message(hash_a, pov_hash, pov.clone()),
+					send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 				);
 			}
 		);
@@ -1504,7 +1524,7 @@ fn peer_completing_request_no_longer_awaiting() {
 
 			s
 		},
-		our_view: View(vec![hash_a]),
+		our_view: our_view![hash_a],
 		metrics: Default::default(),
 		connection_requests: Default::default(),
 	};
@@ -1518,7 +1538,7 @@ fn peer_completing_request_no_longer_awaiting() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &protocol_v1::CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 

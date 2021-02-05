@@ -148,7 +148,7 @@ impl Collator {
 		let state = self.state.clone();
 
 		Box::new(move |relay_parent, validation_data| {
-			let parent = HeadData::decode(&mut &validation_data.persisted.parent_head.0[..])
+			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
 				.expect("Decodes parent head");
 
 			let (block_data, head_data) = state.lock().unwrap().advance(parent);
@@ -168,7 +168,7 @@ impl Collator {
 					block_data: block_data.encode().into(),
 				},
 				processed_downward_messages: 0,
-				hrmp_watermark: validation_data.persisted.block_number,
+				hrmp_watermark: validation_data.block_number,
 			};
 
 			async move { Some(collation) }.boxed()
@@ -196,7 +196,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
-	use polkadot_primitives::v1::{PersistedValidationData, ValidationData};
+	use polkadot_primitives::v1::PersistedValidationData;
 
 	#[test]
 	fn collator_works() {
@@ -213,11 +213,8 @@ mod tests {
 				.unwrap()
 				.clone();
 
-			let validation_data = ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: parent_head.encode().into(),
-					..Default::default()
-				},
+			let validation_data = PersistedValidationData {
+				parent_head: parent_head.encode().into(),
 				..Default::default()
 			};
 
@@ -234,6 +231,7 @@ mod tests {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,
 				relay_chain_height: 1,
+				relay_storage_root: Default::default(),
 				hrmp_mqc_heads: Vec::new(),
 				dmq_mqc_head: Default::default(),
 			},

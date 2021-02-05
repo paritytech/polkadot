@@ -262,7 +262,7 @@ mod tests {
 		}, testing::{UintAuthorityId, TestXt}, Perbill, curve::PiecewiseLinear,
 	};
 	use primitives::v1::{
-		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId,
+		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId, ValidatorIndex,
 	};
 	use frame_system::limits;
 	use frame_support::{
@@ -329,8 +329,9 @@ mod tests {
 		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u128>;
 		type OnNewAccount = ();
-		type OnKilledAccount = Balances;
+		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
+		type SS58Prefix = ();
 	}
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test where
@@ -434,6 +435,7 @@ mod tests {
 
 	impl hrmp::Config for Test {
 		type Origin = Origin;
+		type Currency = pallet_balances::Module<Test>;
 	}
 
 	impl pallet_session::historical::Config for Test {
@@ -472,8 +474,16 @@ mod tests {
 
 	impl configuration::Config for Test { }
 
+	pub struct TestRewardValidators;
+
+	impl inclusion::RewardValidators for TestRewardValidators {
+		fn reward_backing(_: impl IntoIterator<Item = ValidatorIndex>) { }
+		fn reward_bitfields(_: impl IntoIterator<Item = ValidatorIndex>) { }
+	}
+
 	impl inclusion::Config for Test {
 		type Event = ();
+		type RewardValidators = TestRewardValidators;
 	}
 
 	impl session_info::AuthorityDiscoveryConfig for Test {
@@ -553,31 +563,27 @@ mod tests {
 			Sr25519Keyring::Two,
 		];
 
-		// stashes are the index.
-		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
-			.collect();
-
 		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
-
-		pallet_session::GenesisConfig::<Test> {
-			keys: session_keys,
-		}.assimilate_storage(&mut t).unwrap();
 
 		pallet_balances::GenesisConfig::<Test> {
 			balances,
 		}.assimilate_storage(&mut t).unwrap();
 
+		// stashes are the index.
+		let session_keys: Vec<_> = authority_keys.iter().enumerate()
+			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
+			.collect();
+
+		pallet_session::GenesisConfig::<Test> {
+			keys: session_keys,
+		}.assimilate_storage(&mut t).unwrap();
+
 		t.into()
 	}
 
-	fn init_block() {
-		println!("Initializing {}", System::block_number());
-		System::on_initialize(System::block_number());
-		Initializer::on_initialize(System::block_number());
-	}
-
 	fn run_to_block(n: BlockNumber) {
+		// NOTE that this function only simulates modules of interest. Depending on new module may
+		// require adding it here.
 		println!("Running until block {}", n);
 		while System::block_number() < n {
 			let b = System::block_number();
@@ -585,9 +591,11 @@ mod tests {
 			if System::block_number() > 1 {
 				println!("Finalizing {}", System::block_number());
 				System::on_finalize(System::block_number());
+				Initializer::on_finalize(System::block_number());
 			}
 			// Session change every 3 blocks.
 			if (b + 1) % 3 == 0 {
+				println!("New session at {}", System::block_number());
 				Initializer::on_new_session(
 					false,
 					Vec::new().into_iter(),
@@ -595,7 +603,9 @@ mod tests {
 				);
 			}
 			System::set_block_number(b + 1);
-			init_block();
+			println!("Initializing {}", System::block_number());
+			System::on_initialize(System::block_number());
+			Initializer::on_initialize(System::block_number());
 		}
 	}
 
@@ -717,8 +727,9 @@ mod tests {
 				WASM_MAGIC.to_vec().into(),
 			).is_err());
 
-			run_to_block(6);
-
+			// The session will be changed on the 6th block, as part of finalization. The change
+			// will be observed on the 7th.
+			run_to_block(7);
 			assert_ok!(Registrar::register_parachain(
 				1u32.into(),
 				vec![1; 3].into(),

@@ -7,10 +7,12 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Backed Candidate: A Backable Candidate noted in a relay-chain block
 - Backing: A set of statements proving that a Parachain Candidate is backable.
 - Collator: A node who generates Proofs-of-Validity (PoV) for blocks of a specific parachain.
-- DMP: (Downward Message Passing). Message passing from the relay-chain to a parachain.
+- DMP: (Downward Message Passing). Message passing from the relay-chain to a parachain. Also there is a runtime parachains module with the same name.
+- DMQ: (Downward Message Queue). A message queue for messages from the relay-chain down to a parachain. A parachain has
+exactly one downward message queue.
 - Extrinsic: An element of a relay-chain block which triggers a specific entry-point of a runtime module with given arguments.
 - GRANDPA: (Ghost-based Recursive ANcestor Deriving Prefix Agreement). The algorithm validators use to guarantee finality of the Relay Chain.
-- HRMP: (Horizontally Relay-routed Message Passing). A mechanism for message passing between parachains (hence horizontal) that leverages the relay-chain storage. Predates XCMP.
+- HRMP: (Horizontally Relay-routed Message Passing). A mechanism for message passing between parachains (hence horizontal) that leverages the relay-chain storage. Predates XCMP. Also there is a runtime parachains module with the same name.
 - Inclusion Pipeline: The set of steps taken to carry a Parachain Candidate from authoring, to backing, to availability and full inclusion in an active fork of its parachain.
 - Module: A component of the Runtime logic, encapsulating storage, routines, and entry-points.
 - Module Entry Point: A recipient of new information presented to the Runtime. This may trigger routines.
@@ -22,6 +24,8 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Parachain: A constituent chain secured by the Relay Chain's validators.
 - Parachain Validators: A subset of validators assigned during a period of time to back candidates for a specific parachain
 - Parathread: A parachain which is scheduled on a pay-as-you-go basis.
+- PDK (Parachain Development Kit): A toolset that allows one to develop a parachain. Cumulus is a PDK.
+- Preimage: In our context, if `H(X) = Y` where `H` is a hash function and `Y` is the hash, then `X` is the hash preimage.
 - Proof-of-Validity (PoV): A stateless-client proof that a parachain candidate is valid, with respect to some validation function.
 - Relay Parent: A block in the relay chain, referred to in a context where work is being done in the context of the state at this block.
 - Router: The router module is a meta module that consists of three runtime modules responsible for routing messages between paras and the relay chain. The three separate runtime modules are: Dmp, Ump, Hrmp, each responsible for the respective part of message routing.
