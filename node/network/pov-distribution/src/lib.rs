@@ -298,7 +298,7 @@ async fn distribute_to_awaiting(
 
 /// Connect to relevant validators in case we are not already.
 ///
-/// Return true if we actually issued connect requests.
+/// Return true if there have been any relevant validators to connect to.
 async fn connect_to_relevant_validators(
 	connection_requests: &mut validator_discovery::ConnectionRequests,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
