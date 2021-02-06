@@ -346,7 +346,7 @@ Likewise, when considering how many tranches to take, the no-show depth should b
 
   * Start with `depth = 0`.
   * Set a clock drift of `depth * no_show_duration`
-  * Take tranches up to `tranche_now - clock_drift` until all needed assignments are met. Start with `depth = 0`.
+  * Take tranches up to `tranche_now - clock_drift` until all needed assignments are met.
   * Keep track of the `next_no_show` according to the clock drift, as we go.
   * If running out of tranches before then, return `Pending { considered, next_no_show, maximum_broadcast, clock_drift }`
   * If there are no no-shows, return `Exact { needed, tolerated_missing, next_no_show }`
