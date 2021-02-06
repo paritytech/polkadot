@@ -40,6 +40,8 @@ use {
 	sc_client_api::ExecutorProvider,
 	babe_primitives::BabeApi,
 };
+#[cfg(feature = "real-overseer")]
+use polkadot_network_bridge::RequestMultiplexer;
 
 use sp_core::traits::SpawnNamed;
 
@@ -243,6 +245,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
+		config.role.is_authority().into(),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
 		client.clone(),
@@ -350,6 +353,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	_: AvailabilityConfig,
 	_: Arc<sc_network::NetworkService<Block, Hash>>,
 	_: AuthorityDiscoveryService,
+	_request_multiplexer: (),
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,
@@ -377,6 +381,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	availability_config: AvailabilityConfig,
 	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	authority_discovery: AuthorityDiscoveryService,
+	request_multiplexer: RequestMultiplexer,
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	is_collator: IsCollator,
@@ -461,6 +466,7 @@ where
 		network_bridge: NetworkBridgeSubsystem::new(
 			network_service,
 			authority_discovery,
+			request_multiplexer,
 		),
 		pov_distribution: PoVDistributionSubsystem::new(
 			Metrics::register(registry)?,
@@ -602,6 +608,15 @@ pub fn new_full<RuntimeApi, Executor>(
 	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
 		&config, task_manager.spawn_handle(), backend.clone(),
 	));
+	#[cfg(feature = "real-overseer")]
+	fn register_request_response(config: &mut sc_network::config::NetworkConfiguration) -> RequestMultiplexer {
+		let (multiplexer, configs) = RequestMultiplexer::new();
+		config.request_response_protocols.extend(configs);
+		multiplexer
+	}
+	#[cfg(not(feature = "real-overseer"))]
+	fn register_request_response(_: &mut sc_network::config::NetworkConfiguration) {}
+	let request_multiplexer = register_request_response(&mut config.network);
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -698,6 +713,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			availability_config,
 			network.clone(),
 			authority_discovery_service,
+			request_multiplexer,
 			prometheus_registry.as_ref(),
 			spawner,
 			is_collator,

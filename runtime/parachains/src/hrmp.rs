@@ -1084,7 +1084,8 @@ impl<T: Config> Module<T> {
 	/// Returns the list of MQC heads for the inbound channels of the given recipient para paired
 	/// with the sender para ids. This vector is sorted ascending by the para id and doesn't contain
 	/// multiple entries with the same sender.
-	pub(crate) fn hrmp_mqc_heads(recipient: ParaId) -> Vec<(ParaId, Hash)> {
+	#[cfg(test)]
+	fn hrmp_mqc_heads(recipient: ParaId) -> Vec<(ParaId, Hash)> {
 		let sender_set = <Self as Store>::HrmpIngressChannelsIndex::get(&recipient);
 
 		// The ingress channels vector is sorted, thus `mqc_heads` is sorted as well.
@@ -1704,6 +1705,18 @@ mod tests {
 					total_size: 0,
 					mqc_head: None,
 				},
+			);
+
+			let raw_ingress_index =
+				sp_io::storage::get(
+					&well_known_keys::hrmp_ingress_channel_index(para_b),
+				)
+				.expect("the ingress index must be present for para_b");
+			let ingress_index = <Vec<ParaId>>::decode(&mut &raw_ingress_index[..])
+				.expect("ingress indexx should be decodable as a list of para ids");
+			assert_eq!(
+				ingress_index,
+				vec![para_a],
 			);
 
 			// Now, verify that we can access and decode the egress index.

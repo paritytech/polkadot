@@ -90,7 +90,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2028,
+	spec_version: 2029,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -626,6 +626,7 @@ parameter_types! {
 impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
+	type ValidatorSet = Historical;
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
@@ -845,6 +846,7 @@ pub enum ProxyType {
 	Governance,
 	Staking,
 	IdentityJudgement,
+	CancelProxy,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -911,6 +913,9 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
 				Call::Utility(..)
+			),
+			ProxyType::CancelProxy => matches!(c,
+				Call::Proxy(pallet_proxy::Call::remove_announcement(..))
 			)
 		}
 	}
