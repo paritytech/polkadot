@@ -941,7 +941,7 @@ fn should_trigger_assignment(
 		Some(ref assignment) if assignment.triggered() => false,
 		Some(ref assignment) => {
 			match required_tranches {
-				RequiredTranches::All => approval_checking::check_approval(
+				RequiredTranches::All => !approval_checking::check_approval(
 					&candidate_entry,
 					&approval_entry,
 					RequiredTranches::All,

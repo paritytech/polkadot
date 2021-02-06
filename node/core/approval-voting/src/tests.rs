@@ -117,11 +117,12 @@ impl MockClockInner {
 	}
 }
 
-struct MockAssignmentCriteria<F>(F);
+struct MockAssignmentCriteria<Compute, Check>(Compute, Check);
 
-impl<F> AssignmentCriteria for MockAssignmentCriteria<F>
+impl<Compute, Check> AssignmentCriteria for MockAssignmentCriteria<Compute, Check>
 where
-	F: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>
+	Compute: Fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
+	Check: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>
 {
 	fn compute_assignments(
 		&self,
@@ -130,7 +131,7 @@ where
 		_config: &criteria::Config,
 		_leaving_cores: Vec<(polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
 	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
-		HashMap::new()
+		self.0()
 	}
 
 	fn check_assignment_cert(
@@ -142,7 +143,16 @@ where
 		_assignment: &polkadot_node_primitives::approval::AssignmentCert,
 		_backing_group: polkadot_primitives::v1::GroupIndex,
 	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
-		self.0()
+		self.1()
+	}
+}
+
+impl<F> MockAssignmentCriteria<
+	fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
+	F,
+> {
+	fn check_only(f: F) -> Self {
+		MockAssignmentCriteria(Default::default, f)
 	}
 }
 
@@ -175,7 +185,7 @@ fn blank_state() -> State<TestStore> {
 		slot_duration_millis: SLOT_DURATION_MILLIS,
 		db: TestStore::default(),
 		clock: Box::new(MockClock::default()),
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| { Ok(0) })),
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| { Ok(0) })),
 	}
 }
 
@@ -351,7 +361,7 @@ fn rejects_bad_assignment() {
 	assert_eq!(res.0, AssignmentCheckResult::Bad);
 
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Err(criteria::InvalidAssignment)
 		})),
 		..some_state(Default::default())
@@ -382,7 +392,7 @@ fn rejects_assignment_in_future() {
 
 	let tick = 9;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(10)
 		})),
 		..some_state(StateConfig { tick, ..Default::default() })
@@ -397,7 +407,7 @@ fn rejects_assignment_in_future() {
 
 	let tick = 10;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(10)
 		})),
 		..some_state(StateConfig { tick, ..Default::default() })
@@ -412,7 +422,7 @@ fn rejects_assignment_in_future() {
 
 	let tick = 11;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(10)
 		})),
 		..some_state(StateConfig { slot: Slot::from(6), tick, ..Default::default() })
@@ -467,7 +477,7 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 	};
 
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(Default::default())
@@ -521,7 +531,7 @@ fn rejects_approval_before_assignment() {
 	};
 
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(Default::default())
@@ -561,7 +571,7 @@ fn rejects_approval_if_no_candidate_entry() {
 	};
 
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(Default::default())
@@ -604,7 +614,7 @@ fn rejects_approval_if_no_block_entry() {
 	};
 
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(Default::default())
@@ -642,7 +652,7 @@ fn accepts_and_imports_approval_after_assignment() {
 
 	let candidate_index = 0;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(StateConfig {
@@ -692,7 +702,7 @@ fn second_approval_import_is_no_op() {
 
 	let candidate_index = 0;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(StateConfig {
@@ -737,7 +747,7 @@ fn check_and_apply_full_approval_sets_flag_and_bit() {
 
 	let candidate_index = 0;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(StateConfig {
@@ -799,7 +809,7 @@ fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 
 	let candidate_index = 0;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
 		..some_state(StateConfig {
@@ -855,8 +865,151 @@ fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 }
 
 #[test]
-fn assignment_triggered_only_when_needed() {
+fn assignment_triggered_by_all_with_less_than_supermajority() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 
+	let mut candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 1,
+				validator_index: 4,
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	// 2-of-4
+	candidate_entry
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, 0, 0);
+
+	candidate_entry
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, 1, 0);
+
+	candidate_entry.mark_approval(0);
+	candidate_entry.mark_approval(1);
+
+	let tranche_now = 1;
+	assert!(should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::All,
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_not_triggered_by_all_with_supermajority() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
+
+	let mut candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 1,
+				validator_index: 4,
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	// 3-of-4
+	candidate_entry
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, 0, 0);
+
+	candidate_entry
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, 1, 0);
+
+	candidate_entry
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, 2, 0);
+
+	candidate_entry.mark_approval(0);
+	candidate_entry.mark_approval(1);
+	candidate_entry.mark_approval(2);
+
+	let tranche_now = 1;
+	assert!(!should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::All,
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_not_triggered_if_already_triggered() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
+
+	let candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 1,
+				validator_index: 4,
+				triggered: true,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	let tranche_now = 1;
+	assert!(!should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::All,
+		tranche_now,
+	));
 }
 
 #[test]
