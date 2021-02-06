@@ -309,26 +309,48 @@ where
 						});
 
 						match peer_set {
-							PeerSet::Validation => dispatch_validation_events_to_all(
-								vec![
-									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
-									NetworkBridgeEvent::PeerViewChange(
-										peer,
-										View::default(),
+							PeerSet::Validation => {
+								dispatch_validation_events_to_all(
+									vec![
+										NetworkBridgeEvent::PeerConnected(peer.clone(), role),
+										NetworkBridgeEvent::PeerViewChange(
+											peer.clone(),
+											View::default(),
+										),
+									],
+									&mut ctx,
+								).await;
+
+								send_message(
+									&mut bridge.network_service,
+									vec![peer],
+									PeerSet::Validation,
+									WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+										local_view.clone()
 									),
-								],
-								&mut ctx,
-							).await,
-							PeerSet::Collation => dispatch_collation_events_to_all(
-								vec![
-									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
-									NetworkBridgeEvent::PeerViewChange(
-										peer,
-										View::default(),
+								).await?;
+							}
+							PeerSet::Collation => {
+								dispatch_collation_events_to_all(
+									vec![
+										NetworkBridgeEvent::PeerConnected(peer.clone(), role),
+										NetworkBridgeEvent::PeerViewChange(
+											peer.clone(),
+											View::default(),
+										),
+									],
+									&mut ctx,
+								).await;
+
+								send_message(
+									&mut bridge.network_service,
+									vec![peer],
+									PeerSet::Collation,
+									WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(
+										local_view.clone()
 									),
-								],
-								&mut ctx,
-							).await,
+								).await?;
+							}
 						}
 					}
 				}
