@@ -729,7 +729,7 @@ fn second_approval_import_is_no_op() {
 }
 
 #[test]
-fn check_and_apply_approval_sets_flag_and_bit() {
+fn check_and_apply_full_approval_sets_flag_and_bit() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 	let validator_index_a = 0;
@@ -764,7 +764,7 @@ fn check_and_apply_approval_sets_flag_and_bit() {
 	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
 		.mark_approval(validator_index_b));
 
-	let actions = check_and_apply_approval(
+	let actions = check_and_apply_full_approval(
 		&state,
 		None,
 		candidate_hash,
@@ -791,7 +791,7 @@ fn check_and_apply_approval_sets_flag_and_bit() {
 }
 
 #[test]
-fn check_and_apply_approval_does_not_load_cached_block_from_db() {
+fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 	let validator_index_a = 0;
@@ -828,7 +828,7 @@ fn check_and_apply_approval_does_not_load_cached_block_from_db() {
 
 	let block_entry = state.db.block_entries.remove(&block_hash).unwrap();
 
-	let actions = check_and_apply_approval(
+	let actions = check_and_apply_full_approval(
 		&state,
 		Some((block_hash, block_entry)),
 		candidate_hash,
