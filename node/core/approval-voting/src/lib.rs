@@ -710,7 +710,7 @@ fn check_and_import_assignment(
 	// the candidate entry and any modified block entries to disk.
 	//
 	// It also produces actions to schedule wakeups for the candidate.
-	let (actions, _) = check_full_approvals(
+	let actions = check_and_apply_approval(
 		state,
 		Some((assignment.block_hash, block_entry)),
 		assigned_candidate_hash,
@@ -807,7 +807,7 @@ fn import_checked_approval(
 	// Check if this approval vote alters the approval state of any blocks.
 	//
 	// This may include blocks beyond the already loaded block.
-	let (actions, _) = check_full_approvals(
+	let actions = check_and_apply_approval(
 		state,
 		already_loaded,
 		candidate_hash,
@@ -821,14 +821,15 @@ fn import_checked_approval(
 // Checks the candidate for approval under all blocks matching the given filter.
 //
 // If returning without error, is guaranteed to have produced actions
-// to write all modified block entries and the candidate entry itself.
-fn check_full_approvals(
+// to write all modified block entries. It also schedules wakeups for
+// the candidate under any blocks filtered.
+fn check_and_apply_approval(
 	state: &State<impl DBReader>,
 	mut already_loaded: Option<(Hash, BlockEntry)>,
 	candidate_hash: CandidateHash,
 	mut candidate_entry: CandidateEntry,
 	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
-) -> SubsystemResult<(Vec<Action>, CandidateEntry)> {
+) -> SubsystemResult<Vec<Action>> {
 	// We only query this max once per hash.
 	let db = &state.db;
 	let mut load_block_entry = move |block_hash| -> SubsystemResult<Option<BlockEntry>> {
@@ -910,8 +911,8 @@ fn check_full_approvals(
 		}
 	}
 
-	actions.push(Action::WriteCandidateEntry(candidate_hash, candidate_entry.clone()));
-	Ok((actions, candidate_entry))
+	actions.push(Action::WriteCandidateEntry(candidate_hash, candidate_entry));
+	Ok(actions)
 }
 
 async fn process_wakeup(
