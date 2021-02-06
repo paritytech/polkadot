@@ -436,7 +436,7 @@ async fn handle_from_overseer(
 				actions
 			}
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
-				check_and_import_approval(state, a, res)?
+				check_and_import_approval(state, a, |r| { let _ = res.send(r); })?.0
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
 				match handle_approved_ancestor(ctx, &state.db, target, lower_bound).await {
@@ -727,15 +727,15 @@ fn check_and_import_assignment(
 	Ok((res, actions))
 }
 
-fn check_and_import_approval(
+fn check_and_import_approval<T>(
 	state: &State<impl DBReader>,
 	approval: IndirectSignedApprovalVote,
-	response: oneshot::Sender<ApprovalCheckResult>,
-) -> SubsystemResult<Vec<Action>> {
+	with_response: impl FnOnce(ApprovalCheckResult) -> T,
+) -> SubsystemResult<(Vec<Action>, T)> {
 	macro_rules! respond_early {
 		($e: expr) => { {
-			let _ = response.send($e);
-			return Ok(Vec::new());
+			let t = with_response($e);
+			return Ok((Vec::new(), t));
 		} }
 	}
 
@@ -786,16 +786,25 @@ fn check_and_import_approval(
 		}
 	};
 
-	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
-	let _ = response.send(ApprovalCheckResult::Accepted);
+	// Don't accept approvals until assignment.
+	if candidate_entry.approval_entry(&approval.block_hash)
+		.map_or(true, |e| !e.is_assigned(approval.validator))
+	{
+		respond_early!(ApprovalCheckResult::Bad)
+	}
 
-	import_checked_approval(
+	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
+	let t = with_response(ApprovalCheckResult::Accepted);
+
+	let actions = import_checked_approval(
 		state,
 		Some((approval.block_hash, block_entry)),
 		approved_candidate_hash,
 		candidate_entry,
 		approval.validator,
-	)
+	)?;
+
+	Ok((actions, t))
 }
 
 fn import_checked_approval(
