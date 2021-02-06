@@ -240,6 +240,7 @@ impl<T> State<T> {
 	}
 }
 
+#[derive(Debug)]
 enum Action {
 	ScheduleWakeup {
 		block_hash: Hash,
@@ -677,12 +678,17 @@ fn check_and_import_assignment(
 		let tranche = match res {
 			Err(crate::criteria::InvalidAssignment) => return Ok((AssignmentCheckResult::Bad, Vec::new())),
 			Ok(tranche) => {
-				let tranche_now_of_prev_slot = state.clock.tranche_now(
+				let current_tranche = state.clock.tranche_now(
 					state.slot_duration_millis,
-					block_entry.slot().saturating_sub(SLOT_TOO_FAR_IN_FUTURE),
+					block_entry.slot(),
 				);
 
-				if tranche >= tranche_now_of_prev_slot {
+				let too_far_in_future = current_tranche + time::slot_number_to_tick(
+					state.slot_duration_millis,
+					Slot::from(SLOT_TOO_FAR_IN_FUTURE),
+				) as DelayTranche;
+
+				if tranche >= too_far_in_future {
 					return Ok((AssignmentCheckResult::TooFarInFuture, Vec::new()));
 				}
 

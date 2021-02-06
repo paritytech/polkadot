@@ -25,8 +25,14 @@ use parking_lot::Mutex;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use std::pin::Pin;
 use std::sync::Arc;
+use sp_keyring::sr25519::Keyring as Sr25519Keyring;
+use assert_matches::assert_matches;
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
+
+fn slot_to_tick(t: impl Into<Slot>) -> crate::time::Tick {
+	crate::time::slot_number_to_tick(SLOT_DURATION_MILLIS, t.into())
+}
 
 #[derive(Default)]
 struct MockClock {
@@ -199,12 +205,33 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	}
 }
 
-// one block with one candidate
+// one block with one candidate. Alice and Bob are in the assignment keys.
 fn some_state(block_hash: Hash, slot: Slot, at: Tick) -> State<TestStore> {
 	let session_index = 1;
 	let mut state = State {
 		clock: Box::new(MockClock::new(at)),
-		..single_session_state(session_index, SessionInfo::default())
+		..single_session_state(session_index, SessionInfo {
+			validators: vec![
+				Sr25519Keyring::Alice.public().into(),
+				Sr25519Keyring::Bob.public().into(),
+			],
+			discovery_keys: vec![
+				Sr25519Keyring::Alice.public().into(),
+				Sr25519Keyring::Bob.public().into(),
+			],
+			assignment_keys: vec![
+				Sr25519Keyring::Alice.public().into(),
+				Sr25519Keyring::Bob.public().into(),
+			],
+			validator_groups: vec![vec![0], vec![1]],
+			n_cores: 2,
+			zeroth_delay_tranche_width: 5,
+			relay_vrf_modulo_samples: 3,
+			n_delay_tranches: 50,
+			no_show_slots: 2,
+			needed_approvals: 1,
+			..Default::default()
+		})
 	};
 	let core_index = 0.into();
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
@@ -222,7 +249,7 @@ fn some_state(block_hash: Hash, slot: Slot, at: Tick) -> State<TestStore> {
 		tranches: Vec::new(),
 		backing_group: GroupIndex(0),
 		our_assignment: None,
-		assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 1],
+		assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 2],
 		approved: false,
 	};
 	let candidate_entry = approval_db::v1::CandidateEntry {
@@ -386,12 +413,60 @@ fn rejects_assignment_with_unknown_candidate() {
 		candidate_index,
 	).unwrap();
 	assert_eq!(res.0, AssignmentCheckResult::Bad);
-
 }
 
 #[test]
-fn wakeup_scheduled_after_assignment_import() {
+fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 
+	let candidate_index = 0;
+	let assignment = IndirectAssignmentCert {
+		block_hash,
+		validator: 0,
+		cert: garbage_assignment_cert(
+			AssignmentCertKind::RelayVRFModulo {
+				sample: 0,
+			},
+		),
+	};
+
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+			Ok(0)
+		})),
+		..some_state(block_hash, Slot::from(0), 0)
+	};
+
+	let (res, actions) = check_and_import_assignment(
+		&mut state,
+		assignment.clone(),
+		candidate_index,
+	).unwrap();
+
+	assert_eq!(res, AssignmentCheckResult::Accepted);
+	assert_eq!(actions.len(), 2);
+
+	assert_matches!(
+		actions.get(0).unwrap(),
+		Action::ScheduleWakeup {
+			block_hash: b,
+			candidate_hash: c,
+			tick,
+		} => {
+			assert_eq!(b, &block_hash);
+			assert_eq!(c, &candidate_hash);
+			assert_eq!(tick, &slot_to_tick(0 + 2)); // current tick + no-show-duration.
+		}
+	);
+
+	assert_matches!(
+		actions.get(1).unwrap(),
+		Action::WriteCandidateEntry(c, e) => {
+			assert_eq!(c, &candidate_hash);
+			assert!(e.approval_entry(&block_hash).unwrap().is_assigned(0));
+		}
+	);
 }
 
 #[test]
