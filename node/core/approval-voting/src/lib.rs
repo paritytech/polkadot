@@ -930,6 +930,41 @@ fn check_and_apply_full_approval(
 	Ok(actions)
 }
 
+fn should_trigger_assignment(
+	approval_entry: &ApprovalEntry,
+	candidate_entry: &CandidateEntry,
+	required_tranches: RequiredTranches,
+	tranche_now: DelayTranche,
+) -> bool {
+	match approval_entry.our_assignment() {
+		None => false,
+		Some(ref assignment) if assignment.triggered() => false,
+		Some(ref assignment) => {
+			match required_tranches {
+				RequiredTranches::All => approval_checking::check_approval(
+					&candidate_entry,
+					&approval_entry,
+					RequiredTranches::All,
+				),
+				RequiredTranches::Pending {
+					maximum_broadcast,
+					clock_drift,
+					..
+				} => {
+					let drifted_tranche_now
+						= tranche_now.saturating_sub(clock_drift as DelayTranche);
+					assignment.tranche() <= maximum_broadcast
+						&& assignment.tranche() <= drifted_tranche_now
+				}
+				RequiredTranches::Exact { .. } => {
+					// indicates that no new assignments are needed at the moment.
+					false
+				}
+			}
+		}
+	}
+}
+
 async fn process_wakeup(
 	ctx: &mut impl SubsystemContext,
 	state: &State<impl DBReader>,
@@ -968,7 +1003,7 @@ async fn process_wakeup(
 
 	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
-	let should_broadcast = {
+	let should_trigger = {
 		let approval_entry = match candidate_entry.approval_entry(&relay_block) {
 			Some(e) => e,
 			None => return Ok(Vec::new()),
@@ -983,39 +1018,18 @@ async fn process_wakeup(
 			session_info.needed_approvals as _,
 		);
 
-		match approval_entry.our_assignment() {
-			None => false,
-			Some(ref assignment) if assignment.triggered() => false,
-			Some(ref assignment) => {
-				match tranches_to_approve {
-					RequiredTranches::All => approval_checking::check_approval(
-						&candidate_entry,
-						&approval_entry,
-						RequiredTranches::All,
-					),
-					RequiredTranches::Pending {
-						maximum_broadcast,
-						clock_drift,
-						..
-					} => {
-						let drifted_tranche_now
-							= tranche_now.saturating_sub(clock_drift as DelayTranche);
-						assignment.tranche() <= maximum_broadcast
-							&& assignment.tranche() <= drifted_tranche_now
-					}
-					RequiredTranches::Exact { .. } => {
-						// indicates that no new assignments are needed at the moment.
-						false
-					}
-				}
-			}
-		}
+		should_trigger_assignment(
+			&approval_entry,
+			&candidate_entry,
+			tranches_to_approve,
+			tranche_now,
+		)
 	};
 
-	let (mut actions, maybe_cert) = if should_broadcast {
+	let (mut actions, maybe_cert) = if should_trigger {
 		let maybe_cert = {
 			let approval_entry = candidate_entry.approval_entry_mut(&relay_block)
-				.expect("should_broadcast only true if this fetched earlier; qed");
+				.expect("should_trigger only true if this fetched earlier; qed");
 
 			approval_entry.trigger_our_assignment(state.clock.tick_now())
 		};
