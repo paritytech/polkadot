@@ -263,7 +263,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Also requires `RequiredTranches`
   * If the `approval_entry` is approved, this doesn't need to be woken up again.
   * If `RequiredTranches::All` - no wakeup. We assume other incoming votes will trigger wakeup and potentially re-schedule.
-  * If `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }` - schedule at the lesser of the next no-show tick, or the tick, offset positively by `clock_drift` of the next non-empty tranche we are aware of after `considered`, including any tranche containing our own unbroadcast assignment.
+  * If `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }` - schedule at the lesser of the next no-show tick, or the tick, offset positively by `clock_drift` of the next non-empty tranche we are aware of after `considered`, including any tranche containing our own unbroadcast assignment. This can lead to no wakeup in the case that we have already broadcast our assignment and there are no pending no-shows; that is, we have approval votes for every assignment we've received that is not already a no-show. In this case, we will be re-triggered by other validators broadcasting their assignments.
   * If `RequiredTranches::Exact { next_no_show, .. } - set a wakeup for the next no-show tick.
 
 #### Launch Approval Work
@@ -359,7 +359,7 @@ Likewise, when considering how many tranches to take, the no-show depth should b
   * Requires `(block_entry, candidate_entry, approval_entry, n_tranches)`
   * If `n_tranches` is `RequiredTranches::Pending`, return false
   * If `n_tranches` is `RequiredTranches::All`,  then we return `3 * n_approvals > 2 * n_validators`.
-  * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved. e.g. if we had 5 tranches and 1 no-show, we would accept all validators in tranches 0..=5 except for 1 approving. In that example, we also accept all validators in tranches 0..=5 approving, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. If there are more missing approvals than there are no-shows, that indicates that there are some assignments which are not yet no-shows, but may become no-shows.
+  * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved. e.g. if we had 5 tranches and 1 tolerated missing, we would accept only if all but 1 of assigned validators in tranches 0..=5 have approved. In that example, we also accept all validators in tranches 0..=5 having approved, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. `tolerated_missing` actually represents covered no-shows. If there are more missing approvals than there are tolerated missing, that indicates that there are some assignments which are not yet no-shows, but may become no-shows, and we should wait for the validators to either approve or become no-shows.
 
 ### Time
 
