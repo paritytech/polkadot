@@ -278,7 +278,7 @@ fn some_state(config: StateConfig) -> State<TestStore> {
 		slot,
 		candidates: vec![(core_index, candidate_hash)],
 		relay_vrf_story: Default::default(),
-		approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+		approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; 1],
 		children: Default::default(),
 	};
 	let approval_entry = approval_db::v1::ApprovalEntry {
@@ -729,8 +729,129 @@ fn second_approval_import_is_no_op() {
 }
 
 #[test]
-fn full_approval_sets_flag_and_bit() {
+fn check_and_apply_approval_sets_flag_and_bit() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let validator_index_a = 0;
+	let validator_index_b = 1;
 
+	let candidate_index = 0;
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+			Ok(0)
+		})),
+		..some_state(StateConfig {
+			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
+			validator_groups: vec![vec![0, 1], vec![2]],
+			needed_approvals: 2,
+			..Default::default()
+		})
+	};
+
+	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, validator_index_a, 0);
+
+	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, validator_index_b, 0);
+
+	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.mark_approval(validator_index_a));
+
+	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.mark_approval(validator_index_b));
+
+	let actions = check_and_apply_approval(
+		&state,
+		None,
+		candidate_hash,
+		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+		|b_hash, _a| b_hash == &block_hash,
+	).unwrap();
+
+	assert_eq!(actions.len(), 2);
+	assert_matches!(
+		actions.get(0).unwrap(),
+		Action::WriteBlockEntry(b_entry) => {
+			assert_eq!(b_entry.block_hash(), block_hash);
+			assert!(b_entry.is_fully_approved());
+			assert!(b_entry.is_candidate_approved(&candidate_hash));
+		}
+	);
+	assert_matches!(
+		actions.get(1).unwrap(),
+		Action::WriteCandidateEntry(c_hash, c_entry) => {
+			assert_eq!(c_hash, &candidate_hash);
+			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
+		}
+	);
+}
+
+#[test]
+fn check_and_apply_approval_does_not_load_cached_block_from_db() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let validator_index_a = 0;
+	let validator_index_b = 1;
+
+	let candidate_index = 0;
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria(|| {
+			Ok(0)
+		})),
+		..some_state(StateConfig {
+			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
+			validator_groups: vec![vec![0, 1], vec![2]],
+			needed_approvals: 2,
+			..Default::default()
+		})
+	};
+
+	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, validator_index_a, 0);
+
+	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, validator_index_b, 0);
+
+	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.mark_approval(validator_index_a));
+
+	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.mark_approval(validator_index_b));
+
+	let block_entry = state.db.block_entries.remove(&block_hash).unwrap();
+
+	let actions = check_and_apply_approval(
+		&state,
+		Some((block_hash, block_entry)),
+		candidate_hash,
+		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+		|b_hash, _a| b_hash == &block_hash,
+	).unwrap();
+
+	assert_eq!(actions.len(), 2);
+	assert_matches!(
+		actions.get(0).unwrap(),
+		Action::WriteBlockEntry(b_entry) => {
+			assert_eq!(b_entry.block_hash(), block_hash);
+			assert!(b_entry.is_fully_approved());
+			assert!(b_entry.is_candidate_approved(&candidate_hash));
+		}
+	);
+	assert_matches!(
+		actions.get(1).unwrap(),
+		Action::WriteCandidateEntry(c_hash, c_entry) => {
+			assert_eq!(c_hash, &candidate_hash);
+			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
+		}
+	);
 }
 
 #[test]

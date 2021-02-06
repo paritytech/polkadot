@@ -308,6 +308,18 @@ impl BlockEntry {
 		self.approved_bitfield.all()
 	}
 
+	#[cfg(test)]
+	pub fn block_hash(&self) -> Hash {
+		self.block_hash
+	}
+
+	#[cfg(test)]
+	pub fn is_candidate_approved(&self, candidate_hash: &CandidateHash) -> bool {
+		self.candidates.iter().position(|(_, h)| h == candidate_hash)
+			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
+			.unwrap_or(false)
+	}
+
 	/// Get the slot of the block.
 	pub fn slot(&self) -> Slot {
 		self.slot
