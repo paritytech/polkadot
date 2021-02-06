@@ -880,7 +880,7 @@ mod tests {
 				))
 			).await;
 
-			let actions = network_handle.next_network_actions(2).await;
+			let actions = network_handle.next_network_actions(4).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
 				view![hash_a]
 			).encode();
@@ -942,7 +942,7 @@ mod tests {
 				))
 			).await;
 
-			let actions = network_handle.next_network_actions(2).await;
+			let actions = network_handle.next_network_actions(4).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
 				View { heads: vec![hash_a], finalized_number: 5 }
 			).encode();
@@ -1132,7 +1132,7 @@ mod tests {
 				))
 			).await;
 
-			let actions = network_handle.next_network_actions(1).await;
+			let actions = network_handle.next_network_actions(3).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
 				view![hash_a]
 			).encode();
@@ -1203,7 +1203,7 @@ mod tests {
 				WireMessage::ProtocolMessage(message.clone()).encode(),
 			).await;
 
-			let actions = network_handle.next_network_actions(1).await;
+			let actions = network_handle.next_network_actions(3).await;
 			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::ReputationChange(
@@ -1324,7 +1324,7 @@ mod tests {
 				))
 			).await;
 
-			let actions = network_handle.next_network_actions(1).await;
+			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
 				View {
 					heads: vec![hash_b],
@@ -1372,7 +1372,7 @@ mod tests {
 				).encode(),
 			).await;
 
-			let actions = network_handle.next_network_actions(1).await;
+			let actions = network_handle.next_network_actions(2).await;
 			assert_network_actions_contains(
 				&actions,
 				&NetworkAction::ReputationChange(
@@ -1419,6 +1419,11 @@ mod tests {
 					NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 					&mut virtual_overseer,
 				).await;
+			}
+
+			// consume peer view changes
+			{
+				let _peer_view_changes = network_handle.next_network_actions(2).await;
 			}
 
 			// send a validation protocol message.
