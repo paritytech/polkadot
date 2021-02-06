@@ -1013,6 +1013,220 @@ fn assignment_not_triggered_if_already_triggered() {
 }
 
 #[test]
+fn assignment_not_triggered_by_exact() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
+
+	let candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 1,
+				validator_index: 4,
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	let tranche_now = 1;
+	assert!(!should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::Exact { needed: 2, next_no_show: None, tolerated_missing: 0 },
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_not_triggered_more_than_maximum() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
+	let maximum_broadcast = 10;
+
+	let candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: maximum_broadcast + 1,
+				validator_index: 4,
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	let tranche_now = 50;
+	assert!(!should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::Pending {
+			maximum_broadcast,
+			clock_drift: 0,
+			considered: 10,
+			next_no_show: None,
+		},
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_triggered_if_at_maximum() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
+	let maximum_broadcast = 10;
+
+	let candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: maximum_broadcast,
+				validator_index: 4,
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	let tranche_now = maximum_broadcast;
+	assert!(should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::Pending {
+			maximum_broadcast,
+			clock_drift: 0,
+			considered: 10,
+			next_no_show: None,
+		},
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
+	let maximum_broadcast = 10;
+
+	let candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: maximum_broadcast,
+				validator_index: 4,
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	let tranche_now = 9;
+	assert!(!should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::Pending {
+			maximum_broadcast,
+			clock_drift: 0,
+			considered: 10,
+			next_no_show: None,
+		},
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
+	let maximum_broadcast = 10;
+
+	let candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: maximum_broadcast,
+				validator_index: 4,
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	let tranche_now = 10;
+	assert!(!should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::Pending {
+			maximum_broadcast,
+			clock_drift: 1,
+			considered: 10,
+			next_no_show: None,
+		},
+		tranche_now,
+	));
+}
+
+#[test]
 fn background_requests_are_forwarded() {
 
 }
@@ -1024,21 +1238,6 @@ fn triggered_assignment_leads_to_recovery_and_validation() {
 
 #[test]
 fn finalization_event_prunes() {
-
-}
-
-#[test]
-fn load_initial_session_window() {
-
-}
-
-#[test]
-fn adjust_session_window() {
-
-}
-
-#[test]
-fn same_candidate_in_multiple_blocks() {
 
 }
 
