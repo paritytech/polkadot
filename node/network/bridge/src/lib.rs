@@ -854,6 +854,51 @@ mod tests {
 	}
 
 	#[test]
+	fn send_our_view_upon_connection() {
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut network_handle,
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer = PeerId::random();
+
+			let head = Hash::repeat_byte(1);
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(head, Arc::new(JaegerSpan::Disabled)),
+				))
+			).await;
+
+			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
+			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			let view = view![head];
+			let actions = network_handle.next_network_actions(2).await;
+			assert_network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer.clone(),
+					PeerSet::Validation,
+					WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+						view.clone(),
+					).encode(),
+				),
+			);
+			assert_network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer.clone(),
+					PeerSet::Collation,
+					WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(
+						view.clone(),
+					).encode(),
+				),
+			);
+		});
+	}
+
+	#[test]
 	fn sends_view_updates_to_peers() {
 		test_harness(|test_harness| async move {
 			let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
