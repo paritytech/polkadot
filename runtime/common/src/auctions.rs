@@ -1076,6 +1076,7 @@ mod benchmarking {
 	};
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
+	use crate::auctions::Module as Auctions;
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
 
@@ -1096,8 +1097,45 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(RawEvent::AuctionStarted(
 				AuctionCounter::get(),
-				lease_period_index,
-				duration,
+				LeasePeriodOf::<T>::max_value(),
+				T::BlockNumber::max_value(),
+			).into());
+		}
+
+		// Worst case scenario a new bid comes in which kicks out an existing bid for the same slot.
+		bid {
+			// Create a new auction
+			let duration = T::BlockNumber::max_value();
+			let lease_period_index = LeasePeriodOf::<T>::zero();
+			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+
+			// Make an existing bid
+			let para = ParaId::from(0);
+			let auction_index = AuctionCounter::get();
+			let first_slot = AuctionInfo::<T>::get().unwrap().0;
+			let last_slot = first_slot + 3u32.into();
+			let first_amount = CurrencyOf::<T>::minimum_balance();
+			let first_bidder: T::AccountId = account("first_bidder", 0, 0);
+			CurrencyOf::<T>::make_free_balance_be(&first_bidder, BalanceOf::<T>::max_value());
+			Auctions::<T>::bid(
+				RawOrigin::Signed(first_bidder.clone()).into(),
+				para,
+				auction_index,
+				first_slot,
+				last_slot,
+				first_amount,
+			)?;
+
+			let caller: T::AccountId = whitelisted_caller();
+			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			let new_para = ParaId::from(1);
+			let bigger_amount = CurrencyOf::<T>::minimum_balance().saturating_mul(10u32.into());
+		}: _(RawOrigin::Signed(caller), new_para, auction_index, first_slot, last_slot, bigger_amount)
+		verify {
+			// Confirms that we unreserved funds from a previous bidder, which is worst case scenario.
+			assert_last_event::<T>(RawEvent::Unreserved(
+				first_bidder,
+				first_amount,
 			).into());
 		}
 	}
@@ -1111,6 +1149,7 @@ mod benchmarking {
 		fn test_benchmarks() {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_new_auction::<Test>());
+				assert_ok!(test_benchmark_bid::<Test>());
 			});
 		}
 	}
