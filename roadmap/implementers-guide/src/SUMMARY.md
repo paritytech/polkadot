@@ -51,6 +51,7 @@
     - [Approval Voting](node/approval/approval-voting.md)
     - [Approval Distribution](node/approval/approval-distribution.md)
     - [Dispute Participation](node/approval/dispute-participation.md)
+      - [Dispute Components](disputes-component-partitions.md)
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)
     - [Candidate Validation](node/utility/candidate-validation.md)
