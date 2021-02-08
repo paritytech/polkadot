@@ -43,7 +43,7 @@ use polkadot_subsystem::{
 	},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, PeerId, ReputationChange as Rep, RequestId,
+	peer_set::PeerSet, v1 as protocol_v1, PeerId, ReputationChange as Rep, RequestId,
 };
 use polkadot_node_subsystem_util::{
 	Timeout, TimeoutExt,
@@ -579,6 +579,7 @@ async fn handle_from_interaction(
 
 			let message = NetworkBridgeMessage::ConnectToValidators {
 				validator_ids: vec![id.clone()],
+				peer_set: PeerSet::Validation,
 				connected: tx,
 			};
 

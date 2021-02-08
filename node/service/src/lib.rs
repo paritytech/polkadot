@@ -243,6 +243,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
+		config.role.is_authority().into(),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
 		client.clone(),
@@ -349,7 +350,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	_: AvailabilityConfig,
 	_: Arc<sc_network::NetworkService<Block, Hash>>,
 	_: AuthorityDiscoveryService,
-	request_multiplexer: (),
+	_request_multiplexer: (),
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,

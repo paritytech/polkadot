@@ -50,6 +50,7 @@ pub(crate) enum Action {
 	/// Ask network to connect to validators.
 	ConnectToValidators {
 		validator_ids: Vec<AuthorityDiscoveryId>,
+		peer_set: PeerSet,
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 	},
 
@@ -133,9 +134,11 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 				}
 				NetworkBridgeMessage::ConnectToValidators {
 					validator_ids,
+					peer_set,
 					connected,
 				} => Action::ConnectToValidators {
 					validator_ids,
+					peer_set,
 					connected,
 				},
 			},
