@@ -213,7 +213,7 @@ construct_runtime! {
 		// Bridges support.
 		Mmr: pallet_mmr::{Module, Call, Storage},
 		MmrLeaf: mmr::{Module},
-		Beefy: pallet_beefy::{Module, Config<T>},
+		Beefy: pallet_beefy::{Module, Config<T>, Storage},
 	}
 }
 
