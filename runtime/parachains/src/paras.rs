@@ -284,7 +284,7 @@ decl_storage! {
 		/// The current session index.
 		CurrentSessionIndex get(fn session_index): SessionIndex;
 		/// The actions to perform during the start of a specific session index.
-		ActionsQueue: map hasher(twox_64_concat) SessionIndex => Vec<(ParaId, ParaAction)>;
+		ActionsQueue: map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
@@ -394,62 +394,42 @@ impl<T: Config> Module<T> {
 		let mut parachains = <Self as Store>::Parachains::get();
 		let now = <frame_system::Module<T>>::block_number();
 
-		for (para, action) in actions {
-			match action {
+		for para in actions {
+			let lifecycle = ParaLifecycles::get(&para);
+			match lifecycle {
+				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */ },
 				// Onboard a new parathread
-				ParaAction::Onboard => {
-					ParaLifecycles::mutate(&para, |state| {
-						if *state == Some(ParaLifecycle::Onboarding) {
-							if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
-								if genesis_data.parachain {
-									if let Err(i) = parachains.binary_search(&para) {
-										parachains.insert(i, para);
-									}
-									*state = Some(ParaLifecycle::Parachain);
-								} else {
-									*state = Some(ParaLifecycle::Parathread);
-								}
-
-								<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
-								<Self as Store>::CurrentCode::insert(&para, genesis_data.validation_code);
-							}
-						}
-					});
-				},
-				// Upgrade a parathread to a parachain
-				ParaAction::Upgrade => {
-					ParaLifecycles::mutate(&para, |state| {
-						if *state == Some(ParaLifecycle::UpgradingToParachain) {
+				Some(ParaLifecycle::Onboarding) => {
+					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
+						if genesis_data.parachain {
 							if let Err(i) = parachains.binary_search(&para) {
 								parachains.insert(i, para);
 							}
-							*state = Some(ParaLifecycle::Parachain);
+							ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
+						} else {
+							ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
 						}
-					});
+
+						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
+						<Self as Store>::CurrentCode::insert(&para, genesis_data.validation_code);
+					}
+				},
+				// Upgrade a parathread to a parachain
+				Some(ParaLifecycle::UpgradingToParachain) => {
+					if let Err(i) = parachains.binary_search(&para) {
+						parachains.insert(i, para);
+					}
+					ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
 				},
 				// Downgrade a parachain to a parathread
-				ParaAction::Downgrade => {
-					ParaLifecycles::mutate(&para, |state| {
-						if *state == Some(ParaLifecycle::DowngradingToParathread) {
-							if let Ok(i) = parachains.binary_search(&para) {
-								parachains.remove(i);
-							}
-							*state = Some(ParaLifecycle::Parathread);
-						}
-					});
+				Some(ParaLifecycle::DowngradingToParathread) => {
+					if let Ok(i) = parachains.binary_search(&para) {
+						parachains.remove(i);
+					}
+					ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
 				},
 				// Offboard a parathread from the system
-				ParaAction::Offboard => {
-					// Warn if there is a state error... but still perform the offboarding to be defensive.
-					if let Some(state) = ParaLifecycles::get(&para) {
-						if !state.is_outgoing() {
-							frame_support::debug::error!(
-								target: "parachains",
-								"Outgoing parachain has wrong lifecycle state."
-							)
-						}
-					};
-
+				Some(ParaLifecycle::OutgoingParachain) | Some(ParaLifecycle::OutgoingParathread) => {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
@@ -622,10 +602,10 @@ impl<T: Config> Module<T> {
 		}
 
 		let dup = ActionsQueue::mutate(scheduled_session, |v| {
-			match v.binary_search_by_key(&id, |&(a, _)| a) {
+			match v.binary_search(&id) {
 				Ok(_) => true,
 				Err(i) => {
-					v.insert(i, (id, ParaAction::Onboard));
+					v.insert(i, id);
 					ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
 					false
 				}
@@ -1506,7 +1486,7 @@ mod tests {
 
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
-				vec![(c, ParaAction::Onboard), (b, ParaAction::Onboard), (a, ParaAction::Onboard)],
+				vec![c, b, a],
 			);
 
 			// Lifecycle is tracked correctly
@@ -1520,7 +1500,7 @@ mod tests {
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
-				vec![(c, ParaAction::Onboard), (b, ParaAction::Onboard), (a, ParaAction::Onboard)],
+				vec![c, b, a],
 			);
 
 			// Lifecycle is tracked correctly
@@ -1583,7 +1563,7 @@ mod tests {
 
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
-				vec![(c, ParaAction::Onboard), (b, ParaAction::Onboard), (a, ParaAction::Onboard)],
+				vec![c, b, a],
 			);
 
 			// Lifecycle is tracked correctly
@@ -1598,7 +1578,7 @@ mod tests {
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
-				vec![(c, ParaAction::Onboard), (b, ParaAction::Onboard), (a, ParaAction::Onboard)],
+				vec![c, b, a],
 			);
 			// Lifecycle is tracked correctly
 			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
