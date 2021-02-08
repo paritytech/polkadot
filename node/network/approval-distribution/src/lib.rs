@@ -35,13 +35,13 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, ApprovalDistributionMessage, ApprovalVotingMessage, NetworkBridgeMessage,
-		AssignmentCheckResult, ApprovalCheckResult,
+		AssignmentCheckResult, ApprovalCheckResult, NetworkBridgeEvent,
 	},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_node_network_protocol::{
-	PeerId, View, NetworkBridgeEvent, v1 as protocol_v1, ReputationChange as Rep,
+	PeerId, View, v1 as protocol_v1, ReputationChange as Rep,
 };
 
 const LOG_TARGET: &str = "approval_distribution";
