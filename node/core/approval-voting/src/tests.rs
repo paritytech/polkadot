@@ -1227,6 +1227,51 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 }
 
 #[test]
+fn wakeups_drain() {
+	let mut wakeups = Wakeups::default();
+
+	let b_a = Hash::repeat_byte(0);
+	let b_b = Hash::repeat_byte(1);
+
+	let c_a = CandidateHash(Hash::repeat_byte(2));
+	let c_b = CandidateHash(Hash::repeat_byte(3));
+
+	wakeups.schedule(b_a, c_a, 1);
+	wakeups.schedule(b_a, c_b, 4);
+	wakeups.schedule(b_b, c_b, 3);
+
+	assert_eq!(wakeups.first().unwrap(), 1);
+
+	assert_eq!(
+		wakeups.drain(..=3).collect::<Vec<_>>(),
+		vec![(b_a, c_a), (b_b, c_b)],
+	);
+
+	assert_eq!(wakeups.first().unwrap(), 4);
+}
+
+#[test]
+fn wakeup_earlier_supersedes_later() {
+	let mut wakeups = Wakeups::default();
+
+	let b_a = Hash::repeat_byte(0);
+	let c_a = CandidateHash(Hash::repeat_byte(2));
+
+	wakeups.schedule(b_a, c_a, 4);
+	wakeups.schedule(b_a, c_a, 2);
+	wakeups.schedule(b_a, c_a, 3);
+
+	assert_eq!(wakeups.first().unwrap(), 2);
+
+	assert_eq!(
+		wakeups.drain(..=2).collect::<Vec<_>>(),
+		vec![(b_a, c_a)],
+	);
+
+	assert!(wakeups.first().is_none());
+}
+
+#[test]
 fn background_requests_are_forwarded() {
 
 }

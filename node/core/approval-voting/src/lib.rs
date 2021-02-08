@@ -134,10 +134,10 @@ impl Wakeups {
 	// for these values. replaces any later wakeup.
 	fn schedule(&mut self, block_hash: Hash, candidate_hash: CandidateHash, tick: Tick) {
 		if let Some(prev) = self.reverse_wakeups.get(&(block_hash, candidate_hash)) {
-			if prev >= &tick { return }
+			if prev <= &tick { return }
 
-			// we are replacing previous wakeup.
-			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
+			// we are replacing previous wakeup with an earlier one.
+			if let Entry::Occupied(mut entry) = self.wakeups.entry(*prev) {
 				if let Some(pos) = entry.get().iter()
 					.position(|x| x == &(block_hash, candidate_hash))
 				{
@@ -156,6 +156,8 @@ impl Wakeups {
 
 	// drains all wakeups within the given range.
 	// panics if the given range is empty.
+	//
+	// only looks at the end bound of the range.
 	fn drain<'a, R: RangeBounds<Tick>>(&'a mut self, range: R)
 		-> impl Iterator<Item = (Hash, CandidateHash)> + 'a
 	{
