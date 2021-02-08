@@ -27,7 +27,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
 	messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
-		RuntimeApiMessage, RuntimeApiRequest,
+		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
 	},
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
@@ -36,7 +36,7 @@ use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, NetworkBridgeEvent, OurView,
+	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, OurView,
 };
 
 use futures::prelude::*;

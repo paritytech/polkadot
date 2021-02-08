@@ -24,11 +24,17 @@ use futures::stream::BoxStream;
 use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
+use sc_network::{NetworkService, IfDisconnected};
 
-use super::LOG_TARGET;
-use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId, ReputationChange};
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet,
+	request_response::{OutgoingRequest, Requests},
+	PeerId, ReputationChange,
+};
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
+
+use super::LOG_TARGET;
 
 /// Send a message to the network.
 ///
@@ -86,7 +92,6 @@ pub enum NetworkAction {
 }
 
 /// An abstraction over networking for the purposes of this subsystem.
-///
 pub trait Network: Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
@@ -98,6 +103,9 @@ pub trait Network: Send + 'static {
 	fn action_sink<'a>(
 		&'a mut self,
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>;
+
+	/// Send a request to a remote peer.
+	fn start_request(&self, req: Requests);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
 	fn report_peer(
@@ -129,9 +137,9 @@ pub trait Network: Send + 'static {
 	}
 }
 
-impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
+impl Network for Arc<NetworkService<Block, Hash>> {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		sc_network::NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
+		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -141,7 +149,7 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		use futures::task::{Context, Poll};
 
 		// wrapper around a NetworkService to make it act like a sink.
-		struct ActionSink<'b>(&'b sc_network::NetworkService<Block, Hash>);
+		struct ActionSink<'b>(&'b NetworkService<Block, Hash>);
 
 		impl<'b> Sink<NetworkAction> for ActionSink<'b> {
 			type Error = SubsystemError;
@@ -179,5 +187,24 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		}
 
 		Box::pin(ActionSink(&**self))
+	}
+
+	fn start_request(&self, req: Requests) {
+		let (
+			protocol,
+			OutgoingRequest {
+				peer,
+				payload,
+				pending_response,
+			},
+		) = req.encode_request();
+
+		NetworkService::start_request(&*self,
+			peer,
+			protocol.into_protocol_name(),
+			payload,
+			pending_response,
+			IfDisconnected::TryConnect,
+		);
 	}
 }

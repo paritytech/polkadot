@@ -205,7 +205,7 @@ decl_module! {
 			let n = AuctionCounter::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
-			let ending = frame_system::Module::<T>::block_number() + duration;
+			let ending = frame_system::Module::<T>::block_number().saturating_add(duration);
 			AuctionInfo::<T>::put((lease_period_index, ending));
 
 			Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending))
@@ -506,7 +506,7 @@ mod tests {
 		impl_outer_origin, parameter_types, ord_parameter_types, assert_ok, assert_noop, assert_storage_noop,
 		traits::{OnInitialize, OnFinalize}, dispatch::DispatchError::BadOrigin,
 	};
-	use frame_system::EnsureSignedBy;
+	use frame_system::{EnsureSignedBy, EnsureOneOf, EnsureRoot};
 	use pallet_balances;
 	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 
@@ -630,12 +630,18 @@ mod tests {
 		pub const Six: u64 = 6;
 	}
 
+	type RootOrSix = EnsureOneOf<
+		u64,
+		EnsureRoot<u64>,
+		EnsureSignedBy<Six, u64>,
+	>;
+
 	impl Config for Test {
 		type Event = ();
 		type Leaser = TestLeaser;
 		type EndingPeriod = EndingPeriod;
 		type Randomness = RandomnessCollectiveFlip;
-		type InitiateOrigin = EnsureSignedBy<Six, u64>;
+		type InitiateOrigin = RootOrSix;
 	}
 
 	type System = frame_system::Module<Test>;
@@ -645,7 +651,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
-	fn new_test_ext() -> sp_io::TestExternalities {
+	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
@@ -1060,5 +1066,95 @@ mod tests {
 			(1, 100.into(), 100, SlotRange::ZeroThree),
 		];
 		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking {
+	use super::{*, Module as Crowdloan};
+	use crate::slots::Module as Slots;
+	use frame_system::RawOrigin;
+	use frame_support::{
+		assert_ok,
+		traits::OnInitialize,
+	};
+	use sp_runtime::traits::Bounded;
+	use sp_std::prelude::*;
+	use crate::auctions::Module as Auctions;
+
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
+
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+		let events = frame_system::Module::<T>::events();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		// compare to the last event record
+		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+		assert_eq!(event, &system_event);
+	}
+
+	benchmarks! {
+		new_auction {
+			let duration = T::BlockNumber::max_value();
+			let lease_period_index = LeasePeriodOf::<T>::max_value();
+			let origin = T::InitiateOrigin::successful_origin();
+		}: _(RawOrigin::Root, duration, lease_period_index)
+		verify {
+			assert_last_event::<T>(RawEvent::AuctionStarted(
+				AuctionCounter::get(),
+				LeasePeriodOf::<T>::max_value(),
+				T::BlockNumber::max_value(),
+			).into());
+		}
+
+		// Worst case scenario a new bid comes in which kicks out an existing bid for the same slot.
+		bid {
+			// Create a new auction
+			let duration = T::BlockNumber::max_value();
+			let lease_period_index = LeasePeriodOf::<T>::zero();
+			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+
+			// Make an existing bid
+			let para = ParaId::from(0);
+			let auction_index = AuctionCounter::get();
+			let first_slot = AuctionInfo::<T>::get().unwrap().0;
+			let last_slot = first_slot + 3u32.into();
+			let first_amount = CurrencyOf::<T>::minimum_balance();
+			let first_bidder: T::AccountId = account("first_bidder", 0, 0);
+			CurrencyOf::<T>::make_free_balance_be(&first_bidder, BalanceOf::<T>::max_value());
+			Auctions::<T>::bid(
+				RawOrigin::Signed(first_bidder.clone()).into(),
+				para,
+				auction_index,
+				first_slot,
+				last_slot,
+				first_amount,
+			)?;
+
+			let caller: T::AccountId = whitelisted_caller();
+			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			let new_para = ParaId::from(1);
+			let bigger_amount = CurrencyOf::<T>::minimum_balance().saturating_mul(10u32.into());
+		}: _(RawOrigin::Signed(caller), new_para, auction_index, first_slot, last_slot, bigger_amount)
+		verify {
+			// Confirms that we unreserved funds from a previous bidder, which is worst case scenario.
+			assert_last_event::<T>(RawEvent::Unreserved(
+				first_bidder,
+				first_amount,
+			).into());
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::auctions::tests::{new_test_ext, Test};
+
+		#[test]
+		fn test_benchmarks() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_new_auction::<Test>());
+				assert_ok!(test_benchmark_bid::<Test>());
+			});
+		}
 	}
 }

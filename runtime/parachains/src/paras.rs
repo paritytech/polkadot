@@ -95,10 +95,8 @@ enum UseCodeAt<N> {
 /// The possible states of a para, to take into account delayed lifecycle changes.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub enum ParaLifecycle {
-	/// Para is new and is onboarding as a Parathread.
-	OnboardingAsParathread,
-	/// Para is new and is onboarding as a Parachain.
-	OnboardingAsParachain,
+	/// Para is new and is onboarding as a Parathread or Parachain.
+	Onboarding,
 	/// Para is a Parathread.
 	Parathread,
 	/// Para is a Parachain.
@@ -107,51 +105,31 @@ pub enum ParaLifecycle {
 	UpgradingToParachain,
 	/// Para is a Parachain which is downgrading to a Parathread.
 	DowngradingToParathread,
-	/// Parachain is being offboarded.
-	OutgoingParathread,
 	/// Parathread is being offboarded.
+	OutgoingParathread,
+	/// Parachain is being offboarded.
 	OutgoingParachain,
 }
 
 impl ParaLifecycle {
 	pub fn is_onboarding(&self) -> bool {
-		match self {
-			ParaLifecycle::OnboardingAsParathread |
-			ParaLifecycle::OnboardingAsParachain
-				=> true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::Onboarding)
 	}
 
 	pub fn is_stable(&self) -> bool {
-		match self {
-			ParaLifecycle::Parathread |
-			ParaLifecycle::Parachain
-				=> true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::Parathread | ParaLifecycle::Parachain)
 	}
 
 	pub fn is_parachain(&self) -> bool {
-		match self {
-			ParaLifecycle::Parachain => true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::Parachain)
 	}
 
 	pub fn is_parathread(&self) -> bool {
-		match self {
-			ParaLifecycle::Parathread => true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::Parathread)
 	}
 
 	pub fn is_outgoing(&self) -> bool {
-		match self {
-			ParaLifecycle::OutgoingParathread |
-			ParaLifecycle::OutgoingParachain => true,
-			_ => false,
-		}
+		matches!(self, ParaLifecycle::OutgoingParathread | ParaLifecycle::OutgoingParachain)
 	}
 
 	pub fn is_transitioning(&self) -> bool {
@@ -386,10 +364,8 @@ impl<T: Config> Module<T> {
 	fn apply_incoming(parachains: &mut Vec<ParaId>) {
 		let upcoming = <Self as Store>::UpcomingParas::take();
 		for upcoming_para in upcoming {
-			let state = match ParaLifecycles::get(&upcoming_para) {
-				Some(ParaLifecycle::OnboardingAsParachain) => ParaLifecycle::OnboardingAsParachain,
-				Some(ParaLifecycle::OnboardingAsParathread) => ParaLifecycle::OnboardingAsParathread,
-				_ => continue,
+			if ParaLifecycles::get(&upcoming_para) != Some(ParaLifecycle::Onboarding) {
+				continue;
 			};
 
 			let genesis_data = match <Self as Store>::UpcomingParasGenesis::take(&upcoming_para) {
@@ -397,27 +373,17 @@ impl<T: Config> Module<T> {
 				Some(g) => g,
 			};
 
-			let mut onboarded = false;
-
 			if genesis_data.parachain {
 				if let Err(i) = parachains.binary_search(&upcoming_para) {
-					if state == ParaLifecycle::OnboardingAsParachain {
-						parachains.insert(i, upcoming_para);
-						ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parachain);
-						onboarded = true;
-					}
+					parachains.insert(i, upcoming_para);
 				}
+				ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parachain);
 			} else {
-				if state == ParaLifecycle::OnboardingAsParathread {
-					ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parathread);
-					onboarded = true
-				}
+				ParaLifecycles::insert(&upcoming_para, ParaLifecycle::Parathread);
 			}
 
-			if onboarded {
-				<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
-				<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
-			}
+			<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
+			<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
 		}
 	}
 
@@ -549,6 +515,8 @@ impl<T: Config> Module<T> {
 				}
 			}
 		});
+		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
+		weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
 		if dup {
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
@@ -556,11 +524,6 @@ impl<T: Config> Module<T> {
 		}
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-		if genesis.parachain {
-			ParaLifecycles::insert(&id, ParaLifecycle::OnboardingAsParachain);
-		} else {
-			ParaLifecycles::insert(&id, ParaLifecycle::OnboardingAsParathread);
-		}
 		UpcomingParasGenesis::insert(&id, &genesis);
 		weight = weight.saturating_add(T::DbWeight::get().writes(2));
 
@@ -572,8 +535,7 @@ impl<T: Config> Module<T> {
 	/// Noop if para is already outgoing or not known.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
 		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::OnboardingAsParathread) |
-			Some(ParaLifecycle::OnboardingAsParachain) => {
+			Some(ParaLifecycle::Onboarding) => {
 				UpcomingParas::mutate(|v| {
 					match v.binary_search(&id) {
 						Ok(i) => {
@@ -1439,9 +1401,9 @@ mod tests {
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 			// run to block without session change.
 			run_to_block(2, None);
@@ -1450,9 +1412,9 @@ mod tests {
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 
 			run_to_block(3, Some(vec![3]));
@@ -1510,9 +1472,9 @@ mod tests {
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 
 			// run to block without session change.
@@ -1522,9 +1484,9 @@ mod tests {
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::OnboardingAsParathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::OnboardingAsParachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::OnboardingAsParachain));
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 			Paras::schedule_para_cleanup(c);
 

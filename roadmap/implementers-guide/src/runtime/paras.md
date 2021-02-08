@@ -2,7 +2,7 @@
 
 The Paras module is responsible for storing information on parachains and parathreads. Registered
 parachains and parathreads cannot change except at session boundaries. This is primarily to ensure
-that the number of bits required for the availability bitfields does not change except at session
+that the number and meaning of bits required for the availability bitfields does not change except at session
 boundaries.
 
 It's also responsible for managing parachain validation code upgrades as well as maintaining
@@ -56,10 +56,8 @@ struct ParaGenesisArgs {
 
 /// The possible states of a para, to take into account delayed lifecycle changes.
 pub enum ParaLifecycle {
-  /// Para is new and is onboarding as a Parathread.
-  OnboardingAsParathread,
-  /// Para is new and is onboarding as a Parachain.
-  OnboardingAsParachain,
+  /// A Para is new and is onboarding.
+  Onboarding,
   /// Para is a Parathread.
   Parathread,
   /// Para is a Parachain.
@@ -68,9 +66,9 @@ pub enum ParaLifecycle {
   UpgradingToParachain,
   /// Para is a Parachain which is downgrading to a Parathread.
   DowngradingToParathread,
-  /// Parachain is being offboarded.
-  OutgoingParathread,
   /// Parathread is being offboarded.
+  OutgoingParathread,
+  /// Parachain is being offboarded.
   OutgoingParachain,
 }
 ```
@@ -87,10 +85,10 @@ None                 Parathread                  Parachain
  |    (Session Delay)     |                          |
  |                        |                          |
  +----------------------->+                          |
- | OnboardingAsParathread |                          |
+ |       Onboarding       |                          |
  |                        |                          |
  +-------------------------------------------------->+
- | OnboardingAsParachain  |                          |
+ |       Onboarding       |                          |
  |                        |                          |
  |                        +------------------------->+
  |                        |  UpgradingToParachain    |
@@ -182,9 +180,9 @@ UpcomingDowngrades: Vec<ParaId>;
   session. Noop if para is already registered in the system with some `ParaLifecycle`.
 * `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up at the next session.
 * `schedule_parathread_upgrade(ParaId)`: Schedule a parathread to be upgraded to a parachain. Noop
-  if `ParaLifecycle` is not `Parachain`.
+  if `ParaLifecycle` is not `Parathread`.
 * `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread.
-  Noop if `ParaLifecycle` is not `Parachain`. `ParaLifecycle` is not `Parathread`.
+  Noop if `ParaLifecycle` is not `Parachain`.
 * `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code
   upgrade of the given parachain, to be applied after inclusion of a block of the same parachain
   executed in the context of a relay-chain block with number >= `expected_at`.
@@ -198,8 +196,10 @@ UpcomingDowngrades: Vec<ParaId>;
   current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if
   provided, must be before `at`. If the validation code has been pruned, this will return `None`.
 * `lifecycle(ParaId) -> Option<ParaLifecycle>`: Return the `ParaLifecycle` of a para.
-* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain, including those which may be transitioning to a parathread in the future.
-* `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread, including those which may be transitioning to a parachain in the future.
+* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain, including
+  those which may be transitioning to a parathread in the future.
+* `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread,
+  including those which may be transitioning to a parachain in the future.
 * `is_valid_para(ParaId) -> bool`: Returns true if the para ID references either a live parathread
   or live parachain.
 * `last_code_upgrade(id: ParaId, include_future: bool) -> Option<BlockNumber>`: The block number of
