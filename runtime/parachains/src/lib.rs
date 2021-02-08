@@ -61,7 +61,7 @@ where
 	+ ump::Config
 	+ hrmp::Config,
 {
-	<paras::Module<T>>::schedule_para_cleanup(id);
+	let _ = <paras::Module<T>>::schedule_para_cleanup(id);
 	<dmp::Module<T>>::schedule_para_cleanup(id);
 	<ump::Module<T>>::schedule_para_cleanup(id);
 	<hrmp::Module<T>>::schedule_para_cleanup(id);

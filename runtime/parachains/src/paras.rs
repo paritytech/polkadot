@@ -112,7 +112,7 @@ pub enum ParaLifecycle {
 }
 
 // Wait until the session index is 2 larger then the current index to apply any changes.
-const SESSION_DELAY: SessionIndex = 2;
+pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
 impl ParaLifecycle {
 	/// Returns true if parachain is currently onboarding. To learn if the
