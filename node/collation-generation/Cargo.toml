@@ -13,7 +13,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "remove-back-compat-hack" }
 thiserror = "1.0.23"
 
 [dev-dependencies]
