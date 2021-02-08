@@ -17,7 +17,7 @@
 //! Polkadot chain configurations.
 
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use babe_primitives::AuthorityId as BabeId;
+use sp_consensus_babe::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use hex_literal::hex;
 use kusama::constants::currency::DOTS as KSM;

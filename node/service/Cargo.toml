@@ -15,6 +15,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkc
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
@@ -24,7 +25,6 @@ telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/sub
 
 # Substrate Primitives
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
@@ -40,6 +40,8 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "bkchr-
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 
 # Substrate Pallets

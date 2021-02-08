@@ -31,7 +31,7 @@ use consensus_common::BlockStatus;
 pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ babe_primitives::BabeApi<Block>
+	+ sp_consensus_babe::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
@@ -49,7 +49,7 @@ impl<Api> RuntimeApiCollection for Api
 where
 	Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 		+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-		+ babe_primitives::BabeApi<Block>
+		+ sp_consensus_babe::BabeApi<Block>
 		+ grandpa_primitives::GrandpaApi<Block>
 		+ ParachainHost<Block>
 		+ sp_block_builder::BlockBuilder<Block>

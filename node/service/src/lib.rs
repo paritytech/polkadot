@@ -231,8 +231,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	set_prometheus_registry(config)?;
 
 
-	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
@@ -271,13 +269,31 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		client.clone(),
 	)?;
 
+	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		inherent_data_providers.clone(),
+		move |_, ()| async move {
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+			let slot =
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					timestamp.timestamp(),
+					slot_duration,
+				);
+
+			let current_timestamp = timestamp.timestamp();
+			let current_slot = slot.slot();
+
+			Ok(sc_consensus_slots::SlotsInherentDataProviders::new(
+				current_timestamp,
+				current_slot,
+				(timestamp, slot),
+			))
+		},
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
 		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
@@ -337,7 +353,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		select_chain,
 		import_queue,
 		transaction_pool,
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
 }
@@ -570,7 +585,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		select_chain,
 		import_queue,
 		transaction_pool,
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent)?;
 
@@ -749,6 +763,8 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.as_ref(),
 		);
 
+		let client_clone = client.clone();
+		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
@@ -756,7 +772,32 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_import,
 			env: proposer,
 			sync_oracle: network.clone(),
-			inherent_data_providers: inherent_data_providers.clone(),
+			inherent_data_providers: move |at, ()| {
+				let client_clone = client_clone.clone();
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client_clone,
+						at,
+					)?;
+
+					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+							timestamp.timestamp(),
+							slot_duration,
+						);
+
+					let current_timestamp = timestamp.timestamp();
+					let current_slot = slot.slot();
+
+					Ok(sc_consensus_slots::SlotsInherentDataProviders::new(
+						current_timestamp,
+						current_slot,
+						(uncles, timestamp, slot),
+					))
+				}
+			},
 			force_authoring,
 			backoff_authoring_blocks,
 			babe_link,
@@ -884,16 +925,32 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		client.clone(),
 	)?;
 
-	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
+	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link,
 		babe_block_import,
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		inherent_data_providers.clone(),
+		move |_, ()| async move {
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+			let slot =
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					timestamp.timestamp(),
+					slot_duration,
+				);
+
+			let current_timestamp = timestamp.timestamp();
+			let current_slot = slot.slot();
+
+			Ok(sc_consensus_slots::SlotsInherentDataProviders::new(
+				current_timestamp,
+				current_slot,
+				(timestamp, slot),
+			))
+		},
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
 		consensus_common::NeverCanAuthor,
