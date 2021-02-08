@@ -267,6 +267,10 @@ impl<T: Config> Auctioneer for Module<T> {
 	) -> DispatchResult {
 		Self::handle_bid(bidder, para, AuctionCounter::get(), first_slot, last_slot, amount)
 	}
+
+	fn lease_period_index() -> Self::LeasePeriod {
+		T::Leaser::lease_period_index()
+	}
 }
 
 impl<T: Config> Module<T> {

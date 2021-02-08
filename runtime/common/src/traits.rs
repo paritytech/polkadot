@@ -118,7 +118,7 @@ pub trait Auctioneer {
 	/// The currency type in which the lease is taken.
 	type Currency: ReservableCurrency<Self::AccountId>;
 
-		/// Returns `Some(n)` if the now block is part of the ending period of an auction, where `n`
+	/// Returns `Some(n)` if the `now` block is part of the ending period of an auction, where `n`
 	/// represents how far into the ending period this block is. Otherwise, returns `None`.
 	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber>;
 
@@ -136,6 +136,9 @@ pub trait Auctioneer {
 		last_slot: Self::LeasePeriod,
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 	) -> DispatchResult;
+
+	/// Returns the current lease period.
+	fn lease_period_index() -> Self::LeasePeriod;
 }
 
 /// Runtime hook for when we swap a parachain and parathread.

@@ -94,10 +94,12 @@ impl<T: frame_system::Config> TestRegistrar<T> {
 		OPERATIONS.with(|x| x.borrow().iter().map(|(p, b, c)| (*p, (*b).into(), *c)).collect::<Vec<_>>())
 	}
 
+	#[allow(dead_code)]
 	pub fn parachains() -> Vec<ParaId> {
 		PARACHAINS.with(|x| x.borrow().clone())
 	}
 
+	#[allow(dead_code)]
 	pub fn parathreads() -> Vec<ParaId> {
 		PARATHREADS.with(|x| x.borrow().clone())
 	}
