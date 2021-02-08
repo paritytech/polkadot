@@ -78,7 +78,7 @@ pub enum IsolationStrategy {
 	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	ExternalProcessSelfHost {
 		pool: ValidationPool,
-		cache_path: Option<String>,
+		cache_base_path: Option<String>,
 	},
 	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
 	/// memory is added at the end of the arguments.
@@ -95,14 +95,14 @@ pub enum IsolationStrategy {
 }
 
 impl IsolationStrategy {
-	pub fn external_process_with_caching(cache_path: Option<&Path>) -> Self {
+	pub fn external_process_with_caching(cache_base_path: Option<&Path>) -> Self {
 		// Convert cache path to string here so that we don't have to do that each time we launch
 		// validation worker.
-		let cache_path = cache_path.map(|path| path.display().to_string());
+		let cache_base_path = cache_base_path.map(|path| path.display().to_string());
 
 		Self::ExternalProcessSelfHost {
 			pool: ValidationPool::new(),
-			cache_path,
+			cache_base_path,
 		}
 	}
 }
@@ -170,9 +170,9 @@ pub struct ExecutorCache(sc_executor::WasmExecutor);
 impl ExecutorCache {
 	/// Returns a new instance of an executor cache.
 	///
-	/// `cache_path` allows to specify a directory where the executor is allowed to store files
+	/// `cache_base_path` allows to specify a directory where the executor is allowed to store files
 	/// for caching, e.g. compilation artifacts.
-	pub fn new(cache_path: Option<PathBuf>) -> ExecutorCache {
+	pub fn new(cache_base_path: Option<PathBuf>) -> ExecutorCache {
 		ExecutorCache(sc_executor::WasmExecutor::new(
 			#[cfg(all(feature = "wasmtime", not(any(target_os = "android", target_os = "unknown"))))]
 			sc_executor::WasmExecutionMethod::Compiled,
@@ -182,7 +182,7 @@ impl ExecutorCache {
 			Some(1024),
 			HostFunctions::host_functions(),
 			8,
-			cache_path,
+			cache_base_path,
 		))
 	}
 }
@@ -206,8 +206,8 @@ pub fn validate_candidate(
 			)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		IsolationStrategy::ExternalProcessSelfHost { pool, cache_path } => {
-			pool.validate_candidate(validation_code, params, cache_path.as_deref())
+		IsolationStrategy::ExternalProcessSelfHost { pool, cache_base_path } => {
+			pool.validate_candidate(validation_code, params, cache_base_path.as_deref())
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		IsolationStrategy::ExternalProcessCustomHost { pool, binary, args } => {

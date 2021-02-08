@@ -1008,8 +1008,8 @@ pub fn build_full(
 	let isolation_strategy = {
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		{
-			let cache_path = config.database.path();
-			IsolationStrategy::external_process_with_caching(cache_path)
+			let cache_base_path = config.database.path();
+			IsolationStrategy::external_process_with_caching(cache_base_path)
 		}
 
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
