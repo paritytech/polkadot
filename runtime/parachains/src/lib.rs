@@ -49,8 +49,8 @@ pub use paras::ParaLifecycle;
 pub fn schedule_para_initialize<T: paras::Config>(
 	id: primitives::v1::Id,
 	genesis: paras::ParaGenesisArgs,
-) {
-	<paras::Module<T>>::schedule_para_initialize(id, genesis);
+) -> Result<(), ()> {
+	<paras::Module<T>>::schedule_para_initialize(id, genesis).map_err(|_| ())
 }
 
 /// Schedule a para to be cleaned up at the start of the next session.

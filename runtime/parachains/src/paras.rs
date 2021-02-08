@@ -30,9 +30,9 @@ use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex,
 };
-use sp_runtime::traits::One;
+use sp_runtime::{traits::One, DispatchResult};
 use frame_support::{
-	decl_storage, decl_module, decl_error,
+	decl_storage, decl_module, decl_error, ensure,
 	traits::Get,
 	weights::Weight,
 };
@@ -319,7 +319,10 @@ fn build<T: Config>(config: &GenesisConfig<T>) {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Config> { }
+	pub enum Error for Module<T: Config> {
+		// Para cannot be onboarded because it is already tracked by our system.
+		CannotOnboard,
+	}
 }
 
 decl_module! {
@@ -588,41 +591,21 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	///
-	/// Noop if Para ID is already registered in the system with some `ParaLifecycle`.
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
-		let mut weight = T::DbWeight::get().reads_writes(0, 0);
-		// TODO increment this properly
+	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
 		let scheduled_session = Self::session_index() + SESSION_DELAY;
 
 		// Make sure parachain isn't already in our system.
-		if ParaLifecycles::contains_key(&id) {
-			weight = weight.saturating_add(T::DbWeight::get().reads(1));
-			return weight;
-		}
+		ensure!(!ParaLifecycles::contains_key(&id), Error::<T>::CannotOnboard);
 
-		let dup = ActionsQueue::mutate(scheduled_session, |v| {
-			match v.binary_search(&id) {
-				Ok(_) => true,
-				Err(i) => {
-					v.insert(i, id);
-					ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
-					false
-				}
+		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
+		UpcomingParasGenesis::insert(&id, &genesis);
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
 			}
 		});
-		weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
-		if dup {
-			weight = weight.saturating_add(T::DbWeight::get().reads(1));
-			return weight;
-		}
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-
-		UpcomingParasGenesis::insert(&id, &genesis);
-		weight = weight.saturating_add(T::DbWeight::get().writes(2));
-
-		weight
+		Ok(())
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
@@ -930,7 +913,10 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use primitives::v1::BlockNumber;
-	use frame_support::traits::{OnFinalize, OnInitialize};
+	use frame_support::{
+		assert_ok,
+		traits::{OnFinalize, OnInitialize}
+	};
 
 	use crate::mock::{new_test_ext, Paras, System, GenesisConfig as MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
@@ -1457,32 +1443,32 @@ mod tests {
 			let a = ParaId::from(999);
 			let c = ParaId::from(333);
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				b,
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![1].into(),
 					validation_code: vec![1].into(),
 				},
-			);
+			));
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				a,
 				ParaGenesisArgs {
 					parachain: false,
 					genesis_head: vec![2].into(),
 					validation_code: vec![2].into(),
 				},
-			);
+			));
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				c,
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![3].into(),
 					validation_code: vec![3].into(),
 				},
-			);
+			));
 
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
@@ -1534,32 +1520,32 @@ mod tests {
 			let a = ParaId::from(999);
 			let c = ParaId::from(333);
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				b,
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![1].into(),
 					validation_code: vec![1].into(),
 				},
-			);
+			));
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				a,
 				ParaGenesisArgs {
 					parachain: false,
 					genesis_head: vec![2].into(),
 					validation_code: vec![2].into(),
 				},
-			);
+			));
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				c,
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![3].into(),
 					validation_code: vec![3].into(),
 				},
-			);
+			));
 
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
