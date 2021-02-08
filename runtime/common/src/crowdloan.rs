@@ -991,29 +991,31 @@ mod tests {
 			assert_noop!(Crowdloan::begin_retirement(Origin::signed(1), 0), Error::<Test>::NotParachain);
 		});
 	}
-
+*/
 	#[test]
 	fn withdraw_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
-			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 100));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0, 200));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0, 300));
+			assert_ok!(TestRegistrar::<Test>::make_parathread(0.into()));
+			TestRegistrar::<Test>::set_manager(0.into(), 1);
+			assert_ok!(Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 4, 9));
+
+			// Contribute
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0.into(), 100));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), 0.into(), 200));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), 0.into(), 300));
 
 			// Skip all the way to the end
 			run_to_block(50);
 
 			// Anyone can trigger withdraw of a user's balance without fees
-			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 1, 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 1, 0.into()));
 			assert_eq!(Balances::free_balance(1), 999);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 2, 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 2, 0.into()));
 			assert_eq!(Balances::free_balance(2), 2000);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 3, 0));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(1337), 3, 0.into()));
 			assert_eq!(Balances::free_balance(3), 3000);
 		});
 	}
@@ -1022,26 +1024,28 @@ mod tests {
 	fn withdraw_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdloan
-			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9));
-			// Transfer fee is taken here
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 49));
+			assert_ok!(TestRegistrar::<Test>::make_parathread(0.into()));
+			TestRegistrar::<Test>::set_manager(0.into(), 1);
+			assert_ok!(Crowdloan::create(Origin::signed(1), 0.into(), 1000, 1, 4, 9));
+
+			// Contribute
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0.into(), 49));
 			assert_eq!(Balances::free_balance(1), 950);
 
 			run_to_block(5);
 
 			// Cannot withdraw before fund ends
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 1, 0), Error::<Test>::FundNotEnded);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 1, 0.into()), Error::<Test>::FundNotEnded);
 
 			run_to_block(10);
 
 			// Cannot withdraw if they did not contribute
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 0), Error::<Test>::NoContributions);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 0.into()), Error::<Test>::NoContributions);
 			// Cannot withdraw from a non-existent fund
-			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 1), Error::<Test>::InvalidParaId);
+			assert_noop!(Crowdloan::withdraw(Origin::signed(1337), 2, 1.into()), Error::<Test>::InvalidParaId);
 		});
 	}
-*/
+
 	#[test]
 	fn dissolve_works() {
 		new_test_ext().execute_with(|| {
