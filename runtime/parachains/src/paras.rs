@@ -112,8 +112,7 @@ pub enum ParaLifecycle {
 }
 
 // Wait until the session index is 2 larger then the current index to apply any changes.
-// TODO make 2
-const SESSION_DELAY: SessionIndex = 1;
+const SESSION_DELAY: SessionIndex = 2;
 
 impl ParaLifecycle {
 	/// Returns true if parachain is currently onboarding. To learn if the
@@ -1214,7 +1213,7 @@ mod tests {
 				expected_at
 			};
 
-			Paras::schedule_para_cleanup(para_id);
+			assert_ok!(Paras::schedule_para_cleanup(para_id));
 
 			// Just scheduling cleanup shouldn't change anything.
 			{
@@ -1232,8 +1231,8 @@ mod tests {
 				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
 			}
 
-			// run to block №4, with a session change at the end of the block 3.
-			run_to_block(4, Some(vec![4]));
+			// run to block #4, with a 2 session changes at the end of the block 2 & 3.
+			run_to_block(4, Some(vec![3,4]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
@@ -1319,7 +1318,8 @@ mod tests {
 			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 
-			run_to_block(3, Some(vec![3]));
+			// Two sessions pass, so action queue is triggered
+			run_to_block(4, Some(vec![3,4]));
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
 			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY), Vec::new());
