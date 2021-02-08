@@ -595,6 +595,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
+	config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	#[cfg(feature = "real-overseer")]
 	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
 
