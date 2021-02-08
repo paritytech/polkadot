@@ -102,26 +102,13 @@ pub enum ParaLifecycle {
 	/// Para is a Parachain.
 	Parachain,
 	/// Para is a Parathread which is upgrading to a Parachain.
-	UpgradingToParachain,
+	UpgradingParathread,
 	/// Para is a Parachain which is downgrading to a Parathread.
-	DowngradingToParathread,
+	DowngradingParachain,
 	/// Parathread is being offboarded.
 	OutgoingParathread,
 	/// Parachain is being offboarded.
 	OutgoingParachain,
-}
-
-/// The possible actions that can be applied to a para during a session.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-pub enum ParaAction {
-	/// Onboard a new para.
-	Onboard,
-	/// Upgrade a parathread into a parachain.
-	Upgrade,
-	/// Downgrade a parachain into a parathread.
-	Downgrade,
-	/// Offboard a para from the system.
-	Offboard,
 }
 
 // Wait until the session index is 2 larger then the current index to apply any changes.
@@ -129,26 +116,47 @@ pub enum ParaAction {
 const SESSION_DELAY: SessionIndex = 1;
 
 impl ParaLifecycle {
+	/// Returns true if parachain is currently onboarding. To learn if the
+	/// parachain is onboarding as a parachain or parathread, look at the
+	/// `UpcomingGenesis` storage item.
 	pub fn is_onboarding(&self) -> bool {
 		matches!(self, ParaLifecycle::Onboarding)
 	}
 
+	/// Returns true if para is in a stable state, i.e. it is currently
+	/// a parachain or parathread, and not in any transition state.
 	pub fn is_stable(&self) -> bool {
 		matches!(self, ParaLifecycle::Parathread | ParaLifecycle::Parachain)
 	}
 
+	/// Returns true if para is currently treated as a parachain.
+	/// This also includes transitioning states, so you may want to combine
+	/// this check with `is_stable` if you specifically want `Paralifecycle::Parachain`.
 	pub fn is_parachain(&self) -> bool {
-		matches!(self, ParaLifecycle::Parachain)
+		matches!(self,
+			ParaLifecycle::Parachain |
+			ParaLifecycle::DowngradingParachain |
+			ParaLifecycle::OutgoingParachain
+		)
 	}
 
+	/// Returns true if para is currently treated as a parathread.
+	/// This also includes transitioning states, so you may want to combine
+	/// this check with `is_stable` if you specifically want `Paralifecycle::Parathread`.
 	pub fn is_parathread(&self) -> bool {
-		matches!(self, ParaLifecycle::Parathread)
+		matches!(self,
+			ParaLifecycle::Parathread |
+			ParaLifecycle::UpgradingParathread |
+			ParaLifecycle::OutgoingParathread
+		)
 	}
 
+	/// Returns true if para is currently offboarding.
 	pub fn is_outgoing(&self) -> bool {
 		matches!(self, ParaLifecycle::OutgoingParathread | ParaLifecycle::OutgoingParachain)
 	}
 
+	/// Returns true if para is in any transitionary state.
 	pub fn is_transitioning(&self) -> bool {
 		!Self::is_stable(self)
 	}
@@ -320,8 +328,16 @@ fn build<T: Config>(config: &GenesisConfig<T>) {
 
 decl_error! {
 	pub enum Error for Module<T: Config> {
-		// Para cannot be onboarded because it is already tracked by our system.
+		/// Para is not registered in our system.
+		NoLifecycle,
+		/// Para cannot be onboarded because it is already tracked by our system.
 		CannotOnboard,
+		/// Para cannot be offboarded at this time.
+		CannotOffboard,
+		/// Para cannot be upgraded to a parachain.
+		CannotUpgrade,
+		/// Para cannot be downgraded to a parathread.
+		CannotDowngrade,
 	}
 }
 
@@ -418,14 +434,14 @@ impl<T: Config> Module<T> {
 					}
 				},
 				// Upgrade a parathread to a parachain
-				Some(ParaLifecycle::UpgradingToParachain) => {
+				Some(ParaLifecycle::UpgradingParathread) => {
 					if let Err(i) = parachains.binary_search(&para) {
 						parachains.insert(i, para);
 					}
 					ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
 				},
 				// Downgrade a parachain to a parathread
-				Some(ParaLifecycle::DowngradingToParathread) => {
+				Some(ParaLifecycle::DowngradingParachain) => {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
@@ -488,7 +504,7 @@ impl<T: Config> Module<T> {
 		let upgrades = UpcomingUpgrades::take();
 		for para in upgrades {
 			ParaLifecycles::mutate(&para, |state| {
-				if *state == Some(ParaLifecycle::UpgradingToParachain) {
+				if *state == Some(ParaLifecycle::UpgradingParathread) {
 					if let Err(i) = parachains.binary_search(&para) {
 						parachains.insert(i, para);
 					}
@@ -503,7 +519,7 @@ impl<T: Config> Module<T> {
 		let downgrades = UpcomingDowngrades::take();
 		for para in downgrades {
 			ParaLifecycles::mutate(&para, |state| {
-				if *state == Some(ParaLifecycle::DowngradingToParathread) {
+				if *state == Some(ParaLifecycle::DowngradingParachain) {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
@@ -590,12 +606,102 @@ impl<T: Config> Module<T> {
 		T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done)
 	}
 
+	// /// This function will offboard a parachain from the system no matter its current state.
+	// ///
+	// /// This function cannot fail.
+	// pub(crate) fn force_offboard_para(id: ParaId) {
+	// 	match ParaLifecycles::get(&id) {
+	// 		None |
+	// 		Some(ParaLifecycle::OutgoingParathread) |
+	// 		Some(ParaLifecycle::OutgoingParachain)
+	// 			=> return,
+	// 		Some(ParaLifecycle::Onboarding) => {
+	// 			ParaLifecycles::remove(&id);
+	// 			UpcomingParasGenesis::remove(&id);
+	// 			ActionsQueue::mutate(|v| {
+	// 				if let Ok(i) = v.binary_search(&id) {
+	// 					v.remove(i);
+	// 				}
+	// 			});
+	// 		},
+	// 		Some(ParaLifecycle::Parathread) => {
+	// 			ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
+	// 			ActionsQueue::mutate(|v| {
+	// 				match v.binary_search(&id) {
+	// 					Ok(_) => T::DbWeight::get().reads_writes(1, 1),
+	// 					Err(i) => {
+	// 						v.insert(i, id);
+	// 						T::DbWeight::get().reads_writes(1, 2)
+	// 					}
+	// 				}
+	// 			})
+
+	// 		},
+	// 		Some(ParaLifecycle::Parachain) => {
+	// 			OutgoingParas::mutate(|v| {
+	// 				match v.binary_search(&id) {
+	// 					Ok(_) => T::DbWeight::get().reads_writes(1, 0),
+	// 					Err(i) => {
+	// 						v.insert(i, id);
+	// 						ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParachain);
+	// 						T::DbWeight::get().reads_writes(1, 2)
+	// 					}
+	// 				}
+	// 			})
+	// 		},
+	// 		Some(ParaLifecycle::UpgradingParathread) => {
+	// 			let upgrade_weight = UpcomingUpgrades::mutate(|v| {
+	// 				match v.binary_search(&id) {
+	// 					Ok(i) => {
+	// 						v.remove(i);
+	// 						T::DbWeight::get().reads_writes(1, 1)
+	// 					},
+	// 					Err(_) => T::DbWeight::get().reads(1),
+	// 				}
+	// 			});
+	// 			let outgoing_weight = OutgoingParas::mutate(|v| {
+	// 				match v.binary_search(&id) {
+	// 					Ok(_) => T::DbWeight::get().reads_writes(1, 0),
+	// 					Err(i) => {
+	// 						v.insert(i, id);
+	// 						ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
+	// 						T::DbWeight::get().reads_writes(1, 2)
+	// 					}
+	// 				}
+	// 			});
+	// 			upgrade_weight.saturating_add(outgoing_weight)
+	// 		},
+	// 		Some(ParaLifecycle::DowngradingParachain) => {
+	// 			UpcomingDowngrades::mutate(|v| {
+	// 				match v.binary_search(&id) {
+	// 					Ok(i) => {
+	// 						v.remove(i);
+	// 						T::DbWeight::get().reads_writes(1, 1)
+	// 					},
+	// 					Err(_) => T::DbWeight::get().reads(1),
+	// 				}
+	// 			});
+	// 			let outgoing_weight = OutgoingParas::mutate(|v| {
+	// 				match v.binary_search(&id) {
+	// 					Ok(_) => T::DbWeight::get().reads_writes(1, 0),
+	// 					Err(i) => {
+	// 						v.insert(i, id);
+	// 						ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
+	// 						T::DbWeight::get().reads_writes(1, 2)
+	// 					}
+	// 				}
+	// 			});
+	// 			downgrade_weight.saturating_add(outgoing_weight)
+	// 		},
+	// }
+
 	/// Schedule a para to be initialized at the start of the next session.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
 		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let lifecycle = ParaLifecycles::get(&id);
 
 		// Make sure parachain isn't already in our system.
-		ensure!(!ParaLifecycles::contains_key(&id), Error::<T>::CannotOnboard);
+		ensure!(lifecycle.is_none(), Error::<T>::CannotOnboard);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
 		UpcomingParasGenesis::insert(&id, &genesis);
@@ -610,157 +716,68 @@ impl<T: Config> Module<T> {
 
 	/// Schedule a para to be cleaned up at the start of the next session.
 	///
-	/// Noop if para is already outgoing or not known.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
-		match ParaLifecycles::get(&id) {
-			Some(ParaLifecycle::Onboarding) => {
-				UpcomingParas::mutate(|v| {
-					match v.binary_search(&id) {
-						Ok(i) => {
-							v.remove(i);
-							UpcomingParasGenesis::remove(&id);
-							ParaLifecycles::remove(&id);
-							// If a para was only in the pending state it should not be moved to `Outgoing`
-							T::DbWeight::get().reads_writes(1, 3)
-						}
-						Err(_) => T::DbWeight::get().reads_writes(1, 0),
-					}
-				})
-			},
-			Some(ParaLifecycle::Parathread) => {
-				ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
-				OutgoingParas::mutate(|v| {
-					match v.binary_search(&id) {
-						Ok(_) => T::DbWeight::get().reads_writes(1, 1),
-						Err(i) => {
-							v.insert(i, id);
-							T::DbWeight::get().reads_writes(1, 2)
-						}
-					}
-				})
+	/// Will return error if para is not a stable parachain or parathread.
+	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
+		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NoLifecycle)?;
 
+		match lifecycle {
+			ParaLifecycle::Parathread => {
+				ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
 			},
-			Some(ParaLifecycle::Parachain) => {
-				OutgoingParas::mutate(|v| {
-					match v.binary_search(&id) {
-						Ok(_) => T::DbWeight::get().reads_writes(1, 0),
-						Err(i) => {
-							v.insert(i, id);
-							ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParachain);
-							T::DbWeight::get().reads_writes(1, 2)
-						}
-					}
-				})
+			ParaLifecycle::Parachain => {
+				ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParachain);
 			},
-			Some(ParaLifecycle::UpgradingToParachain) => {
-				let upgrade_weight = UpcomingUpgrades::mutate(|v| {
-					match v.binary_search(&id) {
-						Ok(i) => {
-							v.remove(i);
-							T::DbWeight::get().reads_writes(1, 1)
-						},
-						Err(_) => T::DbWeight::get().reads(1),
-					}
-				});
-				let outgoing_weight = OutgoingParas::mutate(|v| {
-					match v.binary_search(&id) {
-						Ok(_) => T::DbWeight::get().reads_writes(1, 0),
-						Err(i) => {
-							v.insert(i, id);
-							ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
-							T::DbWeight::get().reads_writes(1, 2)
-						}
-					}
-				});
-				upgrade_weight.saturating_add(outgoing_weight)
-			},
-			Some(ParaLifecycle::DowngradingToParathread) => {
-				let downgrade_weight = UpcomingDowngrades::mutate(|v| {
-					match v.binary_search(&id) {
-						Ok(i) => {
-							v.remove(i);
-							T::DbWeight::get().reads_writes(1, 1)
-						},
-						Err(_) => T::DbWeight::get().reads(1),
-					}
-				});
-				let outgoing_weight = OutgoingParas::mutate(|v| {
-					match v.binary_search(&id) {
-						Ok(_) => T::DbWeight::get().reads_writes(1, 0),
-						Err(i) => {
-							v.insert(i, id);
-							ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
-							T::DbWeight::get().reads_writes(1, 2)
-						}
-					}
-				});
-				downgrade_weight.saturating_add(outgoing_weight)
-			},
-			None |
-			Some(ParaLifecycle::OutgoingParathread) |
-			Some(ParaLifecycle::OutgoingParachain)
-				=> { T::DbWeight::get().reads(1) },
+			_ => return Err(Error::<T>::CannotOffboard)?,
 		}
+
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
+			}
+		});
+
+		Ok(())
 	}
 
 	/// Schedule a parathread to be upgraded to a parachain.
 	///
 	/// Noop if `ParaLifecycle` is not `Parathread`.
 	#[allow(unused)]
-	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> Weight {
-		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parathread) {
-			let weight = T::DbWeight::get().reads_writes(1, 0);
-			return weight;
-		}
+	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
+		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NoLifecycle)?;
 
-		let dup = UpcomingUpgrades::mutate(|v| {
-			match v.binary_search(&id) {
-				Ok(_) => true,
-				Err(i) => {
-					v.insert(i, id);
-					false
-				}
+		ensure!(lifecycle.is_parathread() && lifecycle.is_stable(), Error::<T>::CannotUpgrade);
+
+		ParaLifecycles::insert(&id, ParaLifecycle::UpgradingParathread);
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
 			}
 		});
 
-		ParaLifecycles::insert(&id, ParaLifecycle::UpgradingToParachain);
-
-		if dup {
-			let weight = T::DbWeight::get().reads_writes(2, 1);
-			return weight;
-		}
-
-		T::DbWeight::get().reads_writes(2, 2)
+		Ok(())
 	}
 
 	/// Schedule a parachain to be downgraded to a parathread.
 	///
 	/// Noop if `ParaLifecycle` is not `Parachain`.
 	#[allow(unused)]
-	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> Weight {
-		if ParaLifecycles::get(&id) != Some(ParaLifecycle::Parachain) {
-			let weight = T::DbWeight::get().reads_writes(1, 0);
-			return weight;
-		}
+	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
+		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NoLifecycle)?;
 
-		let dup = UpcomingDowngrades::mutate(|v| {
-			match v.binary_search(&id) {
-				Ok(_) => true,
-				Err(i) => {
-					v.insert(i, id);
-					false
-				}
+		ensure!(lifecycle.is_parachain() && lifecycle.is_stable(), Error::<T>::CannotDowngrade);
+
+		ParaLifecycles::insert(&id, ParaLifecycle::DowngradingParachain);
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
 			}
 		});
 
-		ParaLifecycles::insert(&id, ParaLifecycle::DowngradingToParathread);
-
-		if dup {
-			let weight = T::DbWeight::get().reads_writes(2, 1);
-			return weight;
-		}
-
-		T::DbWeight::get().reads_writes(2, 2)
+		Ok(())
 	}
 
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
