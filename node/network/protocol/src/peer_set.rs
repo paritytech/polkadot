@@ -21,13 +21,14 @@ use std::borrow::Cow;
 use strum::{EnumIter, IntoEnumIterator};
 
 /// The peer-sets and thus the protocols which are used for the network.
-#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
+#[repr(usize)]
 pub enum PeerSet {
 	/// The validation peer-set is responsible for all messages related to candidate validation and
 	/// communication among validators.
-	Validation,
+	Validation = 0,
 	/// The collation peer-set is used for validator<>collator communication.
-	Collation,
+	Collation = 1,
 }
 
 impl PeerSet {

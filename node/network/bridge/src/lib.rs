@@ -244,10 +244,18 @@ where
 
 			Action::ConnectToValidators {
 				validator_ids,
+				peer_set,
 				connected,
 			} => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_set = ?peer_set,
+					ids = ?validator_ids,
+					"Received a validator connection request",
+				);
 				let (ns, ads) = validator_discovery.on_request(
 					validator_ids,
+					peer_set,
 					connected,
 					bridge.network_service,
 					bridge.authority_discovery_service,
@@ -257,11 +265,6 @@ where
 			},
 
 			Action::ReportPeer(peer, rep) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					peer = ?peer,
-					"Peer sent us an invalid request",
-				);
 				bridge.network_service.report_peer(peer, rep).await?
 			}
 
@@ -296,7 +299,11 @@ where
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				validator_discovery.on_peer_connected(&peer, &mut bridge.authority_discovery_service).await;
+				validator_discovery.on_peer_connected(
+					peer.clone(),
+					peer_set,
+					&mut bridge.authority_discovery_service,
+				).await;
 
 				match peer_map.entry(peer.clone()) {
 					hash_map::Entry::Occupied(_) => continue,
@@ -358,7 +365,7 @@ where
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				validator_discovery.on_peer_disconnected(&peer);
+				validator_discovery.on_peer_disconnected(&peer, peer_set);
 
 				if peer_map.remove(&peer).is_some() {
 					match peer_set {

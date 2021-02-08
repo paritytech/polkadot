@@ -25,7 +25,7 @@
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange, PeerId,
+	peer_set::PeerSet, v1 as protocol_v1, ReputationChange, PeerId,
 	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
 };
 use polkadot_node_primitives::{
@@ -229,6 +229,8 @@ pub enum NetworkBridgeMessage {
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
+		/// The underlying protocol to use for this request.
+		peer_set: PeerSet,
 		/// Response sender by which the issuer can learn the `PeerId`s of
 		/// the validators as they are connected.
 		/// The response is sent immediately for already connected peers.

@@ -337,6 +337,8 @@ enum NetworkBridgeMessage {
     ConnectToValidators {
         /// Ids of the validators to connect to.
         validator_ids: Vec<AuthorityDiscoveryId>,
+        /// The underlying protocol to use for this request.
+        peer_set: PeerSet,
         /// Response sender by which the issuer can learn the `PeerId`s of
         /// the validators as they are connected.
         /// The response is sent immediately for already connected peers.
