@@ -67,7 +67,7 @@ We update our view's `finalized_number` to the provided one and delay `ProtocolM
 
 ### Network Event: Peer Connected
 
-Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer.
+Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer. Also issue a `NetworkBridgeEvent::PeerViewChange` and send the peer our current view.
 
 ### Network Event: Peer Disconnected
 

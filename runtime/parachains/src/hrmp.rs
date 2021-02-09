@@ -1084,7 +1084,8 @@ impl<T: Config> Module<T> {
 	/// Returns the list of MQC heads for the inbound channels of the given recipient para paired
 	/// with the sender para ids. This vector is sorted ascending by the para id and doesn't contain
 	/// multiple entries with the same sender.
-	pub(crate) fn hrmp_mqc_heads(recipient: ParaId) -> Vec<(ParaId, Hash)> {
+	#[cfg(test)]
+	fn hrmp_mqc_heads(recipient: ParaId) -> Vec<(ParaId, Hash)> {
 		let sender_set = <Self as Store>::HrmpIngressChannelsIndex::get(&recipient);
 
 		// The ingress channels vector is sorted, thus `mqc_heads` is sorted as well.
@@ -1537,6 +1538,43 @@ mod tests {
 	}
 
 	#[test]
+	fn hrmp_mqc_head_fixture() {
+		let para_a = 2000.into();
+		let para_b = 2024.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_channel_max_message_size = 20;
+		genesis.hrmp_channel_max_total_size = 20;
+		new_test_ext(genesis.build()).execute_with(|| {
+			register_parachain(para_a);
+			register_parachain(para_b);
+
+			run_to_block(1, Some(vec![1]));
+			Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
+			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+
+			run_to_block(2, Some(vec![2]));
+			let _ = Hrmp::queue_outbound_hrmp(para_a, vec![OutboundHrmpMessage {
+				recipient: para_b,
+				data: vec![1, 2, 3],
+			}]);
+
+			run_to_block(3, None);
+			let _ = Hrmp::queue_outbound_hrmp(para_a, vec![OutboundHrmpMessage {
+				recipient: para_b,
+				data: vec![4, 5, 6],
+			}]);
+
+			assert_eq!(
+				Hrmp::hrmp_mqc_heads(para_b),
+				vec![
+					(para_a, hex_literal::hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into()),
+				],
+			);
+		});
+	}
+
+	#[test]
 	fn accept_incoming_request_and_offboard() {
 		let para_a = 32.into();
 		let para_b = 64.into();
@@ -1667,6 +1705,18 @@ mod tests {
 					total_size: 0,
 					mqc_head: None,
 				},
+			);
+
+			let raw_ingress_index =
+				sp_io::storage::get(
+					&well_known_keys::hrmp_ingress_channel_index(para_b),
+				)
+				.expect("the ingress index must be present for para_b");
+			let ingress_index = <Vec<ParaId>>::decode(&mut &raw_ingress_index[..])
+				.expect("ingress indexx should be decodable as a list of para ids");
+			assert_eq!(
+				ingress_index,
+				vec![para_a],
 			);
 
 			// Now, verify that we can access and decode the egress index.

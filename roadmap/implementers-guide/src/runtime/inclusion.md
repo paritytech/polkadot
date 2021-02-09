@@ -20,6 +20,7 @@ struct CandidatePendingAvailability {
   relay_parent_number: BlockNumber, // number of the relay-parent.
   backers: Bitfield, // one bit per validator, set for those who backed the candidate.
   backed_in_number: BlockNumber,
+  backing_group: GroupIndex,
 }
 ```
 

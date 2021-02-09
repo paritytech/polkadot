@@ -67,6 +67,9 @@ dnf install polkadot
 
 ### Install via Cargo
 
+Make sure you have the support software installed from the **Build from Source** section 
+below this section.
+
 If you want to install Polkadot in your PATH, you can do so with with:
 
 ```bash
@@ -155,7 +158,7 @@ Westend's WND tokens, see the faucet
 
 ## Hacking on Polkadot
 
-If you'd actually like hack on Polkadot, you can grab the source code and build it. Ensure you have
+If you'd actually like to hack on Polkadot, you can grab the source code and build it. Ensure you have
 Rust and the support software installed. This script will install or update Rust and install the
 required dependencies (this may take up to 30 minutes on Mac machines):
 
