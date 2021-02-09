@@ -627,7 +627,7 @@ mod tests {
 			System: frame_system::{Module, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 			Vesting: pallet_vesting::{Module, Call, Storage, Config<T>, Event<T>},
-			Claims: claims::{Module, Call, Storage, Config<T>, Event<T>},
+			Claims: claims::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		}
 	);
 
