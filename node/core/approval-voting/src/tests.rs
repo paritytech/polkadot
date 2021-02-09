@@ -343,7 +343,7 @@ fn add_candidate_to_block(
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 		}.into());
 
-	let pos = block_entry.add_candidate(core, candidate_hash);
+	block_entry.add_candidate(core, candidate_hash);
 
 	candidate_entry.add_approval_entry(
 		block_hash,
@@ -359,11 +359,6 @@ fn add_candidate_to_block(
 	db.block_entries.insert(block_hash, block_entry);
 }
 
-struct TestHarness {
-	clock: Arc<Mutex<MockClockInner>>,
-	store: TestStore,
-}
-
 #[test]
 fn rejects_bad_assignment() {
 	let block_hash = Hash::repeat_byte(0x01);
@@ -376,7 +371,6 @@ fn rejects_bad_assignment() {
 			},
 		),
 	};
-	let tick = 10;
 	let mut state = some_state(Default::default());
 	let candidate_index = 0;
 
@@ -566,18 +560,7 @@ fn rejects_approval_before_assignment() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 
-	let candidate_index = 0;
-	let assignment = IndirectAssignmentCert {
-		block_hash,
-		validator: 0,
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
-	};
-
-	let mut state = State {
+	let state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
@@ -605,17 +588,6 @@ fn rejects_approval_before_assignment() {
 fn rejects_approval_if_no_candidate_entry() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-
-	let candidate_index = 0;
-	let assignment = IndirectAssignmentCert {
-		block_hash,
-		validator: 0,
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
-	};
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
@@ -648,17 +620,6 @@ fn rejects_approval_if_no_block_entry() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 	let validator_index = 0;
-
-	let candidate_index = 0;
-	let assignment = IndirectAssignmentCert {
-		block_hash,
-		validator: 0,
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
-	};
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
@@ -792,7 +753,6 @@ fn check_and_apply_full_approval_sets_flag_and_bit() {
 	let validator_index_a = 0;
 	let validator_index_b = 1;
 
-	let candidate_index = 0;
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
@@ -854,7 +814,6 @@ fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 	let validator_index_a = 0;
 	let validator_index_b = 1;
 
-	let candidate_index = 0;
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
@@ -914,7 +873,6 @@ fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 #[test]
 fn assignment_triggered_by_all_with_less_than_supermajority() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 
 	let mut candidate_entry: CandidateEntry = {
 		let approval_entry = approval_db::v1::ApprovalEntry {
@@ -966,7 +924,6 @@ fn assignment_triggered_by_all_with_less_than_supermajority() {
 #[test]
 fn assignment_not_triggered_by_all_with_supermajority() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 
 	let mut candidate_entry: CandidateEntry = {
 		let approval_entry = approval_db::v1::ApprovalEntry {
@@ -1024,7 +981,6 @@ fn assignment_not_triggered_by_all_with_supermajority() {
 #[test]
 fn assignment_not_triggered_if_already_triggered() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 
 	let candidate_entry: CandidateEntry = {
 		let approval_entry = approval_db::v1::ApprovalEntry {
@@ -1062,7 +1018,6 @@ fn assignment_not_triggered_if_already_triggered() {
 #[test]
 fn assignment_not_triggered_by_exact() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 
 	let candidate_entry: CandidateEntry = {
 		let approval_entry = approval_db::v1::ApprovalEntry {
@@ -1100,7 +1055,6 @@ fn assignment_not_triggered_by_exact() {
 #[test]
 fn assignment_not_triggered_more_than_maximum() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
@@ -1144,7 +1098,6 @@ fn assignment_not_triggered_more_than_maximum() {
 #[test]
 fn assignment_triggered_if_at_maximum() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
@@ -1188,7 +1141,6 @@ fn assignment_triggered_if_at_maximum() {
 #[test]
 fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
@@ -1232,7 +1184,6 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 #[test]
 fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0x02));
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
@@ -1327,7 +1278,6 @@ fn block_not_approved_until_all_candidates_approved() {
 	let validator_index_a = 0;
 	let validator_index_b = 1;
 
-	let candidate_index = 0;
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
@@ -1506,15 +1456,12 @@ fn candidate_approval_applied_to_all_blocks() {
 
 #[test]
 fn approved_ancestor_all_approved() {
-	let block_hash_genesis = Hash::repeat_byte(0x00);
 	let block_hash_1 = Hash::repeat_byte(0x01);
 	let block_hash_2 = Hash::repeat_byte(0x02);
 	let block_hash_3 = Hash::repeat_byte(0x03);
 	let block_hash_4 = Hash::repeat_byte(0x04);
 
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index_a = 0;
-	let validator_index_b = 1;
 
 	let slot = Slot::from(1);
 	let session_index = 1;
@@ -1541,7 +1488,7 @@ fn approved_ancestor_all_approved() {
 			slot,
 		);
 
-		let mut b = db.block_entries.get_mut(&block_hash).unwrap();
+		let b = db.block_entries.get_mut(&block_hash).unwrap();
 		b.add_candidate(CoreIndex(0), candidate_hash);
 		if approved {
 			b.mark_approved_by_hash(&candidate_hash);
@@ -1591,15 +1538,12 @@ fn approved_ancestor_all_approved() {
 
 #[test]
 fn approved_ancestor_missing_approval() {
-	let block_hash_genesis = Hash::repeat_byte(0x00);
 	let block_hash_1 = Hash::repeat_byte(0x01);
 	let block_hash_2 = Hash::repeat_byte(0x02);
 	let block_hash_3 = Hash::repeat_byte(0x03);
 	let block_hash_4 = Hash::repeat_byte(0x04);
 
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index_a = 0;
-	let validator_index_b = 1;
 
 	let slot = Slot::from(1);
 	let session_index = 1;
@@ -1626,7 +1570,7 @@ fn approved_ancestor_missing_approval() {
 			slot,
 		);
 
-		let mut b = db.block_entries.get_mut(&block_hash).unwrap();
+		let b = db.block_entries.get_mut(&block_hash).unwrap();
 		b.add_candidate(CoreIndex(0), candidate_hash);
 		if approved {
 			b.mark_approved_by_hash(&candidate_hash);
