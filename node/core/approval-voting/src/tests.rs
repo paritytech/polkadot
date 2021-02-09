@@ -20,6 +20,9 @@ use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
 };
+use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+use polkadot_subsystem::messages::AllMessages;
+use sp_core::testing::TaskExecutor;
 
 use parking_lot::Mutex;
 use bitvec::order::Lsb0 as BitOrderLsb0;
@@ -1502,8 +1505,173 @@ fn candidate_approval_applied_to_all_blocks() {
 }
 
 #[test]
-fn background_requests_are_forwarded() {
+fn approved_ancestor_all_approved() {
+	let block_hash_genesis = Hash::repeat_byte(0x01);
+	let block_hash_1 = Hash::repeat_byte(0x01);
+	let block_hash_2 = Hash::repeat_byte(0x02);
+	let block_hash_3 = Hash::repeat_byte(0x03);
+	let block_hash_4 = Hash::repeat_byte(0x04);
 
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let validator_index_a = 0;
+	let validator_index_b = 1;
+
+	let slot = Slot::from(1);
+	let session_index = 1;
+
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
+			Ok(0)
+		})),
+		..some_state(StateConfig {
+			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
+			validator_groups: vec![vec![0], vec![1]],
+			needed_approvals: 2,
+			session_index,
+			slot,
+			..Default::default()
+		})
+	};
+
+	let add_block = |db: &mut TestStore, block_hash, approved| {
+		add_block(
+			db,
+			block_hash,
+			session_index,
+			slot,
+		);
+
+		let mut b = db.block_entries.get_mut(&block_hash).unwrap();
+		b.add_candidate(CoreIndex(0), candidate_hash);
+		if approved {
+			b.mark_approved_by_hash(&candidate_hash);
+		}
+	};
+
+	add_block(&mut state.db, block_hash_1, true);
+	add_block(&mut state.db, block_hash_2, true);
+	add_block(&mut state.db, block_hash_3, true);
+	add_block(&mut state.db, block_hash_4, true);
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+	let test_fut = Box::pin(async move {
+		assert_eq!(
+			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			Some(block_hash_4),
+		)
+	});
+
+	let aux_fut = Box::pin(async move {
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(target, tx)) => {
+				assert_eq!(target, block_hash_4);
+				let _ = tx.send(Ok(Some(4)));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::Ancestors {
+				hash,
+				k,
+				response_channel: tx,
+			}) => {
+				assert_eq!(hash, block_hash_4);
+				assert_eq!(k, 4 - (0 + 1));
+				let _ = tx.send(Ok(vec![block_hash_3, block_hash_2, block_hash_1]));
+			}
+		);
+	});
+
+	futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+}
+
+#[test]
+fn approved_ancestor_missing_approval() {
+	let block_hash_genesis = Hash::repeat_byte(0x01);
+	let block_hash_1 = Hash::repeat_byte(0x01);
+	let block_hash_2 = Hash::repeat_byte(0x02);
+	let block_hash_3 = Hash::repeat_byte(0x03);
+	let block_hash_4 = Hash::repeat_byte(0x04);
+
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let validator_index_a = 0;
+	let validator_index_b = 1;
+
+	let slot = Slot::from(1);
+	let session_index = 1;
+
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
+			Ok(0)
+		})),
+		..some_state(StateConfig {
+			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
+			validator_groups: vec![vec![0], vec![1]],
+			needed_approvals: 2,
+			session_index,
+			slot,
+			..Default::default()
+		})
+	};
+
+	let add_block = |db: &mut TestStore, block_hash, approved| {
+		add_block(
+			db,
+			block_hash,
+			session_index,
+			slot,
+		);
+
+		let mut b = db.block_entries.get_mut(&block_hash).unwrap();
+		b.add_candidate(CoreIndex(0), candidate_hash);
+		if approved {
+			b.mark_approved_by_hash(&candidate_hash);
+		}
+	};
+
+	add_block(&mut state.db, block_hash_1, true);
+	add_block(&mut state.db, block_hash_2, true);
+	add_block(&mut state.db, block_hash_3, false);
+	add_block(&mut state.db, block_hash_4, true);
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+	let test_fut = Box::pin(async move {
+		assert_eq!(
+			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			Some(block_hash_2),
+		)
+	});
+
+	let aux_fut = Box::pin(async move {
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(target, tx)) => {
+				assert_eq!(target, block_hash_4);
+				let _ = tx.send(Ok(Some(4)));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::Ancestors {
+				hash,
+				k,
+				response_channel: tx,
+			}) => {
+				assert_eq!(hash, block_hash_4);
+				assert_eq!(k, 4 - (0 + 1));
+				let _ = tx.send(Ok(vec![block_hash_3, block_hash_2, block_hash_1]));
+			}
+		);
+	});
+
+	futures::executor::block_on(futures::future::select(test_fut, aux_fut));
 }
 
 #[test]
@@ -1513,10 +1681,5 @@ fn triggered_assignment_leads_to_recovery_and_validation() {
 
 #[test]
 fn finalization_event_prunes() {
-
-}
-
-#[test]
-fn approved_ancestor() {
 
 }
