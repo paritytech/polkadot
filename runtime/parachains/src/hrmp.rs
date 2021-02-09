@@ -1125,7 +1125,7 @@ mod tests {
 	use crate::mock::{
 		new_test_ext, Test, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
 	};
-	use frame_support::{assert_err, traits::Currency as _};
+	use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 	use primitives::v1::BlockNumber;
 	use std::collections::{BTreeMap, HashSet};
 
@@ -1144,6 +1144,7 @@ mod tests {
 				let notification = crate::initializer::SessionChangeNotification {
 					prev_config: config.clone(),
 					new_config: config.clone(),
+					session_index: Paras::session_index() + 1,
 					..Default::default()
 				};
 
@@ -1229,14 +1230,14 @@ mod tests {
 	}
 
 	fn register_parachain_with_balance(id: ParaId, balance: Balance) {
-		Paras::schedule_para_initialize(
+		assert_ok!(Paras::schedule_para_initialize(
 			id,
 			crate::paras::ParaGenesisArgs {
 				parachain: true,
 				genesis_head: vec![1].into(),
 				validation_code: vec![1].into(),
 			},
-		);
+		));
 		<Test as Config>::Currency::make_free_balance_be(&id.into_account(), balance);
 	}
 
@@ -1245,7 +1246,7 @@ mod tests {
 	}
 
 	fn deregister_parachain(id: ParaId) {
-		Paras::schedule_para_cleanup(id);
+		assert_ok!(Paras::schedule_para_cleanup(id));
 		Hrmp::schedule_para_cleanup(id);
 	}
 
@@ -1443,7 +1444,7 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			assert_storage_consistency_exhaustive();
 
@@ -1471,7 +1472,7 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
@@ -1510,7 +1511,7 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
@@ -1545,7 +1546,7 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			deregister_parachain(para_a);
@@ -1569,7 +1570,7 @@ mod tests {
 			register_parachain(para_b);
 			register_parachain(para_c);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 
 			// Open two channels to the same receiver, b:
 			// a -> b, c -> b
@@ -1638,7 +1639,7 @@ mod tests {
 			// request and accept that, and finally wait until the next session.
 			register_parachain(para_a);
 			register_parachain(para_b);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			run_to_block(8, Some(vec![8]));
@@ -1692,9 +1693,9 @@ mod tests {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			register_parachain_with_balance(para_a, 0);
 			register_parachain(para_b);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 
-			assert_err!(
+			assert_noop!(
 				Hrmp::init_open_channel(para_a, para_b, 2, 8),
 				pallet_balances::Error::<Test, _>::InsufficientBalance
 			);
@@ -1703,11 +1704,11 @@ mod tests {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			register_parachain(para_a);
 			register_parachain_with_balance(para_b, 0);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 
-			assert_err!(
+			assert_noop!(
 				Hrmp::accept_open_channel(para_b, para_a),
 				pallet_balances::Error::<Test, _>::InsufficientBalance
 			);
@@ -1726,7 +1727,7 @@ mod tests {
 			// Register two parachains funded with different amounts of funds and arrange a channel.
 			register_parachain_with_balance(para_a, 100);
 			register_parachain_with_balance(para_b, 110);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			assert_eq!(
@@ -1774,7 +1775,7 @@ mod tests {
 			// request but do not accept it.
 			register_parachain_with_balance(para_a, 100);
 			register_parachain_with_balance(para_b, 110);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			assert_eq!(
 				<Test as Config>::Currency::free_balance(&para_a.into_account()),
@@ -1813,7 +1814,7 @@ mod tests {
 			// Register two parachains and open a channel between them.
 			register_parachain_with_balance(para_a, 100);
 			register_parachain_with_balance(para_b, 110);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			assert_eq!(
