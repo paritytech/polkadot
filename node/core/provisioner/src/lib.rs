@@ -367,7 +367,7 @@ fn select_availability_bitfields(
 
 		for (idx, _) in cores.iter().enumerate().filter(|v| !v.1.is_occupied()) {
 			// Bit is set for an unoccupied core - invalid
-			if *bitfield.payload().0.get(idx).unwrap_or(&false) {
+			if *bitfield.payload().0.get(idx).as_deref().unwrap_or(&false) {
 				continue 'a
 			}
 		}

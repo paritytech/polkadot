@@ -26,6 +26,8 @@ use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
+#[cfg(feature = "std")]
+use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 
 #[cfg(feature = "std")]
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
@@ -60,12 +62,32 @@ mod collator_app {
 /// Identity that collators use.
 pub type CollatorId = collator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// A Parachain collator keypair.
 #[cfg(feature = "std")]
 pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
 pub type CollatorSignature = collator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// The key type ID for a parachain validator key.
 pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
@@ -81,6 +103,16 @@ mod validator_app {
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = validator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 pub type ValidatorIndex = u32;
 
@@ -94,6 +126,16 @@ application_crypto::with_pair! {
 /// For now we assert that parachain validator set is exactly equivalent to the authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// Retriability for a given active para.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
@@ -632,13 +674,13 @@ pub struct ErasureChunk {
 #[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Candidate(CandidateHash),
 	/// State that a parachain candidate is valid.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Valid(CandidateHash),
 	/// State that a parachain candidate is invalid.
-	#[codec(index = "3")]
+	#[codec(index = 3)]
 	Invalid(CandidateHash),
 }
 
@@ -663,11 +705,11 @@ pub type SignedStatement = Signed<CompactStatement>;
 pub enum ValidityAttestation {
 	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Implicit(ValidatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Explicit(ValidatorSignature),
 }
 
