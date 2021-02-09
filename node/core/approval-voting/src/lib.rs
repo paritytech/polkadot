@@ -251,6 +251,12 @@ enum Action {
 	},
 	WriteBlockEntry(BlockEntry),
 	WriteCandidateEntry(CandidateHash, CandidateEntry),
+	LaunchApproval {
+		indirect_cert: IndirectAssignmentCert,
+		candidate_index: CandidateIndex,
+		session: SessionIndex,
+		candidate: CandidateReceipt,
+	},
 	Conclude,
 }
 
@@ -300,12 +306,10 @@ async fn run<T, C>(
 				let mut actions = Vec::new();
 				for (woken_block, woken_candidate) in woken {
 					actions.extend(process_wakeup(
-						&mut ctx,
 						&mut state,
 						woken_block,
 						woken_candidate,
-						&background_tx,
-					).await?);
+					)?);
 				}
 
 				actions
@@ -332,7 +336,13 @@ async fn run<T, C>(
 			}
 		};
 
-		if handle_actions(&mut wakeups, db_writer, actions)? {
+		if handle_actions(
+			&mut ctx,
+			&mut wakeups,
+			db_writer,
+			&background_tx,
+			actions,
+		).await? {
 			break;
 		}
 	}
@@ -341,9 +351,11 @@ async fn run<T, C>(
 }
 
 // returns `true` if any of the actions was a `Conclude` command.
-fn handle_actions(
+async fn handle_actions(
+	ctx: &mut impl SubsystemContext,
 	wakeups: &mut Wakeups,
 	db: &impl AuxStore,
+	background_tx: &mpsc::Sender<BackgroundRequest>,
 	actions: impl IntoIterator<Item = Action>,
 ) -> SubsystemResult<bool> {
 	let mut transaction = approval_db::v1::Transaction::default();
@@ -361,6 +373,30 @@ fn handle_actions(
 			}
 			Action::WriteCandidateEntry(candidate_hash, candidate_entry) => {
 				transaction.put_candidate_entry(candidate_hash, candidate_entry.into());
+			}
+			Action::LaunchApproval {
+				indirect_cert,
+				candidate_index,
+				session,
+				candidate,
+			} => {
+				let block_hash = indirect_cert.block_hash;
+				let validator_index = indirect_cert.validator;
+
+				ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
+					indirect_cert,
+					candidate_index,
+				).into()).await;
+
+				launch_approval(
+					ctx,
+					background_tx.clone(),
+					session,
+					&candidate,
+					validator_index,
+					block_hash,
+					candidate_index as _,
+				).await?
 			}
 			Action::Conclude => { conclude = true; }
 		}
@@ -967,12 +1003,10 @@ fn should_trigger_assignment(
 	}
 }
 
-async fn process_wakeup(
-	ctx: &mut impl SubsystemContext,
+fn process_wakeup(
 	state: &State<impl DBReader>,
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
-	background_tx: &mpsc::Sender<BackgroundRequest>,
 ) -> SubsystemResult<Vec<Action>> {
 	let block_entry = state.db.load_block_entry(&relay_block)?;
 	let candidate_entry = state.db.load_candidate_entry(&candidate_hash)?;
@@ -1055,20 +1089,12 @@ async fn process_wakeup(
 
 		if let Some(i) = index_in_candidate {
 			// sanity: should always be present.
-			ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
+			actions.push(Action::LaunchApproval {
 				indirect_cert,
-				i as CandidateIndex,
-			).into()).await;
-
-			launch_approval(
-				ctx,
-				background_tx.clone(),
-				block_entry.session(),
-				candidate_entry.candidate_receipt(),
-				val_index,
-				relay_block,
-				i,
-			).await?;
+				candidate_index: i as _,
+				session: block_entry.session(),
+				candidate: candidate_entry.candidate_receipt().clone(),
+			});
 		}
 	}
 
