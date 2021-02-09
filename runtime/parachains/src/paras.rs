@@ -280,7 +280,7 @@ decl_storage! {
 		/// The actual future code of a para.
 		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// The actions to perform during the start of a specific session index.
-		ActionsQueue: map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
+		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// The current session index.
@@ -501,18 +501,25 @@ impl<T: Config> Module<T> {
 		T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done)
 	}
 
+	/// Verify that `schedule_para_initialize` can be called successfully.
+	///
+	/// Returns false if para is already registered in the system.
+	pub fn can_schedule_para_initialize(id: &ParaId, _: &ParaGenesisArgs) -> bool {
+		let lifecycle = ParaLifecycles::get(id);
+		lifecycle.is_none()
+	}
+
 	/// Schedule a para to be initialized at the start of the next session.
 	///
 	/// Will return error if para is already registered in the system.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
 		let scheduled_session = Self::session_index() + SESSION_DELAY;
-		let lifecycle = ParaLifecycles::get(&id);
 
 		// Make sure parachain isn't already in our system.
-		ensure!(lifecycle.is_none(), Error::<T>::CannotOnboard);
+		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
-		UpcomingParasGenesis::insert(&id, &genesis);
+		UpcomingParasGenesis::insert(&id, genesis);
 		ActionsQueue::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);

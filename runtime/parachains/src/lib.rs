@@ -54,15 +54,17 @@ pub fn schedule_para_initialize<T: paras::Config>(
 }
 
 /// Schedule a para to be cleaned up at the start of the next session.
-pub fn schedule_para_cleanup<T>(id: primitives::v1::Id)
+pub fn schedule_para_cleanup<T>(id: primitives::v1::Id) -> Result<(), ()>
 where
 	T: paras::Config
 	+ dmp::Config
 	+ ump::Config
 	+ hrmp::Config,
 {
-	let _ = <paras::Module<T>>::schedule_para_cleanup(id);
+	<paras::Module<T>>::schedule_para_cleanup(id).map_err(|_| ())?;
 	<dmp::Module<T>>::schedule_para_cleanup(id);
 	<ump::Module<T>>::schedule_para_cleanup(id);
 	<hrmp::Module<T>>::schedule_para_cleanup(id);
+
+	Ok(())
 }
