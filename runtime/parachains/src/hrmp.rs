@@ -1124,7 +1124,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Test, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
+		new_test_ext, Test, Configuration, Paras, Hrmp, System, MockGenesisConfig,
 	};
 	use frame_support::{assert_err, traits::Currency as _};
 	use primitives::v1::BlockNumber;
@@ -1198,7 +1198,7 @@ mod tests {
 	}
 
 	impl GenesisConfigBuilder {
-		fn build(self) -> crate::mock::GenesisConfig {
+		fn build(self) -> crate::mock::MockGenesisConfig {
 			let mut genesis = default_genesis_config();
 			let config = &mut genesis.configuration.config;
 			config.hrmp_channel_max_capacity = self.hrmp_channel_max_capacity;
