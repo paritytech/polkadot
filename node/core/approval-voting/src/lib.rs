@@ -541,10 +541,10 @@ async fn handle_approved_ancestor(
 	db: &impl DBReader,
 	target: Hash,
 	lower_bound: BlockNumber,
-) -> SubsystemResult<Option<Hash>> {
+) -> SubsystemResult<Option<(Hash, BlockNumber)>> {
 	let mut all_approved_max = None;
 
-	let block_number = {
+	let target_number = {
 		let (tx, rx) = oneshot::channel();
 
 		ctx.send_message(ChainApiMessage::BlockNumber(target, tx).into()).await;
@@ -556,17 +556,17 @@ async fn handle_approved_ancestor(
 		}
 	};
 
-	if block_number <= lower_bound { return Ok(None) }
+	if target_number <= lower_bound { return Ok(None) }
 
 	// request ancestors up to but not including the lower bound,
 	// as a vote on the lower bound is implied if we cannot find
 	// anything else.
-	let ancestry = if block_number > lower_bound + 1 {
+	let ancestry = if target_number > lower_bound + 1 {
 		let (tx, rx) = oneshot::channel();
 
 		ctx.send_message(ChainApiMessage::Ancestors {
 			hash: target,
-			k: (block_number - (lower_bound + 1)) as usize,
+			k: (target_number - (lower_bound + 1)) as usize,
 			response_channel: tx,
 		}.into()).await;
 
@@ -578,7 +578,7 @@ async fn handle_approved_ancestor(
 		Vec::new()
 	};
 
-	for block_hash in std::iter::once(target).chain(ancestry) {
+	for (i, block_hash) in std::iter::once(target).chain(ancestry).enumerate() {
 		// Block entries should be present as the assumption is that
 		// nothing here is finalized. If we encounter any missing block
 		// entries we can fail.
@@ -589,7 +589,9 @@ async fn handle_approved_ancestor(
 
 		if entry.is_fully_approved() {
 			if all_approved_max.is_none() {
-				all_approved_max = Some(block_hash);
+				// First iteration of the loop is target, i = 0. After that,
+				// ancestry is moving backwards.
+				all_approved_max = Some((block_hash, target_number - i as BlockNumber));
 			}
 		} else {
 			all_approved_max = None;

@@ -1490,7 +1490,7 @@ fn approved_ancestor_all_approved() {
 	let test_fut = Box::pin(async move {
 		assert_eq!(
 			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
-			Some(block_hash_4),
+			Some((block_hash_4, 4)),
 		)
 	});
 
@@ -1572,7 +1572,7 @@ fn approved_ancestor_missing_approval() {
 	let test_fut = Box::pin(async move {
 		assert_eq!(
 			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
-			Some(block_hash_2),
+			Some((block_hash_2, 2)),
 		)
 	});
 
