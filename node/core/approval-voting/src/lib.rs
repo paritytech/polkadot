@@ -658,7 +658,7 @@ fn check_and_import_assignment(
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
-	const SLOT_TOO_FAR_IN_FUTURE: u64 = 5;
+	const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 
 	let tick_now = state.clock.tick_now();
 	let block_entry = match state.db.load_block_entry(&assignment.block_hash)? {
@@ -721,10 +721,7 @@ fn check_and_import_assignment(
 					block_entry.slot(),
 				);
 
-				let too_far_in_future = current_tranche + time::slot_number_to_tick(
-					state.slot_duration_millis,
-					Slot::from(SLOT_TOO_FAR_IN_FUTURE),
-				) as DelayTranche;
+				let too_far_in_future = current_tranche + TICK_TOO_FAR_IN_FUTURE as DelayTranche;
 
 				if tranche >= too_far_in_future {
 					return Ok((AssignmentCheckResult::TooFarInFuture, Vec::new()));

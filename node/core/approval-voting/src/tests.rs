@@ -434,7 +434,7 @@ fn rejects_assignment_in_future() {
 	let tick = 9;
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
-			Ok((tick + slot_to_tick(5)) as _)
+			Ok((tick + 20) as _)
 		})),
 		..some_state(StateConfig { tick, ..Default::default() })
 	};
@@ -448,7 +448,7 @@ fn rejects_assignment_in_future() {
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
-			Ok((tick + slot_to_tick(5) - 1) as _)
+			Ok((tick + 20 - 1) as _)
 		})),
 		..some_state(StateConfig { tick, ..Default::default() })
 	};
