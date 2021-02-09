@@ -15,7 +15,43 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! `ProtocolState` representing a running availability distribution subsystem.
-
+//!
+//! We keep track of [`FetchTask`]s, which get created on [`ActiveLeavesUpdate`]s for each occupied
+//! core in the leaves, if we have not yet created it before. We keep track for which
+//! relay parents a `FetchTask` is considered live (corresponding slot is occupied with the
+//! candidate fetched). Once there is no relay parent left for which that task is considered live,
+//! it gets removed.
+//!
+//! We keep that task around as long as its corresponding candidate is considered pending
+//! availability, even if we fetched our chunk already. This is so we won't fetch our piece again,
+//! just because the candidate is still pending availability in the next block.
+//!
+//! We are also dependent on session information. We need to know which validators are in a
+//! particular validator group, backing our candidate, so we can request our erasure chunk from
+//! them.
+//!
+//! We want to randomize the list of validators in each group, so we get a
+//! random order of validators to try to get the chunk from. This is to ensure load balancing, each
+//! requesting validator should have a different order, thus trying different validators.
+//!
+//! But We would like to keep that randomized order around for an entire session, so our particular
+//! validator will always request from the same validators, thus making sure it will find an open
+//! network connection on each request.
+//!
+//! (TODO: What to do on session boundaries? Initial delay acceptable? Connect with some fake
+//! request to future validators? Use a peer set after all and connect that to the future session?)
+//!
+//! So we need to keep some customized session info around, which seems to be a good idea for
+//! performance reasons anyway. That's where `SessionCache` comes into play. It is used to keep
+//! session information around as long as we need it. But how long do we need it? How do we manage
+//! that cache? We can't rely on `ActiveLeavesUpdate`s heads alone, as we might get occupied slots
+//! for heads we never got an `ActiveLeavesUpdate` from, therefore we don't populate the session
+//! cache with sessions our leaves correspond to, but directly with the sessions of the relay
+//! parents of our `CandidateDescriptor`s. So, its clear how to populate the cache, but when can we
+//! get rid of cached session information? Easy! When there is no candidate/FetchTask around
+//! anymore which references it. Thus the cache simply consists of `Weak` pointers to the actual
+//! session infos and the `FetchTask`s keep `Rc`s, therefore we know exactly when we can get rid of
+//! a cache entry by means of the Weak pointer evaluating to `None`.
 use itertools::{Itertools, Either}
 
 use super::{Result, LOG_TARGET};
@@ -28,7 +64,7 @@ struct ProtocolState {
 	/// Localized information about sessions we are currently interested in.
 	///
 	/// This is usually the current one and at session boundaries also the last one.
-	live_sessions: HashMap<SessionIndex, SessionInfo>,
+	live_sessions: HashMap<SessionIndex, Weak<SessionInfo>>,
 }
 
 /// Localized session information, tailored for the needs of availability distribution.
