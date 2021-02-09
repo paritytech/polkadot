@@ -1557,7 +1557,7 @@ mod benchmarking {
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
 	use sp_runtime::MultiSignature;
-	use sp_core::{ed25519, Pair};
+	use sp_io::crypto::{ed25519_generate, ed25519_sign};
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
 
@@ -1582,8 +1582,7 @@ mod benchmarking {
 		let caller = account("fund_creator", 0, 0);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-		let pair = ed25519::Pair::from_string("//verifier", None).unwrap();
-		let pubkey = pair.public();
+		let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
 		// hack to convert types
 		let verifier: T::AccountId = Decode::decode(&mut pubkey.as_ref()).unwrap();
 
@@ -1595,10 +1594,10 @@ mod benchmarking {
 		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
 
-		let pair = ed25519::Pair::from_string("//verifier", None).unwrap();
+		let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
 		let payload = (index, &who, 0, value);
-		let sig = payload.using_encoded(|encoded| pair.sign(encoded));
-		let sig = MultiSignature::Ed25519(sig);
+		let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded));
+		let sig = MultiSignature::Ed25519(sig.unwrap());
 		// hack to convert types
 		let sig = T::ContributionSignature::decode(&mut &sig.encode()[..]).unwrap();
 
@@ -1686,10 +1685,10 @@ mod benchmarking {
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-			let pair = ed25519::Pair::from_string("//verifier", None).unwrap();
+			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
 			let payload = (fund_index, &caller, 0, contribution);
-			let sig = payload.using_encoded(|encoded| pair.sign(encoded));
-			let sig = MultiSignature::Ed25519(sig);
+			let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded));
+			let sig = MultiSignature::Ed25519(sig.unwrap());
 			// hack to convert types
 			let sig = T::ContributionSignature::decode(&mut &sig.encode()[..]).unwrap();
 
