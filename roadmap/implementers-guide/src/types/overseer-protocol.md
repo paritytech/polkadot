@@ -81,7 +81,7 @@ enum ApprovalVotingMessage {
     ///
     /// It can also return the same block hash, if that is acceptable to vote upon.
     /// Return `None` if the input hash is unrecognized.
-    ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
+    ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<(Hash, BlockNumber)>>),
 }
 ```
 
