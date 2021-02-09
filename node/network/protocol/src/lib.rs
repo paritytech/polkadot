@@ -70,10 +70,7 @@ impl From<sc_network::ObservedRole> for ObservedRole {
 		match role {
 			sc_network::ObservedRole::Light => ObservedRole::Light,
 			sc_network::ObservedRole::Authority => ObservedRole::Authority,
-			sc_network::ObservedRole::Full
-				| sc_network::ObservedRole::OurSentry
-				| sc_network::ObservedRole::OurGuardedAuthority
-				=> ObservedRole::Full,
+			sc_network::ObservedRole::Full => ObservedRole::Full,
 		}
 	}
 }
