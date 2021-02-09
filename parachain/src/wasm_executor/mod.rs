@@ -95,6 +95,7 @@ pub enum IsolationStrategy {
 }
 
 impl IsolationStrategy {
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	pub fn external_process_with_caching(cache_base_path: Option<&Path>) -> Self {
 		// Convert cache path to string here so that we don't have to do that each time we launch
 		// validation worker.
