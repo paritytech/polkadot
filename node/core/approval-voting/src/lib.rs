@@ -76,9 +76,21 @@ const LOG_TARGET: &str = "approval_voting";
 
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem<T> {
-	keystore: LocalKeystore,
+	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: Arc<T>,
+}
+
+impl<T> ApprovalVotingSubsystem<T> {
+	/// Create a new approval voting subsystem with the given keystore, slot duration,
+	/// and underlying DB.
+	pub fn new(keystore: Arc<LocalKeystore>, slot_duration_millis: u64, db: Arc<T>) -> Self {
+		ApprovalVotingSubsystem {
+			keystore,
+			slot_duration_millis,
+			db,
+		}
+	}
 }
 
 impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
@@ -229,7 +241,7 @@ use approval_db_v1_reader::ApprovalDBV1Reader;
 
 struct State<T> {
 	session_window: import::RollingSessionWindow,
-	keystore: LocalKeystore,
+	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: T,
 	clock: Box<dyn Clock + Send + Sync>,

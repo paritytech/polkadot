@@ -184,7 +184,7 @@ impl DBReader for TestStore {
 fn blank_state() -> State<TestStore> {
 	State {
 		session_window: import::RollingSessionWindow::default(),
-		keystore: LocalKeystore::in_memory(),
+		keystore: Arc::new(LocalKeystore::in_memory()),
 		slot_duration_millis: SLOT_DURATION_MILLIS,
 		db: TestStore::default(),
 		clock: Box::new(MockClock::default()),
