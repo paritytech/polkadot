@@ -203,7 +203,6 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
     * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
     * Note the candidate index within the approval entry.
   * [Check for full approval of the candidate entry](#check-full-approval) of the candidate_entry, filtering by this specific approval entry.
-  * [Schedule a wakeup](#schedule-wakeup) of the candidate.
   * return the appropriate `AssignmentCheckResult` on the response channel.
 
 #### `ApprovalVotingMessage::CheckAndImportApproval`
@@ -241,6 +240,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * Load the block entry for the `ApprovalEntry`.
     * If so, [determine the tranches to inspect](#determine-required-tranches) of the candidate, 
     * If [the candidate is approved under the block](#check-approval), set the corresponding bit in the `block_entry.approved_bitfield`.
+    * Otherwise, [schedule a wakeup of the candidate](#schedule-wakeup)
 
 #### Handling Wakeup
   * Handle a previously-scheduled wakeup of a candidate under a specific block.
@@ -249,9 +249,9 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * [determine the `RequiredTranches` of the candidate](#determine-required-tranches).
   * Determine if we should trigger our assignment.
     * If we've already triggered or `OurAssignment` is `None`, we do not trigger.
-    * If we have  `RequiredTranches::All`, then we trigger if the candidate is [not approved](#check-approval).
-    * If we have `RequiredTranches::Pending(max)`, then we trigger if our assignment's tranche is less than or equal to `max`.
-    * If we have `RequiredTranches::Exact(tranche)` then we do not trigger, because this value indicates that no new assignments are needed at the moment.
+    * If we have  `RequiredTranches::All`, then we trigger if the candidate is [not approved](#check-approval). We have no next wakeup as we assume that other validators are doing the same and we will be implicitly woken up by handling new votes.
+    * If we have `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }`, then we trigger if our assignment's tranche is less than or equal to `maximum_broadcast` and the current tick, with `clock_drift` applied, is at least the tick of our tranche. 
+    * If we have `RequiredTranches::Exact { .. }` then we do not trigger, because this value indicates that no new assignments are needed at the moment.
   * If we should trigger our assignment
     * Import the assignment to the `ApprovalEntry`
     * Broadcast on network with an `ApprovalDistributionMessage::DistributeAssignment`.
@@ -260,10 +260,11 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### Schedule Wakeup
   * Requires `(approval_entry, candidate_entry)` which effectively denotes a `(Block Hash, Candidate Hash)` pair - the candidate, along with the block it appears in.
+  * Also requires `RequiredTranches`
   * If the `approval_entry` is approved, this doesn't need to be woken up again.
-  * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
-  * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
-  * If the approval entry is already approved, or we have triggered our assignment and there are no pending no-shows, we do not need to schedule a wakeup. Note that the latter case is only possible when we have not seen enough assignments in order to approve. When we receive an incoming assignment, we will schedule a new wakeup, and the `(Block, Candidate)` pair will continue to be processed appropriately.
+  * If `RequiredTranches::All` - no wakeup. We assume other incoming votes will trigger wakeup and potentially re-schedule.
+  * If `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }` - schedule at the lesser of the next no-show tick, or the tick, offset positively by `clock_drift` of the next non-empty tranche we are aware of after `considered`, including any tranche containing our own unbroadcast assignment. This can lead to no wakeup in the case that we have already broadcast our assignment and there are no pending no-shows; that is, we have approval votes for every assignment we've received that is not already a no-show. In this case, we will be re-triggered by other validators broadcasting their assignments.
+  * If `RequiredTranches::Exact { next_no_show, .. } - set a wakeup for the next no-show tick.
 
 #### Launch Approval Work
   * Requires `(SessionIndex, SessionInfo, CandidateReceipt, ValidatorIndex, block_hash, candidate_index)`
@@ -287,7 +288,14 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### Determine Required Tranches
 
-This is pure logic is for inspecting an approval entry, containing the assignments received, the current time, requirements for approval, and the approval votes already received to determine how many of the delay tranches of the approval entry are relevant, as well as contextual information about what may be remaining to check on the candidate.
+This logic is for inspecting an approval entry that tracks the assignments received, along with information on which assignments have corresponding approval votes. Inspection also involves the current time and expected requirements and is used to help the higher-level code determine the following:
+  * Whether to broadcast the local assignment
+  * Whether to check that the candidate entry has been completely approved.
+  * If the candidate is waiting on approval, when to schedule the next wakeup of the `(candidate, block)` pair at a point where the state machine could be advanced.
+
+These routines are pure functions which only depend on the environmental state. The expectation is that this determination is re-run every time we attempt to update an approval entry: either when we trigger a wakeup to advance the state machine based on a no-show or our own broadcast, or when we receive further assignments or approvals from the network.
+
+Thus it may be that at some point in time, we consider that tranches 0..X is required to be considered, but as we receive more information, we might require fewer tranches. Or votes that we perceived to be missing and require replacement are filled in and change our view.
 
 Requires `(approval_entry, approvals_received, tranche_now, block_tick, no_show_duration, needed_approvals)`
 
@@ -295,29 +303,63 @@ Requires `(approval_entry, approvals_received, tranche_now, block_tick, no_show_
 enum RequiredTranches {
   // All validators appear to be required, based on tranches already taken and remaining no-shows.
   All,
-  // More tranches required - We're awaiting more assignments. The given `DelayTranche` indicates the
-  // upper bound of tranches that should broadcast based on the last no-show.
-  Pending(DelayTranche),
+  // More tranches required - We're awaiting more assignments.
+  Pending {
+    /// The highest considered delay tranche when counting assignments.
+    considered: DelayTranche,
+    /// The tick at which the next no-show, of the assignments counted, would occur.
+    next_no_show: Option<Tick>,
+    /// The highest tranche to consider when looking to broadcast own assignment.
+    /// This should be considered along with the clock drift to avoid broadcasting
+    /// assignments that are before the local time.
+    maximum_broadcast: DelayTranche,
+    /// The clock drift, in ticks, to apply to the local clock when determining whether
+    /// to broadcast an assignment or when to schedule a wakeup. The local clock should be treated
+    /// as though it is `clock_drift` ticks earlier.
+    clock_drift: Tick,
+  },
   // An exact number of required tranches and a number of no-shows. This indicates that the amount of `needed_approvals` are assigned and additionally all no-shows are covered.
-  Exact(DelayTranche, usize),
+  Exact {
+    /// The tranche to inspect up to.
+    needed: DelayTranche,
+    /// The amount of missing votes that should be tolerated.
+    tolerated_missing: usize,
+    /// When the next no-show would be, if any. This is used to schedule the next wakeup in the
+    /// event that there are some assignments that don't have corresponding approval votes. If this
+    /// is `None`, all assignments have approvals.
+    next_no_show: Option<Tick>,
+  }
 }
 ```
 
-  * Ignore all tranches beyond `tranche_now`.
-    * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
-    * Then, count no-shows in tranches `0..k`. For each no-show, we require another non-empty tranche. Take another non-empty tranche for each no-show, so now we've taken `l = k + j` tranches, where `j` is at least the number of no-shows within tranches `0..k`.
-    * Count no-shows in tranches `k..l` and for each of those, take another non-empty tranche for each no-show. Repeat so on until either
-      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `RequiredTranches::Pending(last_taken_tranche + uncovered_no_shows)` which indicates that new assignments are needed. `uncovered_no_shows` is the number of no-shows we have not yet covered with `last_taken_tranche`.
-      * All no-shows are covered by at least one non-empty tranche. Set `n_tranches` to the number of tranches taken and return `RequiredTranches::Exact(n_tranches)`.
-      * The amount of assignments in non-empty & taken tranches plus the amount of needed extras equals or exceeds the total number of validators for the approval entry, which can be obtained by measuring the bitfield. In this case we return a special value `RequiredTranches::All` indicating that all validators have effectively been assigned to check.
-    * return `RequiredTranches::Exact(n_tranches, total_no_shows)`
+**Clock-drift and Tranche-taking**
+
+Our vote-counting procedure depends heavily on how we interpret time based on the presence of no-shows - assignments which have no corresponding approval after some time.
+
+We have this is because of how we handle no-shows: we keep track of the depth of no-shows we are covering. 
+
+As an example: there may be initial no-shows in tranche 0. It'll take `no_show_duration` ticks before those are considered no-shows. Then, we don't want to immediately take `no_show_duration` more tranches. Instead, we want to take one tranche for each uncovered no-show. However, as we take those tranches, there may be further no-shows. Since these depth-1 no-shows should have only been triggered after the depth-0 no-shows were already known to be no-shows, we need to discount the local clock by `no_show_duration` to  see whether these should be considered no-shows or not. There may be malicious parties who broadcast their assignment earlier than they were meant to, who shouldn't be counted as instant no-shows. We continue onwards to cover all depth-1 no-shows which may lead to depth-2 no-shows and so on.
+
+Likewise, when considering how many tranches to take, the no-show depth should be used to apply a depth-discount or clock drift to the `tranche_now`.
+
+**Procedure**
+
+  * Start with `depth = 0`.
+  * Set a clock drift of `depth * no_show_duration`
+  * Take tranches up to `tranche_now - clock_drift` until all needed assignments are met.
+  * Keep track of the `next_no_show` according to the clock drift, as we go.
+  * If running out of tranches before then, return `Pending { considered, next_no_show, maximum_broadcast, clock_drift }`
+  * If there are no no-shows, return `Exact { needed, tolerated_missing, next_no_show }`
+  * `maximum_broadcast` is either `DelayTranche::max_value()` at tranche 0 or otherwise by the last considered tranche + the number of uncovered no-shows at this point.
+  * If there are no-shows, return to the beginning, incrementing `depth` and attempting to cover the number of no-shows. Each no-show must be covered by a non-empty tranche, which are tranches that have at least one assignment. Each non-empty tranche covers exactly one no-show.
+  * If at any point, it seems that all validators are required, do an early return with `RequiredTranches::All` which indicates that everyone should broadcast.
 
 #### Check Approval
   * Check whether a candidate is approved under a particular block.
   * Requires `(block_entry, candidate_entry, approval_entry, n_tranches)`
   * If `n_tranches` is `RequiredTranches::Pending`, return false
   * If `n_tranches` is `RequiredTranches::All`,  then we return `3 * n_approvals > 2 * n_validators`.
-  * If `n_tranches` is `RequiredTranches::Exact(tranche, no_shows)`, then we return whether all assigned validators up to `tranche` less `no_shows` have approved. e.g. if we had 5 tranches and 1 no-show, we would accept all validators in tranches 0..=5 except for 1 approving. In that example, we also accept all validators in tranches 0..=5 approving, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. If there are more missing approvals than there are no-shows, that indicates that there are some assignments which are not yet no-shows, but may become no-shows.
+  * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved. e.g. if we had 5 tranches and 1 tolerated missing, we would accept only if all but 1 of assigned validators in tranches 0..=5 have approved. In that example, we also accept all validators in tranches 0..=5 having approved, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. `tolerated_missing` actually represents covered no-shows. If there are more missing approvals than there are tolerated missing, that indicates that there are some assignments which are not yet no-shows, but may become no-shows, and we should wait for the validators to either approve or become no-shows.
 
 ### Time
 
