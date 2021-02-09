@@ -86,6 +86,7 @@ use polkadot_subsystem::messages::{
 	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage,
 	CollatorProtocolMessage, AvailabilityRecoveryMessage, ApprovalDistributionMessage,
+	ApprovalVotingMessage,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
@@ -561,6 +562,9 @@ pub struct Overseer<S> {
 	/// An Approval Distribution subsystem.
 	approval_distribution_subsystem: OverseenSubsystem<ApprovalDistributionMessage>,
 
+	/// An Approval Voting subsystem.
+	approval_voting_subsystem: OverseenSubsystem<ApprovalVotingMessage>,
+
 	/// Spawner to spawn tasks to.
 	s: S,
 
@@ -601,7 +605,7 @@ pub struct Overseer<S> {
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
 pub struct AllSubsystems<
 	CV = (), CB = (), CS = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
-	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (),
+	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (), ApV = (),
 > {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
@@ -637,10 +641,12 @@ pub struct AllSubsystems<
 	pub collator_protocol: CP,
 	/// An Approval Distribution subsystem.
 	pub approval_distribution: ApD,
+	/// An Approval Voting subsystem.
+	pub approval_voting: ApV,
 }
 
-impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
-	AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
+impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV>
+	AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV>
 {
 	/// Create a new instance of [`AllSubsystems`].
 	///
@@ -655,6 +661,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	/// polkadot_overseer::AllSubsystems::<()>::dummy();
 	/// ```
 	pub fn dummy() -> AllSubsystems<
+		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
@@ -691,6 +698,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: DummySubsystem,
 			collator_protocol: DummySubsystem,
 			approval_distribution: DummySubsystem,
+			approval_voting: DummySubsystem,
 		}
 	}
 
@@ -698,7 +706,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_candidate_validation<NEW>(
 		self,
 		candidate_validation: NEW,
-	) -> AllSubsystems<NEW, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<NEW, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -717,6 +725,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -724,7 +733,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_candidate_backing<NEW>(
 		self,
 		candidate_backing: NEW,
-	) -> AllSubsystems<CV, NEW, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, NEW, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing,
@@ -743,6 +752,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -750,7 +760,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_candidate_selection<NEW>(
 		self,
 		candidate_selection: NEW,
-	) -> AllSubsystems<CV, CB, NEW, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, NEW, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -769,6 +779,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -776,7 +787,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_statement_distribution<NEW>(
 		self,
 		statement_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, NEW, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, NEW, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -795,6 +806,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -802,7 +814,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_availability_distribution<NEW>(
 		self,
 		availability_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, NEW, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, NEW, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -821,6 +833,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -828,7 +841,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_availability_recovery<NEW>(
 		self,
 		availability_recovery: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -847,6 +860,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -854,7 +868,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_bitfield_signing<NEW>(
 		self,
 		bitfield_signing: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, NEW, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, NEW, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -873,6 +887,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -880,7 +895,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_bitfield_distribution<NEW>(
 		self,
 		bitfield_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, NEW, P, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, NEW, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -899,6 +914,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -906,7 +922,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_provisioner<NEW>(
 		self,
 		provisioner: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, NEW, PoVD, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, NEW, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -925,6 +941,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -932,7 +949,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_pov_distribution<NEW>(
 		self,
 		pov_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, NEW, RA, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, NEW, RA, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -951,6 +968,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -958,7 +976,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_runtime_api<NEW>(
 		self,
 		runtime_api: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, NEW, AS, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, NEW, AS, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -977,6 +995,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -984,7 +1003,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_availability_store<NEW>(
 		self,
 		availability_store: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, NEW, NB, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, NEW, NB, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -1003,6 +1022,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -1010,7 +1030,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_network_bridge<NEW>(
 		self,
 		network_bridge: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NEW, CA, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NEW, CA, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -1029,6 +1049,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -1036,7 +1057,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_chain_api<NEW>(
 		self,
 		chain_api: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, NEW, CG, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, NEW, CG, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -1055,6 +1076,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -1062,7 +1084,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_collation_generation<NEW>(
 		self,
 		collation_generation: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, NEW, CP, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, NEW, CP, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -1081,6 +1103,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -1088,7 +1111,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_collator_protocol<NEW>(
 		self,
 		collator_protocol: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, NEW, ApD> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, NEW, ApD, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -1107,6 +1130,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol,
 			approval_distribution: self.approval_distribution,
+			approval_voting: self.approval_voting,
 		}
 	}
 
@@ -1114,7 +1138,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 	pub fn replace_approval_distribution<NEW>(
 		self,
 		approval_distribution: NEW,
-	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, NEW> {
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, NEW, ApV> {
 		AllSubsystems {
 			candidate_validation: self.candidate_validation,
 			candidate_backing: self.candidate_backing,
@@ -1133,6 +1157,34 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>
 			collation_generation: self.collation_generation,
 			collator_protocol: self.collator_protocol,
 			approval_distribution,
+			approval_voting: self.approval_voting,
+		}
+	}
+
+	/// Replace the `approval_voting` instance in `self`.
+	pub fn replace_approval_voting<NEW>(
+		self,
+		approval_voting: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, NEW> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			availability_recovery: self.availability_recovery,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+			approval_distribution: self.approval_distribution,
+			approval_voting
 		}
 	}
 }
@@ -1343,9 +1395,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>(
+	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP, ApD, ApV>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
@@ -1367,6 +1419,7 @@ where
 		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
 		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
 		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>> + Send,
+		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>> + Send,
 	{
 		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY, "overseer_events");
 
@@ -1551,6 +1604,15 @@ where
 			&mut seed,
 		)?;
 
+		let approval_voting_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
+			all_subsystems.approval_voting,
+			&metrics,
+			&mut seed,
+		)?;
+
 		let leaves = leaves
 			.into_iter()
 			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
@@ -1577,6 +1639,7 @@ where
 			collation_generation_subsystem,
 			collator_protocol_subsystem,
 			approval_distribution_subsystem,
+			approval_voting_subsystem,
 			s,
 			running_subsystems,
 			to_overseer_rx: to_overseer_rx.fuse(),
@@ -1610,6 +1673,7 @@ where
 		let _ = self.collator_protocol_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.collation_generation_subsystem.send_signal(OverseerSignal::Conclude).await;
 		let _ = self.approval_distribution_subsystem.send_signal(OverseerSignal::Conclude).await;
+		let _ = self.approval_voting_subsystem.send_signal(OverseerSignal::Conclude).await;
 
 		let mut stop_delay = Delay::new(Duration::from_secs(STOP_DELAY)).fuse();
 
@@ -1778,7 +1842,8 @@ where
 		self.chain_api_subsystem.send_signal(signal.clone()).await?;
 		self.collator_protocol_subsystem.send_signal(signal.clone()).await?;
 		self.collation_generation_subsystem.send_signal(signal.clone()).await?;
-		self.approval_distribution_subsystem.send_signal(signal).await?;
+		self.approval_distribution_subsystem.send_signal(signal.clone()).await?;
+		self.approval_voting_subsystem.send_signal(signal).await?;
 
 		Ok(())
 	}
@@ -1804,7 +1869,7 @@ where
 				self.availability_distribution_subsystem.send_message(msg).await?;
 			},
 			AllMessages::AvailabilityRecovery(msg) => {
-				let _ = self.availability_recovery_subsystem.send_message(msg).await;
+				self.availability_recovery_subsystem.send_message(msg).await?;
 			},
 			AllMessages::BitfieldDistribution(msg) => {
 				self.bitfield_distribution_subsystem.send_message(msg).await?;
@@ -1837,10 +1902,10 @@ where
 				self.collator_protocol_subsystem.send_message(msg).await?;
 			},
 			AllMessages::ApprovalDistribution(msg) => {
-				let _ = self.approval_distribution_subsystem.send_message(msg).await;
+				self.approval_distribution_subsystem.send_message(msg).await?;
 			},
-			AllMessages::ApprovalVoting(_msg) => {
-				// FIXME: https://github.com/paritytech/polkadot/issues/2321
+			AllMessages::ApprovalVoting(msg) => {
+				self.approval_voting_subsystem.send_message(msg).await?;
 			},
 		}
 
@@ -2696,6 +2761,11 @@ mod tests {
 		ApprovalDistributionMessage::NewBlocks(Default::default())
 	}
 
+	fn test_approval_voting_msg() -> ApprovalVotingMessage {
+		let (sender, _) = oneshot::channel();
+		ApprovalVotingMessage::ApprovedAncestor(Default::default(), 0, sender)
+	}
+
 	// Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 	#[test]
 	fn overseer_all_subsystems_receive_signals_and_messages() {
@@ -2730,6 +2800,7 @@ mod tests {
 				network_bridge: subsystem.clone(),
 				chain_api: subsystem.clone(),
 				approval_distribution: subsystem.clone(),
+				approval_voting: subsystem.clone(),
 			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
@@ -2767,13 +2838,14 @@ mod tests {
 			handler.send_msg(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
 			handler.send_msg(AllMessages::ChainApi(test_chain_api_msg())).await;
 			handler.send_msg(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
+			handler.send_msg(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
 
 			// send a stop signal to each subsystems
 			handler.stop().await;
 
 			select! {
 				res = overseer_fut => {
-					const NUM_SUBSYSTEMS: usize = 17;
+					const NUM_SUBSYSTEMS: usize = 18;
 
 					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// x2 because of broadcast_signal on startup
