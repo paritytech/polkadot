@@ -1005,13 +1005,26 @@ pub fn build_full(
 	grandpa_pause: Option<(u32, u32)>,
 	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<NewFull<Client>, Error> {
+	let isolation_strategy = {
+		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+		{
+			let cache_base_path = config.database.path();
+			IsolationStrategy::external_process_with_caching(cache_base_path)
+		}
+
+		#[cfg(any(target_os = "android", target_os = "unknown"))]
+		{
+			IsolationStrategy::InProcess
+		}
+	};
+
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
@@ -1019,7 +1032,7 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
@@ -1027,7 +1040,7 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
@@ -1035,7 +1048,7 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Polkadot))
 	}
 }

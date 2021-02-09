@@ -661,7 +661,7 @@ pub(crate) mod mock_sink {
 mod tests {
 	use super::*;
 	use super::mock_sink::Probe;
-	use crate::mock::{Configuration, Ump, new_test_ext, GenesisConfig as MockGenesisConfig};
+	use crate::mock::{Configuration, Ump, new_test_ext, MockGenesisConfig};
 	use frame_support::IterableStorageMap;
 	use std::collections::HashSet;
 
@@ -686,7 +686,7 @@ mod tests {
 	}
 
 	impl GenesisConfigBuilder {
-		fn build(self) -> crate::mock::GenesisConfig {
+		fn build(self) -> crate::mock::MockGenesisConfig {
 			let mut genesis = default_genesis_config();
 			let config = &mut genesis.configuration.config;
 

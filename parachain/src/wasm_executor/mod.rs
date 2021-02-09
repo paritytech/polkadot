@@ -20,7 +20,7 @@
 //! Assuming the parameters are correct, this module provides a wrapper around
 //! a WASM VM for re-execution of a parachain candidate.
 
-use std::{any::{TypeId, Any}, path::PathBuf};
+use std::{any::{TypeId, Any}, path::{Path, PathBuf}};
 use crate::primitives::{ValidationParams, ValidationResult};
 use parity_scale_codec::{Decode, Encode};
 use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
@@ -76,7 +76,10 @@ pub enum IsolationStrategy {
 	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
 	/// following by the address of the shared memory.
 	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-	ExternalProcessSelfHost(ValidationPool),
+	ExternalProcessSelfHost {
+		pool: ValidationPool,
+		cache_base_path: Option<String>,
+	},
 	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
 	/// memory is added at the end of the arguments.
 	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
@@ -91,16 +94,16 @@ pub enum IsolationStrategy {
 	},
 }
 
-impl Default for IsolationStrategy {
-	fn default() -> Self {
-		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		{
-			Self::ExternalProcessSelfHost(ValidationPool::new())
-		}
+impl IsolationStrategy {
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+	pub fn external_process_with_caching(cache_base_path: Option<&Path>) -> Self {
+		// Convert cache path to string here so that we don't have to do that each time we launch
+		// validation worker.
+		let cache_base_path = cache_base_path.map(|path| path.display().to_string());
 
-		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		{
-			Self::InProcess
+		Self::ExternalProcessSelfHost {
+			pool: ValidationPool::new(),
+			cache_base_path,
 		}
 	}
 }
@@ -165,8 +168,12 @@ pub enum InternalError {
 /// This should be reused across candidate validation instances.
 pub struct ExecutorCache(sc_executor::WasmExecutor);
 
-impl Default for ExecutorCache {
-	fn default() -> Self {
+impl ExecutorCache {
+	/// Returns a new instance of an executor cache.
+	///
+	/// `cache_base_path` allows to specify a directory where the executor is allowed to store files
+	/// for caching, e.g. compilation artifacts.
+	pub fn new(cache_base_path: Option<PathBuf>) -> ExecutorCache {
 		ExecutorCache(sc_executor::WasmExecutor::new(
 			#[cfg(all(feature = "wasmtime", not(any(target_os = "android", target_os = "unknown"))))]
 			sc_executor::WasmExecutionMethod::Compiled,
@@ -175,7 +182,8 @@ impl Default for ExecutorCache {
 			// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
 			Some(1024),
 			HostFunctions::host_functions(),
-			8
+			8,
+			cache_base_path,
 		))
 	}
 }
@@ -192,15 +200,15 @@ pub fn validate_candidate(
 	match isolation_strategy {
 		IsolationStrategy::InProcess => {
 			validate_candidate_internal(
-				&ExecutorCache::default(),
+				&ExecutorCache::new(None),
 				validation_code,
 				&params.encode(),
 				spawner,
 			)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		IsolationStrategy::ExternalProcessSelfHost(pool) => {
-			pool.validate_candidate(validation_code, params)
+		IsolationStrategy::ExternalProcessSelfHost { pool, cache_base_path } => {
+			pool.validate_candidate(validation_code, params, cache_base_path.as_deref())
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		IsolationStrategy::ExternalProcessCustomHost { pool, binary, args } => {

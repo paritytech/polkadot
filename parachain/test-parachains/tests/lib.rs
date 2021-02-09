@@ -25,6 +25,6 @@ use parachain::wasm_executor::run_worker;
 #[test]
 fn validation_worker() {
 	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_rs_")) {
-		run_worker(&id).unwrap()
+		run_worker(&id, None).unwrap()
 	}
 }
