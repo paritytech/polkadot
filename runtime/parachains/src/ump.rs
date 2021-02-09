@@ -229,7 +229,7 @@ impl<T: Config> Module<T> {
 		});
 	}
 
-	fn clean_ump_after_outgoing(outgoing_para: ParaId) {
+	pub(crate) fn clean_ump_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::RelayDispatchQueueSize::remove(&outgoing_para);
 		<Self as Store>::RelayDispatchQueues::remove(&outgoing_para);
 

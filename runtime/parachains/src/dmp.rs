@@ -114,7 +114,7 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	fn clean_dmp_after_outgoing(outgoing_para: ParaId) {
+	pub(crate) fn clean_dmp_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::DownwardMessageQueues::remove(&outgoing_para);
 		<Self as Store>::DownwardMessageQueueHeads::remove(&outgoing_para);
 	}

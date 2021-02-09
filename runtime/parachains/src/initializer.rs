@@ -21,7 +21,7 @@
 
 use sp_std::prelude::*;
 use frame_support::weights::Weight;
-use primitives::v1::ValidatorId;
+use primitives::v1::{ValidatorId, Id as ParaId};
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
@@ -199,7 +199,8 @@ impl<T: Config> Module<T> {
 			session_index,
 		};
 
-		paras::Module::<T>::initializer_on_new_session(&notification);
+		let outgoing = paras::Module::<T>::initializer_on_new_session(&notification);
+		Self::clean_up_outgoing(outgoing);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
@@ -230,6 +231,15 @@ impl<T: Config> Module<T> {
 			queued,
 			session_index,
 		}));
+	}
+
+	/// Clean up all stored data about any outgoing paras.
+	fn clean_up_outgoing(outgoing: Vec<ParaId>) {
+		for para in outgoing {
+			dmp::Module::<T>::clean_dmp_after_outgoing(para);
+			ump::Module::<T>::clean_ump_after_outgoing(para);
+			hrmp::Module::<T>::clean_hrmp_after_outgoing(para);
+		}
 	}
 }
 

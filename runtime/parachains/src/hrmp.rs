@@ -429,7 +429,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Remove all storage entries associated with the given para.
-	fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
+	pub(crate) fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
 		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
 		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&outgoing_para);
 
