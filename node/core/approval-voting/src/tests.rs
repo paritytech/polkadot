@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use polkadot_primitives::v1::{GroupIndex, ValidatorSignature};
+use polkadot_primitives::v1::{CoreIndex, GroupIndex, ValidatorSignature};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
@@ -282,34 +282,78 @@ fn some_state(config: StateConfig) -> State<TestStore> {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 
-	let block_entry = approval_db::v1::BlockEntry {
+	add_block(
+		&mut state.db,
 		block_hash,
-		session: session_index,
+		session_index,
 		slot,
-		candidates: vec![(core_index, candidate_hash)],
-		relay_vrf_story: Default::default(),
-		approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; 1],
-		children: Default::default(),
-	};
-	let approval_entry = approval_db::v1::ApprovalEntry {
-		tranches: Vec::new(),
-		backing_group: GroupIndex(0),
-		our_assignment: None,
-		assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
-		approved: false,
-	};
-	let candidate_entry = approval_db::v1::CandidateEntry {
-		session: session_index,
-		block_assignments: maplit::btreemap! {
-			block_hash => approval_entry,
-		},
-		candidate: CandidateReceipt::default(),
-		approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
-	};
+	);
 
-	state.db.block_entries.insert(block_hash, block_entry.into());
-	state.db.candidate_entries.insert(candidate_hash, candidate_entry.into());
+	add_candidate_to_block(
+		&mut state.db,
+		block_hash,
+		candidate_hash,
+		n_validators,
+		core_index,
+		GroupIndex(0),
+	);
+
 	state
+}
+
+fn add_block(
+	db: &mut TestStore,
+	block_hash: Hash,
+	session: SessionIndex,
+	slot: Slot,
+) {
+	db.block_entries.insert(
+		block_hash,
+		approval_db::v1::BlockEntry {
+			block_hash,
+			session,
+			slot,
+			candidates: Vec::new(),
+			relay_vrf_story: Default::default(),
+			approved_bitfield: Default::default(),
+			children: Default::default(),
+		}.into(),
+	);
+}
+
+fn add_candidate_to_block(
+	db: &mut TestStore,
+	block_hash: Hash,
+	candidate_hash: CandidateHash,
+	n_validators: usize,
+	core: CoreIndex,
+	backing_group: GroupIndex,
+) {
+	let mut block_entry = db.block_entries.get(&block_hash).unwrap().clone();
+
+	let candidate_entry = db.candidate_entries
+		.entry(candidate_hash)
+		.or_insert_with(|| approval_db::v1::CandidateEntry {
+			session: block_entry.session(),
+			block_assignments: Default::default(),
+			candidate: CandidateReceipt::default(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+		}.into());
+
+	let pos = block_entry.add_candidate(core, candidate_hash);
+
+	candidate_entry.add_approval_entry(
+		block_hash,
+		approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group,
+			our_assignment: None,
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			approved: false,
+		}.into(),
+	);
+
+	db.block_entries.insert(block_hash, block_entry);
 }
 
 struct TestHarness {

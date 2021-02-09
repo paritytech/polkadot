@@ -253,6 +253,15 @@ impl CandidateEntry {
 	pub fn iter_approval_entries(&self) -> impl IntoIterator<Item = (&Hash, &ApprovalEntry)> {
 		self.block_assignments.iter()
 	}
+
+	#[cfg(test)]
+	pub fn add_approval_entry(
+		&mut self,
+		block_hash: Hash,
+		approval_entry: ApprovalEntry,
+	) {
+		self.block_assignments.insert(block_hash, approval_entry);
+	}
 }
 
 impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
@@ -318,6 +327,28 @@ impl BlockEntry {
 		self.candidates.iter().position(|(_, h)| h == candidate_hash)
 			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
 			.unwrap_or(false)
+	}
+
+	/// For tests: Add a candidate to the block entry. Returns the
+	/// index where the candidate was added.
+	///
+	/// Panics if the core is already used.
+	#[cfg(test)]
+	pub fn add_candidate(&mut self, core: CoreIndex, candidate_hash: CandidateHash) -> usize {
+		let pos = self.candidates
+			.binary_search_by_key(&core, |(c, _)| *c)
+			.unwrap_err();
+
+		self.candidates.insert(pos, (core, candidate_hash));
+
+		// bug in bitvec?
+		if pos < self.approved_bitfield.len() {
+			self.approved_bitfield.insert(pos, false);
+		} else {
+			self.approved_bitfield.push(false);
+		}
+
+		pos
 	}
 
 	/// Get the slot of the block.
