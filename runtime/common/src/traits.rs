@@ -129,6 +129,10 @@ pub trait Auctioneer {
 	/// - `first_slot`: The first lease period index of the range to be bid on.
 	/// - `last_slot`: The last lease period index of the range to be bid on (inclusive).
 	/// - `amount`: The total amount to be the bid for deposit over the range.
+	///
+	/// The account `Bidder` must have at least `amount` available as a free balance in `Currency`. The
+	/// implementation *MUST* remove or reserve `amount` funds from `bidder` and those funds should be returned
+	/// or freed once the bid is rejected or lease has ended.
 	fn place_bid(
 		bidder: Self::AccountId,
 		para: ParaId,

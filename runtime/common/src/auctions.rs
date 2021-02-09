@@ -1071,7 +1071,7 @@ mod tests {
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
-	use super::{*, Module as Crowdloan};
+	use super::{*, Module as Auctions};
 	use crate::slots::Module as Slots;
 	use frame_system::RawOrigin;
 	use frame_support::{
