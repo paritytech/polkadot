@@ -433,8 +433,8 @@ fn rejects_assignment_in_future() {
 
 	let tick = 9;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(10)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
+			Ok((tick + slot_to_tick(5)) as _)
 		})),
 		..some_state(StateConfig { tick, ..Default::default() })
 	};
@@ -446,10 +446,9 @@ fn rejects_assignment_in_future() {
 	).unwrap();
 	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
 
-	let tick = 10;
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(10)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
+			Ok((tick + slot_to_tick(5) - 1) as _)
 		})),
 		..some_state(StateConfig { tick, ..Default::default() })
 	};
@@ -459,22 +458,7 @@ fn rejects_assignment_in_future() {
 		assignment.clone(),
 		candidate_index,
 	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
-
-	let tick = 11;
-	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(10)
-		})),
-		..some_state(StateConfig { slot: Slot::from(6), tick, ..Default::default() })
-	};
-
-	let res = check_and_import_assignment(
-		&mut state,
-		assignment,
-		candidate_index,
-	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
+	assert_eq!(res.0, AssignmentCheckResult::Accepted);
 }
 
 #[test]
