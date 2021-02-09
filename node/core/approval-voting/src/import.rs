@@ -236,8 +236,12 @@ async fn cache_session_info_for_head(
 ) -> SubsystemResult<Result<(), SessionsUnavailable>> {
 	let session_index = {
 		let (s_tx, s_rx) = oneshot::channel();
+
+		// The genesis is guaranteed to be at the beginning of the session and its parent state
+		// is non-existent. Therefore if we're at the genesis, we request using its state and
+		// not the parent.
 		ctx.send_message(RuntimeApiMessage::Request(
-			block_header.parent_hash,
+			if block_header.number == 0 { block_hash } else { block_header.parent_hash },
 			RuntimeApiRequest::SessionIndexForChild(s_tx),
 		).into()).await;
 
@@ -512,6 +516,7 @@ pub(crate) async fn handle_new_head(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	// Update session info based on most recent head.
+
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx).into()).await;
@@ -1672,6 +1677,71 @@ mod tests {
 					}
 				);
 			}
+		});
+
+		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn request_session_info_for_genesis() {
+		let session: SessionIndex = 0;
+
+		let header = Header {
+			digest: Digest::default(),
+			extrinsics_root: Default::default(),
+			number: 0,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let mut window = RollingSessionWindow::default();
+		let hash = header.hash();
+
+		let test_fut = {
+			let header = header.clone();
+			Box::pin(async move {
+				cache_session_info_for_head(
+					&mut ctx,
+					&mut window,
+					hash,
+					&header,
+				).await.unwrap().unwrap();
+
+				assert_eq!(window.earliest_session, Some(session));
+				assert_eq!(
+					window.session_info,
+					vec![dummy_session_info(session)],
+				);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionInfo(s, s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					assert_eq!(s, session);
+
+					let _ = s_tx.send(Ok(Some(dummy_session_info(s))));
+				}
+			);
 		});
 
 		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
