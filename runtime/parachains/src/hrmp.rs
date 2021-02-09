@@ -1550,17 +1550,17 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(1, Some(vec![1]));
+			run_to_block(2, Some(vec![1,2]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
-			run_to_block(2, Some(vec![2]));
+			run_to_block(3, Some(vec![3]));
 			let _ = Hrmp::queue_outbound_hrmp(para_a, vec![OutboundHrmpMessage {
 				recipient: para_b,
 				data: vec![1, 2, 3],
 			}]);
 
-			run_to_block(3, None);
+			run_to_block(4, None);
 			let _ = Hrmp::queue_outbound_hrmp(para_a, vec![OutboundHrmpMessage {
 				recipient: para_b,
 				data: vec![4, 5, 6],
@@ -1569,7 +1569,7 @@ mod tests {
 			assert_eq!(
 				Hrmp::hrmp_mqc_heads(para_b),
 				vec![
-					(para_a, hex_literal::hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into()),
+					(para_a, hex_literal::hex!["a964fd3b4f3d3ce92a0e25e576b87590d92bb5cb7031909c7f29050e1f04a375"].into()),
 				],
 			);
 		});

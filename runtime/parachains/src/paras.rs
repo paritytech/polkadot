@@ -415,8 +415,6 @@ impl<T: Config> Module<T> {
 			}
 		}
 
-		println!(" final parachains {:?}", parachains);
-
 		// Place the new parachains set in storage.
 		<Self as Store>::Parachains::set(parachains);
 	}
