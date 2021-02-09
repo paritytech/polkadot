@@ -41,7 +41,6 @@ pub(crate) struct ApprovalCheckingDiagnostic {
 
 impl ApprovalCheckingDiagnostic {
 	/// Create a new approval checking diagnostic voting rule.
-	#[cfg(feature = "real-overseer")]
 	pub fn new(overseer: OverseerHandler, registry: Option<&Registry>)
 		-> Result<Self, prometheus_endpoint::PrometheusError>
 	{

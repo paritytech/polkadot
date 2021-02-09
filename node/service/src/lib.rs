@@ -569,7 +569,12 @@ pub fn new_full<RuntimeApi, Executor>(
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks =
-		Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default());
+		Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging {
+			#[cfg(feature = "real-overseer")]
+			unfinalized_slack: 100,
+			..Default::default()
+		});
+
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
