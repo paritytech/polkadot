@@ -16,9 +16,114 @@
 
 //! Polkadot-specific GRANDPA integration utilities.
 
-#[cfg(feature = "full-node")]
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{Block as PolkadotBlock, Header as PolkadotHeader, BlockNumber, Hash};
+use polkadot_subsystem::messages::ApprovalVotingMessage;
+
 use sp_runtime::traits::{Block as BlockT, NumberFor};
+use sp_runtime::generic::BlockId;
+use sp_runtime::traits::Header as _;
+
+use prometheus_endpoint::{self, Registry};
+use polkadot_overseer::OverseerHandler;
+
+use futures::channel::oneshot;
+
+/// A custom GRANDPA voting rule that acts as a diagnostic for the approval
+/// voting subsystem's desired votes.
+///
+/// The practical effect of this voting rule is to implement a fixed delay of
+/// blocks and to issue a prometheus metric on the lag behind the head that
+/// approval checking would indicate.
+pub(crate) struct ApprovalCheckingDiagnostic {
+	checking_lag: prometheus_endpoint::Histogram,
+	window: BlockNumber,
+	overseer: OverseerHandler,
+}
+
+impl ApprovalCheckingDiagnostic {
+	/// Create a new approval checking diagnostic voting rule.
+	pub fn new(window: BlockNumber, overseer: OverseerHandler, registry: &Registry)
+		-> Result<Self, prometheus_endpoint::PrometheusError>
+	{
+		Ok(ApprovalCheckingDiagnostic {
+			checking_lag: prometheus_endpoint::register(
+				prometheus_endpoint::Histogram::with_opts(
+					prometheus_endpoint::HistogramOpts::new(
+						"approval_checking_finality_lag",
+						"How far behind the head of the chain the Approval Checking protocol wants to vote",
+					).buckets(vec![1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0])
+				)?,
+				registry,
+			)?,
+			window,
+			overseer,
+		})
+	}
+}
+
+impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
+	where B: sp_blockchain::HeaderBackend<PolkadotBlock>
+{
+	fn restrict_vote(
+		&self,
+		backend: &B,
+		base: &PolkadotHeader,
+		best_target: &PolkadotHeader,
+		current_target: &PolkadotHeader,
+	) -> Option<(Hash, BlockNumber)> {
+		let find_target = |target_number: BlockNumber, current_header: &PolkadotHeader| {
+			let mut target_hash = current_header.hash();
+			let mut target_header = current_header.clone();
+
+			loop {
+				if *target_header.number() < target_number {
+					unreachable!(
+						"we are traversing backwards from a known block; \
+						 blocks are stored contiguously; \
+						 qed"
+					);
+				}
+
+				if *target_header.number() == target_number {
+					return Some((target_hash, target_number));
+				}
+
+				target_hash = *target_header.parent_hash();
+				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
+					.expect("Header known to exist due to the existence of one of its descendents; qed");
+			}
+		};
+
+		let target_number = std::cmp::max(
+			best_target.number().saturating_sub(self.window),
+			base.number().clone(),
+		);
+
+		let actual_vote_target = find_target(target_number, current_target);
+
+		// Query approval checking and issue metrics.
+		let mut overseer = self.overseer.clone();
+		let approval_checking_subsystem_vote = futures::executor::block_on(Box::pin(async move {
+			let (tx, rx) = oneshot::channel();
+			overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
+				current_target.hash(),
+				base.number().clone(),
+				tx,
+			)).await;
+
+			rx.await.ok().and_then(|v| v)
+		}));
+
+		let approval_checking_subsystem_lag = approval_checking_subsystem_vote.map_or(
+			current_target.number() - base.number(),
+			|(_h, n)| current_target.number() - n,
+		);
+
+		self.checking_lag.observe(approval_checking_subsystem_lag as _);
+
+		actual_vote_target
+	}
+}
 
 /// A custom GRANDPA voting rule that "pauses" voting (i.e. keeps voting for the
 /// same last finalized block) after a given block at height `N` has been
@@ -38,8 +143,6 @@ where
 		best_target: &Block::Header,
 		current_target: &Block::Header,
 	) -> Option<(Block::Hash, NumberFor<Block>)> {
-		use sp_runtime::generic::BlockId;
-		use sp_runtime::traits::Header as _;
 
 		// walk backwards until we find the target block
 		let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
