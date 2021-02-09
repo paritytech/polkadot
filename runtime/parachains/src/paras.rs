@@ -93,6 +93,10 @@ enum UseCodeAt<N> {
 }
 
 /// The possible states of a para, to take into account delayed lifecycle changes.
+///
+/// If the para is in a "transition state", it is expected that the parachain is
+/// queued in the `ActionsQueue` to transition it into a stable state. Its lifecycle
+/// state will be used to determine the state transition to apply to the para.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub enum ParaLifecycle {
 	/// Para is new and is onboarding as a Parathread or Parachain.
@@ -105,10 +109,10 @@ pub enum ParaLifecycle {
 	UpgradingParathread,
 	/// Para is a Parachain which is downgrading to a Parathread.
 	DowngradingParachain,
-	/// Parathread is being offboarded.
-	OutgoingParathread,
-	/// Parachain is being offboarded.
-	OutgoingParachain,
+	/// Parathread is queued to be offboarded.
+	OffboardingParathread,
+	/// Parachain is queued to be offboarded.
+	OffboardingParachain,
 }
 
 // Wait until the session index is 2 larger then the current index to apply any changes.
@@ -135,7 +139,7 @@ impl ParaLifecycle {
 		matches!(self,
 			ParaLifecycle::Parachain |
 			ParaLifecycle::DowngradingParachain |
-			ParaLifecycle::OutgoingParachain
+			ParaLifecycle::OffboardingParachain
 		)
 	}
 
@@ -146,13 +150,13 @@ impl ParaLifecycle {
 		matches!(self,
 			ParaLifecycle::Parathread |
 			ParaLifecycle::UpgradingParathread |
-			ParaLifecycle::OutgoingParathread
+			ParaLifecycle::OffboardingParathread
 		)
 	}
 
 	/// Returns true if para is currently offboarding.
-	pub fn is_outgoing(&self) -> bool {
-		matches!(self, ParaLifecycle::OutgoingParathread | ParaLifecycle::OutgoingParachain)
+	pub fn is_offboarding(&self) -> bool {
+		matches!(self, ParaLifecycle::OffboardingParathread | ParaLifecycle::OffboardingParachain)
 	}
 
 	/// Returns true if para is in any transitionary state.
@@ -318,7 +322,7 @@ fn build<T: Config>(config: &GenesisConfig<T>) {
 decl_error! {
 	pub enum Error for Module<T: Config> {
 		/// Para is not registered in our system.
-		NoLifecycle,
+		NotRegistered,
 		/// Para cannot be onboarded because it is already tracked by our system.
 		CannotOnboard,
 		/// Para cannot be offboarded at this time.
@@ -352,11 +356,12 @@ impl<T: Config> Module<T> {
 		Self::apply_actions_queue(notification.session_index);
 	}
 
-	// Apply all actions queued for the given session index.
+	// Apply all para actions queued for the given session index.
 	//
-	// This function checks that the lifecycle of each parachain matches the expected state transition.
-	// If the lifecycle is incorrect, this will apply no changes to that para, except for outgoing
-	// paras, where we will be defensive and offboard them no matter their state.
+	// The actions to take are based on the lifecycle of of the paras.
+	//
+	// The final state of any para after the actions queue should be as a
+	// parachain, parathread, or not registered. (stable states)
 	fn apply_actions_queue(session: SessionIndex) {
 		let actions = ActionsQueue::take(session);
 		let mut parachains = <Self as Store>::Parachains::get();
@@ -366,7 +371,7 @@ impl<T: Config> Module<T> {
 			let lifecycle = ParaLifecycles::get(&para);
 			match lifecycle {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */ },
-				// Onboard a new parathread
+				// Onboard a new parathread or parachain.
 				Some(ParaLifecycle::Onboarding) => {
 					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
 						if genesis_data.parachain {
@@ -396,8 +401,8 @@ impl<T: Config> Module<T> {
 					}
 					ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
 				},
-				// Offboard a parathread from the system
-				Some(ParaLifecycle::OutgoingParachain) | Some(ParaLifecycle::OutgoingParathread) => {
+				// Offboard a parathread or parachain from the system
+				Some(ParaLifecycle::OffboardingParachain) | Some(ParaLifecycle::OffboardingParathread) => {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
@@ -497,6 +502,8 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
+	///
+	/// Will return error if para is already registered in the system.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
 		let scheduled_session = Self::session_index() + SESSION_DELAY;
 		let lifecycle = ParaLifecycles::get(&id);
@@ -520,14 +527,14 @@ impl<T: Config> Module<T> {
 	/// Will return error if para is not a stable parachain or parathread.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::session_index() + SESSION_DELAY;
-		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NoLifecycle)?;
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		match lifecycle {
 			ParaLifecycle::Parathread => {
-				ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParathread);
+				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParathread);
 			},
 			ParaLifecycle::Parachain => {
-				ParaLifecycles::insert(&id, ParaLifecycle::OutgoingParachain);
+				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParachain);
 			},
 			_ => return Err(Error::<T>::CannotOffboard)?,
 		}
@@ -543,13 +550,13 @@ impl<T: Config> Module<T> {
 
 	/// Schedule a parathread to be upgraded to a parachain.
 	///
-	/// Noop if `ParaLifecycle` is not `Parathread`.
+	/// Will return error if `ParaLifecycle` is not `Parathread`.
 	#[allow(unused)]
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::session_index() + SESSION_DELAY;
-		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NoLifecycle)?;
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
-		ensure!(lifecycle.is_parathread() && lifecycle.is_stable(), Error::<T>::CannotUpgrade);
+		ensure!(lifecycle == ParaLifecycle::Parathread, Error::<T>::CannotUpgrade);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::UpgradingParathread);
 		ActionsQueue::mutate(scheduled_session, |v| {
@@ -567,9 +574,9 @@ impl<T: Config> Module<T> {
 	#[allow(unused)]
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::session_index() + SESSION_DELAY;
-		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NoLifecycle)?;
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
-		ensure!(lifecycle.is_parachain() && lifecycle.is_stable(), Error::<T>::CannotDowngrade);
+		ensure!(lifecycle == ParaLifecycle::Parachain, Error::<T>::CannotDowngrade);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::DowngradingParachain);
 		ActionsQueue::mutate(scheduled_session, |v| {
@@ -683,10 +690,10 @@ impl<T: Config> Module<T> {
 		ParaLifecycles::get(&id)
 	}
 
-	/// Returns whether the given ID refers to a valid para.
+	/// Returns whether the given ID refers to a valid para, i.e. some parachain or parathread.
 	pub fn is_valid_para(id: ParaId) -> bool {
 		if let Some(state) = ParaLifecycles::get(&id) {
-			!state.is_onboarding() && !state.is_outgoing()
+			state.is_parachain() || state.is_parathread()
 		} else {
 			false
 		}
