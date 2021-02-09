@@ -690,10 +690,12 @@ impl<T: Config> Module<T> {
 		ParaLifecycles::get(&id)
 	}
 
-	/// Returns whether the given ID refers to a valid para, i.e. some parachain or parathread.
+	/// Returns whether the given ID refers to a valid para.
+	///
+	/// Paras that are onboarding or offboarding are not included.
 	pub fn is_valid_para(id: ParaId) -> bool {
 		if let Some(state) = ParaLifecycles::get(&id) {
-			state.is_parachain() || state.is_parathread()
+			!state.is_onboarding() && !state.is_offboarding()
 		} else {
 			false
 		}

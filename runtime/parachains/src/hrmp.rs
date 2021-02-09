@@ -1589,8 +1589,8 @@ mod tests {
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			deregister_parachain(para_a);
 
-			// On Block 6: session change. The channel should not be created.
-			run_to_block(6, Some(vec![6]));
+			// On Block 7: 2x session change. The channel should not be created.
+			run_to_block(7, Some(vec![6, 7]));
 			assert!(!Paras::is_valid_para(para_a));
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();
@@ -1880,7 +1880,7 @@ mod tests {
 
 			// Then deregister one parachain.
 			deregister_parachain(para_a);
-			run_to_block(10, Some(vec![10]));
+			run_to_block(10, Some(vec![9, 10]));
 
 			// The channel should be removed.
 			assert!(!Paras::is_valid_para(para_a));
