@@ -490,7 +490,7 @@ where
 		),
 		approval_voting: ApprovalVotingSubsystem::new(
 			keystore.clone(),
-			slot_duration_millis,
+			slot_duration,
 			runtime_client.clone(),
 		),
 	};
@@ -817,6 +817,17 @@ pub fn new_full<RuntimeApi, Executor>(
 		// add a custom voting rule to temporarily stop voting for new blocks
 		// after the given pause block is finalized and restarting after the
 		// given delay.
+		let builder = grandpa::VotingRulesBuilder::default();
+
+		let builder = if let Some(ref overseer) = overseer_handler {
+			builder.add(grandpa_support::ApprovalCheckingDiagnostic::new(
+				overseer.clone(),
+				prometheus_registry.as_ref(),
+			)?)
+		} else {
+			builder
+		};
+
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
 				info!(
@@ -827,11 +838,11 @@ pub fn new_full<RuntimeApi, Executor>(
 					delay,
 				);
 
-				grandpa::VotingRulesBuilder::default()
+				builder
 					.add(grandpa_support::PauseAfterBlockFor(block, delay))
 					.build()
 			}
-			None => grandpa::VotingRulesBuilder::default().build(),
+			None => builder.build(),
 		};
 
 		let grandpa_config = grandpa::GrandpaParams {

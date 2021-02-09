@@ -35,27 +35,30 @@ use futures::channel::oneshot;
 /// blocks and to issue a prometheus metric on the lag behind the head that
 /// approval checking would indicate.
 pub(crate) struct ApprovalCheckingDiagnostic {
-	checking_lag: prometheus_endpoint::Histogram,
-	window: BlockNumber,
+	checking_lag: Option<prometheus_endpoint::Histogram>,
 	overseer: OverseerHandler,
 }
 
 impl ApprovalCheckingDiagnostic {
 	/// Create a new approval checking diagnostic voting rule.
-	pub fn new(window: BlockNumber, overseer: OverseerHandler, registry: &Registry)
+	#[cfg(feature = "real-overseer")]
+	pub fn new(overseer: OverseerHandler, registry: Option<&Registry>)
 		-> Result<Self, prometheus_endpoint::PrometheusError>
 	{
 		Ok(ApprovalCheckingDiagnostic {
-			checking_lag: prometheus_endpoint::register(
-				prometheus_endpoint::Histogram::with_opts(
-					prometheus_endpoint::HistogramOpts::new(
-						"approval_checking_finality_lag",
-						"How far behind the head of the chain the Approval Checking protocol wants to vote",
-					).buckets(vec![1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0])
-				)?,
-				registry,
-			)?,
-			window,
+			checking_lag: if let Some(registry) = registry {
+				Some(prometheus_endpoint::register(
+					prometheus_endpoint::Histogram::with_opts(
+						prometheus_endpoint::HistogramOpts::new(
+							"approval_checking_finality_lag",
+							"How far behind the head of the chain the Approval Checking protocol wants to vote",
+						).buckets(vec![1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0])
+					)?,
+					registry,
+				)?)
+			} else {
+				None
+			},
 			overseer,
 		})
 	}
@@ -68,9 +71,12 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 		&self,
 		backend: &B,
 		base: &PolkadotHeader,
-		best_target: &PolkadotHeader,
+		_best_target: &PolkadotHeader,
 		current_target: &PolkadotHeader,
 	) -> Option<(Hash, BlockNumber)> {
+		// always wait 50 blocks behind the head to finalize.
+		const DIAGNOSTIC_GRANDPA_DELAY: BlockNumber = 50;
+
 		let find_target = |target_number: BlockNumber, current_header: &PolkadotHeader| {
 			let mut target_hash = current_header.hash();
 			let mut target_header = current_header.clone();
@@ -95,7 +101,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 		};
 
 		let target_number = std::cmp::max(
-			best_target.number().saturating_sub(self.window),
+			current_target.number().saturating_sub(DIAGNOSTIC_GRANDPA_DELAY),
 			base.number().clone(),
 		);
 
@@ -119,7 +125,9 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 			|(_h, n)| current_target.number() - n,
 		);
 
-		self.checking_lag.observe(approval_checking_subsystem_lag as _);
+		if let Some(ref checking_lag) = self.checking_lag {
+			checking_lag.observe(approval_checking_subsystem_lag as _);
+		}
 
 		actual_vote_target
 	}

@@ -134,4 +134,5 @@ real-overseer = [
 	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
+	"polkadot-node-core-approval-voting",
 ]
