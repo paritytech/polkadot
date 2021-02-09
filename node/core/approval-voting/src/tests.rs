@@ -1506,7 +1506,7 @@ fn candidate_approval_applied_to_all_blocks() {
 
 #[test]
 fn approved_ancestor_all_approved() {
-	let block_hash_genesis = Hash::repeat_byte(0x01);
+	let block_hash_genesis = Hash::repeat_byte(0x00);
 	let block_hash_1 = Hash::repeat_byte(0x01);
 	let block_hash_2 = Hash::repeat_byte(0x02);
 	let block_hash_3 = Hash::repeat_byte(0x03);
@@ -1591,7 +1591,7 @@ fn approved_ancestor_all_approved() {
 
 #[test]
 fn approved_ancestor_missing_approval() {
-	let block_hash_genesis = Hash::repeat_byte(0x01);
+	let block_hash_genesis = Hash::repeat_byte(0x00);
 	let block_hash_1 = Hash::repeat_byte(0x01);
 	let block_hash_2 = Hash::repeat_byte(0x02);
 	let block_hash_3 = Hash::repeat_byte(0x03);
@@ -1672,6 +1672,143 @@ fn approved_ancestor_missing_approval() {
 	});
 
 	futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+}
+
+#[test]
+fn process_wakeup_trigger_assignment_launch_approval() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let slot = Slot::from(1);
+	let session_index = 1;
+
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
+			Ok(0)
+		})),
+		..some_state(StateConfig {
+			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
+			validator_groups: vec![vec![0], vec![1]],
+			needed_approvals: 2,
+			session_index,
+			slot,
+			..Default::default()
+		})
+	};
+
+	let actions = process_wakeup(
+		&state,
+		block_hash,
+		candidate_hash,
+	).unwrap();
+
+	assert!(actions.is_empty());
+
+	state.db.candidate_entries
+		.get_mut(&candidate_hash)
+		.unwrap()
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.set_our_assignment(approval_db::v1::OurAssignment {
+			cert: garbage_assignment_cert(
+				AssignmentCertKind::RelayVRFModulo { sample: 0 }
+			),
+			tranche: 0,
+			validator_index: 0,
+			triggered: false,
+		}.into());
+
+	let actions = process_wakeup(
+		&state,
+		block_hash,
+		candidate_hash,
+	).unwrap();
+
+	assert_eq!(actions.len(), 3);
+	assert_matches!(
+		actions.get(0).unwrap(),
+		Action::WriteCandidateEntry(c_hash, c_entry) => {
+			assert_eq!(c_hash, &candidate_hash);
+			assert!(c_entry
+				.approval_entry(&block_hash)
+				.unwrap()
+				.our_assignment()
+				.unwrap()
+				.triggered()
+			);
+		}
+	);
+
+	assert_matches!(
+		actions.get(1).unwrap(),
+		Action::LaunchApproval {
+			candidate_index,
+			..
+		} => {
+			assert_eq!(candidate_index, &0);
+		}
+	);
+
+	assert_matches!(
+		actions.get(2).unwrap(),
+		Action::ScheduleWakeup {
+			tick,
+			..
+		} => {
+			assert_eq!(tick, &slot_to_tick(0 + 2));
+		}
+	)
+}
+
+#[test]
+fn process_wakeup_schedules_wakeup() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let slot = Slot::from(1);
+	let session_index = 1;
+
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
+			Ok(10)
+		})),
+		..some_state(StateConfig {
+			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
+			validator_groups: vec![vec![0], vec![1]],
+			needed_approvals: 2,
+			session_index,
+			slot,
+			..Default::default()
+		})
+	};
+
+	state.db.candidate_entries
+		.get_mut(&candidate_hash)
+		.unwrap()
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.set_our_assignment(approval_db::v1::OurAssignment {
+			cert: garbage_assignment_cert(
+				AssignmentCertKind::RelayVRFModulo { sample: 0 }
+			),
+			tranche: 10,
+			validator_index: 0,
+			triggered: false,
+		}.into());
+
+	let actions = process_wakeup(
+		&state,
+		block_hash,
+		candidate_hash,
+	).unwrap();
+
+	assert_eq!(actions.len(), 1);
+	assert_matches!(
+		actions.get(0).unwrap(),
+		Action::ScheduleWakeup { block_hash: b, candidate_hash: c, tick } => {
+			assert_eq!(b, &block_hash);
+			assert_eq!(c, &candidate_hash);
+			assert_eq!(tick, &(slot_to_tick(slot) + 10));
+		}
+	);
 }
 
 #[test]

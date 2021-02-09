@@ -140,13 +140,14 @@ impl State {
 		n_validators: usize,
 		no_show_duration: Tick,
 	) -> RequiredTranches {
-		if self.assignments + self.covering + self.uncovered >= n_validators {
+		let covering = if self.depth == 0 { 0 } else { self.covering };
+		if self.assignments + covering + self.uncovered >= n_validators {
 			return RequiredTranches::All;
 		}
 
 		// If we have enough assignments and all no-shows are covered, we have reached the number
 		// of tranches that we need to have.
-		if self.assignments >= needed_approvals && (self.covering + self.uncovered) == 0 {
+		if self.assignments >= needed_approvals && (covering + self.uncovered) == 0 {
 			return RequiredTranches::Exact {
 				needed: tranche,
 				tolerated_missing: self.covered,
@@ -170,7 +171,7 @@ impl State {
 			RequiredTranches::Pending {
 				considered: tranche,
 				next_no_show: self.next_no_show,
-				maximum_broadcast: tranche + (self.covering + self.uncovered) as DelayTranche,
+				maximum_broadcast: tranche + (covering + self.uncovered) as DelayTranche,
 				clock_drift,
 			}
 		}
@@ -250,9 +251,8 @@ pub fn tranches_to_approve(
 	// This iterator has an infinitely long amount of non-empty tranches appended to the end.
 	let tranches_with_gaps_filled = {
 		let mut gap_end = 0;
-		let infinite_gap_start = approval_entry.tranches().last().map_or(0, |t| t.tranche() + 1);
 
-		approval_entry.tranches()
+		let approval_entries_filled = approval_entry.tranches()
 			.iter()
 			.flat_map(move |tranche_entry| {
 				let tranche = tranche_entry.tranche();
@@ -263,8 +263,16 @@ pub fn tranches_to_approve(
 
 				(gap_start..tranche).map(|i| (i, &[] as &[_]))
 					.chain(std::iter::once((tranche, assignments)))
-			})
-			.chain((infinite_gap_start..).map(|i| (i, &[] as &[_])))
+			});
+
+		let pre_end = approval_entry.tranches().first().map(|t| t.tranche());
+		let post_start = approval_entry.tranches().last().map_or(0, |t| t.tranche() + 1);
+
+		let pre = pre_end.into_iter()
+			.flat_map(|pre_end| (0..pre_end).map(|i| (i, &[] as &[_])));
+		let post = (post_start..).map(|i| (i, &[] as &[_]));
+
+		pre.chain(approval_entries_filled).chain(post)
 	};
 
 	tranches_with_gaps_filled
@@ -333,7 +341,7 @@ pub fn tranches_to_approve(
 			Some(output)
 		})
 		.last()
-		.expect("the underlying iterator is infinite and never exits early before tranche 1; qed")
+		.expect("the underlying iterator is infinite, starts at 0, and never exits early before tranche 1; qed")
 }
 
 #[cfg(test)]

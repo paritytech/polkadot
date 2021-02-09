@@ -184,6 +184,12 @@ impl ApprovalEntry {
 	pub fn backing_group(&self) -> GroupIndex {
 		self.backing_group
 	}
+
+	/// For tests: set our assignment.
+	#[cfg(test)]
+	pub fn set_our_assignment(&mut self, our_assignment: OurAssignment) {
+		self.our_assignment = Some(our_assignment);
+	}
 }
 
 impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
