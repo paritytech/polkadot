@@ -22,7 +22,6 @@ pub mod chain_spec;
 mod grandpa_support;
 mod client;
 
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 #[cfg(feature = "full-node")]
 use {
 	std::convert::TryInto,
@@ -39,6 +38,7 @@ use {
 	sc_client_api::{AuxStore, ExecutorProvider},
 	sc_keystore::LocalKeystore,
 	babe_primitives::BabeApi,
+	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 };
 #[cfg(feature = "real-overseer")]
 use polkadot_network_bridge::RequestMultiplexer;

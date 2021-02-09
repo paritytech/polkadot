@@ -34,11 +34,13 @@ use futures::channel::oneshot;
 /// The practical effect of this voting rule is to implement a fixed delay of
 /// blocks and to issue a prometheus metric on the lag behind the head that
 /// approval checking would indicate.
+#[cfg(feature = "full-node")]
 pub(crate) struct ApprovalCheckingDiagnostic {
 	checking_lag: Option<prometheus_endpoint::Histogram>,
 	overseer: OverseerHandler,
 }
 
+#[cfg(feature = "full-node")]
 impl ApprovalCheckingDiagnostic {
 	/// Create a new approval checking diagnostic voting rule.
 	pub fn new(overseer: OverseerHandler, registry: Option<&Registry>)
@@ -63,6 +65,7 @@ impl ApprovalCheckingDiagnostic {
 	}
 }
 
+#[cfg(feature = "full-node")]
 impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 	where B: sp_blockchain::HeaderBackend<PolkadotBlock>
 {
