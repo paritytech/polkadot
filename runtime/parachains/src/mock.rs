@@ -182,7 +182,7 @@ impl inclusion::RewardValidators for TestRewardValidators {
 }
 
 /// Create a new set of test externalities.
-pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
+pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 
@@ -194,7 +194,7 @@ pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 }
 
 #[derive(Default)]
-pub struct GenesisConfig {
+pub struct MockGenesisConfig {
 	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
 	pub paras: crate::paras::GenesisConfig<Test>,
