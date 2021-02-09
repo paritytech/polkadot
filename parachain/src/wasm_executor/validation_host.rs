@@ -87,17 +87,35 @@ impl ValidationPool {
 	///
 	/// This will fail if the validation code is not a proper parachain validation module.
 	///
-	/// This function will use `std::env::current_exe()` with the default arguments [`WORKER_ARGS`] to run the worker.
+	/// This function will use `std::env::current_exe()` with the arguments that consist of [`WORKER_ARGS`]
+	/// with appended `cache_base_path` (if any).
 	pub fn validate_candidate(
 		&self,
 		validation_code: &[u8],
 		params: ValidationParams,
+		cache_base_path: Option<&str>,
 	) -> Result<ValidationResult, ValidationError> {
+		use std::{iter, borrow::Cow};
+
+		let worker_cli_args = match cache_base_path {
+			Some(cache_base_path) => {
+				let worker_cli_args: Vec<&str> =
+					WORKER_ARGS.into_iter()
+						.cloned()
+						.chain(iter::once(cache_base_path))
+						.collect();
+				Cow::from(worker_cli_args)
+			}
+			None => {
+				Cow::from(WORKER_ARGS)
+			},
+		};
+
 		self.validate_candidate_custom(
 			validation_code,
 			params,
 			&env::current_exe().map_err(|err| ValidationError::Internal(err.into()))?,
-			WORKER_ARGS,
+			&worker_cli_args,
 		)
 	}
 
@@ -126,7 +144,7 @@ impl ValidationPool {
 
 /// Validation worker process entry point. Runs a loop waiting for candidates to validate
 /// and sends back results via shared memory.
-pub fn run_worker(mem_id: &str) -> Result<(), String> {
+pub fn run_worker(mem_id: &str, cache_base_path: Option<PathBuf>) -> Result<(), String> {
 	let mut memory = match SharedMem::open(mem_id) {
 		Ok(memory) => memory,
 		Err(e) => {
@@ -151,7 +169,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	memory.set(Event::WorkerReady as usize, EventState::Signaled)
 		.map_err(|e| format!("{} Error setting shared event: {:?}", process::id(), e))?;
 
-	let executor = super::ExecutorCache::default();
+	let executor = super::ExecutorCache::new(cache_base_path);
 
 	loop {
 		if watch_exit.load(atomic::Ordering::Relaxed) {
