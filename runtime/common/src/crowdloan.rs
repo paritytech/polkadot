@@ -501,7 +501,6 @@ mod tests {
 	use std::cell::RefCell;
 	use frame_support::{
 		assert_ok, assert_noop, parameter_types,
-		error::BadOrigin,
 		traits::{OnInitialize, OnFinalize},
 	};
 	use sp_core::H256;
@@ -642,6 +641,8 @@ mod tests {
 		type OrphanedFunds = ();
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
+		type Registrar = TestRegistrar<Test>;
+		type Auctioneer = TestAuctioneer;
 	}
 
 	use pallet_balances::Error as BalancesError;
