@@ -28,6 +28,9 @@ use state::ProtocolState;
 /// A task fetching a particular chunk.
 mod fetch_task;
 
+/// Cache for session information.
+mod session_cache;
+
 const LOG_TARGET: &'static str = "availability_distribution";
 
 

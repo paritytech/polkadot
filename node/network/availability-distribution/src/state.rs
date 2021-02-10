@@ -48,13 +48,13 @@
 //! for heads we never got an `ActiveLeavesUpdate` from, therefore we don't populate the session
 //! cache with sessions our leaves correspond to, but directly with the sessions of the relay
 //! parents of our `CandidateDescriptor`s. So, its clear how to populate the cache, but when can we
-//! get rid of cached session information? Easy! When there is no candidate/FetchTask around
-//! anymore which references it. Thus the cache simply consists of `Weak` pointers to the actual
-//! session infos and the `FetchTask`s keep `Rc`s, therefore we know exactly when we can get rid of
-//! a cache entry by means of the Weak pointer evaluating to `None`.
+//! get rid of cached session information? If for sure is safe to do when there is no
+//! candidate/FetchTask around anymore which references it. Thus the cache simply consists of
+//! `Weak` pointers to the actual session infos and the `FetchTask`s keep `Rc`s, therefore we know
+//! exactly when we can get rid of a cache entry by means of the Weak pointer evaluating to `None`.
 use itertools::{Itertools, Either}
 
-use super::{Result, LOG_TARGET};
+use super::{Result, LOG_TARGET, session_cache::SessionCache};
 
 /// A running instance of this subsystem.
 struct ProtocolState {
@@ -64,24 +64,9 @@ struct ProtocolState {
 	/// Localized information about sessions we are currently interested in.
 	///
 	/// This is usually the current one and at session boundaries also the last one.
-	live_sessions: HashMap<SessionIndex, Weak<SessionInfo>>,
+	session_cache: SessionCache,
 }
 
-/// Localized session information, tailored for the needs of availability distribution.
-struct SessionInfo {
-	/// Validator groups of the current session.
-	///
-	/// Each group's order is randomized. This way we achieve load balancing when requesting
-	/// chunks, as the validators in a group will be tried in that randomized order. Each node
-	/// should arrive at a different order, therefore we distribute the load.
-	validator_groups: Vec<Vec<ValidatorIndex>>,
-
-	/// Information about ourself:
-	validator_id: ValidatorId,
-
-	/// The relay parents we are keeping this entry for.
-	live_in: HashSet<Hash>,
-}
 
 struct ChunkFetchingInfo {
 	descriptor: CandidateDescriptor,

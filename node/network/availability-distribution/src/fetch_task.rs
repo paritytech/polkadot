@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::rc::Rc;
+
+use super::session_cache::SessionInfo;
+
 struct FetchTask {
 	/// For what relay parents this task is relevant.
 	///
@@ -31,6 +35,8 @@ struct FetchTask {
 	/// We keep the task around in state `Fetched` until `live_in` becomes empty, to make
 	/// sure we won't re-fetch an already fetched candidate.
 	state: FetchedState,
+
+    session: Rc<SessionInfo>
 }
 
 /// State of a particular candidate chunk fetching process.

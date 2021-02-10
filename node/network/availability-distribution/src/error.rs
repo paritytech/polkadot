@@ -13,6 +13,9 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+//
+
+use subsystem_util::Error as UtilError;
 
 #[derive(Debug, Error)]
 enum Error {
@@ -47,6 +50,10 @@ enum Error {
 
 	#[error("Receive channel closed")]
 	IncomingMessageChannel(#[source] SubsystemError),
+
+    /// Some request to the runtime in the session cache failed.
+	#[error("Session cache runtime request failed")]
+	SessionCacheRuntimRequest(#[source] UtilError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
