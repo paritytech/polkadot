@@ -129,6 +129,22 @@ pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
 
+/// The a solution for staking solutions that allows 24 nominators per validator.
+pub mod npos_solution {
+	use sp_std::prelude::*;
+
+	/// The nominator index type.
+	pub type NominatorIndex = u32;
+	/// The validator index type.
+	pub type ValidatorIndex = u16;
+	/// The accuracy type of the solution.
+	pub type Accuracy = sp_runtime::PerU16;
+
+	sp_npos_elections::generate_solution_type!{
+		pub struct CompactSolution24::<NominatorIndex, ValidatorIndex, Accuracy>(24)
+	}
+}
+
 /// A placeholder since there is currently no provided session key handler for parachain validator
 /// keys.
 pub struct ParachainSessionKeyPlaceholder<T>(sp_std::marker::PhantomData<T>);

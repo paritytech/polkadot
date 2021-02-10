@@ -390,6 +390,7 @@ impl pallet_staking::Config for Runtime {
 	// The unsigned solution weight targeted by the OCW. We set it to the maximum possible value of
 	// a single extrinsic.
 	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
+	type CompactSolution = runtime_common::npos_solution::CompactSolution24;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
