@@ -1,0 +1,14 @@
+name: Check labels
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  check-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check labels
+        run: bash scripts/github/check_labels.sh
+        env:
+          GITHUB_PR: ${{ github.event.pull_request.number }}
