@@ -202,12 +202,22 @@ impl<T: Config> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
-	) {}
+		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+	) {
+		Self::perform_outgoing_para_cleanup(&notification.outgoing_paras);
+	}
 
-	pub(crate) fn clean_ump_after_outgoing(outgoing_para: ParaId) {
-		<Self as Store>::RelayDispatchQueueSize::remove(&outgoing_para);
-		<Self as Store>::RelayDispatchQueues::remove(&outgoing_para);
+	/// Iterate over all paras that were noted for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
+		for outgoing_para in outgoing {
+			Self::clean_ump_after_outgoing(outgoing_para);
+		}
+	}
+
+	fn clean_ump_after_outgoing(outgoing_para: &ParaId) {
+		<Self as Store>::RelayDispatchQueueSize::remove(outgoing_para);
+		<Self as Store>::RelayDispatchQueues::remove(outgoing_para);
 
 		// Remove the outgoing para from the `NeedsDispatch` list and from
 		// `NextDispatchRoundStartWith`.
@@ -215,12 +225,12 @@ impl<T: Config> Module<T> {
 		// That's needed for maintaining invariant that `NextDispatchRoundStartWith` points to an
 		// existing item in `NeedsDispatch`.
 		<Self as Store>::NeedsDispatch::mutate(|v| {
-			if let Ok(i) = v.binary_search(&outgoing_para) {
+			if let Ok(i) = v.binary_search(outgoing_para) {
 				v.remove(i);
 			}
 		});
 		<Self as Store>::NextDispatchRoundStartWith::mutate(|v| {
-			*v = v.filter(|p| *p == outgoing_para)
+			*v = v.filter(|p| p == outgoing_para)
 		});
 	}
 

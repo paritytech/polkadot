@@ -46,6 +46,8 @@ pub struct SessionChangeNotification<BlockNumber> {
 	pub random_seed: [u8; 32],
 	/// New session index.
 	pub session_index: sp_staking::SessionIndex,
+	/// Outgoing paras for the session.
+	pub outgoing_paras: Vec<ParaId>,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
@@ -57,6 +59,7 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 			new_config: HostConfiguration::default(),
 			random_seed: Default::default(),
 			session_index: Default::default(),
+			outgoing_paras: Vec::new(),
 		}
 	}
 }
@@ -190,17 +193,17 @@ impl<T: Config> Module<T> {
 
 		let new_config = <configuration::Module<T>>::config();
 
-		let notification = SessionChangeNotification {
+		let mut notification = SessionChangeNotification {
 			validators,
 			queued,
 			prev_config,
 			new_config,
 			random_seed,
 			session_index,
+			outgoing_paras: Vec::new(),
 		};
 
-		let outgoing = paras::Module::<T>::initializer_on_new_session(&notification);
-		Self::clean_up_outgoing(outgoing);
+		paras::Module::<T>::initializer_on_new_session(&mut notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
@@ -231,15 +234,6 @@ impl<T: Config> Module<T> {
 			queued,
 			session_index,
 		}));
-	}
-
-	/// Clean up all stored data about any outgoing paras.
-	fn clean_up_outgoing(outgoing: Vec<ParaId>) {
-		for para in outgoing {
-			dmp::Module::<T>::clean_dmp_after_outgoing(para);
-			ump::Module::<T>::clean_ump_after_outgoing(para);
-			hrmp::Module::<T>::clean_hrmp_after_outgoing(para);
-		}
 	}
 }
 

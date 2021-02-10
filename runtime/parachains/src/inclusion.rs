@@ -1036,8 +1036,8 @@ mod tests {
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
 
-			if let Some(notification) = new_session(b + 1) {
-				Paras::initializer_on_new_session(&notification);
+			if let Some(mut notification) = new_session(b + 1) {
+				Paras::initializer_on_new_session(&mut notification);
 				Inclusion::initializer_on_new_session(&notification);
 			}
 
@@ -2430,6 +2430,7 @@ mod tests {
 					new_config: default_config(),
 					random_seed: Default::default(),
 					session_index: 6,
+					outgoing_paras: Vec::new(),
 				}),
 				_ => None,
 			});

@@ -319,17 +319,14 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	///
 	/// Returns the list of outgoing parachains for this session.
-	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>)
-		-> Vec<ParaId>
-	{
+	pub(crate) fn initializer_on_new_session(notification: &mut SessionChangeNotification<T::BlockNumber>) {
 		let now = <frame_system::Module<T>>::block_number();
-		let (mut parachains, outgoing) = Self::clean_up_outgoing(now);
+		let (mut parachains, mut outgoing) = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
 		Self::apply_upgrades(&mut parachains);
 		Self::apply_downgrades(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
-
-		outgoing
+		notification.outgoing_paras.append(&mut outgoing);
 	}
 
 	/// Cleans up all outgoing paras. Returns the new set of parachains
@@ -851,7 +848,7 @@ mod tests {
 			let b = System::block_number();
 			Paras::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&Default::default());
+				Paras::initializer_on_new_session(&mut Default::default());
 			}
 			System::on_finalize(b);
 

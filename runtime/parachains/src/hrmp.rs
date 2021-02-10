@@ -401,22 +401,31 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 	) {
+		Self::perform_outgoing_para_cleanup(&notification.outgoing_paras);
 		Self::process_hrmp_open_channel_requests(&notification.prev_config);
 		Self::process_hrmp_close_channel_requests();
 	}
 
-	/// Remove all storage entries associated with the given para.
-	pub(crate) fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
-		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
-		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&outgoing_para);
+	/// Iterate over all paras that were noted for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
+		for outgoing_para in outgoing {
+			Self::clean_hrmp_after_outgoing(outgoing_para);
+		}
+	}
 
-		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(&outgoing_para)
+	/// Remove all storage entries associated with the given para.
+	fn clean_hrmp_after_outgoing(outgoing_para: &ParaId) {
+		<Self as Store>::HrmpOpenChannelRequestCount::remove(outgoing_para);
+		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(outgoing_para);
+
+		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(outgoing_para)
 			.into_iter()
 			.map(|sender| HrmpChannelId {
 				sender,
 				recipient: outgoing_para.clone(),
 			});
-		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(&outgoing_para)
+		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(outgoing_para)
 			.into_iter()
 			.map(|recipient| HrmpChannelId {
 				sender: outgoing_para.clone(),
@@ -1119,14 +1128,14 @@ mod tests {
 			Paras::initializer_finalize();
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				let notification = crate::initializer::SessionChangeNotification {
+				let mut notification = crate::initializer::SessionChangeNotification {
 					prev_config: config.clone(),
 					new_config: config.clone(),
 					..Default::default()
 				};
 
 				// NOTE: this is in initialization order.
-				Paras::initializer_on_new_session(&notification);
+				Paras::initializer_on_new_session(&mut notification);
 				Hrmp::initializer_on_new_session(&notification);
 			}
 
@@ -1224,7 +1233,6 @@ mod tests {
 
 	fn deregister_parachain(id: ParaId) {
 		Paras::schedule_para_cleanup(id);
-		Hrmp::clean_hrmp_after_outgoing(id);
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {

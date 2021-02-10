@@ -96,12 +96,22 @@ impl<T: Config> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
-	) {}
+		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+	) {
+		Self::perform_outgoing_para_cleanup(&notification.outgoing_paras);
+	}
 
-	pub(crate) fn clean_dmp_after_outgoing(outgoing_para: ParaId) {
-		<Self as Store>::DownwardMessageQueues::remove(&outgoing_para);
-		<Self as Store>::DownwardMessageQueueHeads::remove(&outgoing_para);
+	/// Iterate over all paras that were noted for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
+		for outgoing_para in outgoing {
+			Self::clean_dmp_after_outgoing(outgoing_para);
+		}
+	}
+
+	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
+		<Self as Store>::DownwardMessageQueues::remove(outgoing_para);
+		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
 	}
 
 	/// Enqueue a downward message to a specific recipient para.
@@ -215,8 +225,9 @@ mod tests {
 			Paras::initializer_finalize();
 			Dmp::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&Default::default());
-				Dmp::initializer_on_new_session(&Default::default());
+				let mut notification = Default::default();
+				Paras::initializer_on_new_session(&mut notification);
+				Dmp::initializer_on_new_session(&notification);
 			}
 			System::on_finalize(b);
 
@@ -259,8 +270,11 @@ mod tests {
 			queue_downward_message(b, vec![4, 5, 6]).unwrap();
 			queue_downward_message(c, vec![7, 8, 9]).unwrap();
 
-			Dmp::clean_dmp_after_outgoing(a);
-			Dmp::clean_dmp_after_outgoing(b);
+			let notification = crate::initializer::SessionChangeNotification {
+				outgoing_paras: vec![a, b],
+				..Default::default()
+			};
+			Dmp::initializer_on_new_session(&notification);
 
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
