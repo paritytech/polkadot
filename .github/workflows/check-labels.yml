@@ -2,7 +2,7 @@ name: Check labels
 
 on:
   pull_request:
-    types: [opened, synchronize, labeled]
+    types: [labeled, opened, synchronize, unlabeled]
 
 jobs:
   check-labels:
