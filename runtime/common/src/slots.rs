@@ -345,12 +345,12 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
-		parameter_types, assert_ok, assert_noop,
+		parameter_types,
 		traits::{OnInitialize, OnFinalize}
 	};
 	use pallet_balances;
-	use primitives::v1::{BlockNumber, Header, Id as ParaId};
-	use crate::slots;
+	use primitives::v1::{BlockNumber, Header};
+	use crate::{slots, mock::TestRegistrar};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -404,7 +404,6 @@ mod tests {
 		type Balance = u64;
 		type Event = Event;
 		type DustRemoval = ();
-		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
 		type WeightInfo = ();

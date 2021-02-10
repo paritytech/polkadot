@@ -303,6 +303,7 @@ mod tests {
 	use frame_system::limits;
 	use frame_support::{
 		traits::{Randomness, OnInitialize, OnFinalize},
+		error::BadOrigin,
 		assert_ok, assert_noop, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
@@ -325,7 +326,7 @@ mod tests {
 			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 			Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
 			Inclusion: inclusion::{Module, Call, Storage, Event<T>},
-			Registrar: paras_registrar::{Module, Call, Storage},
+			Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
 	 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 			Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 			Initializer: initializer::{Module, Call, Storage},
@@ -577,9 +578,9 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = ();
+		type Event = Event;
 		type Origin = Origin;
-		type Currency = pallet_balances::Module<Test>;
+		type Currency = Balances;
 		type ParachainCleanup = Parachains;
 		type OnSwap = ();
 		type ParaDeposit = ParaDeposit;

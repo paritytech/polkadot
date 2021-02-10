@@ -501,6 +501,7 @@ mod tests {
 	use std::cell::RefCell;
 	use frame_support::{
 		assert_ok, assert_noop, parameter_types,
+		error::BadOrigin,
 		traits::{OnInitialize, OnFinalize},
 	};
 	use sp_core::H256;
@@ -510,7 +511,7 @@ mod tests {
 	use sp_runtime::{
 		testing::Header, traits::{BlakeTwo256, IdentityLookup},
 	};
-	use crate::slots::{self, Registrar};
+	use crate::mock::TestRegistrar;
 	use crate::crowdloan;
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -524,10 +525,7 @@ mod tests {
 		{
 			System: frame_system::{Module, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>},
-			Slots: slots::{Module, Call, Storage, Event<T>},
 			Crowdloan: crowdloan::{Module, Call, Storage, Event<T>},
-	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
 		}
 	);
 
@@ -559,9 +557,11 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 	}
+
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 	}
+
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type Event = Event;
@@ -626,19 +626,6 @@ mod tests {
 		}
 	}
 
-	parameter_types!{
-		pub const LeasePeriod: u64 = 10;
-		pub const EndingPeriod: u64 = 3;
-	}
-	impl slots::Config for Test {
-		type Event = Event;
-		type Currency = Balances;
-		type Parachains = TestParachains;
-		type LeasePeriod = LeasePeriod;
-		type EndingPeriod = EndingPeriod;
-		type Randomness = RandomnessCollectiveFlip;
-	}
-
 	parameter_types! {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
@@ -646,12 +633,13 @@ mod tests {
 		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
 		pub const RemoveKeysLimit: u32 = 10;
 	}
+
 	impl Config for Test {
 		type Event = Event;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
 		type RetirementPeriod = RetirementPeriod;
-		type OrphanedFunds = Treasury;
+		type OrphanedFunds = ();
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
 	}

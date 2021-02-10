@@ -104,6 +104,7 @@ impl<T: frame_system::Config> TestRegistrar<T> {
 		PARATHREADS.with(|x| x.borrow().clone())
 	}
 
+	#[allow(dead_code)]
 	pub fn set_manager(id: ParaId, manager: T::AccountId) {
 		MANAGERS.with(|x| x.borrow_mut().insert(id, manager.encode()));
 	}
