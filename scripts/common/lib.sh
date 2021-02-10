@@ -56,12 +56,12 @@ has_label(){
   # If the function's called in Github, we should have GITHUB_ACCESS_TOKEN set
   # already.
   if [ -n "$GITHUB_RELEASE_TOKEN" ]; then
-    GITHUB_ACCESS_TOKEN="$GITHUB_RELEASE_TOKEN"
+    GITHUB_TOKEN="$GITHUB_RELEASE_TOKEN"
   elif [ -n "$GITHUB_PR_TOKEN" ]; then
-    GITHUB_ACCESS_TOKEN="$GITHUB_PR_TOKEN"
+    GITHUB_TOKEN="$GITHUB_PR_TOKEN"
   fi
 
-  out=$(curl -H "Authorization: token $GITHUB_ACCESS_TOKEN" -s "$api_base/$repo/pulls/$pr_id")
+  out=$(curl -H "Authorization: token $GITHUB_TOKEN" -s "$api_base/$repo/pulls/$pr_id")
   [ -n "$(echo "$out" | tr -d '\r\n' | jq ".labels | .[] | select(.name==\"$label\")")" ]
 }
 

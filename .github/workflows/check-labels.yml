@@ -13,3 +13,4 @@ jobs:
         run: bash ${{ github.workspace }}/scripts/github/check_labels.sh
         env:
           GITHUB_PR: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
