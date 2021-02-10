@@ -257,7 +257,10 @@ pub fn run() -> Result<()> {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()).into())
 			} else {
 				#[cfg(not(any(target_os = "android", feature = "browser")))]
-				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
+				polkadot_parachain::wasm_executor::run_worker(
+					&cmd.mem_id,
+					cmd.cache_base_path.clone(),
+				)?;
 				Ok(())
 			}
 		},
