@@ -16,8 +16,8 @@
 set -e # fail on any error
 
 #Include the common functions library
-#shellcheck source=lib.sh
-. "$(dirname "${0}")/lib.sh"
+#shellcheck source=../common/lib.sh
+. "$(dirname "${0}")/../common/lib.sh"
 
 SUBSTRATE_REPO="https://github.com/paritytech/substrate"
 SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}"
