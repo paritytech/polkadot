@@ -8,7 +8,8 @@ jobs:
   check-labels:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Check labels
-        run: bash scripts/github/check_labels.sh
+        run: bash ${{ github.workspace }}/scripts/github/check_labels.sh
         env:
           GITHUB_PR: ${{ github.event.pull_request.number }}
