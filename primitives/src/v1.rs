@@ -119,11 +119,44 @@ pub mod well_known_keys {
 		})
 	}
 
+	/// The list of inbound channels for the given para.
+	///
+	/// The storage entry stores a `Vec<ParaId>`
+	pub fn hrmp_ingress_channel_index(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
 	/// The list of outbound channels for the given para.
 	///
 	/// The storage entry stores a `Vec<ParaId>`
 	pub fn hrmp_egress_channel_index(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cf12b746dcf32e843354583c9702cc020"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
+	/// The MQC head for the downward message queue of the given para. See more in the `Dmp` module.
+	///
+	/// The storage entry stores a `Hash`. This is polkadot hash which is at the moment
+	/// `blake2b-256`.
+	pub fn dmq_mqc_head(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5"];
 
 		para_id.using_encoded(|para_id: &[u8]| {
 			prefix.as_ref()
@@ -360,18 +393,9 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The relay-chain block number this is in the context of.
-	pub block_number: N,
+	pub relay_parent_number: N,
 	/// The relay-chain block storage root this is in the context of.
-	pub relay_storage_root: Hash,
-	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
-	/// The MQC head for the DMQ.
-	///
-	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
-	/// passed by the collator.
-	pub dmq_mqc_head: Hash,
+	pub relay_parent_storage_root: Hash,
 	/// The maximum legal size of a POV block, in bytes.
 	pub max_pov_size: u32,
 }

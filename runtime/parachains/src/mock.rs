@@ -22,38 +22,36 @@ use sp_runtime::traits::{
 	BlakeTwo256, IdentityLookup,
 };
 use primitives::v1::{AuthorityDiscoveryId, Balance, BlockNumber, Header, ValidatorIndex};
-use frame_support::{
-	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
-	traits::Randomness as RandomnessT,
-};
+use frame_support::{parameter_types, traits::Randomness as RandomnessT};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use crate::inclusion;
-use crate as parachains;
+use crate::{
+	inclusion, scheduler, dmp, ump, hrmp, session_info, paras, configuration,
+	initializer,
+};
 
-/// A test runtime struct.
-#[derive(Clone, Eq, PartialEq)]
-pub struct Test;
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = frame_system::mocking::MockBlock<Test>;
 
-impl_outer_origin! {
-	pub enum Origin for Test {
-		parachains
+frame_support::construct_runtime!(
+	pub enum Test where
+		Block = Block,
+		NodeBlock = Block,
+		UncheckedExtrinsic = UncheckedExtrinsic,
+	{
+		System: frame_system::{Module, Call, Config, Storage, Event<T>},
+		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+		Paras: paras::{Module, Origin, Call, Storage, Config<T>},
+		Configuration: configuration::{Module, Call, Storage, Config<T>},
+		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
+		Scheduler: scheduler::{Module, Call, Storage},
+		Initializer: initializer::{Module, Call, Storage},
+		Dmp: dmp::{Module, Call, Storage},
+		Ump: ump::{Module, Call, Storage},
+		Hrmp: hrmp::{Module, Call, Storage},
+		SessionInfo: session_info::{Module, Call, Storage},
 	}
-}
-
-impl_outer_dispatch! {
-	pub enum Call for Test where origin: Origin {
-		initializer::Initializer,
-	}
-}
-
-impl_outer_event! {
-	pub enum TestEvent for Test {
-		frame_system<T>,
-		pallet_balances<T>,
-		inclusion<T>,
-	}
-}
+);
 
 pub struct TestRandomness;
 
@@ -83,10 +81,10 @@ impl frame_system::Config for Test {
 	type AccountId = u64;
 	type Lookup = IdentityLookup<u64>;
 	type Header = Header;
-	type Event = TestEvent;
+	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
-	type PalletInfo = ();
+	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -101,7 +99,7 @@ parameter_types! {
 impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type Balance = Balance;
-	type Event = TestEvent;
+	type Event = Event;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -132,7 +130,7 @@ impl crate::hrmp::Config for Test {
 impl crate::scheduler::Config for Test { }
 
 impl crate::inclusion::Config for Test {
-	type Event = TestEvent;
+	type Event = Event;
 	type RewardValidators = TestRewardValidators;
 }
 
@@ -183,37 +181,8 @@ impl inclusion::RewardValidators for TestRewardValidators {
 	}
 }
 
-pub type System = frame_system::Module<Test>;
-
-/// Mocked initializer.
-pub type Initializer = crate::initializer::Module<Test>;
-
-/// Mocked configuration.
-pub type Configuration = crate::configuration::Module<Test>;
-
-/// Mocked paras.
-pub type Paras = crate::paras::Module<Test>;
-
-/// Mocked DMP
-pub type Dmp = crate::dmp::Module<Test>;
-
-/// Mocked UMP
-pub type Ump = crate::ump::Module<Test>;
-
-/// Mocked HRMP
-pub type Hrmp = crate::hrmp::Module<Test>;
-
-/// Mocked scheduler.
-pub type Scheduler = crate::scheduler::Module<Test>;
-
-/// Mocked inclusion module.
-pub type Inclusion = crate::inclusion::Module<Test>;
-
-/// Mocked session info module.
-pub type SessionInfo = crate::session_info::Module<Test>;
-
 /// Create a new set of test externalities.
-pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
+pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 
@@ -225,7 +194,7 @@ pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 }
 
 #[derive(Default)]
-pub struct GenesisConfig {
+pub struct MockGenesisConfig {
 	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
 	pub paras: crate::paras::GenesisConfig<Test>,
