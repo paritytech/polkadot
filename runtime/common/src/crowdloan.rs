@@ -500,7 +500,7 @@ mod tests {
 
 	use std::cell::RefCell;
 	use frame_support::{
-		impl_outer_origin, impl_outer_event, assert_ok, assert_noop, parameter_types,
+		assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
 	};
 	use sp_core::H256;
@@ -510,29 +510,27 @@ mod tests {
 	use sp_runtime::{
 		testing::Header, traits::{BlakeTwo256, IdentityLookup},
 	};
-	use crate::{traits::{Registrar, Auctioneer}, mock::TestRegistrar};
+	use crate::slots::{self, Registrar};
+	use crate::crowdloan;
 
-	impl_outer_origin! {
-		pub enum Origin for Test {}
-	}
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+	type Block = frame_system::mocking::MockBlock<Test>;
 
-	mod runtime_common_crowdloan {
-		pub use crate::crowdloan::Event;
-	}
-
-	impl_outer_event! {
-		pub enum Event for Test {
-			frame_system<T>,
-			pallet_balances<T>,
-			runtime_common_crowdloan<T>,
+	frame_support::construct_runtime!(
+		pub enum Test where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Module, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+			Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>},
+			Slots: slots::{Module, Call, Storage, Event<T>},
+			Crowdloan: crowdloan::{Module, Call, Storage, Event<T>},
+	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
 		}
-	}
+	);
 
-	// For testing the module, we construct most of a mock runtime. This means
-	// first constructing a configuration type (`Test`) which `impl`s each of the
-	// configuration traits of modules we want to use.
-	#[derive(Clone, Eq, PartialEq)]
-	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 	}
@@ -543,7 +541,7 @@ mod tests {
 		type BlockLength = ();
 		type DbWeight = ();
 		type Origin = Origin;
-		type Call = ();
+		type Call = Call;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -554,7 +552,7 @@ mod tests {
 		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
-		type PalletInfo = ();
+		type PalletInfo = PalletInfo;
 		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
@@ -572,25 +570,6 @@ mod tests {
 		type AccountStore = System;
 		type MaxLocks = ();
 		type WeightInfo = ();
-	}
-
-	parameter_types! {
-		pub const SubmissionDeposit: u64 = 1;
-		pub const MinContribution: u64 = 10;
-		pub const RetirementPeriod: u64 = 5;
-		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
-		pub const RemoveKeysLimit: u32 = 10;
-	}
-	impl Config for Test {
-		type Event = Event;
-		type SubmissionDeposit = SubmissionDeposit;
-		type MinContribution = MinContribution;
-		type RetirementPeriod = RetirementPeriod;
-		type OrphanedFunds = ();
-		type ModuleId = CrowdloanModuleId;
-		type RemoveKeysLimit = RemoveKeysLimit;
-		type Registrar = TestRegistrar<Test>;
-		type Auctioneer = TestAuctioneer;
 	}
 
 	#[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -647,9 +626,36 @@ mod tests {
 		}
 	}
 
-	type System = frame_system::Module<Test>;
-	type Balances = pallet_balances::Module<Test>;
-	type Crowdloan = Module<Test>;
+	parameter_types!{
+		pub const LeasePeriod: u64 = 10;
+		pub const EndingPeriod: u64 = 3;
+	}
+	impl slots::Config for Test {
+		type Event = Event;
+		type Currency = Balances;
+		type Parachains = TestParachains;
+		type LeasePeriod = LeasePeriod;
+		type EndingPeriod = EndingPeriod;
+		type Randomness = RandomnessCollectiveFlip;
+	}
+
+	parameter_types! {
+		pub const SubmissionDeposit: u64 = 1;
+		pub const MinContribution: u64 = 10;
+		pub const RetirementPeriod: u64 = 5;
+		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
+		pub const RemoveKeysLimit: u32 = 10;
+	}
+	impl Config for Test {
+		type Event = Event;
+		type SubmissionDeposit = SubmissionDeposit;
+		type MinContribution = MinContribution;
+		type RetirementPeriod = RetirementPeriod;
+		type OrphanedFunds = Treasury;
+		type ModuleId = CrowdloanModuleId;
+		type RemoveKeysLimit = RemoveKeysLimit;
+	}
+
 	use pallet_balances::Error as BalancesError;
 
 	// This function basically just builds a genesis storage key/value store according to

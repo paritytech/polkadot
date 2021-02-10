@@ -165,7 +165,7 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Mod
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Configuration, SessionInfo, System, GenesisConfig as MockGenesisConfig,
+		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
 		Origin,
 	};
 	use crate::initializer::SessionChangeNotification;

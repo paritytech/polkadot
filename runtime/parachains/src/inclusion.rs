@@ -907,7 +907,7 @@ mod tests {
 	use sc_keystore::LocalKeystore;
 	use crate::mock::{
 		new_test_ext, Configuration, Paras, System, Inclusion,
-		GenesisConfig as MockGenesisConfig, Test,
+		MockGenesisConfig, Test,
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
