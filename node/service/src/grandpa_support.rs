@@ -126,10 +126,6 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 		let base_number = base.number;
 
 		Box::pin(async move {
-			// This is a hack. `futures::executor::block_on` doesn't work because
-			// it's an executor within an executor. This does for some reason.
-			//
-			// But really this whole function should be async.
 			let (tx, rx) = oneshot::channel();
 			let approval_checking_subsystem_vote = {
 				overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
