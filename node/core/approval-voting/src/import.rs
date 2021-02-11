@@ -605,7 +605,7 @@ pub(crate) async fn handle_new_head(
 				.copied()
 				.unwrap_or(0);
 			let needed_approvals = usize::try_from(needed_approvals).expect("usize is at least u32");
-			if needed_approvals + backing_group_size < n_validators {
+			if n_validators.saturating_sub(backing_group_size) < needed_approvals {
 				approved_bitfield.set(i, true);
 			}
 		}
