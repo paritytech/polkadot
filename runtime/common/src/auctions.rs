@@ -359,7 +359,7 @@ impl<T: Config> Module<T> {
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
 				{
 					// Previous bidder is no longer winning any ranges: unreserve their funds.
-					if let Some(amount) = ReservedAmounts::<T>::take(&bidder_para) {
+					if let Some(amount) = ReservedAmounts::<T>::take(&(who.clone(), para)) {
 						// It really should be reserved; there's not much we can do here on fail.
 						let _ = CurrencyOf::<T>::unreserve(&who, amount);
 
@@ -1070,6 +1070,30 @@ mod tests {
 		];
 		assert_eq!(Auctions::calculate_winners(winning.clone()), winners);
 	}
+
+	#[test]
+	fn lower_bids_are_correctly_refunded() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 1, 1));
+			let para_1 = ParaId::from(1);
+			let para_2 = ParaId::from(2);
+
+			// Make a bid and reserve a balance
+			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 1, 4, 10));
+			assert_eq!(Balances::reserved_balance(1), 10);
+			assert_eq!(ReservedAmounts::<Test>::get((1, para_1)), Some(10));
+			assert_eq!(Balances::reserved_balance(2), 0);
+			assert_eq!(ReservedAmounts::<Test>::get((2, para_2)), None);
+
+			// Bigger bid, reserves new balance and returns funds
+			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 1, 4, 20));
+			assert_eq!(Balances::reserved_balance(1), 0);
+			assert_eq!(ReservedAmounts::<Test>::get((1, para_1)), None);
+			assert_eq!(Balances::reserved_balance(2), 20);
+			assert_eq!(ReservedAmounts::<Test>::get((2, para_2)), Some(20));
+		});
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1083,7 +1107,6 @@ mod benchmarking {
 	};
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
-	use crate::auctions::Module as Auctions;
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
 
