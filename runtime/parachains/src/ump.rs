@@ -202,9 +202,10 @@ impl<T: Config> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId],
 	) {
-		Self::perform_outgoing_para_cleanup(&notification.outgoing_paras);
+		Self::perform_outgoing_para_cleanup(outgoing_paras);
 	}
 
 	/// Iterate over all paras that were noted for offboarding and remove all the data

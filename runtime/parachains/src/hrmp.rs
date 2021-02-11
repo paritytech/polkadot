@@ -400,8 +400,9 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
 		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId],
 	) {
-		Self::perform_outgoing_para_cleanup(&notification.outgoing_paras);
+		Self::perform_outgoing_para_cleanup(outgoing_paras);
 		Self::process_hrmp_open_channel_requests(&notification.prev_config);
 		Self::process_hrmp_close_channel_requests();
 	}
@@ -1128,15 +1129,15 @@ mod tests {
 			Paras::initializer_finalize();
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				let mut notification = crate::initializer::SessionChangeNotification {
+				let notification = crate::initializer::SessionChangeNotification {
 					prev_config: config.clone(),
 					new_config: config.clone(),
 					..Default::default()
 				};
 
 				// NOTE: this is in initialization order.
-				Paras::initializer_on_new_session(&mut notification);
-				Hrmp::initializer_on_new_session(&notification);
+				let outgoing_paras = Paras::initializer_on_new_session(&notification);
+				Hrmp::initializer_on_new_session(&notification, &outgoing_paras);
 			}
 
 			System::on_finalize(b);

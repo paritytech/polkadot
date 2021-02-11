@@ -96,9 +96,10 @@ impl<T: Config> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId]
 	) {
-		Self::perform_outgoing_para_cleanup(&notification.outgoing_paras);
+		Self::perform_outgoing_para_cleanup(outgoing_paras);
 	}
 
 	/// Iterate over all paras that were noted for offboarding and remove all the data
@@ -225,9 +226,9 @@ mod tests {
 			Paras::initializer_finalize();
 			Dmp::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				let mut notification = Default::default();
-				Paras::initializer_on_new_session(&mut notification);
-				Dmp::initializer_on_new_session(&notification);
+				let notification = Default::default();
+				let outgoing_paras = Paras::initializer_on_new_session(&notification);
+				Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 			}
 			System::on_finalize(b);
 
@@ -271,10 +272,10 @@ mod tests {
 			queue_downward_message(c, vec![7, 8, 9]).unwrap();
 
 			let notification = crate::initializer::SessionChangeNotification {
-				outgoing_paras: vec![a, b],
 				..Default::default()
 			};
-			Dmp::initializer_on_new_session(&notification);
+			let outgoing_paras = vec![a, b];
+			Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());

@@ -2430,7 +2430,6 @@ mod tests {
 					new_config: default_config(),
 					random_seed: Default::default(),
 					session_index: 6,
-					outgoing_paras: Vec::new(),
 				}),
 				_ => None,
 			});

@@ -21,7 +21,7 @@
 
 use sp_std::prelude::*;
 use frame_support::weights::Weight;
-use primitives::v1::{ValidatorId, Id as ParaId};
+use primitives::v1::{ValidatorId};
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
@@ -46,8 +46,6 @@ pub struct SessionChangeNotification<BlockNumber> {
 	pub random_seed: [u8; 32],
 	/// New session index.
 	pub session_index: sp_staking::SessionIndex,
-	/// Outgoing paras for the session.
-	pub outgoing_paras: Vec<ParaId>,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
@@ -59,7 +57,6 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 			new_config: HostConfiguration::default(),
 			random_seed: Default::default(),
 			session_index: Default::default(),
-			outgoing_paras: Vec::new(),
 		}
 	}
 }
@@ -193,23 +190,22 @@ impl<T: Config> Module<T> {
 
 		let new_config = <configuration::Module<T>>::config();
 
-		let mut notification = SessionChangeNotification {
+		let notification = SessionChangeNotification {
 			validators,
 			queued,
 			prev_config,
 			new_config,
 			random_seed,
 			session_index,
-			outgoing_paras: Vec::new(),
 		};
 
-		paras::Module::<T>::initializer_on_new_session(&mut notification);
+		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
-		dmp::Module::<T>::initializer_on_new_session(&notification);
-		ump::Module::<T>::initializer_on_new_session(&notification);
-		hrmp::Module::<T>::initializer_on_new_session(&notification);
+		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
@@ -263,6 +259,7 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Mod
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use primitives::v1::{Id as ParaId};
 	use crate::mock::{
 		new_test_ext,
 		Initializer, System, Dmp, Paras, Configuration, MockGenesisConfig,

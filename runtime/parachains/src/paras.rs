@@ -319,17 +319,20 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	///
 	/// Returns the list of outgoing parachains for this session.
-	pub(crate) fn initializer_on_new_session(notification: &mut SessionChangeNotification<T::BlockNumber>) {
+	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>)
+		-> Vec<ParaId>
+	{
 		let now = <frame_system::Module<T>>::block_number();
-		let (mut parachains, mut outgoing) = Self::clean_up_outgoing(now);
+		let (mut parachains, outgoing) = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
 		Self::apply_upgrades(&mut parachains);
 		Self::apply_downgrades(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
-		notification.outgoing_paras.append(&mut outgoing);
+
+		outgoing
 	}
 
-	/// Cleans up all outgoing paras. Returns the new set of parachains
+	/// Cleans up all outgoing paras. Returns the new set of parachains and any outgoing parachains.
 	fn clean_up_outgoing(now: T::BlockNumber) -> (Vec<ParaId>, Vec<ParaId>) {
 		let mut parachains = <Self as Store>::Parachains::get();
 		let outgoing = <Self as Store>::OutgoingParas::take();
