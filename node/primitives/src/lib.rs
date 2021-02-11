@@ -32,6 +32,7 @@ use polkadot_primitives::v1::{
 use std::pin::Pin;
 
 pub use sp_core::traits::SpawnNamed;
+pub use sp_consensus_babe::Epoch as BabeEpoch;
 
 pub mod approval;
 

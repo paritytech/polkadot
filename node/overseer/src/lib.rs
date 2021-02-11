@@ -1840,7 +1840,7 @@ where
 				let _ = self.approval_distribution_subsystem.send_message(msg).await;
 			},
 			AllMessages::ApprovalVoting(_msg) => {
-				// FIXME: https://github.com/paritytech/polkadot/issues/1975
+				// FIXME: https://github.com/paritytech/polkadot/issues/2321
 			},
 		}
 

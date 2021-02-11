@@ -17,8 +17,8 @@
 //! Tests for the aux-schema of approval voting.
 
 use super::*;
-use std::cell::RefCell;
 use polkadot_primitives::v1::Id as ParaId;
+use std::cell::RefCell;
 
 #[derive(Default)]
 struct TestStore {
@@ -49,28 +49,28 @@ impl AuxStore for TestStore {
 }
 
 impl TestStore {
-	fn write_stored_blocks(&self, range: StoredBlockRange) {
+	pub(crate) fn write_stored_blocks(&self, range: StoredBlockRange) {
 		self.inner.borrow_mut().insert(
 			STORED_BLOCKS_KEY.to_vec(),
 			range.encode(),
 		);
 	}
 
-	fn write_blocks_at_height(&self, height: BlockNumber, blocks: &[Hash]) {
+	pub(crate) fn write_blocks_at_height(&self, height: BlockNumber, blocks: &[Hash]) {
 		self.inner.borrow_mut().insert(
 			blocks_at_height_key(height).to_vec(),
 			blocks.encode(),
 		);
 	}
 
-	fn write_block_entry(&self, block_hash: &Hash, entry: &BlockEntry) {
+	pub(crate) fn write_block_entry(&self, block_hash: &Hash, entry: &BlockEntry) {
 		self.inner.borrow_mut().insert(
 			block_entry_key(block_hash).to_vec(),
 			entry.encode(),
 		);
 	}
 
-	fn write_candidate_entry(&self, candidate_hash: &CandidateHash, entry: &CandidateEntry) {
+	pub(crate) fn write_candidate_entry(&self, candidate_hash: &CandidateHash, entry: &CandidateEntry) {
 		self.inner.borrow_mut().insert(
 			candidate_entry_key(candidate_hash).to_vec(),
 			entry.encode(),
@@ -89,8 +89,8 @@ fn make_block_entry(
 	BlockEntry {
 		block_hash,
 		session: 1,
-		slot: 1.into(),
-		relay_vrf_story: RelayVRF([0u8; 32]),
+		slot: Slot::from(1),
+		relay_vrf_story: [0u8; 32],
 		approved_bitfield: make_bitvec(candidates.len()),
 		candidates,
 		children: Vec::new(),
@@ -129,7 +129,6 @@ fn read_write() {
 			(hash_a, ApprovalEntry {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(1),
-				next_wakeup: 1000,
 				our_assignment: None,
 				assignments: Default::default(),
 				approved: false,
@@ -156,7 +155,7 @@ fn read_write() {
 	];
 
 	let delete_keys: Vec<_> = delete_keys.iter().map(|k| &k[..]).collect();
-	store.insert_aux(&[], &delete_keys);
+	store.insert_aux(&[], &delete_keys).unwrap();
 
 	assert!(load_stored_blocks(&store).unwrap().is_none());
 	assert!(load_blocks_at_height(&store, 1).unwrap().is_empty());
@@ -296,7 +295,6 @@ fn clear_works() {
 			(hash_a, ApprovalEntry {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(1),
-				next_wakeup: 1000,
 				our_assignment: None,
 				assignments: Default::default(),
 				approved: false,
@@ -331,7 +329,7 @@ fn canonicalize_works() {
 	//   -> B1 -> C1 -> D1
 	// A -> B2 -> C2 -> D2
 	//
-	// We'll canonicalize C1. Everything except D1 should disappear.
+	// We'll canonicalize C1. Everytning except D1 should disappear.
 	//
 	// Candidates:
 	// Cand1 in B2

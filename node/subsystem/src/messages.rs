@@ -31,6 +31,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	BabeEpoch,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
@@ -474,6 +475,8 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		RuntimeApiSender<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	),
+	/// Get information about the BABE epoch the block was included in.
+	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -631,6 +634,7 @@ pub enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
 		IndirectAssignmentCert,
+		CandidateIndex,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the

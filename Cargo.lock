@@ -5235,16 +5235,33 @@ dependencies = [
 name = "polkadot-node-core-approval-voting"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "bitvec",
  "futures 0.3.12",
+ "futures-timer 3.0.2",
+ "maplit",
+ "merlin",
  "parity-scale-codec",
+ "parking_lot 0.11.1",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-overseer",
  "polkadot-primitives",
+ "rand_core 0.5.1",
  "sc-client-api",
+ "sc-keystore",
+ "schnorrkel",
+ "sp-application-crypto",
  "sp-blockchain",
+ "sp-consensus-babe",
  "sp-consensus-slots",
+ "sp-core",
+ "sp-keyring",
+ "sp-keystore",
+ "sp-runtime",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5412,11 +5429,13 @@ dependencies = [
  "futures 0.3.12",
  "memory-lru",
  "parity-util-mem",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-api",
+ "sp-consensus-babe",
  "sp-core",
  "tracing",
  "tracing-futures",
@@ -5460,10 +5479,13 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sp-consensus-slots",
+ "schnorrkel",
+ "sp-application-crypto",
+ "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
+ "thiserror",
 ]
 
 [[package]]
