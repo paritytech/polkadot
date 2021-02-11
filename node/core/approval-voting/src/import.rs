@@ -599,16 +599,33 @@ pub(crate) async fn handle_new_head(
 		// insta-approve candidates on low-node testnets:
 		// cf. https://github.com/paritytech/polkadot/issues/2411
 		let num_candidates = included_candidates.len();
-		let mut approved_bitfield = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
-		for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
-			let backing_group_size = validator_group_lens.get(backing_group.0 as usize)
-				.copied()
-				.unwrap_or(0);
-			let needed_approvals = usize::try_from(needed_approvals).expect("usize is at least u32");
-			if n_validators.saturating_sub(backing_group_size) < needed_approvals {
-				approved_bitfield.set(i, true);
+		let approved_bitfield = {
+			if needed_approvals == 0 {
+				tracing::info!(
+					target: LOG_TARGET,
+					"Insta-approving approving all candidates",
+				);
+				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
+			} else {
+				let mut result = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
+				for (i, &(hash, _, _, backing_group)) in included_candidates.iter().enumerate() {
+					let backing_group_size = validator_group_lens.get(backing_group.0 as usize)
+						.copied()
+						.unwrap_or(0);
+					let needed_approvals = usize::try_from(needed_approvals).expect("usize is at least u32");
+					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
+						tracing::info!(
+							target: LOG_TARGET,
+							"Insta-approving candidate {:?} as the number of validators is too low",
+							hash,
+						);
+						result.set(i, true);
+					}
+				}
+				result
 			}
-		}
+		};
+
 
 		let block_entry = approval_db::v1::BlockEntry {
 			block_hash,
