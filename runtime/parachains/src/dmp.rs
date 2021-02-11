@@ -97,7 +97,7 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
 		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
-		outgoing_paras: &[ParaId]
+		outgoing_paras: &[ParaId],
 	) {
 		Self::perform_outgoing_para_cleanup(outgoing_paras);
 	}
