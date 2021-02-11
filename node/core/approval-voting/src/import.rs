@@ -601,9 +601,9 @@ pub(crate) async fn handle_new_head(
 		let num_candidates = included_candidates.len();
 		let approved_bitfield = {
 			if needed_approvals == 0 {
-				tracing::info!(
+				tracing::debug!(
 					target: LOG_TARGET,
-					"Insta-approving approving all candidates",
+					"Insta-approving all candidates",
 				);
 				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
 			} else {
@@ -612,15 +612,16 @@ pub(crate) async fn handle_new_head(
 					let backing_group_size = validator_group_lens.get(backing_group.0 as usize)
 						.copied()
 						.unwrap_or(0);
-					let needed_approvals = usize::try_from(needed_approvals).expect("usize is at least u32");
+					let needed_approvals = usize::try_from(needed_approvals).expect("usize is at least u32; qed");
 					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
-						tracing::info!(
-							target: LOG_TARGET,
-							"Insta-approving candidate {:?} as the number of validators is too low",
-							hash,
-						);
 						result.set(i, true);
 					}
+				}
+				if result.any() {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Insta-approving candidates as the number of validators is too low",
+					);
 				}
 				result
 			}
