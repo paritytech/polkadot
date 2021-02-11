@@ -608,7 +608,7 @@ pub(crate) async fn handle_new_head(
 				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
 			} else {
 				let mut result = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
-				for (i, &(hash, _, _, backing_group)) in included_candidates.iter().enumerate() {
+				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
 					let backing_group_size = validator_group_lens.get(backing_group.0 as usize)
 						.copied()
 						.unwrap_or(0);
