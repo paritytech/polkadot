@@ -57,17 +57,12 @@ Validators can learn about dispute statements in two ways:
 
 Validators are rewarded for providing statements to the chain as well as for participating in the dispute, on either side. However, the losing side of the dispute is slashed.
 
-## Late votes
+## Dispute Conclusion
+
+Disputes, roughly, are over when one side reaches a ⅔ supermajority. They may also conclude after a timeout, without either side witnessing supermajority, which will only happen if the majority of validators are unable to vote for some reason. Furthermore, disputes on-chain will stay open for some fixed amount of time even after concluding, to accept new votes.
 
 Late votes, after the dispute already reached a ⅔ supermajority, must be rewarded (albeit a smaller amount) as well.
-These ones must be attached to the votes after a defined period of time after the result has reached
-the required ⅔ supermajority.
 
 ## Chain Selection / Grandpa
 
-Chain selection should be influenced by the chance of picking a chain that does not even include the disputed block.
-Hence removing the need to include the dispute resolution itself.
-This is only possible though, if the set of active heads contains such a fork.
-In Grandpa the Voting rule should be used to avoid finalizing chains that contain an open or negative shut (shut with supermajority that marks the block as invalid) dispute.
-In case all possible chains contains such a dispute, a metric must be used to decide which fork to use or avoid finalization until one dispute resolves positive (the
-block is valid).
+The [Approval Checking](protocol-approval.md) protocol prevents finalization of chains that contain parablocks that are not yet approved. With disputes, we take it one step further and do not vote to finalize any chains which contain parablocks that are being disputed or have lost a dispute anywhere.
