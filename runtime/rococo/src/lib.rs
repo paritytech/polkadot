@@ -212,8 +212,10 @@ construct_runtime! {
 
 		// Bridges support.
 		Mmr: pallet_mmr::{Module, Call, Storage},
-		MmrLeaf: mmr::{Module},
 		Beefy: pallet_beefy::{Module, Config<T>, Storage},
+		// Make sure to place MmrLeaf after BEEFY, MMR and Paras,
+		// because it depends on session handlers of these pallets.
+		MmrLeaf: mmr::{Module},
 	}
 }
 
