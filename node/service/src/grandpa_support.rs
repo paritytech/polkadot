@@ -16,6 +16,8 @@
 
 //! Polkadot-specific GRANDPA integration utilities.
 
+use std::sync::Arc;
+
 use polkadot_primitives::v1::{Block as PolkadotBlock, Header as PolkadotHeader, BlockNumber, Hash};
 use polkadot_subsystem::messages::ApprovalVotingMessage;
 
@@ -35,6 +37,7 @@ use futures::channel::oneshot;
 /// blocks and to issue a prometheus metric on the lag behind the head that
 /// approval checking would indicate.
 #[cfg(feature = "full-node")]
+#[derive(Clone)]
 pub(crate) struct ApprovalCheckingDiagnostic {
 	checking_lag: Option<prometheus_endpoint::Histogram>,
 	overseer: OverseerHandler,
@@ -71,67 +74,84 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 {
 	fn restrict_vote(
 		&self,
-		backend: &B,
+		backend: Arc<B>,
 		base: &PolkadotHeader,
 		_best_target: &PolkadotHeader,
 		current_target: &PolkadotHeader,
-	) -> Option<(Hash, BlockNumber)> {
+	) -> grandpa::VotingRuleResult<PolkadotBlock> {
 		// always wait 50 blocks behind the head to finalize.
 		const DIAGNOSTIC_GRANDPA_DELAY: BlockNumber = 50;
 
-		let find_target = |target_number: BlockNumber, current_header: &PolkadotHeader| {
-			let mut target_hash = current_header.hash();
-			let mut target_header = current_header.clone();
+		let aux = || {
+			let find_target = |target_number: BlockNumber, current_header: &PolkadotHeader| {
+				let mut target_hash = current_header.hash();
+				let mut target_header = current_header.clone();
 
-			loop {
-				if *target_header.number() < target_number {
-					unreachable!(
-						"we are traversing backwards from a known block; \
-						 blocks are stored contiguously; \
-						 qed"
-					);
+				loop {
+					if *target_header.number() < target_number {
+						unreachable!(
+							"we are traversing backwards from a known block; \
+							blocks are stored contiguously; \
+							qed"
+						);
+					}
+
+					if *target_header.number() == target_number {
+						return Some((target_hash, target_number));
+					}
+
+					target_hash = *target_header.parent_hash();
+					target_header = backend.header(BlockId::Hash(target_hash)).ok()?
+						.expect("Header known to exist due to the existence of one of its descendents; qed");
 				}
+			};
 
-				if *target_header.number() == target_number {
-					return Some((target_hash, target_number));
-				}
+			let target_number = std::cmp::max(
+				current_target.number().saturating_sub(DIAGNOSTIC_GRANDPA_DELAY),
+				base.number().clone(),
+			);
 
-				target_hash = *target_header.parent_hash();
-				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
-					.expect("Header known to exist due to the existence of one of its descendents; qed");
-			}
+			find_target(target_number, current_target)
 		};
 
-		let target_number = std::cmp::max(
-			current_target.number().saturating_sub(DIAGNOSTIC_GRANDPA_DELAY),
-			base.number().clone(),
-		);
-
-		let actual_vote_target = find_target(target_number, current_target);
+		let actual_vote_target = aux();
 
 		// Query approval checking and issue metrics.
 		let mut overseer = self.overseer.clone();
-		let approval_checking_subsystem_vote = futures::executor::block_on(Box::pin(async move {
+		let checking_lag = self.checking_lag.clone();
+
+		let current_hash = current_target.hash();
+		let current_number = current_target.number.clone();
+
+		let base_number = base.number;
+
+		Box::pin(async move {
+			// This is a hack. `futures::executor::block_on` doesn't work because
+			// it's an executor within an executor. This does for some reason.
+			//
+			// But really this whole function should be async.
 			let (tx, rx) = oneshot::channel();
-			overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
-				current_target.hash(),
-				base.number().clone(),
-				tx,
-			)).await;
+			let approval_checking_subsystem_vote = {
+				overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
+					current_hash,
+					base_number,
+					tx,
+				)).await;
 
-			rx.await.ok().and_then(|v| v)
-		}));
+				rx.await.ok().and_then(|v| v)
+			};
 
-		let approval_checking_subsystem_lag = approval_checking_subsystem_vote.map_or(
-			current_target.number() - base.number(),
-			|(_h, n)| current_target.number() - n,
-		);
+			let approval_checking_subsystem_lag = approval_checking_subsystem_vote.map_or(
+				current_number - base_number,
+				|(_h, n)| current_number - n,
+			);
 
-		if let Some(ref checking_lag) = self.checking_lag {
-			checking_lag.observe(approval_checking_subsystem_lag as _);
-		}
+			if let Some(ref checking_lag) = checking_lag {
+				checking_lag.observe(approval_checking_subsystem_lag as _);
+			}
 
-		actual_vote_target
+			actual_vote_target
+		})
 	}
 }
 
@@ -139,6 +159,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 /// same last finalized block) after a given block at height `N` has been
 /// finalized and for a delay of `M` blocks, i.e. until the best block reaches
 /// `N` + `M`, the voter will keep voting for block `N`.
+#[derive(Clone)]
 pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 
 impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>>
@@ -148,57 +169,63 @@ where
 {
 	fn restrict_vote(
 		&self,
-		backend: &B,
+		backend: Arc<B>,
 		base: &Block::Header,
 		best_target: &Block::Header,
 		current_target: &Block::Header,
-	) -> Option<(Block::Hash, NumberFor<Block>)> {
+	) -> grandpa::VotingRuleResult<Block> {
+		let aux = || {
+			// walk backwards until we find the target block
+			let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
+				let mut target_hash = current_header.hash();
+				let mut target_header = current_header.clone();
 
-		// walk backwards until we find the target block
-		let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
-			let mut target_hash = current_header.hash();
-			let mut target_header = current_header.clone();
+				loop {
+					if *target_header.number() < target_number {
+						unreachable!(
+							"we are traversing backwards from a known block; \
+							 blocks are stored contiguously; \
+							 qed"
+						);
+					}
 
-			loop {
-				if *target_header.number() < target_number {
-					unreachable!(
-						"we are traversing backwards from a known block; \
-						 blocks are stored contiguously; \
-						 qed"
+					if *target_header.number() == target_number {
+						return Some((target_hash, target_number));
+					}
+
+					target_hash = *target_header.parent_hash();
+					target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
+						"Header known to exist due to the existence of one of its descendents; qed",
 					);
 				}
+			};
 
-				if *target_header.number() == target_number {
-					return Some((target_hash, target_number));
+			// only restrict votes targeting a block higher than the block
+			// we've set for the pause
+			if *current_target.number() > self.0 {
+				// if we're past the pause period (i.e. `self.0 + self.1`)
+				// then we no longer need to restrict any votes
+				if *best_target.number() > self.0 + self.1 {
+					return None;
 				}
 
-				target_hash = *target_header.parent_hash();
-				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
-					.expect("Header known to exist due to the existence of one of its descendents; qed");
+				// if we've finalized the pause block, just keep returning it
+				// until best number increases enough to pass the condition above
+				if *base.number() >= self.0 {
+					return Some((base.hash(), *base.number()));
+				}
+
+				// otherwise find the target header at the pause block
+				// to vote on
+				return find_target(self.0, current_target);
 			}
+
+			None
 		};
 
-		// only restrict votes targeting a block higher than the block
-		// we've set for the pause
-		if *current_target.number() > self.0 {
-			// if we're past the pause period (i.e. `self.0 + self.1`)
-			// then we no longer need to restrict any votes
-			if *best_target.number() > self.0 + self.1 {
-				return None;
-			}
+		let target = aux();
 
-			// if we've finalized the pause block, just keep returning it
-			// until best number increases enough to pass the condition above
-			if *base.number() >= self.0 {
-				return Some((base.hash(), *base.number()));
-			}
-
-			// otherwise find the target header at the pause block
-			// to vote on
-			return find_target(self.0, current_target);
-		}
-
-		None
+		Box::pin(async move { target })
 	}
 }
 
