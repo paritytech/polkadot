@@ -49,7 +49,7 @@ use sp_runtime::{
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
-		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify, Convert,
 	},
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -609,6 +609,26 @@ impl pallet_mmr::Config for Runtime {
 	type OnNewRoot = DepositLog;
 	type WeightInfo = ();
 	type LeafData = mmr::Module<Runtime>;
+}
+
+/// Convert BEEFY secp256k1 public keys into uncompressed for
+pub struct UncompressBeefyKeys;
+impl Convert<BeefyId, Vec<u8>> for UncompressBeefyKeys {
+	fn convert(a: BeefyId) -> Vec<u8> {
+		use sp_core::crypto::Public;
+		let compressed_key = a.as_slice();
+		// TODO [ToDr] Temporary workaround until we have a better way to get uncompressed keys.
+		secp256k1::PublicKey::parse_slice(compressed_key, Some(secp256k1::PublicKeyFormat::Compressed))
+			.map(|pub_key| pub_key.serialize().to_vec())
+			.map_err(|_| {
+				frame_support::debug::error!("Invalid BEEFY PublicKey format!");
+			})
+			.unwrap_or_default()
+	}
+}
+
+impl mmr::Config for Runtime {
+	type BeefyAuthorityToMerkleLeaf = UncompressBeefyKeys;
 }
 
 /// A BEEFY consensus digest item with MMR root hash.

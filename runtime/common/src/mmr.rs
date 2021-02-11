@@ -18,6 +18,7 @@
 
 use beefy_primitives::ValidatorSetId;
 use sp_core::H256;
+use sp_runtime::traits::Convert;
 use sp_std::prelude::*;
 use frame_support::{decl_module, decl_storage, RuntimeDebug,};
 use pallet_mmr::primitives::LeafDataProvider;
@@ -38,13 +39,14 @@ pub struct MmrLeaf<BlockNumber, Hash, MerkleRoot> {
 type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
 
 /// The module's configuration trait.
-pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config
-{}
-
-/// Blanket-impl the trait for every runtime that has both MMR pallet and parachains configuration.
-///
-/// NOTE Remember that you still need to register the [Module] in `construct_runtime` macro.
-impl<R: pallet_mmr::Config + paras::Config + pallet_beefy::Config> Config for R {}
+pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config {
+	/// Convert BEEFY AuthorityId to a form that would end up in the Merkle Tree.
+	///
+	/// For instance for ECDSA (secp256k1) we want to store uncompressed public keys (65 bytes)
+	/// to simplify using them on Ethereum chain, but the rest of the Substrate codebase
+	/// is storing them compressed (33 bytes) for efficiency reasons.
+	type BeefyAuthorityToMerkleLeaf: Convert<<Self as pallet_beefy::Config>::AuthorityId, Vec<u8>>;
+}
 
 decl_storage! {
 	trait Store for Module<T: Config> as Beefy {
@@ -81,12 +83,11 @@ impl<T: Config> LeafDataProvider for Module<T> where
 
 impl<T: Config> Module<T> where
 	MerkleRootOf<T>: From<H256>,
+	<T as pallet_beefy::Config>::AuthorityId:
 {
 	/// Returns latest root hash of a merkle tree constructed from all registered parachain headers.
 	///
 	/// NOTE this does not include parathreads - only parachains are part of the merkle tree.
-	///
-	/// TODO [ToDr] describe merkle tree construction.
 	///
 	/// NOTE This is an initial and inefficient implementation, which re-constructs
 	/// the merkle tree every block. Instead we should update the merkle root in [Self::on_initialize]
@@ -118,7 +119,7 @@ impl<T: Config> Module<T> where
 	fn update_beefy_next_authorities() {
 		let beefy_public_keys = pallet_beefy::Module::<T>::next_authorities()
 			.into_iter()
-			.map(|authority_id| authority_id.encode())
+			.map(T::BeefyAuthorityToMerkleLeaf::convert)
 			.collect::<Vec<_>>();
 		let merkle_root: MerkleRootOf<T> = sp_io::trie
 			::keccak_256_ordered_root(beefy_public_keys).into();

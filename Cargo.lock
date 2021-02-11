@@ -6883,6 +6883,7 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal",
+ "libsecp256k1",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
