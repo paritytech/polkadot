@@ -592,7 +592,7 @@ pub(crate) async fn handle_new_head(
 				relay_vrf_story: relay_vrf_story.0,
 				candidates: included_candidates.iter()
 					.map(|(hash, _, core, _)| (*core, *hash)).collect(),
-				approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+				approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; included_candidates.len()],
 				children: Vec::new(),
 			},
 			n_validators,
