@@ -50,6 +50,7 @@ use futures::channel::oneshot;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use crate::approval_db;
 use crate::persisted_entries::CandidateEntry;
@@ -581,20 +582,50 @@ pub(crate) async fn handle_new_head(
 			None => continue,
 		};
 
+		let session_info = state.session_window.session_info(session_index)
+			.expect("imported_block_info requires session to be available; qed");
+
+		let (block_tick, no_show_duration) = {
+			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
+			let no_show_duration = slot_number_to_tick(
+				state.slot_duration_millis,
+				Slot::from(u64::from(session_info.no_show_slots)),
+			);
+			(block_tick, no_show_duration)
+		};
+
+		let needed_approvals = session_info.needed_approvals;
+		let validator_group_lens: Vec<usize> = session_info.validator_groups.iter().map(|v| v.len()).collect();
+		// insta-approve candidates on low-node testnets:
+		// cf. https://github.com/paritytech/polkadot/issues/2411
+		let num_candidates = included_candidates.len();
+		let mut approved_bitfield = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
+		for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
+			let backing_group_size = validator_group_lens.get(backing_group.0 as usize)
+				.copied()
+				.unwrap_or(0);
+			let needed_approvals = usize::try_from(needed_approvals).expect("usize is at least u32");
+			if needed_approvals + backing_group_size < n_validators {
+				approved_bitfield.set(i, true);
+			}
+		}
+
+		let block_entry = approval_db::v1::BlockEntry {
+			block_hash,
+			session: session_index,
+			slot,
+			relay_vrf_story: relay_vrf_story.0,
+			candidates: included_candidates.iter()
+				.map(|(hash, _, core, _)| (*core, *hash)).collect(),
+			approved_bitfield,
+			children: Vec::new(),
+		};
+
 		let candidate_entries = approval_db::v1::add_block_entry(
 			db_writer,
 			block_header.parent_hash,
 			block_header.number,
-			approval_db::v1::BlockEntry {
-				block_hash: block_hash,
-				session: session_index,
-				slot,
-				relay_vrf_story: relay_vrf_story.0,
-				candidates: included_candidates.iter()
-					.map(|(hash, _, core, _)| (*core, *hash)).collect(),
-				approved_bitfield: bitvec::bitvec![BitOrderLsb0, u8; 0; included_candidates.len()],
-				children: Vec::new(),
-			},
+			block_entry,
 			n_validators,
 			|candidate_hash| {
 				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash)
@@ -612,19 +643,6 @@ pub(crate) async fn handle_new_head(
 			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
 			slot,
 		});
-
-		let (block_tick, no_show_duration) = {
-			let session_info = state.session_window.session_info(session_index)
-				.expect("imported_block_info requires session to be available; qed");
-
-			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
-			let no_show_duration = slot_number_to_tick(
-				state.slot_duration_millis,
-				Slot::from(u64::from(session_info.no_show_slots)),
-			);
-
-			(block_tick, no_show_duration)
-		};
 
 		imported_candidates.push(
 			BlockImportedCandidates {
