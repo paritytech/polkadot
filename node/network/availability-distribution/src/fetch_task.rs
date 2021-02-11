@@ -15,10 +15,26 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::rc::Rc;
+use std::collections::HashSet;
 
-use super::session_cache::SessionInfo;
+use futures::channel::oneshot;
 
-struct FetchTask {
+use polkadot_primitives::v1::{
+	BlakeTwo256, CoreState, ErasureChunk, Hash, HashT,
+	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID, CandidateHash,
+	CandidateDescriptor, OccupiedCore,
+};
+use polkadot_subsystem::{
+	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
+};
+use polkadot_subsystem::messages::{
+	AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
+	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent
+};
+use super::{session_cache::SessionInfo, LOG_TARGET};
+
+pub struct FetchTask {
 	/// For what relay parents this task is relevant.
 	///
 	/// In other words, for which relay chain parents this candidate is considered live.
@@ -50,9 +66,13 @@ enum FetchedState {
 }
 
 impl FetchTask {
-	/// Start fetching a chunk.
-	pub async fn start(ctx: &mut Context, leaf: Hash, core: OccupiedCore) -> Self {
-	}
+//	/// Start fetching a chunk.
+	// pub async fn start<Context>(ctx: &mut Context, leaf: Hash, core: OccupiedCore) -> Self
+    // where
+    //     Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+    // {
+	//     panic
+	// }
 
 	/// Add the given leaf to the relay parents which are making this task relevant.
 	pub fn add_leaf(&mut self, leaf: Hash) {
@@ -73,7 +93,7 @@ impl FetchTask {
 	///
 	/// That is, it is either canceled or succeeded fetching the chunk.
 	pub fn is_finished(&self) -> bool {
-		match state {
+		match self.state {
 			FetchedState::Fetched | FetchedState::Canceled => true,
 			FetchedState::Fetching => false,
 		}
@@ -83,26 +103,4 @@ impl FetchTask {
 	pub fn get_relay_parent(&self) -> Hash {
 		self.relay_parent
 	}
-}
-
-/// Query the session index of a relay parent
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn query_session_index_for_child<Context>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-) -> Result<SessionIndex>
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	let (tx, rx) = oneshot::channel();
-	let query_session_idx_for_child = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent,
-		RuntimeApiRequest::SessionIndexForChild(tx),
-	));
-
-	ctx.send_message(query_session_idx_for_child)
-		.await;
-	rx.await
-		.map_err(|e| Error::QuerySessionResponseChannel(e))?
-		.map_err(|e| Error::QuerySession(e))
 }

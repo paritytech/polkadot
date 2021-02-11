@@ -321,7 +321,7 @@ impl Validator {
 			.iter()
 			.enumerate()
 			.find(|(_, k)| k == &&key)
-			.map(|(idx, _)| idx as ValidatorIndex)
+			.map(|(idx, _)| ValidatorIndex(idx as u32))
 			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
 
 		Ok(Validator {

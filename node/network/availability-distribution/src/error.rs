@@ -15,35 +15,20 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use subsystem_util::Error as UtilError;
+use thiserror::Error;
+
+use futures::channel::oneshot;
+
+use polkadot_node_subsystem_util::Error as UtilError;
+use polkadot_subsystem::{SubsystemError};
 
 #[derive(Debug, Error)]
-enum Error {
+pub enum Error {
 	#[error("Response channel to obtain StoreChunk failed")]
 	StoreChunkResponseChannel(#[source] oneshot::Canceled),
 
 	#[error("Response channel to obtain QueryChunk failed")]
 	QueryChunkResponseChannel(#[source] oneshot::Canceled),
-
-	#[error("Response channel to obtain QueryAncestors failed")]
-	QueryAncestorsResponseChannel(#[source] oneshot::Canceled),
-	#[error("RuntimeAPI to obtain QueryAncestors failed")]
-	QueryAncestors(#[source] ChainApiError),
-
-	#[error("Response channel to obtain QuerySession failed")]
-	QuerySessionResponseChannel(#[source] oneshot::Canceled),
-	#[error("RuntimeAPI to obtain QuerySession failed")]
-	QuerySession(#[source] RuntimeApiError),
-
-	#[error("Response channel to obtain QueryValidators failed")]
-	QueryValidatorsResponseChannel(#[source] oneshot::Canceled),
-	#[error("RuntimeAPI to obtain QueryValidators failed")]
-	QueryValidators(#[source] RuntimeApiError),
-
-	#[error("Response channel to obtain AvailabilityCores failed")]
-	AvailabilityCoresResponseChannel(#[source] oneshot::Canceled),
-	#[error("RuntimeAPI to obtain AvailabilityCores failed")]
-	AvailabilityCores(#[source] RuntimeApiError),
 
 	#[error("Response channel to obtain AvailabilityCores failed")]
 	QueryAvailabilityResponseChannel(#[source] oneshot::Canceled),
@@ -56,7 +41,7 @@ enum Error {
 	SessionCacheRuntimRequest(#[source] UtilError),
 }
 
-type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 impl From<SubsystemError> for Error {
 	fn from(err: SubsystemError) -> Self {

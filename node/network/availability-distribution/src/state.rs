@@ -52,12 +52,33 @@
 //! candidate/FetchTask around anymore which references it. Thus the cache simply consists of
 //! `Weak` pointers to the actual session infos and the `FetchTask`s keep `Rc`s, therefore we know
 //! exactly when we can get rid of a cache entry by means of the Weak pointer evaluating to `None`.
-use itertools::{Itertools, Either}
 
-use super::{Result, LOG_TARGET, session_cache::SessionCache};
+use std::collections::{
+	hash_map::{Entry, HashMap},
+	hash_set::HashSet,
+};
+use std::iter::IntoIterator;
+use std::sync::Arc;
+
+use futures::channel::oneshot;
+use jaeger::JaegerSpan;
+
+use itertools::{Either, Itertools};
+
+use super::{fetch_task::FetchTask, session_cache::SessionCache, Result, LOG_TARGET};
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, Hash, HashT,
+	OccupiedCore, SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
+};
+use polkadot_subsystem::{
+	errors::{ChainApiError, RuntimeApiError},
+	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
+	Subsystem, SubsystemContext, SubsystemError, messages::AvailabilityDistributionMessage,
+};
+use polkadot_node_subsystem_util::request_availability_cores_ctx;
 
 /// A running instance of this subsystem.
-struct ProtocolState {
+pub struct ProtocolState {
 	/// Candidates we need to fetch our chunk for.
 	fetches: HashMap<CandidateHash, FetchTask>,
 
@@ -66,7 +87,6 @@ struct ProtocolState {
 	/// This is usually the current one and at session boundaries also the last one.
 	session_cache: SessionCache,
 }
-
 
 struct ChunkFetchingInfo {
 	descriptor: CandidateDescriptor,
@@ -78,7 +98,7 @@ impl ProtocolState {
 	/// Update heads that need availability distribution.
 	///
 	/// For all active heads we will be fetching our chunk for availabilty distribution.
-	pub(crate) fn update_fetching_heads(
+	pub(crate) fn update_fetching_heads<Context>(
 		&mut self,
 		ctx: &mut Context,
 		update: ActiveLeavesUpdate,
@@ -94,14 +114,17 @@ impl ProtocolState {
 	}
 
 	/// Start requesting chunks for newly imported heads.
-	fn start_requesting_chunks(
+	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
-		new_heads: &SmallVec<[(Hash, Arc<JaegerSpan>)]>,
-	) -> Result<()> {
+		new_heads: impl Iterator<Item = (Hash, Arc<JaegerSpan>)>,
+	) -> Result<()>
+	where
+		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
+	{
 		for (leaf, _) in new_heads {
 			let cores = query_occupied_cores(ctx, leaf).await?;
-			add_cores(cores)?;
+			self.add_cores(ctx, leaf, cores)?;
 		}
 		Ok(())
 	}
@@ -110,10 +133,10 @@ impl ProtocolState {
 	///
 	/// Returns relay_parents which became irrelevant for availability fetching (are not
 	/// referenced by any candidate anymore).
-	fn stop_requesting_chunks(
+	fn stop_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
-		obsolete_leaves: &SmallVec<[(Hash, Arc<JaegerSpan>)]>,
+		obsolete_leaves: impl Iterator<Item = (Hash, Arc<JaegerSpan>)>,
 	) -> Result<HashSet<Hash>> {
 		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().map(|h| h.0).collect();
 		let (obsolete_parents, new_fetches): (HashSet<_>, HashMap<_>) =
@@ -136,50 +159,35 @@ impl ProtocolState {
 	/// Note: The passed in `leaf` is not the same as CandidateDescriptor::relay_parent in the
 	/// given cores. The latter is the relay_parent this candidate considers its parent, while the
 	/// passed in leaf might be some later block where the candidate is still pending availability.
-	fn add_cores(
+	fn add_cores<Context>(
 		&mut self,
 		ctx: &mut Context,
 		leaf: Hash,
-		cores: impl IntoIter<Item = OccupiedCore>,
+		cores: impl IntoIterator<Item = OccupiedCore>,
 	) {
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
 				Entry::Occupied(e) =>
 				// Just book keeping - we are already requesting that chunk:
-					e.relay_parents.insert(leaf),
-				Entry::Vacant(e) => {
-					e.insert(FetchTask::start(ctx, leaf, core))
+				{
+					e.relay_parents.insert(leaf)
 				}
+				Entry::Vacant(e) => e.insert(FetchTask::start(ctx, leaf, core)),
 			}
 		}
 	}
 }
 
-/// Start requesting our chunk for the given core.
-fn start_request_chunk(core: OccupiedCore) -> FetchTask {
-	panic!("TODO: To be implemented!");
-}
-
-/// Query all hashes and descriptors of candidates pending availability at a particular block.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+///// Query all hashes and descriptors of candidates pending availability at a particular block.
+// #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_occupied_cores<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 ) -> Result<Vec<OccupiedCore>>
 where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+	Context: SubsystemContext,
 {
-	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent,
-		RuntimeApiRequest::AvailabilityCores(tx),
-	)))
-	.await;
-
-	let cores: Vec<_> = rx
-		.await
-		.map_err(|e| Error::AvailabilityCoresResponseChannel(e))?
-		.map_err(|e| Error::AvailabilityCores(e))?;
+	let cores = request_availability_cores_ctx(relay_parent, ctx).await?.await;
 
 	Ok(cores
 		.into_iter()

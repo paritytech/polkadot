@@ -15,6 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 
+use sp_keystore::SyncCryptoStorePtr;
+
+use polkadot_subsystem::{
+	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, messages::AvailabilityDistributionMessage
+};
+
 /// Error and [`Result`] type for this subsystem.
 mod error;
 pub use error::Error;
@@ -33,6 +40,11 @@ mod session_cache;
 
 const LOG_TARGET: &'static str = "availability_distribution";
 
+
+
+/// Availability Distribution metrics.
+/// TODO: Dummy for now.
+type Metrics = ();
 
 /// The bitfield distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
@@ -67,7 +79,10 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, ctx: Context, state: &mut ProtocolState) -> Result<()> {
+	async fn run<Context>(self, mut ctx: Context, state: &mut ProtocolState) -> Result<()>
+	where
+		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
+	{
 		loop {
 			let message = ctx.recv().await?;
 			match message {
