@@ -114,7 +114,9 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Hash, Copy, Clone, Encode, Decode, MallocSizeOf)]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Copy, Clone, Encode, Decode)]
+#[cfg(feature = "std")]
+#[derive(Debug, MallocSizeOf)]
 pub struct ValidatorIndex(pub u32);
 
 application_crypto::with_pair! {
