@@ -15,15 +15,16 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-core-runtime-api = { path = "../../core/runtime-api" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.23"
+itertools = "0.10.0"
 rand = "0.8.3"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }

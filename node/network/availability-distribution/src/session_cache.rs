@@ -19,9 +19,10 @@ use std::rc::{Rc, Weak};
 
 use rand::{seq::SliceRandom, thread_rng};
 
+use sp_application_crypto::AppKey;
+use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use super::{error::Result, Error, LOG_TARGET};
 use polkadot_node_subsystem_util::{
 	request_session_index_for_child_ctx, request_validator_groups_ctx, request_validators_ctx,
 };
@@ -30,9 +31,13 @@ use polkadot_primitives::v1::{
 	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
 };
 use polkadot_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
 	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	Subsystem, SubsystemContext, SubsystemError,
+};
+
+use super::{
+	error::{recv_runtime, Result},
+	Error, LOG_TARGET,
 };
 
 /// Caching of session info as needed by availability distribution.
@@ -94,29 +99,35 @@ impl SessionCache {
 		if let Some(info) = self.get_by_relay_parent(parent) {
 			return Ok(Some(info));
 		}
-		let session_index = request_session_index_for_child_ctx(parent, ctx)
-			.await?
-			.await
-			.map_err(|e| Error::SessionCacheRuntimRequest(e))?;
+		let session_index =
+			recv_runtime(request_session_index_for_child_ctx(parent, ctx).await).await?;
 		if let Some(info) = self.get_by_session_index(session_index) {
-			self.by_relay_parent.insert(parent, info.downgrade());
+			self.by_relay_parent.insert(parent, Rc::downgrade(&info));
 			return Ok(Some(info));
 		}
+
+		// About to fetch new stuff, time to get rid of dead bodies: We keep relay_parent to
+		// session info matches way longer than necessary (for an entire session), but the overhead
+		// should be low enough to not matter.
+		self.bury_dead();
 		if let Some((our_index, validators)) = self.query_validator_info(ctx, parent).await? {
-			let (mut validator_groups, _) = request_validator_groups_ctx(parent, ctx).await?.await?;
+			let (mut validator_groups, _) =
+				recv_runtime(request_validator_groups_ctx(parent, ctx).await).await?;
+
 			// Shuffle validators in groups:
 			let mut rng = thread_rng();
 			for g in validator_groups.iter_mut() {
-				g.shuffle(&rng)
+				g.shuffle(&mut rng)
 			}
+
 			let info = Rc::new(SessionInfo {
 				validator_groups,
 				validators,
 				our_index,
 			});
-			let downgraded = info.downgrade();
-			self.by_relay_parent.insert(parent, downgraded);
-			self.get_by_session_index.insert(session_index, downgraded);
+			let downgraded = Rc::downgrade(&info);
+			self.by_relay_parent.insert(parent, downgraded.clone());
+			self.by_session_index.insert(session_index, downgraded);
 			return Ok(Some(info));
 		}
 		Ok(None)
@@ -126,14 +137,14 @@ impl SessionCache {
 	///
 	/// Returns: None, if no entry for that relay parent exists in the cache (or it was dead
 	/// already - which should not happen.)
-	fn get_by_relay_parent(&self, relay_parent: Hash) -> Option<Rc<SessionInfo>> {
-		let weak_ref = self.by_relay_parent.get(relay_parent)?;
+	fn get_by_relay_parent(&self, parent: Hash) -> Option<Rc<SessionInfo>> {
+		let weak_ref = self.by_relay_parent.get(&parent)?;
 		upgrade_report_dead(weak_ref)
 	}
 
 	/// Get session info for a given `SessionIndex`.
 	fn get_by_session_index(&self, session_index: SessionIndex) -> Option<Rc<SessionInfo>> {
-		let weak_ref = self.by_session_index.get(session_index)?;
+		let weak_ref = self.by_session_index.get(&session_index)?;
 		upgrade_report_dead(weak_ref)
 	}
 
@@ -142,18 +153,29 @@ impl SessionCache {
 	/// Returns: Ok(None) if we are not a validator.
 	async fn query_validator_info<Context>(
 		&self,
-		&ctx: &mut Context,
+		ctx: &mut Context,
 		parent: Hash,
-	) -> Result<Option<(ValidatorIndex, Vec<ValidatorId>)>> {
-		let validators = request_validators_ctx(ctx, parent).await?.await?;
+	) -> Result<Option<(ValidatorIndex, Vec<ValidatorId>)>>
+	where
+		Context: SubsystemContext,
+	{
+		let validators = recv_runtime(request_validators_ctx(parent, ctx).await).await?;
 		for (i, v) in validators.iter().enumerate() {
 			if CryptoStore::has_keys(&*self.keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
 				.await
 			{
-				return Ok(Some((i as ValidatorIndex, validators)));
+				return Ok(Some((ValidatorIndex(i as u32), validators)));
 			}
 		}
 		Ok(None)
+	}
+
+	/// Get rid of the dead bodies from time to time.
+	fn bury_dead(&mut self) {
+		self.by_session_index
+			.retain(|_, info| info.upgrade().is_some());
+		self.by_relay_parent
+			.retain(|_, info| info.upgrade().is_some());
 	}
 }
 
@@ -161,7 +183,7 @@ impl SessionCache {
 ///
 /// Warn if it was dead already, as this should not happen. Cache should stay valid at least as
 /// long as we need it.
-fn upgrade_report_dead(info: Weak<SessionInfo>) -> Option<Rc<SessionInfo>> {
+fn upgrade_report_dead(info: &Weak<SessionInfo>) -> Option<Rc<SessionInfo>> {
 	match info.upgrade() {
 		Some(info) => Some(info),
 		None => {
