@@ -26,17 +26,13 @@ where
 	R: pallet_balances::Config + pallet_authorship::Config,
 	<R as frame_system::Config>::AccountId: From<primitives::v1::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v1::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::RawEvent<
-		<R as frame_system::Config>::AccountId,
-		<R as pallet_balances::Config>::Balance,
-		pallet_balances::DefaultInstance>
-	>,
+	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
 		let author = <pallet_authorship::Module<R>>::author();
 		<pallet_balances::Module<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
-		<frame_system::Module<R>>::deposit_event(pallet_balances::RawEvent::Deposit(author, numeric_amount));
+		<frame_system::Module<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
 	}
 }
 
@@ -47,11 +43,7 @@ where
 	pallet_treasury::Module<R>: OnUnbalanced<NegativeImbalance<R>>,
 	<R as frame_system::Config>::AccountId: From<primitives::v1::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v1::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::RawEvent<
-		<R as frame_system::Config>::AccountId,
-		<R as pallet_balances::Config>::Balance,
-		pallet_balances::DefaultInstance>
-	>,
+	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item=NegativeImbalance<R>>) {
 		if let Some(fees) = fees_then_tips.next() {
@@ -73,7 +65,7 @@ where
 mod tests {
 	use super::*;
 	use frame_system::limits;
-	use frame_support::{impl_outer_origin, parameter_types, weights::DispatchClass};
+	use frame_support::{parameter_types, weights::DispatchClass};
 	use frame_support::traits::FindAuthor;
 	use sp_core::H256;
 	use sp_runtime::{
@@ -83,12 +75,20 @@ mod tests {
 	};
 	use primitives::v1::AccountId;
 
-	#[derive(Clone, PartialEq, Eq, Debug)]
-	pub struct Test;
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+	type Block = frame_system::mocking::MockBlock<Test>;
 
-	impl_outer_origin!{
-		pub enum Origin for Test {}
-	}
+	frame_support::construct_runtime!(
+		pub enum Test where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Module, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+			Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>},
+		}
+	);
 
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
@@ -109,19 +109,19 @@ mod tests {
 		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;
-		type Call = ();
+		type Call = Call;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = ();
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type BlockLength = BlockLength;
 		type BlockWeights = BlockWeights;
 		type DbWeight = ();
 		type Version = ();
-		type PalletInfo = ();
+		type PalletInfo = PalletInfo;
 		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
@@ -131,7 +131,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = ();
+		type Event = Event;
 		type DustRemoval = ();
 		type ExistentialDeposit = ();
 		type AccountStore = System;
@@ -147,7 +147,7 @@ mod tests {
 		type Currency = pallet_balances::Module<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
-		type Event = ();
+		type Event = Event;
 		type OnSlash = ();
 		type ProposalBond = ();
 		type ProposalBondMinimum = ();
@@ -173,10 +173,6 @@ mod tests {
 		type FilterUncle = ();
 		type EventHandler = ();
 	}
-
-	type Treasury = pallet_treasury::Module<Test>;
-	type Balances = pallet_balances::Module<Test>;
-	type System = frame_system::Module<Test>;
 
 	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();

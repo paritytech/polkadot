@@ -22,7 +22,7 @@
 use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
-	weights::Weight,
+	traits::OneSessionHandler, weights::Weight,
 };
 use crate::{configuration, paras, scheduler};
 use sp_std::vec::Vec;
@@ -141,7 +141,7 @@ impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = AssignmentId;
 }
 
-impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = AssignmentId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
@@ -165,7 +165,7 @@ impl<T: pallet_session::Config + Config> pallet_session::OneSessionHandler<T::Ac
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Configuration, SessionInfo, System, GenesisConfig as MockGenesisConfig,
+		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
 		Origin,
 	};
 	use crate::initializer::SessionChangeNotification;

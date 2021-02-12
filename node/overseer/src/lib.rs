@@ -1840,7 +1840,7 @@ where
 				let _ = self.approval_distribution_subsystem.send_message(msg).await;
 			},
 			AllMessages::ApprovalVoting(_msg) => {
-				// FIXME: https://github.com/paritytech/polkadot/issues/1975
+				// FIXME: https://github.com/paritytech/polkadot/issues/2321
 			},
 		}
 
@@ -1961,9 +1961,9 @@ mod tests {
 	use futures::{executor, pin_mut, select, FutureExt, pending};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
-	use polkadot_subsystem::{messages::RuntimeApiRequest, JaegerSpan};
+	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, JaegerSpan};
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
-	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
+	use polkadot_node_network_protocol::{PeerId, ReputationChange};
 	use polkadot_node_subsystem_util::metered;
 
 	use sp_core::crypto::Pair as _;

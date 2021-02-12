@@ -225,7 +225,7 @@ mod tests {
 	use super::*;
 
 	use crate::mock::{
-		new_test_ext, System, GenesisConfig as MockGenesisConfig, Test
+		new_test_ext, System, MockGenesisConfig, Test
 	};
 
 	mod limit_backed_candidates {
@@ -278,7 +278,7 @@ mod tests {
 		use super::*;
 
 		use crate::mock::{
-			new_test_ext, System, GenesisConfig as MockGenesisConfig, Test
+			new_test_ext, System, MockGenesisConfig, Test
 		};
 
 		use frame_support::traits::UnfilteredDispatchable;

@@ -1274,11 +1274,9 @@ mod tests {
 
 			let validation_data = PersistedValidationData {
 				parent_head: HeadData(vec![7, 8, 9]),
-				block_number: Default::default(),
-				hrmp_mqc_heads: Vec::new(),
-				dmq_mqc_head: Default::default(),
+				relay_parent_number: Default::default(),
 				max_pov_size: 1024,
-				relay_storage_root: Default::default(),
+				relay_parent_storage_root: Default::default(),
 			};
 
 			Self {
@@ -1794,7 +1792,10 @@ mod tests {
 			assert!(candidates[0].validity_votes.contains(
 				&ValidityAttestation::Explicit(signed_c.signature().clone())
 			));
-			assert_eq!(candidates[0].validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 1]);
+			assert_eq!(
+				candidates[0].validator_indices,
+				bitvec::bitvec![bitvec::order::Lsb0, u8; 1, 0, 1, 1],
+			);
 
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))

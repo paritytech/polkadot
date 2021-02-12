@@ -6,16 +6,33 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["bit-vec", "derive"] }
+futures-timer = "3.0.2"
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
+tracing = "0.1.22"
+tracing-futures = "0.2.4"
+bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+merlin = "2.0"
+schnorrkel = "0.9.1"
 
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
-bitvec = "0.17.4"
 
 sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "rococo-v1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
 [dev-dependencies]
+parking_lot = "0.11.1"
+rand_core = "0.5.1" # should match schnorrkel
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+maplit = "1.0.2"
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+assert_matches = "1.4.0"
