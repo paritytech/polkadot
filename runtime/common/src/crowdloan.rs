@@ -661,8 +661,7 @@ mod tests {
 		for i in 0.. {
 			let para: ParaId = i.into();
 			if TestRegistrar::<Test>::is_registered(para) { continue }
-			assert_ok!(TestRegistrar::<Test>::make_parathread(para));
-			TestRegistrar::<Test>::set_manager(para, 1);
+			assert_ok!(TestRegistrar::<Test>::register(1, para, Default::default(), Default::default()));
 			return para;
 		}
 		unreachable!()
@@ -746,9 +745,9 @@ mod tests {
 			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 5, 9), e);
 
 			// Cannot create a crowdloan without some deposit funds
-			TestRegistrar::<Test>::set_manager(para, 1337);
+			assert_ok!(TestRegistrar::<Test>::register(1337, ParaId::from(1234), Default::default(), Default::default()));
 			let e = BalancesError::<Test, _>::InsufficientBalance;
-			assert_noop!(Crowdloan::create(Origin::signed(1337), para, 1000, 1, 3, 9), e);
+			assert_noop!(Crowdloan::create(Origin::signed(1337), ParaId::from(1234), 1000, 1, 3, 9), e);
 		});
 	}
 
@@ -995,7 +994,6 @@ mod tests {
 	}
 }
 
-/*
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{*, Module as Crowdloan};
@@ -1024,15 +1022,16 @@ mod benchmarking {
 
 	fn create_fund<T: Config>(end: T::BlockNumber) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
-		let lease_period_index = end / T::LeasePeriod::get();
+		let lease_period_index = T::Auctioneer::lease_period_index();
 		let first_slot = lease_period_index;
 		let last_slot = lease_period_index + 3u32.into();
+		let para_id = 1337.into();
 
 		let caller = account("fund_creator", 0, 0);
 		CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end));
-		FundCount::get() - 1
+		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), para_id, cap, first_slot, last_slot, end));
+		para_id
 	}
 
 	fn contribute_fund<T: Config>(who: &T::AccountId, index: ParaId) {
@@ -1041,79 +1040,85 @@ mod benchmarking {
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
 	}
 
-	fn worst_validation_code<T: Config>() -> Vec<u8> {
-		// TODO: replace with T::Parachains::MAX_CODE_SIZE
-		let mut validation_code = vec![0u8; MAX_CODE_SIZE as usize];
-		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-		let _ = validation_code.splice(
-			..crate::WASM_MAGIC.len(),
-			crate::WASM_MAGIC.iter().cloned(),
-		).collect::<Vec<_>>();
-		validation_code
-	}
+	// fn worst_validation_code<T: Config>() -> Vec<u8> {
+	// 	// TODO: replace with T::Parachains::MAX_CODE_SIZE
+	// 	let mut validation_code = vec![0u8; MAX_CODE_SIZE as usize];
+	// 	// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
+	// 	let _ = validation_code.splice(
+	// 		..crate::WASM_MAGIC.len(),
+	// 		crate::WASM_MAGIC.iter().cloned(),
+	// 	).collect::<Vec<_>>();
+	// 	validation_code
+	// }
 
-	fn worst_deploy_data<T: Config>() -> DeployData<T::Hash> {
-		let validation_code = worst_validation_code::<T>();
-		let code = primitives::v1::ValidationCode(validation_code);
-		// TODO: replace with T::Parachains::MAX_HEAD_DATA_SIZE
-		let head_data = HeadData(vec![0u8; MAX_HEAD_DATA_SIZE as usize]);
+	// fn worst_deploy_data<T: Config>() -> DeployData<T::Hash> {
+	// 	let validation_code = worst_validation_code::<T>();
+	// 	let code = primitives::v1::ValidationCode(validation_code);
+	// 	// TODO: replace with T::Parachains::MAX_HEAD_DATA_SIZE
+	// 	let head_data = HeadData(vec![0u8; MAX_HEAD_DATA_SIZE as usize]);
 
-		DeployData {
-			code_hash: T::Hashing::hash(&code.0),
-			// TODO: replace with T::Parachains::MAX_CODE_SIZE
-			code_size: MAX_CODE_SIZE,
-			initial_head_data: head_data,
-		}
-	}
+	// 	DeployData {
+	// 		code_hash: T::Hashing::hash(&code.0),
+	// 		// TODO: replace with T::Parachains::MAX_CODE_SIZE
+	// 		code_size: MAX_CODE_SIZE,
+	// 		initial_head_data: head_data,
+	// 	}
+	// }
 
-	fn setup_onboarding<T: Config>(
-		fund_index: ParaId,
-		para_id: ParaId,
-		end_block: T::BlockNumber,
-	) -> DispatchResult {
-		// Matches fund creator in `create_fund`
-		let fund_creator = account("fund_creator", 0, 0);
-		let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
-		Crowdloan::<T>::fix_deploy_data(
-			RawOrigin::Signed(fund_creator).into(),
-			fund_index,
-			code_hash,
-			code_size,
-			initial_head_data
-		)?;
+	// fn setup_onboarding<T: Config>(
+	// 	fund_index: ParaId,
+	// 	para_id: ParaId,
+	// 	end_block: T::BlockNumber,
+	// ) -> DispatchResult {
+	// 	// Matches fund creator in `create_fund`
+	// 	let fund_creator = account("fund_creator", 0, 0);
+	// 	let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
+	// 	Crowdloan::<T>::fix_deploy_data(
+	// 		RawOrigin::Signed(fund_creator).into(),
+	// 		fund_index,
+	// 		code_hash,
+	// 		code_size,
+	// 		initial_head_data
+	// 	)?;
 
-		let lease_period_index = end_block / T::LeasePeriod::get();
-		Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
-		let contributor: T::AccountId = account("contributor", 0, 0);
-		contribute_fund::<T>(&contributor, fund_index);
+	// 	let lease_period_index = end_block / T::LeasePeriod::get();
+	// 	Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
+	// 	let contributor: T::AccountId = account("contributor", 0, 0);
+	// 	contribute_fund::<T>(&contributor, fund_index);
 
-		// TODO: Probably should use on_initialize
-		//Slots::<T>::on_initialize(end_block + T::EndingPeriod::get());
-		let onboarding_data = (lease_period_index, crate::slots::IncomingParachain::Unset(
-			crate::slots::NewBidder {
-				who: Crowdloan::<T>::fund_account_id(fund_index),
-				sub: Default::default(),
-			}
-		));
-		crate::slots::Onboarding::<T>::insert(para_id, onboarding_data);
-		Ok(())
-	}
+	// 	// TODO: Probably should use on_initialize
+	// 	//Slots::<T>::on_initialize(end_block + T::EndingPeriod::get());
+	// 	let onboarding_data = (lease_period_index, crate::slots::IncomingParachain::Unset(
+	// 		crate::slots::NewBidder {
+	// 			who: Crowdloan::<T>::fund_account_id(fund_index),
+	// 			sub: Default::default(),
+	// 		}
+	// 	));
+	// 	crate::slots::Onboarding::<T>::insert(para_id, onboarding_data);
+	// 	Ok(())
+	// }
 
 	benchmarks! {
 		create {
+			let para_id = ParaId::from(1);
 			let cap = BalanceOf::<T>::max_value();
 			let first_slot = 0u32.into();
 			let last_slot = 3u32.into();
 			let end = T::BlockNumber::max_value();
 
 			let caller: T::AccountId = whitelisted_caller();
+			let head_data = T::Registrar::worst_head_data();
+			let validation_code = T::Registrar::worst_validation_code();
+
+			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-		}: _(RawOrigin::Signed(caller), cap, first_slot, last_slot, end)
+		}: _(RawOrigin::Signed(caller), para_id, cap, first_slot, last_slot, end)
 		verify {
-			assert_last_event::<T>(RawEvent::Created(FundCount::get() - 1).into())
+			assert_last_event::<T>(RawEvent::Created(para_id).into())
 		}
-
+	}
+		/*
 		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
 		contribute {
 			let fund_index = create_fund::<T>(100u32.into());
@@ -1227,6 +1232,7 @@ mod benchmarking {
 		}
 	}
 
+*/
 	#[cfg(test)]
 	mod tests {
 		use super::*;
@@ -1236,15 +1242,14 @@ mod benchmarking {
 		fn test_benchmarks() {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_create::<Test>());
-				assert_ok!(test_benchmark_contribute::<Test>());
-				assert_ok!(test_benchmark_fix_deploy_data::<Test>());
-				assert_ok!(test_benchmark_onboard::<Test>());
-				assert_ok!(test_benchmark_begin_retirement::<Test>());
-				assert_ok!(test_benchmark_withdraw::<Test>());
-				assert_ok!(test_benchmark_dissolve::<Test>());
-				assert_ok!(test_benchmark_on_initialize::<Test>());
+				// assert_ok!(test_benchmark_contribute::<Test>());
+				// assert_ok!(test_benchmark_fix_deploy_data::<Test>());
+				// assert_ok!(test_benchmark_onboard::<Test>());
+				// assert_ok!(test_benchmark_begin_retirement::<Test>());
+				// assert_ok!(test_benchmark_withdraw::<Test>());
+				// assert_ok!(test_benchmark_dissolve::<Test>());
+				// assert_ok!(test_benchmark_on_initialize::<Test>());
 			});
 		}
 	}
 }
-*/

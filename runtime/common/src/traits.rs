@@ -17,7 +17,7 @@
 //! Traits used across pallets for Polkadot.
 
 use sp_std::vec::*;
-use primitives::v1::Id as ParaId;
+use primitives::v1::{HeadData, ValidationCode, Id as ParaId};
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
@@ -47,11 +47,28 @@ pub trait Registrar {
 		Self::is_parathread(id) || Self::is_parachain(id)
 	}
 
+	// Register a Para ID under control of `who`.
+	fn register(
+		who: Self::AccountId,
+		id: ParaId,
+		genesis_head: HeadData,
+		validation_code: ValidationCode,
+	) -> DispatchResult;
+
+	// Deregister a Para ID, free any data, and return any deposits.
+	fn deregister(id: ParaId) -> DispatchResult;
+
 	/// Elevate a para to parachain status.
 	fn make_parachain(id: ParaId) -> DispatchResult;
 
 	/// Lower a para back to normal from parachain status.
 	fn make_parathread(id: ParaId) -> DispatchResult;
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn worst_head_data() -> HeadData;
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn worst_validation_code() -> ValidationCode;
 }
 
 /// Error type for something that went wrong with leasing.

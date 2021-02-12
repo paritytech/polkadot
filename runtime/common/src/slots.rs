@@ -345,7 +345,7 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
-		parameter_types,
+		parameter_types, assert_ok,
 		traits::{OnInitialize, OnFinalize}
 	};
 	use pallet_balances;
@@ -462,6 +462,8 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
+
 			assert!(Slots::lease_out(1.into(), &1, 1, 1, 1).is_ok());
 			assert_eq!(Slots::deposit_held(1.into(), &1), 1);
 			assert_eq!(Balances::reserved_balance(1), 1);
@@ -485,6 +487,8 @@ mod tests {
 	fn lease_interrupted_lifecycle_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
 			assert!(Slots::lease_out(1.into(), &1, 4, 3, 1).is_ok());
@@ -518,6 +522,8 @@ mod tests {
 	fn lease_relayed_lifecycle_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
 			assert!(Slots::lease_out(1.into(), &2, 4, 2, 1).is_ok());
@@ -562,6 +568,8 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
+
 			assert!(Slots::lease_out(1.into(), &1, 4, 1, 1).is_ok());
 			assert_eq!(Slots::deposit_held(1.into(), &1), 4);
 			assert_eq!(Balances::reserved_balance(1), 4);
@@ -589,6 +597,8 @@ mod tests {
 	fn lease_deposit_decrease_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
 			assert_eq!(Slots::deposit_held(1.into(), &1), 6);

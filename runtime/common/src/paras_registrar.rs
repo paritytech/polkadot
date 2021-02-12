@@ -149,24 +149,7 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
-			ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
-			let genesis = Self::validate_onboarding_data(
-				genesis_head,
-				validation_code,
-				false
-			)?;
-
-			<T as Config>::Currency::reserve(&who, T::ParaDeposit::get())?;
-			let info = ParaInfo {
-				manager: who.clone(),
-				deposit: T::ParaDeposit::get(),
-			};
-
-			Paras::<T>::insert(id, info);
-			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
-			Self::deposit_event(RawEvent::Registered(id, who));
-			Ok(())
+			Self::do_register(who, id, genesis_head, validation_code)
 		}
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
@@ -182,16 +165,7 @@ decl_module! {
 				},
 			};
 
-			ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
-
-			if let Some(info) = Paras::<T>::take(&id) {
-				<T as Config>::Currency::unreserve(&info.manager, info.deposit);
-			}
-
-			T::ParachainCleanup::schedule_para_cleanup(id);
-			PendingSwap::remove(id);
-			Self::deposit_event(RawEvent::Deregistered(id));
-			Ok(())
+			Self::do_deregister(id)
 		}
 
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
@@ -232,6 +206,7 @@ decl_module! {
 impl<T: Config> Registrar for Module<T> {
 	type AccountId = T::AccountId;
 
+	/// Return the manager `AccountId` of a para if one exists.
 	fn manager_of(id: ParaId) -> Option<T::AccountId> {
 		Some(Paras::<T>::get(id)?.manager)
 	}
@@ -251,6 +226,21 @@ impl<T: Config> Registrar for Module<T> {
 		paras::Module::<T>::is_parachain(id)
 	}
 
+	// Register a Para ID under control of `manager`.
+	fn register(
+		manager: T::AccountId,
+		id: ParaId,
+		genesis_head: HeadData,
+		validation_code: ValidationCode,
+	) -> DispatchResult {
+		Self::do_register(manager, id, genesis_head, validation_code)
+	}
+
+	// Deregister a Para ID, free any data, and return any deposits.
+	fn deregister(id: ParaId) -> DispatchResult {
+		Self::do_deregister(id)
+	}
+
 	// Upgrade a registered parathread into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parathread...
@@ -266,9 +256,68 @@ impl<T: Config> Registrar for Module<T> {
 		runtime_parachains::schedule_parachain_downgrade::<T>(id);
 		Ok(())
 	}
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn worst_head_data() -> HeadData {
+		vec![0u8; T::MaxHeadSize::get() as usize].into()
+	}
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn worst_validation_code() -> ValidationCode {
+		let mut validation_code = vec![0u8; T::MaxCodeSize::get() as usize];
+		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
+		let _ = validation_code.splice(
+			..crate::WASM_MAGIC.len(),
+			crate::WASM_MAGIC.iter().cloned(),
+		).collect::<Vec<_>>();
+		validation_code.into()
+	}
 }
 
 impl<T: Config> Module<T> {
+
+	/// Attempt to register a new Para Id under management of `who` in the
+	/// system with the given information.
+	fn do_register(
+		who: T::AccountId,
+		id: ParaId,
+		genesis_head: HeadData,
+		validation_code: ValidationCode,
+	) -> DispatchResult {
+		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
+		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
+		let genesis = Self::validate_onboarding_data(
+			genesis_head,
+			validation_code,
+			false
+		)?;
+
+		<T as Config>::Currency::reserve(&who, T::ParaDeposit::get())?;
+		let info = ParaInfo {
+			manager: who.clone(),
+			deposit: T::ParaDeposit::get(),
+		};
+
+		Paras::<T>::insert(id, info);
+		runtime_parachains::schedule_para_initialize::<T>(id, genesis);
+		Self::deposit_event(RawEvent::Registered(id, who));
+		Ok(())
+	}
+
+	/// Deregister a Para Id, freeing all data returning any deposit.
+	fn do_deregister(id: ParaId) -> DispatchResult {
+		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
+
+		if let Some(info) = Paras::<T>::take(&id) {
+			<T as Config>::Currency::unreserve(&info.manager, info.deposit);
+		}
+
+		T::ParachainCleanup::schedule_para_cleanup(id);
+		PendingSwap::remove(id);
+		Self::deposit_event(RawEvent::Deregistered(id));
+		Ok(())
+	}
+
 	/// Verifies the onboarding data is valid for a para.
 	fn validate_onboarding_data(
 		genesis_head: HeadData,

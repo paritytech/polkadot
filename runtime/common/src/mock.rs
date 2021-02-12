@@ -20,7 +20,7 @@ use std::{cell::RefCell, collections::HashMap};
 use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::SaturatedConversion;
 use frame_support::dispatch::DispatchResult;
-use primitives::v1::Id as ParaId;
+use primitives::v1::{HeadData, ValidationCode, Id as ParaId};
 use crate::traits::Registrar;
 
 thread_local! {
@@ -47,15 +47,44 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 		PARATHREADS.with(|x| x.borrow().binary_search(&id).is_ok())
 	}
 
-	fn make_parachain(id: ParaId) -> DispatchResult {
-		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Module::<T>::block_number().saturated_into(), true)));
+	fn register(
+		manager: Self::AccountId,
+		id: ParaId,
+		_genesis_head: HeadData,
+		_validation_code: ValidationCode,
+	) -> DispatchResult {
+		// Should not be parachain.
+		PARACHAINS.with(|x| {
+			let parachains = x.borrow_mut();
+			match parachains.binary_search(&id) {
+				Ok(_) => panic!("Already Parachain"),
+				Err(_) => {},
+			}
+		});
+		// Should not be parathread, then make it.
+		PARATHREADS.with(|x| {
+			let mut parathreads = x.borrow_mut();
+			match parathreads.binary_search(&id) {
+				Ok(_) => panic!("Already Parathread"),
+				Err(i) => parathreads.insert(i, id),
+			}
+		});
+		MANAGERS.with(|x| x.borrow_mut().insert(id, manager.encode()));
+		Ok(())
+	}
+
+	fn deregister(id: ParaId) -> DispatchResult {
+		// Should not be parachain.
 		PARACHAINS.with(|x| {
 			let mut parachains = x.borrow_mut();
 			match parachains.binary_search(&id) {
-				Ok(_) => {},
-				Err(i) => parachains.insert(i, id),
+				Ok(i) => {
+					parachains.remove(i);
+				},
+				Err(_) => {},
 			}
 		});
+		// Remove from parathread.
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
@@ -63,6 +92,28 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 					parathreads.remove(i);
 				},
 				Err(_) => {},
+			}
+		});
+		MANAGERS.with(|x| x.borrow_mut().remove(&id));
+		Ok(())
+	}
+
+	fn make_parachain(id: ParaId) -> DispatchResult {
+		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Module::<T>::block_number().saturated_into(), true)));
+		PARATHREADS.with(|x| {
+			let mut parathreads = x.borrow_mut();
+			match parathreads.binary_search(&id) {
+				Ok(i) => {
+					parathreads.remove(i);
+				},
+				Err(_) => panic!("not parathread, so cannot `make_parachain`"),
+			}
+		});
+		PARACHAINS.with(|x| {
+			let mut parachains = x.borrow_mut();
+			match parachains.binary_search(&id) {
+				Ok(_) => {},
+				Err(i) => parachains.insert(i, id),
 			}
 		});
 		Ok(())
@@ -75,7 +126,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 				Ok(i) => {
 					parachains.remove(i);
 				},
-				Err(_) =>{},
+				Err(_) => panic!("not parachain, so cannot `make_parathread`"),
 			}
 		});
 		PARATHREADS.with(|x| {
@@ -86,6 +137,22 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 			}
 		});
 		Ok(())
+	}
+
+	#[cfg(test)]
+	fn worst_head_data() -> HeadData {
+		vec![0u8; 1000].into()
+	}
+
+	#[cfg(test)]
+	fn worst_validation_code() -> ValidationCode {
+		let mut validation_code = vec![0u8; 1000];
+		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
+		let _ = validation_code.splice(
+			..crate::WASM_MAGIC.len(),
+			crate::WASM_MAGIC.iter().cloned(),
+		).collect::<Vec<_>>();
+		validation_code.into()
 	}
 }
 
@@ -102,10 +169,5 @@ impl<T: frame_system::Config> TestRegistrar<T> {
 	#[allow(dead_code)]
 	pub fn parathreads() -> Vec<ParaId> {
 		PARATHREADS.with(|x| x.borrow().clone())
-	}
-
-	#[allow(dead_code)]
-	pub fn set_manager(id: ParaId, manager: T::AccountId) {
-		MANAGERS.with(|x| x.borrow_mut().insert(id, manager.encode()));
 	}
 }
