@@ -135,6 +135,13 @@ pub trait Auctioneer {
 	/// The currency type in which the lease is taken.
 	type Currency: ReservableCurrency<Self::AccountId>;
 
+	/// Create a new auction.
+	///
+	/// This can only happen when there isn't already an auction in progress. Accepts the `duration`
+	/// of this auction and the `lease_period_index` of the initial lease period of the four that
+	/// are to be auctioned.
+	fn new_auction(duration: Self::BlockNumber, lease_period_index: Self::LeasePeriod) -> DispatchResult;
+
 	/// Returns `Some(n)` if the `now` block is part of the ending period of an auction, where `n`
 	/// represents how far into the ending period this block is. Otherwise, returns `None`.
 	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber>;

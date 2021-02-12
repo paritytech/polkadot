@@ -599,6 +599,11 @@ mod tests {
 		type LeasePeriod = u64;
 		type Currency = Balances;
 
+		fn new_auction(duration: u64, lease_period_index: u64) -> DispatchResult {
+			//TODO
+			Ok(())
+		}
+
 		fn is_ending(now: u64) -> Option<u64> {
 			let (begin, end) = END_PERIOD.with(|p| *p.borrow());
 			if now < begin || now > end {
@@ -997,7 +1002,6 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{*, Module as Crowdloan};
-	use crate::slots::Module as Slots;
 	use frame_system::RawOrigin;
 	use frame_support::{
 		assert_ok,
@@ -1006,11 +1010,7 @@ mod benchmarking {
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
 
-	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
-
-	// TODO: replace with T::Parachains::MAX_CODE_SIZE
-	const MAX_CODE_SIZE: u32 = 10;
-	const MAX_HEAD_DATA_SIZE: u32 = 10;
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -1020,15 +1020,19 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn create_fund<T: Config>(end: T::BlockNumber) -> ParaId {
+	fn create_fund<T: Config>(id: u32, end: T::BlockNumber) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let lease_period_index = T::Auctioneer::lease_period_index();
 		let first_slot = lease_period_index;
 		let last_slot = lease_period_index + 3u32.into();
-		let para_id = 1337.into();
+		let para_id = id.into();
 
-		let caller = account("fund_creator", 0, 0);
+		let caller = account("fund_creator", id, 0);
 		CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+
+		let head_data = T::Registrar::worst_head_data();
+		let validation_code = T::Registrar::worst_validation_code();
+		assert_ok!(T::Registrar::register(caller.clone(), para_id, head_data, validation_code));
 
 		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), para_id, cap, first_slot, last_slot, end));
 		para_id
@@ -1039,31 +1043,6 @@ mod benchmarking {
 		let value = T::MinContribution::get();
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
 	}
-
-	// fn worst_validation_code<T: Config>() -> Vec<u8> {
-	// 	// TODO: replace with T::Parachains::MAX_CODE_SIZE
-	// 	let mut validation_code = vec![0u8; MAX_CODE_SIZE as usize];
-	// 	// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-	// 	let _ = validation_code.splice(
-	// 		..crate::WASM_MAGIC.len(),
-	// 		crate::WASM_MAGIC.iter().cloned(),
-	// 	).collect::<Vec<_>>();
-	// 	validation_code
-	// }
-
-	// fn worst_deploy_data<T: Config>() -> DeployData<T::Hash> {
-	// 	let validation_code = worst_validation_code::<T>();
-	// 	let code = primitives::v1::ValidationCode(validation_code);
-	// 	// TODO: replace with T::Parachains::MAX_HEAD_DATA_SIZE
-	// 	let head_data = HeadData(vec![0u8; MAX_HEAD_DATA_SIZE as usize]);
-
-	// 	DeployData {
-	// 		code_hash: T::Hashing::hash(&code.0),
-	// 		// TODO: replace with T::Parachains::MAX_CODE_SIZE
-	// 		code_size: MAX_CODE_SIZE,
-	// 		initial_head_data: head_data,
-	// 	}
-	// }
 
 	// fn setup_onboarding<T: Config>(
 	// 	fund_index: ParaId,
@@ -1110,21 +1089,20 @@ mod benchmarking {
 			let head_data = T::Registrar::worst_head_data();
 			let validation_code = T::Registrar::worst_validation_code();
 
+			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
 
-			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller), para_id, cap, first_slot, last_slot, end)
 		verify {
 			assert_last_event::<T>(RawEvent::Created(para_id).into())
 		}
-	}
-		/*
+
 		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
 		contribute {
-			let fund_index = create_fund::<T>(100u32.into());
+			let fund_index = create_fund::<T>(1, 100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
-			Currency::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution)
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
@@ -1132,51 +1110,8 @@ mod benchmarking {
 			assert_last_event::<T>(RawEvent::Contributed(caller, fund_index, contribution).into());
 		}
 
-		fix_deploy_data {
-			let fund_index = create_fund::<T>(100u32.into());
-			// Matches fund creator in `create_fund`
-			let caller = account("fund_creator", 0, 0);
-
-			let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
-
-			whitelist_account!(caller);
-		}: _(RawOrigin::Signed(caller), fund_index, code_hash, code_size, initial_head_data)
-		verify {
-			assert_last_event::<T>(RawEvent::DeployDataFixed(fund_index).into());
-		}
-
-		onboard {
-			let end_block: T::BlockNumber = 100u32.into();
-			let fund_index = create_fund::<T>(end_block);
-			let para_id = Default::default();
-
-			setup_onboarding::<T>(fund_index, para_id, end_block)?;
-
-			let caller = whitelisted_caller();
-		}: _(RawOrigin::Signed(caller), fund_index, para_id)
-		verify {
-			assert_last_event::<T>(RawEvent::Onboarded(fund_index, para_id).into());
-		}
-
-		begin_retirement {
-			let end_block: T::BlockNumber = 100u32.into();
-			let fund_index = create_fund::<T>(end_block);
-			let para_id = Default::default();
-
-			setup_onboarding::<T>(fund_index, para_id, end_block)?;
-
-			let caller: T::AccountId = whitelisted_caller();
-			Crowdloan::<T>::onboard(RawOrigin::Signed(caller.clone()).into(), fund_index, para_id)?;
-
-			// Remove deposits to look like it is off-boarded
-			crate::slots::Deposits::<T>::remove(para_id);
-		}: _(RawOrigin::Signed(caller), fund_index)
-		verify {
-			assert_last_event::<T>(RawEvent::Retiring(fund_index).into());
-		}
-
 		withdraw {
-			let fund_index = create_fund::<T>(100u32.into());
+			let fund_index = create_fund::<T>(1, 100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
@@ -1188,7 +1123,7 @@ mod benchmarking {
 
 		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
 		dissolve {
-			let fund_index = create_fund::<T>(100u32.into());
+			let fund_index = create_fund::<T>(1, 100u32.into());
 
 			// Dissolve will remove at most `RemoveKeysLimit` at once.
 			for i in 0 .. T::RemoveKeysLimit::get() {
@@ -1205,51 +1140,71 @@ mod benchmarking {
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
 		// in the beginning of the ending period, and each fund outbids the next
 		// over the same slot.
-		on_initialize {
-			// We test the complexity over different number of new raise
-			let n in 2 .. 100;
-			let end_block: T::BlockNumber = 100u32.into();
+		// on_initialize {
+		// 	// We test the complexity over different number of new raise
+		// 	let n in 2 .. 100;
+		// 	let end_block: T::BlockNumber = 100u32.into();
 
-			for i in 0 .. n {
-				let fund_index = create_fund::<T>(end_block);
-				let contributor: T::AccountId = account("contributor", i, 0);
-				let contribution = T::MinContribution::get() * (i + 1).into();
-				CurrencyOf::<T>::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
-				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution)?;
-			}
+		// 	for i in 0 .. n {
+		// 		let fund_index = create_fund::<T>(i, end_block);
+		// 		let contributor: T::AccountId = account("contributor", i, 0);
+		// 		let contribution = T::MinContribution::get() * (i + 1).into();
+		// 		CurrencyOf::<T>::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
+		// 		Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution)?;
+		// 	}
 
-			let lease_period_index = end_block / T::LeasePeriod::get();
-			Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
+		// 	let lease_period_index = T::Auctioneer::lease_period_index();
+		// 	T::Auctioneer::new_auction(end_block, lease_period_index)?;
 
-			assert_eq!(auctions::Module::<T>::is_ending(end_block), Some(0u32.into()));
-			assert_eq!(NewRaise::get().len(), n as usize);
-			let old_endings_count = EndingsCount::get();
-		}: {
-			Crowdloan::<T>::on_initialize(end_block);
-		} verify {
-			assert_eq!(EndingsCount::get(), old_endings_count + 1);
-			assert_last_event::<T>(RawEvent::HandleBidResult((n - 1).into(), Ok(())).into());
-		}
+		// 	assert_eq!(T::Auctioneer::is_ending(end_block), Some(0u32.into()));
+		// 	assert_eq!(NewRaise::get().len(), n as usize);
+		// 	let old_endings_count = EndingsCount::get();
+		// }: {
+		// 	Crowdloan::<T>::on_initialize(end_block);
+		// } verify {
+		// 	assert_eq!(EndingsCount::get(), old_endings_count + 1);
+		// 	assert_last_event::<T>(RawEvent::HandleBidResult((n - 1).into(), Ok(())).into());
+		// }
 	}
 
-*/
 	#[cfg(test)]
 	mod tests {
 		use super::*;
 		use crate::crowdloan::tests::{new_test_ext, Test};
 
 		#[test]
-		fn test_benchmarks() {
+		fn create() {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_create::<Test>());
-				// assert_ok!(test_benchmark_contribute::<Test>());
-				// assert_ok!(test_benchmark_fix_deploy_data::<Test>());
-				// assert_ok!(test_benchmark_onboard::<Test>());
-				// assert_ok!(test_benchmark_begin_retirement::<Test>());
-				// assert_ok!(test_benchmark_withdraw::<Test>());
-				// assert_ok!(test_benchmark_dissolve::<Test>());
-				// assert_ok!(test_benchmark_on_initialize::<Test>());
 			});
 		}
+
+		#[test]
+		fn withdraw() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_withdraw::<Test>());
+			});
+		}
+
+		#[test]
+		fn contribute() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_contribute::<Test>());
+			});
+		}
+
+		#[test]
+		fn dissolve() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_contribute::<Test>());
+			});
+		}
+
+		// #[test]
+		// fn on_initialize() {
+		// 	new_test_ext().execute_with(|| {
+		// 		assert_ok!(test_benchmark_on_initialize::<Test>());
+		// 	});
+		// }
 	}
 }

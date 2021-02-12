@@ -194,7 +194,7 @@ decl_module! {
 		#[weight = (100_000_000, DispatchClass::Operational)]
 		pub fn new_auction(origin,
 			#[compact] duration: T::BlockNumber,
-			#[compact] lease_period_index: LeasePeriodOf<T>
+			#[compact] lease_period_index: LeasePeriodOf<T>,
 		) {
 			T::InitiateOrigin::ensure_origin(origin)?;
 
@@ -247,6 +247,13 @@ impl<T: Config> Auctioneer for Module<T> {
 	type LeasePeriod = T::BlockNumber;
 	type Currency = CurrencyOf<T>;
 
+	fn new_auction(
+		duration: T::BlockNumber,
+		lease_period_index: LeasePeriodOf<T>,
+	) -> DispatchResult {
+		Self::do_new_auction(duration, lease_period_index)
+	}
+
 	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber> {
 		if let Some((_, early_end)) = AuctionInfo::<T>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
@@ -277,6 +284,29 @@ impl<T: Config> Module<T> {
 	/// True if an auction is in progress.
 	pub fn is_in_progress() -> bool {
 		AuctionInfo::<T>::exists()
+	}
+
+	/// Create a new auction.
+	///
+	/// This can only happen when there isn't already an auction in progress. Accepts the `duration`
+	/// of this auction and the `lease_period_index` of the initial lease period of the four that
+	/// are to be auctioned.
+	fn do_new_auction(
+		duration: T::BlockNumber,
+		lease_period_index: LeasePeriodOf<T>,
+	) -> DispatchResult {
+		ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
+		ensure!(lease_period_index >= T::Leaser::lease_period_index(), Error::<T>::LeasePeriodInPast);
+
+		// Bump the counter.
+		let n = AuctionCounter::mutate(|n| { *n += 1; *n });
+
+		// Set the information.
+		let ending = frame_system::Module::<T>::block_number().saturating_add(duration);
+		AuctionInfo::<T>::put((lease_period_index, ending));
+
+		Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending));
+		Ok(())
 	}
 
 	/// Actually place a bid in the current auction.
@@ -1099,16 +1129,10 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{*, Module as Auctions};
-	use crate::slots::Module as Slots;
 	use frame_system::RawOrigin;
-	use frame_support::{
-		assert_ok,
-		traits::OnInitialize,
-	};
 	use sp_runtime::traits::Bounded;
-	use sp_std::prelude::*;
 
-	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -1174,6 +1198,7 @@ mod benchmarking {
 	mod tests {
 		use super::*;
 		use crate::auctions::tests::{new_test_ext, Test};
+		use frame_support::assert_ok;
 
 		#[test]
 		fn test_benchmarks() {
