@@ -581,12 +581,19 @@ mod tests {
 		amount: u64
 	}
 	thread_local! {
-		static END_PERIOD: RefCell<(u64, u64)> = RefCell::new((5, 10));
+		static AUCTION: RefCell<Option<(u64, u64)>> = RefCell::new(None);
+		static ENDING_PERIOD: RefCell<u64> = RefCell::new(5);
 		static BIDS_PLACED: RefCell<Vec<BidPlaced>> = RefCell::new(Vec::new());
 	}
-	#[allow(dead_code)]
-	fn set_end_period(begin: u64, end: u64) {
-		END_PERIOD.with(|p| *p.borrow_mut() = (begin, end));
+	#[allow(unused)]
+	fn set_ending_period(ending_period: u64) {
+		ENDING_PERIOD.with(|p| *p.borrow_mut() = ending_period);
+	}
+	fn auction() -> Option<(u64, u64)> {
+		AUCTION.with(|p| p.borrow().clone())
+	}
+	fn ending_period() -> u64 {
+		ENDING_PERIOD.with(|p| p.borrow().clone())
 	}
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
@@ -600,17 +607,22 @@ mod tests {
 		type Currency = Balances;
 
 		fn new_auction(duration: u64, lease_period_index: u64) -> DispatchResult {
-			//TODO
+			assert!(lease_period_index >= Self::lease_period_index());
+
+			let ending = System::block_number().saturating_add(duration);
+			AUCTION.with(|p| *p.borrow_mut() = Some((lease_period_index, ending)));
 			Ok(())
 		}
 
 		fn is_ending(now: u64) -> Option<u64> {
-			let (begin, end) = END_PERIOD.with(|p| *p.borrow());
-			if now < begin || now > end {
-				None
-			} else {
-				Some(end - now)
+			if let Some((_, early_end)) = auction() {
+				if let Some(after_early_end) = now.checked_sub(early_end) {
+					if after_early_end < ending_period() {
+						return Some(after_early_end)
+					}
+				}
 			}
+			None
 		}
 
 		fn place_bid(
@@ -694,13 +706,15 @@ mod tests {
 			assert_eq!(Crowdloan::contribution_get(0.into(), &1), 0);
 			assert_eq!(Crowdloan::endings_count(), 0);
 
+			assert_ok!(TestAuctioneer::new_auction(5, 0));
+
 			assert_eq!(bids(), vec![]);
 			assert_ok!(TestAuctioneer::place_bid(1, 2.into(), 0, 3, 6));
 			let b = BidPlaced { height: 0, bidder: 1, para: 2.into(), first_slot: 0, last_slot: 3, amount: 6 };
 			assert_eq!(bids(), vec![b]);
 			assert_eq!(TestAuctioneer::is_ending(4), None);
-			assert_eq!(TestAuctioneer::is_ending(5), Some(5));
-			assert_eq!(TestAuctioneer::is_ending(10), Some(0));
+			assert_eq!(TestAuctioneer::is_ending(5), Some(0));
+			assert_eq!(TestAuctioneer::is_ending(9), Some(4));
 			assert_eq!(TestAuctioneer::is_ending(11), None);
 		});
 	}
@@ -818,6 +832,8 @@ mod tests {
 
 			let first_slot = 1;
 			let last_slot = 4;
+
+			assert_ok!(TestAuctioneer::new_auction(5, 0));
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, first_slot, last_slot, 9));
