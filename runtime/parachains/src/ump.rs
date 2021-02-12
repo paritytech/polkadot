@@ -216,6 +216,7 @@ impl<T: Config> Module<T> {
 		}
 	}
 
+	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_ump_after_outgoing(outgoing_para: &ParaId) {
 		<Self as Store>::RelayDispatchQueueSize::remove(outgoing_para);
 		<Self as Store>::RelayDispatchQueues::remove(outgoing_para);

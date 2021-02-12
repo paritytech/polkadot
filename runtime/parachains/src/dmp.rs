@@ -110,6 +110,7 @@ impl<T: Config> Module<T> {
 		}
 	}
 
+	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
 		<Self as Store>::DownwardMessageQueues::remove(outgoing_para);
 		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
