@@ -124,7 +124,7 @@ impl Filter<Call> for BaseFilter {
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
 			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) |
-			Call::Bounties(_) | Call::Tips(_)
+			Call::Bounties(_) | Call::Tips(_) | Call::ElectionProviderMultiPhase(_)
 			=> true,
 		}
 	}
@@ -349,10 +349,8 @@ parameter_types! {
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational_approximation(1u32, 10_000);
 
 	// miner configs
-	pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
+	pub MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
 	pub const MinerMaxIterations: u32 = 20;
-	// For now we use the same as staking.
-	pub MinerMaxWeight: Weight = OffchainSolutionWeightLimit;
 }
 
 impl pallet_election_provider_multi_phase::Config for Runtime {
@@ -362,13 +360,13 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = MinSolutionScoreBump;
 	type MinerMaxIterations = MinerMaxIterations;
-	type MinerMaxWeight = MinerMaxWeight;
+	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerTxPriority = MultiPhaseUnsignedPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = pallet_staking::CompactAssignments;
 	type Fallback = Fallback;
-	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
+	type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Runtime>;
 	type BenchmarkingConfig = ();
 }
 
@@ -433,6 +431,7 @@ impl pallet_staking::Config for Runtime {
 	// The unsigned solution weight targeted by the OCW. We set it to the maximum possible value of
 	// a single extrinsic.
 	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
+	type ElectionProvider = ElectionProviderMultiPhase;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -1066,6 +1065,9 @@ construct_runtime! {
 
 		// Tips module.
 		Tips: pallet_tips::{Module, Call, Storage, Event<T>} = 35,
+
+		// Election pallet. Only works with staking, but placed here to maintain indices.
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
 	}
 }
