@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
-#shellcheck source=lib.sh
-source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/lib.sh"
+#shellcheck source=../common/lib.sh
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../common/lib.sh"
 
-repo='paritytech/polkadot'
+repo="$GITHUB_REPOSITORY"
+pr="$GITHUB_PR"
 
 ensure_labels() {
   for label in "$@"; do
-    if has_label "$repo" "$CI_COMMIT_BRANCH" "$label"; then
+    if has_label "$repo" "$pr" "$label"; then
       return 0
     fi
   done

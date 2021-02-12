@@ -27,12 +27,12 @@ use futures::{channel::oneshot, FutureExt};
 
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
-	SubsystemResult,
+	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	SubsystemContext, SubsystemResult,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
-use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange, OurView};
+use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, ReputationChange, OurView};
 use std::collections::{HashMap, HashSet};
 
 const COST_SIGNATURE_INVALID: ReputationChange =

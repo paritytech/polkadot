@@ -60,6 +60,7 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
+	state: State,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let _ = env_logger::builder()
@@ -80,7 +81,7 @@ fn test_harness<T: Future<Output = ()>>(
 
 	let subsystem = super::PoVDistribution::new(Metrics::default());
 
-	let subsystem = subsystem.run(context);
+	let subsystem = subsystem.run_with_state(context, state);
 
 	let test_fut = test(TestHarness { virtual_overseer });
 
@@ -257,7 +258,7 @@ async fn test_validator_discovery(
 fn ask_validators_for_povs() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(State::default(), |test_harness| async move {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let pov_block = PoV {
@@ -566,7 +567,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 	let pov = make_pov(vec![1, 2, 3]);
 	let pov_hash = pov.hash();
 
-	let mut state = State {
+	let state = State {
 		relay_parent_state: {
 			let mut s = HashMap::new();
 			let mut b = BlockBasedState {
@@ -607,28 +608,38 @@ fn distributes_to_those_awaiting_and_completes_local() {
 		connection_requests: Default::default(),
 	};
 
-	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let mut descriptor = CandidateDescriptor::default();
 	descriptor.pov_hash = pov_hash;
 
-	executor::block_on(async move {
-		handle_distribute(
-			&mut state,
-			&mut ctx,
-			hash_a,
-			descriptor,
-			Arc::new(pov.clone()),
+	test_harness(state, |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+
+		overseer_send(
+			&mut virtual_overseer,
+			PoVDistributionMessage::DistributePoV(
+				hash_a,
+				descriptor,
+				Arc::new(pov.clone())
+			)
 		).await;
 
-		assert!(!state.peer_state[&peer_a].awaited[&hash_a].contains(&pov_hash));
-		assert!(state.peer_state[&peer_c].awaited[&hash_b].contains(&pov_hash));
+		// Let's assume runtime call failed and we're already connected to the peers.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::AvailabilityCores(tx)
+			)) => {
+				assert_eq!(relay_parent, hash_a);
+				tx.send(Err("nope".to_string().into())).unwrap();
+			}
+		);
 
 		// our local sender also completed
 		assert_eq!(&*pov_recv.await.unwrap(), &pov);
 
 		assert_matches!(
-			handle.recv().await,
+			virtual_overseer.recv().await,
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(peers, message)
 			) => {

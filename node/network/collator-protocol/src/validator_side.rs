@@ -32,10 +32,11 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
+		NetworkBridgeEvent,
 	},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, OurView, PeerId, ReputationChange as Rep, RequestId, NetworkBridgeEvent,
+	v1 as protocol_v1, View, OurView, PeerId, ReputationChange as Rep, RequestId,
 };
 use polkadot_node_subsystem_util::{TimeoutExt as _, metrics::{self, prometheus}};
 
@@ -386,6 +387,9 @@ where
 					tracing::debug!(
 						target: LOG_TARGET,
 						%request_id,
+						?para_id,
+						?relay_parent,
+						candidate_hash = ?receipt.hash(),
 						"Received collation",
 					);
 
@@ -537,6 +541,12 @@ where
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					"advertise collation received from an unknown collator",
+				);
 			}
 		}
 		RequestCollation(_, _, _) => {
@@ -656,6 +666,7 @@ where
 			// want to track it's view or take any other actions.
 		},
 		PeerDisconnected(peer_id) => {
+			state.known_collators.remove(&peer_id);
 			state.peer_views.remove(&peer_id);
 		},
 		PeerViewChange(peer_id, view) => {

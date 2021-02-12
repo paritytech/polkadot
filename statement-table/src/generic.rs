@@ -267,40 +267,26 @@ impl<Ctx: Context> CandidateData<Ctx> {
 			Ctx::GroupId, Ctx::Candidate, Ctx::AuthorityId, Ctx::Signature,
 		>>
 	{
-		if self.can_be_included(validity_threshold) {
-			let validity_votes: Vec<_> = self.validity_votes.iter()
-				.filter_map(|(a, v)| match *v {
-					ValidityVote::Invalid(_) => None,
-
-					ValidityVote::Valid(ref s) =>
-						Some((a, ValidityAttestation::Explicit(s.clone()))),
-					ValidityVote::Issued(ref s) =>
-						Some((a, ValidityAttestation::Implicit(s.clone()))),
-				})
-				.take(validity_threshold)
-				.map(|(k, v)| (k.clone(), v.clone()))
-				.collect();
-
-			assert!(
-				validity_votes.len() == validity_threshold,
-				"candidate is includable; therefore there are enough validity votes; qed",
-			);
-
-			Some(AttestedCandidate {
-				group_id: self.group_id.clone(),
-				candidate: self.candidate.clone(),
-				validity_votes,
-			})
-		} else {
-			None
+		let valid_votes = self.validity_votes.len().saturating_sub(self.indicated_bad_by.len());
+		if valid_votes < validity_threshold {
+			return None;
 		}
-	}
 
-	// Candidate data can be included in a proposal
-	// if it has enough validity votes
-	// and no authorities have called it bad.
-	fn can_be_included(&self, validity_threshold: usize) -> bool {
-		self.validity_votes.len() >= validity_threshold
+		let validity_votes = self.validity_votes.iter()
+			.filter_map(|(a, v)| match *v {
+				ValidityVote::Invalid(_) => None,
+				ValidityVote::Valid(ref s) =>
+					Some((a.clone(), ValidityAttestation::Explicit(s.clone()))),
+				ValidityVote::Issued(ref s) =>
+					Some((a.clone(), ValidityAttestation::Implicit(s.clone()))),
+			})
+			.collect();
+
+		Some(AttestedCandidate {
+			group_id: self.group_id.clone(),
+			candidate: self.candidate.clone(),
+			validity_votes,
+		})
 	}
 
 	fn summary(&self, digest: Ctx::Digest) -> Summary<Ctx::Digest, Ctx::GroupId> {
@@ -337,7 +323,6 @@ pub struct Table<Ctx: Context> {
 	authority_data: HashMap<Ctx::AuthorityId, AuthorityData<Ctx>>,
 	detected_misbehavior: HashMap<Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>>,
 	candidate_votes: HashMap<Ctx::Digest, CandidateData<Ctx>>,
-	includable_count: HashMap<Ctx::GroupId, usize>,
 }
 
 impl<Ctx: Context> Default for Table<Ctx> {
@@ -346,65 +331,11 @@ impl<Ctx: Context> Default for Table<Ctx> {
 			authority_data: HashMap::new(),
 			detected_misbehavior: HashMap::new(),
 			candidate_votes: HashMap::new(),
-			includable_count: HashMap::new(),
 		}
 	}
 }
 
 impl<Ctx: Context> Table<Ctx> {
-	/// Produce a set of proposed candidates.
-	///
-	/// This will be at most one per group, consisting of the
-	/// best candidate for each group with requisite votes for inclusion.
-	///
-	/// The vector is sorted in ascending order by group id.
-	pub fn proposed_candidates(&self, context: &Ctx) -> Vec<AttestedCandidate<
-		Ctx::GroupId, Ctx::Candidate, Ctx::AuthorityId, Ctx::Signature,
-	>> {
-		use std::collections::BTreeMap;
-		use std::collections::btree_map::Entry as BTreeEntry;
-
-		let mut best_candidates = BTreeMap::new();
-		for candidate_data in self.candidate_votes.values() {
-			let group_id = &candidate_data.group_id;
-
-			if !self.includable_count.contains_key(group_id) {
-				continue
-			}
-
-			let threshold = context.requisite_votes(group_id);
-
-			if !candidate_data.can_be_included(threshold) { continue }
-			match best_candidates.entry(group_id.clone()) {
-				BTreeEntry::Vacant(vacant) => {
-					vacant.insert((candidate_data, threshold));
-				},
-				BTreeEntry::Occupied(mut occ) => {
-					let candidate_ref = occ.get_mut();
-					if candidate_ref.0.candidate > candidate_data.candidate {
-						candidate_ref.0 = candidate_data;
-					}
-				}
-			}
-		}
-
-		best_candidates.values()
-			.map(|&(candidate_data, threshold)|
-				candidate_data.attested(threshold)
-					.expect("candidate has been checked includable; \
-						therefore an attestation can be constructed; qed")
-			)
-			.collect::<Vec<_>>()
-	}
-
-	/// Whether a candidate can be included.
-	pub fn candidate_includable(&self, digest: &Ctx::Digest, context: &Ctx) -> bool {
-		self.candidate_votes.get(digest).map_or(false, |data| {
-			let v_threshold = context.requisite_votes(&data.group_id);
-			data.can_be_included(v_threshold)
-		})
-	}
-
 	/// Get the attested candidate for `digest`.
 	///
 	/// Returns `Some(_)` if the candidate exists and is includable.
@@ -484,11 +415,6 @@ impl<Ctx: Context> Table<Ctx> {
 		self.detected_misbehavior
 			.drain()
 			.into()
-	}
-
-	/// Get the current number of parachains with includable candidates.
-	pub fn includable_count(&self) -> usize {
-		self.includable_count.len()
 	}
 
 	fn import_candidate(
@@ -581,9 +507,6 @@ impl<Ctx: Context> Table<Ctx> {
 			Some(votes) => votes,
 		};
 
-		let v_threshold = context.requisite_votes(&votes.group_id);
-		let was_includable = votes.can_be_included(v_threshold);
-
 		// check that this authority actually can vote in this group.
 		if !context.is_member_of(&from, &votes.group_id) {
 			let (sig, valid) = match vote {
@@ -654,9 +577,6 @@ impl<Ctx: Context> Table<Ctx> {
 			}
 		}
 
-		let is_includable = votes.can_be_included(v_threshold);
-		update_includable_count(&mut self.includable_count, &votes.group_id, was_includable, is_includable);
-
 		Ok(Some(votes.summary(digest)))
 	}
 }
@@ -717,26 +637,6 @@ impl<'a, Ctx: Context> Iterator for DrainMisbehaviors<'a, Ctx> {
 			self.in_progress = self.drain.next().map(Into::into);
 			self.maybe_item()
 		})
-	}
-}
-
-fn update_includable_count<Group: Hash + Eq + Clone>(
-	map: &mut HashMap<Group, usize>,
-	group_id: &Group,
-	was_includable: bool,
-	is_includable: bool,
-) {
-	if was_includable && !is_includable {
-		if let Entry::Occupied(mut entry) = map.entry(group_id.clone()) {
-			*entry.get_mut() -= 1;
-			if *entry.get() == 0 {
-				entry.remove();
-			}
-		}
-	}
-
-	if !was_includable && is_includable {
-		*map.entry(group_id.clone()).or_insert(0) += 1;
 	}
 }
 
@@ -1099,7 +999,7 @@ mod tests {
 	}
 
 	#[test]
-	fn candidate_can_be_included() {
+	fn candidate_attested_works() {
 		let validity_threshold = 6;
 
 		let mut candidate = CandidateData::<TestContext> {
@@ -1109,21 +1009,25 @@ mod tests {
 			indicated_bad_by: Vec::new(),
 		};
 
-		assert!(!candidate.can_be_included(validity_threshold));
+		assert!(candidate.attested(validity_threshold).is_none());
 
 		for i in 0..validity_threshold {
 			candidate.validity_votes.insert(AuthorityId(i + 100), ValidityVote::Valid(Signature(i + 100)));
 		}
 
-		assert!(candidate.can_be_included(validity_threshold));
+		assert!(candidate.attested(validity_threshold).is_some());
 
 		candidate.indicated_bad_by.push(AuthorityId(1024));
+		candidate.validity_votes.insert(
+			AuthorityId(validity_threshold + 100),
+			ValidityVote::Valid(Signature(validity_threshold + 100)),
+		);
 
-		assert!(candidate.can_be_included(validity_threshold));
+		assert!(candidate.attested(validity_threshold).is_some());
 	}
 
 	#[test]
-	fn includability_counter() {
+	fn includability_works() {
 		let context = TestContext {
 			authorities: {
 				let mut map = HashMap::new();
@@ -1146,8 +1050,7 @@ mod tests {
 		table.import_statement(&context, statement);
 
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
-		assert!(!table.candidate_includable(&candidate_digest, &context));
-		assert!(table.includable_count.is_empty());
+		assert!(table.attested_candidate(&candidate_digest, &context).is_none());
 
 		let vote = SignedStatement {
 			statement: Statement::Valid(candidate_digest.clone()),
@@ -1157,8 +1060,7 @@ mod tests {
 
 		table.import_statement(&context, vote);
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(2)));
-		assert!(table.candidate_includable(&candidate_digest, &context));
-		assert!(table.includable_count.get(&GroupId(2)).is_some());
+		assert!(table.attested_candidate(&candidate_digest, &context).is_some());
 
 		// have the last validity guarantor note invalidity. now it is unincludable.
 		let vote = SignedStatement {
@@ -1169,8 +1071,7 @@ mod tests {
 
 		table.import_statement(&context, vote);
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(3)));
-		assert!(table.candidate_includable(&candidate_digest, &context));
-		assert!(table.includable_count.get(&GroupId(2)).is_some());
+		assert!(table.attested_candidate(&candidate_digest, &context).is_some());
 	}
 
 	#[test]

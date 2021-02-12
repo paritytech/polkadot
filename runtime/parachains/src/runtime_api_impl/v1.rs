@@ -200,13 +200,13 @@ pub fn persisted_validation_data<T: initializer::Config>(
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
 	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+	let relay_parent_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
 		.expect("storage root must decode to the Hash type; qed");
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		crate::util::make_persisted_validation_data::<T>(
 			para_id,
 			relay_parent_number,
-			relay_storage_root,
+			relay_parent_storage_root,
 		)
 	})
 }
@@ -271,9 +271,12 @@ where
 	<frame_system::Module<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
-			RawEvent::<T>::CandidateBacked(c, h) => CandidateEvent::CandidateBacked(c, h),
-			RawEvent::<T>::CandidateIncluded(c, h) => CandidateEvent::CandidateIncluded(c, h),
-			RawEvent::<T>::CandidateTimedOut(c, h) => CandidateEvent::CandidateTimedOut(c, h),
+			RawEvent::<T>::CandidateBacked(c, h, core, group)
+				=> CandidateEvent::CandidateBacked(c, h, core, group),
+			RawEvent::<T>::CandidateIncluded(c, h, core, group)
+				=> CandidateEvent::CandidateIncluded(c, h, core, group),
+			RawEvent::<T>::CandidateTimedOut(c, h, core)
+				=> CandidateEvent::CandidateTimedOut(c, h, core),
 		})
 		.collect()
 }

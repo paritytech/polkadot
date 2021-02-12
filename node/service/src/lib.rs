@@ -38,7 +38,10 @@ use {
 	sp_keystore::SyncCryptoStorePtr,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
+	babe_primitives::BabeApi,
 };
+#[cfg(feature = "real-overseer")]
+use polkadot_network_bridge::RequestMultiplexer;
 
 use sp_core::traits::SpawnNamed;
 
@@ -216,6 +219,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 				babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
+			u64, // slot-duration
 		)
 	>,
 	Error
@@ -241,6 +245,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
+		config.role.is_authority().into(),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
 		client.clone(),
@@ -262,8 +267,9 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let justification_import = grandpa_block_import.clone();
 
+	let babe_config = babe::Config::get_or_compute(&*client)?;
 	let (block_import, babe_link) = babe::block_import(
-		babe::Config::get_or_compute(&*client)?,
+		babe_config.clone(),
 		grandpa_block_import,
 		client.clone(),
 	)?;
@@ -291,8 +297,8 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
 	let rpc_setup = shared_voter_state.clone();
 
-	let babe_config = babe_link.config().clone();
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
+	let slot_duration = babe_config.slot_duration();
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
@@ -335,7 +341,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup)
+		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration)
 	})
 }
 
@@ -347,10 +353,12 @@ fn real_overseer<Spawner, RuntimeClient>(
 	_: AvailabilityConfig,
 	_: Arc<sc_network::NetworkService<Block, Hash>>,
 	_: AuthorityDiscoveryService,
+	_request_multiplexer: (),
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,
 	_: IsolationStrategy,
+	_: u64,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -373,14 +381,16 @@ fn real_overseer<Spawner, RuntimeClient>(
 	availability_config: AvailabilityConfig,
 	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	authority_discovery: AuthorityDiscoveryService,
+	request_multiplexer: RequestMultiplexer,
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	is_collator: IsCollator,
 	isolation_strategy: IsolationStrategy,
+	_slot_duration: u64, // TODO [now]: instantiate approval voting.
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-	RuntimeClient::Api: ParachainHost<Block>,
+	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
@@ -456,6 +466,7 @@ where
 		network_bridge: NetworkBridgeSubsystem::new(
 			network_service,
 			authority_discovery,
+			request_multiplexer,
 		),
 		pov_distribution: PoVDistributionSubsystem::new(
 			Metrics::register(registry)?,
@@ -565,7 +576,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		import_queue,
 		transaction_pool,
 		inherent_data_providers,
-		other: (rpc_extensions_builder, import_setup, rpc_setup)
+		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
@@ -597,6 +608,15 @@ pub fn new_full<RuntimeApi, Executor>(
 	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
 		&config, task_manager.spawn_handle(), backend.clone(),
 	));
+	#[cfg(feature = "real-overseer")]
+	fn register_request_response(config: &mut sc_network::config::NetworkConfiguration) -> RequestMultiplexer {
+		let (multiplexer, configs) = RequestMultiplexer::new();
+		config.request_response_protocols.extend(configs);
+		multiplexer
+	}
+	#[cfg(not(feature = "real-overseer"))]
+	fn register_request_response(_: &mut sc_network::config::NetworkConfiguration) {}
+	let request_multiplexer = register_request_response(&mut config.network);
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -693,10 +713,12 @@ pub fn new_full<RuntimeApi, Executor>(
 			availability_config,
 			network.clone(),
 			authority_discovery_service,
+			request_multiplexer,
 			prometheus_registry.as_ref(),
 			spawner,
 			is_collator,
 			isolation_strategy,
+			slot_duration,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
@@ -989,13 +1011,26 @@ pub fn build_full(
 	grandpa_pause: Option<(u32, u32)>,
 	jaeger_agent: Option<std::net::SocketAddr>,
 ) -> Result<NewFull<Client>, Error> {
+	let isolation_strategy = {
+		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+		{
+			let cache_base_path = config.database.path();
+			IsolationStrategy::external_process_with_caching(cache_base_path)
+		}
+
+		#[cfg(any(target_os = "android", target_os = "unknown"))]
+		{
+			IsolationStrategy::InProcess
+		}
+	};
+
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
@@ -1003,7 +1038,7 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
@@ -1011,7 +1046,7 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
@@ -1019,7 +1054,7 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			Default::default(),
+			isolation_strategy,
 		).map(|full| full.with_client(Client::Polkadot))
 	}
 }
