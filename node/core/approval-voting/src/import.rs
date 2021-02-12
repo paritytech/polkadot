@@ -603,6 +603,7 @@ pub(crate) async fn handle_new_head(
 			if needed_approvals == 0 {
 				tracing::debug!(
 					target: LOG_TARGET,
+					block_hash = ?block_hash,
 					"Insta-approving all candidates",
 				);
 				bitvec::bitvec![BitOrderLsb0, u8; 1; num_candidates]
@@ -620,13 +621,15 @@ pub(crate) async fn handle_new_head(
 				if result.any() {
 					tracing::debug!(
 						target: LOG_TARGET,
-						"Insta-approving candidates as the number of validators is too low",
+						block_hash = ?block_hash,
+						"Insta-approving {}/{} candidates as the number of validators is too low",
+						result.count_ones(),
+						result.len(),
 					);
 				}
 				result
 			}
 		};
-
 
 		let block_entry = approval_db::v1::BlockEntry {
 			block_hash,
