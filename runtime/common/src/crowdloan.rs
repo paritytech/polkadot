@@ -1156,31 +1156,31 @@ mod benchmarking {
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
 		// in the beginning of the ending period, and each fund outbids the next
 		// over the same slot.
-		// on_initialize {
-		// 	// We test the complexity over different number of new raise
-		// 	let n in 2 .. 100;
-		// 	let end_block: T::BlockNumber = 100u32.into();
+		on_initialize {
+			// We test the complexity over different number of new raise
+			let n in 2 .. 100;
+			let end_block: T::BlockNumber = 100u32.into();
 
-		// 	for i in 0 .. n {
-		// 		let fund_index = create_fund::<T>(i, end_block);
-		// 		let contributor: T::AccountId = account("contributor", i, 0);
-		// 		let contribution = T::MinContribution::get() * (i + 1).into();
-		// 		CurrencyOf::<T>::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
-		// 		Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution)?;
-		// 	}
+			for i in 0 .. n {
+				let fund_index = create_fund::<T>(i, end_block);
+				let contributor: T::AccountId = account("contributor", i, 0);
+				let contribution = T::MinContribution::get() * (i + 1).into();
+				CurrencyOf::<T>::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
+				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution)?;
+			}
 
-		// 	let lease_period_index = T::Auctioneer::lease_period_index();
-		// 	T::Auctioneer::new_auction(end_block, lease_period_index)?;
+			let lease_period_index = T::Auctioneer::lease_period_index();
+			T::Auctioneer::new_auction(end_block, lease_period_index)?;
 
-		// 	assert_eq!(T::Auctioneer::is_ending(end_block), Some(0u32.into()));
-		// 	assert_eq!(NewRaise::get().len(), n as usize);
-		// 	let old_endings_count = EndingsCount::get();
-		// }: {
-		// 	Crowdloan::<T>::on_initialize(end_block);
-		// } verify {
-		// 	assert_eq!(EndingsCount::get(), old_endings_count + 1);
-		// 	assert_last_event::<T>(RawEvent::HandleBidResult((n - 1).into(), Ok(())).into());
-		// }
+			assert_eq!(T::Auctioneer::is_ending(end_block), Some(0u32.into()));
+			assert_eq!(NewRaise::get().len(), n as usize);
+			let old_endings_count = EndingsCount::get();
+		}: {
+			Crowdloan::<T>::on_initialize(end_block);
+		} verify {
+			assert_eq!(EndingsCount::get(), old_endings_count + 1);
+			assert_last_event::<T>(RawEvent::HandleBidResult((n - 1).into(), Ok(())).into());
+		}
 	}
 
 	#[cfg(test)]
@@ -1216,11 +1216,11 @@ mod benchmarking {
 			});
 		}
 
-		// #[test]
-		// fn on_initialize() {
-		// 	new_test_ext().execute_with(|| {
-		// 		assert_ok!(test_benchmark_on_initialize::<Test>());
-		// 	});
-		// }
+		#[test]
+		fn on_initialize() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_on_initialize::<Test>());
+			});
+		}
 	}
 }

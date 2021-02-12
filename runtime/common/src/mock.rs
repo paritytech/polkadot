@@ -65,7 +65,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
-				Ok(_) => panic!("Already Parathread"),
+				Ok(_) => {},
 				Err(i) => parathreads.insert(i, id),
 			}
 		});
