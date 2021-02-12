@@ -1036,8 +1036,8 @@ mod tests {
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
 
-			if let Some(mut notification) = new_session(b + 1) {
-				Paras::initializer_on_new_session(&mut notification);
+			if let Some(notification) = new_session(b + 1) {
+				Paras::initializer_on_new_session(&notification);
 				Inclusion::initializer_on_new_session(&notification);
 			}
 

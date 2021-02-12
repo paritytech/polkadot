@@ -851,7 +851,7 @@ mod tests {
 			let b = System::block_number();
 			Paras::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&mut Default::default());
+				Paras::initializer_on_new_session(&Default::default());
 			}
 			System::on_finalize(b);
 

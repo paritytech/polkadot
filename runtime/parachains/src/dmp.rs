@@ -227,9 +227,7 @@ mod tests {
 			Paras::initializer_finalize();
 			Dmp::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				let notification = Default::default();
-				let outgoing_paras = Paras::initializer_on_new_session(&notification);
-				Dmp::initializer_on_new_session(&notification, &outgoing_paras);
+				Dmp::initializer_on_new_session(&Default::default(), &Vec::new());
 			}
 			System::on_finalize(b);
 
@@ -272,9 +270,7 @@ mod tests {
 			queue_downward_message(b, vec![4, 5, 6]).unwrap();
 			queue_downward_message(c, vec![7, 8, 9]).unwrap();
 
-			let notification = crate::initializer::SessionChangeNotification {
-				..Default::default()
-			};
+			let notification = crate::initializer::SessionChangeNotification::default();
 			let outgoing_paras = vec![a, b];
 			Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 

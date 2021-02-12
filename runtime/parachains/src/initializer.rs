@@ -21,7 +21,7 @@
 
 use sp_std::prelude::*;
 use frame_support::weights::Weight;
-use primitives::v1::{ValidatorId};
+use primitives::v1::ValidatorId;
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
