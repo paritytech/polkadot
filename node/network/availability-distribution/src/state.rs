@@ -66,16 +66,18 @@ use jaeger::JaegerSpan;
 use itertools::{Either, Itertools};
 
 use super::{fetch_task::FetchTask, session_cache::SessionCache, Result, LOG_TARGET};
+use polkadot_node_subsystem_util::request_availability_cores_ctx;
 use polkadot_primitives::v1::{
 	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, Hash, HashT,
 	OccupiedCore, SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
 };
 use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError, messages::AvailabilityDistributionMessage,
+	jaeger,
+	messages::AvailabilityDistributionMessage,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
+	SubsystemContext, SubsystemError,
 };
-use polkadot_node_subsystem_util::request_availability_cores_ctx;
 
 /// A running instance of this subsystem.
 pub struct ProtocolState {
@@ -96,7 +98,7 @@ impl ProtocolState {
 		&mut self,
 		ctx: &mut Context,
 		update: ActiveLeavesUpdate,
-	) -> Result<()> 
+	) -> Result<()>
 	where
 		Context: SubsystemContext,
 	{
@@ -135,16 +137,18 @@ impl ProtocolState {
 		obsolete_leaves: impl Iterator<Item = (Hash, Arc<JaegerSpan>)>,
 	) -> Result<HashSet<Hash>> {
 		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().map(|h| h.0).collect();
-		let new_fetches =
-			self.fetches.into_iter().filter_map(|(c_hash, task)| {
+		let new_fetches = self
+			.fetches
+			.into_iter()
+			.filter_map(|(c_hash, task)| {
 				task.remove_leaves(HashSet::from(obsolete_leaves));
 				if task.is_finished() {
 					Some(task.get_relay_parent())
-				}
-				else {
+				} else {
 					None
 				}
-			}).collect();
+			})
+			.collect();
 		self.fetches = new_fetches;
 	}
 
@@ -160,17 +164,20 @@ impl ProtocolState {
 		ctx: &mut Context,
 		leaf: Hash,
 		cores: impl IntoIterator<Item = OccupiedCore>,
-	) 
-	where
+	) where
 		Context: SubsystemContext,
 	{
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
 				Entry::Occupied(e) =>
 				// Just book keeping - we are already requesting that chunk:
-					e.get_mut().add_leaf(leaf),
+				{
+					e.get_mut().add_leaf(leaf)
+				}
 				Entry::Vacant(e) => {
-					let session_info = self.session_cache.fetch_session_info(ctx, core.candidate_descriptor.relay_parent)?;
+					let session_info = self
+						.session_cache
+						.fetch_session_info(ctx, core.candidate_descriptor.relay_parent)?;
 					if let Some(session_info) = session_info {
 						e.insert(FetchTask::start(ctx, leaf, core, session_info))
 					}

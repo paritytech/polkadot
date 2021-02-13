@@ -240,6 +240,7 @@ impl RunningTask {
 			.await
 			.map_err(|| TaskError::ShuttingDown)?;
 
+		// TODO: Also handle receiver cancel.
 		match response_recv.await {
 			Ok(resp) => Some(resp),
 			Err(RequestError::InvalidResponse(err)) => {}
