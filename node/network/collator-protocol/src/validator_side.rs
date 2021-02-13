@@ -39,6 +39,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, OurView, PeerId, ReputationChange as Rep, RequestId,
 };
 use polkadot_node_subsystem_util::{TimeoutExt as _, metrics::{self, prometheus}};
+use polkadot_node_primitives::{Statement, SignedFullStatement};
 
 use super::{modify_reputation, LOG_TARGET, Result};
 
@@ -275,6 +276,39 @@ where
 {
 	for (peer_id, _) in state.known_collators.iter().filter(|d| *d.1 == id) {
 		modify_reputation(ctx, peer_id.clone(), BENEFIT_NOTIFY_GOOD).await;
+	}
+}
+
+/// Notify a collator that its collation got seconded.
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+async fn notify_collation_seconded(
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	state: &mut State,
+	id: CollatorId,
+	statement: SignedFullStatement,
+) {
+	if !matches!(statement.payload(), Statement::Seconded(_)) {
+		tracing::error!(
+			target: LOG_TARGET,
+			statement = ?statement,
+			"Notify collation seconded called with a wrong statement.",
+		);
+		return;
+	}
+
+	let peer_ids = state.known_collators.iter()
+		.filter_map(|(p, c)| if *c == id { Some(p.clone()) } else { None })
+		.collect::<Vec<_>>();
+
+	if !peer_ids.is_empty() {
+		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement);
+
+		ctx.send_message(AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendCollationMessage(
+				peer_ids,
+				protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+			)
+		)).await;
 	}
 }
 
@@ -694,20 +728,7 @@ where
 			note_good_collation(ctx, state, id).await;
 		}
 		NotifyCollationSeconded(id, statement) => {
-			let peer_ids = state.known_collators.iter()
-				.filter_map(|(p, c)| if *c == id { Some(p.clone()) } else { None })
-				.collect::<Vec<_>>();
-
-			if !peer_ids.is_empty() {
-				let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement);
-
-				ctx.send_message(AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendCollationMessage(
-						peer_ids,
-						protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
-					)
-				)).await;
-			}
+			notify_collation_seconded(ctx, state, id, statement).await;
 		}
 		NetworkBridgeUpdateV1(event) => {
 			if let Err(e) = handle_network_msg(
