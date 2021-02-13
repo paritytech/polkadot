@@ -88,12 +88,6 @@ pub struct ProtocolState {
 	session_cache: SessionCache,
 }
 
-struct ChunkFetchingInfo {
-	descriptor: CandidateDescriptor,
-	/// Validators that backed the candidate and hopefully have our chunk.
-	backing_group: Vec<ValidatorIndex>,
-}
-
 impl ProtocolState {
 	/// Update heads that need availability distribution.
 	///
@@ -102,15 +96,18 @@ impl ProtocolState {
 		&mut self,
 		ctx: &mut Context,
 		update: ActiveLeavesUpdate,
-	) -> Result<()> {
+	) -> Result<()> 
+	where
+		Context: SubsystemContext,
+	{
 		let ActiveLeavesUpdate {
 			activated,
 			deactivated,
 		} = update;
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, activated)?;
-		let dead_parents = self.stop_requesting_chunks(ctx, deactivated)?;
+		self.start_requesting_chunks(ctx, activated).await?;
+		self.stop_requesting_chunks(ctx, deactivated)?;
 	}
 
 	/// Start requesting chunks for newly imported heads.
@@ -124,7 +121,7 @@ impl ProtocolState {
 	{
 		for (leaf, _) in new_heads {
 			let cores = query_occupied_cores(ctx, leaf).await?;
-			self.add_cores(ctx, leaf, cores)?;
+			self.add_cores(ctx, leaf, cores).await?;
 		}
 		Ok(())
 	}
@@ -133,23 +130,22 @@ impl ProtocolState {
 	///
 	/// Returns relay_parents which became irrelevant for availability fetching (are not
 	/// referenced by any candidate anymore).
-	fn stop_requesting_chunks<Context>(
+	fn stop_requesting_chunks(
 		&mut self,
-		ctx: &mut Context,
 		obsolete_leaves: impl Iterator<Item = (Hash, Arc<JaegerSpan>)>,
 	) -> Result<HashSet<Hash>> {
 		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().map(|h| h.0).collect();
-		let (obsolete_parents, new_fetches): (HashSet<_>, HashMap<_>) =
-			self.fetches.into_iter().partition_map(|(c_hash, task)| {
+		let new_fetches =
+			self.fetches.into_iter().filter_map(|(c_hash, task)| {
 				task.remove_leaves(HashSet::from(obsolete_leaves));
 				if task.is_finished() {
-					Either::Left(task.get_relay_parent())
-				} else {
-					Either::Right((c_hash, task))
+					Some(task.get_relay_parent())
 				}
-			});
+				else {
+					None
+				}
+			}).collect();
 		self.fetches = new_fetches;
-		obsolete_parents
 	}
 
 	/// Add candidates corresponding for a particular relay parent.
@@ -164,15 +160,22 @@ impl ProtocolState {
 		ctx: &mut Context,
 		leaf: Hash,
 		cores: impl IntoIterator<Item = OccupiedCore>,
-	) {
+	) 
+	where
+		Context: SubsystemContext,
+	{
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
 				Entry::Occupied(e) =>
 				// Just book keeping - we are already requesting that chunk:
-				{
-					e.relay_parents.insert(leaf)
+					e.get_mut().add_leaf(leaf),
+				Entry::Vacant(e) => {
+					let session_info = self.session_cache.fetch_session_info(ctx, core.candidate_descriptor.relay_parent)?;
+					if let Some(session_info) = session_info {
+						e.insert(FetchTask::start(ctx, leaf, core, session_info))
+					}
+					// Not a validator, nothing to do.
 				}
-				Entry::Vacant(e) => e.insert(FetchTask::start(ctx, leaf, core)),
 			}
 		}
 	}
@@ -187,7 +190,7 @@ async fn query_occupied_cores<Context>(
 where
 	Context: SubsystemContext,
 {
-	let cores = request_availability_cores_ctx(relay_parent, ctx).await?.await;
+	let cores = recv_runtime(request_availability_cores_ctx(relay_parent, ctx).await).await?;
 
 	Ok(cores
 		.into_iter()

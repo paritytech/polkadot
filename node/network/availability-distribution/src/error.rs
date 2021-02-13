@@ -20,7 +20,10 @@ use thiserror::Error;
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_subsystem::{SubsystemError};
+use polkadot_subsystem::{
+	errors::{ChainApiError, RuntimeApiError},
+	SubsystemError,
+};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -36,9 +39,17 @@ pub enum Error {
 	#[error("Receive channel closed")]
 	IncomingMessageChannel(#[source] SubsystemError),
 
-    /// Some request to the runtime in the session cache failed.
-	#[error("Session cache runtime request failed")]
-	SessionCacheRuntimRequest(#[source] UtilError),
+	/// Some request to utility functions failed.
+	#[error("Runtime request failed")]
+	UtilRequest(#[source] UtilError),
+
+	/// Some request to the runtime failed.
+	#[error("Runtime request failed")]
+	RuntimeRequestCanceled(#[source] oneshot::Canceled),
+
+	/// Some request to the runtime failed.
+	#[error("Runtime request failed")]
+	RuntimeRequest(#[source] RuntimeApiError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -47,4 +58,17 @@ impl From<SubsystemError> for Error {
 	fn from(err: SubsystemError) -> Self {
 		Self::IncomingMessageChannel(err)
 	}
+}
+
+/// Receive a response from a runtime request and convert errors.
+pub(crate) async fn recv_runtime<V>(
+	r: std::result::Result<
+		oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
+		UtilError,
+	>,
+) -> Result<V> {
+	r.map_err(Error::UtilRequest)?
+		.await
+		.map_err(Error::RuntimeRequestCanceled)?
+		.map_err(Error::RuntimeRequest)
 }

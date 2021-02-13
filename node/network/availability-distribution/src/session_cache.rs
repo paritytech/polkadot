@@ -66,17 +66,14 @@ pub struct SessionCache {
 
 /// Localized session information, tailored for the needs of availability distribution.
 pub struct SessionInfo {
+	/// The index of this session.
+	pub session_index: SessionIndex,
 	/// Validator groups of the current session.
 	///
 	/// Each group's order is randomized. This way we achieve load balancing when requesting
 	/// chunks, as the validators in a group will be tried in that randomized order. Each node
 	/// should arrive at a different order, therefore we distribute the load.
 	pub validator_groups: Vec<Vec<ValidatorIndex>>,
-
-	/// All validators of that session.
-	///
-	/// Needed for authority discovery and finding ourselves.
-	pub validators: Vec<ValidatorId>,
 
 	/// Information about ourself:
 	pub our_index: ValidatorIndex,
