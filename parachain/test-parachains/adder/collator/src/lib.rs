@@ -17,7 +17,7 @@
 //! Collator for the adder test parachain.
 
 use futures_timer::Delay;
-use polkadot_node_primitives::{Collation, CollatorFn};
+use polkadot_node_primitives::{Collation, CollatorFn, CollationResult};
 use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
 use parity_scale_codec::{Encode, Decode};
 use sp_core::Pair;
@@ -171,7 +171,7 @@ impl Collator {
 				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
-			async move { Some(collation) }.boxed()
+			async move { Some(CollationResult { collation, result_sender: None }) }.boxed()
 		})
 	}
 
@@ -220,7 +220,7 @@ mod tests {
 
 			let collation =
 				block_on(collation_function(Default::default(), &validation_data)).unwrap();
-			validate_collation(&collator, (*parent_head).clone(), collation);
+			validate_collation(&collator, (*parent_head).clone(), collation.collation);
 		}
 	}
 

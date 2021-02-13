@@ -276,8 +276,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
 				let persisted_validation_data_hash = validation_data.hash();
 
-				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
-					Some(collation) => collation,
+				let (collation, result_sender) = match (task_config.collator)(relay_parent, &validation_data).await {
+					Some(collation) => collation.into_inner(),
 					None => {
 						tracing::debug!(
 							target: LOG_TARGET,
@@ -348,7 +348,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				metrics.on_collation_generated();
 
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
-					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
+					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity, result_sender)
 				)).await {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -465,7 +465,7 @@ mod tests {
 			task::{Context as FuturesContext, Poll},
 			Future,
 		};
-		use polkadot_node_primitives::Collation;
+		use polkadot_node_primitives::{Collation, CollationResult};
 		use polkadot_node_subsystem::messages::{
 			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
 		};
@@ -496,10 +496,10 @@ mod tests {
 		struct TestCollator;
 
 		impl Future for TestCollator {
-			type Output = Option<Collation>;
+			type Output = Option<CollationResult>;
 
 			fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
-				Poll::Ready(Some(test_collation()))
+				Poll::Ready(Some(CollationResult { collation: test_collation(), result_sender: None }))
 			}
 		}
 
@@ -755,6 +755,7 @@ mod tests {
 				AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
 					CandidateReceipt { descriptor, .. },
 					_pov,
+					..
 				)) => {
 					// signature generation is non-deterministic, so we can't just assert that the
 					// expected descriptor is correct. What we can do is validate that the produced

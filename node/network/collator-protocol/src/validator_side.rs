@@ -200,9 +200,6 @@ struct State {
 	/// Delay after which a collation request would time out.
 	request_timeout: Duration,
 
-	/// Possessed collations.
-	collations: HashMap<(Hash, ParaId), Vec<(CollatorId, CandidateReceipt, PoV)>>,
-
 	/// Leaves have recently moved out of scope.
 	/// These are looked into when we receive previously requested collations that we
 	/// are no longer interested in.
@@ -228,24 +225,6 @@ async fn fetch_collation<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	// First take a look if we have already stored some of the relevant collations.
-	if let Some(collations) = state.collations.get(&(relay_parent, para_id)) {
-		for collation in collations.iter() {
-			if collation.0 == collator_id {
-				if let Err(e) = tx.send((collation.1.clone(), collation.2.clone())) {
-					// We do not want this to be fatal because the receving subsystem
-					// may have closed the results channel for some reason.
-					tracing::trace!(
-						target: LOG_TARGET,
-						err = ?e,
-						"Failed to send collation",
-					);
-				}
-				return;
-			}
-		}
-	}
-
 	// Dodge multiple references to `state`.
 	let mut relevant_advertiser = None;
 
@@ -254,6 +233,7 @@ where
 		if v.contains(&(para_id, relay_parent)) {
 			if state.known_collators.get(k) == Some(&collator_id) {
 				relevant_advertiser = Some(k.clone());
+				break;
 			}
 		}
 	}
@@ -278,10 +258,8 @@ where
 	// Since we have a one way map of PeerId -> CollatorId we have to
 	// iterate here. Since a huge amount of peers is not expected this
 	// is a tolerable thing to do.
-	for (k, v) in state.known_collators.iter() {
-		if *v == id {
-			modify_reputation(ctx, k.clone(), COST_REPORT_BAD).await;
-		}
+	for (k, _) in state.known_collators.iter().filter(|d| *d.1 == id) {
+		modify_reputation(ctx, k.clone(), COST_REPORT_BAD).await;
 	}
 }
 
@@ -295,10 +273,8 @@ async fn note_good_collation<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	for (peer_id, collator_id) in state.known_collators.iter() {
-		if id == *collator_id {
-			modify_reputation(ctx, peer_id.clone(), BENEFIT_NOTIFY_GOOD).await;
-		}
+	for (peer_id, _) in state.known_collators.iter().filter(|d| *d.1 == id) {
+		modify_reputation(ctx, peer_id.clone(), BENEFIT_NOTIFY_GOOD).await;
 	}
 }
 
@@ -368,7 +344,7 @@ where
 		if id == request_id {
 			if let Some(per_request) = state.requests_info.remove(&id) {
 				let _ = per_request.received.send(());
-				if let Some(collator_id) = state.known_collators.get(&origin) {
+				if state.known_collators.get(&origin).is_some() {
 					let pov = match pov.decompress() {
 						Ok(pov) => pov,
 						Err(error) => {
@@ -395,11 +371,6 @@ where
 
 					let _ = per_request.result.send((receipt.clone(), pov.clone()));
 					state.metrics.on_request(Ok(()));
-
-					state.collations
-						.entry((relay_parent, para_id))
-						.or_default()
-						.push((collator_id.clone(), receipt, pov));
 				}
 			}
 		}
@@ -558,6 +529,9 @@ where
 				.map(|s| s.child("received-collation"));
 			received_collation(ctx, state, origin, request_id, receipt, pov).await;
 		}
+		CollationSeconded(_) => {
+			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
+		}
 	}
 }
 
@@ -583,8 +557,6 @@ async fn remove_relay_parent(
 			info.received.send(()).map_err(|_| oneshot::Canceled)?;
 		}
 	}
-
-	state.collations.retain(|k, _| k.0 != relay_parent);
 
 	Ok(())
 }
@@ -705,7 +677,7 @@ where
 				"CollateOn message is not expected on the validator side of the protocol",
 			);
 		}
-		DistributeCollation(_, _) => {
+		DistributeCollation(_, _, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"DistributeCollation message is not expected on the validator side of the protocol",
@@ -720,6 +692,22 @@ where
 		}
 		NoteGoodCollation(id) => {
 			note_good_collation(ctx, state, id).await;
+		}
+		NotifyCollationSeconded(id, statement) => {
+			let peer_ids = state.known_collators.iter()
+				.filter_map(|(p, c)| if *c == id { Some(p.clone()) } else { None })
+				.collect::<Vec<_>>();
+
+			if !peer_ids.is_empty() {
+				let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement);
+
+				ctx.send_message(AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendCollationMessage(
+						peer_ids,
+						protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+					)
+				)).await;
+			}
 		}
 		NetworkBridgeUpdateV1(event) => {
 			if let Err(e) = handle_network_msg(
