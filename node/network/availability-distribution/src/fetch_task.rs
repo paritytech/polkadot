@@ -196,7 +196,6 @@ impl RunningTask {
 		let bad_validators = Vec::new();
 		// Try validators in order:
 		for index in self.group {
-
 			// Send request:
 			let resp = match do_request(index).await {
 				Ok(resp) => resp,
@@ -206,14 +205,14 @@ impl RunningTask {
 				}
 				Err(TaskError::PeerError) => {
 					bad_validators.push(index);
-					continue
+					continue;
 				}
 			};
 
 			// Data valid?
 			if !self.validate_response(&resp) {
 				bad_validators.push(index);
-				continue
+				continue;
 			}
 
 			// Ok, let's store it and be happy.
@@ -226,23 +225,26 @@ impl RunningTask {
 	/// Do request and return response, if successful.
 	///
 	/// Will also report peer if not successful.
-	async fn do_request(&self, validator: ValidatorIndex) -> std::result::Result<v1::AvailabilityFetchingResponse, TaskError> {
+	async fn do_request(
+		&self,
+		validator: ValidatorIndex,
+	) -> std::result::Result<v1::AvailabilityFetchingResponse, TaskError> {
 		let peer = self.get_peer_id(index)?;
 		let (full_request, response_recv) =
 			Requests::AvailabilityFetching(OutgoingRequest::new(peer, self.request));
 
-		self.sender.send(FromFetchTask::Message(
-			AllMessages::NetworkBridgeMessage::SendRequests(Vec::from(full_request)),
-		)).await.map_err(|| TaskError::ShuttingDown)?;
+		self.sender
+			.send(FromFetchTask::Message(
+				AllMessages::NetworkBridgeMessage::SendRequests(Vec::from(full_request)),
+			))
+			.await
+			.map_err(|| TaskError::ShuttingDown)?;
 
 		match response_recv.await {
 			Ok(resp) => Some(resp),
-			Err(RequestError::InvalidResponse(err)) => {
-			},
-			Err(RequestError::NetworkError(err)) => {
-			}
-			Err(RequestError::Canceled(err)) => {
-			}
+			Err(RequestError::InvalidResponse(err)) => {}
+			Err(RequestError::NetworkError(err)) => {}
+			Err(RequestError::Canceled(err)) => {}
 		}
 		Err(PeerError)
 	}
@@ -255,16 +257,19 @@ impl RunningTask {
 	async fn conclude(&self, bad_validators: Vec<ValidatorIndex>) {
 		let payload = if bad_validators.is_empty() {
 			None
-		}
-		else {
+		} else {
 			Some(BadValidators {
 				session_index: self.session_index,
 				group_index: self.group_index,
 				bad_validators,
 			})
 		};
-		if let Err(err) =  self.sender.send(FromFetchTask::Concluded(payload)).await {
-			tracing::warn!(LOG_TARGET, err: ?err, "Sending concluded message for task failed");
+		if let Err(err) = self.sender.send(FromFetchTask::Concluded(payload)).await {
+			tracing::warn!(
+				LOG_TARGET,
+				err: ?err,
+				"Sending concluded message for task failed"
+			);
 		}
 	}
 }
