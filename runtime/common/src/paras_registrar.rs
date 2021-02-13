@@ -288,7 +288,7 @@ mod tests {
 			Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
 			Inclusion: inclusion::{Module, Call, Storage, Event<T>},
 			Registrar: paras_registrar::{Module, Call, Storage},
-	 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
+	 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>},
 			Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 			Initializer: initializer::{Module, Call, Storage},
 		}
@@ -400,6 +400,13 @@ mod tests {
 		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
+	impl sp_election_providers::onchain::Config for Test {
+		type AccountId = <Self as frame_system::Config>::AccountId;
+		type BlockNumber = <Self as frame_system::Config>::BlockNumber;
+		type Accuracy = sp_runtime::Perbill;
+		type DataProvider = pallet_staking::Module<Test>;
+	}
+
 	impl pallet_staking::Config for Test {
 		type RewardRemainder = ();
 		type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
@@ -416,6 +423,7 @@ mod tests {
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 		type NextNewSession = Session;
+		type ElectionProvider = sp_election_providers::onchain::OnChainSequentialPhragmen<Self>;
 		type WeightInfo = ();
 	}
 

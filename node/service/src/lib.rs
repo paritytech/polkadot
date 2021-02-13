@@ -38,7 +38,6 @@ use {
 	sp_keystore::SyncCryptoStorePtr,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
-	babe_primitives::BabeApi,
 };
 #[cfg(feature = "real-overseer")]
 use polkadot_network_bridge::RequestMultiplexer;

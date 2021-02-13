@@ -50,9 +50,7 @@ use runtime_common::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Perbill, KeyTypeId,
-	transaction_validity::{
-		TransactionValidity, TransactionSource, TransactionPriority,
-	},
+	transaction_validity::{TransactionValidity, TransactionSource},
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, StaticLookup, OpaqueKeys, ConvertInto,
@@ -305,6 +303,13 @@ parameter_types! {
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 }
 
+impl sp_election_providers::onchain::Config for Runtime {
+	type AccountId = <Self as frame_system::Config>::AccountId;
+	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
+	type Accuracy = sp_runtime::Perbill;
+	type DataProvider = pallet_staking::Module<Self>;
+}
+
 impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
@@ -322,8 +327,8 @@ impl pallet_staking::Config for Runtime {
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
+	type ElectionProvider = sp_election_providers::onchain::OnChainSequentialPhragmen<Self>;
 	type WeightInfo = ();
-
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -490,7 +495,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Module, Call, Storage},
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
+		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>},
 		Offences: pallet_offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},

@@ -358,7 +358,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Currency = Balances;
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
-	type SolutionImprovementThreshold = MinSolutionScoreBump;
+	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerTxPriority = MultiPhaseUnsignedPriority;
@@ -1016,7 +1016,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Module, Call, Storage} = 6,
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 7,
+		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>} = 7,
 		Offences: pallet_offences::{Module, Call, Storage, Event} = 8,
 		Historical: session_historical::{Module} = 33,
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 9,
