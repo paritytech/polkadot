@@ -226,18 +226,13 @@ async fn fetch_collation<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	// Dodge multiple references to `state`.
-	let mut relevant_advertiser = None;
-
-	// Has the collator in question advertised a relevant collation?
-	for (k, v) in state.advertisements.iter() {
-		if v.contains(&(para_id, relay_parent)) {
-			if state.known_collators.get(k) == Some(&collator_id) {
-				relevant_advertiser = Some(k.clone());
-				break;
-			}
+	let relevant_advertiser = state.advertisements.iter().find_map(|(k, v)| {
+		if v.contains(&(para_id, relay_parent)) && state.known_collators.get(k) == Some(&collator_id) {
+			Some(k.clone())
+		} else {
+			None
 		}
-	}
+	});
 
 	// Request the collation.
 	// Assume it is `request_collation`'s job to check and ignore duplicate requests.

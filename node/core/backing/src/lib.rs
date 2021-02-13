@@ -528,7 +528,10 @@ impl CandidateBackingJob {
 								descriptor: candidate.descriptor.clone(),
 								commitments,
 							});
-							if let Some(stmt) = self.sign_import_and_distribute_statement(statement, parent_span).await? {
+							if let Some(stmt) = self.sign_import_and_distribute_statement(
+								statement,
+								parent_span,
+							).await? {
 								self.issue_candidate_seconded_message(stmt).await?;
 							}
 							self.distribute_pov(candidate.descriptor, pov).await?;

@@ -295,7 +295,7 @@ enum CollatorProtocolMessage {
     /// Provide a collation to distribute to validators with an optional result sender.
     ///
     /// The result sender should be informed when at least one parachain validator seconded the collation. It is also
-    /// completlty okay to just drop the sender.
+    /// completely okay to just drop the sender.
     DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
     /// Fetch a collation under the given relay-parent for the given ParaId.
     FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),

@@ -317,7 +317,7 @@ impl CandidateSelectionJob {
 		if let Err(e) = self.sender
 			.send(AllMessages::from(CollatorProtocolMessage::NoteGoodCollation(received_from.clone())).into()).await
 		{
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				error = ?e,
 				"failed to note good collator"
@@ -329,10 +329,10 @@ impl CandidateSelectionJob {
 				CollatorProtocolMessage::NotifyCollationSeconded(received_from.clone(), statement)
 			).into()).await
 		{
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				error = ?e,
-				"failed to collator about seconded collation"
+				"failed to notify collator about seconded collation"
 			);
 		}
 	}

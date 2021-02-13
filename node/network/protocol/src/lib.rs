@@ -396,7 +396,7 @@ pub mod v1 {
 		/// A requested collation.
 		#[codec(index = 3)]
 		Collation(RequestId, CandidateReceipt, CompressedPoV),
-		/// A collation send to a validator was seconded.
+		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
 		CollationSeconded(SignedFullStatement),
 	}
