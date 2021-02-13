@@ -36,10 +36,7 @@ use {
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
 	sp_blockchain::HeaderBackend,
 	sp_trie::PrefixedMemoryDB,
-	sc_client_api::{AuxStore, ExecutorProvider},
-	sc_keystore::LocalKeystore,
-	babe_primitives::BabeApi,
-	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
+	sc_client_api::ExecutorProvider,
 };
 #[cfg(feature = "real-overseer")]
 use polkadot_network_bridge::RequestMultiplexer;
