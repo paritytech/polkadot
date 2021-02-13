@@ -303,10 +303,6 @@ parameter_types! {
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
-	pub storage ElectionLookahead: BlockNumber = 0;
-	pub storage StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
-	pub storage MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
 impl pallet_staking::Config for Runtime {
@@ -326,12 +322,6 @@ impl pallet_staking::Config for Runtime {
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = ();
-	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 
 }

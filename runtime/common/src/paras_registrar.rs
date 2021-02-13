@@ -416,12 +416,6 @@ mod tests {
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 		type NextNewSession = Session;
-		type ElectionLookahead = ElectionLookahead;
-		type Call = Call;
-		type UnsignedPriority = StakingUnsignedPriority;
-		type MaxIterations = ();
-		type MinSolutionScoreBump = ();
-		type OffchainSolutionWeightLimit = ();
 		type WeightInfo = ();
 	}
 

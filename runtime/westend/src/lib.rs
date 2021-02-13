@@ -372,10 +372,6 @@ parameter_types! {
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
-	// quarter of the last session will be for election.
-	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
-	pub const MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
 impl pallet_staking::Config for Runtime {
@@ -395,12 +391,6 @@ impl pallet_staking::Config for Runtime {
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
