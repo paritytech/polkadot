@@ -38,7 +38,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores_ctx,
 	metrics::{self, prometheus},
 };
-use polkadot_node_primitives::SignedFullStatement;
+use polkadot_node_primitives::{SignedFullStatement, Statement};
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -607,7 +607,13 @@ async fn handle_incoming_peer_message(
 			);
 		}
 		CollationSeconded(statement) => {
-			if let Some(sender) = state.collation_result_senders.remove(&statement.payload().candidate_hash()) {
+			if !matches!(statement.payload(), Statement::Seconded(_)) {
+				tracing::warn!(
+					target: LOG_TARGET,
+					statement = ?statement,
+					"Collation seconded message received with none-seconded statement.",
+				);
+			} else if let Some(sender) = state.collation_result_senders.remove(&statement.payload().candidate_hash()) {
 				let _ = sender.send(statement);
 			}
 		}
