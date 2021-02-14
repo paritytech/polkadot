@@ -105,6 +105,8 @@ enum CollatorProtocolV1Message {
 	RequestCollation(RequestId, Hash, ParaId),
 	/// A requested collation.
 	Collation(RequestId, CandidateReceipt, CompressedPoV),
+	/// A collation sent to a validator was seconded.
+	CollationSeconded(SignedFullStatement),
 }
 ```
 

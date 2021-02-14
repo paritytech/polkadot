@@ -10,9 +10,9 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 thiserror = "1.0.23"
 
-
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 

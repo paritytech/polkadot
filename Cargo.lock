@@ -5157,6 +5157,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "polkadot-node-network-protocol",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
@@ -5337,6 +5338,7 @@ name = "polkadot-node-core-candidate-selection"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
@@ -9286,6 +9288,7 @@ dependencies = [
 name = "test-parachain-adder-collator"
 version = "0.7.26"
 dependencies = [
+ "assert_matches",
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "log",
