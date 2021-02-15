@@ -359,7 +359,8 @@ impl HostHandle {
 
 	/// Wait for the validation result from the worker with the given timeout.
 	///
-	/// Returns `Ok` if the response was received within the deadline or error otherwise. Returning
+	/// Returns `Ok` if the response was received within the deadline or error otherwise. An error
+	/// could also occur because of failing decoding the result from the worker. Returning
 	/// `Ok` doesn't mean that the candidate was successfully validated though, for that the client
 	/// needs to inspect the returned validation result header.
 	pub fn wait_for_result(
