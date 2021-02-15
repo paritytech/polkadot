@@ -6,7 +6,7 @@ edition = "2018"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
-async-std = "1.8.0"
+async-std = "1.9.0"
 async-trait = "0.1.42"
 derive_more = "0.99.11"
 futures = "0.3.12"
