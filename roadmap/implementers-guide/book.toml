@@ -1,13 +1,12 @@
 [book]
-authors = ["Robert Habermeier", "Peter Goodspeed-Niklaus"]
+authors = ["Rob Habermeier", "Peter Goodspeed-Niklaus"]
 language = "en"
 multilingual = false
 src = "src"
 title = "The Polkadot Parachain Host Implementers' Guide"
 
-# [preprocessor.graphviz]
-# command = "mdbook-graphviz"
-
+[preprocessor.graphviz]
+command = "mdbook-graphviz"
 [preprocessor.mermaid]
 command = "mdbook-mermaid"
 
