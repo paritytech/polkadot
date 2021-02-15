@@ -42,12 +42,14 @@ struct ValidationHeader {
 	params_size: u64,
 }
 
+/// An error that could happen during validation of a candidate.
 #[derive(Encode, Decode, Debug)]
 pub enum WorkerValidationError {
 	InternalError(String),
 	ValidationError(String),
 }
 
+/// An enum that is used to marshal a validation result in order to pass it through the shared memory.
 #[derive(Encode, Decode, Debug)]
 pub enum ValidationResultHeader {
 	Ok(ValidationResult),
@@ -135,8 +137,8 @@ impl Inner {
 		}
 	}
 
-	/// Mark that this workspace has attached. Returns `true` if this instance was attached the
-	/// first.
+	/// Mark that this workspace has an attached worker already. Returning `true` means that this
+	/// was the first worker attached.
 	fn declare_exclusive_attached(&self) -> bool {
 		unsafe {
 			// If this succeeded then the value was `false`, thus, we managed to attach exclusively.
