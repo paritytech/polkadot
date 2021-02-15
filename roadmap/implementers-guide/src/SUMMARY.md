@@ -70,6 +70,7 @@
     - [Messages](types/messages.md)
     - [Network](types/network.md)
     - [Approvals](types/approval.md)
+    - [Disputes](types/disputes.md)
 
 [Glossary](glossary.md)
 [Further Reading](further-reading.md)
