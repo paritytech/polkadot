@@ -222,6 +222,7 @@ fn try_import_the_same_assignment() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
+				0u32,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
@@ -313,9 +314,11 @@ fn spam_attack_results_in_negative_reputation_change() {
 				overseer_recv(overseer).await,
 				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 					assignment,
+					claimed_candidate_index,
 					tx,
 				)) => {
 					assert_eq!(assignment, assignments[i].0);
+					assert_eq!(claimed_candidate_index, assignments[i].1);
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
@@ -477,9 +480,11 @@ fn import_approval_bad() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
+				i,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
+				assert_eq!(i, candidate_index);
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
@@ -760,9 +765,11 @@ fn import_remotely_then_locally() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
+				i,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
+				assert_eq!(i, candidate_index);
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);

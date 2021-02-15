@@ -1840,7 +1840,7 @@ where
 				let _ = self.approval_distribution_subsystem.send_message(msg).await;
 			},
 			AllMessages::ApprovalVoting(_msg) => {
-				// FIXME: https://github.com/paritytech/polkadot/issues/1975
+				// FIXME: https://github.com/paritytech/polkadot/issues/2321
 			},
 		}
 
@@ -1962,7 +1962,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, JaegerSpan};
-	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
+	use polkadot_node_primitives::{CollationResult, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange};
 	use polkadot_node_subsystem_util::metered;
 
@@ -2631,7 +2631,7 @@ mod tests {
 	struct TestCollator;
 
 	impl Future for TestCollator {
-		type Output = Option<Collation>;
+		type Output = Option<CollationResult>;
 
 		fn poll(self: Pin<&mut Self>, _cx: &mut futures::task::Context) -> Poll<Self::Output> {
 			panic!("at the Disco")

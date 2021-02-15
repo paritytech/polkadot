@@ -177,14 +177,20 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
-mod assigment_app {
+mod assignment_app {
 	use application_crypto::{app_crypto, sr25519};
 	app_crypto!(sr25519, super::ASSIGNMENT_KEY_TYPE_ID);
 }
 
 /// The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
-pub type AssignmentId = assigment_app::Public;
+pub type AssignmentId = assignment_app::Public;
+
+application_crypto::with_pair! {
+	/// The full keypair used by a validator for determining assignments to approve included
+	/// parachain candidates.
+	pub type AssignmentPair = assignment_app::Pair;
+}
 
 #[cfg(feature = "std")]
 impl MallocSizeOf for AssignmentId {
@@ -544,8 +550,8 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 }
 
 /// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, Hash)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {
@@ -555,8 +561,8 @@ impl From<u32> for CoreIndex {
 }
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy, Debug)]
-#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, MallocSizeOf))]
+#[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct GroupIndex(pub u32);
 
 impl From<u32> for GroupIndex {
@@ -752,14 +758,18 @@ pub enum OccupiedCoreAssumption {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
 pub enum CandidateEvent<H = Hash> {
 	/// This candidate receipt was backed in the most recent block.
+	/// This includes the core index the candidate is now occupying.
 	#[codec(index = 0)]
-	CandidateBacked(CandidateReceipt<H>, HeadData),
+	CandidateBacked(CandidateReceipt<H>, HeadData, CoreIndex, GroupIndex),
 	/// This candidate receipt was included and became a parablock at the most recent block.
+	/// This includes the core index the candidate was occupying as well as the group responsible
+	/// for backing the candidate.
 	#[codec(index = 1)]
-	CandidateIncluded(CandidateReceipt<H>, HeadData),
+	CandidateIncluded(CandidateReceipt<H>, HeadData, CoreIndex, GroupIndex),
 	/// This candidate receipt was not made available in time and timed out.
+	/// This includes the core index the candidate was occupying.
 	#[codec(index = 2)]
-	CandidateTimedOut(CandidateReceipt<H>, HeadData),
+	CandidateTimedOut(CandidateReceipt<H>, HeadData, CoreIndex),
 }
 
 /// Information about validator sets of a session.
