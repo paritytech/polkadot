@@ -59,3 +59,14 @@ Sets of statements for many (zero or more) disputes.
 ```rust
 type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 ```
+
+## DisputeState
+
+```rust
+struct DisputeState {
+    validators_for: Bitfield, // one bit per validator.
+    validators_against: Bitfield, // one bit per validator.
+    start: BlockNumber,
+    concluded_at: Option<BlockNumber>,
+}
+```
