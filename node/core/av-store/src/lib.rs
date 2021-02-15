@@ -641,7 +641,7 @@ async fn process_block_activated(
 
 	for event in candidate_events {
 		match event {
-			CandidateEvent::CandidateBacked(receipt, _head) => {
+			CandidateEvent::CandidateBacked(receipt, _head, _core_index, _group_index) => {
 				note_block_backed(
 					&subsystem.db,
 					&mut tx,
@@ -651,7 +651,7 @@ async fn process_block_activated(
 					receipt,
 				)?;
 			}
-			CandidateEvent::CandidateIncluded(receipt, _head) => {
+			CandidateEvent::CandidateIncluded(receipt, _head, _core_index, _group_index) => {
 				note_block_included(
 					&subsystem.db,
 					&mut tx,

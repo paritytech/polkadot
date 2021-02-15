@@ -238,7 +238,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Checks every `ApprovalEntry` that is not yet `approved` for whether it is now approved.
     * For each `ApprovalEntry` in the `CandidateEntry` that is not `approved` and passes the `filter`
     * Load the block entry for the `ApprovalEntry`.
-    * If so, [determine the tranches to inspect](#determine-required-tranches) of the candidate, 
+    * If so, [determine the tranches to inspect](#determine-required-tranches) of the candidate,
     * If [the candidate is approved under the block](#check-approval), set the corresponding bit in the `block_entry.approved_bitfield`.
     * Otherwise, [schedule a wakeup of the candidate](#schedule-wakeup)
 
@@ -255,7 +255,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * If we should trigger our assignment
     * Import the assignment to the `ApprovalEntry`
     * Broadcast on network with an `ApprovalDistributionMessage::DistributeAssignment`.
-    * [Launch approval work](#launch-approval-work) for the candidate. 
+    * [Launch approval work](#launch-approval-work) for the candidate.
   * [Schedule a new wakeup](#schedule-wakeup) of the candidate.
 
 #### Schedule Wakeup
