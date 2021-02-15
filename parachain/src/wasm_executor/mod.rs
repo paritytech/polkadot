@@ -32,11 +32,6 @@ pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC, WOR
 
 mod validation_host;
 
-// maximum memory in bytes
-const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
-const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
-const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
-
 /// The strategy we employ for isolating execution of wasm parachain validation function (PVF).
 ///
 /// For a typical validator an external process is the default way to run PVF. The rationale is based
@@ -126,11 +121,11 @@ pub enum InvalidCandidate {
 	#[error("WASM executor error")]
 	WasmExecutor(#[from] sc_executor::error::Error),
 	/// Call data is too large.
-	#[error("Validation parameters are {0} bytes, max allowed is {}", MAX_RUNTIME_MEM)]
-	ParamsTooLarge(usize),
+	#[error("Validation parameters are {0} bytes, max allowed is {1}")]
+	ParamsTooLarge(usize, usize),
 	/// Code size it too large.
-	#[error("WASM code is {0} bytes, max allowed is {}", MAX_CODE_MEM)]
-	CodeTooLarge(usize),
+	#[error("WASM code is {0} bytes, max allowed is {1}")]
+	CodeTooLarge(usize, usize),
 	/// Error decoding returned data.
 	#[error("Validation function returned invalid data.")]
 	BadReturn,
@@ -156,8 +151,20 @@ pub enum InternalError {
 	System(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 
 	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-	#[error("Shared memory error: {0}")]
-	SharedMem(#[from] shared_memory::SharedMemError),
+	#[error("Failed to create shared memory: {0}")]
+	WorkerStartTimeout(String),
+
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+	#[error("Failed to create shared memory: {0}")]
+	FailedToCreateSharedMemory(String),
+
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+	#[error("Failed to send a singal to worker: {0}")]
+	FailedToSignal(String),
+
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+	#[error("Failed to send data to worker: {0}")]
+	FailedToWriteData(&'static str),
 
 	#[error("WASM worker error: {0}")]
 	WasmWorker(String),
