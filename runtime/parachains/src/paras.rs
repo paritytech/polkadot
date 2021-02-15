@@ -837,7 +837,7 @@ mod tests {
 	use primitives::v1::BlockNumber;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 
-	use crate::mock::{new_test_ext, Paras, System, GenesisConfig as MockGenesisConfig};
+	use crate::mock::{new_test_ext, Paras, System, MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {

@@ -398,30 +398,31 @@ mod tests {
 		testing::Header
 	};
 	use frame_support::{
-		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_noop, parameter_types,
+		assert_ok, assert_noop, parameter_types,
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
 	};
 	use frame_support::traits::Currency;
 	use pallet_balances::Error as BalancesError;
+	use crate::purchase;
 
-	impl_outer_origin! {
-		pub enum Origin for Test {}
-	}
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+	type Block = frame_system::mocking::MockBlock<Test>;
 
-	impl_outer_dispatch! {
-		pub enum Call for Test where origin: Origin {
-			purchase::Purchase,
-			vesting::Vesting,
+	frame_support::construct_runtime!(
+		pub enum Test where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Module, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+			Vesting: pallet_vesting::{Module, Call, Storage, Config<T>, Event<T>},
+			Purchase: purchase::{Module, Call, Storage, Event<T>},
 		}
-	}
+	);
 
 	type AccountId = AccountId32;
 
-	// For testing the module, we construct most of a mock runtime. This means
-	// first constructing a configuration type (`Test`) which `impl`s each of the
-	// configuration traits of modules we want to use.
-	#[derive(Clone, Eq, PartialEq)]
-	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 	}
@@ -439,10 +440,10 @@ mod tests {
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<AccountId>;
 		type Header = Header;
-		type Event = ();
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
-		type PalletInfo = ();
+		type PalletInfo = PalletInfo;
 		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
@@ -456,7 +457,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = ();
+		type Event = Event;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -469,7 +470,7 @@ mod tests {
 	}
 
 	impl pallet_vesting::Config for Test {
-		type Event = ();
+		type Event = Event;
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
@@ -489,7 +490,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = ();
+		type Event = Event;
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
 		type ValidityOrigin = frame_system::EnsureSignedBy<ValidityOrigin, AccountId>;
@@ -498,11 +499,6 @@ mod tests {
 		type UnlockedProportion = UnlockedProportion;
 		type MaxUnlocked = MaxUnlocked;
 	}
-
-	type System = frame_system::Module<Test>;
-	type Balances = pallet_balances::Module<Test>;
-	type Vesting = pallet_vesting::Module<Test>;
-	type Purchase = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup. It also executes our `setup` function which sets up this pallet for use.
