@@ -1234,7 +1234,7 @@ mod tests {
 	}
 
 	fn deregister_parachain(id: ParaId) {
-		Paras::schedule_para_cleanup(id);
+		assert_ok!(Paras::schedule_para_cleanup(id));
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {

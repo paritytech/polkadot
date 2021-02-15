@@ -164,6 +164,7 @@ CurrentSessionIndex: SessionIndex;
   1. Downgrade all parachains that should become parathreads, updating the `Parachains` list and
      `ParaLifecycle`.
   1. Return list of outgoing paras to the initializer for use by other modules.
+
 ## Initialization
 
 1. Do pruning based on all entries in `PastCodePruning` with `BlockNumber <= now`. Update the

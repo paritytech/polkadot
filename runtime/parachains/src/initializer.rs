@@ -361,10 +361,11 @@ mod tests {
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), c, vec![7, 8, 9]));
 
-			Paras::schedule_para_cleanup(a);
-			Paras::schedule_para_cleanup(b);
+			assert_ok!(Paras::schedule_para_cleanup(a));
+			assert_ok!(Paras::schedule_para_cleanup(b));
 
-			Initializer::apply_new_session(1, vec![], vec![]);
+			// Apply session 2 in the future
+			Initializer::apply_new_session(2, vec![], vec![]);
 
 			assert!(Dmp::dmq_contents(a).is_empty());
 			assert!(Dmp::dmq_contents(b).is_empty());

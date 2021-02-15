@@ -351,9 +351,12 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the initializer to note that a new session has started.
-	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+	///
+	/// Returns the list of outgoing paras from the actions queue.
+	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) -> Vec<ParaId> {
 		CurrentSessionIndex::set(notification.session_index);
-		Self::apply_actions_queue(notification.session_index);
+		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
+		outgoing_paras
 	}
 
 	// Apply all para actions queued for the given session index.
@@ -362,10 +365,13 @@ impl<T: Config> Module<T> {
 	//
 	// The final state of any para after the actions queue should be as a
 	// parachain, parathread, or not registered. (stable states)
-	fn apply_actions_queue(session: SessionIndex) {
+	//
+	// Returns the list of outgoing paras from the actions queue.
+	fn apply_actions_queue(session: SessionIndex) -> Vec<ParaId> {
 		let actions = ActionsQueue::take(session);
 		let mut parachains = <Self as Store>::Parachains::get();
 		let now = <frame_system::Module<T>>::block_number();
+		let mut outgoing = Vec::new();
 
 		for para in actions {
 			let lifecycle = ParaLifecycles::get(&para);
@@ -416,12 +422,16 @@ impl<T: Config> Module<T> {
 					if let Some(removed_code) = removed_code {
 						Self::note_past_code(para, now, now, removed_code);
 					}
+
+					outgoing.push(para);
 				},
 			}
 		}
 
 		// Place the new parachains set in storage.
 		<Self as Store>::Parachains::set(parachains);
+
+		return outgoing
 	}
 
 	// note replacement of the code of para with given `id`, which occured in the
