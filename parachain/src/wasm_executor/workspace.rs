@@ -178,7 +178,8 @@ unsafe fn add_event(base_ptr: *mut u8, consumed: &mut usize, mode: Mode) -> Box<
 	//         besides requiring the pointer to be valid. AFAICT, the pointer is valid.
 	let ptr = base_ptr.add(*consumed);
 
-	const EXPECTATION: &str = "given that the preconditions were fulfilled, the creation of the event should succeed";
+	const EXPECTATION: &str =
+		"given that the preconditions were fulfilled, the creation of the event should succeed";
 	let (ev, used_bytes) = match mode {
 		Mode::Initialize => Event::new(ptr, true).expect(EXPECTATION),
 		Mode::Attach => Event::from_existing(ptr).expect(EXPECTATION),
