@@ -234,10 +234,12 @@ These messages are sent to the [Candidate Selection subsystem](../node/backing/c
 
 ```rust
 enum CandidateSelectionMessage {
-  /// A candidate collation can be fetched from a collator and should be considered for seconding.
-  Collation(RelayParent, ParaId, CollatorId),
-  /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-  Invalid(CandidateReceipt),
+    /// A candidate collation can be fetched from a collator and should be considered for seconding.
+    Collation(RelayParent, ParaId, CollatorId),
+    /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+    Invalid(RelayParent, CandidateReceipt),
+    /// The candidate we recommended to be seconded was validated successfully.
+    Seconded(RelayParent, SignedFullStatement),
 }
 ```
 
@@ -290,15 +292,20 @@ enum CollatorProtocolMessage {
     ///
     /// This should be sent before any `DistributeCollation` message.
     CollateOn(ParaId),
-    /// Provide a collation to distribute to validators.
-    DistributeCollation(CandidateReceipt, PoV),
+    /// Provide a collation to distribute to validators with an optional result sender.
+    ///
+    /// The result sender should be informed when at least one parachain validator seconded the collation. It is also
+    /// completely okay to just drop the sender.
+    DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
     /// Fetch a collation under the given relay-parent for the given ParaId.
     FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
     /// Report a collator as having provided an invalid collation. This should lead to disconnect
     /// and blacklist of the collator.
     ReportCollator(CollatorId),
     /// Note a collator as having provided a good collation.
-    NoteGoodCollation(CollatorId),
+    NoteGoodCollation(CollatorId, SignedFullStatement),
+    /// Notify a collator that its collation was seconded.
+    NotifyCollationSeconded(CollatorId, SignedFullStatement),
 }
 ```
 
@@ -539,8 +546,6 @@ enum StatementDistributionMessage {
     /// The statement distribution subsystem assumes that the statement should be correctly
     /// signed.
     Share(Hash, SignedFullStatement),
-    /// Register a listener to be notified on any new statements.
-    RegisterStatementListener(ResponseChannel<SignedFullStatement>),
 }
 ```
 

@@ -412,7 +412,12 @@ mod tests {
 		// we have not reached the pause block
 		// therefore nothing should be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(&*client, &get_header(0), &get_header(10), &get_header(10)),
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
+				&get_header(0),
+				&get_header(10),
+				&get_header(10)
+			)),
 			None,
 		);
 
@@ -423,7 +428,12 @@ mod tests {
 		// we are targeting the pause block,
 		// the vote should not be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(20), &get_header(20)),
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
+				&get_header(10),
+				&get_header(20),
+				&get_header(20)
+			)),
 			None,
 		);
 
@@ -431,19 +441,24 @@ mod tests {
 		// be limited to the pause block.
 		let pause_block = get_header(20);
 		assert_eq!(
-			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(21), &get_header(21)),
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
+				&get_header(10),
+				&get_header(21),
+				&get_header(21)
+			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 
 		// we've finalized the pause block, so we'll keep
 		// restricting our votes to it.
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
 				&pause_block, // #20
 				&get_header(21),
 				&get_header(21),
-			),
+			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 
@@ -454,23 +469,23 @@ mod tests {
 		// we're at the last block of the pause, this block
 		// should still be considered in the pause period
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
 				&pause_block, // #20
 				&get_header(50),
 				&get_header(50),
-			),
+			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 
 		// we're past the pause period, no votes should be filtered
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
 				&pause_block, // #20
 				&get_header(51),
 				&get_header(51),
-			),
+			)),
 			None,
 		);
 	}
