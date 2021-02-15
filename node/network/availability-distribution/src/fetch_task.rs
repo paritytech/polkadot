@@ -15,16 +15,22 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashSet;
+use std::pin::Pin;
 use std::rc::Rc;
 
+use futures::channel::mpsc;
 use futures::channel::oneshot;
-use v1::AvailabilityFetchingResponse;
 
-use super::{session_cache::SessionInfo, LOG_TARGET};
-use polkadot_node_network_protocol::request_response::v1;
+use sc_network::PeerId;
+
+use polkadot_erasure_coding::branch_hash;
+use polkadot_node_network_protocol::request_response::{
+	request::{OutgoingRequest, RequestError, Requests},
+	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
+};
 use polkadot_primitives::v1::{
-	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, Hash, HashT,
-	OccupiedCore, SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
+	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, GroupIndex, Hash,
+	HashT, OccupiedCore, SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
 };
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
@@ -35,6 +41,8 @@ use polkadot_subsystem::{
 	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	Subsystem, SubsystemContext, SubsystemError,
 };
+
+use super::{session_cache::SessionInfo, LOG_TARGET};
 
 pub struct FetchTask {
 	/// For what relay parents this task is relevant.
@@ -54,12 +62,10 @@ pub struct FetchTask {
 
 /// State of a particular candidate chunk fetching process.
 enum FetchedState {
-	/// Chunk is currently being fetched.
+	/// Chunk fetch has started.
 	///
 	/// Once the contained `Sender` is dropped, any still running task will be canceled.
-	Fetching(oneshot::Sender<()>),
-	/// Chunk has already been fetched successfully.
-	Fetched,
+	Started(oneshot::Sender<()>),
 	/// All relevant live_in have been removed, before we were able to get our chunk.
 	Canceled,
 }
@@ -98,13 +104,16 @@ struct RunningTask {
 	group: Vec<ValidatorIndex>,
 
 	/// The request to send.
-	request: v1::AvailabilityFetchingRequest,
+	request: AvailabilityFetchingRequest,
 
 	/// Root hash, for verifying the chunks validity.
 	erasure_root: Hash,
 
 	/// Relay parent of the candidate to fetch.
 	relay_parent: Hash,
+
+	/// Hash of the candidate we are fetching our chunk for.
+	candidate_hash: CandidateHash,
 
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
@@ -130,12 +139,13 @@ impl FetchTask {
 			session_index: session_info.session_index,
 			group_index: core.group_responsible,
 			group: session_info.validator_groups.get(core.group_responsible).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
-			request: v1::AvailabilityFetchingRequest {
+			request: AvailabilityFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
 			},
 			erasure_root: core.candidate_descriptor.erasure_root,
 			relay_parent: core.candidate_descriptor.relay_parent,
+			candidate_hash: core.candidate_hash,
 			sender,
 			receiver,
 		};
@@ -143,7 +153,7 @@ impl FetchTask {
 			.await?;
 		FetchTask {
 			live_in: HashSet::from(leaf),
-			state: FetchedState::Fetching(handle),
+			state: FetchedState::Started(handle),
 			session: session_info,
 		}
 	}
@@ -165,11 +175,11 @@ impl FetchTask {
 
 	/// Whether or not this task can be considered finished.
 	///
-	/// That is, it is either canceled or succeeded fetching the chunk.
+	/// That is, it is either canceled, succeeded or failed.
 	pub fn is_finished(&self) -> bool {
 		match self.state {
-			FetchedState::Fetched | FetchedState::Canceled => true,
-			FetchedState::Fetching => false,
+			FetchedState::Canceled => true,
+			FetchedState::Started(sender) => sender.is_canceled(),
 		}
 	}
 
@@ -192,15 +202,22 @@ enum TaskError {
 type Result<T> = std::result::Result<T, TaskError>;
 
 impl RunningTask {
+	/// Fetch and store chunk.
+	///
+	/// Try validators in backing group in order.
 	async fn run(self) {
 		let bad_validators = Vec::new();
 		// Try validators in order:
 		for index in self.group {
 			// Send request:
-			let resp = match do_request(index).await {
+			let peer_id = self.get_peer_id(index)?;
+			let resp = match self.do_request(peer_id).await {
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
-					tracking::info("Node seems to be shutting down, canceling fetch task");
+					tracing::info!(
+						target: LOG_TARGET,
+						"Node seems to be shutting down, canceling fetch task"
+					);
 					return;
 				}
 				Err(TaskError::PeerError) => {
@@ -208,30 +225,30 @@ impl RunningTask {
 					continue;
 				}
 			};
+			let chunk = match resp {
+				AvailabilityFetchingResponse::Chunk(chunk) => chunk,
+			};
 
-			// Data valid?
-			if !self.validate_response(&resp) {
+			// Data genuine?
+			if !self.validate_chunk(peer_id, &chunk) {
 				bad_validators.push(index);
 				continue;
 			}
 
-			// Ok, let's store it and be happy.
-			store_response(resp);
+			// Ok, let's store it and be happy:
+			self.store_chunk(chunk).await;
 			break;
 		}
-		conclude(bad_validators);
+		self.conclude(bad_validators);
 	}
 
 	/// Do request and return response, if successful.
-	///
-	/// Will also report peer if not successful.
 	async fn do_request(
 		&self,
-		validator: ValidatorIndex,
-	) -> std::result::Result<v1::AvailabilityFetchingResponse, TaskError> {
-		let peer = self.get_peer_id(index)?;
-		let (full_request, response_recv) =
-			Requests::AvailabilityFetching(OutgoingRequest::new(peer, self.request));
+		peer: PeerId,
+	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
+		let (full_request, response_recv) = OutgoingRequest::new(peer, self.request);
+		let requests = Requests::AvailabilityFetching(Vec::from(full_request));
 
 		self.sender
 			.send(FromFetchTask::Message(
@@ -240,18 +257,73 @@ impl RunningTask {
 			.await
 			.map_err(|| TaskError::ShuttingDown)?;
 
-		// TODO: Also handle receiver cancel.
 		match response_recv.await {
-			Ok(resp) => Some(resp),
-			Err(RequestError::InvalidResponse(err)) => {}
-			Err(RequestError::NetworkError(err)) => {}
-			Err(RequestError::Canceled(err)) => {}
+			Ok(resp) => Ok(resp),
+			Err(RequestError::InvalidResponse(err)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Peer sent us invalid erasure chunk data"
+				);
+				Err(TaskError::PeerError)
+			}
+			Err(RequestError::NetworkError(err)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Some network error occurred when fetching erasure chunk"
+				);
+				Err(TaskError::PeerError)
+			}
+			Err(RequestError::Canceled(err)) => {
+				tracing::warn!(target: LOG_TARGET, "Erasure chunk request got canceled");
+				Err(TaskError::PeerError)
+			}
 		}
-		Err(PeerError)
+	}
+
+	fn validate_chunk(&self, peer_id: &PeerId, chunk: &ErasureChunk) -> bool {
+		let anticipated_hash =
+			match branch_hash(&self.erasure_root, &chunk.proof, chunk.index as usize) {
+				Ok(hash) => hash,
+				Err(e) => {
+					tracing::trace!(
+					target: LOG_TARGET,
+					candidate_hash = ?self.candidate_hash,
+					origin = ?peer_id,
+					error = ?e,
+					"Failed to calculate chunk merkle proof",
+					);
+					return false;
+				}
+			};
+		let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
+		if anticipated_hash != erasure_chunk_hash {
+			tracing::warn!(target: LOG_TARGET, origin = ?peer_id,  "Received chunk does not match merkle tree");
+			return false;
+		}
+		true
 	}
 
 	fn get_peer_id(index: ValidatorIndex) -> Result<PeerId> {
 		panic!("TO BE IMPLEMENTED");
+	}
+
+	/// Store given chunk and log any error.
+	async fn store_chunk(&self, chunk: ErasureChunk) {
+		let (tx, rx) = oneshot::channel();
+		self.sender
+			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::StoreChunk {
+					candidate_hash: self.candidate_hash,
+					relay_parent: self.relay_parent,
+					chunk,
+					tx,
+				},
+			)))
+			.await;
+
+		if let Err(oneshot::Canceled) = rx.await {
+			tracing::error!(target: LOG_TARGET, "Storing erasure chunk failed");
+		}
 	}
 
 	/// Tell subsystem we are done.
@@ -267,8 +339,8 @@ impl RunningTask {
 		};
 		if let Err(err) = self.sender.send(FromFetchTask::Concluded(payload)).await {
 			tracing::warn!(
-				LOG_TARGET,
-				err: ?err,
+				target: LOG_TARGET,
+				err= ?err,
 				"Sending concluded message for task failed"
 			);
 		}
