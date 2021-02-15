@@ -31,6 +31,8 @@ use sp_wasm_interface::HostFunctions as _;
 pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC, WORKER_ARGS};
 
 mod validation_host;
+
+#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 mod workspace;
 
 /// The strategy we employ for isolating execution of wasm parachain validation function (PVF).
