@@ -260,7 +260,7 @@ decl_module! {
 
 		/// Create a new crowdloaning campaign for a parachain slot deposit for the current auction.
 		#[weight = 100_000_000]
-		fn create(origin,
+		pub fn create(origin,
 			#[compact] index: ParaId,
 			#[compact] cap: BalanceOf<T>,
 			#[compact] first_slot: LeasePeriodOf<T>,
@@ -299,7 +299,7 @@ decl_module! {
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is unable to be purchased and the timeout expires.
 		#[weight = 0]
-		fn contribute(origin, #[compact] index: ParaId, #[compact] value: BalanceOf<T>) {
+		pub fn contribute(origin, #[compact] index: ParaId, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
@@ -368,7 +368,7 @@ decl_module! {
 		/// - `who`: The account whose contribution should be withdrawn.
 		/// - `index`: The parachain to whose crowdloan the contribution was made.
 		#[weight = 0]
-		fn withdraw(origin, who: T::AccountId, #[compact] index: ParaId) {
+		pub fn withdraw(origin, who: T::AccountId, #[compact] index: ParaId) {
 			ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
@@ -404,7 +404,7 @@ decl_module! {
 		///
 		/// This places any deposits that were not withdrawn into the treasury.
 		#[weight = 0]
-		fn dissolve(origin, #[compact] index: ParaId) {
+		pub fn dissolve(origin, #[compact] index: ParaId) {
 			ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;

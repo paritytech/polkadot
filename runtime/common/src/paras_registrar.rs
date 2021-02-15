@@ -142,7 +142,7 @@ decl_module! {
 		/// The origin must pay a deposit for the registration information,
 		/// including the genesis information and validation code.
 		#[weight = 0]
-		fn register(
+		pub fn register(
 			origin,
 			id: ParaId,
 			genesis_head: HeadData,
@@ -156,7 +156,7 @@ decl_module! {
 		///
 		/// The caller must be the para itself or Root and the para must be a parathread.
 		#[weight = 0]
-		fn deregister(origin, id: ParaId) -> DispatchResult {
+		pub fn deregister(origin, id: ParaId) -> DispatchResult {
 			match ensure_root(origin.clone()) {
 				Ok(_) => {},
 				Err(_) => {
