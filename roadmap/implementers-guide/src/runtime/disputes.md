@@ -68,7 +68,7 @@ PostConclusionAcceptancePeriod: BlockNumber;
   1. Return a list of all candidates who just had disputes initiated.
 * `provide_dispute_data(DisputeStatementSet) -> bool`: Provide data to an ongoing dispute or initiate a dispute.
   1. All statements must be issued under the correct session for the correct candidate. 
-  1. `SessionInfo` can be used to check statement signatures.
+  1. `SessionInfo` is used to check statement signatures and this function should fail if any signatures are invalid.
   1. If there is no dispute under `Disputes`, create a new `DisputeState` with blank bitfields.
   1. If `concluded_at` is `Some`, and is `concluded_at + PostConclusionAcceptancePeriod < now`, return false.
   1. Import all statements into the dispute. This should fail if any disputes are duplicate; if the corresponding bit for the corresponding validator is set in the dispute already.
