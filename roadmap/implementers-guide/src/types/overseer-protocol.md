@@ -444,7 +444,7 @@ enum ProvisionableData {
 
 /// This data needs to make its way from the provisioner into the InherentData.
 ///
-/// There, it is used to construct the InclusionInherent.
+/// There, it is used to construct the ParaInhenrent.
 type ProvisionerInherentData = (SignedAvailabilityBitfields, Vec<BackedCandidate>);
 
 /// Message to the Provisioner.
@@ -458,7 +458,7 @@ enum ProvisionerMessage {
   /// associated with a particular potential block hash.
   ///
   /// This is expected to be used by a proposer, to inject that information into the InherentData
-  /// where it can be assembled into the InclusionInherent.
+  /// where it can be assembled into the ParaInhenrent.
   RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),

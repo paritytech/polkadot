@@ -16,7 +16,7 @@
   - [Paras Module](runtime/paras.md)
   - [Scheduler Module](runtime/scheduler.md)
   - [Inclusion Module](runtime/inclusion.md)
-  - [InclusionInherent Module](runtime/inclusioninherent.md)
+  - [ParaInherent Module](runtime/parainherent.md)
   - [DMP Module](runtime/dmp.md)
   - [UMP Module](runtime/ump.md)
   - [HRMP Module](runtime/hrmp.md)
