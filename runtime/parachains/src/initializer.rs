@@ -199,13 +199,13 @@ impl<T: Config> Module<T> {
 			session_index,
 		};
 
-		paras::Module::<T>::initializer_on_new_session(&notification);
+		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
-		dmp::Module::<T>::initializer_on_new_session(&notification);
-		ump::Module::<T>::initializer_on_new_session(&notification);
-		hrmp::Module::<T>::initializer_on_new_session(&notification);
+		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
@@ -259,9 +259,16 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Mod
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Initializer, System};
+	use primitives::v1::{Id as ParaId};
+	use crate::mock::{
+		new_test_ext,
+		Initializer, System, Dmp, Paras, Configuration, MockGenesisConfig,
+	};
 
-	use frame_support::traits::{OnFinalize, OnInitialize};
+	use frame_support::{
+		assert_ok,
+		traits::{OnFinalize, OnInitialize},
+	};
 
 	#[test]
 	fn session_change_before_initialize_is_still_buffered_after() {
@@ -315,5 +322,53 @@ mod tests {
 
 			assert!(HasInitialized::get().is_none());
 		})
+	}
+
+	#[test]
+	fn scheduled_cleanup_performed() {
+		let a = ParaId::from(1312);
+		let b = ParaId::from(228);
+		let c = ParaId::from(123);
+
+		let mock_genesis = crate::paras::ParaGenesisArgs {
+			parachain: true,
+			genesis_head: Default::default(),
+			validation_code: Default::default(),
+		};
+
+		new_test_ext(
+			MockGenesisConfig {
+				configuration: crate::configuration::GenesisConfig {
+					config: crate::configuration::HostConfiguration {
+						max_downward_message_size: 1024,
+						..Default::default()
+					},
+				},
+				paras: crate::paras::GenesisConfig {
+					paras: vec![
+						(a, mock_genesis.clone()),
+						(b, mock_genesis.clone()),
+						(c, mock_genesis.clone()),
+					],
+					..Default::default()
+				},
+				..Default::default()
+			}
+		).execute_with(|| {
+
+			// enqueue downward messages to A, B and C.
+			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), a, vec![1, 2, 3]));
+			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));
+			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), c, vec![7, 8, 9]));
+
+			Paras::schedule_para_cleanup(a);
+			Paras::schedule_para_cleanup(b);
+
+			Initializer::apply_new_session(1, vec![], vec![]);
+
+			assert!(Dmp::dmq_contents(a).is_empty());
+			assert!(Dmp::dmq_contents(b).is_empty());
+			assert!(!Dmp::dmq_contents(c).is_empty());
+		});
 	}
 }
