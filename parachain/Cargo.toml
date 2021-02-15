@@ -28,6 +28,7 @@ parking_lot = { version = "0.11.1", optional = true }
 log = { version = "0.4.11", optional = true }
 futures = { version = "0.3.8", optional = true }
 static_assertions = { version = "1.1", optional = true }
+libc = { version = "0.2.81", optional = true }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]
 shared_memory = { version = "0.11.0", optional = true }
@@ -49,6 +50,7 @@ std = [
 	"parking_lot",
 	"static_assertions",
 	"log",
+	"libc",
 	"parity-util-mem",
 	"sp-externalities",
 	"sc-executor",

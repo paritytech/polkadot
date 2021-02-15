@@ -5559,6 +5559,7 @@ version = "0.8.28"
 dependencies = [
  "derive_more",
  "futures 0.3.12",
+ "libc",
  "log",
  "parity-scale-codec",
  "parity-util-mem",

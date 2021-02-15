@@ -375,12 +375,41 @@ pub fn open(id: &str) -> Result<WorkerHandle, String> {
 		.open()
 		.map_err(|e| format!("Error opening shared memory: {:?}", e))?;
 
+	#[cfg(unix)]
+	unlink_shmem(&id);
+
 	let inner = Inner::layout(shmem, Mode::Attach);
 	if !inner.declare_exclusive_attached() {
 		return Err(format!("The workspace has been already attached to"));
 	}
 
-	Ok(WorkerHandle { inner })
+	return Ok(WorkerHandle { inner });
+
+	#[cfg(unix)]
+	fn unlink_shmem(shmem_id: &str) {
+		// Unlink the shmem. Unlinking it from the filesystem will make it unaccessible for further
+		// opening, however, the kernel will still let the object live until the last reference dies
+		// out.
+		//
+		// There is still a chance that the shm stays on the fs, but that's a highly unlikely case
+		// that we don't address at this time.
+
+		// shared-memory doesn't return file path to the shmem if get_flink_path is called, so we
+		// resort to `shm_unlink`.
+		//
+		// Additionally, even thouygh `fs::remove_file` is said to use `unlink` we still avoid relying on it,
+		// because the stdlib doesn't actually provide any gurantees on what syscalls will be called.
+		// (Not sure, what alternative it has though).
+		unsafe {
+			// must be in a local var in order to be not deallocated.
+			let shmem_id =
+				std::ffi::CString::new(shmem_id).expect("the shmmem id cannot have NUL in it; qed");
+
+			if libc::shm_unlink(shmem_id.as_ptr()) == -1 {
+				// failed to remove the shmem file nothing we can do ¯\_(ツ)_/¯
+			}
+		}
+	}
 }
 
 #[cfg(test)]
