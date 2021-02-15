@@ -62,9 +62,10 @@ PostConclusionAcceptancePeriod: BlockNumber;
 
 ## Routines
 
-* `provide_multi_dispute_data(MultiDisputeStatementSet)`:
+* `provide_multi_dispute_data(MultiDisputeStatementSet) -> Vec<(SessionIndex, Hash)>`:
   1. Fail if any disputes in the set are duplicate or concluded before the `PostConclusionAcceptancePeriod` window relative to now.
   1. Pass on each dispute statement set to `provide_dispute_data`, propagating failure.
+  1. Return a list of all candidates who just had disputes initiated.
 * `provide_dispute_data(DisputeStatementSet) -> bool`: Provide data to an ongoing dispute or initiate a dispute.
   1. All statements must be issued under the correct session for the correct candidate. 
   1. `SessionInfo` can be used to check statement signatures.
