@@ -31,6 +31,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	BabeEpoch,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
@@ -62,8 +63,13 @@ pub enum CandidateSelectionMessage {
 	/// A candidate collation can be fetched from a collator and should be considered for seconding.
 	Collation(Hash, ParaId, CollatorId),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+	///
 	/// The hash is the relay parent.
 	Invalid(Hash, CandidateReceipt),
+	/// The candidate we recommended to be seconded was validated successfully.
+	///
+	/// The hash is the relay parent.
+	Seconded(Hash, SignedFullStatement),
 }
 
 impl BoundToRelayParent for CandidateSelectionMessage {
@@ -71,6 +77,7 @@ impl BoundToRelayParent for CandidateSelectionMessage {
 		match self {
 			Self::Collation(hash, ..) => *hash,
 			Self::Invalid(hash, _) => *hash,
+			Self::Seconded(hash, _) => *hash,
 		}
 	}
 }
@@ -173,8 +180,11 @@ pub enum CollatorProtocolMessage {
 	///
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
-	/// Provide a collation to distribute to validators.
-	DistributeCollation(CandidateReceipt, PoV),
+	/// Provide a collation to distribute to validators with an optional result sender.
+	///
+	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
+	/// completely okay to just drop the sender.
+	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
 	/// Fetch a collation under the given relay-parent for the given ParaId.
 	FetchCollation(Hash, CollatorId, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
@@ -182,6 +192,8 @@ pub enum CollatorProtocolMessage {
 	ReportCollator(CollatorId),
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
+	/// Notify a collator that its collation was seconded.
+	NotifyCollationSeconded(CollatorId, SignedFullStatement),
 	/// Get a network bridge update.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 }
@@ -191,11 +203,12 @@ impl CollatorProtocolMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::CollateOn(_) => None,
-			Self::DistributeCollation(receipt, _) => Some(receipt.descriptor().relay_parent),
+			Self::DistributeCollation(receipt, _, _) => Some(receipt.descriptor().relay_parent),
 			Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
 			Self::ReportCollator(_) => None,
 			Self::NoteGoodCollation(_) => None,
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NotifyCollationSeconded(_, _) => None,
 		}
 	}
 }
@@ -474,6 +487,8 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		RuntimeApiSender<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	),
+	/// Get information about the BABE epoch the block was included in.
+	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -500,8 +515,6 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-	/// Register a listener for shared statements.
-	RegisterStatementListener(mpsc::Sender<SignedFullStatement>),
 }
 
 impl StatementDistributionMessage {
@@ -510,7 +523,6 @@ impl StatementDistributionMessage {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdateV1(_) => None,
-			Self::RegisterStatementListener(_) => None,
 		}
 	}
 }
@@ -631,6 +643,7 @@ pub enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
 		IndirectAssignmentCert,
+		CandidateIndex,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the

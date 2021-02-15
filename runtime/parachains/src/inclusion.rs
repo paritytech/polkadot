@@ -51,8 +51,6 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-// TODO: split this type and change this to hold a plain `CandidateReceipt`.
-// https://github.com/paritytech/polkadot/issues/1357
 #[derive(Encode, Decode, PartialEq)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
@@ -70,6 +68,8 @@ pub struct CandidatePendingAvailability<H, N> {
 	relay_parent_number: N,
 	/// The block number of the relay-chain block this was backed in.
 	backed_in_number: N,
+	/// The group index backing this block.
+	backing_group: GroupIndex,
 }
 
 impl<H, N> CandidatePendingAvailability<H, N> {
@@ -197,11 +197,11 @@ decl_error! {
 decl_event! {
 	pub enum Event<T> where <T as frame_system::Config>::Hash {
 		/// A candidate was backed. [candidate, head_data]
-		CandidateBacked(CandidateReceipt<Hash>, HeadData),
+		CandidateBacked(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate was included. [candidate, head_data]
-		CandidateIncluded(CandidateReceipt<Hash>, HeadData),
+		CandidateIncluded(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate timed out. [candidate, head_data]
-		CandidateTimedOut(CandidateReceipt<Hash>, HeadData),
+		CandidateTimedOut(CandidateReceipt<Hash>, HeadData, CoreIndex),
 	}
 }
 
@@ -368,6 +368,8 @@ impl<T: Config> Module<T> {
 					receipt,
 					pending_availability.backers,
 					pending_availability.availability_votes,
+					pending_availability.core,
+					pending_availability.backing_group,
 				);
 
 				freed_cores.push(pending_availability.core);
@@ -555,7 +557,7 @@ impl<T: Config> Module<T> {
 							}
 						}
 
-						core_indices_and_backers.push((assignment.core, backers));
+						core_indices_and_backers.push((assignment.core, backers, assignment.group_idx));
 						continue 'a;
 					}
 				}
@@ -578,8 +580,8 @@ impl<T: Config> Module<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _)| c.clone()).collect();
-		for (candidate, (core, backers)) in candidates.into_iter().zip(core_indices_and_backers) {
+		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _, _)| c.clone()).collect();
+		for (candidate, (core, backers, group)) in candidates.into_iter().zip(core_indices_and_backers) {
 			let para_id = candidate.descriptor().para_id;
 
 			// initialize all availability votes to 0.
@@ -589,6 +591,8 @@ impl<T: Config> Module<T> {
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
+				core,
+				group,
 			));
 
 			let candidate_hash = candidate.candidate.hash();
@@ -606,6 +610,7 @@ impl<T: Config> Module<T> {
 				relay_parent_number,
 				backers,
 				backed_in_number: check_cx.now,
+				backing_group: group,
 			});
 			<PendingAvailabilityCommitments>::insert(&para_id, commitments);
 		}
@@ -651,6 +656,8 @@ impl<T: Config> Module<T> {
 		receipt: CommittedCandidateReceipt<T::Hash>,
 		backers: BitVec<BitOrderLsb0, u8>,
 		availability_votes: BitVec<BitOrderLsb0, u8>,
+		core_index: CoreIndex,
+		backing_group: GroupIndex,
 	) -> Weight {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
@@ -695,7 +702,7 @@ impl<T: Config> Module<T> {
 		);
 
 		Self::deposit_event(
-			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
+			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone(), core_index, backing_group)
 		);
 
 		weight + <paras::Module<T>>::note_new_head(
@@ -736,6 +743,7 @@ impl<T: Config> Module<T> {
 				Self::deposit_event(Event::<T>::CandidateTimedOut(
 					candidate,
 					commitments.head_data,
+					pending.core,
 				));
 			}
 		}
@@ -764,6 +772,8 @@ impl<T: Config> Module<T> {
 				candidate,
 				pending.backers,
 				pending.availability_votes,
+				pending.core,
+				pending.backing_group,
 			);
 		}
 	}
@@ -1154,6 +1164,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(0),
 			});
 			PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments.clone());
 
@@ -1165,6 +1176,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(1),
 			});
 			PendingAvailabilityCommitments::insert(chain_b, default_candidate.commitments);
 
@@ -1330,6 +1342,7 @@ mod tests {
 					relay_parent_number: 0,
 					backed_in_number: 0,
 					backers: default_backing_bitfield(),
+					backing_group: GroupIndex::from(0),
 				});
 				PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments);
 
@@ -1366,6 +1379,7 @@ mod tests {
 					relay_parent_number: 0,
 					backed_in_number: 0,
 					backers: default_backing_bitfield(),
+					backing_group: GroupIndex::from(0),
 				});
 
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
@@ -1439,6 +1453,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: backing_bitfield(&[3, 4]),
+				backing_group: GroupIndex::from(0),
 			});
 			PendingAvailabilityCommitments::insert(chain_a, candidate_a.commitments);
 
@@ -1456,6 +1471,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: backing_bitfield(&[0, 2]),
+				backing_group: GroupIndex::from(1),
 			});
 			PendingAvailabilityCommitments::insert(chain_b, candidate_b.commitments);
 
@@ -1893,6 +1909,7 @@ mod tests {
 					relay_parent_number: 3,
 					backed_in_number: 4,
 					backers: default_backing_bitfield(),
+					backing_group: GroupIndex::from(0),
 				});
 				<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments);
 
@@ -2187,6 +2204,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[0, 1]),
+					backing_group: GroupIndex::from(0),
 				})
 			);
 			assert_eq!(
@@ -2204,6 +2222,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[2, 3]),
+					backing_group: GroupIndex::from(1),
 				})
 			);
 			assert_eq!(
@@ -2221,6 +2240,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[4]),
+					backing_group: GroupIndex::from(2),
 				})
 			);
 			assert_eq!(
@@ -2318,6 +2338,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[0, 1, 2]),
+					backing_group: GroupIndex::from(0),
 				})
 			);
 			assert_eq!(
@@ -2394,6 +2415,7 @@ mod tests {
 				relay_parent_number: 5,
 				backed_in_number: 6,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(0),
 			});
 			<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments.clone());
 
@@ -2405,6 +2427,7 @@ mod tests {
 				relay_parent_number: 6,
 				backed_in_number: 7,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(1),
 			});
 			<PendingAvailabilityCommitments>::insert(&chain_b, candidate.commitments);
 
