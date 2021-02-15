@@ -31,7 +31,7 @@ use std::{
 };
 
 // maximum memory in bytes
-const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
+const MAX_PARAMS_MEM: usize = 1024 * 1024; // 1 MiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
@@ -303,10 +303,10 @@ impl HostHandle {
 		}
 
 		let params = params.encode();
-		if params.len() > MAX_RUNTIME_MEM {
+		if params.len() > MAX_PARAMS_MEM {
 			return Err(RequestValidationErr::ParamsTooLarge {
 				actual: params.len(),
-				max: MAX_RUNTIME_MEM,
+				max: MAX_PARAMS_MEM,
 			});
 		}
 
@@ -353,7 +353,9 @@ impl HostHandle {
 
 /// Create a new workspace and return a handle to it.
 pub fn create() -> Result<HostHandle, String> {
-	let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + MAX_VALIDATION_RESULT_HEADER_MEM;
+	// We actually don't need even that much, because e.g. validation result header will be
+	// written on top clobbering the params and code. We still over allocate just to be safe.
+	let mem_size = MAX_PARAMS_MEM + MAX_CODE_MEM + MAX_VALIDATION_RESULT_HEADER_MEM;
 	let shmem = ShmemConf::new()
 		.size(mem_size)
 		.create()
