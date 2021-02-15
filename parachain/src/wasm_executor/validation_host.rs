@@ -18,7 +18,7 @@
 
 use std::{env, path::PathBuf, process, sync::Arc, sync::atomic};
 use crate::primitives::{ValidationParams, ValidationResult};
-use super::{validate_candidate_internal, ValidationError, InvalidCandidate, InternalError, workspace};
+use super::{validate_candidate_internal, ValidationError, InvalidCandidate, InternalError};
 use parking_lot::Mutex;
 use log::{debug, trace};
 use futures::executor::ThreadPool;
@@ -29,6 +29,8 @@ const WORKER_ARG: &'static str = "validation-worker";
 pub const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
 const LOG_TARGET: &'static str = "validation-worker";
+
+mod workspace;
 
 /// Execution timeout in seconds;
 #[cfg(debug_assertions)]

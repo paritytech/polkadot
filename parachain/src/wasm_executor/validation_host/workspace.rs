@@ -19,6 +19,7 @@
 //! worker.
 
 use crate::primitives::{ValidationParams, ValidationResult};
+use super::LOG_TARGET;
 use parity_scale_codec::{Decode, Encode};
 use raw_sync::{
 	events::{Event, EventImpl, EventInit, EventState},
@@ -428,11 +429,16 @@ pub fn open(id: &str) -> Result<WorkerHandle, String> {
 		// (Not sure, what alternative it has though).
 		unsafe {
 			// must be in a local var in order to be not deallocated.
-			let shmem_id =
+			let shmem_id_cstr =
 				std::ffi::CString::new(shmem_id).expect("the shmmem id cannot have NUL in it; qed");
 
-			if libc::shm_unlink(shmem_id.as_ptr()) == -1 {
+			if libc::shm_unlink(shmem_id_cstr.as_ptr()) == -1 {
 				// failed to remove the shmem file nothing we can do ¯\_(ツ)_/¯
+				log::warn!(
+					target: LOG_TARGET,
+					"failed to remove the shmem with id {}",
+					shmem_id,
+				);
 			}
 		}
 	}

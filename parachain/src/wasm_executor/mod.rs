@@ -32,9 +32,6 @@ pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC, WOR
 
 mod validation_host;
 
-#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-mod workspace;
-
 /// The strategy we employ for isolating execution of wasm parachain validation function (PVF).
 ///
 /// For a typical validator an external process is the default way to run PVF. The rationale is based
