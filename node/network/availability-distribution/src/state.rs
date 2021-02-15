@@ -65,7 +65,6 @@ use jaeger::JaegerSpan;
 
 use itertools::{Either, Itertools};
 
-use super::{fetch_task::FetchTask, session_cache::SessionCache, Result, LOG_TARGET};
 use polkadot_node_subsystem_util::request_availability_cores_ctx;
 use polkadot_primitives::v1::{
 	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, Hash, HashT,
@@ -79,6 +78,8 @@ use polkadot_subsystem::{
 	SubsystemContext, SubsystemError,
 };
 
+use super::{fetch_task::FetchTask, session_cache::SessionCache, Result, LOG_TARGET, error::recv_runtime};
+
 /// A running instance of this subsystem.
 pub struct ProtocolState {
 	/// Candidates we need to fetch our chunk for.
@@ -91,10 +92,16 @@ pub struct ProtocolState {
 }
 
 impl ProtocolState {
+	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+		ProtocolState {
+			fetches: HashMap::new(),
+			session_cache: SessionCache::new(keystore),
+		}
+	}
 	/// Update heads that need availability distribution.
 	///
 	/// For all active heads we will be fetching our chunk for availabilty distribution.
-	pub(crate) fn update_fetching_heads<Context>(
+	pub(crate) async fn update_fetching_heads<Context>(
 		&mut self,
 		ctx: &mut Context,
 		update: ActiveLeavesUpdate,
@@ -108,8 +115,9 @@ impl ProtocolState {
 		} = update;
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, activated).await?;
-		self.stop_requesting_chunks(ctx, deactivated)?;
+		self.start_requesting_chunks(ctx, activated.into_iter()).await?;
+		self.stop_requesting_chunks(deactivated.into_iter());
+		Ok(())
 	}
 
 	/// Start requesting chunks for newly imported heads.
@@ -119,7 +127,7 @@ impl ProtocolState {
 		new_heads: impl Iterator<Item = (Hash, Arc<JaegerSpan>)>,
 	) -> Result<()>
 	where
-		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
+		Context: SubsystemContext,
 	{
 		for (leaf, _) in new_heads {
 			let cores = query_occupied_cores(ctx, leaf).await?;
@@ -134,22 +142,13 @@ impl ProtocolState {
 	/// referenced by any candidate anymore).
 	fn stop_requesting_chunks(
 		&mut self,
-		obsolete_leaves: impl Iterator<Item = (Hash, Arc<JaegerSpan>)>,
-	) -> Result<HashSet<Hash>> {
+		obsolete_leaves: impl Iterator<Item = Hash>,
+	) {
 		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().map(|h| h.0).collect();
-		let new_fetches = self
-			.fetches
-			.into_iter()
-			.filter_map(|(c_hash, task)| {
-				task.remove_leaves(HashSet::from(obsolete_leaves));
-				if task.is_finished() {
-					Some(task.get_relay_parent())
-				} else {
-					None
-				}
-			})
-			.collect();
-		self.fetches = new_fetches;
+		self.fetches.retain(|&c_hash, task| {
+			task.remove_leaves(obsolete_leaves);
+			task.is_live()
+		})
 	}
 
 	/// Add candidates corresponding for a particular relay parent.
@@ -159,25 +158,24 @@ impl ProtocolState {
 	/// Note: The passed in `leaf` is not the same as CandidateDescriptor::relay_parent in the
 	/// given cores. The latter is the relay_parent this candidate considers its parent, while the
 	/// passed in leaf might be some later block where the candidate is still pending availability.
-	fn add_cores<Context>(
+	async fn add_cores<Context>(
 		&mut self,
 		ctx: &mut Context,
 		leaf: Hash,
 		cores: impl IntoIterator<Item = OccupiedCore>,
-	) where
+	) -> Result<()>
+		where
 		Context: SubsystemContext,
 	{
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
 				Entry::Occupied(e) =>
 				// Just book keeping - we are already requesting that chunk:
-				{
-					e.get_mut().add_leaf(leaf)
-				}
+					e.get_mut().add_leaf(leaf),
 				Entry::Vacant(e) => {
 					let session_info = self
 						.session_cache
-						.fetch_session_info(ctx, core.candidate_descriptor.relay_parent)?;
+						.fetch_session_info(ctx, core.candidate_descriptor.relay_parent).await?;
 					if let Some(session_info) = session_info {
 						e.insert(FetchTask::start(ctx, leaf, core, session_info))
 					}
@@ -185,6 +183,7 @@ impl ProtocolState {
 				}
 			}
 		}
+		Ok(())
 	}
 }
 

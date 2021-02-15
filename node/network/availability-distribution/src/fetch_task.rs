@@ -20,6 +20,8 @@ use std::rc::Rc;
 
 use futures::channel::mpsc;
 use futures::channel::oneshot;
+use futures::future::select;
+use futures::SinkExt;
 
 use sc_network::PeerId;
 
@@ -39,7 +41,7 @@ use polkadot_subsystem::messages::{
 use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError,
+	Subsystem, SubsystemContext, SubsystemError, SubsystemResult
 };
 
 use super::{session_cache::SessionInfo, LOG_TARGET};
@@ -117,9 +119,6 @@ struct RunningTask {
 
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
-
-	/// Receive `Canceled` errors here.
-	receiver: oneshot::Receiver<()>,
 }
 
 impl FetchTask {
@@ -130,15 +129,15 @@ impl FetchTask {
 		core: OccupiedCore,
 		session_info: Rc<SessionInfo>,
 		sender: mpsc::Sender<FromFetchTask>,
-	) -> Self
+	) -> SubsystemResult<Self>
 	where
 		Context: SubsystemContext,
 	{
-		let (handle, receiver) = oneshot::channel();
+		let (handle, kill) = oneshot::channel();
 		let running =  RunningTask {
 			session_index: session_info.session_index,
 			group_index: core.group_responsible,
-			group: session_info.validator_groups.get(core.group_responsible).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
+			group: session_info.validator_groups.get(core.group_responsible.into() as usize).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
 			request: AvailabilityFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
@@ -147,15 +146,14 @@ impl FetchTask {
 			relay_parent: core.candidate_descriptor.relay_parent,
 			candidate_hash: core.candidate_hash,
 			sender,
-			receiver,
 		};
-		ctx.spawn("chunk-fetcher", Pin::new(Box::new(running.run())))
+		ctx.spawn("chunk-fetcher", Pin::new(Box::new(running.run(kill))))
 			.await?;
-		FetchTask {
-			live_in: HashSet::from(leaf),
+		Ok(FetchTask {
+			live_in: vec![leaf].into_iter().collect(),
 			state: FetchedState::Started(handle),
 			session: session_info,
-		}
+		})
 	}
 
 	/// Add the given leaf to the relay parents which are making this task relevant.
@@ -166,9 +164,8 @@ impl FetchTask {
 	/// Remove leaves and cancel the task, if it was the last one and the task has still been
 	/// fetching.
 	pub fn remove_leaves(&mut self, leaves: HashSet<Hash>) {
-		self.live_in.difference(leaves);
+		self.live_in.difference(&leaves);
 		if self.live_in.is_empty() {
-			// TODO: Make sure, to actually cancel the task.
 			self.state = FetchedState::Canceled
 		}
 	}
@@ -183,9 +180,10 @@ impl FetchTask {
 		}
 	}
 
-	/// Retrieve the relay parent providing the context for this candidate.
-	pub fn get_relay_parent(&self) -> Hash {
-		self.descriptor.relay_parent
+	/// Whether or not there are still relay parents around with this candidate pending
+	/// availability.
+	pub fn is_live(&self) -> bool {
+		!self.live_in.is_empty()
 	}
 }
 
@@ -202,15 +200,31 @@ enum TaskError {
 type Result<T> = std::result::Result<T, TaskError>;
 
 impl RunningTask {
+	async fn run(self, kill: oneshot::Receiver<()>) {
+		// Wait for completion/or cancel.
+		let _ = select(self.run_inner(), kill);
+	}
+
 	/// Fetch and store chunk.
 	///
 	/// Try validators in backing group in order.
-	async fn run(self) {
+	async fn run_inner(self) {
 		let bad_validators = Vec::new();
 		// Try validators in order:
 		for index in self.group {
 			// Send request:
-			let peer_id = self.get_peer_id(index)?;
+			let peer_id = match self.get_peer_id(index).await {
+				Ok(peer_id) => peer_id,
+				Err(err) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						validator_index = ?index,
+						"Discoverying peer id for validator failed"
+					);
+					bad_validators.push(index);
+					continue
+				}
+			};
 			let resp = match self.do_request(peer_id).await {
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
@@ -248,14 +262,14 @@ impl RunningTask {
 		peer: PeerId,
 	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
 		let (full_request, response_recv) = OutgoingRequest::new(peer, self.request);
-		let requests = Requests::AvailabilityFetching(Vec::from(full_request));
+		let requests = Requests::AvailabilityFetching(full_request);
 
 		self.sender
 			.send(FromFetchTask::Message(
-				AllMessages::NetworkBridgeMessage::SendRequests(Vec::from(full_request)),
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(vec![requests])),
 			))
 			.await
-			.map_err(|| TaskError::ShuttingDown)?;
+			.map_err(|_| TaskError::ShuttingDown)?;
 
 		match response_recv.await {
 			Ok(resp) => Ok(resp),
@@ -303,12 +317,12 @@ impl RunningTask {
 		true
 	}
 
-	fn get_peer_id(index: ValidatorIndex) -> Result<PeerId> {
+	fn get_peer_id(&self, index: ValidatorIndex) -> Result<PeerId> {
 		panic!("TO BE IMPLEMENTED");
 	}
 
 	/// Store given chunk and log any error.
-	async fn store_chunk(&self, chunk: ErasureChunk) {
+	async fn store_chunk(&mut self, chunk: ErasureChunk) {
 		let (tx, rx) = oneshot::channel();
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
@@ -327,7 +341,7 @@ impl RunningTask {
 	}
 
 	/// Tell subsystem we are done.
-	async fn conclude(&self, bad_validators: Vec<ValidatorIndex>) {
+	async fn conclude(&mut self, bad_validators: Vec<ValidatorIndex>) {
 		let payload = if bad_validators.is_empty() {
 			None
 		} else {

@@ -80,6 +80,13 @@ pub struct SessionInfo {
 }
 
 impl SessionCache {
+	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+		SessionCache {
+			by_relay_parent: HashMap::new(),
+			by_session_index: HashMap::new(),
+			keystore,
+		}
+	}
 	/// Retrieve session info for the given relay parent.
 	///
 	/// This function will query the cache first and will only query the runtime on cache miss.
@@ -119,8 +126,8 @@ impl SessionCache {
 
 			let info = Rc::new(SessionInfo {
 				validator_groups,
-				validators,
 				our_index,
+				session_index,
 			});
 			let downgraded = Rc::downgrade(&info);
 			self.by_relay_parent.insert(parent, downgraded.clone());
