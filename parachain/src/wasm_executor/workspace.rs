@@ -104,9 +104,9 @@ impl Inner {
 			//
 			// We still assert here to be safe than sorry.
 			static_assertions::assert_eq_size!(AtomicBool, u8);
-
 			// SAFETY: `AtomicBool` is represented by an u8 thus will be happy to take any alignment.
 			let attached = base_ptr.add(consumed) as *mut AtomicBool;
+			consumed += 1;
 
 			let consumed = align_up_to(consumed, 64);
 
