@@ -188,23 +188,29 @@ unsafe fn add_event(base_ptr: *mut u8, consumed: &mut usize, mode: Mode) -> Box<
 	ev
 }
 
+/// A message received by the worker that specifies a candidate validation work.
 pub struct WorkItem<'handle> {
 	pub params: &'handle [u8],
 	pub code: &'handle [u8],
 }
 
+/// An error that could be returned from [`WorkerHandle::wait_for_work`].
 #[derive(Debug)]
 pub enum WaitForWorkErr {
+	/// An error occured during waiting for work. Typically a timeout.
 	Wait(String),
+	/// An error ocurred when trying to decode the validation request from the host.
 	FailedToDecode(String),
 }
 
+/// An error that could be returned from [`WorkerHandle::report_result`].
 #[derive(Debug)]
 pub enum ReportResultErr {
+	/// An error occured during signalling to the host that the result is ready.
 	Signal(String),
 }
 
-/// A worker side handle to the workspace.
+/// A worker side handle to a workspace.
 pub struct WorkerHandle {
 	inner: Inner,
 }
@@ -253,25 +259,36 @@ impl WorkerHandle {
 	}
 }
 
+/// An error that could be returned from [`HostHandle::wait_until_ready`].
 #[derive(Debug)]
 pub enum WaitUntilReadyErr {
+	/// An error occured during waiting for the signal from the worker.
 	Wait(String),
 }
 
+/// An error that could be returned from [`HostHandle::request_validation`].
 #[derive(Debug)]
 pub enum RequestValidationErr {
+	/// The code passed exceeds the maximum allowed limit.
 	CodeTooLarge { actual: usize, max: usize },
+	/// The call parameters exceed the maximum allowed limit.
 	ParamsTooLarge { actual: usize, max: usize },
+	/// An error occured during writing either the code or the call params (the inner string specifies which)
 	WriteData(&'static str),
+	/// An error occured during signalling that the request is ready.
 	Signal(String),
 }
 
+/// An error that could be returned from [`HostHandle::wait_for_result`]
 #[derive(Debug)]
 pub enum WaitForResultErr {
+	/// A error happened during waiting for the signal. Typically a timeout.
 	Wait(String),
+	/// Failed to decode the result header sent by the worker.
 	HeaderDecodeErr(String),
 }
 
+/// A worker side handle to a workspace.
 pub struct HostHandle {
 	inner: Inner,
 }
