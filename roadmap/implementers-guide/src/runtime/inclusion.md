@@ -89,7 +89,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
 * `collect_pending`:
 
   ```rust
-    fn collect_pending(f: impl Fn(CoreIndex, BlockNumber) -> bool) -> Vec<u32> {
+    fn collect_pending(f: impl Fn(CoreIndex, BlockNumber) -> bool) -> Vec<CoreIndex> {
       // sweep through all paras pending availability. if the predicate returns true, when given the core index and
       // the block number the candidate has been pending availability since, then clean up the corresponding storage for that candidate and the commitments.
       // return a vector of cleaned-up core IDs.
@@ -98,3 +98,4 @@ All failed checks should lead to an unrecoverable error making the block invalid
 * `force_enact(ParaId)`: Forcibly enact the candidate with the given ID as though it had been deemed available by bitfields. Is a no-op if there is no candidate pending availability for this para-id. This should generally not be used but it is useful during execution of Runtime APIs, where the changes to the state are expected to be discarded directly after.
 * `candidate_pending_availability(ParaId) -> Option<CommittedCandidateReceipt>`: returns the `CommittedCandidateReceipt` pending availability for the para provided, if any.
 * `pending_availability(ParaId) -> Option<CandidatePendingAvailability>`: returns the metadata around the candidate pending availability for the para, if any.
+* `collect_disputed(disputed: Vec<CandidateHash>) -> Vec<CoreIndex>`: Sweeps through all paras pending availability. If the candidate hash is one of the disputed candidates, then clean up the corresponding storage for that candidate and the commitments. Return a vector of cleaned-up core IDs.
