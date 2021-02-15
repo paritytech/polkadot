@@ -16,6 +16,8 @@
 
 //! Polkadot-specific GRANDPA integration utilities.
 
+use std::sync::Arc;
+
 #[cfg(feature = "full-node")]
 use polkadot_primitives::v1::Hash;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
@@ -24,6 +26,7 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 /// same last finalized block) after a given block at height `N` has been
 /// finalized and for a delay of `M` blocks, i.e. until the best block reaches
 /// `N` + `M`, the voter will keep voting for block `N`.
+#[derive(Clone)]
 pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 
 impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>>
@@ -33,59 +36,66 @@ where
 {
 	fn restrict_vote(
 		&self,
-		backend: &B,
+		backend: Arc<B>,
 		base: &Block::Header,
 		best_target: &Block::Header,
 		current_target: &Block::Header,
-	) -> Option<(Block::Hash, NumberFor<Block>)> {
-		use sp_runtime::generic::BlockId;
-		use sp_runtime::traits::Header as _;
+	) -> grandpa::VotingRuleResult<Block> {
+		let aux = || {
+			use sp_runtime::generic::BlockId;
+			use sp_runtime::traits::Header as _;
 
-		// walk backwards until we find the target block
-		let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
-			let mut target_hash = current_header.hash();
-			let mut target_header = current_header.clone();
+			// walk backwards until we find the target block
+			let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
+				let mut target_hash = current_header.hash();
+				let mut target_header = current_header.clone();
 
-			loop {
-				if *target_header.number() < target_number {
-					unreachable!(
-						"we are traversing backwards from a known block; \
-						 blocks are stored contiguously; \
-						 qed"
+				loop {
+					if *target_header.number() < target_number {
+						unreachable!(
+							"we are traversing backwards from a known block; \
+							 blocks are stored contiguously; \
+							 qed"
+						);
+					}
+
+					if *target_header.number() == target_number {
+						return Some((target_hash, target_number));
+					}
+
+					target_hash = *target_header.parent_hash();
+					target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
+						"Header known to exist due to the existence of one of its descendents; qed",
 					);
 				}
+			};
 
-				if *target_header.number() == target_number {
-					return Some((target_hash, target_number));
+			// only restrict votes targeting a block higher than the block
+			// we've set for the pause
+			if *current_target.number() > self.0 {
+				// if we're past the pause period (i.e. `self.0 + self.1`)
+				// then we no longer need to restrict any votes
+				if *best_target.number() > self.0 + self.1 {
+					return None;
 				}
 
-				target_hash = *target_header.parent_hash();
-				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
-					.expect("Header known to exist due to the existence of one of its descendents; qed");
+				// if we've finalized the pause block, just keep returning it
+				// until best number increases enough to pass the condition above
+				if *base.number() >= self.0 {
+					return Some((base.hash(), *base.number()));
+				}
+
+				// otherwise find the target header at the pause block
+				// to vote on
+				return find_target(self.0, current_target);
 			}
+
+			None
 		};
 
-		// only restrict votes targeting a block higher than the block
-		// we've set for the pause
-		if *current_target.number() > self.0 {
-			// if we're past the pause period (i.e. `self.0 + self.1`)
-			// then we no longer need to restrict any votes
-			if *best_target.number() > self.0 + self.1 {
-				return None;
-			}
+		let target = aux();
 
-			// if we've finalized the pause block, just keep returning it
-			// until best number increases enough to pass the condition above
-			if *base.number() >= self.0 {
-				return Some((base.hash(), *base.number()));
-			}
-
-			// otherwise find the target header at the pause block
-			// to vote on
-			return find_target(self.0, current_target);
-		}
-
-		None
+		Box::pin(async move { target })
 	}
 }
 
@@ -276,7 +286,12 @@ mod tests {
 		// we have not reached the pause block
 		// therefore nothing should be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(&*client, &get_header(0), &get_header(10), &get_header(10)),
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
+				&get_header(0),
+				&get_header(10),
+				&get_header(10)
+			)),
 			None,
 		);
 
@@ -287,7 +302,12 @@ mod tests {
 		// we are targeting the pause block,
 		// the vote should not be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(20), &get_header(20)),
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
+				&get_header(10),
+				&get_header(20),
+				&get_header(20)
+			)),
 			None,
 		);
 
@@ -295,19 +315,24 @@ mod tests {
 		// be limited to the pause block.
 		let pause_block = get_header(20);
 		assert_eq!(
-			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(21), &get_header(21)),
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
+				&get_header(10),
+				&get_header(21),
+				&get_header(21)
+			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 
 		// we've finalized the pause block, so we'll keep
 		// restricting our votes to it.
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
 				&pause_block, // #20
 				&get_header(21),
 				&get_header(21),
-			),
+			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 
@@ -318,23 +343,23 @@ mod tests {
 		// we're at the last block of the pause, this block
 		// should still be considered in the pause period
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
 				&pause_block, // #20
 				&get_header(50),
 				&get_header(50),
-			),
+			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 
 		// we're past the pause period, no votes should be filtered
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
+			futures::executor::block_on(voting_rule.restrict_vote(
+				client.clone(),
 				&pause_block, // #20
 				&get_header(51),
 				&get_header(51),
-			),
+			)),
 			None,
 		);
 	}
