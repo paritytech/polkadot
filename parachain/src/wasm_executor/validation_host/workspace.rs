@@ -160,7 +160,7 @@ impl Inner {
 }
 
 fn align_up_to(v: usize, alignment: usize) -> usize {
-	(v + alignment - 1) & !(alignment - 1)
+	((v + alignment - 1) / alignment) * alignment
 }
 
 /// Initializes a new or attaches to an exising event.
