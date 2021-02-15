@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! This module implements a "workspace" - basically a wrapper around a shared memory that
+//! is used as an IPC channel for communication between the validation host and it's validation
+//! worker.
+
 use crate::primitives::{ValidationParams, ValidationResult};
 use parity_scale_codec::{Decode, Encode};
 use raw_sync::{
