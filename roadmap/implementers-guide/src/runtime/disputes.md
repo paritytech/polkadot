@@ -90,5 +90,6 @@ PostConclusionAcceptancePeriod: BlockNumber;
 * `is_frozen()`: Load the value of `Frozen` from storage.
 
 * `revert_and_freeze(BlockNumber):
+  1. If `is_frozen()` return.
   1. issue a digest in the block header which indicates the chain is to be abandoned back to the stored block number.
   1. Set `Frozen` to true.
