@@ -1,7 +1,5 @@
 # Availability Recovery
 
-> TODO: <https://github.com/paritytech/polkadot/issues/1597>
-
 This subsystem is the inverse of the [Availability Distribution](availability-distribution.md) subsystem: validators will serve the availability chunks kept in the availability store to nodes who connect to them. And the subsystem will also implement the other side: the logic for nodes to connect to validators, request availability pieces, and reconstruct the `AvailableData`.
 
 This version of the availability recovery subsystem is based off of direct connections to validators. In order to recover any given `AvailableData`, we must recover at least `f + 1` pieces from validators of the session. Thus, we will connect to and query randomly chosen validators until we have received `f + 1` pieces.
@@ -26,7 +24,7 @@ Output:
 We hold a state which tracks the current recovery interactions we have live, as well as which request IDs correspond to which interactions. An interaction is a structure encapsulating all interaction with the network necessary to recover the available data.
 
 ```rust
-type DataResponse<T> = Result<(PeerId, T), Unavailable>;
+type DataResponse<T> = Result<(PeerId, ValidatorIndex, T), Unavailable>;
 
 enum Awaited {
     Chunk(AwaitedData<ErasureChunk>),
