@@ -1485,7 +1485,7 @@ mod tests {
 					&header,
 				).await.unwrap().unwrap();
 
-				assert_eq!(window.earliest_session, Some(0));
+				assert_eq!(window.earliest_session, Some(start_session));
 				assert_eq!(
 					window.session_info,
 					(start_session..=session).map(dummy_session_info).collect::<Vec<_>>(),
