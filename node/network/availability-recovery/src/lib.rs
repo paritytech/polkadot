@@ -68,10 +68,18 @@ const N_PARALLEL: usize = 50;
 const LRU_SIZE: usize = 16;
 
 // A timeout for a chunk request.
+#[cfg(not(test))]
 const CHUNK_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
+#[cfg(test)]
+const CHUNK_REQUEST_TIMEOUT: Duration = Duration::from_millis(100);
+
 // A timeout for a full data request.
+#[cfg(not(test))]
 const FULL_DATA_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+#[cfg(test)]
+const FULL_DATA_REQUEST_TIMEOUT: Duration = Duration::from_millis(100);
 
 // A period to poll and clean awaited data.
 const AWAITED_CLEANUP_INTERVAL: Duration = Duration::from_secs(1);
@@ -803,6 +811,7 @@ async fn handle_from_interaction(
 
 			let token = state.connecting_validators.push(rx);
 
+			println!("pushing full data request");
 			state.discovering_validators.entry(id).or_default().push(Awaited::FullData(AwaitedData {
 				validator_index,
 				candidate_hash,
