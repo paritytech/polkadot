@@ -160,6 +160,7 @@ enum AvailabilityRecoveryMessage {
     RecoverAvailableData(
         CandidateReceipt,
         SessionIndex,
+        Option<GroupIndex>, // Backing validator group to request the data directly from.
         ResponseChannel<Result<AvailableData, RecoveryError>>,
     ),
 }
