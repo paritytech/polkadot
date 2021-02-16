@@ -880,7 +880,7 @@ mod tests {
 
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -957,7 +957,7 @@ mod tests {
 			}
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1266,7 +1266,7 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1371,7 +1371,7 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1451,7 +1451,7 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	fn cache_session_info_test(
@@ -1519,7 +1519,7 @@ mod tests {
 			}
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1679,7 +1679,7 @@ mod tests {
 			}
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1744,6 +1744,6 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 }
