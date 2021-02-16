@@ -313,7 +313,8 @@ async fn cache_session_info_for_head(
 					return Ok(Err(SessionsUnavailable));
 				}
 				Some(s) => {
-					session_window.session_info.drain(..overlap_start as usize);
+					let outdated = std::cmp::min(overlap_start as usize, session_window.session_info.len());
+					session_window.session_info.drain(..outdated);
 					session_window.session_info.extend(s);
 					session_window.earliest_session = Some(window_start);
 				}
