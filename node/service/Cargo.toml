@@ -19,6 +19,7 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -95,6 +96,7 @@ polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true
 polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
+polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
@@ -132,4 +134,5 @@ real-overseer = [
 	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
+	"polkadot-node-core-approval-voting",
 ]
