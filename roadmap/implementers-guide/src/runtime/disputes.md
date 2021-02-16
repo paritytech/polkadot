@@ -48,8 +48,10 @@ Configuration:
 ```rust
 /// How many sessions before the current that disputes should be accepted for.
 DisputePeriod: SessionIndex;
-/// How long after conclusion to accept statments.
+/// How long after conclusion to accept statements.
 PostConclusionAcceptancePeriod: BlockNumber;
+/// How long is takes for a dispute to conclude by time-out, if no supermajority is reached.
+ConclusionByTimeOutPeriod: BlockNumber;
 ```
 
 ## Session Change
@@ -58,6 +60,10 @@ PostConclusionAcceptancePeriod: BlockNumber;
 1. Set `pruning_target = current_session - dispute_period - 1`. We add the extra `1` because we want to keep things for `dispute_period` _full_ sessions. The stuff at the end of the most recent session has been around for ~0 sessions, not ~1.
 1. If `LastPrunedSession` is `None`, then set `LastPrunedSession` to `Some(pruning_target)` and return.
 1. Otherwise, clear out all disputes and included candidates in the range `last_pruned..=pruning_target` and set `LastPrunedSession` to `Some(pruning_target)`.
+
+## Block Initialization
+
+1. Iterate through all disputes. If any have not concluded and started more than `ConclusionByTimeOutPeriod` blocks ago, set them to `Concluded` and mildly punish all validators associated, as they have failed to distribute available data.
 
 ## Routines
 
