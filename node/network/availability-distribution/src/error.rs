@@ -20,6 +20,7 @@ use thiserror::Error;
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::Error as UtilError;
+use polkadot_primitives::v1::SessionIndex;
 use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	SubsystemError,
@@ -50,6 +51,10 @@ pub enum Error {
 	/// Some request to the runtime failed.
 	#[error("Runtime request failed")]
 	RuntimeRequest(#[source] RuntimeApiError),
+
+	/// We tried fetching a session which was not available.
+	#[error("No such session")]
+	NoSuchSession(SessionIndex),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

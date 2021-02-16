@@ -24,11 +24,12 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem_util::{
-	request_session_index_for_child_ctx, request_validator_groups_ctx, request_validators_ctx,
+	request_session_index_for_child_ctx, request_session_info_ctx,
 };
+use polkadot_primitives::v1::SessionInfo as GlobalSessionInfo;
 use polkadot_primitives::v1::{
 	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, Hash, HashT,
-	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
+	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID, AuthorityDiscoveryId
 };
 use polkadot_subsystem::{
 	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
@@ -73,10 +74,14 @@ pub struct SessionInfo {
 	/// Each group's order is randomized. This way we achieve load balancing when requesting
 	/// chunks, as the validators in a group will be tried in that randomized order. Each node
 	/// should arrive at a different order, therefore we distribute the load.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	pub validator_groups: Vec<Vec<AuthorityDiscoveryId>>,
 
 	/// Information about ourself:
 	pub our_index: ValidatorIndex,
+	//// Remember to which group we blong, so we won't start fetching chunks for candidates we
+	//// backed our selves.
+	// TODO: Implement this:
+	// pub our_group: GroupIndex,
 }
 
 impl SessionCache {
@@ -114,24 +119,14 @@ impl SessionCache {
 		// session info matches way longer than necessary (for an entire session), but the overhead
 		// should be low enough to not matter.
 		self.bury_dead();
-		if let Some((our_index, validators)) = self.query_validator_info(ctx, parent).await? {
-			let (mut validator_groups, _) =
-				recv_runtime(request_validator_groups_ctx(parent, ctx).await).await?;
 
-			// Shuffle validators in groups:
-			let mut rng = thread_rng();
-			for g in validator_groups.iter_mut() {
-				g.shuffle(&mut rng)
-			}
-
-			let info = Rc::new(SessionInfo {
-				validator_groups,
-				our_index,
-				session_index,
-			});
-			let downgraded = Rc::downgrade(&info);
-			self.by_relay_parent.insert(parent, downgraded.clone());
-			self.by_session_index.insert(session_index, downgraded);
+		if let Some(info) = self
+			.query_info_from_runtime(ctx, parent, session_index)
+			.await?
+		{
+			self.by_relay_parent.insert(parent, Rc::downgrade(&info));
+			self.by_session_index
+				.insert(session_index, Rc::downgrade(&info));
 			return Ok(Some(info));
 		}
 		Ok(None)
@@ -152,26 +147,71 @@ impl SessionCache {
 		upgrade_report_dead(weak_ref)
 	}
 
-	/// Get our validator id and the validators in the current session.
+	/// Query needed information from runtime.
 	///
-	/// Returns: Ok(None) if we are not a validator.
-	async fn query_validator_info<Context>(
+	/// We need to pass in the relay parent for our call to `request_session_info_ctx`. We should
+	/// actually don't need that, I suppose it is used for internal caching based on relay parents,
+	/// which we don't use here. It should not do any harm though.
+	async fn query_info_from_runtime<Context>(
 		&self,
 		ctx: &mut Context,
 		parent: Hash,
-	) -> Result<Option<(ValidatorIndex, Vec<ValidatorId>)>>
+		session_index: SessionIndex,
+	) -> Result<Option<Rc<SessionInfo>>>
 	where
 		Context: SubsystemContext,
 	{
-		let validators = recv_runtime(request_validators_ctx(parent, ctx).await).await?;
+		let GlobalSessionInfo {
+			validators,
+			discovery_keys,
+			mut validator_groups,
+			..
+		} = recv_runtime(request_session_info_ctx(parent, session_index, ctx).await)
+			.await?
+			.ok_or(Error::NoSuchSession(session_index))?;
+
+		if let Some(our_index) = self.get_our_index(validators).await {
+			// Shuffle validators in groups:
+			let mut rng = thread_rng();
+			for g in validator_groups.iter_mut() {
+				g.shuffle(&mut rng)
+			}
+			// Look up `AuthorityDiscoveryId`s right away:
+			let validator_groups: Vec<Vec<_>> = validator_groups
+				.into_iter()
+				.map(|group| {
+					group
+						.into_iter()
+						.map(|index| {
+							discovery_keys.get(Into<u32>::into(index) as usize)
+							.expect("There should be a discovery key for each validator of each validator group. qed.").clone()
+						})
+						.collect()
+				})
+				.collect();
+
+			let info = Rc::new(SessionInfo {
+				validator_groups,
+				our_index,
+				session_index,
+			});
+			return Ok(Some(info));
+		}
+		return Ok(None);
+	}
+
+	/// Get our validator id and the validators in the current session.
+	///
+	/// Returns: Ok(None) if we are not a validator.
+	async fn get_our_index(&self, validators: Vec<ValidatorId>) -> Option<ValidatorIndex> {
 		for (i, v) in validators.iter().enumerate() {
 			if CryptoStore::has_keys(&*self.keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
 				.await
 			{
-				return Ok(Some((ValidatorIndex(i as u32), validators)));
+				return Some(ValidatorIndex(i as u32));
 			}
 		}
-		Ok(None)
+		None
 	}
 
 	/// Get rid of the dead bodies from time to time.
