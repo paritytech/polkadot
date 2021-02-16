@@ -121,13 +121,13 @@ async fn determine_new_blocks(
 		return Ok(ancestry);
 	}
 
-	loop {
+	'outer: loop {
 		let &(ref last_hash, ref last_header) = ancestry.last()
 			.expect("ancestry has length 1 at initialization and is only added to; qed");
 
 		// If we iterated back to genesis, which can happen at the beginning of chains.
 		if last_header.number <= 1 {
-			break
+			break 'outer
 		}
 
 		let (tx, rx) = oneshot::channel();
@@ -139,7 +139,7 @@ async fn determine_new_blocks(
 
 		// Continue past these errors.
 		let batch_hashes = match rx.await {
-			Err(_) | Ok(Err(_)) => break,
+			Err(_) | Ok(Err(_)) => break 'outer,
 			Ok(Ok(ancestors)) => ancestors,
 		};
 
@@ -179,7 +179,7 @@ async fn determine_new_blocks(
 			let is_relevant = header.number > finalized_number;
 
 			if is_known || !is_relevant {
-				break
+				break 'outer
 			}
 
 			ancestry.push((hash, header));
