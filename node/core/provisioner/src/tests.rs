@@ -426,4 +426,63 @@ mod select_candidates {
 				);
 		})
 	}
+
+	#[test]
+	fn selects_max_one_code_upgrade() {
+		let mock_cores = mock_availability_cores();
+		let n_cores = mock_cores.len();
+
+		let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
+
+		// why those particular indices? see the comments on mock_availability_cores()
+		// the first candidate with code is included out of [1, 4, 7, 8, 10].
+		let cores = [1, 7, 10];
+		let cores_with_code = [1, 4, 8];
+
+		let committed_receipts: Vec<_> = (0..mock_cores.len())
+			.map(|i| CommittedCandidateReceipt {
+				descriptor: CandidateDescriptor {
+					para_id: i.into(),
+					persisted_validation_data_hash: empty_hash,
+					..Default::default()
+				},
+				commitments: CandidateCommitments {
+					new_validation_code: if cores_with_code.contains(&i) { Some(vec![].into()) } else { None },
+					..Default::default()
+				},
+				..Default::default()
+			})
+			.collect();
+
+		let candidates: Vec<_> = committed_receipts.iter().map(|r| r.to_plain()).collect();
+
+		let expected_candidates: Vec<_> = cores
+			.iter()
+			.map(|&idx| candidates[idx].clone())
+			.collect();
+
+		let expected_backed: Vec<_> = cores
+			.iter()
+			.map(|&idx| BackedCandidate {
+				candidate: committed_receipts[idx].clone(),
+				validity_votes: Vec::new(),
+				validator_indices: default_bitvec(n_cores),
+			})
+			.collect();
+
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+			let result =
+				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
+					.await.unwrap();
+
+			result.into_iter()
+				.for_each(|c|
+					assert!(
+						expected_candidates.iter().any(|c2| c.candidate.corresponds_to(c2)),
+						"Failed to find candidate: {:?}",
+						c,
+					)
+				);
+		})
+	}
 }
