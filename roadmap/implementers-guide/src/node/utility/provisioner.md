@@ -34,9 +34,9 @@ Dispute resolution is complex and is explained in substantially more detail [her
 
 Input: [`ProvisionerMessage`](../../types/overseer-protocol.md#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.md), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.md), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.md).
 
-At initialization, this subsystem has no outputs. Block authors can send a `ProvisionerMessage::RequestBlockAuthorshipData`, which includes a channel over which provisionable data can be sent. All appropriate provisionable data will then be sent over this channel, as it is received.
+At initialization, this subsystem has no outputs.
 
-Note that block authors must re-send a `ProvisionerMessage::RequestBlockAuthorshipData` for each relay parent they are interested in receiving provisionable data for.
+Block authors request the inherent data they should use for constructing the inherent in the block which contains parachain execution information.
 
 ## Block Production
 
@@ -88,8 +88,6 @@ To compute bitfield availability, then:
 ### Notes
 
 See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores).
-
-One might ask: given `ProvisionerMessage::RequestInherentData`, what's the point of `ProvisionerMessage::RequestBlockAuthorshipData`? The answer is that the block authorship data includes more information than is present in the inherent data; disputes, for example.
 
 ## Functionality
 

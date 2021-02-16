@@ -84,7 +84,6 @@ struct ProvisioningJob {
 	relay_parent: Hash,
 	sender: mpsc::Sender<FromJobCommand>,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
-	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
 	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
@@ -173,7 +172,6 @@ impl ProvisioningJob {
 			relay_parent,
 			sender,
 			receiver,
-			provisionable_data_channels: Vec::new(),
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
 			metrics,
@@ -184,7 +182,7 @@ impl ProvisioningJob {
 
 	async fn run_loop(mut self, span: PerLeafSpan) -> Result<(), Error> {
 		use ProvisionerMessage::{
-			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
+			ProvisionableData, RequestInherentData,
 		};
 		loop {
 			futures::select! {
@@ -199,45 +197,11 @@ impl ProvisioningJob {
 							self.awaiting_inherent.push(return_sender);
 						}
 					}
-					Some(RequestBlockAuthorshipData(_, sender)) => {
-						let _span = span.child("req-block-authorship");
-						self.provisionable_data_channels.push(sender)
-					}
 					Some(ProvisionableData(_, data)) => {
 						let _span = span.child("provisionable-data");
 						let _timer = self.metrics.time_provisionable_data();
 
-						let mut bad_indices = Vec::new();
-						for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
-							match channel.send(data.clone()).await {
-								Ok(_) => {}
-								Err(_) => bad_indices.push(idx),
-							}
-						}
 						self.note_provisionable_data(data);
-
-						// clean up our list of channels by removing the bad indices
-						// start by reversing it for efficient pop
-						bad_indices.reverse();
-						// Vec::retain would be nicer here, but it doesn't provide
-						// an easy API for retaining by index, so we re-collect instead.
-						self.provisionable_data_channels = self
-							.provisionable_data_channels
-							.into_iter()
-							.enumerate()
-							.filter(|(idx, _)| {
-								if bad_indices.is_empty() {
-									return true;
-								}
-								let tail = bad_indices[bad_indices.len() - 1];
-								let retain = *idx != tail;
-								if *idx >= tail {
-									let _ = bad_indices.pop();
-								}
-								retain
-							})
-							.map(|(_, item)| item)
-							.collect();
 					}
 					None => break,
 				},
