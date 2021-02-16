@@ -267,18 +267,9 @@ pub struct ValidationParams {
 	/// The collation body.
 	pub block_data: BlockData,
 	/// The current relay-chain block number.
-	pub relay_chain_height: RelayChainBlockNumber,
+	pub relay_parent_number: RelayChainBlockNumber,
 	/// The relay-chain block's storage root.
-	pub relay_storage_root: Hash,
-	/// The MQC head for the DMQ.
-	///
-	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
-	/// passed by the collator.
-	pub dmq_mqc_head: Hash,
-	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
+	pub relay_parent_storage_root: Hash,
 }
 
 /// The result of parachain validation.

@@ -39,6 +39,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
 };
+use polkadot_node_primitives::SignedFullStatement;
 use std::{pin::Pin, sync::Arc};
 use thiserror::Error;
 
@@ -190,6 +191,10 @@ impl CandidateSelectionJob {
 					let _span = span.child("handle-invalid");
 					self.handle_invalid(candidate_receipt).await;
 				}
+				Some(CandidateSelectionMessage::Seconded(_, statement)) => {
+					let _span = span.child("handle-seconded");
+					self.handle_seconded(statement).await;
+				}
 				None => break,
 			}
 		}
@@ -251,9 +256,7 @@ impl CandidateSelectionJob {
 				pov,
 				&mut self.sender,
 				&self.metrics,
-			)
-			.await
-			{
+			).await {
 				Err(err) => tracing::warn!(target: LOG_TARGET, err = ?err, "failed to second a candidate"),
 				Ok(()) => self.seconded_candidate = Some(collator_id),
 			}
@@ -292,6 +295,46 @@ impl CandidateSelectionJob {
 				Ok(())
 			};
 		self.metrics.on_invalid_selection(result);
+	}
+
+	async fn handle_seconded(&mut self, statement: SignedFullStatement) {
+		let received_from = match &self.seconded_candidate {
+			Some(peer) => peer,
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"received seconded notice for a candidate we don't remember seconding"
+				);
+				return;
+			}
+		};
+		tracing::debug!(
+			target: LOG_TARGET,
+			statement = ?statement,
+			"received seconded note for candidate",
+		);
+
+		if let Err(e) = self.sender
+			.send(AllMessages::from(CollatorProtocolMessage::NoteGoodCollation(received_from.clone())).into()).await
+		{
+			tracing::debug!(
+				target: LOG_TARGET,
+				error = ?e,
+				"failed to note good collator"
+			);
+		}
+
+		if let Err(e) = self.sender
+			.send(AllMessages::from(
+				CollatorProtocolMessage::NotifyCollationSeconded(received_from.clone(), statement)
+			).into()).await
+		{
+			tracing::debug!(
+				target: LOG_TARGET,
+				error = ?e,
+				"failed to notify collator about seconded collation"
+			);
+		}
 	}
 }
 

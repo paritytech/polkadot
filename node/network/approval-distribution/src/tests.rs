@@ -202,7 +202,7 @@ fn try_import_the_same_assignment() {
 			parent_hash,
 			number: 2,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -222,6 +222,7 @@ fn try_import_the_same_assignment() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
+				0u32,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
@@ -288,7 +289,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 			parent_hash,
 			number: 2,
 			candidates: vec![Default::default(); candidates_count],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
@@ -313,9 +314,11 @@ fn spam_attack_results_in_negative_reputation_change() {
 				overseer_recv(overseer).await,
 				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 					assignment,
+					claimed_candidate_index,
 					tx,
 				)) => {
 					assert_eq!(assignment, assignments[i].0);
+					assert_eq!(claimed_candidate_index, assignments[i].1);
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
@@ -363,7 +366,7 @@ fn import_approval_happy_path() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -447,7 +450,7 @@ fn import_approval_bad() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -477,9 +480,11 @@ fn import_approval_bad() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
+				i,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
+				assert_eq!(i, candidate_index);
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
@@ -521,21 +526,21 @@ fn update_our_view() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_b = BlockApprovalMeta {
 			hash: hash_b,
 			parent_hash: hash_a,
 			number: 2,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_c = BlockApprovalMeta {
 			hash: hash_c,
 			parent_hash: hash_b,
 			number: 3,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
@@ -591,21 +596,21 @@ fn update_peer_view() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_b = BlockApprovalMeta {
 			hash: hash_b,
 			parent_hash: hash_a,
 			number: 2,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let meta_c = BlockApprovalMeta {
 			hash: hash_c,
 			parent_hash: hash_b,
 			number: 3,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
@@ -742,7 +747,7 @@ fn import_remotely_then_locally() {
 			parent_hash,
 			number: 1,
 			candidates: vec![Default::default(); 1],
-			slot_number: 1,
+			slot: 1.into(),
 		};
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
@@ -760,9 +765,11 @@ fn import_remotely_then_locally() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
+				i,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
+				assert_eq!(i, candidate_index);
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
