@@ -21,7 +21,7 @@
 
 use sp_std::prelude::*;
 use frame_support::weights::Weight;
-use primitives::v1::ValidatorId;
+use primitives::v1::{ValidatorId, SessionIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
@@ -45,7 +45,7 @@ pub struct SessionChangeNotification<BlockNumber> {
 	/// A secure random seed for the session, gathered from BABE.
 	pub random_seed: [u8; 32],
 	/// New session index.
-	pub session_index: sp_staking::SessionIndex,
+	pub session_index: SessionIndex,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
@@ -65,7 +65,7 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 struct BufferedSessionChange {
 	validators: Vec<ValidatorId>,
 	queued: Vec<ValidatorId>,
-	session_index: sp_staking::SessionIndex,
+	session_index: SessionIndex,
 }
 
 pub trait Config:
@@ -173,7 +173,7 @@ decl_module! {
 
 impl<T: Config> Module<T> {
 	fn apply_new_session(
-		session_index: sp_staking::SessionIndex,
+		session_index: SessionIndex,
 		validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
@@ -189,7 +189,7 @@ impl<T: Config> Module<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&validators, &queued);
+		configuration::Module::<T>::initializer_on_new_session(&validators, &queued, &session_index);
 
 		let new_config = <configuration::Module<T>>::config();
 
@@ -216,7 +216,7 @@ impl<T: Config> Module<T> {
 	/// at the end of the block. If `queued` is `None`, the `validators` are considered queued.
 	fn on_new_session<'a, I: 'a>(
 		_changed: bool,
-		session_index: sp_staking::SessionIndex,
+		session_index: SessionIndex,
 		validators: I,
 		queued: Option<I>,
 	)

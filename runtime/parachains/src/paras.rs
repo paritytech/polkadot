@@ -119,9 +119,6 @@ pub enum ParaLifecycle {
 	OffboardingParachain,
 }
 
-// Wait until the session index is 2 larger then the current index to apply any changes.
-pub(crate) const SESSION_DELAY: SessionIndex = 2;
-
 impl ParaLifecycle {
 	/// Returns true if parachain is currently onboarding. To learn if the
 	/// parachain is onboarding as a parachain or parathread, look at the
@@ -523,7 +520,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Will return error if para is already registered in the system.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
-		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
+		let scheduled_session = Self::scheduled_session();
 
 		// Make sure parachain isn't already in our system.
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
@@ -543,7 +540,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Will return error if para is not a stable parachain or parathread.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
-		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
+		let scheduled_session = Self::scheduled_session();
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		match lifecycle {
@@ -570,7 +567,7 @@ impl<T: Config> Module<T> {
 	/// Will return error if `ParaLifecycle` is not `Parathread`.
 	#[allow(unused)]
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
-		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
+		let scheduled_session = Self::scheduled_session();
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		ensure!(lifecycle == ParaLifecycle::Parathread, Error::<T>::CannotUpgrade);
@@ -590,7 +587,7 @@ impl<T: Config> Module<T> {
 	/// Noop if `ParaLifecycle` is not `Parachain`.
 	#[allow(unused)]
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
-		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
+		let scheduled_session = Self::scheduled_session();
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		ensure!(lifecycle == ParaLifecycle::Parachain, Error::<T>::CannotDowngrade);
@@ -750,6 +747,11 @@ impl<T: Config> Module<T> {
 		}
 
 		Self::past_code_meta(&id).most_recent_change()
+	}
+
+	/// Return the session index that should be used for any future scheduled changes.
+	fn scheduled_session() -> SessionIndex {
+		shared::Module::<T>::scheduled_session()
 	}
 }
 
@@ -1245,7 +1247,7 @@ mod tests {
 			// Just scheduling cleanup shouldn't change anything.
 			{
 				assert_eq!(
-					<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY),
+					<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
 					vec![para_id],
 				);
 				assert_eq!(Paras::parachains(), vec![para_id]);
@@ -1321,7 +1323,7 @@ mod tests {
 			));
 
 			assert_eq!(
-				<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY),
+				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
 				vec![c, b, a],
 			);
 
@@ -1335,7 +1337,7 @@ mod tests {
 
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(
-				<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY),
+				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
 				vec![c, b, a],
 			);
 
@@ -1349,7 +1351,7 @@ mod tests {
 			run_to_block(4, Some(vec![3,4]));
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
-			assert_eq!(<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY), Vec::new());
+			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), Vec::new());
 
 			// Lifecycle is tracked correctly
 			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));

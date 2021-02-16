@@ -24,12 +24,14 @@ use frame_support::{
 	decl_storage, decl_module, decl_error,
 	weights::Weight,
 };
-use crate::{
-	configuration,
-	initializer::SessionChangeNotification,
-};
+use crate::initializer::SessionChangeNotification;
 
-pub trait Config: frame_system::Config + configuration::Config { }
+pub trait Config: frame_system::Config { }
+
+// `SESSION_DELAY` is used to delay any changes to Paras registration or configurations.
+// Wait until the session index is 2 larger then the current index to apply any changes,
+// which guarantees that at least one full session has passed before any changes are applied.
+pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParasShared {
@@ -63,6 +65,11 @@ impl<T: Config> Module<T> {
 	/// Returns the list of outgoing paras from the actions queue.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
 		CurrentSessionIndex::set(notification.session_index);
+	}
+
+	/// Return the session index that should be used for any future scheduled changes.
+	pub (crate) fn scheduled_session() -> SessionIndex {
+		Self::session_index().saturating_add(SESSION_DELAY)
 	}
 
 	#[cfg(test)]

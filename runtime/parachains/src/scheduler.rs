@@ -770,7 +770,7 @@ mod tests {
 				let mut notification_with_session_index = notification;
 				// We will make every session change trigger an action queue. Normally this may require 2 or more session changes.
 				if notification_with_session_index.session_index == SessionIndex::default() {
-					notification_with_session_index.session_index = Shared::session_index() + crate::paras::SESSION_DELAY;
+					notification_with_session_index.session_index = Shared::scheduled_session();
 				}
 				Paras::initializer_on_new_session(&notification_with_session_index);
 				Scheduler::initializer_on_new_session(&notification_with_session_index);
