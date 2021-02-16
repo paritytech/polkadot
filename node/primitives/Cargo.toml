@@ -12,5 +12,8 @@ polkadot-statement-table = { path = "../../statement-table" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+schnorrkel = "0.9.1"
+thiserror = "1.0.22"

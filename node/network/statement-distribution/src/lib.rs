@@ -40,7 +40,7 @@ use polkadot_node_network_protocol::{
 };
 
 use futures::prelude::*;
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
 use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet};
@@ -499,27 +499,6 @@ fn check_statement_signature(
 		.and_then(|v| statement.check_signature(&signing_context, v))
 }
 
-type StatementListeners = Vec<mpsc::Sender<SignedFullStatement>>;
-
-/// Informs all registered listeners about a newly received statement.
-///
-/// Removes all closed listeners.
-#[tracing::instrument(level = "trace", skip(listeners), fields(subsystem = LOG_TARGET))]
-async fn inform_statement_listeners(
-	statement: &SignedFullStatement,
-	listeners: &mut StatementListeners,
-) {
-	// Ignore the errors since these will be removed later.
-	stream::iter(listeners.iter_mut()).for_each_concurrent(
-		None,
-		|listener| async move {
-			let _ = listener.send(statement.clone()).await;
-		}
-	).await;
-	// Remove any closed listeners.
-	listeners.retain(|tx| !tx.is_closed());
-}
-
 /// Places the statement in storage if it is new, and then
 /// circulates the statement to all peers who have not seen it yet, and
 /// sends all statements dependent on that statement to peers who could previously not receive
@@ -699,7 +678,6 @@ async fn handle_incoming_message<'a>(
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	message: protocol_v1::StatementDistributionMessage,
 	metrics: &Metrics,
-	statement_listeners: &mut StatementListeners,
 ) -> Option<(Hash, &'a StoredStatement)> {
 	let (relay_parent, statement) = match message {
 		protocol_v1::StatementDistributionMessage::Statement(r, s) => (r, s),
@@ -770,8 +748,6 @@ async fn handle_incoming_message<'a>(
 		Ok(false) => {}
 	}
 
-	inform_statement_listeners(&statement, statement_listeners).await;
-
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
 	match active_head.note_statement(statement) {
@@ -841,7 +817,6 @@ async fn handle_network_update(
 	our_view: &mut OurView,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
-	statement_listeners: &mut StatementListeners,
 ) {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _role) => {
@@ -864,7 +839,6 @@ async fn handle_network_update(
 						ctx,
 						message,
 						metrics,
-						statement_listeners,
 					).await
 				}
 				None => None,
@@ -931,7 +905,6 @@ impl StatementDistribution {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut our_view = OurView::default();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
-		let mut statement_listeners = StatementListeners::new();
 		let metrics = self.metrics;
 
 		loop {
@@ -993,10 +966,6 @@ impl StatementDistribution {
 					StatementDistributionMessage::Share(relay_parent, statement) => {
 						let _timer = metrics.time_share();
 
-						inform_statement_listeners(
-							&statement,
-							&mut statement_listeners,
-						).await;
 						circulate_statement_and_dependents(
 							&mut peers,
 							&mut active_heads,
@@ -1016,11 +985,7 @@ impl StatementDistribution {
 							&mut our_view,
 							event,
 							&metrics,
-							&mut statement_listeners,
 						).await;
-					}
-					StatementDistributionMessage::RegisterStatementListener(tx) => {
-						statement_listeners.push(tx);
 					}
 				}
 			}

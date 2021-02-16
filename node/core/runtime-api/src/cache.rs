@@ -20,6 +20,7 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, SessionInfo, ValidationCode, ValidatorId, ValidatorIndex,
 };
+use sp_consensus_babe::Epoch;
 use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 
 
@@ -40,12 +41,21 @@ const CANDIDATE_EVENTS_CACHE_SIZE: usize = 64 * 1024;
 const SESSION_INFO_CACHE_SIZE: usize = 64 * 1024;
 const DMQ_CONTENTS_CACHE_SIZE: usize = 64 * 1024;
 const INBOUND_HRMP_CHANNELS_CACHE_SIZE: usize = 64 * 1024;
+const CURRENT_BABE_EPOCH_CACHE_SIZE: usize = 64 * 1024;
 
 struct ResidentSizeOf<T>(T);
 
 impl<T: MallocSizeOf> ResidentSize for ResidentSizeOf<T> {
 	fn resident_size(&self) -> usize {
 		std::mem::size_of::<Self>() + self.0.malloc_size_of()
+	}
+}
+
+struct DoesNotAllocate<T>(T);
+
+impl<T> ResidentSize for DoesNotAllocate<T> {
+	fn resident_size(&self) -> usize {
+		std::mem::size_of::<Self>()
 	}
 }
 
@@ -63,6 +73,7 @@ pub(crate) struct RequestResultCache {
 	session_info: MemoryLruCache<(Hash, SessionIndex), ResidentSizeOf<Option<SessionInfo>>>,
 	dmq_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
 	inbound_hrmp_channels_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>>,
+	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
 }
 
 impl Default for RequestResultCache {
@@ -81,6 +92,7 @@ impl Default for RequestResultCache {
 			session_info: MemoryLruCache::new(SESSION_INFO_CACHE_SIZE),
 			dmq_contents: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
+			current_babe_epoch: MemoryLruCache::new(CURRENT_BABE_EPOCH_CACHE_SIZE),
 		}
 	}
 }
@@ -189,6 +201,14 @@ impl RequestResultCache {
 	pub(crate) fn cache_inbound_hrmp_channel_contents(&mut self, key: (Hash, ParaId), value: BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>) {
 		self.inbound_hrmp_channels_contents.insert(key, ResidentSizeOf(value));
 	}
+
+	pub(crate) fn current_babe_epoch(&mut self, relay_parent: &Hash) -> Option<&Epoch> {
+		self.current_babe_epoch.get(relay_parent).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_current_babe_epoch(&mut self, relay_parent: Hash, epoch: Epoch) {
+		self.current_babe_epoch.insert(relay_parent, DoesNotAllocate(epoch));
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -205,4 +225,5 @@ pub(crate) enum RequestResult {
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(Hash, ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>),
+	CurrentBabeEpoch(Hash, Epoch),
 }

@@ -13,13 +13,14 @@ sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 
@@ -97,6 +98,7 @@ polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true
 polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
+polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
@@ -134,4 +136,5 @@ real-overseer = [
 	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
+	"polkadot-node-core-approval-voting",
 ]

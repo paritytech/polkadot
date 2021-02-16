@@ -27,6 +27,7 @@ use futures::{
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateDescriptor, CandidateReceipt, HeadData,
 	PersistedValidationData, PoV, Id as ParaId, CandidateHash, Header, ValidatorId,
+	CoreIndex, GroupIndex,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
@@ -217,6 +218,15 @@ fn with_tx(db: &Arc<impl KeyValueDB>, f: impl FnOnce(&mut DBTransaction)) {
 	let mut tx = DBTransaction::new();
 	f(&mut tx);
 	db.write(tx).unwrap();
+}
+
+fn candidate_included(receipt: CandidateReceipt) -> CandidateEvent {
+	CandidateEvent::CandidateIncluded(
+		receipt,
+		HeadData::default(),
+		CoreIndex::default(),
+		GroupIndex::default(),
+	)
 }
 
 #[test]
@@ -595,7 +605,7 @@ fn stored_data_kept_until_finalized() {
 			&mut virtual_overseer,
 			parent,
 			block_number,
-			vec![CandidateEvent::CandidateIncluded(candidate, HeadData::default())],
+			vec![candidate_included(candidate)],
 			(0..n_validators).map(|_| Sr25519Keyring::Alice.public().into()).collect(),
 		).await;
 
@@ -737,7 +747,7 @@ fn forkfullness_works() {
 			&mut virtual_overseer,
 			parent_1,
 			block_number_1,
-			vec![CandidateEvent::CandidateIncluded(candidate_1, HeadData::default())],
+			vec![candidate_included(candidate_1)],
 			validators.clone(),
 		).await;
 
@@ -745,7 +755,7 @@ fn forkfullness_works() {
 			&mut virtual_overseer,
 			parent_2,
 			block_number_2,
-			vec![CandidateEvent::CandidateIncluded(candidate_2, HeadData::default())],
+			vec![candidate_included(candidate_2)],
 			validators.clone(),
 		).await;
 
