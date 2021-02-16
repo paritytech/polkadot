@@ -528,7 +528,12 @@ impl CandidateBackingJob {
 								descriptor: candidate.descriptor.clone(),
 								commitments,
 							});
-							self.sign_import_and_distribute_statement(statement, parent_span).await?;
+							if let Some(stmt) = self.sign_import_and_distribute_statement(
+								statement,
+								parent_span,
+							).await? {
+								self.issue_candidate_seconded_message(stmt).await?;
+							}
 							self.distribute_pov(candidate.descriptor, pov).await?;
 						}
 					}
@@ -586,6 +591,15 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	async fn issue_candidate_seconded_message(
+		&mut self,
+		statement: SignedFullStatement,
+	) -> Result<(), Error> {
+		self.tx_from.send(AllMessages::from(CandidateSelectionMessage::Seconded(self.parent, statement)).into()).await?;
+
+		Ok(())
+	}
+
 	/// Kick off background validation with intent to second.
 	#[tracing::instrument(level = "trace", skip(self, parent_span, pov), fields(subsystem = LOG_TARGET))]
 	async fn validate_and_second(
@@ -631,13 +645,14 @@ impl CandidateBackingJob {
 		&mut self,
 		statement: Statement,
 		parent_span: &JaegerSpan,
-	) -> Result<(), Error> {
+	) -> Result<Option<SignedFullStatement>, Error> {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
 			self.import_statement(&signed_statement, parent_span).await?;
-			self.distribute_signed_statement(signed_statement).await?;
+			self.distribute_signed_statement(signed_statement.clone()).await?;
+			Ok(Some(signed_statement))
+		} else {
+			Ok(None)
 		}
-
-		Ok(())
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
@@ -1483,6 +1498,14 @@ mod tests {
 						&test_state.signing_context,
 						&test_state.validator_public[0],
 					).unwrap();
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateSelection(CandidateSelectionMessage::Seconded(hash, statement)) => {
+					assert_eq!(test_state.relay_parent, hash);
+					assert_matches!(statement.payload(), Statement::Seconded(_));
 				}
 			);
 

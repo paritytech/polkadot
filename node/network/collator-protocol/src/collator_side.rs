@@ -18,10 +18,10 @@ use std::collections::{HashMap, HashSet};
 
 use super::{LOG_TARGET,  Result};
 
-use futures::{select, FutureExt};
+use futures::{select, FutureExt, channel::oneshot};
 
 use polkadot_primitives::v1::{
-	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
+	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId, CandidateHash,
 };
 use polkadot_subsystem::{
 	jaeger, PerLeafSpan,
@@ -38,6 +38,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores_ctx,
 	metrics::{self, prometheus},
 };
+use polkadot_node_primitives::{SignedFullStatement, Statement};
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -195,6 +196,9 @@ struct State {
 	/// We will keep up to one local collation per relay-parent.
 	collations: HashMap<Hash, (CandidateReceipt, PoV)>,
 
+	/// The result senders per collation.
+	collation_result_senders: HashMap<CandidateHash, oneshot::Sender<SignedFullStatement>>,
+
 	/// Our validator groups per active leaf.
 	our_validators_groups: HashMap<Hash, ValidatorGroup>,
 
@@ -230,6 +234,7 @@ async fn distribute_collation(
 	id: ParaId,
 	receipt: CandidateReceipt,
 	pov: PoV,
+	result_sender: Option<oneshot::Sender<SignedFullStatement>>,
 ) -> Result<()> {
 	let relay_parent = receipt.descriptor.relay_parent;
 
@@ -288,6 +293,10 @@ async fn distribute_collation(
 	).await?;
 
 	state.our_validators_groups.insert(relay_parent, current_validators.into());
+
+	if let Some(result_sender) = result_sender {
+		state.collation_result_senders.insert(receipt.hash(), result_sender);
+	}
 
 	state.collations.insert(relay_parent, (receipt, pov));
 
@@ -438,7 +447,7 @@ async fn process_msg(
 		CollateOn(id) => {
 			state.collating_on = Some(id);
 		}
-		DistributeCollation(receipt, pov) => {
+		DistributeCollation(receipt, pov, result_sender) => {
 			let _span1 = state.span_per_relay_parent
 				.get(&receipt.descriptor.relay_parent).map(|s| s.child("distributing-collation"));
 			let _span2 = jaeger::pov_span(&pov, "distributing-collation");
@@ -454,7 +463,7 @@ async fn process_msg(
 					);
 				}
 				Some(id) => {
-					distribute_collation(ctx, state, id, receipt, pov).await?;
+					distribute_collation(ctx, state, id, receipt, pov, result_sender).await?;
 				}
 				None => {
 					tracing::warn!(
@@ -481,6 +490,12 @@ async fn process_msg(
 			tracing::warn!(
 				target: LOG_TARGET,
 				"NoteGoodCollation message is not expected on the collator side of the protocol",
+			);
+		}
+		NotifyCollationSeconded(_, _) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"NotifyCollationSeconded message is not expected on the collator side of the protocol",
 			);
 		}
 		NetworkBridgeUpdateV1(event) => {
@@ -591,6 +606,17 @@ async fn handle_incoming_peer_message(
 				"Collation message is not expected on the collator side of the protocol",
 			);
 		}
+		CollationSeconded(statement) => {
+			if !matches!(statement.payload(), Statement::Seconded(_)) {
+				tracing::warn!(
+					target: LOG_TARGET,
+					statement = ?statement,
+					"Collation seconded message received with none-seconded statement.",
+				);
+			} else if let Some(sender) = state.collation_result_senders.remove(&statement.payload().candidate_hash()) {
+				let _ = sender.send(statement);
+			}
+		}
 	}
 
 	Ok(())
@@ -685,7 +711,9 @@ async fn handle_our_view_change(
 	view: OurView,
 ) -> Result<()> {
 	for removed in state.view.difference(&view) {
-		state.collations.remove(removed);
+		if let Some((receipt, _)) = state.collations.remove(removed) {
+			state.collation_result_senders.remove(&receipt.hash());
+		}
 		state.our_validators_groups.remove(removed);
 		state.connection_requests.remove_all(removed);
 		state.span_per_relay_parent.remove(removed);
@@ -1054,7 +1082,7 @@ mod tests {
 
 		overseer_send(
 			virtual_overseer,
-			CollatorProtocolMessage::DistributeCollation(candidate.clone(), pov_block.clone()),
+			CollatorProtocolMessage::DistributeCollation(candidate.clone(), pov_block.clone(), None),
 		).await;
 
 		// obtain the availability cores.
