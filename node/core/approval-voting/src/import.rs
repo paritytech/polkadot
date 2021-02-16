@@ -186,7 +186,6 @@ async fn determine_new_blocks(
 		}
 	}
 
-	ancestry.reverse();
 	Ok(ancestry)
 }
 
