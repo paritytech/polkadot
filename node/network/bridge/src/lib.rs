@@ -118,7 +118,7 @@ impl<N, AD> NetworkBridge<N, AD> {
 
 impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
-		Net: Network + validator_discovery::Network,
+		Net: Network + validator_discovery::Network + Sync,
 		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
@@ -238,7 +238,10 @@ where
 
 			Action::SendRequests(reqs) => {
 				for req in reqs {
-					bridge.network_service.start_request(req);
+					bridge
+						.network_service
+						.start_request(&mut bridge.authority_discovery_service, req)
+						.await;
 				}
 			},
 
@@ -615,6 +618,7 @@ mod tests {
 	use polkadot_node_network_protocol::{ObservedRole, request_response::request::Requests};
 
 	use crate::network::{Network, NetworkAction};
+	use crate::validator_discovery::AuthorityDiscovery;
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	struct TestNetwork {
@@ -654,6 +658,7 @@ mod tests {
 		)
 	}
 
+	#[async_trait]
 	impl Network for TestNetwork {
 		fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 			self.net_events.lock()
@@ -668,7 +673,7 @@ mod tests {
 			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
 		}
 
-		fn start_request(&self, _: Requests) {
+		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests) {
 		}
 	}
 
