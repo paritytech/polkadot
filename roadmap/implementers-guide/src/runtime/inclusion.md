@@ -36,9 +36,6 @@ PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
 
 /// The current validators, by their parachain session keys.
 Validators: Vec<ValidatorId>;
-
-/// The current session index.
-CurrentSessionIndex: SessionIndex;
 ```
 
 ## Session Change
@@ -46,7 +43,6 @@ CurrentSessionIndex: SessionIndex;
 1. Clear out all candidates pending availability.
 1. Clear out all validator bitfields.
 1. Update `Validators` with the validators from the session change notification.
-1. Update `CurrentSessionIndex` with the session index from the session change notification.
 
 ## Routines
 

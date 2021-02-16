@@ -141,8 +141,6 @@ FutureCode: map ParaId => Option<ValidationCode>;
 ActionsQueue: map SessionIndex => Vec<ParaId>;
 /// Upcoming paras instantiation arguments.
 UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
-/// The current session index.
-CurrentSessionIndex: SessionIndex;
 ```
 
 ## Session Change
