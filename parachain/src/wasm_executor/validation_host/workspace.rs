@@ -36,9 +36,11 @@ use std::{
 };
 
 // maximum memory in bytes
-const MAX_PARAMS_MEM: usize = 1024 * 1024; // 1 MiB
+const MAX_PARAMS_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
-const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
+
+/// The size of the shared workspace region. The maximum amount
+const SHARED_WORKSPACE_SIZE: usize = MAX_PARAMS_MEM + MAX_CODE_MEM + (1024 * 1024);
 
 /// Params header in shared memory. All offsets should be aligned to WASM page size.
 #[derive(Encode, Decode, Debug)]
@@ -48,14 +50,14 @@ struct ValidationHeader {
 }
 
 /// An error that could happen during validation of a candidate.
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
 pub enum WorkerValidationError {
 	InternalError(String),
 	ValidationError(String),
 }
 
 /// An enum that is used to marshal a validation result in order to pass it through the shared memory.
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
 pub enum ValidationResultHeader {
 	Ok(ValidationResult),
 	Error(WorkerValidationError),
@@ -381,11 +383,8 @@ impl HostHandle {
 
 /// Create a new workspace and return a handle to it.
 pub fn create() -> Result<HostHandle, String> {
-	// We actually don't need even that much, because e.g. validation result header will be
-	// written on top clobbering the params and code. We still over allocate just to be safe.
-	let mem_size = MAX_PARAMS_MEM + MAX_CODE_MEM + MAX_VALIDATION_RESULT_HEADER_MEM;
 	let shmem = ShmemConf::new()
-		.size(mem_size)
+		.size(SHARED_WORKSPACE_SIZE)
 		.create()
 		.map_err(|e| format!("Error creating shared memory: {:?}", e))?;
 
@@ -447,6 +446,8 @@ pub fn open(id: &str) -> Result<WorkerHandle, String> {
 
 #[cfg(test)]
 mod tests {
+	use polkadot_core_primitives::OutboundHrmpMessage;
+
 	use crate::primitives::BlockData;
 
 	use super::*;
@@ -552,5 +553,62 @@ mod tests {
 		}
 
 		worker_handle.join().unwrap();
+	}
+
+	#[test]
+	fn works_with_jumbo_sized_params() {
+		let mut host = create().unwrap();
+
+		let jumbo_code = vec![0x42; 16 * 1024 * 104];
+		let fat_pov = vec![0x33; 16 * 1024 * 104];
+		let big_params = ValidationParams {
+			parent_head: Default::default(),
+			block_data: BlockData(fat_pov),
+			relay_parent_number: 228,
+			relay_parent_storage_root: Default::default(),
+			// If modifying please make sure that this has a big size.
+		};
+		let plump_result = ValidationResultHeader::Ok(ValidationResult {
+			head_data: Default::default(),
+			new_validation_code: Some(jumbo_code.clone().into()),
+			processed_downward_messages: 322,
+			hrmp_watermark: 0,
+			// We don't know about the limits here. Just make sure that those are reasonably big.
+			upward_messages: fill(|| vec![0x99; 8 * 1024], 64),
+			horizontal_messages: fill(
+				|| OutboundHrmpMessage {
+					recipient: 1.into(),
+					data: vec![0x11; 8 * 1024],
+				},
+				64,
+			),
+			// If modifying please make sure that this has a big size.
+		});
+
+		let _worker_handle = thread::spawn({
+			let id = host.id().to_string();
+			let jumbo_code = jumbo_code.clone();
+			let big_params = big_params.clone();
+			let plump_result = plump_result.clone();
+			move || {
+				let mut worker = open(&id).unwrap();
+				worker.signal_ready().unwrap();
+
+				let work = worker.wait_for_work(3).unwrap();
+				assert_eq!(work.code, &jumbo_code);
+				assert_eq!(work.params, &big_params.encode());
+
+				worker.report_result(plump_result).unwrap();
+			}
+		});
+
+		host.wait_until_ready(1).unwrap();
+		host.request_validation(&jumbo_code, big_params).unwrap();
+
+		assert_eq!(host.wait_for_result(3).unwrap(), plump_result);
+
+		fn fill<T, F: Fn() -> T>(f: F, times: usize) -> Vec<T> {
+			std::iter::repeat_with(f).take(times).collect()
+		}
 	}
 }
