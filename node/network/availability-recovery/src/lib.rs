@@ -718,6 +718,20 @@ async fn query_chunk(
 	Ok(rx.await.map_err(error::Error::CanceledQueryChunk)?)
 }
 
+/// Queries a chunk from av-store.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+async fn query_full_data(
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	candidate_hash: CandidateHash,
+) -> error::Result<Option<AvailableData>> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AllMessages::AvailabilityStore(
+		AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
+	)).await;
+
+	Ok(rx.await.map_err(error::Error::CanceledQueryFullData)?)
+}
+
 /// Handles message from interaction.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_from_interaction(
@@ -825,6 +839,55 @@ async fn handle_network_update(
 							// Send the chunk response on the awaited_chunk for the interaction to handle.
 							if let Some(chunk) = chunk {
 								if awaited_chunk.response.send(Ok((peer_id, chunk))).is_err() {
+									tracing::debug!(
+										target: LOG_TARGET,
+										"A sending side of the recovery request is closed",
+									);
+								}
+							}
+						}
+						Some(a) => {
+							// If the peer in the entry doesn't match the sending peer,
+							// reinstate the entry, report the peer, and return
+							state.live_requests.insert(request_id, a);
+							report_peer(ctx, peer, COST_UNEXPECTED_CHUNK).await;
+						}
+					}
+				}
+				protocol_v1::AvailabilityRecoveryMessage::RequestFullData(
+					request_id,
+					candidate_hash,
+				) => {
+					// Issue a
+					// AvailabilityStore::QueryAvailableData(candidate-hash, response)
+					// message.
+					let full_data = query_full_data(ctx, candidate_hash).await?;
+
+					// Whatever the result, issue an
+					// AvailabilityRecoveryV1Message::FullData(r_id, response) message.
+					let wire_message = protocol_v1::AvailabilityRecoveryMessage::FullData(
+						request_id,
+						full_data,
+					);
+
+					ctx.send_message(AllMessages::NetworkBridge(
+						NetworkBridgeMessage::SendValidationMessage(
+							vec![peer],
+							protocol_v1::ValidationProtocol::AvailabilityRecovery(wire_message),
+						),
+					)).await;
+				}
+				protocol_v1::AvailabilityRecoveryMessage::FullData(request_id, data) => {
+					match state.live_requests.remove(&request_id) {
+						None => {
+							// If there doesn't exist one, report the peer and return.
+							report_peer(ctx, peer, COST_UNEXPECTED_CHUNK).await;
+						}
+						Some((peer_id, Awaited::FullData(awaited))) if peer_id == peer => {
+							// If there exists an entry under r_id, remove it.
+							// Send the response on the awaited for the interaction to handle.
+							if let Some(data) = data {
+								if awaited.response.send(Ok((peer_id, data))).is_err() {
 									tracing::debug!(
 										target: LOG_TARGET,
 										"A sending side of the recovery request is closed",
