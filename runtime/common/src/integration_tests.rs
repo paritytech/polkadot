@@ -20,6 +20,7 @@ use sp_io::TestExternalities;
 use sp_core::H256;
 use sp_runtime::{
 	ModuleId,
+	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, IdentityLookup,
 	},
@@ -27,6 +28,7 @@ use sp_runtime::{
 use primitives::v1::{Balance, BlockNumber, Header, Id as ParaId};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop,
+	storage::StorageMap,
 	traits::{
 		TestRandomness, Currency, OnInitialize, OnFinalize,
 	}
@@ -51,10 +53,16 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
+		// System Stuff
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
+		//Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Module, Origin, Call, Storage, Config<T>},
+
+		// Parachains Runtime
 		Configuration: configuration::{Module, Call, Storage, Config<T>},
+		Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
+
+		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
 		Auctions: auctions::{Module, Call, Storage, Event<T>},
 		Crowdloan: crowdloan::{Module, Call, Storage, Event<T>},
@@ -91,6 +99,17 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+}
+
+pallet_staking_reward_curve::build! {
+	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+		min_inflation: 0_025_000,
+		max_inflation: 0_100_000,
+		ideal_stake: 0_500_000,
+		falloff: 0_050_000,
+		max_piece_count: 40,
+		test_precision: 0_005_000,
+	);
 }
 
 parameter_types! {
@@ -180,54 +199,103 @@ pub fn new_test_ext() -> TestExternalities {
 	t.into()
 }
 
+fn maybe_new_session(_n: u32) {
+	// TODO: Handle any session changes
+}
+
 fn run_to_block(n: u32) {
 	while System::block_number() < n {
-		Slots::on_finalize(System::block_number());
-		Crowdloan::on_finalize(System::block_number());
-		Auctions::on_finalize(System::block_number());
-		Registrar::on_finalize(System::block_number());
-		Configuration::on_finalize(System::block_number());
-		Paras::on_finalize(System::block_number());
-		Balances::on_finalize(System::block_number());
-		System::on_finalize(System::block_number());
-		System::set_block_number(System::block_number() + 1);
-		System::on_initialize(System::block_number());
-		Balances::on_initialize(System::block_number());
-		Paras::on_initialize(System::block_number());
-		Configuration::on_initialize(System::block_number());
-		Registrar::on_initialize(System::block_number());
-		Auctions::on_initialize(System::block_number());
-		Crowdloan::on_initialize(System::block_number());
-		Slots::on_initialize(System::block_number());
+		let block_number = System::block_number();
+		AllModules::on_finalize(block_number);
+		System::on_finalize(block_number);
+		System::set_block_number(block_number + 1);
+		System::on_initialize(block_number + 1);
+		maybe_new_session(block_number + 1);
+		AllModules::on_initialize(block_number + 1);
 	}
+}
+
+fn last_event() -> Event {
+	System::events().pop().expect("Event expected").event
 }
 
 #[test]
 fn basic_end_to_end_works() {
 	new_test_ext().execute_with(|| {
-		// User 1 will be our caller
+		// User 1 and 2 will own parachains
 		Balances::make_free_balance_be(&1, 1_000);
-		// First register a parathread
+		Balances::make_free_balance_be(&2, 1_000);
+		// First register 2 parathreads
 		let genesis_head = Registrar::worst_head_data();
 		let validation_code = Registrar::worst_validation_code();
-		assert_ok!(Registrar::register(Origin::signed(1), ParaId::from(1), genesis_head, validation_code));
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(1),
+			genesis_head.clone(),
+			validation_code.clone(),
+		));
+		assert_ok!(Registrar::register(Origin::signed(2), ParaId::from(2), genesis_head, validation_code));
 		// Start a new auction
 		let duration = 100u32;
 		let lease_period_index = 1u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index));
-		// Open a crowdloan for the auction
-		let cap = 1_000;
-		let first_slot = 0;
-		let last_slot = 3;
-		let crowdloan_end = 200u32;
+		// Para 1 will bid directly for slot 1, 2
+		// Open a crowdloan for Para 2 for slot 3, 4
 		assert_ok!(Crowdloan::create(
-			Origin::signed(1),
-			ParaId::from(1),
-			cap,
-			first_slot,
-			last_slot,
-			crowdloan_end,
+			Origin::signed(2),
+			ParaId::from(2),
+			1_000, // Cap
+			3, // First Slot
+			4, // Last Slot
+			200, // Block End
 		));
+		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2));
+
+		// Auction ending begins on block 100, so we make a bid before then.
+		run_to_block(90);
+
+		Balances::make_free_balance_be(&10, 1_000);
+		Balances::make_free_balance_be(&20, 1_000);
+
+		// User 10 will bid directly for parachain 1
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(1),
+			1, // Auction Index
+			1, // First Slot
+			2, // Last slot
+			910, // Amount
+		));
+
+		// User 20 will be a contribute to crowdfund for parachain 2
+		Balances::make_free_balance_be(&2, 1_000);
+		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(2), 920));
+
+		// Auction ends at block 110
+		run_to_block(109);
+		assert_eq!(
+			last_event(),
+			crowdloan::RawEvent::HandleBidResult(ParaId::from(2), Ok(())).into(),
+		);
+		run_to_block(110);
+		assert_eq!(
+			last_event(),
+			slots::RawEvent::Leased(
+				ParaId::from(2),
+				crowdloan_account,
+				3, 2, 920, 920,
+			).into(),
+		);
+
+		// Paras should have won slots
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			vec![Some((10, 910)), Some((10, 910))],
+		);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(2)),
+			vec![None, None, Some((crowdloan_account, 920)), Some((crowdloan_account, 920))],
+		);
 
 	});
 }
