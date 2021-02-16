@@ -157,7 +157,7 @@ check-transaction-versions:
   <<:                              *docker-env
   needs:
     - job:                         test-linux-stable
-      artifacts:                   false
+      artifacts:                   true
   before_script:
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     - git fetch origin release
