@@ -13,6 +13,7 @@ parity-util-mem = { version = "0.9.0", default-features = false }
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
@@ -22,3 +23,4 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.12", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+polkadot-node-primitives = { path = "../../primitives" }

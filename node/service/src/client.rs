@@ -31,7 +31,7 @@ use consensus_common::BlockStatus;
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	+ sp_api::ApiExt<Block>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
@@ -50,7 +50,7 @@ where
 impl<Api> RuntimeApiCollection for Api
 where
 	Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-		+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+		+ sp_api::ApiExt<Block>
 		+ babe_primitives::BabeApi<Block>
 		+ grandpa_primitives::GrandpaApi<Block>
 		+ ParachainHost<Block>
@@ -74,7 +74,6 @@ pub trait AbstractClient<Block, Backend>:
 	+ HeaderBackend<Block>
 	+ CallApiAt<
 		Block,
-		Error = sp_blockchain::Error,
 		StateBackend = Backend::State
 	>
 	where
@@ -93,7 +92,6 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 			+ Sized + Send + Sync
 			+ CallApiAt<
 				Block,
-				Error = sp_blockchain::Error,
 				StateBackend = Backend::State
 			>,
 		Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
