@@ -32,7 +32,7 @@ use crate::{
 pub trait Config: frame_system::Config + configuration::Config { }
 
 decl_storage! {
-	trait Store for Module<T: Config> as ParaSessionInfo {
+	trait Store for Module<T: Config> as ParasShared {
 		/// The current session index.
 		CurrentSessionIndex get(fn session_index): SessionIndex;
 	}
