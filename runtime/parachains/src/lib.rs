@@ -23,6 +23,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod configuration;
+pub mod shared;
 pub mod inclusion;
 pub mod inclusion_inherent;
 pub mod initializer;

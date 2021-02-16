@@ -37,7 +37,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use crate::{configuration, initializer::SessionChangeNotification};
+use crate::{configuration, shared, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
@@ -45,7 +45,11 @@ use serde::{Serialize, Deserialize};
 
 pub use crate::Origin;
 
-pub trait Config: frame_system::Config + configuration::Config {
+pub trait Config:
+	frame_system::Config +
+	configuration::Config +
+	shared::Config
+{
 	/// The outer origin type.
 	type Origin: From<Origin>
 		+ From<<Self as frame_system::Config>::Origin>
@@ -283,9 +287,6 @@ decl_storage! {
 		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
-		/// The current session index.
-		CurrentSessionIndex get(fn session_index): SessionIndex;
-
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
@@ -354,7 +355,6 @@ impl<T: Config> Module<T> {
 	///
 	/// Returns the list of outgoing paras from the actions queue.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) -> Vec<ParaId> {
-		CurrentSessionIndex::set(notification.session_index);
 		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
 		outgoing_paras
 	}
@@ -523,7 +523,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Will return error if para is already registered in the system.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
-		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
 
 		// Make sure parachain isn't already in our system.
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
@@ -543,7 +543,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Will return error if para is not a stable parachain or parathread.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
-		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		match lifecycle {
@@ -570,7 +570,7 @@ impl<T: Config> Module<T> {
 	/// Will return error if `ParaLifecycle` is not `Parathread`.
 	#[allow(unused)]
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
-		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		ensure!(lifecycle == ParaLifecycle::Parathread, Error::<T>::CannotUpgrade);
@@ -590,7 +590,7 @@ impl<T: Config> Module<T> {
 	/// Noop if `ParaLifecycle` is not `Parachain`.
 	#[allow(unused)]
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
-		let scheduled_session = Self::session_index() + SESSION_DELAY;
+		let scheduled_session = shared::Module::<T>::session_index() + SESSION_DELAY;
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		ensure!(lifecycle == ParaLifecycle::Parachain, Error::<T>::CannotDowngrade);
@@ -762,16 +762,18 @@ mod tests {
 		traits::{OnFinalize, OnInitialize}
 	};
 
-	use crate::mock::{new_test_ext, Paras, System, MockGenesisConfig};
+	use crate::mock::{new_test_ext, Paras, Shared, System, MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
+			Shared::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
-				session_change_notification.session_index = Paras::session_index() + 1;
+				session_change_notification.session_index = Shared::session_index() + 1;
+				Shared::initializer_on_new_session(&session_change_notification);
 				Paras::initializer_on_new_session(&session_change_notification);
 			}
 			System::on_finalize(b);
@@ -779,6 +781,7 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
+			Shared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 		}
 	}
@@ -1242,7 +1245,7 @@ mod tests {
 			// Just scheduling cleanup shouldn't change anything.
 			{
 				assert_eq!(
-					<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
+					<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY),
 					vec![para_id],
 				);
 				assert_eq!(Paras::parachains(), vec![para_id]);
@@ -1318,7 +1321,7 @@ mod tests {
 			));
 
 			assert_eq!(
-				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
+				<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY),
 				vec![c, b, a],
 			);
 
@@ -1332,7 +1335,7 @@ mod tests {
 
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(
-				<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY),
+				<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY),
 				vec![c, b, a],
 			);
 
@@ -1346,7 +1349,7 @@ mod tests {
 			run_to_block(4, Some(vec![3,4]));
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
-			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::session_index() + SESSION_DELAY), Vec::new());
+			assert_eq!(<Paras as Store>::ActionsQueue::get(Shared::session_index() + SESSION_DELAY), Vec::new());
 
 			// Lifecycle is tracked correctly
 			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));

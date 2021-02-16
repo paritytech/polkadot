@@ -1111,7 +1111,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Test, Configuration, Paras, Hrmp, System, MockGenesisConfig,
+		new_test_ext, Test, Configuration, Paras, Shared, Hrmp, System, MockGenesisConfig,
 	};
 	use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 	use primitives::v1::BlockNumber;
@@ -1127,16 +1127,18 @@ mod tests {
 			// NOTE: this is in reverse initialization order.
 			Hrmp::initializer_finalize();
 			Paras::initializer_finalize();
+			Shared::initializer_finalize();
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let notification = crate::initializer::SessionChangeNotification {
 					prev_config: config.clone(),
 					new_config: config.clone(),
-					session_index: Paras::session_index() + 1,
+					session_index: Shared::session_index() + 1,
 					..Default::default()
 				};
 
 				// NOTE: this is in initialization order.
+				Shared::initializer_on_new_session(&notification);
 				let outgoing_paras = Paras::initializer_on_new_session(&notification);
 				Hrmp::initializer_on_new_session(&notification, &outgoing_paras);
 			}
@@ -1147,6 +1149,7 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			// NOTE: this is in initialization order.
+			Shared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 			Hrmp::initializer_initialize(b + 1);
 		}

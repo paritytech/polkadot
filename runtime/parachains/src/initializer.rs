@@ -28,7 +28,7 @@ use frame_support::{
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
+	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
 /// Information about a session change that has just occurred.
@@ -71,6 +71,7 @@ struct BufferedSessionChange {
 pub trait Config:
 	frame_system::Config
 	+ configuration::Config
+	+ shared::Config
 	+ paras::Config
 	+ scheduler::Config
 	+ inclusion::Config
@@ -126,6 +127,7 @@ decl_module! {
 			// - UMP
 			// - HRMP
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
+				shared::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
@@ -148,6 +150,7 @@ decl_module! {
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
+			shared::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
@@ -199,6 +202,7 @@ impl<T: Config> Module<T> {
 			session_index,
 		};
 
+		shared::Module::<T>::initializer_on_new_session(&notification);
 		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
