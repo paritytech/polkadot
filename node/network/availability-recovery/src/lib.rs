@@ -339,6 +339,7 @@ impl RequestChunksPhase {
 						continue;
 					}
 
+
 					if let Ok(anticipated_hash) = branch_hash(
 						&params.erasure_root,
 						&chunk.proof,
@@ -351,6 +352,8 @@ impl RequestChunksPhase {
 								peer_id.clone(),
 								COST_MERKLE_PROOF_INVALID,
 							)).await.map_err(error::Error::ClosedToState)?;
+						} else {
+							self.received_chunks.insert(validator_index, chunk);
 						}
 					} else {
 						to_state.send(FromInteraction::ReportPeer(
@@ -358,8 +361,6 @@ impl RequestChunksPhase {
 							COST_MERKLE_PROOF_INVALID,
 						)).await.map_err(error::Error::ClosedToState)?;
 					}
-
-					self.received_chunks.insert(validator_index, chunk);
 				}
 				Some(Err(e)) => {
 					tracing::debug!(

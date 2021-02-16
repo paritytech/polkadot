@@ -319,8 +319,13 @@ fn validator_authority_id(val_ids: &[Sr25519Keyring]) -> Vec<AuthorityDiscoveryI
 fn derive_erasure_chunks_with_proofs_and_root(
 	n_validators: usize,
 	available_data: &AvailableData,
+	alter_chunk: impl Fn(usize, &mut Vec<u8>),
 ) -> (Vec<ErasureChunk>, Hash) {
-	let chunks: Vec<Vec<u8>> = obtain_chunks(n_validators, available_data).unwrap();
+	let mut chunks: Vec<Vec<u8>> = obtain_chunks(n_validators, available_data).unwrap();
+
+	for (i, chunk) in chunks.iter_mut().enumerate() {
+		alter_chunk(i, chunk)
+	}
 
 	// create proofs for each erasure chunk
 	let branches = branches(chunks.as_ref());
@@ -379,6 +384,7 @@ impl Default for TestState {
 		let (chunks, erasure_root) = derive_erasure_chunks_with_proofs_and_root(
 			validators.len(),
 			&available_data,
+			|_, _| {},
 		);
 
 		candidate.descriptor.erasure_root = erasure_root;
@@ -464,7 +470,7 @@ fn availability_is_recovered_from_chunks() {
 }
 
 #[test]
-fn a_faulty_chunk_leads_to_recovery_error() {
+fn bad_merkle_path_leads_to_recovery_error() {
 	let mut test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
@@ -491,17 +497,21 @@ fn a_faulty_chunk_leads_to_recovery_error() {
 		).await;
 
 		test_state.test_runtime_api(&mut virtual_overseer).await;
-
 		test_state.test_connect_to_validators(&mut virtual_overseer).await;
 
 		let candidate_hash = test_state.candidate.hash();
 
 		// Create some faulty chunks.
-		test_state.chunks[0].chunk = vec![1; 32];
-		test_state.chunks[1].chunk = vec![2; 32];
+		test_state.chunks[0].chunk = vec![0; 32];
+		test_state.chunks[1].chunk = vec![1; 32];
+		test_state.chunks[2].chunk = vec![2; 32];
+		test_state.chunks[3].chunk = vec![3; 32];
+
 		let mut faulty = vec![false; test_state.chunks.len()];
 		faulty[0] = true;
 		faulty[1] = true;
+		faulty[2] = true;
+		faulty[3] = true;
 
 		test_state.test_faulty_chunk_requests(
 			candidate_hash,
@@ -510,12 +520,12 @@ fn a_faulty_chunk_leads_to_recovery_error() {
 		).await;
 
 		// A request times out with `Unavailable` error.
-		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Invalid);
+		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Unavailable);
 	});
 }
 
 #[test]
-fn a_wrong_chunk_leads_to_recovery_error() {
+fn wrong_chunk_index_leads_to_recovery_error() {
 	let mut test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
@@ -547,13 +557,14 @@ fn a_wrong_chunk_leads_to_recovery_error() {
 
 		let candidate_hash = test_state.candidate.hash();
 
-		// Send a wrong chunk so it passes proof check but fails to reconstruct.
+		// These chunks should fail the index check as they don't have the correct index for validator.
 		test_state.chunks[1] = test_state.chunks[0].clone();
 		test_state.chunks[2] = test_state.chunks[0].clone();
 		test_state.chunks[3] = test_state.chunks[0].clone();
 		test_state.chunks[4] = test_state.chunks[0].clone();
 
-		let faulty = vec![false; test_state.chunks.len()];
+		let mut faulty = vec![true; test_state.chunks.len()];
+		faulty[0] = false;
 
 		test_state.test_faulty_chunk_requests(
 			candidate_hash,
@@ -561,7 +572,66 @@ fn a_wrong_chunk_leads_to_recovery_error() {
 			&faulty,
 		).await;
 
-		// A request times out with `Unavailable` error.
+		// A request times out with `Unavailable` error as there are no good peers.
+		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Unavailable);
+	});
+}
+
+#[test]
+fn invalid_erasure_coding_leads_to_invalid_error() {
+	let mut test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		let pov = PoV {
+			block_data: BlockData(vec![69; 64]),
+		};
+
+		let (bad_chunks, bad_erasure_root) = derive_erasure_chunks_with_proofs_and_root(
+			test_state.chunks.len(),
+			&AvailableData {
+				validation_data: test_state.persisted_validation_data.clone(),
+				pov: Arc::new(pov),
+			},
+			|i, chunk| *chunk = vec![i as u8; 32],
+		);
+
+		test_state.chunks = bad_chunks;
+		test_state.candidate.descriptor.erasure_root = bad_erasure_root;
+
+		let candidate_hash = test_state.candidate.hash();
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				deactivated: smallvec![],
+			}),
+		).await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				test_state.session_index,
+				None,
+				tx,
+			)
+		).await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		test_state.test_connect_to_validators(&mut virtual_overseer).await;
+
+		test_state.test_chunk_requests(
+			candidate_hash,
+			&mut virtual_overseer,
+		).await;
+
+		// A request times out with `Unavailable` error as there are no good peers.
 		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Invalid);
 	});
 }
