@@ -661,7 +661,7 @@ pub enum ApprovalVotingMessage {
 	///
 	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
-	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<Hash>>),
+	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<(Hash, BlockNumber)>>),
 }
 
 /// Message to the Approval Distribution subsystem.
