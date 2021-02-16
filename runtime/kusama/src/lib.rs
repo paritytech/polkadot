@@ -956,77 +956,7 @@ impl pallet_elections_phragmen::migrations_3_0_0::V2ToV3 for PhragmenElectionDep
 	type Module = ElectionsPhragmen;
 }
 
-type SanityState = (u32, u32, u32, u32, AccountId, Vec<AccountId>, Balance);
 impl frame_support::traits::OnRuntimeUpgrade for PhragmenElectionDepositRuntimeUpgrade {
-	#[cfg(feature = "std")]
-	fn pre_migration() -> Result<(), &'static str> {
-		let num_voters =
-			frame_support::migration::StorageKeyIterator::<AccountId, (Balance, Vec<AccountId>), frame_support::Twox64Concat>::new(
-				b"PhragmenElection",
-				b"Voting",
-			)
-			.count() as u32;
-		let num_candidates = frame_support::migration::get_storage_value::<Vec<AccountId>>(
-			b"PhragmenElection",
-			b"Candidates",
-			&[],
-		)
-		.unwrap_or_default() // we may actually have no candidates
-		.len() as u32;
-		let num_members = frame_support::migration::get_storage_value::<Vec<(AccountId, Balance)>>(
-			b"PhragmenElection",
-			b"Members",
-			&[],
-		)
-		.unwrap()
-		.len() as u32;
-		let num_runners_up =
-			frame_support::migration::get_storage_value::<Vec<(AccountId, Balance)>>(
-				b"PhragmenElection",
-				b"RunnersUp",
-				&[],
-			)
-			.unwrap()
-			.len() as u32;
-
-		// to ensure that votes etc stay persistent.
-		let (random_voter, (random_stake, random_votes)) =
-		frame_support::migration::StorageKeyIterator::<AccountId, (Balance, Vec<AccountId>), frame_support::Twox64Concat>::new(
-				b"PhragmenElection",
-				b"Voting",
-			)
-			.skip(5)
-			.take(1)
-			.collect::<Vec<_>>()
-			.pop()
-			.unwrap();
-
-		let data: SanityState =
-			(num_voters, num_candidates, num_members, num_runners_up, random_voter, random_votes, random_stake);
-
-		frame_support::storage::unhashed::put(b"migration_data_election_phragmen", &data);
-
-		Ok(())
-	}
-
-	#[cfg(feature = "std")]
-	fn post_migration() -> Result<(), &'static str> {
-		use frame_support::{IterableStorageMap, StorageMap, StorageValue};
-
-		let (num_voters, num_candidates, num_members, num_runners_up, random_voter, random_votes, random_stake): SanityState =
-			frame_support::storage::unhashed::get(b"migration_data_election_phragmen").unwrap();
-
-		assert_eq!(<pallet_elections_phragmen::Voting<Runtime>>::iter().count() as u32, num_voters);
-		assert_eq!(<pallet_elections_phragmen::Candidates<Runtime>>::get().len() as u32, num_candidates);
-		assert_eq!(<pallet_elections_phragmen::Members<Runtime>>::get().len() as u32, num_members);
-		assert_eq!(<pallet_elections_phragmen::RunnersUp<Runtime>>::get().len() as u32, num_runners_up);
-
-		assert_eq!(<pallet_elections_phragmen::Voting<Runtime>>::get(&random_voter).votes, random_votes);
-		assert_eq!(<pallet_elections_phragmen::Voting<Runtime>>::get(&random_voter).stake, random_stake);
-
-		Ok(())
-	}
-
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		pallet_elections_phragmen::migrations_3_0_0::apply::<Self>(5 * CENTS, DOLLARS)
 	}
@@ -1134,69 +1064,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-	CustomMigrations,
+	(UpgradeSessionKeys, PhragmenElectionDepositRuntimeUpgrade,),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// All custom runtime migrations that shall happen in an upcoming runtime upgrade.
-///
-/// The type alias should always be kept, change the internals
-pub type CustomMigrations = (PhragmenElectionDepositRuntimeUpgrade, UpgradeSessionKeys,);
-
-pub struct EnsureAccountsStayUntouched;
-
-/// An example of a migration that alters an existing storage item.
-pub struct DoubleAccountBalances;
-impl frame_support::traits::OnRuntimeUpgrade for DoubleAccountBalances {
-	fn on_runtime_upgrade() -> Weight {
-		use frame_support::StorageValue;
-
-		// NOTE: better to use StorageIterator, this is not really a `translate` op, but anyhow.
-		<frame_system::Account<Runtime>>::translate::<
-			frame_system::AccountInfo<Nonce, pallet_balances::AccountData<Balance>>,
-			_,
-		>(|_, mut info| {
-			info.data.free *= 2;
-			Some(info)
-		});
-		<pallet_balances::TotalIssuance<Runtime>>::mutate(|t| *t *= 2);
-
-		Default::default()
-	}
-
-	#[cfg(feature = "std")]
-	fn pre_migration() -> Result<(), &'static str> {
-		let num_accounts = <frame_system::Account<Runtime>>::iter().count() as u32;
-		let total_issuance = <pallet_balances::Module<Runtime>>::total_issuance();
-
-		let data = (num_accounts, total_issuance);
-		frame_support::storage::unhashed::put(b"migration_data", &data);
-
-		Ok(())
-	}
-
-	#[cfg(feature = "std")]
-	fn post_migration() -> Result<(), &'static str> {
-		let (num_accounts, total_issuance): (u32, u128) =
-			frame_support::storage::unhashed::get(b"migration_data").unwrap();
-		let total_issuance_computed = <frame_system::Account<Runtime>>::iter()
-			.fold(0 as Balance, |accumulator, (_acc, account)| {
-				accumulator.checked_add(account.data.total()).unwrap()
-			});
-
-		frame_support::ensure!(
-			<frame_system::Account<Runtime>>::iter().count() as u32 == num_accounts,
-			"invalid total_issuance post migration",
-		);
-		frame_support::ensure!(
-			total_issuance_computed == total_issuance,
-			"invalid total_issuance ",
-		);
-
-		Ok(())
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -1439,6 +1310,36 @@ sp_api::impl_runtime_apis! {
 		}
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
+		}
+	}
+
+	#[cfg(feature = "try-runtime")]
+	impl frame_try_runtime::TryRuntime<Block> for Runtime {
+		fn on_runtime_upgrade(target: frame_try_runtime::Target) -> Weight {
+			frame_support::debug::RuntimeLogger::init();
+
+			let weight = match target {
+				frame_try_runtime::Target::All => {
+					frame_support::debug::info!("Dry-running all on-runtime-upgrades.");
+					Executive::try_runtime_upgrade()
+				},
+				frame_try_runtime::Target::Pallet(name) => {
+					let name = sp_std::str::from_utf8(&name).unwrap();
+					frame_support::debug::info!("Dry-running on-runtime-upgrade of {}.", name);
+
+					frame_try_runtime::match_pallet_on_runtime_upgrade!(name,
+						System, Utility, Babe, Timestamp, Authorship, Indices, Balances,
+						TransactionPayment, Staking, Session, Democracy, Council,
+						TechnicalCommittee, Elections, TechnicalMembership, Grandpa, Treasury,
+						Contracts, Sudo, ImOnline, AuthorityDiscovery, Offences, Historical,
+						RandomnessCollectiveFlip, Identity,  Society, Recovery, Vesting, Scheduler,
+						Proxy, Multisig, Bounties, Tips, Assets, Mmr, Lottery,
+					)
+					// TODO: Update these to pallets in this runtime
+				}
+			};
+
+			weight
 		}
 	}
 
