@@ -69,7 +69,7 @@ To determine availability:
     - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
     - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.
 
-The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index.
+The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index. Furthermore, this process should select at maximum one candidate which upgrades the runtime validation code.
 
 ### Determining Bitfield Availability
 
