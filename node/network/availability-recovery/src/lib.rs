@@ -31,7 +31,7 @@ use streamunordered::{StreamUnordered, StreamYield};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, CandidateReceipt, CandidateHash,
 	Hash, ErasureChunk, ValidatorId, ValidatorIndex,
-	SessionInfo, SessionIndex, BlakeTwo256, HashT,
+	SessionInfo, SessionIndex, BlakeTwo256, HashT, GroupIndex,
 };
 use polkadot_subsystem::{
 	SubsystemContext, SubsystemResult, SubsystemError, Subsystem, SpawnedSubsystem, FromOverseer,
@@ -478,6 +478,7 @@ async fn handle_recover(
 	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	receipt: CandidateReceipt,
 	session_index: SessionIndex,
+	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
@@ -802,6 +803,7 @@ impl AvailabilityRecoverySubsystem {
 								AvailabilityRecoveryMessage::RecoverAvailableData(
 									receipt,
 									session_index,
+									maybe_backing_group,
 									response_sender,
 								) => {
 									if let Err(e) = handle_recover(
@@ -809,6 +811,7 @@ impl AvailabilityRecoverySubsystem {
 										&mut ctx,
 										receipt,
 										session_index,
+										maybe_backing_group,
 										response_sender,
 									).await {
 										tracing::warn!(

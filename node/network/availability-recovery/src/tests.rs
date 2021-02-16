@@ -400,7 +400,7 @@ impl Default for TestState {
 }
 
 #[test]
-fn availability_is_recovered() {
+fn availability_is_recovered_from_chunks() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
@@ -421,6 +421,7 @@ fn availability_is_recovered() {
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				test_state.candidate.clone(),
 				test_state.session_index,
+				None,
 				tx,
 			)
 		).await;
@@ -448,6 +449,7 @@ fn availability_is_recovered() {
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				new_candidate,
 				test_state.session_index,
+				None,
 				tx,
 			)
 		).await;
@@ -483,6 +485,7 @@ fn a_faulty_chunk_leads_to_recovery_error() {
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				test_state.candidate.clone(),
 				test_state.session_index,
+				None,
 				tx,
 			)
 		).await;
@@ -533,6 +536,7 @@ fn a_wrong_chunk_leads_to_recovery_error() {
 			AvailabilityRecoveryMessage::RecoverAvailableData(
 				test_state.candidate.clone(),
 				test_state.session_index,
+				None,
 				tx,
 			)
 		).await;
