@@ -79,7 +79,7 @@ const AWAITED_CLEANUP_INTERVAL: Duration = Duration::from_secs(1);
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem;
 
-type DataResponse<T> = Result<(PeerId, T), RecoveryError>;
+type DataResponse<T> = Result<(PeerId, ValidatorIndex, T), RecoveryError>;
 
 /// Awaited data from the network.
 enum Awaited {
@@ -163,7 +163,7 @@ struct RequestChunksPhase {
 	// a random shuffling of the validators which indicates the order in which we connect to the validators and
 	// request the chunk from them.
 	shuffling: Vec<ValidatorIndex>,
-	received_chunks: HashMap<PeerId, ErasureChunk>,
+	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
 	requesting_chunks: FuturesUnordered<Timeout<oneshot::Receiver<DataResponse<ErasureChunk>>>>,
 }
 
@@ -235,7 +235,7 @@ impl RequestFromBackersPhase {
 			)).await.map_err(error::Error::ClosedToState)?;
 
 			match rx.timeout(FULL_DATA_REQUEST_TIMEOUT).await {
-				Some(Ok(Ok((peer_id, data)))) => {
+				Some(Ok(Ok((peer_id, _validator_index, data)))) => {
 					if reconstructed_data_matches_root(params.validators.len(), &params.erasure_root, &data) {
 						to_state.send(
 							FromInteraction::Concluded(params.candidate_hash.clone(), Ok(data))
@@ -324,12 +324,21 @@ impl RequestChunksPhase {
 		// Poll for new updates from requesting_chunks.
 		while let Some(request_result) = self.requesting_chunks.next().await {
 			match request_result {
-				Some(Ok(Ok((peer_id, chunk)))) => {
+				Some(Ok(Ok((peer_id, validator_index, chunk)))) => {
 					// Check merkle proofs of any received chunks, and any failures should
 					// lead to issuance of a FromInteraction::ReportPeer message.
-					//
-					// TODO [now]: check `chunk.index == validator_index`. Current behavior is wrong an
-					// just trusts what is sent by the peer over the network. facepalm.
+
+					// We need to check that the validator index matches the chunk index and
+					// not blindly trust the data from an untrusted peer.
+					if validator_index != chunk.index {
+						to_state.send(FromInteraction::ReportPeer(
+							peer_id.clone(),
+							COST_MERKLE_PROOF_INVALID,
+						)).await.map_err(error::Error::ClosedToState)?;
+
+						continue;
+					}
+
 					if let Ok(anticipated_hash) = branch_hash(
 						&params.erasure_root,
 						&chunk.proof,
@@ -350,7 +359,7 @@ impl RequestChunksPhase {
 						)).await.map_err(error::Error::ClosedToState)?;
 					}
 
-					self.received_chunks.insert(peer_id, chunk);
+					self.received_chunks.insert(validator_index, chunk);
 				}
 				Some(Err(e)) => {
 					tracing::debug!(
@@ -371,9 +380,6 @@ impl RequestChunksPhase {
 						target: LOG_TARGET,
 						"A chunk request has timed out",
 					);
-
-					// We break here to launch another request.
-					break;
 				}
 			}
 		}
@@ -855,7 +861,9 @@ async fn handle_network_update(
 							// If there exists an entry under r_id, remove it.
 							// Send the chunk response on the awaited_chunk for the interaction to handle.
 							if let Some(chunk) = chunk {
-								if awaited_chunk.response.send(Ok((peer_id, chunk))).is_err() {
+								if awaited_chunk.response.send(
+									Ok((peer_id, awaited_chunk.validator_index, chunk))
+								).is_err() {
 									tracing::debug!(
 										target: LOG_TARGET,
 										"A sending side of the recovery request is closed",
@@ -904,7 +912,7 @@ async fn handle_network_update(
 							// If there exists an entry under r_id, remove it.
 							// Send the response on the awaited for the interaction to handle.
 							if let Some(data) = data {
-								if awaited.response.send(Ok((peer_id, data))).is_err() {
+								if awaited.response.send(Ok((peer_id, awaited.validator_index, data))).is_err() {
 									tracing::debug!(
 										target: LOG_TARGET,
 										"A sending side of the recovery request is closed",
