@@ -267,7 +267,7 @@ mod tests {
 	};
 	use keyring::Sr25519Keyring;
 	use runtime_parachains::{
-		initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp,
+		initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp, shared,
 		ParaLifecycle,
 	};
 	use frame_support::traits::OneSessionHandler;
@@ -430,6 +430,8 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 		type WeightInfo = ();
 	}
+
+	impl shared::Config for Test {}
 
 	impl dmp::Config for Test {}
 
