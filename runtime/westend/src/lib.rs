@@ -1029,6 +1029,75 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[cfg(feature = "try-runtime")]
+	impl frame_try_runtime::TryRuntime<Block> for Runtime {
+		fn on_runtime_upgrade(target: frame_try_runtime::Target) -> Weight {
+			frame_support::debug::RuntimeLogger::init();
+
+			let weight = match target {
+				frame_try_runtime::Target::All => {
+					frame_support::debug::info!("Dry-running all on-runtime-upgrades.");
+					Executive::try_runtime_upgrade()
+				},
+				frame_try_runtime::Target::Pallet(name) => {
+					let name = sp_std::str::from_utf8(&name).unwrap();
+					frame_support::debug::info!("Dry-running on-runtime-upgrade of {}.", name);
+
+					frame_try_runtime::match_pallet_on_runtime_upgrade!(name,
+						System,
+						RandomnessCollectiveFlip,
+						Babe,
+						Timestamp,
+						Indices,
+						Balances,
+						TransactionPayment,
+						Authorship,
+						Staking,
+						Offences,
+						Historical,
+						Session,
+						Grandpa,
+						ImOnline,
+						AuthorityDiscovery,
+						Utility,
+						Identity,
+						Recovery,
+						Vesting,
+						Scheduler,
+						Sudo,
+						Proxy,
+						Multisig,
+						System,
+						RandomnessCollectiveFlip,
+						Babe,
+						Timestamp,
+						Indices,
+						Balances,
+						TransactionPayment,
+						Authorship,
+						Staking,
+						Offences,
+						Historical,
+						Session,
+						Grandpa,
+						ImOnline,
+						AuthorityDiscovery,
+						Utility,
+						Identity,
+						Recovery,
+						Vesting,
+						Scheduler,
+						Sudo,
+						Proxy,
+						Multisig,
+					)
+				}
+			};
+
+			weight
+		}
+	}
+
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(

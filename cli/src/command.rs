@@ -276,6 +276,31 @@ pub fn run() -> Result<()> {
 			})?)
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
+		Some(Subcommand::TryRuntime(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+			set_default_ss58_version(chain_spec);
+
+			runner.async_run(|config| {
+				use sc_service::TaskManager;
+				let registry = config.prometheus_config.as_ref().map(|cfg| &cfg.registry);
+				let task_manager = TaskManager::new(
+					config.task_executor.clone(),
+					registry,
+					config.telemetry_span.clone(),
+				).unwrap();
+
+				Ok((
+					cmd.run::<
+						service::kusama_runtime::Block,
+						service::KusamaExecutor,
+					>(config).map_err(|e| Error::SubstrateCli(e)),
+					task_manager
+				))
+				// NOTE: we fetch only the block number from the block type, the chance of disparity
+				// between kusama's and polkadot's block number is small enough to overlook this.
+			})
+		}
 	}?;
 	Ok(())
 }
