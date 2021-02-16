@@ -29,11 +29,11 @@ We hold a state which tracks the current recovery interactions we have live, as 
 type DataResponse<T> = Result<(PeerId, T), Unavailable>;
 
 enum Awaited {
-    Chunk(Awaited<ErasureChunk>),
-    FullData(Awaited<AvailableData>),
+    Chunk(AwaitedData<ErasureChunk>),
+    FullData(AwaitedData<AvailableData>),
 }
 
-struct Awaited<T> {
+struct AwaitedData<T> {
     issued_at: Instant,
     validator_index: ValidatorIndex,
     candidate_hash: CandidateHash,
@@ -101,7 +101,7 @@ enum InteractionPhase {
     RequestFromBackers {
         // a random shuffling of the validators from the backing group which indicates the order
         // in which we connect to them and request the chunk.
-        shuffled_backers: Vec<validatorIndex>,
+        shuffled_backers: Vec<ValidatorIndex>,
         requesting_pov: Option<Receiver<DataResponse<AvailableData>>>
     }
     RequestChunks {
