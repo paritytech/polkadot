@@ -449,11 +449,6 @@ enum ProvisionableData {
   Dispute(Hash, Signature),
 }
 
-/// This data needs to make its way from the provisioner into the InherentData.
-///
-/// There, it is used to construct the InclusionInherent.
-type ProvisionerInherentData = (SignedAvailabilityBitfields, Vec<BackedCandidate>);
-
 /// Message to the Provisioner.
 ///
 /// In all cases, the Hash is that of the relay parent.
@@ -461,12 +456,14 @@ enum ProvisionerMessage {
   /// This message allows potential block authors to be kept updated with all new authorship data
   /// as it becomes available.
   RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
-  /// This message allows external subsystems to request the set of bitfields and backed candidates
-  /// associated with a particular potential block hash.
+  /// This message allows external subsystems to request current inherent data that could be used for
+  /// advancing the state of parachain consensus in a block building upon the given hash.
+  ///
+  /// If called at different points in time, this may give different results.
   ///
   /// This is expected to be used by a proposer, to inject that information into the InherentData
-  /// where it can be assembled into the InclusionInherent.
-  RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
+  /// where it can be assembled into the ParaInherent.
+  RequestInherentData(Hash, oneshot::Sender<ParaInherentData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),
 }
