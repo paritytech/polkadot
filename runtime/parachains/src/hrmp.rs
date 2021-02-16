@@ -229,10 +229,6 @@ pub trait Config: frame_system::Config + configuration::Config + paras::Config +
 
 decl_storage! {
 	trait Store for Module<T: Config> as Hrmp {
-		/// Paras that are to be cleaned up at the end of the session.
-		/// The entries are sorted ascending by the para id.
-		OutgoingParas: Vec<ParaId>;
-
 		/// The set of pending HRMP open channel requests.
 		///
 		/// The set is accompanied by a list for iteration.
@@ -404,42 +400,33 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
 		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId],
 	) {
-		Self::perform_outgoing_para_cleanup();
+		Self::perform_outgoing_para_cleanup(outgoing_paras);
 		Self::process_hrmp_open_channel_requests(&notification.prev_config);
 		Self::process_hrmp_close_channel_requests();
 	}
 
-	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
-	fn perform_outgoing_para_cleanup() {
-		let outgoing = OutgoingParas::take();
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
 		for outgoing_para in outgoing {
 			Self::clean_hrmp_after_outgoing(outgoing_para);
 		}
 	}
 
-	/// Schedule a para to be cleaned up at the start of the next session.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) {
-		OutgoingParas::mutate(|v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
-	}
-
 	/// Remove all storage entries associated with the given para.
-	fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
-		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
-		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&outgoing_para);
+	fn clean_hrmp_after_outgoing(outgoing_para: &ParaId) {
+		<Self as Store>::HrmpOpenChannelRequestCount::remove(outgoing_para);
+		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(outgoing_para);
 
-		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(&outgoing_para)
+		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(outgoing_para)
 			.into_iter()
 			.map(|sender| HrmpChannelId {
 				sender,
 				recipient: outgoing_para.clone(),
 			});
-		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(&outgoing_para)
+		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(outgoing_para)
 			.into_iter()
 			.map(|recipient| HrmpChannelId {
 				sender: outgoing_para.clone(),
@@ -1149,8 +1136,8 @@ mod tests {
 				};
 
 				// NOTE: this is in initialization order.
-				Paras::initializer_on_new_session(&notification);
-				Hrmp::initializer_on_new_session(&notification);
+				let outgoing_paras = Paras::initializer_on_new_session(&notification);
+				Hrmp::initializer_on_new_session(&notification, &outgoing_paras);
 			}
 
 			System::on_finalize(b);
@@ -1247,7 +1234,6 @@ mod tests {
 
 	fn deregister_parachain(id: ParaId) {
 		Paras::schedule_para_cleanup(id);
-		Hrmp::schedule_para_cleanup(id);
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
