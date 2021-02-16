@@ -784,7 +784,24 @@ async fn handle_from_interaction(
 			}));
 		}
 		FromInteraction::MakeFullDataRequest(id, candidate_hash, validator_index, response) => {
-			unimplemented!()
+			let (tx, rx) = mpsc::channel(2);
+
+			let message = NetworkBridgeMessage::ConnectToValidators {
+				validator_ids: vec![id.clone()],
+				peer_set: PeerSet::Validation,
+				connected: tx,
+			};
+
+			ctx.send_message(AllMessages::NetworkBridge(message)).await;
+
+			let token = state.connecting_validators.push(rx);
+
+			state.discovering_validators.entry(id).or_default().push(Awaited::FullData(AwaitedData {
+				validator_index,
+				candidate_hash,
+				token,
+				response,
+			}));
 		}
 		FromInteraction::ReportPeer(peer_id, rep) => {
 			report_peer(ctx, peer_id, rep).await;
@@ -933,7 +950,10 @@ async fn issue_request(
 			awaited_chunk.candidate_hash,
 			awaited_chunk.validator_index,
 		),
-		Awaited::FullData(_) => unimplemented!(),
+		Awaited::FullData(ref awaited_data) => protocol_v1::AvailabilityRecoveryMessage::RequestFullData(
+			request_id,
+			awaited_data.candidate_hash,
+		),
 	};
 
 	ctx.send_message(AllMessages::NetworkBridge(
