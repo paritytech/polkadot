@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 BIN=./target/release/polkadot
 LIVE_WS=wss://rpc.polkadot.io
 LOCAL_WS=ws://localhost:9944
