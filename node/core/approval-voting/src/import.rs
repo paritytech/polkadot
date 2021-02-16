@@ -813,7 +813,7 @@ mod tests {
 
 		// Finalized block should be omitted. The head provided to `determine_new_blocks`
 		// should be included.
-		let expected_ancestry = (13..18)
+		let expected_ancestry = (13..=18)
 			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
 			.rev()
 			.collect::<Vec<_>>();
@@ -913,7 +913,7 @@ mod tests {
 
 		// Known block should be omitted. The head provided to `determine_new_blocks`
 		// should be included.
-		let expected_ancestry = (16..18)
+		let expected_ancestry = (16..=18)
 			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
 			.rev()
 			.collect::<Vec<_>>();
