@@ -34,7 +34,10 @@ use frame_support::{
 	}
 };
 use frame_system::EnsureRoot;
-use runtime_parachains::{paras, configuration};
+use runtime_parachains::{
+	ParaLifecycle,
+	paras, configuration,
+};
 use crate::{
 	auctions, crowdloan, slots, paras_registrar,
 	traits::{
@@ -60,7 +63,7 @@ frame_support::construct_runtime!(
 
 		// Parachains Runtime
 		Configuration: configuration::{Module, Call, Storage, Config<T>},
-		Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
+		Paras: paras::{Module, Origin, Call, Storage, Config<T>},
 
 		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
@@ -199,8 +202,11 @@ pub fn new_test_ext() -> TestExternalities {
 	t.into()
 }
 
-fn maybe_new_session(_n: u32) {
-	// TODO: Handle any session changes
+fn maybe_new_session(n: u32) {
+	let new_session_every = 10;
+	if n % new_session_every == 0 {
+		Paras::test_on_new_session();
+	}
 }
 
 fn run_to_block(n: u32) {
@@ -234,19 +240,35 @@ fn basic_end_to_end_works() {
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
-		assert_ok!(Registrar::register(Origin::signed(2), ParaId::from(2), genesis_head, validation_code));
-		// Start a new auction
+		assert_ok!(Registrar::register(
+			Origin::signed(2),
+			ParaId::from(2),
+			genesis_head,
+			validation_code,
+		));
+
+		// Paras should be onboarding
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Onboarding));
+
+		// Start a new auction in the future
 		let duration = 100u32;
-		let lease_period_index = 1u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index));
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		// 2 sessions later they are parathreads
+		run_to_block(20);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
+
 		// Para 1 will bid directly for slot 1, 2
 		// Open a crowdloan for Para 2 for slot 3, 4
 		assert_ok!(Crowdloan::create(
 			Origin::signed(2),
 			ParaId::from(2),
 			1_000, // Cap
-			3, // First Slot
-			4, // Last Slot
+			lease_period_index_start + 2, // First Slot
+			lease_period_index_start + 3, // Last Slot
 			200, // Block End
 		));
 		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2));
@@ -262,8 +284,8 @@ fn basic_end_to_end_works() {
 			Origin::signed(10),
 			ParaId::from(1),
 			1, // Auction Index
-			1, // First Slot
-			2, // Last slot
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last slot
 			910, // Amount
 		));
 
@@ -283,19 +305,63 @@ fn basic_end_to_end_works() {
 			slots::RawEvent::Leased(
 				ParaId::from(2),
 				crowdloan_account,
-				3, 2, 920, 920,
+				lease_period_index_start + 2, 2, 920, 920,
 			).into(),
 		);
 
 		// Paras should have won slots
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(1)),
-			vec![Some((10, 910)), Some((10, 910))],
+			// -- 1 --- 2 --- 3 --------- 4 ------------ 5 --------
+			vec![None, None, None, Some((10, 910)), Some((10, 910))],
 		);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2)),
-			vec![None, None, Some((crowdloan_account, 920)), Some((crowdloan_account, 920))],
+			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------------- 6 --------------------------- 7 ----------------
+			vec![None, None, None, None, None, Some((crowdloan_account, 920)), Some((crowdloan_account, 920))],
 		);
 
+		// New leases will start on block 400
+		let lease_start_block = 400;
+		run_to_block(lease_start_block);
+
+		// First slot, Para 1 should be transitioning to Parachain
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::UpgradingToParachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
+
+		// Two sessions later, it has upgraded
+		run_to_block(lease_start_block + 20);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
+
+		// Second slot nothing happens :)
+		run_to_block(lease_start_block + 100);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
+
+		// Third slot, Para 2 should be upgrading, and Para 1 is downgrading
+		run_to_block(lease_start_block + 200);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::DowngradingToParathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::UpgradingToParachain));
+
+		// Two sessions later, they have transitioned
+		run_to_block(lease_start_block + 220);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parachain));
+
+		// Fourth slot nothing happens :)
+		run_to_block(lease_start_block + 300);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parachain));
+
+		// Fifth slot, Para 2 is downgrading
+		run_to_block(lease_start_block + 400);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::DowngradingToParathread));
+
+		// Two sessions later, Para 2 is downgraded
+		run_to_block(lease_start_block + 420);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
 	});
 }

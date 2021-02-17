@@ -834,6 +834,12 @@ impl<T: Config> Module<T> {
 
 		Self::past_code_meta(&id).most_recent_change()
 	}
+
+	/// Test function for triggering a new session in this pallet.
+	//#[cfg(test)]
+	pub fn test_on_new_session() {
+		Self::initializer_on_new_session(&Default::default())
+	}
 }
 
 impl<T: Config> crate::ParachainCleanup for Module<T> {

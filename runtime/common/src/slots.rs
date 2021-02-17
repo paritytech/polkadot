@@ -216,14 +216,16 @@ impl<T: Config> Module<T> {
 		for para in parachains.iter() {
 			if old_parachains.binary_search(para).is_err() {
 				// incoming.
-				let _ = T::Registrar::make_parachain(*para);
+				let res = T::Registrar::make_parachain(*para);
+				debug_assert!(res.is_ok());
 			}
 		}
 
 		for para in old_parachains.iter() {
 			if parachains.binary_search(para).is_err() {
 				// outgoing.
-				let _ = T::Registrar::make_parathread(*para);
+				let res = T::Registrar::make_parathread(*para);
+				debug_assert!(res.is_ok());
 			}
 		}
 	}
