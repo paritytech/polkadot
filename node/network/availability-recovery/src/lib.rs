@@ -85,7 +85,9 @@ const FULL_DATA_REQUEST_TIMEOUT: Duration = Duration::from_millis(100);
 const AWAITED_CLEANUP_INTERVAL: Duration = Duration::from_secs(1);
 
 /// The Availability Recovery Subsystem.
-pub struct AvailabilityRecoverySubsystem;
+pub struct AvailabilityRecoverySubsystem {
+	fast_path: bool,
+}
 
 type DataResponse<T> = (PeerId, ValidatorIndex, T);
 
@@ -1017,9 +1019,14 @@ fn cleanup_awaited(state: &mut State) {
 }
 
 impl AvailabilityRecoverySubsystem {
-	/// Create a new instance of `AvailabilityRecoverySubsystem`.
-	pub fn new() -> Self {
-		Self
+	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to request data from backers.
+	pub fn with_fast_path() -> Self {
+		Self { fast_path: true }
+	}
+
+	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests only chunks
+	pub fn with_chunks_only() -> Self {
+		Self { fast_path: false }
 	}
 
 	async fn run(
@@ -1083,7 +1090,7 @@ impl AvailabilityRecoverySubsystem {
 										&mut ctx,
 										receipt,
 										session_index,
-										maybe_backing_group,
+										maybe_backing_group.filter(|_| self.fast_path),
 										response_sender,
 									).await {
 										tracing::warn!(

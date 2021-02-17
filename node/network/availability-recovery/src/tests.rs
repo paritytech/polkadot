@@ -38,7 +38,7 @@ struct TestHarness {
 	virtual_overseer: VirtualOverseer,
 }
 
-fn test_harness<T: Future<Output = ()>>(
+fn test_harness_fast_path<T: Future<Output = ()>>(
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let _ = env_logger::builder()
@@ -53,7 +53,33 @@ fn test_harness<T: Future<Output = ()>>(
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let subsystem = AvailabilityRecoverySubsystem::new();
+	let subsystem = AvailabilityRecoverySubsystem::with_fast_path();
+	let subsystem = subsystem.run(context);
+
+	let test_fut = test(TestHarness { virtual_overseer });
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(subsystem);
+
+	executor::block_on(future::select(test_fut, subsystem));
+}
+
+fn test_harness_chunks_only<T: Future<Output = ()>>(
+	test: impl FnOnce(TestHarness) -> T,
+) {
+	let _ = env_logger::builder()
+		.is_test(true)
+		.filter(
+			Some("polkadot_availability_recovery"),
+			log::LevelFilter::Trace,
+		)
+		.try_init();
+
+	let pool = sp_core::testing::TaskExecutor::new();
+
+	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
+
+	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only();
 	let subsystem = subsystem.run(context);
 
 	let test_fut = test(TestHarness { virtual_overseer });
@@ -502,10 +528,10 @@ impl Default for TestState {
 }
 
 #[test]
-fn availability_is_recovered_from_chunks() {
+fn availability_is_recovered_from_chunks_if_no_group_provided() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness_fast_path(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_signal(
@@ -566,10 +592,73 @@ fn availability_is_recovered_from_chunks() {
 }
 
 #[test]
+fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunks_only() {
+	let test_state = TestState::default();
+
+	test_harness_chunks_only(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				deactivated: smallvec![],
+			}),
+		).await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				test_state.session_index,
+				Some(GroupIndex(0)),
+				tx,
+			)
+		).await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+		test_state.test_connect_to_all_validators(&mut virtual_overseer).await;
+
+		let candidate_hash = test_state.candidate.hash();
+
+		test_state.test_chunk_requests(candidate_hash, &mut virtual_overseer).await;
+
+		// Recovered data should match the original one.
+		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
+
+		let (tx, rx) = oneshot::channel();
+
+		// Test another candidate, send no chunks.
+		let mut new_candidate = CandidateReceipt::default();
+
+		new_candidate.descriptor.relay_parent = test_state.candidate.descriptor.relay_parent;
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				new_candidate,
+				test_state.session_index,
+				None,
+				tx,
+			)
+		).await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		test_state.test_connect_to_all_validators(&mut virtual_overseer).await;
+
+		// A request times out with `Unavailable` error.
+		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Unavailable);
+	});
+}
+
+#[test]
 fn bad_merkle_path_leads_to_recovery_error() {
 	let mut test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness_fast_path(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_signal(
@@ -624,7 +713,7 @@ fn bad_merkle_path_leads_to_recovery_error() {
 fn wrong_chunk_index_leads_to_recovery_error() {
 	let mut test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness_fast_path(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_signal(
@@ -677,7 +766,7 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 fn invalid_erasure_coding_leads_to_invalid_error() {
 	let mut test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness_fast_path(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		let pov = PoV {
@@ -736,7 +825,7 @@ fn invalid_erasure_coding_leads_to_invalid_error() {
 fn fast_path_backing_group_recovers() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness_fast_path(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_signal(
@@ -781,7 +870,7 @@ fn fast_path_backing_group_recovers() {
 fn wrong_data_from_fast_path_peer_leads_to_punishment() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness_fast_path(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_signal(
@@ -826,7 +915,7 @@ fn wrong_data_from_fast_path_peer_leads_to_punishment() {
 fn no_answers_in_fast_path_causes_chunk_requests() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness_fast_path(|test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 
 		overseer_signal(
