@@ -634,7 +634,6 @@ mod tests {
 	}
 }
 
-
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::*;

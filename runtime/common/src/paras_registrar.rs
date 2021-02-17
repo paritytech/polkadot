@@ -275,7 +275,6 @@ impl<T: Config> Registrar for Module<T> {
 }
 
 impl<T: Config> Module<T> {
-
 	/// Attempt to register a new Para Id under management of `who` in the
 	/// system with the given information.
 	fn do_register(
@@ -637,7 +636,7 @@ mod tests {
 		type MaxHeadSize = MaxHeadSize;
 	}
 
-	fn new_test_ext() -> TestExternalities {
+	pub fn new_test_ext() -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		let authority_keys = [
@@ -965,5 +964,104 @@ mod tests {
 				WASM_MAGIC.to_vec().into(),
 			));
 		});
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking {
+	use super::{*, Module as Registrar};
+	use frame_system::RawOrigin;
+	use frame_support::assert_ok;
+	use sp_runtime::traits::Bounded;
+	use crate::traits::{Registrar as RegistrarT};
+	use runtime_parachains::{paras, Origin as ParaOrigin};
+
+	use frame_benchmarking::{benchmarks, whitelisted_caller};
+
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+		let events = frame_system::Module::<T>::events();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		// compare to the last event record
+		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+		assert_eq!(event, &system_event);
+	}
+
+	fn register_para<T: Config>(id: u32) -> ParaId {
+		let para = ParaId::from(id);
+		let genesis_head = Registrar::<T>::worst_head_data();
+		let validation_code = Registrar::<T>::worst_validation_code();
+		let caller: T::AccountId = whitelisted_caller();
+		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		assert_ok!(Registrar::<T>::register(RawOrigin::Signed(caller).into(), para, genesis_head, validation_code));
+		return para;
+	}
+
+	fn para_origin(id: u32) -> ParaOrigin {
+		ParaOrigin::Parachain(id.into())
+	}
+
+	benchmarks! {
+		register {
+			let para = ParaId::from(1337);
+			let genesis_head = Registrar::<T>::worst_head_data();
+			let validation_code = Registrar::<T>::worst_validation_code();
+			let caller: T::AccountId = whitelisted_caller();
+			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
+		verify {
+			assert_last_event::<T>(RawEvent::Registered(para, caller).into());
+			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+			paras::Module::<T>::test_on_new_session();
+			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+		}
+
+		deregister {
+			let para = register_para::<T>(1337);
+			paras::Module::<T>::test_on_new_session();
+		}: _(RawOrigin::Root, para)
+		verify {
+			assert_last_event::<T>(RawEvent::Deregistered(para).into());
+		}
+
+		swap {
+			let parathread = register_para::<T>(1337);
+			let parachain = register_para::<T>(1338);
+
+			let parathread_origin = para_origin(1337);
+			let parachain_origin = para_origin(1338);
+
+			// Actually finish registration process
+			paras::Module::<T>::test_on_new_session();
+
+			// Upgrade the parachain
+			Registrar::<T>::make_parachain(parachain)?;
+			paras::Module::<T>::test_on_new_session();
+
+			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
+			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
+
+			//Registrar::<T>::swap(parathread_origin, parachain)?;
+
+		}: {
+			//Registrar::<T>::swap(parachain_origin, parathread)?;
+		} verify {
+
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::paras_registrar::tests::{new_test_ext, Test};
+		use frame_support::assert_ok;
+
+		#[test]
+		fn test_benchmarks() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_register::<Test>());
+				assert_ok!(test_benchmark_deregister::<Test>());
+				assert_ok!(test_benchmark_swap::<Test>());
+			});
+		}
 	}
 }
