@@ -53,7 +53,7 @@ use std::sync::Arc;
 use prometheus_endpoint::Registry;
 use sc_executor::native_executor_instance;
 use service::RpcHandlers;
-use telemetry::TelemetryConnectionNotifier;
+use telemetry::{TelemetryConnectionNotifier, TelemetrySpan};
 
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
@@ -648,6 +648,9 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
 
+	let telemetry_span = TelemetrySpan::new();
+	let _telemetry_span_entered = telemetry_span.enter();
+
 	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -661,6 +664,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		remote_blockchain: None,
 		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
+		telemetry_span: Some(telemetry_span.clone()),
 	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
@@ -965,6 +969,9 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
+	let telemetry_span = TelemetrySpan::new();
+	let _telemetry_span_entered = telemetry_span.enter();
+
 	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		on_demand: Some(on_demand),
 		remote_blockchain: Some(backend.remote_blockchain()),
@@ -978,6 +985,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		network,
 		network_status_sinks,
 		system_rpc_tx,
+		telemetry_span: Some(telemetry_span.clone()),
 	})?;
 
 	network_starter.start_network();
