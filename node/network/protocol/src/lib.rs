@@ -439,7 +439,7 @@ pub mod v1 {
 }
 
 /// Unified annoyance cost and good behavior benefits.
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(missing_docs)]
 pub enum UnifiedReputationChange {
 	CostMajor(&'static str),

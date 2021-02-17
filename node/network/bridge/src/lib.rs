@@ -265,7 +265,7 @@ where
 			},
 
 			Action::ReportPeer(peer, rep) => {
-				bridge.network_service.report_peer(peer, rep).await?
+				bridge.network_service.report_peer(peer, rep.into_base_rep()).await?
 			}
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {

@@ -25,7 +25,7 @@
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, ReputationChange, PeerId,
+	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
 	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
 };
 use polkadot_node_primitives::{
@@ -217,7 +217,7 @@ impl CollatorProtocolMessage {
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
 	/// Report a peer for their actions.
-	ReportPeer(PeerId, ReputationChange),
+	ReportPeer(PeerId, UnifiedReputationChange),
 
 	/// Send a message to one or more peers on the validation peer-set.
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),

@@ -57,8 +57,8 @@ mod tests;
 
 const LOG_TARGET: &str = "availability_recovery";
 
-const COST_MERKLE_PROOF_INVALID: Rep = Rep::AnnoyMinor("Merkle proof was invalid");
-const COST_UNEXPECTED_CHUNK: Rep = Rep::AnnoyMinor("Peer has sent an unexpected chunk");
+const COST_MERKLE_PROOF_INVALID: Rep = Rep::CostMinor("Merkle proof was invalid");
+const COST_UNEXPECTED_CHUNK: Rep = Rep::CostMinor("Peer has sent an unexpected chunk");
 
 // How many parallel requests interaction should have going at once.
 const N_PARALLEL: usize = 50;

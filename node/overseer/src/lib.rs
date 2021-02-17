@@ -2754,7 +2754,7 @@ mod tests {
 	}
 
 	fn test_network_bridge_msg() -> NetworkBridgeMessage {
-		NetworkBridgeMessage::ReportPeer(PeerId::random(), ReputationChange::new(42, ""))
+		NetworkBridgeMessage::ReportPeer(PeerId::random(), UnifiedReputationChange::BenefitMinor(""))
 	}
 
 	fn test_approval_distribution_msg() -> ApprovalDistributionMessage {
