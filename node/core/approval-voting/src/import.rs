@@ -1621,12 +1621,16 @@ mod tests {
 				assert_eq!(result.len(), 1);
 				let candidates = &result[0].imported_candidates;
 				assert_eq!(candidates.len(), 2);
-				// the first candidate should be insta-approved
-				// the second should not
 				assert_eq!(candidates[0].1.approvals().len(), 6);
 				assert_eq!(candidates[1].1.approvals().len(), 6);
-				assert_eq!(candidates[0].1.approvals().all());
-				assert!(candidates[1].1.approvals().not_any());
+				// the first candidate should be insta-approved
+				// the second should not
+				let entry: BlockEntry = crate::approval_db::v1::load_block_entry(&db_writer, &hash)
+					.unwrap()
+					.unwrap()
+					.into();
+				assert!(entry.is_candidate_approved(&candidates[0].0));
+				assert!(!entry.is_candidate_approved(&candidates[1].0));
 			})
 		};
 
