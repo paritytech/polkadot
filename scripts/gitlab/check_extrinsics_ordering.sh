@@ -9,9 +9,6 @@ HEAD_BIN=./target/release/polkadot
 HEAD_WS=ws://localhost:9944
 RELEASE_WS=ws://localhost:9945
 
-# Kill the polkadot client before exiting
-trap 'jobs -p | xargs kill' EXIT
-
 runtimes=(
   "westend"
   "kusama"
