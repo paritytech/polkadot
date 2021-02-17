@@ -25,6 +25,7 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "td-mm
 sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 parity-scale-codec = { version = "2.0.0", default-features = false }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }

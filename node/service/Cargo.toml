@@ -50,6 +50,7 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "td-mm
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 
 # Substrate Other
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }

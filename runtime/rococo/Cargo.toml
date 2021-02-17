@@ -41,6 +41,7 @@ pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-feat
 pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
 pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false  , branch = "td-mmr-custom" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false  , branch = "td-mmr-custom" }
 pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
 pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }

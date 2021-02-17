@@ -32,7 +32,7 @@ use primitives::v1::{
 	SessionInfo as SessionInfoData,
 };
 use runtime_common::{
-	mmr,
+	mmr as mmr_common,
 	SlowAdjustingFeeUpdate, impls::ToAuthor, BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 };
 use runtime_parachains::{
@@ -65,6 +65,7 @@ use pallet_session::historical as session_historical;
 use frame_system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use runtime_common::{paras_sudo_wrapper, paras_registrar};
 use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use pallet_mmr_primitives as mmr;
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -215,7 +216,7 @@ construct_runtime! {
 		Beefy: pallet_beefy::{Module, Config<T>, Storage},
 		// Make sure to place MmrLeaf after BEEFY, MMR and Paras,
 		// because it depends on session handlers of these pallets.
-		MmrLeaf: mmr::{Module},
+		MmrLeaf: mmr_common::{Module},
 	}
 }
 
@@ -612,7 +613,7 @@ impl pallet_mmr::Config for Runtime {
 	type Hash = <Keccak256 as traits::Hash>::Output;
 	type OnNewRoot = DepositLog;
 	type WeightInfo = ();
-	type LeafData = mmr::Module<Runtime>;
+	type LeafData = mmr_common::Module<Runtime>;
 }
 
 /// Convert BEEFY secp256k1 public keys into uncompressed for
@@ -631,7 +632,7 @@ impl Convert<BeefyId, Vec<u8>> for UncompressBeefyKeys {
 	}
 }
 
-impl mmr::Config for Runtime {
+impl mmr_common::Config for Runtime {
 	type BeefyAuthorityToMerkleLeaf = UncompressBeefyKeys;
 }
 
@@ -922,6 +923,39 @@ sp_api::impl_runtime_apis! {
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
 		fn authorities() -> Vec<BeefyId> {
 			Beefy::authorities()
+		}
+	}
+
+	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
+		fn generate_proof(leaf_index: u64)
+			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
+		{
+			Mmr::generate_proof(leaf_index)
+				.map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
+		}
+
+		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			pub type Leaf = <
+				<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider
+			>::LeafData;
+
+			let leaf: Leaf = leaf
+				.into_opaque_leaf()
+				.try_decode()
+				.ok_or(mmr::Error::Verify)?;
+			Mmr::verify_leaf(leaf, proof)
+		}
+
+		fn verify_proof_stateless(
+			root: Hash,
+			leaf: mmr::EncodableOpaqueLeaf,
+			proof: mmr::Proof<Hash>
+		) -> Result<(), mmr::Error> {
+			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
+			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
+			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
 		}
 	}
 

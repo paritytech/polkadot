@@ -2844,6 +2844,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
@@ -4324,6 +4325,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-mmr-rpc"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
+dependencies = [
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "pallet-mmr-primitives",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-rpc",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-multisig"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
@@ -5753,6 +5772,7 @@ dependencies = [
  "beefy-gadget",
  "beefy-gadget-rpc",
  "jsonrpc-core",
+ "pallet-mmr-rpc",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
  "polkadot-primitives",
@@ -5805,6 +5825,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
@@ -5966,6 +5987,7 @@ dependencies = [
  "kusama-runtime",
  "pallet-babe",
  "pallet-im-online",
+ "pallet-mmr-primitives",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
  "polkadot-approval-distribution",
@@ -6865,6 +6887,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-mmr",
+ "pallet-mmr-primitives",
  "pallet-offences",
  "pallet-session",
  "pallet-staking",
@@ -10528,6 +10551,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
