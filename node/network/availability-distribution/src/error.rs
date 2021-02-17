@@ -55,6 +55,10 @@ pub enum Error {
 	/// We tried fetching a session which was not available.
 	#[error("No such session")]
 	NoSuchSession(SessionIndex),
+
+	/// Spawning a running task failed.
+	#[error("Spawning subsystem task failed")]
+	SpawnTask(#[source] SubsystemError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

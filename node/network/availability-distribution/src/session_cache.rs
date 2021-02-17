@@ -28,8 +28,9 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::SessionInfo as GlobalSessionInfo;
 use polkadot_primitives::v1::{
-	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, Hash, HashT,
-	SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID, AuthorityDiscoveryId
+	AuthorityDiscoveryId, BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState,
+	ErasureChunk, Hash, HashT, SessionIndex, ValidatorId, ValidatorIndex,
+	PARACHAIN_KEY_TYPE_ID, GroupIndex,
 };
 use polkadot_subsystem::{
 	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
@@ -82,6 +83,16 @@ pub struct SessionInfo {
 	//// backed our selves.
 	// TODO: Implement this:
 	// pub our_group: GroupIndex,
+}
+
+/// Report of bad validators.
+pub struct BadValidators {
+	/// The session index that was used.
+	pub session_index: SessionIndex,
+	/// The group the not properly responding validators are.
+	pub group_index: GroupIndex,
+	/// The indeces of the bad validators.
+	pub bad_validators: Vec<AuthorityDiscoveryId>,
 }
 
 impl SessionCache {
@@ -183,7 +194,7 @@ impl SessionCache {
 					group
 						.into_iter()
 						.map(|index| {
-							discovery_keys.get(Into<u32>::into(index) as usize)
+							discovery_keys.get(index.0 as usize)
 							.expect("There should be a discovery key for each validator of each validator group. qed.").clone()
 						})
 						.collect()

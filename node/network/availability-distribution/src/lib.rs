@@ -15,6 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 
+use futures::{FutureExt, TryFutureExt};
+
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
@@ -60,7 +62,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
-			.run(ctx, ProtocolState::new())
+			.run(ctx)
 			.map_err(|e| SubsystemError::with_origin("availability-distribution", e))
 			.boxed();
 
@@ -79,16 +81,17 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, mut ctx: Context, state: &mut ProtocolState) -> Result<()>
+	async fn run<Context>(self, mut ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
+		let mut state = ProtocolState::new(self.keystore.clone());
 		loop {
 			let message = ctx.recv().await?;
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					// Update the relay chain heads we are fetching our pieces for:
-					state.update_fetching_heads(&mut ctx, update)?;
+					state.update_fetching_heads(&mut ctx, update).await?;
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
@@ -96,7 +99,7 @@ impl AvailabilityDistributionSubsystem {
 				}
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
-				} => { 
+				} => {
 					// TODO: Implement issue 2306:
 					tracing::warn!(
 						target: LOG_TARGET,

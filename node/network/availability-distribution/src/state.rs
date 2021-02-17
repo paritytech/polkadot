@@ -60,10 +60,12 @@ use std::collections::{
 use std::iter::IntoIterator;
 use std::sync::Arc;
 
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
+use futures::StreamExt;
+use itertools::{Either, Itertools};
 use jaeger::JaegerSpan;
 
-use itertools::{Either, Itertools};
+use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_subsystem_util::request_availability_cores_ctx;
 use polkadot_primitives::v1::{
@@ -78,7 +80,12 @@ use polkadot_subsystem::{
 	SubsystemContext, SubsystemError,
 };
 
-use super::{fetch_task::FetchTask, session_cache::SessionCache, Result, LOG_TARGET, error::recv_runtime};
+use super::{
+	error::recv_runtime,
+	fetch_task::{FetchTask, FromFetchTask},
+	session_cache::SessionCache,
+	Result, LOG_TARGET,
+};
 
 /// A running instance of this subsystem.
 pub struct ProtocolState {
@@ -89,13 +96,23 @@ pub struct ProtocolState {
 	///
 	/// This is usually the current one and at session boundaries also the last one.
 	session_cache: SessionCache,
+
+	/// Sender to be cloned for `FetchTask`s.
+	tx: mpsc::Sender<FromFetchTask>,
+
+	/// Receive messages from `FetchTask`.
+	rx: mpsc::Receiver<FromFetchTask>,
 }
 
 impl ProtocolState {
 	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+		// All we do is forwarding messages, no need to make this big.
+		let (tx, rx) = mpsc::channel(1);
 		ProtocolState {
 			fetches: HashMap::new(),
 			session_cache: SessionCache::new(keystore),
+			tx,
+			rx,
 		}
 	}
 	/// Update heads that need availability distribution.
@@ -115,8 +132,23 @@ impl ProtocolState {
 		} = update;
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, activated.into_iter()).await?;
+		self.start_requesting_chunks(ctx, activated.into_iter())
+			.await?;
 		self.stop_requesting_chunks(deactivated.into_iter());
+		Ok(())
+	}
+
+	pub(crate) async fn advance<Context>(&mut self, ctx: &mut Context) -> Result<()>
+	where
+		Context: SubsystemContext,
+	{
+		match self.rx.next().await {
+			Some(FromFetchTask::Message(m)) => ctx.send_message(m).await,
+			Some(FromFetchTask::Concluded(Some(bad_boys))) => {
+				self.session_cache.report_bad(bad_boys)?
+			}
+			Some(FromFetchTask::Concluded(None)) => {}
+		}
 		Ok(())
 	}
 
@@ -140,11 +172,8 @@ impl ProtocolState {
 	///
 	/// Returns relay_parents which became irrelevant for availability fetching (are not
 	/// referenced by any candidate anymore).
-	fn stop_requesting_chunks(
-		&mut self,
-		obsolete_leaves: impl Iterator<Item = Hash>,
-	) {
-		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().map(|h| h.0).collect();
+	fn stop_requesting_chunks(&mut self, obsolete_leaves: impl Iterator<Item = Hash>) {
+		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().collect();
 		self.fetches.retain(|&c_hash, task| {
 			task.remove_leaves(obsolete_leaves);
 			task.is_live()
@@ -164,20 +193,26 @@ impl ProtocolState {
 		leaf: Hash,
 		cores: impl IntoIterator<Item = OccupiedCore>,
 	) -> Result<()>
-		where
+	where
 		Context: SubsystemContext,
 	{
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
-				Entry::Occupied(e) =>
+				Entry::Occupied(mut e) =>
 				// Just book keeping - we are already requesting that chunk:
-					e.get_mut().add_leaf(leaf),
+				{
+					e.get_mut().add_leaf(leaf)
+				}
 				Entry::Vacant(e) => {
 					let session_info = self
 						.session_cache
-						.fetch_session_info(ctx, core.candidate_descriptor.relay_parent).await?;
+						.fetch_session_info(ctx, core.candidate_descriptor.relay_parent)
+						.await?;
 					if let Some(session_info) = session_info {
-						e.insert(FetchTask::start(ctx, leaf, core, session_info))
+						e.insert(
+							FetchTask::start(ctx, leaf, core, session_info, self.tx.clone())
+								.await?,
+						);
 					}
 					// Not a validator, nothing to do.
 				}

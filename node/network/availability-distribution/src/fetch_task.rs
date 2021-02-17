@@ -21,7 +21,7 @@ use std::rc::Rc;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::future::select;
-use futures::SinkExt;
+use futures::{SinkExt, FutureExt};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
@@ -43,7 +43,7 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 
-use super::{session_cache::SessionInfo, LOG_TARGET};
+use super::{session_cache::{SessionInfo, BadValidators}, LOG_TARGET, error::{Error, Result}};
 
 pub struct FetchTask {
 	/// For what relay parents this task is relevant.
@@ -83,16 +83,6 @@ pub enum FromFetchTask {
 	Concluded(Option<BadValidators>),
 }
 
-/// Report of bad validators.
-pub struct BadValidators {
-	/// The session index that was used.
-	pub session_index: SessionIndex,
-	/// The group the not properly responding validators are.
-	pub group_index: GroupIndex,
-	/// The indeces of the bad validators.
-	pub bad_validators: Vec<AuthorityDiscoveryId>,
-}
-
 /// Information a running task needs.
 struct RunningTask {
 	/// For what session we have been spawned.
@@ -127,7 +117,7 @@ impl FetchTask {
 		core: OccupiedCore,
 		session_info: Rc<SessionInfo>,
 		sender: mpsc::Sender<FromFetchTask>,
-	) -> SubsystemResult<Self>
+	) -> Result<Self>
 	where
 		Context: SubsystemContext,
 	{
@@ -135,7 +125,7 @@ impl FetchTask {
 		let running =  RunningTask {
 			session_index: session_info.session_index,
 			group_index: core.group_responsible,
-			group: session_info.validator_groups.get(core.group_responsible.into() as usize).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
+			group: session_info.validator_groups.get(core.group_responsible.0 as usize).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
 			request: AvailabilityFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
@@ -145,7 +135,8 @@ impl FetchTask {
 			sender,
 		};
 		ctx.spawn("chunk-fetcher", running.run(kill).boxed())
-			.await?;
+			.await
+			.map_err(|e| Error::SpawnTask(e))?;
 		Ok(FetchTask {
 			live_in: vec![leaf].into_iter().collect(),
 			state: FetchedState::Started(handle),
@@ -194,8 +185,6 @@ enum TaskError {
 	ShuttingDown,
 }
 
-type Result<T> = std::result::Result<T, TaskError>;
-
 impl RunningTask {
 	async fn run(self, kill: oneshot::Receiver<()>) {
 		// Wait for completion/or cancel.
@@ -210,7 +199,7 @@ impl RunningTask {
 	async fn run_inner(mut self) {
 		let mut bad_validators = Vec::new();
 		// Try validators in order:
-		while let Some(validator)= self.group.pop() {
+		while let Some(validator) = self.group.pop() {
 			// Send request:
 			let resp = match self.do_request(&validator).await {
 				Ok(resp) => resp,
