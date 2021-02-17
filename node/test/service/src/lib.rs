@@ -112,7 +112,7 @@ pub fn node_config(
 	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
 	let root = base_path.path();
 	let role = if is_validator {
-		Role::Authority { sentry_nodes: Vec::new() }
+		Role::Authority
 	} else {
 		Role::Full
 	};

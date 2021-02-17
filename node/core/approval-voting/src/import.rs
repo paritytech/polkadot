@@ -121,13 +121,13 @@ async fn determine_new_blocks(
 		return Ok(ancestry);
 	}
 
-	loop {
+	'outer: loop {
 		let &(ref last_hash, ref last_header) = ancestry.last()
 			.expect("ancestry has length 1 at initialization and is only added to; qed");
 
 		// If we iterated back to genesis, which can happen at the beginning of chains.
 		if last_header.number <= 1 {
-			break
+			break 'outer
 		}
 
 		let (tx, rx) = oneshot::channel();
@@ -139,7 +139,7 @@ async fn determine_new_blocks(
 
 		// Continue past these errors.
 		let batch_hashes = match rx.await {
-			Err(_) | Ok(Err(_)) => break,
+			Err(_) | Ok(Err(_)) => break 'outer,
 			Ok(Ok(ancestors)) => ancestors,
 		};
 
@@ -179,14 +179,13 @@ async fn determine_new_blocks(
 			let is_relevant = header.number > finalized_number;
 
 			if is_known || !is_relevant {
-				break
+				break 'outer
 			}
 
 			ancestry.push((hash, header));
 		}
 	}
 
-	ancestry.reverse();
 	Ok(ancestry)
 }
 
@@ -313,7 +312,8 @@ async fn cache_session_info_for_head(
 					return Ok(Err(SessionsUnavailable));
 				}
 				Some(s) => {
-					session_window.session_info.drain(..overlap_start as usize);
+					let outdated = std::cmp::min(overlap_start as usize, session_window.session_info.len());
+					session_window.session_info.drain(..outdated);
 					session_window.session_info.extend(s);
 					session_window.earliest_session = Some(window_start);
 				}
@@ -813,7 +813,7 @@ mod tests {
 
 		// Finalized block should be omitted. The head provided to `determine_new_blocks`
 		// should be included.
-		let expected_ancestry = (13..18)
+		let expected_ancestry = (13..=18)
 			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
 			.rev()
 			.collect::<Vec<_>>();
@@ -880,7 +880,7 @@ mod tests {
 
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -913,7 +913,7 @@ mod tests {
 
 		// Known block should be omitted. The head provided to `determine_new_blocks`
 		// should be included.
-		let expected_ancestry = (16..18)
+		let expected_ancestry = (16..=18)
 			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
 			.rev()
 			.collect::<Vec<_>>();
@@ -957,7 +957,7 @@ mod tests {
 			}
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1266,7 +1266,7 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1371,7 +1371,7 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1451,7 +1451,7 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	fn cache_session_info_test(
@@ -1484,7 +1484,7 @@ mod tests {
 					&header,
 				).await.unwrap().unwrap();
 
-				assert_eq!(window.earliest_session, Some(0));
+				assert_eq!(window.earliest_session, Some(start_session));
 				assert_eq!(
 					window.session_info,
 					(start_session..=session).map(dummy_session_info).collect::<Vec<_>>(),
@@ -1519,7 +1519,7 @@ mod tests {
 			}
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1679,7 +1679,7 @@ mod tests {
 			}
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 
 	#[test]
@@ -1744,6 +1744,6 @@ mod tests {
 			);
 		});
 
-		futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 }
