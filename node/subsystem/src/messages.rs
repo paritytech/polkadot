@@ -551,9 +551,6 @@ pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedC
 /// In all cases, the Hash is that of the relay parent.
 #[derive(Debug)]
 pub enum ProvisionerMessage {
-	/// This message allows potential block authors to be kept updated with all new authorship data
-	/// as it becomes available.
-	RequestBlockAuthorshipData(Hash, mpsc::Sender<ProvisionableData>),
 	/// This message allows external subsystems to request the set of bitfields and backed candidates
 	/// associated with a particular potential block hash.
 	///
@@ -567,7 +564,6 @@ pub enum ProvisionerMessage {
 impl BoundToRelayParent for ProvisionerMessage {
 	fn relay_parent(&self) -> Hash {
 		match self {
-			Self::RequestBlockAuthorshipData(hash, _) => *hash,
 			Self::RequestInherentData(hash, _) => *hash,
 			Self::ProvisionableData(hash, _) => *hash,
 		}
