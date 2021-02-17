@@ -224,7 +224,7 @@ impl RequestFromBackersPhase {
 		&mut self,
 		params: &InteractionParams,
 		to_state: &mut mpsc::Sender<FromInteraction>
-	) -> error::Result<bool> {
+	) -> Result<bool, mpsc::SendError> {
 		loop {
 			// Pop the next backer, and proceed to next phase if we're out.
 			let validator_index = match self.shuffled_backers.pop() {
@@ -240,21 +240,21 @@ impl RequestFromBackersPhase {
 				params.candidate_hash.clone(),
 				validator_index,
 				tx,
-			)).await.map_err(error::Error::ClosedToState)?;
+			)).await?;
 
 			match rx.timeout(FULL_DATA_REQUEST_TIMEOUT).await {
 				Some(Ok((peer_id, _validator_index, data))) => {
 					if reconstructed_data_matches_root(params.validators.len(), &params.erasure_root, &data) {
 						to_state.send(
 							FromInteraction::Concluded(params.candidate_hash.clone(), Ok(data))
-						).await.map_err(error::Error::ClosedToState)?;
+						).await?;
 
 						return Ok(true);
 					} else {
 						to_state.send(FromInteraction::ReportPeer(
 							peer_id.clone(),
 							COST_INVALID_AVAILABLE_DATA,
-						)).await.map_err(error::Error::ClosedToState)?;
+						)).await?;
 					}
 				}
 				Some(Err(e)) => {
@@ -291,7 +291,7 @@ impl RequestChunksPhase {
 		&mut self,
 		params: &InteractionParams,
 		to_state: &mut mpsc::Sender<FromInteraction>,
-	) -> error::Result<()> {
+	) -> Result<(), mpsc::SendError> {
 		while self.requesting_chunks.len() < N_PARALLEL {
 			if let Some(validator_index) = self.shuffling.pop() {
 				let (tx, rx) = oneshot::channel();
@@ -301,7 +301,7 @@ impl RequestChunksPhase {
 					params.candidate_hash.clone(),
 					validator_index,
 					tx,
-				)).await.map_err(error::Error::ClosedToState)?;
+				)).await?;
 
 				self.requesting_chunks.push(rx.timeout(CHUNK_REQUEST_TIMEOUT));
 			} else {
@@ -316,7 +316,7 @@ impl RequestChunksPhase {
 		&mut self,
 		params: &InteractionParams,
 		to_state: &mut mpsc::Sender<FromInteraction>,
-	) -> error::Result<()> {
+	) -> Result<(), mpsc::SendError> {
 		// Check if the requesting chunks is not empty not to poll to completion.
 		if self.requesting_chunks.is_empty() {
 			return Ok(());
@@ -335,7 +335,7 @@ impl RequestChunksPhase {
 						to_state.send(FromInteraction::ReportPeer(
 							peer_id.clone(),
 							COST_MERKLE_PROOF_INVALID,
-						)).await.map_err(error::Error::ClosedToState)?;
+						)).await?;
 
 						continue;
 					}
@@ -352,7 +352,7 @@ impl RequestChunksPhase {
 							to_state.send(FromInteraction::ReportPeer(
 								peer_id.clone(),
 								COST_MERKLE_PROOF_INVALID,
-							)).await.map_err(error::Error::ClosedToState)?;
+							)).await?;
 						} else {
 							self.received_chunks.insert(validator_index, chunk);
 						}
@@ -360,7 +360,7 @@ impl RequestChunksPhase {
 						to_state.send(FromInteraction::ReportPeer(
 							peer_id.clone(),
 							COST_MERKLE_PROOF_INVALID,
-						)).await.map_err(error::Error::ClosedToState)?;
+						)).await?;
 					}
 				}
 				Some(Err(e)) => {
@@ -386,7 +386,7 @@ impl RequestChunksPhase {
 		&mut self,
 		params: &InteractionParams,
 		to_state: &mut mpsc::Sender<FromInteraction>,
-	) -> error::Result<()> {
+	) -> Result<(), mpsc::SendError> {
 		loop {
 			if is_unavailable(
 				self.received_chunks.len(),
@@ -397,7 +397,7 @@ impl RequestChunksPhase {
 				to_state.send(FromInteraction::Concluded(
 					params.candidate_hash,
 					Err(RecoveryError::Unavailable),
-				)).await.map_err(error::Error::ClosedToState)?;
+				)).await?;
 
 				return Ok(());
 			}
@@ -430,7 +430,7 @@ impl RequestChunksPhase {
 					),
 				};
 
-				to_state.send(concluded).await.map_err(error::Error::ClosedToState)?;
+				to_state.send(concluded).await?;
 				return Ok(());
 			}
 		}
@@ -471,9 +471,13 @@ fn reconstructed_data_matches_root(
 impl Interaction {
 	async fn run(mut self) -> error::Result<()> {
 		loop {
+			// These only fail if we cannot reach the underlying subsystem, which case there is nothing
+			// meaningful we can do.
 			match self.phase {
 				InteractionPhase::RequestFromBackers(ref mut from_backers) => {
-					if from_backers.run(&self.params, &mut self.to_state).await? {
+					if from_backers.run(&self.params, &mut self.to_state).await
+						.map_err(error::Error::ClosedToState)?
+					{
 						break Ok(())
 					} else {
 						self.phase = InteractionPhase::RequestChunks(
@@ -483,6 +487,7 @@ impl Interaction {
 				}
 				InteractionPhase::RequestChunks(ref mut from_all) => {
 					break from_all.run(&self.params, &mut self.to_state).await
+						.map_err(error::Error::ClosedToState)
 				}
 			}
 		}
