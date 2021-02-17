@@ -157,13 +157,33 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
+/// Result of the [`CollatorFn`] invocation.
+pub struct CollationResult {
+	/// The collation that was build.
+	pub collation: Collation,
+	/// An optional result sender that should be informed about a successfully seconded collation.
+	///
+	/// There is no guarantee that this sender is informed ever about any result, it is completly okay to just drop it.
+	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
+	/// collation.
+	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,
+}
+
+impl CollationResult {
+	/// Convert into the inner values.
+	pub fn into_inner(self) -> (Collation, Option<futures::channel::oneshot::Sender<SignedFullStatement>>) {
+		(self.collation, self.result_sender)
+	}
+}
+
 /// Collation function.
 ///
-/// Will be called with the hash of the relay chain block the parachain
-/// block should be build on and the [`ValidationData`] that provides
-/// information about the state of the parachain on the relay chain.
+/// Will be called with the hash of the relay chain block the parachain block should be build on and the
+/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
+///
+/// Returns an optional [`CollationResult`].
 pub type CollatorFn = Box<
-	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
+	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
 		+ Send
 		+ Sync,
 >;
