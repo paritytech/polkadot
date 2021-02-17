@@ -174,7 +174,7 @@ impl From<HashSet<ValidatorId>> for ValidatorGroup {
 
 /// The status of a collation as seen from the collator.
 enum CollationStatus {
-	/// The collation was created, but we did not advertised it to any validator.
+	/// The collation was created, but we did not advertise it to any validator.
 	Created,
 	/// The collation was advertised to at least one validator.
 	Advertised,
