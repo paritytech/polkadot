@@ -41,13 +41,13 @@ struct TestHarness {
 fn test_harness<T: Future<Output = ()>>(
 	test: impl FnOnce(TestHarness) -> T,
 ) {
-	// let _ = env_logger::builder()
-	// 	.is_test(true)
-	// 	.filter(
-	// 		Some("polkadot_availability_recovery"),
-	// 		log::LevelFilter::Trace,
-	// 	)
-	// 	.try_init();
+	let _ = env_logger::builder()
+		.is_test(true)
+		.filter(
+			Some("polkadot_availability_recovery"),
+			log::LevelFilter::Trace,
+		)
+		.try_init();
 
 	let pool = sp_core::testing::TaskExecutor::new();
 

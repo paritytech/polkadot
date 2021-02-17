@@ -87,7 +87,7 @@ const AWAITED_CLEANUP_INTERVAL: Duration = Duration::from_secs(1);
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem;
 
-type DataResponse<T> = Result<(PeerId, ValidatorIndex, T), RecoveryError>;
+type DataResponse<T> = (PeerId, ValidatorIndex, T);
 
 /// Awaited data from the network.
 enum Awaited {
@@ -243,7 +243,7 @@ impl RequestFromBackersPhase {
 			)).await.map_err(error::Error::ClosedToState)?;
 
 			match rx.timeout(FULL_DATA_REQUEST_TIMEOUT).await {
-				Some(Ok(Ok((peer_id, _validator_index, data)))) => {
+				Some(Ok((peer_id, _validator_index, data))) => {
 					if reconstructed_data_matches_root(params.validators.len(), &params.erasure_root, &data) {
 						to_state.send(
 							FromInteraction::Concluded(params.candidate_hash.clone(), Ok(data))
@@ -257,18 +257,11 @@ impl RequestFromBackersPhase {
 						)).await.map_err(error::Error::ClosedToState)?;
 					}
 				}
-				Some(Ok(Err(e))) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						err = ?e,
-						"A chunk request ended with an error",
-					);
-				}
 				Some(Err(e)) => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						err = ?e,
-						"A response channel was cacelled while waiting for a chunk",
+						"A response channel was cancelled while waiting for full data",
 					);
 				}
 				None => {
@@ -332,7 +325,7 @@ impl RequestChunksPhase {
 		// Poll for new updates from requesting_chunks.
 		while let Some(request_result) = self.requesting_chunks.next().await {
 			match request_result {
-				Some(Ok(Ok((peer_id, validator_index, chunk)))) => {
+				Some(Ok((peer_id, validator_index, chunk))) => {
 					// Check merkle proofs of any received chunks, and any failures should
 					// lead to issuance of a FromInteraction::ReportPeer message.
 
@@ -374,14 +367,7 @@ impl RequestChunksPhase {
 					tracing::debug!(
 						target: LOG_TARGET,
 						err = ?e,
-						"A response channel was cacelled while waiting for a chunk",
-					);
-				}
-				Some(Ok(Err(e))) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						err = ?e,
-						"A chunk request ended with an error",
+						"A response channel was cancelled while waiting for a chunk",
 					);
 				}
 				None => {
@@ -872,7 +858,7 @@ async fn handle_network_update(
 							// Send the chunk response on the awaited_chunk for the interaction to handle.
 							if let Some(chunk) = chunk {
 								if awaited_chunk.response.send(
-									Ok((peer_id, awaited_chunk.validator_index, chunk))
+									(peer_id, awaited_chunk.validator_index, chunk)
 								).is_err() {
 									tracing::debug!(
 										target: LOG_TARGET,
@@ -922,7 +908,7 @@ async fn handle_network_update(
 							// If there exists an entry under r_id, remove it.
 							// Send the response on the awaited for the interaction to handle.
 							if let Some(data) = data {
-								if awaited.response.send(Ok((peer_id, awaited.validator_index, data))).is_err() {
+								if awaited.response.send((peer_id, awaited.validator_index, data)).is_err() {
 									tracing::debug!(
 										target: LOG_TARGET,
 										"A sending side of the recovery request is closed",
