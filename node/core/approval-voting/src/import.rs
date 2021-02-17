@@ -170,7 +170,7 @@ async fn determine_new_blocks(
 			// Any failed header fetch of the batch will yield a `None` result that will
 			// be skipped. Any failure at this stage means we'll just ignore those blocks
 			// as the chain DB has failed us.
-			if batch_headers.len() != batch_hashes.len() { break }
+			if batch_headers.len() != batch_hashes.len() { break 'outer }
 			batch_headers
 		};
 
@@ -1538,6 +1538,7 @@ mod tests {
 		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
 		let session = 5;
+		let irrelevant = 666;
 		let session_info = SessionInfo {
 			validators: Vec::new(),
 			discovery_keys: Vec::new(),
@@ -1545,13 +1546,16 @@ mod tests {
 			validator_groups: vec![vec![0; 5], vec![0; 2]],
 			n_cores: 6,
 			needed_approvals: 2,
-			zeroth_delay_tranche_width: 666,
-			relay_vrf_modulo_samples: 666,
-			n_delay_tranches: 666,
-			no_show_slots: 666,
+			zeroth_delay_tranche_width: irrelevant,
+			relay_vrf_modulo_samples: irrelevant,
+			n_delay_tranches: irrelevant,
+			no_show_slots: irrelevant,
 		};
 
 		let slot = Slot::from(10);
+
+		let chain = TestChain::new(4, 1);
+		let parent_hash = chain.header_by_number(4).unwrap().hash();
 
 		let header = Header {
 			digest: {
@@ -1571,17 +1575,43 @@ mod tests {
 			extrinsics_root: Default::default(),
 			number: 5,
 			state_root: Default::default(),
-			parent_hash: Default::default(),
+			parent_hash,
 		};
 
 		let hash = header.hash();
+		let make_candidate = |para_id| {
+			let mut r = CandidateReceipt::default();
+			r.descriptor.para_id = para_id;
+			r.descriptor.relay_parent = hash;
+			r
+		};
+		let candidates = vec![
+			(make_candidate(1.into()), CoreIndex(0), GroupIndex(0)),
+			(make_candidate(2.into()), CoreIndex(1), GroupIndex(1)),
+		];
+		let inclusion_events = candidates.iter().cloned()
+			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
+			.collect::<Vec<_>>();
 
 		let mut state = single_session_state(session, session_info);
+		state.db.block_entries.insert(
+			parent_hash.clone(),
+			crate::approval_db::v1::BlockEntry {
+				block_hash: parent_hash.clone(),
+				session,
+				slot,
+				relay_vrf_story: Default::default(),
+				candidates: Vec::new(),
+				approved_bitfield: Default::default(),
+				children: Vec::new(),
+			}.into(),
+		);
+
 		let db_writer = crate::approval_db::v1::tests::TestStore::default();
 
 		let test_fut = {
 			Box::pin(async move {
-				let imported_candidates = handle_new_head(
+				let result = handle_new_head(
 					&mut ctx,
 					&mut state,
 					&db_writer,
@@ -1589,7 +1619,13 @@ mod tests {
 					&Some(1),
 				).await.unwrap();
 
-				assert_eq!(imported_candidates.len(), 3);
+				assert_eq!(result.len(), 1);
+				let candidates = &result[0].imported_candidates;
+				assert_eq!(candidates.len(), 2);
+				// the first candidate should be insta-approved
+				// the second should not
+				assert!(candidates[0].1.approvals().all());
+				assert!(candidates[1].1.approvals().not_any());
 			})
 		};
 
@@ -1611,10 +1647,60 @@ mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, parent_hash.clone());
 					let _ = c_tx.send(Ok(session));
 				}
-			)
+			);
+
+			// determine_new_blocks exits early as the parent_hash is in the DB
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::CandidateEvents(c_tx),
+				)) => {
+					assert_eq!(h, hash.clone());
+					let _ = c_tx.send(Ok(inclusion_events));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(c_tx),
+				)) => {
+					assert_eq!(h, parent_hash.clone());
+					let _ = c_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::CurrentBabeEpoch(c_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = c_tx.send(Ok(BabeEpoch {
+						epoch_index: session as _,
+						start_slot: Slot::from(0),
+						duration: 200,
+						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
+						randomness: [0u8; 32],
+					}));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ApprovalDistribution(ApprovalDistributionMessage::NewBlocks(
+					approval_meta
+				)) => {
+					assert_eq!(approval_meta.len(), 1);
+				}
+			);
 		});
 
 		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
