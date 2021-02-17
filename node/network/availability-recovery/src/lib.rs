@@ -498,7 +498,7 @@ struct State {
 	live_block_hash: Hash,
 
 	/// We are waiting for these validators to connect and as soon as they
-	/// do to request the needed data we are awaitinf for.
+	/// do, request the needed data we are waiting for.
 	discovering_validators: HashMap<AuthorityDiscoveryId, Vec<Awaited>>,
 
 	/// Requests that we have issued to the already connected validators
