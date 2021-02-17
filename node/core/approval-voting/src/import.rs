@@ -1610,7 +1610,7 @@ mod tests {
 			}.into(),
 		);
 
-		let db_writer = crate::approval_db::v1::tests::TestStore::default();
+		let db_writer = kvdb_memorydb::create(1);
 
 		let test_fut = {
 			Box::pin(async move {
