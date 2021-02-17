@@ -372,7 +372,7 @@ pub mod v1 {
 	}
 
 	impl std::fmt::Debug for CompressedPoV {
-    	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 			write!(f, "CompressedPoV({} bytes)", self.0.len())
 		}
 	}
@@ -436,6 +436,62 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
+}
+
+/// Unified annoyance cost and good behavior benefits.
+#[derive(Debug,Clone,Copy)]
+#[allow(missing_docs)]
+pub enum UnifiedReputationChange {
+	AnnoyMajor(&'static str),
+	AnnoyMinor(&'static str),
+	AnnoyMajorRepeated(&'static str),
+	AnnoyMinorRepeated(&'static str),
+	Malicious(&'static str),
+	BenefitMinorFirst(&'static str),
+	BenefitMinor(&'static str),
+	BenefitMajorFirst(&'static str),
+	BenefitMajor(&'static str),
+}
+
+impl UnifiedReputationChange {
+	/// Obtain the cost or benefit associated with
+	/// the enum variant.
+	const fn cost_or_benefit(&self) -> i32 {
+		match self {
+			Self::AnnoyMinor(_) => -100,
+			Self::AnnoyMajor(_) => -300,
+			Self::AnnoyMinorRepeated(_) => -200,
+			Self::AnnoyMajorRepeated(_) => -600,
+			Self::Malicious(_) => -1_000,
+			Self::BenefitMajorFirst(_) => 150,
+			Self::BenefitMajor(_) => 100,
+			Self::BenefitMinorFirst(_) => 15,
+			Self::BenefitMinor(_) => 10,
+		}
+	}
+
+	/// Extract the static description.
+	pub const fn description(&self) -> &'static str {
+		match self {
+			Self::AnnoyMinor(description) => description,
+			Self::AnnoyMajor(description) => description,
+			Self::AnnoyMinorRepeated(description) => description,
+			Self::AnnoyMajorRepeated(description) => description,
+			Self::Malicious(description) => description,
+			Self::BenefitMajorFirst(description) => description,
+			Self::BenefitMajor(description) => description,
+			Self::BenefitMinorFirst(description) => description,
+			Self::BenefitMinor(description) => description,
+		}
+	}
+
+	/// Convert into a base reputation as used with substrate.
+	pub const fn into_base_rep(self) -> ReputationChange {
+		ReputationChange::new(
+			self.cost_or_benefit(),
+			self.description()
+		)
+	}
 }
 
 #[cfg(test)]
