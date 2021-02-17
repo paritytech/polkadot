@@ -119,6 +119,13 @@ impl MallocSizeOf for ValidatorId {
 #[derive(Debug, MallocSizeOf)]
 pub struct ValidatorIndex(pub u32);
 
+// We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
+impl From<u32> for ValidatorIndex {
+	fn from(n: u32) -> Self {
+		ValidatorIndex(n)
+	}
+}
+
 application_crypto::with_pair! {
 	/// A Parachain validator keypair.
 	pub type ValidatorPair = validator_app::Pair;
