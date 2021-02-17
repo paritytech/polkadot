@@ -293,7 +293,7 @@ async fn cache_session_info_for_head(
 			);
 
 			// keep some of the old window, if applicable.
-			let overlap_start = window_start - old_window_start;
+			let overlap_start = window_start.saturating_sub(old_window_start);
 
 			let fresh_start = if latest < window_start {
 				window_start
@@ -315,7 +315,11 @@ async fn cache_session_info_for_head(
 					let outdated = std::cmp::min(overlap_start as usize, session_window.session_info.len());
 					session_window.session_info.drain(..outdated);
 					session_window.session_info.extend(s);
-					session_window.earliest_session = Some(window_start);
+					// we need to account for this case:
+					// window_start ................................... session_index 
+					//              old_window_start ........... latest
+					let new_earliest = std::cmp::max(window_start, old_window_start);
+					session_window.earliest_session = Some(new_earliest);
 				}
 			}
 		}
@@ -1455,12 +1459,11 @@ mod tests {
 	}
 
 	fn cache_session_info_test(
+		expected_start_session: SessionIndex,
 		session: SessionIndex,
 		mut window: RollingSessionWindow,
 		expect_requests_from: SessionIndex,
 	) {
-		let start_session = session.saturating_sub(APPROVAL_SESSIONS - 1);
-
 		let header = Header {
 			digest: Digest::default(),
 			extrinsics_root: Default::default(),
@@ -1484,10 +1487,10 @@ mod tests {
 					&header,
 				).await.unwrap().unwrap();
 
-				assert_eq!(window.earliest_session, Some(start_session));
+				assert_eq!(window.earliest_session, Some(expected_start_session));
 				assert_eq!(
 					window.session_info,
-					(start_session..=session).map(dummy_session_info).collect::<Vec<_>>(),
+					(expected_start_session..=session).map(dummy_session_info).collect::<Vec<_>>(),
 				);
 			})
 		};
@@ -1525,6 +1528,7 @@ mod tests {
 	#[test]
 	fn cache_session_info_first_early() {
 		cache_session_info_test(
+			0,
 			1,
 			RollingSessionWindow::default(),
 			0,
@@ -1532,8 +1536,24 @@ mod tests {
 	}
 
 	#[test]
+	fn cache_session_info_does_not_underflow() {
+		let window = RollingSessionWindow {
+			earliest_session: Some(1),
+			session_info: vec![dummy_session_info(1)],
+		};
+
+		cache_session_info_test(
+			1,
+			2,
+			window,
+			2,
+		);
+	}
+
+	#[test]
 	fn cache_session_info_first_late() {
 		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
 			100,
 			RollingSessionWindow::default(),
 			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
@@ -1548,6 +1568,7 @@ mod tests {
 		};
 
 		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
 			100,
 			window,
 			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
@@ -1563,6 +1584,7 @@ mod tests {
 		};
 
 		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
 			100,
 			window,
 			100, // should only make one request.
@@ -1578,6 +1600,7 @@ mod tests {
 		};
 
 		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(APPROVAL_SESSIONS - 1),
 			100,
 			window,
 			98,
@@ -1593,6 +1616,7 @@ mod tests {
 		};
 
 		cache_session_info_test(
+			0,
 			2,
 			window,
 			2, // should only make one request.
@@ -1608,6 +1632,7 @@ mod tests {
 		};
 
 		cache_session_info_test(
+			0,
 			3,
 			window,
 			2,
