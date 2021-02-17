@@ -593,7 +593,6 @@ pub(crate) async fn handle_new_head(
 			);
 			(block_tick, no_show_duration)
 		};
-
 		let needed_approvals = session_info.needed_approvals;
 		let validator_group_lens: Vec<usize> = session_info.validator_groups.iter().map(|v| v.len()).collect();
 		// insta-approve candidates on low-node testnets:
@@ -1540,7 +1539,7 @@ mod tests {
 		let session = 5;
 		let irrelevant = 666;
 		let session_info = SessionInfo {
-			validators: Vec::new(),
+			validators: vec![Sr25519Keyring::Alice.public().into(); 6], 
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
 			validator_groups: vec![vec![0; 5], vec![0; 2]],
@@ -1624,7 +1623,9 @@ mod tests {
 				assert_eq!(candidates.len(), 2);
 				// the first candidate should be insta-approved
 				// the second should not
-				assert!(candidates[0].1.approvals().all());
+				assert_eq!(candidates[0].1.approvals().len(), 6);
+				assert_eq!(candidates[1].1.approvals().len(), 6);
+				assert_eq!(candidates[0].1.approvals().all());
 				assert!(candidates[1].1.approvals().not_any());
 			})
 		};
