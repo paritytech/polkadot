@@ -413,31 +413,31 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#41d3c87e21efc697a6a6449f5ad323b8f694c683"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#6edfd06dd8e856743c39a6482f130e4a368c2166"
 dependencies = [
  "beefy-primitives",
  "futures 0.3.12",
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sc-network-gossip 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-client-api",
+ "sc-keystore",
+ "sc-network",
+ "sc-network-gossip",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-utils",
 ]
 
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#41d3c87e21efc697a6a6449f5ad323b8f694c683"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#6edfd06dd8e856743c39a6482f130e4a368c2166"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -448,24 +448,24 @@ dependencies = [
  "jsonrpc-pubsub",
  "log",
  "parity-scale-codec",
- "sc-rpc 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sc-rpc",
  "serde",
  "serde_json",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#41d3c87e21efc697a6a6449f5ad323b8f694c683"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#6edfd06dd8e856743c39a6482f130e4a368c2166"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -1648,14 +1648,6 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "fork-tree"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
-]
-
-[[package]]
-name = "fork-tree"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
@@ -1674,37 +1666,19 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate)",
- "linregress",
- "parity-scale-codec",
- "paste 1.0.4",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "frame-benchmarking"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "linregress",
  "parity-scale-codec",
  "paste 1.0.4",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -1714,19 +1688,19 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "Inflector",
  "chrono",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
  "handlebars",
  "parity-scale-codec",
  "sc-cli",
  "sc-client-db",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor",
  "sc-service",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "structopt",
 ]
 
@@ -1735,26 +1709,15 @@ name = "frame-executive"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "frame-metadata"
-version = "13.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1764,34 +1727,8 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "frame-support"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "bitflags",
- "frame-metadata 13.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-support-procedural 3.0.0 (git+https://github.com/paritytech/substrate)",
- "impl-trait-for-tuples",
- "log",
- "once_cell",
- "parity-scale-codec",
- "paste 1.0.4",
- "serde",
- "smallvec 1.6.1",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -1800,8 +1737,8 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "bitflags",
- "frame-metadata 13.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support-procedural 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-metadata",
+ "frame-support-procedural",
  "impl-trait-for-tuples",
  "log",
  "once_cell",
@@ -1809,27 +1746,15 @@ dependencies = [
  "paste 1.0.4",
  "serde",
  "smallvec 1.6.1",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "frame-support-procedural"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "Inflector",
- "frame-support-procedural-tools 3.0.0 (git+https://github.com/paritytech/substrate)",
- "proc-macro2",
- "quote",
- "syn",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1838,19 +1763,7 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "Inflector",
- "frame-support-procedural-tools 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "proc-macro-crate",
+ "frame-support-procedural-tools",
  "proc-macro2",
  "quote",
  "syn",
@@ -1861,18 +1774,8 @@ name = "frame-support-procedural-tools"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support-procedural-tools-derive",
  "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn",
@@ -1891,33 +1794,17 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "frame-system"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]
@@ -1925,13 +1812,13 @@ name = "frame-system-benchmarking"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -1940,7 +1827,7 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
 ]
 
 [[package]]
@@ -2935,10 +2822,10 @@ version = "0.8.28"
 dependencies = [
  "beefy-primitives",
  "bitvec",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
@@ -2965,12 +2852,12 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-session-benchmarking",
  "pallet-society",
  "pallet-staking",
  "pallet-staking-reward-curve",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "pallet-tips",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -2986,22 +2873,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-authority-discovery",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-transaction-pool",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -4175,15 +4062,15 @@ name = "pallet-authority-discovery"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
+ "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
  "sp-authority-discovery",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4191,14 +4078,14 @@ name = "pallet-authorship"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-authorship",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4206,24 +4093,24 @@ name = "pallet-babe"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-authorship",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
+ "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -4231,28 +4118,28 @@ name = "pallet-balances"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#41d3c87e21efc697a6a6449f5ad323b8f694c683"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#6edfd06dd8e856743c39a6482f130e4a368c2166"
 dependencies = [
  "beefy-primitives",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate)",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support",
+ "frame-system",
+ "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4260,14 +4147,14 @@ name = "pallet-bounties"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4275,15 +4162,15 @@ name = "pallet-collective"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4291,14 +4178,14 @@ name = "pallet-democracy"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4306,14 +4193,14 @@ name = "pallet-elections-phragmen"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
  "sp-npos-elections",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4321,20 +4208,20 @@ name = "pallet-grandpa"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-authorship",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4343,14 +4230,14 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "enumflags2",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4358,18 +4245,18 @@ name = "pallet-im-online"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-authorship",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4377,16 +4264,16 @@ name = "pallet-indices"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
  "sp-keyring",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4394,13 +4281,13 @@ name = "pallet-membership"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4409,16 +4296,16 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "ckb-merkle-mountain-range",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-mmr-primitives",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4426,14 +4313,14 @@ name = "pallet-mmr-primitives"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4441,15 +4328,15 @@ name = "pallet-multisig"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4457,13 +4344,13 @@ name = "pallet-nicks"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4471,14 +4358,14 @@ name = "pallet-offences"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4486,20 +4373,20 @@ name = "pallet-offences-benchmarking"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-babe",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-im-online",
  "pallet-offences",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-staking",
  "parity-scale-codec",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4507,15 +4394,15 @@ name = "pallet-proxy"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4523,12 +4410,12 @@ name = "pallet-randomness-collective-flip"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "safe-mix",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4537,13 +4424,13 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "enumflags2",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4551,34 +4438,14 @@ name = "pallet-scheduler"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "pallet-session"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate)",
- "impl-trait-for-tuples",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate)",
- "parity-scale-codec",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4586,19 +4453,19 @@ name = "pallet-session"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -4606,15 +4473,15 @@ name = "pallet-session-benchmarking"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-session",
  "pallet-staking",
  "rand 0.7.3",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-session",
+ "sp-std",
 ]
 
 [[package]]
@@ -4622,13 +4489,13 @@ name = "pallet-society"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4636,20 +4503,20 @@ name = "pallet-staking"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-authorship",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -4669,30 +4536,13 @@ name = "pallet-sudo"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "pallet-timestamp"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate)",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "serde",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-timestamp 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4700,17 +4550,17 @@ name = "pallet-timestamp"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -4718,14 +4568,14 @@ name = "pallet-tips"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4733,15 +4583,15 @@ name = "pallet-transaction-payment"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4754,11 +4604,11 @@ dependencies = [
  "jsonrpc-derive",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-rpc 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-rpc",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4768,8 +4618,8 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4777,15 +4627,15 @@ name = "pallet-treasury"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4793,15 +4643,15 @@ name = "pallet-utility"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4810,13 +4660,13 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "enumflags2",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5270,7 +5120,7 @@ dependencies = [
  "polkadot-primitives",
  "rand_core 0.5.1",
  "schnorrkel",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5291,9 +5141,9 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "tracing",
  "tracing-futures",
 ]
@@ -5312,12 +5162,12 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5341,8 +5191,8 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.3",
  "smallvec 1.6.1",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
  "streamunordered",
  "thiserror",
@@ -5361,8 +5211,8 @@ dependencies = [
  "polkadot-service",
  "sc-cli",
  "sc-service",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-trie",
  "structopt",
  "substrate-browser-utils",
  "substrate-build-script-utils",
@@ -5387,7 +5237,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -5400,9 +5250,9 @@ version = "0.7.30"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5412,8 +5262,8 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "reed-solomon-erasure",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -5432,8 +5282,8 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-authority-discovery",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
+ "sp-core",
  "sp-keyring",
  "strum",
  "tracing",
@@ -5451,7 +5301,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5475,17 +5325,17 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "rand_core 0.5.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-keystore",
  "schnorrkel",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-blockchain",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
+ "sp-runtime",
  "tracing",
  "tracing-futures",
 ]
@@ -5512,7 +5362,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-service",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -5533,11 +5383,11 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5551,7 +5401,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5567,8 +5417,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5587,7 +5437,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-keyring",
  "tracing",
  "tracing-futures",
@@ -5603,8 +5453,8 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5619,16 +5469,16 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-basic-authorship",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
+ "sc-client-api",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "substrate-prometheus-endpoint",
  "tracing",
 ]
 
@@ -5642,8 +5492,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5661,9 +5511,9 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5678,8 +5528,8 @@ dependencies = [
  "mick-jaeger",
  "parking_lot 0.11.1",
  "polkadot-primitives",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
+ "sp-core",
  "thiserror",
 ]
 
@@ -5692,7 +5542,7 @@ dependencies = [
  "polkadot-node-jaeger",
  "polkadot-node-primitives",
  "polkadot-primitives",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
  "strum",
  "thiserror",
  "zstd",
@@ -5707,11 +5557,11 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-statement-table",
  "schnorrkel",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -5737,10 +5587,10 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5762,9 +5612,9 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5789,12 +5639,12 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "streamunordered",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5815,8 +5665,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5834,15 +5684,15 @@ dependencies = [
  "parking_lot 0.11.1",
  "polkadot-core-primitives",
  "raw_sync",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor",
  "serde",
  "shared_memory",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-wasm-interface",
  "static_assertions",
  "thiserror",
 ]
@@ -5860,7 +5710,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -5872,7 +5722,7 @@ name = "polkadot-primitives"
 version = "0.8.28"
 dependencies = [
  "bitvec",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-system",
  "hex-literal",
  "parity-scale-codec",
  "parity-util-mem",
@@ -5880,20 +5730,20 @@ dependencies = [
  "polkadot-parachain",
  "pretty_assertions",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-authority-discovery",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-serializer 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-serializer",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
+ "sp-version",
 ]
 
 [[package]]
@@ -5907,23 +5757,23 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "sc-chain-spec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-consensus-babe",
  "sc-consensus-babe-rpc",
  "sc-consensus-epochs",
  "sc-finality-grandpa",
  "sc-finality-grandpa-rpc",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-rpc 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
+ "sc-rpc",
  "sc-sync-state-rpc",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
  "sp-consensus-babe",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-transaction-pool",
  "substrate-frame-rpc-system",
 ]
 
@@ -5933,10 +5783,10 @@ version = "0.8.28"
 dependencies = [
  "beefy-primitives",
  "bitvec",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
@@ -5962,11 +5812,11 @@ dependencies = [
  "pallet-proxy",
  "pallet-randomness-collective-flip",
  "pallet-scheduler",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-session-benchmarking",
  "pallet-staking",
  "pallet-staking-reward-curve",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "pallet-tips",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -5981,22 +5831,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-authority-discovery",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-transaction-pool",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -6009,9 +5859,9 @@ version = "0.8.28"
 dependencies = [
  "beefy-primitives",
  "bitvec",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "hex-literal",
  "libsecp256k1",
  "log",
@@ -6022,10 +5872,10 @@ dependencies = [
  "pallet-mmr",
  "pallet-offences",
  "pallet-randomness-collective-flip",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-treasury",
  "pallet-vesting",
@@ -6036,17 +5886,17 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
  "static_assertions",
  "trie-db",
  "xcm",
@@ -6058,9 +5908,9 @@ version = "0.8.0"
 dependencies = [
  "bitvec",
  "derive_more",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "futures 0.3.12",
  "hex-literal",
  "libsecp256k1",
@@ -6071,10 +5921,10 @@ dependencies = [
  "pallet-balances",
  "pallet-offences",
  "pallet-randomness-collective-flip",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "pallet-treasury",
  "pallet-vesting",
  "parity-scale-codec",
@@ -6082,22 +5932,22 @@ dependencies = [
  "rand 0.8.3",
  "rand_chacha 0.3.0",
  "rustc-hex",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
  "serde",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
+ "sp-version",
  "xcm",
  "xcm-executor",
 ]
@@ -6109,7 +5959,7 @@ dependencies = [
  "beefy-gadget",
  "beefy-primitives",
  "env_logger 0.8.2",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "futures 0.3.12",
  "hex-literal",
@@ -6148,41 +5998,41 @@ dependencies = [
  "polkadot-test-client",
  "rococo-runtime",
  "sc-authority-discovery",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
  "sc-chain-spec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-client-db",
  "sc-consensus",
  "sc-consensus-babe",
  "sc-consensus-slots",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor",
  "sc-finality-grandpa",
  "sc-finality-grandpa-warp-sync",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
+ "sc-network",
  "sc-service",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-telemetry",
  "sc-transaction-pool",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-authority-discovery",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-transaction-pool",
+ "sp-trie",
+ "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -6203,12 +6053,12 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
+ "sp-staking",
  "tracing",
  "tracing-futures",
 ]
@@ -6219,7 +6069,7 @@ version = "0.8.28"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
 ]
 
 [[package]]
@@ -6231,18 +6081,18 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-test-runtime",
  "polkadot-test-service",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
  "sc-consensus",
  "sc-service",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-timestamp",
  "substrate-test-client",
 ]
 
@@ -6253,8 +6103,8 @@ dependencies = [
  "beefy-primitives",
  "bitvec",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "libsecp256k1",
@@ -6268,11 +6118,11 @@ dependencies = [
  "pallet-nicks",
  "pallet-offences",
  "pallet-randomness-collective-flip",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-vesting",
@@ -6286,22 +6136,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-authority-discovery",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-transaction-pool",
+ "sp-trie",
+ "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
 ]
@@ -6310,8 +6160,8 @@ dependencies = [
 name = "polkadot-test-service"
 version = "0.8.28"
 dependencies = [
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
+ "frame-system",
  "futures 0.1.29",
  "futures 0.3.12",
  "hex",
@@ -6332,27 +6182,27 @@ dependencies = [
  "sc-authority-discovery",
  "sc-chain-spec",
  "sc-cli",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-consensus",
  "sc-consensus-babe",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor",
  "sc-finality-grandpa",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
  "sc-service",
- "sc-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-tracing",
  "sc-transaction-pool",
  "serde_json",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-arithmetic",
  "sp-authority-discovery",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-consensus",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "sp-state-machine",
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
@@ -6785,7 +6635,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "nix",
- "rand 0.3.23",
+ "rand 0.8.3",
  "winapi 0.3.9",
 ]
 
@@ -7001,8 +6851,8 @@ version = "0.8.28"
 dependencies = [
  "beefy-primitives",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "libsecp256k1",
@@ -7016,11 +6866,11 @@ dependencies = [
  "pallet-indices",
  "pallet-mmr",
  "pallet-offences",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
@@ -7031,20 +6881,20 @@ dependencies = [
  "serde",
  "serde_derive",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-authority-discovery",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-transaction-pool",
+ "sp-version",
  "substrate-wasm-builder",
  "xcm",
  "xcm-builder",
@@ -7198,16 +7048,16 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-network",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-authority-discovery",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -7219,35 +7069,18 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
+ "sc-client-api",
  "sc-proposer-metrics",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sc-block-builder"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
+ "sc-telemetry",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -7256,15 +7089,15 @@ version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -7278,14 +7111,14 @@ dependencies = [
  "sc-consensus-babe",
  "sc-consensus-epochs",
  "sc-finality-grandpa",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
+ "sc-telemetry",
  "serde",
  "serde_json",
- "sp-chain-spec 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-chain-spec",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7315,60 +7148,26 @@ dependencies = [
  "rand 0.7.3",
  "regex",
  "rpassword",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-keystore",
+ "sc-network",
  "sc-service",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-telemetry",
+ "sc-tracing",
  "serde",
  "serde_json",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
+ "sp-panic-handler",
+ "sp-runtime",
+ "sp-utils",
+ "sp-version",
  "structopt",
  "thiserror",
  "tiny-bip39",
  "tokio 0.2.21",
-]
-
-[[package]]
-name = "sc-client-api"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "derive_more",
- "fnv",
- "futures 0.3.12",
- "hash-db",
- "kvdb",
- "lazy_static",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-database 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -7385,24 +7184,24 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-database 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-database",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-storage",
+ "sp-transaction-pool",
+ "sp-trie",
+ "sp-utils",
+ "sp-version",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -7421,18 +7220,18 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.11.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-executor",
  "sc-state-db",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-database 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-arithmetic",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-database",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -7440,10 +7239,10 @@ name = "sc-consensus"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7452,7 +7251,7 @@ version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "derive_more",
- "fork-tree 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "fork-tree",
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "log",
@@ -7465,31 +7264,31 @@ dependencies = [
  "pdqselect",
  "rand 0.7.3",
  "retain_mut",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-consensus-epochs",
  "sc-consensus-slots",
  "sc-consensus-uncles",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
+ "sc-telemetry",
  "schnorrkel",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-timestamp",
+ "sp-utils",
+ "sp-version",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -7504,16 +7303,16 @@ dependencies = [
  "jsonrpc-derive",
  "sc-consensus-babe",
  "sc-consensus-epochs",
- "sc-rpc-api 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-rpc-api",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-blockchain",
+ "sp-consensus",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7521,12 +7320,12 @@ name = "sc-consensus-epochs"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "fork-tree 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "fork-tree",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sp-blockchain",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7539,19 +7338,19 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-telemetry",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-blockchain",
+ "sp-consensus",
  "sp-consensus-slots",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -7561,40 +7360,12 @@ version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "log",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sp-authorship",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sc-executor"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "derive_more",
- "lazy_static",
- "libsecp256k1",
- "log",
- "parity-scale-codec",
- "parity-wasm 0.41.0",
- "parking_lot 0.11.1",
- "sc-executor-common 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor-wasmi 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-serializer 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tasks 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "wasmi",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7609,36 +7380,20 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "parking_lot 0.11.1",
- "sc-executor-common 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-executor-wasmi 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor-common",
+ "sc-executor-wasmi",
  "sc-executor-wasmtime",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-serializer 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tasks 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "wasmi",
-]
-
-[[package]]
-name = "sc-executor-common"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "derive_more",
- "parity-scale-codec",
- "parity-wasm 0.41.0",
- "sp-allocator 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-serializer 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
+ "sp-api",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-panic-handler",
+ "sp-runtime-interface",
+ "sp-serializer",
+ "sp-tasks",
+ "sp-trie",
+ "sp-version",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -7650,26 +7405,11 @@ dependencies = [
  "derive_more",
  "parity-scale-codec",
  "parity-wasm 0.41.0",
- "sp-allocator 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-serializer 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-allocator",
+ "sp-core",
+ "sp-serializer",
+ "sp-wasm-interface",
  "thiserror",
- "wasmi",
-]
-
-[[package]]
-name = "sc-executor-wasmi"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "log",
- "parity-scale-codec",
- "sc-executor-common 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-allocator 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
  "wasmi",
 ]
 
@@ -7680,11 +7420,11 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "log",
  "parity-scale-codec",
- "sc-executor-common 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-allocator 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor-common",
+ "sp-allocator",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -7697,12 +7437,12 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "pwasm-utils",
- "sc-executor-common 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor-common",
  "scoped-tls",
- "sp-allocator 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-allocator",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmtime",
 ]
 
@@ -7714,7 +7454,7 @@ dependencies = [
  "derive_more",
  "dyn-clone",
  "finality-grandpa",
- "fork-tree 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "fork-tree",
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "linked-hash-map",
@@ -7723,26 +7463,26 @@ dependencies = [
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
  "rand 0.7.3",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
+ "sc-client-api",
  "sc-consensus",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-network-gossip 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
+ "sc-network",
+ "sc-network-gossip",
+ "sc-telemetry",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-utils",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -7759,14 +7499,14 @@ dependencies = [
  "jsonrpc-pubsub",
  "log",
  "parity-scale-codec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-finality-grandpa",
- "sc-rpc 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-rpc",
  "serde",
  "serde_json",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7781,12 +7521,12 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "prost",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-finality-grandpa",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
  "sc-service",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7798,33 +7538,13 @@ dependencies = [
  "futures 0.3.12",
  "log",
  "parity-util-mem",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-network",
+ "sp-blockchain",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "sp-utils",
  "wasm-timer",
-]
-
-[[package]]
-name = "sc-keystore"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "async-trait",
- "derive_more",
- "futures 0.3.12",
- "futures-util",
- "hex",
- "merlin",
- "parking_lot 0.11.1",
- "rand 0.7.3",
- "serde_json",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate)",
- "subtle 2.2.3",
 ]
 
 [[package]]
@@ -7841,9 +7561,9 @@ dependencies = [
  "parking_lot 0.11.1",
  "rand 0.7.3",
  "serde_json",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "subtle 2.2.3",
 ]
 
@@ -7856,67 +7576,14 @@ dependencies = [
  "lazy_static",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sc-network"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "async-std",
- "async-trait",
- "asynchronous-codec",
- "bitflags",
- "bs58",
- "bytes 1.0.1",
- "cid",
- "derive_more",
- "either",
- "erased-serde",
- "fnv",
- "fork-tree 3.0.0 (git+https://github.com/paritytech/substrate)",
- "futures 0.3.12",
- "futures-timer 3.0.2",
- "hex",
- "ip_network",
- "libp2p",
- "linked-hash-map",
- "linked_hash_set",
- "log",
- "lru",
- "nohash-hasher",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "pin-project 1.0.4",
- "prost",
- "prost-build",
- "rand 0.7.3",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-peerset 3.0.0 (git+https://github.com/paritytech/substrate)",
- "serde",
- "serde_json",
- "smallvec 1.6.1",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
- "unsigned-varint 0.6.0",
- "void",
- "wasm-timer",
- "zeroize",
+ "sc-client-api",
+ "sc-executor",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -7935,7 +7602,7 @@ dependencies = [
  "either",
  "erased-serde",
  "fnv",
- "fork-tree 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "fork-tree",
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "hex",
@@ -7952,40 +7619,24 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-peerset 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
+ "sc-client-api",
+ "sc-peerset",
  "serde",
  "serde_json",
  "smallvec 1.6.1",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-arithmetic",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-runtime",
+ "sp-utils",
+ "substrate-prometheus-endpoint",
  "thiserror",
  "unsigned-varint 0.6.0",
  "void",
  "wasm-timer",
  "zeroize",
-]
-
-[[package]]
-name = "sc-network-gossip"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "futures 0.3.12",
- "futures-timer 3.0.2",
- "libp2p",
- "log",
- "lru",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate)",
- "wasm-timer",
 ]
 
 [[package]]
@@ -7998,9 +7649,9 @@ dependencies = [
  "libp2p",
  "log",
  "lru",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
+ "sp-runtime",
+ "substrate-prometheus-endpoint",
  "wasm-timer",
 ]
 
@@ -8021,28 +7672,15 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "rand 0.7.3",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-keystore",
+ "sc-network",
+ "sp-api",
+ "sp-core",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-utils",
  "threadpool",
-]
-
-[[package]]
-name = "sc-peerset"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "futures 0.3.12",
- "libp2p",
- "log",
- "serde_json",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate)",
- "wasm-timer",
 ]
 
 [[package]]
@@ -8054,7 +7692,7 @@ dependencies = [
  "libp2p",
  "log",
  "serde_json",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-utils",
  "wasm-timer",
 ]
 
@@ -8064,41 +7702,7 @@ version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "log",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sc-rpc"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "futures 0.3.12",
- "hash-db",
- "jsonrpc-core",
- "jsonrpc-pubsub",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-rpc-api 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sc-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
- "serde_json",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-chain-spec 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-rpc 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -8113,50 +7717,26 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-rpc-api 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
+ "sc-client-api",
+ "sc-executor",
+ "sc-keystore",
+ "sc-rpc-api",
+ "sc-tracing",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-chain-spec 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-rpc 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sc-rpc-api"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "derive_more",
- "futures 0.3.12",
- "jsonrpc-core",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "jsonrpc-pubsub",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "serde",
- "serde_json",
- "sp-chain-spec 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-rpc 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api",
+ "sp-blockchain",
+ "sp-chain-spec",
+ "sp-core",
+ "sp-keystore",
+ "sp-offchain",
+ "sp-rpc",
+ "sp-runtime",
+ "sp-session",
+ "sp-state-machine",
+ "sp-transaction-pool",
+ "sp-utils",
+ "sp-version",
 ]
 
 [[package]]
@@ -8175,12 +7755,12 @@ dependencies = [
  "parking_lot 0.11.1",
  "serde",
  "serde_json",
- "sp-chain-spec 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-rpc 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-chain-spec",
+ "sp-core",
+ "sp-rpc",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "sp-version",
 ]
 
 [[package]]
@@ -8197,8 +7777,8 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-runtime",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -8221,42 +7801,42 @@ dependencies = [
  "parking_lot 0.11.1",
  "pin-project 1.0.4",
  "rand 0.7.3",
- "sc-block-builder 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-block-builder",
  "sc-chain-spec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-client-db",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor",
  "sc-informant",
- "sc-keystore 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-keystore",
  "sc-light",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
  "sc-offchain",
- "sc-rpc 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-rpc",
  "sc-rpc-server",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-telemetry",
+ "sc-tracing",
  "sc-transaction-pool",
  "serde",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-session",
+ "sp-state-machine",
+ "sp-tracing",
+ "sp-transaction-pool",
+ "sp-trie",
+ "sp-utils",
+ "sp-version",
+ "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
  "tracing",
@@ -8274,8 +7854,8 @@ dependencies = [
  "parity-util-mem",
  "parity-util-mem-derive",
  "parking_lot 0.11.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sp-core",
  "thiserror",
 ]
 
@@ -8288,37 +7868,15 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "sc-chain-spec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-consensus-babe",
  "sc-consensus-epochs",
  "sc-finality-grandpa",
- "sc-rpc-api 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-rpc-api",
  "serde_json",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-runtime",
  "thiserror",
-]
-
-[[package]]
-name = "sc-telemetry"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "chrono",
- "futures 0.3.12",
- "libp2p",
- "log",
- "parking_lot 0.11.1",
- "pin-project 1.0.4",
- "rand 0.7.3",
- "serde",
- "serde_json",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate)",
- "take_mut",
- "tracing",
- "tracing-subscriber",
- "void",
- "wasm-timer",
 ]
 
 [[package]]
@@ -8335,40 +7893,12 @@ dependencies = [
  "rand 0.7.3",
  "serde",
  "serde_json",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-utils",
  "take_mut",
  "tracing",
  "tracing-subscriber",
  "void",
  "wasm-timer",
-]
-
-[[package]]
-name = "sc-tracing"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "ansi_term 0.12.1",
- "atty",
- "erased-serde",
- "lazy_static",
- "log",
- "once_cell",
- "parking_lot 0.11.1",
- "regex",
- "rustc-hash",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sc-tracing-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate)",
- "serde",
- "serde_json",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
- "tracing",
- "tracing-core",
- "tracing-log",
- "tracing-subscriber",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -8385,11 +7915,11 @@ dependencies = [
  "parking_lot 0.11.1",
  "regex",
  "rustc-hash",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-tracing-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-telemetry",
+ "sc-tracing-proc-macro",
  "serde",
  "serde_json",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-core",
@@ -8397,17 +7927,6 @@ dependencies = [
  "tracing-subscriber",
  "wasm-bindgen",
  "web-sys",
-]
-
-[[package]]
-name = "sc-tracing-proc-macro"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -8434,11 +7953,11 @@ dependencies = [
  "parking_lot 0.11.1",
  "retain_mut",
  "serde",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "sp-utils",
  "thiserror",
  "wasm-timer",
 ]
@@ -8455,16 +7974,16 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.11.1",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-transaction-graph",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
+ "sp-tracing",
+ "sp-transaction-pool",
+ "sp-utils",
+ "substrate-prometheus-endpoint",
  "thiserror",
  "wasm-timer",
 ]
@@ -8734,7 +8253,7 @@ dependencies = [
  "libc",
  "nix",
  "quick-error 2.0.0",
- "rand 0.3.23",
+ "rand 0.8.3",
  "winapi 0.3.9",
 ]
 
@@ -8852,40 +8371,12 @@ dependencies = [
 [[package]]
 name = "sp-allocator"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "log",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-allocator"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "log",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-api"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "hash-db",
- "parity-scale-codec",
- "sp-api-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-std",
+ "sp-wasm-interface",
  "thiserror",
 ]
 
@@ -8896,25 +8387,13 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "hash-db",
  "parity-scale-codec",
- "sp-api-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api-proc-macro",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-version",
  "thiserror",
-]
-
-[[package]]
-name = "sp-api-proc-macro"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "blake2-rfc",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -8932,38 +8411,13 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-application-crypto"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "integer-sqrt",
- "num-traits",
- "parity-scale-codec",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -8975,8 +8429,8 @@ dependencies = [
  "num-traits",
  "parity-scale-codec",
  "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -8985,10 +8439,10 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8997,21 +8451,9 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-block-builder"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9020,28 +8462,10 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-blockchain"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "futures 0.3.12",
- "log",
- "lru",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-database 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
+ "sp-api",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9054,21 +8478,12 @@ dependencies = [
  "lru",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-database 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-consensus",
+ "sp-database",
+ "sp-runtime",
+ "sp-state-machine",
  "thiserror",
-]
-
-[[package]]
-name = "sp-chain-spec"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -9083,32 +8498,6 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "futures 0.3.12",
- "futures-timer 3.0.2",
- "libp2p",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
- "wasm-timer",
-]
-
-[[package]]
-name = "sp-consensus"
-version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "futures 0.3.12",
@@ -9118,16 +8507,16 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-utils 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "substrate-prometheus-endpoint 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
+ "sp-utils",
+ "sp-version",
+ "substrate-prometheus-endpoint",
  "thiserror",
  "wasm-timer",
 ]
@@ -9139,17 +8528,17 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "merlin",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -9158,8 +8547,8 @@ version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-arithmetic",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9169,53 +8558,9 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-core"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder",
- "dyn-clonable",
- "ed25519-dalek",
- "futures 0.3.12",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1",
- "log",
- "merlin",
- "num-traits",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.11.1",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "schnorrkel",
- "secrecy",
- "serde",
- "sha2 0.9.2",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-bip39",
- "thiserror",
- "tiny-bip39",
- "tiny-keccak",
- "twox-hash",
- "wasmi",
- "zeroize",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9248,11 +8593,11 @@ dependencies = [
  "secrecy",
  "serde",
  "sha2 0.9.2",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
@@ -9265,29 +8610,10 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "kvdb",
- "parking_lot 0.11.1",
-]
-
-[[package]]
-name = "sp-database"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "kvdb",
  "parking_lot 0.11.1",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -9303,23 +8629,12 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -9331,24 +8646,12 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-inherents"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9358,33 +8661,9 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-std",
  "thiserror",
-]
-
-[[package]]
-name = "sp-io"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "futures 0.3.12",
- "hash-db",
- "libsecp256k1",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
 ]
 
 [[package]]
@@ -9398,15 +8677,15 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime-interface",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
+ "sp-trie",
+ "sp-wasm-interface",
  "tracing",
  "tracing-core",
 ]
@@ -9417,26 +8696,9 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "lazy_static",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-runtime",
  "strum",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "async-trait",
- "derive_more",
- "futures 0.3.12",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "schnorrkel",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -9452,8 +8714,8 @@ dependencies = [
  "parking_lot 0.11.1",
  "schnorrkel",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-externalities",
 ]
 
 [[package]]
@@ -9463,10 +8725,10 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-arithmetic",
+ "sp-core",
  "sp-npos-elections-compact",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-std",
 ]
 
 [[package]]
@@ -9483,29 +8745,11 @@ dependencies = [
 [[package]]
 name = "sp-offchain"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-offchain"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "backtrace",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9519,40 +8763,10 @@ dependencies = [
 [[package]]
 name = "sp-rpc"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-rpc"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste 1.0.4",
- "rand 0.7.3",
- "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
 ]
 
 [[package]]
@@ -9569,28 +8783,11 @@ dependencies = [
  "paste 1.0.4",
  "rand 0.7.3",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "static_assertions",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -9601,25 +8798,13 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-storage",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "Inflector",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -9637,15 +8822,6 @@ dependencies = [
 [[package]]
 name = "sp-serializer"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "sp-serializer"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "serde",
@@ -9655,37 +8831,14 @@ dependencies = [
 [[package]]
 name = "sp-session"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-session"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-staking"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "parity-scale-codec",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -9694,30 +8847,8 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "parity-scale-codec",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "hash-db",
- "log",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "rand 0.7.3",
- "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
- "trie-db",
- "trie-root",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9732,11 +8863,11 @@ dependencies = [
  "parking_lot 0.11.1",
  "rand 0.7.3",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-externalities",
+ "sp-panic-handler",
+ "sp-std",
+ "sp-trie",
  "thiserror",
  "trie-db",
  "trie-root",
@@ -9745,25 +8876,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-
-[[package]]
-name = "sp-std"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
-
-[[package]]
-name = "sp-storage"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
 
 [[package]]
 name = "sp-storage"
@@ -9774,21 +8887,8 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-tasks"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "log",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -9797,25 +8897,11 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "log",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-timestamp"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "wasm-timer",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -9825,24 +8911,11 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
  "wasm-timer",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "log",
- "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -9852,26 +8925,10 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "log",
  "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-std",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "sp-transaction-pool"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "derive_more",
- "futures 0.3.12",
- "log",
- "parity-scale-codec",
- "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
 ]
 
 [[package]]
@@ -9884,24 +8941,10 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
  "thiserror",
-]
-
-[[package]]
-name = "sp-trie"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "trie-db",
- "trie-root",
 ]
 
 [[package]]
@@ -9912,22 +8955,10 @@ dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-std",
  "trie-db",
  "trie-root",
-]
-
-[[package]]
-name = "sp-utils"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "futures 0.3.12",
- "futures-core",
- "futures-timer 3.0.2",
- "lazy_static",
- "prometheus",
 ]
 
 [[package]]
@@ -9945,36 +8976,13 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-version"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2dca5a6d76d8794854e5ecda8e9bfc66539f"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "wasmi",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9984,7 +8992,7 @@ source = "git+https://github.com/paritytech/substrate?branch=td-mmr-custom#92cf2
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-std",
  "wasmi",
 ]
 
@@ -10127,11 +9135,11 @@ dependencies = [
  "rand 0.7.3",
  "sc-chain-spec",
  "sc-informant",
- "sc-network 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-network",
  "sc-service",
- "sc-telemetry 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-database 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-telemetry",
+ "sc-tracing",
+ "sp-database",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -10156,29 +9164,15 @@ dependencies = [
  "jsonrpc-derive",
  "log",
  "parity-scale-codec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sc-rpc-api 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
+ "sc-rpc-api",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
-]
-
-[[package]]
-name = "substrate-prometheus-endpoint"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#743accbe3256de2fc615adcaa3ab03ebdbbb4dbd"
-dependencies = [
- "async-std",
- "derive_more",
- "futures-util",
- "hyper 0.13.9",
- "log",
- "prometheus",
- "tokio 0.2.21",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
+ "sp-transaction-pool",
 ]
 
 [[package]]
@@ -10205,22 +9199,22 @@ dependencies = [
  "hash-db",
  "hex",
  "parity-scale-codec",
- "sc-client-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-client-api",
  "sc-client-db",
  "sc-consensus",
- "sc-executor 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sc-executor",
  "sc-light",
  "sc-offchain",
  "sc-service",
  "serde",
  "serde_json",
- "sp-blockchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-consensus 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -10342,8 +9336,8 @@ dependencies = [
  "dlmalloc",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-io",
+ "sp-std",
  "substrate-wasm-builder",
  "tiny-keccak",
 ]
@@ -10367,7 +9361,7 @@ dependencies = [
  "sc-authority-discovery",
  "sc-cli",
  "sc-service",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "sp-keyring",
  "structopt",
  "substrate-test-utils",
@@ -10388,7 +9382,7 @@ version = "0.7.22"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak",
@@ -10923,7 +9917,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.3.23",
+ "rand 0.7.3",
 ]
 
 [[package]]
@@ -11513,10 +10507,10 @@ version = "0.8.28"
 dependencies = [
  "beefy-primitives",
  "bitvec",
- "frame-benchmarking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-benchmarking",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
@@ -11542,13 +10536,13 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
- "pallet-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-session",
  "pallet-session-benchmarking",
  "pallet-society",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
- "pallet-timestamp 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-treasury",
@@ -11563,22 +10557,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-api",
  "sp-authority-discovery",
- "sp-block-builder 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-offchain 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-session 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-transaction-pool 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-transaction-pool",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -11695,13 +10689,13 @@ dependencies = [
 name = "xcm-builder"
 version = "0.8.22"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-arithmetic",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -11710,14 +10704,14 @@ dependencies = [
 name = "xcm-executor"
 version = "0.8.22"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "frame-support",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate?branch=td-mmr-custom)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
 ]
 
