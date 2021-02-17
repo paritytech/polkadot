@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 # Include the common functions library
@@ -52,6 +52,18 @@ for RUNTIME in "${runtimes[@]}"; do
   jobs
 
   # Sleep a little to allow the nodes to spin up and start listening
+  TIMEOUT=5
+  for i in $(seq $TIMEOUT); do
+    sleep 1
+      if [ "$(lsof -nP -iTCP -sTCP:LISTEN | grep -c '994[45]')" == 2 ]; then
+        echo "[+] Both nodes listening"
+        break
+      fi
+      if [ "$i" == $TIMEOUT ]; then
+        echo "[!] Both nodes not listening after $i seconds. Exiting"
+        exit 1
+      fi
+  done
   sleep 5
 
   changed_extrinsics=$(
