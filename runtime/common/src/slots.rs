@@ -426,7 +426,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
-	fn new_test_ext() -> sp_io::TestExternalities {
+	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
@@ -631,5 +631,51 @@ mod tests {
 				(1.into(), 30, false),
 			]);
 		});
+	}
+}
+
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking {
+	use super::*;
+	use frame_system::RawOrigin;
+	use sp_runtime::traits::Bounded;
+
+	use frame_benchmarking::{benchmarks, account};
+
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+		let events = frame_system::Module::<T>::events();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		// compare to the last event record
+		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+		assert_eq!(event, &system_event);
+	}
+
+	benchmarks! {
+		force_lease {
+			let para = ParaId::from(1337);
+			let leaser: T::AccountId = account("leaser", 0, 0);
+			T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
+			let amount = T::Currency::minimum_balance();
+			let period_begin = 0u32.into();
+			let period_count = 3u32.into();
+		}: _(RawOrigin::Root, para, leaser.clone(), amount, period_begin, period_count)
+		verify {
+			assert_last_event::<T>(RawEvent::Leased(para, leaser, period_begin, period_count, amount, amount).into());
+		}
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::slots::tests::{new_test_ext, Test};
+		use frame_support::assert_ok;
+
+		#[test]
+		fn test_benchmarks() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_force_lease::<Test>());
+			});
+		}
 	}
 }

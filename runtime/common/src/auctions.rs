@@ -1192,6 +1192,8 @@ mod benchmarking {
 				first_amount,
 			).into());
 		}
+
+		// TODO: on_initialize
 	}
 
 	#[cfg(test)]

@@ -1061,39 +1061,6 @@ mod benchmarking {
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value));
 	}
 
-	// fn setup_onboarding<T: Config>(
-	// 	fund_index: ParaId,
-	// 	para_id: ParaId,
-	// 	end_block: T::BlockNumber,
-	// ) -> DispatchResult {
-	// 	// Matches fund creator in `create_fund`
-	// 	let fund_creator = account("fund_creator", 0, 0);
-	// 	let DeployData { code_hash, code_size, initial_head_data } = worst_deploy_data::<T>();
-	// 	Crowdloan::<T>::fix_deploy_data(
-	// 		RawOrigin::Signed(fund_creator).into(),
-	// 		fund_index,
-	// 		code_hash,
-	// 		code_size,
-	// 		initial_head_data
-	// 	)?;
-
-	// 	let lease_period_index = end_block / T::LeasePeriod::get();
-	// 	Slots::<T>::new_auction(RawOrigin::Root.into(), end_block, lease_period_index)?;
-	// 	let contributor: T::AccountId = account("contributor", 0, 0);
-	// 	contribute_fund::<T>(&contributor, fund_index);
-
-	// 	// TODO: Probably should use on_initialize
-	// 	//Slots::<T>::on_initialize(end_block + T::EndingPeriod::get());
-	// 	let onboarding_data = (lease_period_index, crate::slots::IncomingParachain::Unset(
-	// 		crate::slots::NewBidder {
-	// 			who: Crowdloan::<T>::fund_account_id(fund_index),
-	// 			sub: Default::default(),
-	// 		}
-	// 	));
-	// 	crate::slots::Onboarding::<T>::insert(para_id, onboarding_data);
-	// 	Ok(())
-	// }
-
 	benchmarks! {
 		create {
 			let para_id = ParaId::from(1);
