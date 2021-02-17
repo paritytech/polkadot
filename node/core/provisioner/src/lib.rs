@@ -448,7 +448,7 @@ async fn select_candidates(
 		selected_candidates.clone(),
 		tx,
 	)).into()).await.map_err(|err| Error::GetBackedCandidatesSend(err))?;
-	let candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
 	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
 	// _should_ preserve that property, but let's just make sure.
@@ -465,6 +465,20 @@ async fn select_candidates(
 	if candidates.len() != backed_idx {
 		Err(Error::BackedCandidateOrderingProblem)?;
 	}
+
+	// keep only one candidate with validation code.
+	let mut with_validation_code = false;
+	candidates.retain(|c| {
+		if c.candidate.commitments.new_validation_code.is_some() {
+			if with_validation_code {
+				return false
+			}
+
+			with_validation_code = true;
+		}
+
+		true
+	});
 
 	Ok(candidates)
 }
