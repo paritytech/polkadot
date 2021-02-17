@@ -456,6 +456,14 @@ pub enum UnifiedReputationChange {
 impl UnifiedReputationChange {
 	/// Obtain the cost or benefit associated with
 	/// the enum variant.
+	///
+	/// Order of magnitude rationale:
+	///
+	/// * the peerset will not connect to a peer whose reputation is below a fixed value
+	/// * `max(2% *$rep, 1)` is the delta of convergence towards a reputation of 0
+	///
+	/// The whole range of an `i32` should be used, so order of magnitude of
+	/// something malicious should be `1<<20` (give or take).
 	const fn cost_or_benefit(&self) -> i32 {
 		match self {
 			Self::CostMinor(_) => -10_000,
