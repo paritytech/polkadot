@@ -43,7 +43,7 @@ use polkadot_subsystem::{
 	},
 };
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, PeerId, ReputationChange as Rep, RequestId,
+	peer_set::PeerSet, v1 as protocol_v1, PeerId, RequestId, UnifiedReputationChange as Rep,
 };
 use polkadot_node_subsystem_util::{
 	Timeout, TimeoutExt,
@@ -57,8 +57,8 @@ mod tests;
 
 const LOG_TARGET: &str = "availability_recovery";
 
-const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Merkle proof was invalid");
-const COST_UNEXPECTED_CHUNK: Rep = Rep::new(-100, "Peer has sent an unexpected chunk");
+const COST_MERKLE_PROOF_INVALID: Rep = Rep::CostMinor("Merkle proof was invalid");
+const COST_UNEXPECTED_CHUNK: Rep = Rep::CostMinor("Peer has sent an unexpected chunk");
 
 // How many parallel requests interaction should have going at once.
 const N_PARALLEL: usize = 50;

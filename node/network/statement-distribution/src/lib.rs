@@ -31,12 +31,12 @@ use polkadot_subsystem::{
 	},
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use node_primitives::SignedFullStatement;
+use polkadot_node_primitives::{SignedFullStatement};
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, OurView,
+	v1 as protocol_v1, View, PeerId, OurView, UnifiedReputationChange as Rep,
 };
 
 use futures::prelude::*;
@@ -45,14 +45,13 @@ use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet};
 
-const COST_UNEXPECTED_STATEMENT: Rep = Rep::new(-100, "Unexpected Statement");
-const COST_INVALID_SIGNATURE: Rep = Rep::new(-500, "Invalid Statement Signature");
-const COST_DUPLICATE_STATEMENT: Rep = Rep::new(-250, "Statement sent more than once by peer");
-const COST_APPARENT_FLOOD: Rep = Rep::new(-1000, "Peer appears to be flooding us with statements");
+const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
+const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
+const COST_DUPLICATE_STATEMENT: Rep = Rep::CostMajorRepeated("Statement sent more than once by peer");
+const COST_APPARENT_FLOOD: Rep = Rep::Malicious("Peer appears to be flooding us with statements");
 
-const BENEFIT_VALID_STATEMENT: Rep = Rep::new(5, "Peer provided a valid statement");
-const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::new(
-	25,
+const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
+const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::BenefitMajorFirst(
 	"Peer was the first to provide a valid statement",
 );
 
@@ -1077,7 +1076,7 @@ mod tests {
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
-	use node_primitives::Statement;
+	use polkadot_node_primitives::Statement;
 	use polkadot_primitives::v1::CommittedCandidateReceipt;
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};

@@ -23,12 +23,14 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::{fmt, collections::HashMap};
 
-pub use sc_network::{ReputationChange, PeerId};
+pub use sc_network::PeerId;
 #[doc(hidden)]
 pub use polkadot_node_jaeger::JaegerSpan;
 #[doc(hidden)]
 pub use std::sync::Arc;
 
+mod reputation;
+pub use self::reputation::{ReputationChange, UnifiedReputationChange};
 
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
@@ -372,7 +374,7 @@ pub mod v1 {
 	}
 
 	impl std::fmt::Debug for CompressedPoV {
-    	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 			write!(f, "CompressedPoV({} bytes)", self.0.len())
 		}
 	}
