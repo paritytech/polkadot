@@ -458,15 +458,15 @@ impl UnifiedReputationChange {
 	/// the enum variant.
 	const fn cost_or_benefit(&self) -> i32 {
 		match self {
-			Self::CostMinor(_) => -100,
-			Self::CostMajor(_) => -300,
-			Self::CostMinorRepeated(_) => -200,
-			Self::CostMajorRepeated(_) => -600,
-			Self::Malicious(_) => -1_000,
-			Self::BenefitMajorFirst(_) => 150,
-			Self::BenefitMajor(_) => 100,
-			Self::BenefitMinorFirst(_) => 15,
-			Self::BenefitMinor(_) => 10,
+			Self::CostMinor(_) => -10_000,
+			Self::CostMajor(_) => -30_000,
+			Self::CostMinorRepeated(_) => -20_000,
+			Self::CostMajorRepeated(_) => -60_000,
+			Self::Malicious(_) => -1_000_000,
+			Self::BenefitMajorFirst(_) => 30_000,
+			Self::BenefitMajor(_) => 20_000,
+			Self::BenefitMinorFirst(_) => 15_000,
+			Self::BenefitMinor(_) => 10_000,
 		}
 	}
 
