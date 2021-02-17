@@ -131,20 +131,20 @@ impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = <T as pallet_beefy::Config>::AuthorityId;
 }
 
-impl<T: Config> frame_support::traits::OneSessionHandler<T::AccountId> for Module<T> where
+impl<T: Config> frame_support::traits::OneSessionHandler<<T as frame_system::Config>::AccountId> for Module<T> where
 	T: pallet_session::Config,
 	MerkleRootOf<T>: From<H256>,
 {
 	type Key = <T as pallet_beefy::Config>::AuthorityId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I) where
-		I: Iterator<Item=(&'a T::AccountId, Self::Key)>, Self::Key: 'a
+		I: Iterator<Item=(&'a <T as frame_system::Config>::AccountId, Self::Key)>, Self::Key: 'a
 	{
 		Self::update_beefy_next_authorities();
 	}
 
 	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued_validators: I) where
-		I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+		I: Iterator<Item=(&'a <T as frame_system::Config>::AccountId, Self::Key)>
 	{
 		Self::update_beefy_next_authorities();
 	}
