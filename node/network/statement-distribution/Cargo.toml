@@ -13,6 +13,7 @@ polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"

@@ -199,7 +199,6 @@ pub fn node_config(
 		informant_output_format: Default::default(),
 		disable_log_reloading: false,
 		telemetry_handle: None,
-		telemetry_span: None,
 	}
 }
 

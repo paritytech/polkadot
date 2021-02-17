@@ -24,6 +24,7 @@ The other parachains modules are initialized in this order:
 1. Scheduler
 1. Inclusion
 1. SessionInfo
+1. Disputes
 1. DMP
 1. UMP
 1. HRMP

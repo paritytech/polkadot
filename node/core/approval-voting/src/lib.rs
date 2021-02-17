@@ -35,7 +35,7 @@ use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber, PersistedValidationData,
 	ValidationCode, CandidateDescriptor, PoV, ValidatorPair, ValidatorSignature, ValidatorId,
-	CandidateIndex,
+	CandidateIndex, GroupIndex,
 };
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_primitives::approval::{
@@ -268,6 +268,7 @@ enum Action {
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
 		candidate: CandidateReceipt,
+		backing_group: GroupIndex,
 	},
 	Conclude,
 }
@@ -391,6 +392,7 @@ async fn handle_actions(
 				candidate_index,
 				session,
 				candidate,
+				backing_group,
 			} => {
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
@@ -408,6 +410,7 @@ async fn handle_actions(
 					validator_index,
 					block_hash,
 					candidate_index as _,
+					backing_group,
 				).await?
 			}
 			Action::Conclude => { conclude = true; }
@@ -1050,7 +1053,7 @@ fn process_wakeup(
 
 	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
-	let should_trigger = {
+	let (should_trigger, backing_group) = {
 		let approval_entry = match candidate_entry.approval_entry(&relay_block) {
 			Some(e) => e,
 			None => return Ok(Vec::new()),
@@ -1065,12 +1068,14 @@ fn process_wakeup(
 			session_info.needed_approvals as _,
 		);
 
-		should_trigger_assignment(
+		let should_trigger = should_trigger_assignment(
 			&approval_entry,
 			&candidate_entry,
 			tranches_to_approve,
 			tranche_now,
-		)
+		);
+
+		(should_trigger, approval_entry.backing_group())
 	};
 
 	let (mut actions, maybe_cert) = if should_trigger {
@@ -1105,6 +1110,7 @@ fn process_wakeup(
 				candidate_index: i as _,
 				session: block_entry.session(),
 				candidate: candidate_entry.candidate_receipt().clone(),
+				backing_group,
 			});
 		}
 	}
@@ -1142,6 +1148,7 @@ async fn launch_approval(
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	candidate_index: usize,
+	backing_group: GroupIndex,
 ) -> SubsystemResult<()> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
@@ -1150,6 +1157,7 @@ async fn launch_approval(
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
 		candidate.clone(),
 		session_index,
+		Some(backing_group),
 		a_tx,
 	).into()).await;
 
