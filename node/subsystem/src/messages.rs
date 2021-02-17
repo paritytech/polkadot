@@ -25,7 +25,7 @@
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, ReputationChange, PeerId,
+	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
 	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
 };
 use polkadot_node_primitives::{
@@ -217,7 +217,7 @@ impl CollatorProtocolMessage {
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
 	/// Report a peer for their actions.
-	ReportPeer(PeerId, ReputationChange),
+	ReportPeer(PeerId, UnifiedReputationChange),
 
 	/// Send a message to one or more peers on the validation peer-set.
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
@@ -544,7 +544,7 @@ pub enum ProvisionableData {
 
 /// This data needs to make its way from the provisioner into the InherentData.
 ///
-/// There, it is used to construct the InclusionInherent.
+/// There, it is used to construct the ParaInherent.
 pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
 
 /// Message to the Provisioner.
@@ -559,7 +559,7 @@ pub enum ProvisionerMessage {
 	/// associated with a particular potential block hash.
 	///
 	/// This is expected to be used by a proposer, to inject that information into the InherentData
-	/// where it can be assembled into the InclusionInherent.
+	/// where it can be assembled into the ParaInherent.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(Hash, ProvisionableData),
@@ -662,7 +662,7 @@ pub enum ApprovalVotingMessage {
 	///
 	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
-	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<Hash>>),
+	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<(Hash, BlockNumber)>>),
 }
 
 /// Message to the Approval Distribution subsystem.

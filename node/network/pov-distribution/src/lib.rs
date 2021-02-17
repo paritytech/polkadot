@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, ReputationChange as Rep, PeerId, OurView,
+	peer_set::PeerSet, v1 as protocol_v1, PeerId, OurView, UnifiedReputationChange as Rep,
 };
 
 use futures::prelude::*;
@@ -54,13 +54,13 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
-const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
+const COST_APPARENT_FLOOD: Rep = Rep::CostMajor("Peer appears to be flooding us with PoV requests");
+const COST_UNEXPECTED_POV: Rep = Rep::CostMajor("Peer sent us an unexpected PoV");
 const COST_AWAITED_NOT_IN_VIEW: Rep
-	= Rep::new(-100, "Peer claims to be awaiting something outside of its view");
+	= Rep::CostMinor("Peer claims to be awaiting something outside of its view");
 
-const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited PoV");
-const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
+const BENEFIT_FRESH_POV: Rep = Rep::BenefitMinorFirst("Peer supplied us with an awaited PoV");
+const BENEFIT_LATE_POV: Rep = Rep::BenefitMinor("Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
 const LOG_TARGET: &str = "pov_distribution";

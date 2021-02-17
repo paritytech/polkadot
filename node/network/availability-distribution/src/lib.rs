@@ -32,7 +32,7 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, PeerId, ReputationChange as Rep, View, OurView,
+	v1 as protocol_v1, PeerId, View, OurView, UnifiedReputationChange as Rep,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{
@@ -95,11 +95,11 @@ enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Merkle proof was invalid");
-const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::new(-51, "Candidate is not live");
-const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::new(-500, "Peer sent identical messages");
-const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::new(15, "Valid message with new information");
-const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
+const COST_MERKLE_PROOF_INVALID: Rep = Rep::CostMinor("Merkle proof was invalid");
+const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::CostMinor("Candidate is not live");
+const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::CostMajorRepeated("Peer sent identical messages");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");
+const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
