@@ -43,9 +43,9 @@ use polkadot_node_primitives::{Statement, SignedFullStatement};
 
 use super::{modify_reputation, LOG_TARGET, Result};
 
-const COST_UNEXPECTED_MESSAGE: Rep = Rep::AnnoyMinor("An unexpected message");
-const COST_REQUEST_TIMED_OUT: Rep = Rep::AnnoyMinor("A collation request has timed out");
-const COST_REPORT_BAD: Rep = Rep::AnnoyMajor("A collator was reported by another subsystem");
+const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
+const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has timed out");
+const COST_REPORT_BAD: Rep = Rep::CostMajor("A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
 #[derive(Clone, Default)]

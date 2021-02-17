@@ -54,10 +54,10 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-const COST_APPARENT_FLOOD: Rep = Rep::AnnoyMajor("Peer appears to be flooding us with PoV requests");
-const COST_UNEXPECTED_POV: Rep = Rep::AnnoyMajor("Peer sent us an unexpected PoV");
+const COST_APPARENT_FLOOD: Rep = Rep::CostMajor("Peer appears to be flooding us with PoV requests");
+const COST_UNEXPECTED_POV: Rep = Rep::CostMajor("Peer sent us an unexpected PoV");
 const COST_AWAITED_NOT_IN_VIEW: Rep
-	= Rep::AnnoyMinor("Peer claims to be awaiting something outside of its view");
+	= Rep::CostMinor("Peer claims to be awaiting something outside of its view");
 
 const BENEFIT_FRESH_POV: Rep = Rep::BenefitMinorFirst("Peer supplied us with an awaited PoV");
 const BENEFIT_LATE_POV: Rep = Rep::BenefitMinor("Peer supplied us with an awaited PoV, \

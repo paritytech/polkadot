@@ -47,10 +47,10 @@ use polkadot_node_network_protocol::{
 
 const LOG_TARGET: &str = "approval_distribution";
 
-const COST_UNEXPECTED_MESSAGE: Rep = Rep::AnnoyMinor("Peer sent an out-of-view assignment or approval");
-const COST_DUPLICATE_MESSAGE: Rep = Rep::AnnoyMinor("Peer sent identical messages");
-const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep = Rep::AnnoyMinor("The vote was valid but too far in the future");
-const COST_INVALID_MESSAGE: Rep = Rep::AnnoyMajor("The vote was bad");
+const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("Peer sent an out-of-view assignment or approval");
+const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical messages");
+const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep = Rep::CostMinor("The vote was valid but too far in the future");
+const COST_INVALID_MESSAGE: Rep = Rep::CostMajor("The vote was bad");
 
 const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Peer sent a valid message");
 const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");

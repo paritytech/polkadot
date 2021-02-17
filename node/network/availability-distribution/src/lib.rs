@@ -95,9 +95,9 @@ enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-const COST_MERKLE_PROOF_INVALID: Rep = Rep::AnnoyMinor("Merkle proof was invalid");
-const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::AnnoyMinor("Candidate is not live");
-const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::AnnoyMajorRepeated("Peer sent identical messages");
+const COST_MERKLE_PROOF_INVALID: Rep = Rep::CostMinor("Merkle proof was invalid");
+const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::CostMinor("Candidate is not live");
+const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::CostMajorRepeated("Peer sent identical messages");
 const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");
 const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
 

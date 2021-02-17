@@ -442,10 +442,10 @@ pub mod v1 {
 #[derive(Debug,Clone,Copy)]
 #[allow(missing_docs)]
 pub enum UnifiedReputationChange {
-	AnnoyMajor(&'static str),
-	AnnoyMinor(&'static str),
-	AnnoyMajorRepeated(&'static str),
-	AnnoyMinorRepeated(&'static str),
+	CostMajor(&'static str),
+	CostMinor(&'static str),
+	CostMajorRepeated(&'static str),
+	CostMinorRepeated(&'static str),
 	Malicious(&'static str),
 	BenefitMinorFirst(&'static str),
 	BenefitMinor(&'static str),
@@ -458,10 +458,10 @@ impl UnifiedReputationChange {
 	/// the enum variant.
 	const fn cost_or_benefit(&self) -> i32 {
 		match self {
-			Self::AnnoyMinor(_) => -100,
-			Self::AnnoyMajor(_) => -300,
-			Self::AnnoyMinorRepeated(_) => -200,
-			Self::AnnoyMajorRepeated(_) => -600,
+			Self::CostMinor(_) => -100,
+			Self::CostMajor(_) => -300,
+			Self::CostMinorRepeated(_) => -200,
+			Self::CostMajorRepeated(_) => -600,
 			Self::Malicious(_) => -1_000,
 			Self::BenefitMajorFirst(_) => 150,
 			Self::BenefitMajor(_) => 100,
@@ -473,10 +473,10 @@ impl UnifiedReputationChange {
 	/// Extract the static description.
 	pub const fn description(&self) -> &'static str {
 		match self {
-			Self::AnnoyMinor(description) => description,
-			Self::AnnoyMajor(description) => description,
-			Self::AnnoyMinorRepeated(description) => description,
-			Self::AnnoyMajorRepeated(description) => description,
+			Self::CostMinor(description) => description,
+			Self::CostMajor(description) => description,
+			Self::CostMinorRepeated(description) => description,
+			Self::CostMajorRepeated(description) => description,
 			Self::Malicious(description) => description,
 			Self::BenefitMajorFirst(description) => description,
 			Self::BenefitMajor(description) => description,

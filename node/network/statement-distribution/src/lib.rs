@@ -45,9 +45,9 @@ use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet};
 
-const COST_UNEXPECTED_STATEMENT: Rep = Rep::AnnoyMinor("Unexpected Statement");
-const COST_INVALID_SIGNATURE: Rep = Rep::AnnoyMajor("Invalid Statement Signature");
-const COST_DUPLICATE_STATEMENT: Rep = Rep::AnnoyMajorRepeated("Statement sent more than once by peer");
+const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
+const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
+const COST_DUPLICATE_STATEMENT: Rep = Rep::CostMajorRepeated("Statement sent more than once by peer");
 const COST_APPARENT_FLOOD: Rep = Rep::Malicious("Peer appears to be flooding us with statements");
 
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
