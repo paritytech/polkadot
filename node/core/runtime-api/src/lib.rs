@@ -35,6 +35,7 @@ use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
 use sp_api::ProvideRuntimeApi;
 use sp_core::traits::SpawnNamed;
+use sp_consensus_babe::BabeApi;
 
 use futures::{prelude::*, stream::FuturesUnordered, channel::oneshot, select};
 use std::{sync::Arc, collections::VecDeque, pin::Pin};
@@ -82,7 +83,7 @@ impl<Client> RuntimeApiSubsystem<Client> {
 
 impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
-	Client::Api: ParachainHost<Block>,
+	Client::Api: ParachainHost<Block> + BabeApi<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -95,7 +96,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 
 impl<Client> RuntimeApiSubsystem<Client> where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
-	Client::Api: ParachainHost<Block>,
+	Client::Api: ParachainHost<Block> + BabeApi<Block>,
 {
 	fn store_cache(&mut self, result: RequestResult) {
 		use RequestResult::*;
@@ -127,6 +128,8 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
 			InboundHrmpChannelsContents(relay_parent, para_id, contents) =>
 				self.requests_cache.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
+			CurrentBabeEpoch(relay_parent, epoch) =>
+				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 		}
 	}
 
@@ -189,7 +192,10 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				.map(|sender| Request::DmqContents(id, sender)),
 			Request::InboundHrmpChannelsContents(id, sender) =>
 				query!(inbound_hrmp_channels_contents(id), sender)
-					.map(|sender| Request::InboundHrmpChannelsContents(id, sender))
+					.map(|sender| Request::InboundHrmpChannelsContents(id, sender)),
+			Request::CurrentBabeEpoch(sender) =>
+				query!(current_babe_epoch(), sender)
+					.map(|sender| Request::CurrentBabeEpoch(sender)),
 		}
 	}
 
@@ -257,7 +263,7 @@ async fn run<Client>(
 	mut subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()> where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
-	Client::Api: ParachainHost<Block>,
+	Client::Api: ParachainHost<Block> + BabeApi<Block>,
 {
 	loop {
 		select! {
@@ -285,7 +291,7 @@ fn make_runtime_api_request<Client>(
 ) -> Option<RequestResult>
 where
 	Client: ProvideRuntimeApi<Block>,
-	Client::Api: ParachainHost<Block>,
+	Client::Api: ParachainHost<Block> + BabeApi<Block>,
 {
 	let _timer = metrics.time_make_runtime_api_request();
 
@@ -339,6 +345,7 @@ where
 		Request::SessionInfo(index, sender) => query!(SessionInfo, session_info(index), sender),
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), sender),
 		Request::InboundHrmpChannelsContents(id, sender) => query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
+		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
 	}
 }
 
@@ -415,6 +422,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 	use std::{collections::{HashMap, BTreeMap}, sync::{Arc, Mutex}};
 	use futures::channel::oneshot;
+	use polkadot_node_primitives::BabeEpoch;
 
 	#[derive(Default, Clone)]
 	struct MockRuntimeApi {
@@ -432,6 +440,7 @@ mod tests {
 		candidate_events: Vec<CandidateEvent>,
 		dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
 		hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
+		babe_epoch: Option<BabeEpoch>,
 	}
 
 	impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -539,6 +548,38 @@ mod tests {
 				recipient: ParaId
 			) -> BTreeMap<ParaId, Vec<InboundHrmpMessage>> {
 				self.hrmp_channels.get(&recipient).map(|q| q.clone()).unwrap_or_default()
+			}
+		}
+
+		impl BabeApi<Block> for MockRuntimeApi {
+			fn configuration(&self) -> sp_consensus_babe::BabeGenesisConfiguration {
+				unimplemented!()
+			}
+
+			fn current_epoch_start(&self) -> sp_consensus_babe::Slot {
+				self.babe_epoch.as_ref().unwrap().start_slot
+			}
+
+			fn current_epoch(&self) -> BabeEpoch {
+				self.babe_epoch.as_ref().unwrap().clone()
+			}
+
+			fn next_epoch(&self) -> BabeEpoch {
+				unimplemented!()
+			}
+
+			fn generate_key_ownership_proof(
+				_slot: sp_consensus_babe::Slot,
+				_authority_id: sp_consensus_babe::AuthorityId,
+			) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
+				None
+			}
+
+			fn submit_report_equivocation_unsigned_extrinsic(
+				_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::v1::Header>,
+				_key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
+			) -> Option<()> {
+				None
 			}
 		}
 	}
@@ -1103,6 +1144,38 @@ mod tests {
 				.into_iter()
 				.for_each(|r| assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores));
 
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn request_babe_epoch() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let epoch = BabeEpoch {
+			epoch_index: 100,
+			start_slot: sp_consensus_babe::Slot::from(1000),
+			duration: 10,
+			authorities: Vec::new(),
+			randomness: [1u8; 32],
+		};
+		runtime_api.babe_epoch = Some(epoch.clone());
+		let runtime_api = Arc::new(runtime_api);
+		let relay_parent = [1; 32].into();
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::CurrentBabeEpoch(tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), epoch);
 			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};
 

@@ -14,27 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Auxiliary DB schema, accessors, and writers for on-disk persisted approval storage
-//! data.
-//!
-//! We persist data to disk although it is not intended to be used across runs of the
-//! program. This is because under medium to long periods of finality stalling, for whatever
-//! reason that may be, the amount of data we'd need to keep would be potentially too large
-//! for memory.
-//!
-//! With tens or hundreds of parachains, hundreds of validators, and parablocks
-//! in every relay chain block, there can be a humongous amount of information to reference
-//! at any given time.
-//!
-//! As such, we provide a function from this module to clear the database on start-up.
-//! In the future, we may use a temporary DB which doesn't need to be wiped, but for the
-//! time being we share the same DB with the rest of Substrate.
-
-// TODO https://github.com/paritytech/polkadot/issues/1975: remove this
-#![allow(unused)]
+//! Version 1 of the DB schema.
 
 use sc_client_api::backend::AuxStore;
-use polkadot_node_primitives::approval::{DelayTranche, RelayVRF};
+use polkadot_node_primitives::approval::{DelayTranche, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
 	BlockNumber, Hash, CandidateHash,
@@ -46,73 +29,95 @@ use std::collections::{BTreeMap, HashMap};
 use std::collections::hash_map::Entry;
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
-use super::Tick;
-
 #[cfg(test)]
 mod tests;
 
+// slot_duration * 2 + DelayTranche gives the number of delay tranches since the
+// unix epoch.
+#[derive(Encode, Decode, Clone, Copy, Debug, PartialEq)]
+pub struct Tick(u64);
+
+pub type Bitfield = BitVec<BitOrderLsb0, u8>;
+
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
+/// Details pertaining to our assignment on a block.
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct OurAssignment {
+	pub cert: AssignmentCert,
+	pub tranche: DelayTranche,
+	pub validator_index: ValidatorIndex,
+	// Whether the assignment has been triggered already.
+	pub triggered: bool,
+}
+
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct TrancheEntry {
-	tranche: DelayTranche,
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct TrancheEntry {
+	pub tranche: DelayTranche,
 	// Assigned validators, and the instant we received their assignment, rounded
 	// to the nearest tick.
-	assignments: Vec<(ValidatorIndex, Tick)>,
+	pub assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
 /// Metadata regarding approval of a particular candidate within the context of some
 /// particular block.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct ApprovalEntry {
-	tranches: Vec<TrancheEntry>,
-	backing_group: GroupIndex,
-	// When the next wakeup for this entry should occur. This is either to
-	// check a no-show or to check if we need to broadcast an assignment.
-	next_wakeup: Tick,
-	our_assignment: Option<OurAssignment>,
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct ApprovalEntry {
+	pub tranches: Vec<TrancheEntry>,
+	pub backing_group: GroupIndex,
+	pub our_assignment: Option<OurAssignment>,
 	// `n_validators` bits.
-	assignments: BitVec<BitOrderLsb0, u8>,
-	approved: bool,
+	pub assignments: Bitfield,
+	pub approved: bool,
 }
 
 /// Metadata regarding approval of a particular candidate.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct CandidateEntry {
-	candidate: CandidateReceipt,
-	session: SessionIndex,
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct CandidateEntry {
+	pub candidate: CandidateReceipt,
+	pub session: SessionIndex,
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
-	block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	approvals: BitVec<BitOrderLsb0, u8>,
+	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
+	pub approvals: Bitfield,
 }
 
 /// Metadata regarding approval of a particular block, by way of approval of the
 /// candidates contained within it.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct BlockEntry {
-	block_hash: Hash,
-	session: SessionIndex,
-	slot: Slot,
-	relay_vrf_story: RelayVRF,
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct BlockEntry {
+	pub block_hash: Hash,
+	pub session: SessionIndex,
+	pub slot: Slot,
+	/// Random bytes derived from the VRF submitted within the block by the block
+	/// author as a credential and used as input to approval assignment criteria.
+	pub relay_vrf_story: [u8; 32],
 	// The candidates included as-of this block and the index of the core they are
 	// leaving. Sorted ascending by core index.
-	candidates: Vec<(CoreIndex, CandidateHash)>,
+	pub candidates: Vec<(CoreIndex, CandidateHash)>,
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	approved_bitfield: BitVec<BitOrderLsb0, u8>,
-	children: Vec<Hash>,
+	pub approved_bitfield: Bitfield,
+	pub children: Vec<Hash>,
 }
 
 /// A range from earliest..last block number stored within the DB.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct StoredBlockRange(BlockNumber, BlockNumber);
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct StoredBlockRange(BlockNumber, BlockNumber);
 
-// TODO https://github.com/paritytech/polkadot/issues/1975: probably in lib.rs
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub(crate) struct OurAssignment { }
+impl From<crate::Tick> for Tick {
+	fn from(tick: crate::Tick) -> Tick {
+		Tick(tick)
+	}
+}
+
+impl From<Tick> for crate::Tick {
+	fn from(tick: Tick) -> crate::Tick {
+		tick.0
+	}
+}
 
 /// Canonicalize some particular block, pruning everything before it and
 /// pruning any competing branches at the same height.
@@ -351,9 +356,9 @@ fn load_decode<D: Decode>(store: &impl AuxStore, key: &[u8])
 /// candidate and approval entries.
 #[derive(Clone)]
 pub(crate) struct NewCandidateInfo {
-	candidate: CandidateReceipt,
-	backing_group: GroupIndex,
-	our_assignment: Option<OurAssignment>,
+	pub candidate: CandidateReceipt,
+	pub backing_group: GroupIndex,
+	pub our_assignment: Option<OurAssignment>,
 }
 
 /// Record a new block entry.
@@ -364,7 +369,8 @@ pub(crate) struct NewCandidateInfo {
 /// parent hash.
 ///
 /// Has no effect if there is already an entry for the block or `candidate_info` returns
-/// `None` for any of the candidates referenced by the block entry.
+/// `None` for any of the candidates referenced by the block entry. In these cases,
+/// no information about new candidates will be referred to by this function.
 pub(crate) fn add_block_entry(
 	store: &impl AuxStore,
 	parent_hash: Hash,
@@ -372,7 +378,7 @@ pub(crate) fn add_block_entry(
 	entry: BlockEntry,
 	n_validators: usize,
 	candidate_info: impl Fn(&CandidateHash) -> Option<NewCandidateInfo>,
-) -> sp_blockchain::Result<()> {
+) -> sp_blockchain::Result<Vec<(CandidateHash, CandidateEntry)>> {
 	let session = entry.session;
 
 	let new_block_range = {
@@ -392,12 +398,14 @@ pub(crate) fn add_block_entry(
 		let mut blocks_at_height = load_blocks_at_height(store, number)?;
 		if blocks_at_height.contains(&entry.block_hash) {
 			// seems we already have a block entry for this block. nothing to do here.
-			return Ok(())
+			return Ok(Vec::new())
 		}
 
 		blocks_at_height.push(entry.block_hash);
 		(blocks_at_height_key(number), blocks_at_height.encode())
 	};
+
+	let mut candidate_entries = Vec::with_capacity(entry.candidates.len());
 
 	let candidate_entry_updates = {
 		let mut updated_entries = Vec::with_capacity(entry.candidates.len());
@@ -407,7 +415,7 @@ pub(crate) fn add_block_entry(
 				backing_group,
 				our_assignment,
 			} = match candidate_info(candidate_hash) {
-				None => return Ok(()),
+				None => return Ok(Vec::new()),
 				Some(info) => info,
 			};
 
@@ -424,7 +432,6 @@ pub(crate) fn add_block_entry(
 				ApprovalEntry {
 					tranches: Vec::new(),
 					backing_group,
-					next_wakeup: 0,
 					our_assignment,
 					assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 					approved: false,
@@ -434,6 +441,8 @@ pub(crate) fn add_block_entry(
 			updated_entries.push(
 				(candidate_entry_key(&candidate_hash), candidate_entry.encode())
 			);
+
+			candidate_entries.push((*candidate_hash, candidate_entry));
 		}
 
 		updated_entries
@@ -466,11 +475,61 @@ pub(crate) fn add_block_entry(
 
 	store.insert_aux(&all_keys_and_values, &[])?;
 
-	Ok(())
+	Ok(candidate_entries)
+}
+
+// An atomic transaction of multiple candidate or block entries.
+#[derive(Default)]
+#[must_use = "Transactions do nothing unless written to a DB"]
+pub struct Transaction {
+	block_entries: HashMap<Hash, BlockEntry>,
+	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
+}
+
+impl Transaction {
+	/// Put a block entry in the transaction, overwriting any other with the
+	/// same hash.
+	pub(crate) fn put_block_entry(&mut self, entry: BlockEntry) {
+		let hash = entry.block_hash;
+		let _ = self.block_entries.insert(hash, entry);
+	}
+
+	/// Put a candidate entry in the transaction, overwriting any other with the
+	/// same hash.
+	pub(crate) fn put_candidate_entry(&mut self, hash: CandidateHash, entry: CandidateEntry) {
+		let _ = self.candidate_entries.insert(hash, entry);
+	}
+
+	/// Write the contents of the transaction, atomically, to the DB.
+	pub(crate) fn write(self, db: &impl AuxStore) -> sp_blockchain::Result<()> {
+		if self.block_entries.is_empty() && self.candidate_entries.is_empty() {
+			return Ok(())
+		}
+
+		let blocks: Vec<_> = self.block_entries.into_iter().map(|(hash, entry)| {
+			let k = block_entry_key(&hash);
+			let v = entry.encode();
+
+			(k, v)
+		}).collect();
+
+		let candidates: Vec<_> = self.candidate_entries.into_iter().map(|(hash, entry)| {
+			let k = candidate_entry_key(&hash);
+			let v = entry.encode();
+
+			(k, v)
+		}).collect();
+
+		let kv = blocks.iter().map(|(k, v)| (&k[..], &v[..]))
+			.chain(candidates.iter().map(|(k, v)| (&k[..], &v[..])))
+			.collect::<Vec<_>>();
+
+		db.insert_aux(&kv, &[])
+	}
 }
 
 /// Load the stored-blocks key from the state.
-pub(crate) fn load_stored_blocks(store: &impl AuxStore)
+fn load_stored_blocks(store: &impl AuxStore)
 	-> sp_blockchain::Result<Option<StoredBlockRange>>
 {
 	load_decode(store, STORED_BLOCKS_KEY)
