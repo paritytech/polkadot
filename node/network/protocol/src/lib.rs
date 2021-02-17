@@ -23,12 +23,14 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::{fmt, collections::HashMap};
 
-pub use sc_network::{ReputationChange, PeerId};
+pub use sc_network::PeerId;
 #[doc(hidden)]
 pub use polkadot_node_jaeger::JaegerSpan;
 #[doc(hidden)]
 pub use std::sync::Arc;
 
+mod reputation;
+pub use self::reputation::{ReputationChange, UnifiedReputationChange};
 
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
@@ -436,70 +438,6 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
-}
-
-/// Unified annoyance cost and good behavior benefits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(missing_docs)]
-pub enum UnifiedReputationChange {
-	CostMajor(&'static str),
-	CostMinor(&'static str),
-	CostMajorRepeated(&'static str),
-	CostMinorRepeated(&'static str),
-	Malicious(&'static str),
-	BenefitMinorFirst(&'static str),
-	BenefitMinor(&'static str),
-	BenefitMajorFirst(&'static str),
-	BenefitMajor(&'static str),
-}
-
-impl UnifiedReputationChange {
-	/// Obtain the cost or benefit associated with
-	/// the enum variant.
-	///
-	/// Order of magnitude rationale:
-	///
-	/// * the peerset will not connect to a peer whose reputation is below a fixed value
-	/// * `max(2% *$rep, 1)` is the delta of convergence towards a reputation of 0
-	///
-	/// The whole range of an `i32` should be used, so order of magnitude of
-	/// something malicious should be `1<<20` (give or take).
-	const fn cost_or_benefit(&self) -> i32 {
-		match self {
-			Self::CostMinor(_) => -10_000,
-			Self::CostMajor(_) => -30_000,
-			Self::CostMinorRepeated(_) => -20_000,
-			Self::CostMajorRepeated(_) => -60_000,
-			Self::Malicious(_) => -1_000_000,
-			Self::BenefitMajorFirst(_) => 30_000,
-			Self::BenefitMajor(_) => 20_000,
-			Self::BenefitMinorFirst(_) => 15_000,
-			Self::BenefitMinor(_) => 10_000,
-		}
-	}
-
-	/// Extract the static description.
-	pub const fn description(&self) -> &'static str {
-		match self {
-			Self::CostMinor(description) => description,
-			Self::CostMajor(description) => description,
-			Self::CostMinorRepeated(description) => description,
-			Self::CostMajorRepeated(description) => description,
-			Self::Malicious(description) => description,
-			Self::BenefitMajorFirst(description) => description,
-			Self::BenefitMajor(description) => description,
-			Self::BenefitMinorFirst(description) => description,
-			Self::BenefitMinor(description) => description,
-		}
-	}
-
-	/// Convert into a base reputation as used with substrate.
-	pub const fn into_base_rep(self) -> ReputationChange {
-		ReputationChange::new(
-			self.cost_or_benefit(),
-			self.description()
-		)
-	}
 }
 
 #[cfg(test)]
