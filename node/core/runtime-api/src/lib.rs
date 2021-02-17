@@ -1158,6 +1158,7 @@ mod tests {
 			duration: 10,
 			authorities: Vec::new(),
 			randomness: [1u8; 32],
+			config: Default::default(),
 		};
 		runtime_api.babe_epoch = Some(epoch.clone());
 		let runtime_api = Arc::new(runtime_api);

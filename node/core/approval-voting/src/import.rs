@@ -1261,6 +1261,7 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: Default::default(),
 					}));
 				}
 			);
@@ -1366,6 +1367,7 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: Default::default(),
 					}));
 				}
 			);
