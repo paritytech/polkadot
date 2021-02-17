@@ -5962,6 +5962,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
+ "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
  "sp-keyring",
@@ -9214,7 +9215,6 @@ dependencies = [
 name = "test-parachain-adder-collator"
 version = "0.7.26"
 dependencies = [
- "assert_matches",
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "log",
