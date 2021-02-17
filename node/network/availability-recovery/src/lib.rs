@@ -662,6 +662,10 @@ async fn handle_network_update(
 						}
 					}
 				}
+				protocol_v1::AvailabilityRecoveryMessage::RequestFullData(_, _) |
+				protocol_v1::AvailabilityRecoveryMessage::FullData(_, _) => {
+					// handled in https://github.com/paritytech/polkadot/pull/2453
+				}
 			}
 		}
 		// We do not really need to track the peers' views in this subsystem
@@ -727,7 +731,7 @@ fn cleanup_awaited_chunks(state: &mut State) {
 	let mut removed_tokens = Vec::new();
 
 	for (_, v) in state.discovering_validators.iter_mut() {
-		v.retain(|e| if !e.response.is_canceled() {
+		v.retain(|e| if e.response.is_canceled() {
 			removed_tokens.push(e.token);
 			false
 		} else {

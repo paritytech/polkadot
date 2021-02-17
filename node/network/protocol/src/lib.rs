@@ -242,7 +242,7 @@ impl View {
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex,
+		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex, AvailableData,
 	};
 	use polkadot_node_primitives::{
 		SignedFullStatement,
@@ -268,6 +268,11 @@ pub mod v1 {
 		/// Respond with chunk for a given candidate hash and validator index.
 		/// The response may be `None` if the requestee does not have the chunk.
 		Chunk(RequestId, Option<ErasureChunk>),
+		/// Request full data for a given candidate hash.
+		RequestFullData(RequestId, CandidateHash),
+		/// Respond with full data for a given candidate hash.
+		/// The response may be `None` if the requestee does not have the data.
+		FullData(RequestId, Option<AvailableData>),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
