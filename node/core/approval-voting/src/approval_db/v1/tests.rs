@@ -21,7 +21,7 @@ use polkadot_primitives::v1::Id as ParaId;
 use std::cell::RefCell;
 
 #[derive(Default)]
-struct TestStore {
+pub struct TestStore {
 	inner: RefCell<HashMap<Vec<u8>, Vec<u8>>>,
 }
 
