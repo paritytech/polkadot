@@ -1076,7 +1076,7 @@ mod tests {
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
-	use node_primitives::Statement;
+	use polkadot_node_primitives::Statement;
 	use polkadot_primitives::v1::CommittedCandidateReceipt;
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};

@@ -2028,7 +2028,7 @@ mod tests {
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, JaegerSpan};
 	use polkadot_node_primitives::{CollationResult, CollationGenerationConfig};
-	use polkadot_node_network_protocol::{PeerId, ReputationChange};
+	use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 	use polkadot_node_subsystem_util::metered;
 
 	use sp_core::crypto::Pair as _;

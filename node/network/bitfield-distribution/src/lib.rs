@@ -229,7 +229,7 @@ impl BitfieldDistribution {
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
-	rep: ReputationChange,
+	rep: Rep,
 )
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
