@@ -664,6 +664,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		remote_blockchain: None,
 		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
+		telemetry_span: Some(telemetry_span.clone()),
 	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
@@ -984,6 +985,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		network,
 		network_status_sinks,
 		system_rpc_tx,
+		telemetry_span: Some(telemetry_span.clone()),
 	})?;
 
 	network_starter.start_network();
