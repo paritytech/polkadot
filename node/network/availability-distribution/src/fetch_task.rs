@@ -23,16 +23,15 @@ use futures::channel::oneshot;
 use futures::future::select;
 use futures::SinkExt;
 
-use sc_network::PeerId;
-
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
 	request::{OutgoingRequest, RequestError, Requests},
 	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
 };
 use polkadot_primitives::v1::{
-	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, GroupIndex, Hash,
-	HashT, OccupiedCore, SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
+	AuthorityDiscoveryId, BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState,
+	ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore, SessionIndex, ValidatorId,
+	ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
 };
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
@@ -41,7 +40,7 @@ use polkadot_subsystem::messages::{
 use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError, SubsystemResult
+	Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 
 use super::{session_cache::SessionInfo, LOG_TARGET};
@@ -91,7 +90,7 @@ pub struct BadValidators {
 	/// The group the not properly responding validators are.
 	pub group_index: GroupIndex,
 	/// The indeces of the bad validators.
-	pub bad_validators: Vec<ValidatorIndex>,
+	pub bad_validators: Vec<AuthorityDiscoveryId>,
 }
 
 /// Information a running task needs.
@@ -103,7 +102,9 @@ struct RunningTask {
 	group_index: GroupIndex,
 
 	/// Validators to request the chunk from.
-	group: Vec<ValidatorIndex>,
+	///
+	/// This vector gets drained during execution of the task (it will be empty afterwards).
+	group: Vec<AuthorityDiscoveryId>,
 
 	/// The request to send.
 	request: AvailabilityFetchingRequest,
@@ -113,9 +114,6 @@ struct RunningTask {
 
 	/// Relay parent of the candidate to fetch.
 	relay_parent: Hash,
-
-	/// Hash of the candidate we are fetching our chunk for.
-	candidate_hash: CandidateHash,
 
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
@@ -144,10 +142,9 @@ impl FetchTask {
 			},
 			erasure_root: core.candidate_descriptor.erasure_root,
 			relay_parent: core.candidate_descriptor.relay_parent,
-			candidate_hash: core.candidate_hash,
 			sender,
 		};
-		ctx.spawn("chunk-fetcher", Pin::new(Box::new(running.run(kill))))
+		ctx.spawn("chunk-fetcher", running.run(kill).boxed())
 			.await?;
 		Ok(FetchTask {
 			live_in: vec![leaf].into_iter().collect(),
@@ -202,30 +199,20 @@ type Result<T> = std::result::Result<T, TaskError>;
 impl RunningTask {
 	async fn run(self, kill: oneshot::Receiver<()>) {
 		// Wait for completion/or cancel.
-		let _ = select(self.run_inner(), kill);
+		let run_it = self.run_inner();
+		futures::pin_mut!(run_it);
+		let _ = select(run_it, kill).await;
 	}
 
 	/// Fetch and store chunk.
 	///
 	/// Try validators in backing group in order.
-	async fn run_inner(self) {
-		let bad_validators = Vec::new();
+	async fn run_inner(mut self) {
+		let mut bad_validators = Vec::new();
 		// Try validators in order:
-		for index in self.group {
+		while let Some(validator)= self.group.pop() {
 			// Send request:
-			let peer_id = match self.get_peer_id(index).await {
-				Ok(peer_id) => peer_id,
-				Err(err) => {
-					tracing::warn!(
-						target: LOG_TARGET,
-						validator_index = ?index,
-						"Discoverying peer id for validator failed"
-					);
-					bad_validators.push(index);
-					continue
-				}
-			};
-			let resp = match self.do_request(peer_id).await {
+			let resp = match self.do_request(&validator).await {
 				Ok(resp) => resp,
 				Err(TaskError::ShuttingDown) => {
 					tracing::info!(
@@ -235,17 +222,19 @@ impl RunningTask {
 					return;
 				}
 				Err(TaskError::PeerError) => {
-					bad_validators.push(index);
+					bad_validators.push(validator);
 					continue;
 				}
 			};
 			let chunk = match resp {
-				AvailabilityFetchingResponse::Chunk(chunk) => chunk,
+				AvailabilityFetchingResponse::Chunk(resp) => {
+					resp.reconstruct_erasure_chunk(&self.request)
+				}
 			};
 
 			// Data genuine?
-			if !self.validate_chunk(peer_id, &chunk) {
-				bad_validators.push(index);
+			if !self.validate_chunk(&validator, &chunk) {
+				bad_validators.push(validator);
 				continue;
 			}
 
@@ -258,16 +247,17 @@ impl RunningTask {
 
 	/// Do request and return response, if successful.
 	async fn do_request(
-		&self,
-		peer: PeerId,
+		&mut self,
+		validator: &AuthorityDiscoveryId,
 	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
-		let (full_request, response_recv) = OutgoingRequest::new(peer, self.request);
+		let (full_request, response_recv) =
+			OutgoingRequest::new(validator.clone(), self.request);
 		let requests = Requests::AvailabilityFetching(full_request);
 
 		self.sender
-			.send(FromFetchTask::Message(
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(vec![requests])),
-			))
+			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendRequests(vec![requests]),
+			)))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;
 
@@ -276,6 +266,7 @@ impl RunningTask {
 			Err(RequestError::InvalidResponse(err)) => {
 				tracing::warn!(
 					target: LOG_TARGET,
+					origin= ?validator,
 					"Peer sent us invalid erasure chunk data"
 				);
 				Err(TaskError::PeerError)
@@ -283,26 +274,29 @@ impl RunningTask {
 			Err(RequestError::NetworkError(err)) => {
 				tracing::warn!(
 					target: LOG_TARGET,
+					origin= ?validator,
 					"Some network error occurred when fetching erasure chunk"
 				);
 				Err(TaskError::PeerError)
 			}
 			Err(RequestError::Canceled(err)) => {
-				tracing::warn!(target: LOG_TARGET, "Erasure chunk request got canceled");
+				tracing::warn!(target: LOG_TARGET,
+							   origin= ?validator,
+							   "Erasure chunk request got canceled");
 				Err(TaskError::PeerError)
 			}
 		}
 	}
 
-	fn validate_chunk(&self, peer_id: &PeerId, chunk: &ErasureChunk) -> bool {
+	fn validate_chunk(&self, validator: &AuthorityDiscoveryId, chunk: &ErasureChunk) -> bool {
 		let anticipated_hash =
 			match branch_hash(&self.erasure_root, &chunk.proof, chunk.index as usize) {
 				Ok(hash) => hash,
 				Err(e) => {
 					tracing::trace!(
 					target: LOG_TARGET,
-					candidate_hash = ?self.candidate_hash,
-					origin = ?peer_id,
+					candidate_hash = ?self.request.candidate_hash,
+					origin = ?validator,
 					error = ?e,
 					"Failed to calculate chunk merkle proof",
 					);
@@ -311,14 +305,10 @@ impl RunningTask {
 			};
 		let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 		if anticipated_hash != erasure_chunk_hash {
-			tracing::warn!(target: LOG_TARGET, origin = ?peer_id,  "Received chunk does not match merkle tree");
+			tracing::warn!(target: LOG_TARGET, origin = ?validator,  "Received chunk does not match merkle tree");
 			return false;
 		}
 		true
-	}
-
-	fn get_peer_id(&self, index: ValidatorIndex) -> Result<PeerId> {
-		panic!("TO BE IMPLEMENTED");
 	}
 
 	/// Store given chunk and log any error.
@@ -327,7 +317,7 @@ impl RunningTask {
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
 				AvailabilityStoreMessage::StoreChunk {
-					candidate_hash: self.candidate_hash,
+					candidate_hash: self.request.candidate_hash,
 					relay_parent: self.relay_parent,
 					chunk,
 					tx,
@@ -341,7 +331,7 @@ impl RunningTask {
 	}
 
 	/// Tell subsystem we are done.
-	async fn conclude(&mut self, bad_validators: Vec<ValidatorIndex>) {
+	async fn conclude(&mut self, bad_validators: Vec<AuthorityDiscoveryId>) {
 		let payload = if bad_validators.is_empty() {
 			None
 		} else {
