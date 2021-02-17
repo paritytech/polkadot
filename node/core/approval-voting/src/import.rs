@@ -697,6 +697,7 @@ mod tests {
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
+	use std::{pin::Pin, sync::Arc};
 
 	use crate::{criteria, BlockEntry};
 
@@ -719,6 +720,44 @@ mod tests {
 			candidate_hash: &CandidateHash,
 		) -> SubsystemResult<Option<CandidateEntry>> {
 			Ok(self.candidate_entries.get(candidate_hash).map(|c| c.clone()))
+		}
+	}
+
+	#[derive(Default)]
+	struct MockClock;
+
+	impl crate::time::Clock for MockClock {
+		fn tick_now(&self) -> Tick {
+			42 // chosen by fair dice roll
+		}
+
+		fn wait(&self, _tick: Tick) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> {
+			Box::pin(async move {
+				()
+			})
+		}
+	}
+
+	fn blank_state() -> State<TestDB> {
+		State {
+			session_window: RollingSessionWindow::default(),
+			keystore: Arc::new(LocalKeystore::in_memory()),
+			slot_duration_millis: 6_000,
+			db: TestDB::default(),
+			clock: Box::new(MockClock::default()),
+			assignment_criteria: Box::new(MockAssignmentCriteria),
+		}
+	}
+
+	fn single_session_state(index: SessionIndex, info: SessionInfo)
+		-> State<TestDB>
+	{
+		State {
+			session_window: RollingSessionWindow {
+				earliest_session: Some(index),
+				session_info: vec![info],
+			},
+			..blank_state()
 		}
 	}
 
@@ -1488,6 +1527,94 @@ mod tests {
 					let _ = c_tx.send(Ok(session));
 				}
 			);
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn insta_approval_works() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let session = 5;
+		let session_info = SessionInfo {
+			validators: Vec::new(),
+			discovery_keys: Vec::new(),
+			assignment_keys: Vec::new(),
+			validator_groups: vec![vec![0; 5], vec![0; 2]],
+			n_cores: 6,
+			needed_approvals: 2,
+			zeroth_delay_tranche_width: 666,
+			relay_vrf_modulo_samples: 666,
+			n_delay_tranches: 666,
+			no_show_slots: 666,
+		};
+
+		let slot = Slot::from(10);
+
+		let header = Header {
+			digest: {
+				let mut d = Digest::default();
+				let (vrf_output, vrf_proof) = garbage_vrf();
+				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+					SecondaryVRFPreDigest {
+						authority_index: 0,
+						slot,
+						vrf_output,
+						vrf_proof,
+					}
+				)));
+
+				d
+			},
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let hash = header.hash();
+
+		let mut state = single_session_state(session, session_info);
+		let db_writer = crate::approval_db::v1::tests::TestStore::default();
+
+		let test_fut = {
+			Box::pin(async move {
+				let imported_candidates = handle_new_head(
+					&mut ctx,
+					&mut state,
+					&db_writer,
+					hash,
+					&Some(1),
+				).await.unwrap();
+
+				assert_eq!(imported_candidates.len(), 3);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+					h,
+					tx,
+				)) => {
+					assert_eq!(h, hash);
+					let _ = tx.send(Ok(Some(header.clone())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(c_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = c_tx.send(Ok(session));
+				}
+			)
 		});
 
 		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
