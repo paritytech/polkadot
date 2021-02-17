@@ -28,13 +28,13 @@ impl UnifiedReputationChange {
 	/// something malicious should be `1<<20` (give or take).
 	const fn cost_or_benefit(&self) -> i32 {
 		match self {
-			Self::CostMinor(_) => -10_000,
-			Self::CostMajor(_) => -30_000,
-			Self::CostMinorRepeated(_) => -20_000,
-			Self::CostMajorRepeated(_) => -60_000,
+			Self::CostMinor(_) => -100_000,
+			Self::CostMajor(_) => -300_000,
+			Self::CostMinorRepeated(_) => -200_000,
+			Self::CostMajorRepeated(_) => -600_000,
 			Self::Malicious(_) => -1_000_000,
-			Self::BenefitMajorFirst(_) => 30_000,
-			Self::BenefitMajor(_) => 20_000,
+			Self::BenefitMajorFirst(_) => 300_000,
+			Self::BenefitMajor(_) => 200_000,
 			Self::BenefitMinorFirst(_) => 15_000,
 			Self::BenefitMinor(_) => 10_000,
 		}
