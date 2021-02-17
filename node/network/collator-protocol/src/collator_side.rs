@@ -446,7 +446,24 @@ async fn advertise_collation(
 		.unwrap_or(false);
 
 	match (state.collations.get_mut(&relay_parent), should_advertise) {
-		(None, _) | (_, false) => return,
+		(None, _) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?relay_parent,
+				peer_id = %peer,
+				"No collation to advertise.",
+			);
+			return
+		},
+		(_, false) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?relay_parent,
+				peer_id = %peer,
+				"Not advertising collation as we already advertised it to this validator.",
+			);
+			return
+		}
 		(Some(collation), true) => collation.status.advance_to_advertised(),
 	}
 
