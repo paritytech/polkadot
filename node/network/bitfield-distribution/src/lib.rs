@@ -29,6 +29,7 @@ use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemResult,
+	jaeger,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
@@ -402,6 +403,7 @@ where
 			.child_builder("msg-received")
 			.with_peer_id(&origin)
 			.with_claimed_validator_index(message.signed_availability.validator_index())
+			.with_stage(jaeger::Stage::BitfieldDistribution)
 			.build();
 
 	let validator_set = &job_data.validator_set;

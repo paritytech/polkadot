@@ -25,6 +25,7 @@
 use polkadot_subsystem::{
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
+	jaeger,
 	messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
@@ -516,10 +517,10 @@ async fn circulate_statement_and_dependents(
 		None => return,
 	};
 
-	let _span = active_head.span.child_with_candidate(
-		"circulate-statement",
-		&statement.payload().candidate_hash()
-	);
+	let _span = active_head.span.child_builder("circulate-statement")
+		.with_candidate(&statement.payload().candidate_hash())
+		.with_stage(jaeger::Stage::StatementDistribution)
+		.build();
 
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
@@ -533,10 +534,14 @@ async fn circulate_statement_and_dependents(
 		}
 	};
 
+	let _span = _span.child("send-to-peers");
 	// Now send dependent statements to all peers needing them, if any.
 	if let Some((candidate_hash, peers_needing_dependents)) = outputs {
 		for peer in peers_needing_dependents {
 			if let Some(peer_data) = peers.get_mut(&peer) {
+				let _span_loop = _span.child_builder("to-peer")
+					.with_peer_id(&peer)
+					.build();
 				// defensive: the peer data should always be some because the iterator
 				// of peers is derived from the set of peers.
 				send_statements_about(

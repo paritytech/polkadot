@@ -171,7 +171,14 @@ impl std::ops::Deref for PerLeafSpan {
 pub enum Stage {
 	Backing = 1,
 	Availability = 2,
-	// TODO expand this
+	AvailabilityDistribution = 3,
+	AvailabilityRecovery = 4,
+	BitfieldDistribution = 5,
+	StatementDistribution = 6,
+	PoVDistribution = 7,
+	// Expand as needed, numbers should be ascending according to the stage
+	// through the inclusion pipeline,
+	// see [issue](https://github.com/paritytech/polkadot/issues/2389)
 }
 
 /// Builder pattern for children and root spans to unify
@@ -196,8 +203,8 @@ impl SpanBuilder {
 	/// Attach a candidate stage.
 	/// Should always come with a `CandidateHash`.
 	#[inline(always)]
-	pub fn with_candidate_stage(mut self, stage: Stage) -> Self {
-		self.span.add_string_tag("candidate-stage", &format!("{}", stage as u8));
+	pub fn with_stage(mut self, stage: Stage) -> Self {
+		self.span.add_stage(stage);
 		self
 	}
 
@@ -274,6 +281,11 @@ impl JaegerSpan {
 	#[inline(always)]
 	pub fn child_with_candidate(&self, name: &'static str, candidate_hash: &CandidateHash) -> Self {
 		self.child_builder(name).with_candidate(candidate_hash).build()
+	}
+
+	/// Add candidate stage annotation.
+	pub fn add_stage(&mut self, stage: Stage) {
+		self.add_string_tag("candidate-stage", &format!("{}", stage as u8));
 	}
 
 	/// Add an additional tag to the span.

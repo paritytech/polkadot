@@ -45,7 +45,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent
 };
 use polkadot_subsystem::{
-	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
+	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, Stage,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 use std::collections::{HashMap, HashSet};
@@ -262,7 +262,10 @@ impl ProtocolState {
 			};
 
 			// Create some span that will make it able to switch between the candidate and relay parent span.
-			let span = per_relay_parent.span.child_with_candidate("live-candidate", &receipt_hash);
+			let span = per_relay_parent.span.child_builder("live-candidate")
+				.with_candidate(&receipt_hash)
+				.with_stage(Stage::AvailabilityDistribution)
+				.build();
 			candidate_entry.span.add_follows_from(&span);
 			candidate_entry.live_in.insert(relay_parent);
 		}

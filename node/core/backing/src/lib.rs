@@ -35,7 +35,7 @@ use polkadot_node_primitives::{
 	Statement, SignedFullStatement, ValidationResult,
 };
 use polkadot_subsystem::{
-	JaegerSpan, PerLeafSpan,
+	JaegerSpan, PerLeafSpan, Stage,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
@@ -909,7 +909,13 @@ impl CandidateBackingJob {
 	}
 
 	fn get_unbacked_validation_child(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) -> Option<JaegerSpan> {
-		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| span.child_with_candidate("validation", &hash))
+		self.insert_or_get_unbacked_span(parent_span, hash)
+			.map(|span| {
+				span.child_builder("validation")
+					.with_candidate(&hash)
+					.with_stage(Stage::Backing)
+					.build()
+			})
 	}
 
 	fn get_unbacked_statement_child(
