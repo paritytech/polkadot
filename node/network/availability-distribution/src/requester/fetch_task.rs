@@ -194,16 +194,6 @@ impl FetchTask {
 		}
 	}
 
-	/// Whether or not this task can be considered finished.
-	///
-	/// That is, it is either canceled, succeeded or failed.
-	pub fn is_finished(&self) -> bool {
-		match &self.state {
-			FetchedState::Canceled => true,
-			FetchedState::Started(sender) => sender.is_canceled(),
-		}
-	}
-
 	/// Whether or not there are still relay parents around with this candidate pending
 	/// availability.
 	pub fn is_live(&self) -> bool {

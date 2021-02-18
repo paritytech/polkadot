@@ -99,21 +99,6 @@ impl SessionCache {
 			keystore,
 		}
 	}
-	/// Retrieve session info for the given relay parent.
-	///
-	/// This function will query the cache first and will only query the runtime on cache miss.
-	///
-	/// Returns: `Ok(None)` in case this node is not a validator in the current session.
-	pub async fn fetch_session_info<Context>(
-		&mut self,
-		ctx: &mut Context,
-		parent: Hash,
-	) -> Result<Option<SessionInfo>>
-	where
-		Context: SubsystemContext,
-	{
-		self.with_session_info(ctx, parent, Clone::clone).await
-	}
 
 	/// Tries to retrieve `SessionInfo` and calls `with_info` if successful.
 	///
