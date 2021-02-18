@@ -518,7 +518,7 @@ async fn circulate_statement_and_dependents(
 
 	let _span = active_head.span.child_with_candidate(
 		"circulate-statement",
-		statement.payload().candidate_hash()
+		&statement.payload().candidate_hash()
 	);
 
 	// First circulate the statement directly to all peers needing it.
