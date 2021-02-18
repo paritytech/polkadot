@@ -114,7 +114,12 @@ pub fn clear_and_recreate(path: &std::path::Path, cache_size: usize)
 	use kvdb_rocksdb::{DatabaseConfig, Database as RocksDB};
 
 	tracing::info!("Recreating approval-checking DB at {:?}", path);
-	std::fs::remove_dir_all(path)?;
+
+	if let Err(e) = std::fs::remove_dir_all(path) {
+		if e.kind() != std::io::ErrorKind::NotFound {
+			return Err(e);
+		}
+	}
 	std::fs::create_dir_all(path)?;
 
 	let mut db_config = DatabaseConfig::with_columns(NUM_COLUMNS);
