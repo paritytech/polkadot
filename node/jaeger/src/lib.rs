@@ -266,7 +266,7 @@ impl JaegerSpan {
 	///
 	/// ```rust,no_run
 	/// # let span = unimplemented!()
-	/// span.child_builder("name").with_candidate_hash(h).build()`
+	/// span.child_builder("name").with_candidate(h).build()`
 	/// ```
 	#[inline(always)]
 	pub fn child_with_candidate(&self, name: &'static str, candidate_hash: &CandidateHash) -> Self {

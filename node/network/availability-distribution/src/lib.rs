@@ -672,7 +672,7 @@ where
 
 	let span = candidate_entry.span
 			.child_builder("process-new-chunk")
-			.with_candidate_hash(&candidate_hash)
+			.with_candidate(&candidate_hash)
 			.with_peer_id(&origin)
 			.build();
 

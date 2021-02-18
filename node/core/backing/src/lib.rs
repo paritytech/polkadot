@@ -900,7 +900,7 @@ impl CandidateBackingJob {
 		if !self.backed.contains(&hash) {
 			// only add if we don't consider this backed.
 			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
-				Some(parent_span.child_with_candidate("unbacked-candidate", &hash))
+				parent_span.child_with_candidate("unbacked-candidate", &hash)
 			});
 			Some(span)
 		} else {
@@ -920,7 +920,7 @@ impl CandidateBackingJob {
 	) -> Option<JaegerSpan> {
 		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| {
 			span.child_builder("import-statement")
-				.with_candidate_hash(&hash)
+				.with_candidate(&hash)
 				.with_validator_index(validator)
 				.build()
 		})
