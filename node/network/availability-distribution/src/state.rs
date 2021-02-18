@@ -58,11 +58,14 @@ use std::collections::{
 	hash_set::HashSet,
 };
 use std::iter::IntoIterator;
+use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::channel::{mpsc, oneshot};
-use futures::StreamExt;
-use itertools::{Either, Itertools};
+use futures::{
+	channel::{mpsc, oneshot},
+	task::{Context, Poll},
+	Stream, StreamExt,
+};
 use jaeger::JaegerSpan;
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -75,14 +78,14 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	jaeger,
-	messages::AvailabilityDistributionMessage,
+	messages::{AllMessages, AvailabilityDistributionMessage},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError,
 };
 
 use super::{
 	error::recv_runtime,
-	fetch_task::{FetchTask, FromFetchTask, FetchTaskConfig},
+	fetch_task::{FetchTask, FetchTaskConfig, FromFetchTask},
 	session_cache::SessionCache,
 	Result, LOG_TARGET,
 };
@@ -207,6 +210,32 @@ impl ProtocolState {
 			}
 		}
 		Ok(())
+	}
+}
+
+impl Stream for ProtocolState {
+	type Item = Result<AllMessages>;
+
+	fn poll_next(
+		mut self: Pin<&mut Self>,
+		ctx: &mut Context,
+	) -> Poll<Option<Result<AllMessages>>> {
+		loop {
+			match Pin::new(&mut self.rx).poll_next(ctx) {
+				Poll::Ready(Some(FromFetchTask::Message(m))) => {
+					return Poll::Ready(Some(Ok(m)))
+				}
+				Poll::Ready(Some(FromFetchTask::Concluded(Some(bad_boys)))) => {
+					match self.session_cache.report_bad(bad_boys) {
+						Err(err) => return Poll::Ready(Some(Err(err))),
+						Ok(()) => continue,
+					}
+				}
+				Poll::Ready(Some(FromFetchTask::Concluded(None))) => continue,
+				Poll::Ready(None) => return Poll::Ready(None),
+				Poll::Pending => return Poll::Pending,
+			}
+		}
 	}
 }
 

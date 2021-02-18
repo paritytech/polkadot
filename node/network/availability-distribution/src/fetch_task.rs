@@ -255,7 +255,7 @@ impl RunningTask {
 			self.store_chunk(chunk).await;
 			break;
 		}
-		self.conclude(bad_validators);
+		self.conclude(bad_validators).await;
 	}
 
 	/// Do request and return response, if successful.
@@ -280,6 +280,7 @@ impl RunningTask {
 				tracing::warn!(
 					target: LOG_TARGET,
 					origin= ?validator,
+					err= ?err,
 					"Peer sent us invalid erasure chunk data"
 				);
 				Err(TaskError::PeerError)
@@ -288,11 +289,12 @@ impl RunningTask {
 				tracing::warn!(
 					target: LOG_TARGET,
 					origin= ?validator,
+					err= ?err,
 					"Some network error occurred when fetching erasure chunk"
 				);
 				Err(TaskError::PeerError)
 			}
-			Err(RequestError::Canceled(err)) => {
+			Err(RequestError::Canceled(oneshot::Canceled)) => {
 				tracing::warn!(target: LOG_TARGET,
 							   origin= ?validator,
 							   "Erasure chunk request got canceled");
@@ -327,7 +329,8 @@ impl RunningTask {
 	/// Store given chunk and log any error.
 	async fn store_chunk(&mut self, chunk: ErasureChunk) {
 		let (tx, rx) = oneshot::channel();
-		let r = self.sender
+		let r = self
+			.sender
 			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,

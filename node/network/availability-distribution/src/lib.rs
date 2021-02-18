@@ -14,14 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
-use futures::{FutureExt, TryFutureExt};
+use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
-	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, messages::AvailabilityDistributionMessage
+	errors::{ChainApiError, RuntimeApiError},
+	jaeger,
+	messages::AllMessages,
+	messages::AvailabilityDistributionMessage,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
+	SubsystemContext, SubsystemError,
 };
 
 /// Error and [`Result`] type for this subsystem.
@@ -41,8 +44,6 @@ mod fetch_task;
 mod session_cache;
 
 const LOG_TARGET: &'static str = "availability_distribution";
-
-
 
 /// Availability Distribution metrics.
 /// TODO: Dummy for now.
@@ -73,7 +74,6 @@ where
 	}
 }
 
-
 impl AvailabilityDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
@@ -85,13 +85,32 @@ impl AvailabilityDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
-		let mut state = ProtocolState::new(self.keystore.clone());
+		let mut state = ProtocolState::new(self.keystore.clone()).fuse();
 		loop {
-			let message = ctx.recv().await?;
+			let action = {
+				let mut subsystem_next = ctx.recv().fuse();
+				futures::select! {
+					subsystem_msg = subsystem_next => Either::Left(subsystem_msg),
+					from_task = state.next() => Either::Right(from_task),
+				}
+			};
+			let message = match action {
+				Either::Left(subsystem_msg) => {
+					subsystem_msg.map_err(|e| Error::IncomingMessageChannel(e))?
+				}
+				Either::Right(from_task) => {
+					let from_task = from_task.ok_or(Error::RequesterExhausted)??;
+					ctx.send_message(from_task).await;
+					continue;
+				}
+			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					// Update the relay chain heads we are fetching our pieces for:
-					state.update_fetching_heads(&mut ctx, update).await?;
+					state
+						.get_mut()
+						.update_fetching_heads(&mut ctx, update)
+						.await?;
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
@@ -106,8 +125,12 @@ impl AvailabilityDistributionSubsystem {
 						"To be implemented, see: https://github.com/paritytech/polkadot/issues/2306!",
 						);
 				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::NetworkBridgeUpdateV1(_),
+				} => {
+					// There are currently no bridge updates we are interested in.
+				}
 			}
 		}
 	}
 }
-

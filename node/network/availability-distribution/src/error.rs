@@ -63,6 +63,10 @@ pub enum Error {
 	/// Reporting bad validators failed.
 	#[error("Reporting bad validators failed")]
 	ReportBadValidators(&'static str),
+
+	/// Requester stream exhausted.
+	#[error("Erasure chunk requester stream exhausted")]
+	RequesterExhausted,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
