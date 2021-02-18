@@ -467,19 +467,36 @@ async fn handle_from_overseer(
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
+							tracing::debug!(
+								target: LOG_TARGET,
+								"Imported new block {} with {} included candidates",
+								block_batch.block_hash,
+								block_batch.imported_candidates.len(),
+							);
+
 							for (c_hash, c_entry) in block_batch.imported_candidates {
 								let our_tranche = c_entry
 									.approval_entry(&block_batch.block_hash)
 									.and_then(|a| a.our_assignment().map(|a| a.tranche()));
 
 								if let Some(our_tranche) = our_tranche {
+									let tick = our_tranche as Tick + block_batch.block_tick;
+									tracing::trace!(
+										target: LOG_TARGET,
+										"Scheduling next wakeup at {} for candidate {} in block ({}, tick={})",
+										tick,
+										c_hash,
+										block_batch.block_hash,
+										block_batch.block_tick,
+									);
+
 									// Our first wakeup will just be the tranche of our assignment,
 									// if any. This will likely be superseded by incoming assignments
 									// and approvals which trigger rescheduling.
 									actions.push(Action::ScheduleWakeup {
 										block_hash: block_batch.block_hash,
 										candidate_hash: c_hash,
-										tick: our_tranche as Tick + block_batch.block_tick,
+										tick,
 									});
 								}
 							}
@@ -649,11 +666,8 @@ fn schedule_wakeup_action(
 	block_tick: Tick,
 	required_tranches: RequiredTranches,
 ) -> Option<Action> {
-	if approval_entry.is_approved() {
-		return None
-	}
-
-	match required_tranches {
+	let maybe_action = match required_tranches {
+		_ if approval_entry.is_approved() => None,
 		RequiredTranches::All => None,
 		RequiredTranches::Exact { next_no_show, .. } => next_no_show.map(|tick| Action::ScheduleWakeup {
 			block_hash,
@@ -686,7 +700,28 @@ fn schedule_wakeup_action(
 			min_prefer_some(next_non_empty_tranche, next_no_show)
 				.map(|tick| Action::ScheduleWakeup { block_hash, candidate_hash, tick })
 		}
+	};
+
+	match maybe_action {
+		Some(Action::ScheduleWakeup { ref tick, .. }) => tracing::debug!(
+			target: LOG_TARGET,
+			"Scheduling next wakeup at {} for candidate {} under block ({}, tick={})",
+			tick,
+			candidate_hash,
+			block_hash,
+			block_tick,
+		),
+		None => tracing::debug!(
+			target: LOG_TARGET,
+			"No wakeup needed for candidate {} under block ({}, tick={})",
+			candidate_hash,
+			block_hash,
+			block_tick,
+		),
+		Some(_) => {} // unreachable
 	}
+
+	maybe_action
 }
 
 fn check_and_import_assignment(
@@ -773,6 +808,13 @@ fn check_and_import_assignment(
 		if is_duplicate {
 			AssignmentCheckResult::AcceptedDuplicate
 		} else {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Imported assignment from validator {} on candidate {:?}",
+				assignment.validator,
+				(assigned_candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
+			);
+
 			AssignmentCheckResult::Accepted
 		}
 	};
@@ -866,6 +908,13 @@ fn check_and_import_approval<T>(
 
 	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
 	let t = with_response(ApprovalCheckResult::Accepted);
+
+	tracing::trace!(
+		target: LOG_TARGET,
+		"Importing approval vote from validator {:?} on candidate {:?}",
+		(approval.validator, &pubkey),
+		(approved_candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
+	);
 
 	let actions = import_checked_approval(
 		state,
@@ -1072,6 +1121,14 @@ fn process_wakeup(
 
 	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Processing wakeup at tranche {} for candidate {} under block {}",
+		tranche_now,
+		candidate_hash,
+		relay_block,
+	);
+
 	let (should_trigger, backing_group) = {
 		let approval_entry = match candidate_entry.approval_entry(&relay_block) {
 			Some(e) => e,
@@ -1123,6 +1180,13 @@ fn process_wakeup(
 			.position(|(_, h)| &candidate_hash == h);
 
 		if let Some(i) = index_in_candidate {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Launching approval work for candidate {:?} in block {}",
+				(&candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
+				relay_block,
+			);
+
 			// sanity: should always be present.
 			actions.push(Action::LaunchApproval {
 				indirect_cert,
@@ -1173,6 +1237,14 @@ async fn launch_approval(
 	let (code_tx, code_rx) = oneshot::channel();
 	let (context_num_tx, context_num_rx) = oneshot::channel();
 
+	let candidate_hash = candidate.hash();
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Recovering data for candidate {:?}",
+		(candidate_hash, candidate.descriptor.para_id),
+	);
+
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
 		candidate.clone(),
 		session_index,
@@ -1208,10 +1280,21 @@ async fn launch_approval(
 			Err(_) => return,
 			Ok(Ok(a)) => a,
 			Ok(Err(RecoveryError::Unavailable)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Data unavailable for candidate {:?}",
+					(candidate_hash, candidate.descriptor.para_id),
+				);
 				// do nothing. we'll just be a no-show and that'll cause others to rise up.
 				return;
 			}
 			Ok(Err(RecoveryError::Invalid)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Data recovery invalid for candidate {:?}",
+					(candidate_hash, candidate.descriptor.para_id),
+				);
+
 				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
 				// https://github.com/paritytech/polkadot/issues/2176
 				return;
@@ -1238,6 +1321,7 @@ async fn launch_approval(
 
 		let (val_tx, val_rx) = oneshot::channel();
 
+		let para_id = candidate.descriptor.para_id;
 		let _ = background_tx.send(BackgroundRequest::CandidateValidation(
 			available_data.validation_data,
 			validation_code,
@@ -1252,6 +1336,12 @@ async fn launch_approval(
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Candidate Valid {:?}",
+					(candidate_hash, para_id),
+				);
+
 				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
 					validator_index,
 					block_hash,
@@ -1259,6 +1349,12 @@ async fn launch_approval(
 				})).await;
 			}
 			Ok(Ok(ValidationResult::Invalid(_))) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Detected invalid candidate as an approval checker {:?}",
+					(candidate_hash, para_id),
+				);
+
 				// TODO: issue dispute, but not for timeouts.
 				// https://github.com/paritytech/polkadot/issues/2176
 			}
@@ -1357,6 +1453,12 @@ async fn issue_approval(
 			return Ok(Vec::new());
 		}
 	};
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Issuing approval vote for candidate {:?}",
+		candidate_hash,
+	);
 
 	let actions = import_checked_approval(
 		state,
