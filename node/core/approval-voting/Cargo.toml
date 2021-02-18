@@ -14,6 +14,7 @@ bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 merlin = "2.0"
 schnorrkel = "0.9.1"
 kvdb = "0.9.0"
+kvdb-rocksdb = "0.11.0"
 derive_more = "0.99.1"
 
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
