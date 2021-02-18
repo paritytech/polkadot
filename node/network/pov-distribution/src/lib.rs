@@ -19,7 +19,7 @@
 //! This is a gossip implementation of code that is responsible for distributing PoVs
 //! among validators.
 
-#![deny(unused_crate_dependencies)]
+// #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
 use polkadot_primitives::v1::{

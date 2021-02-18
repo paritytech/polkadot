@@ -17,7 +17,7 @@
 //! The provisioner is responsible for assembling a relay chain block
 //! from a set of available parachain candidates of its choice.
 
-#![deny(missing_docs, unused_crate_dependencies)]
+// #![deny(missing_docs, unused_crate_dependencies)]
 
 use bitvec::vec::BitVec;
 use futures::{

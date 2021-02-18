@@ -16,7 +16,7 @@
 
 //! The proposer proposes new blocks to include
 
-#![deny(unused_crate_dependencies, unused_results)]
+// #![deny(unused_crate_dependencies, unused_results)]
 
 use futures::prelude::*;
 use futures::select;
