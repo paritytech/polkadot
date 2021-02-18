@@ -5203,6 +5203,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "kvdb",
  "kvdb-memorydb",
+ "kvdb-rocksdb",
  "maplit",
  "merlin",
  "parity-scale-codec",

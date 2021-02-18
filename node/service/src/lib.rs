@@ -29,6 +29,7 @@ use {
 	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
+	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
@@ -137,6 +138,10 @@ pub enum Error {
 
 	#[error("Authorities require the real overseer implementation")]
 	AuthoritiesRequireRealOverseer,
+
+	#[cfg(feature = "full-node")]
+	#[error("Creating a custom database is required for validators")]
+	DatabasePathRequired,
 }
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
@@ -358,7 +363,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	_: IsCollator,
 	_: IsolationStrategy,
-	_: u64,
+	_: ApprovalVotingConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -386,7 +391,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	is_collator: IsCollator,
 	isolation_strategy: IsolationStrategy,
-	slot_duration: u64,
+	approval_voting_config: ApprovalVotingConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -488,11 +493,10 @@ where
 		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
-		approval_voting: ApprovalVotingSubsystem::new(
+		approval_voting: ApprovalVotingSubsystem::with_config(
+			approval_voting_config,
 			keystore.clone(),
-			slot_duration,
-			runtime_client.clone(),
-		),
+		)?,
 	};
 
 	Overseer::new(
@@ -648,6 +652,14 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
 
+	let approval_voting_config = ApprovalVotingConfig {
+		path: config.database.path()
+			.ok_or(Error::DatabasePathRequired)?
+			.join("parachains").join("approval-voting"),
+		slot_duration_millis: slot_duration,
+		cache_size: None, // default is fine.
+	};
+
 	let telemetry_span = TelemetrySpan::new();
 	let _telemetry_span_entered = telemetry_span.enter();
 
@@ -741,7 +753,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			spawner,
 			is_collator,
 			isolation_strategy,
-			slot_duration,
+			approval_voting_config,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
