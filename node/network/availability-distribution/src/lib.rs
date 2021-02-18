@@ -262,7 +262,7 @@ impl ProtocolState {
 			};
 
 			// Create some span that will make it able to switch between the candidate and relay parent span.
-			let mut span = per_relay_parent.span.child_with_candidate("live-candidate", receipt_hash);
+			let span = per_relay_parent.span.child_with_candidate("live-candidate", &receipt_hash);
 			candidate_entry.span.add_follows_from(&span);
 			candidate_entry.live_in.insert(relay_parent);
 		}

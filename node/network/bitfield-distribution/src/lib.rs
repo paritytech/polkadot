@@ -400,8 +400,8 @@ where
 
 	let mut _span = job_data.span
 			.child_builder("msg-received")
-			.with_peer_id("peer-id", &origin)
-			.with_claimed_validator(message.signed_availability.validator_index())
+			.with_peer_id(&origin)
+			.with_claimed_validator_index(message.signed_availability.validator_index())
 			.build();
 
 	let validator_set = &job_data.validator_set;
