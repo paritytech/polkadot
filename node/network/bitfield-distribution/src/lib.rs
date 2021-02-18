@@ -398,15 +398,11 @@ where
 		return;
 	};
 
-	let mut _span = {
-		let mut span = job_data.span.child("msg-received");
-		span.add_string_tag("peer-id", &origin.to_base58());
-		span.add_string_tag(
-			"claimed-validator",
-			&message.signed_availability.validator_index().to_string(),
-		);
-		span
-	};
+	let mut _span = job_data.span
+			.child_builder("msg-received")
+			.with_peer_id(&origin)
+			.with_claimed_validator_index(message.signed_availability.validator_index())
+			.build();
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
