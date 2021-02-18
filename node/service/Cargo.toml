@@ -136,3 +136,7 @@ real-overseer = [
 	"polkadot-approval-distribution",
 	"polkadot-node-core-approval-voting",
 ]
+
+approval-checking = [
+	"real-overseer"
+]
