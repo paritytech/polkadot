@@ -32,13 +32,9 @@ mod error;
 pub use error::Error;
 use error::Result;
 
-/// The actual implementation of running availability distribution.
-mod state;
-/// State of a running availability-distribution subsystem.
-use state::ProtocolState;
-
-/// A task fetching a particular chunk.
-mod fetch_task;
+/// `Requester` taking care of requesting chunks for candidates pending availability.
+mod requester;
+use requester::Requester;
 
 /// Cache for session information.
 mod session_cache;
@@ -85,7 +81,7 @@ impl AvailabilityDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
-		let mut state = ProtocolState::new(self.keystore.clone()).fuse();
+		let mut state = Requester::new(self.keystore.clone()).fuse();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();

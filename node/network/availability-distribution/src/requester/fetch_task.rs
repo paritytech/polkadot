@@ -43,7 +43,7 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 
-use super::{
+use crate::{
 	error::{Error, Result},
 	session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
@@ -54,7 +54,7 @@ use super::{
 /// This exists to separate preparation of a `FetchTask` from actual starting it, which is
 /// beneficial as this allows as for taking session info by reference.
 pub struct FetchTaskConfig {
-	prepared_running: RunningTask,
+	prepared_running: Option<RunningTask>,
 	live_in: HashSet<Hash>,
 }
 
@@ -129,7 +129,17 @@ impl FetchTaskConfig {
 		sender: mpsc::Sender<FromFetchTask>,
 		session_info: &SessionInfo,
 	) -> Self {
-		let prepared_running =  RunningTask {
+		let live_in = vec![leaf].into_iter().collect();
+
+		// Don't run tasks for our backing group:
+		if session_info.our_group == core.group_responsible {
+			return FetchTaskConfig {
+				live_in,
+				prepared_running: None,
+			};
+		}
+
+		let prepared_running = RunningTask {
 			session_index: session_info.session_index,
 			group_index: core.group_responsible,
 			group: session_info.validator_groups.get(core.group_responsible.0 as usize).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
@@ -142,8 +152,8 @@ impl FetchTaskConfig {
 			sender,
 		};
 		FetchTaskConfig {
-			live_in: vec![leaf].into_iter().collect(),
-			prepared_running,
+			live_in,
+			prepared_running: Some(prepared_running),
 		}
 	}
 }
@@ -158,14 +168,24 @@ impl FetchTask {
 			prepared_running,
 			live_in,
 		} = config;
-		let (handle, kill) = oneshot::channel();
-		ctx.spawn("chunk-fetcher", prepared_running.run(kill).boxed())
-			.await
-			.map_err(|e| Error::SpawnTask(e))?;
-		Ok(FetchTask {
-			live_in,
-			state: FetchedState::Started(handle),
-		})
+
+		if let Some(running) = prepared_running {
+			let (handle, kill) = oneshot::channel();
+
+			ctx.spawn("chunk-fetcher", running.run(kill).boxed())
+				.await
+				.map_err(|e| Error::SpawnTask(e))?;
+
+			Ok(FetchTask {
+				live_in,
+				state: FetchedState::Started(handle),
+			})
+		} else {
+			Ok(FetchTask {
+				live_in,
+				state: FetchedState::Canceled,
+			})
+		}
 	}
 
 	/// Add the given leaf to the relay parents which are making this task relevant.

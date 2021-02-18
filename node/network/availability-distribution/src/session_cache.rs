@@ -80,10 +80,9 @@ pub struct SessionInfo {
 	/// Information about ourself:
 	pub our_index: ValidatorIndex,
 
-	//// Remember to which group we blong, so we won't start fetching chunks for candidates we
-	//// backed our selves.
-	// TODO: Implement this:
-	// pub our_group: GroupIndex,
+	/// Remember to which group we belong, so we won't start fetching chunks for candidates those
+	/// candidates (We should have them via PoV distribution).
+	pub our_group: GroupIndex,
 }
 
 /// Report of bad validators.
@@ -133,10 +132,10 @@ impl SessionCache {
 		ctx: &mut Context,
 		parent: Hash,
 		with_info: F,
-		) -> Result<Option<R>>
-		where
+	) -> Result<Option<R>>
+	where
 		Context: SubsystemContext,
-		F: FnOnce(&SessionInfo) -> R
+		F: FnOnce(&SessionInfo) -> R,
 	{
 		let session_index = match self.session_index_cache.get(&parent) {
 			Some(index) => *index,
@@ -150,7 +149,7 @@ impl SessionCache {
 		};
 
 		if let Some(info) = self.session_info_cache.get(&session_index) {
-			return Ok(Some(with_info(info)))
+			return Ok(Some(with_info(info)));
 		}
 
 		if let Some(info) = self
@@ -205,6 +204,22 @@ impl SessionCache {
 			.ok_or(Error::NoSuchSession(session_index))?;
 
 		if let Some(our_index) = self.get_our_index(validators).await {
+			// Get our group index:
+			let our_group = validator_groups
+				.iter()
+				.enumerate()
+				.find_map(|(i, g)| {
+					g.iter().find_map(|v| {
+						if *v == our_index {
+							Some(GroupIndex(i as u32))
+						} else {
+							None
+						}
+					})
+				})
+				// TODO: Make sure this is correct and should be enforced:
+				.expect("Every validator should be in a validator group. qed.");
+
 			// Shuffle validators in groups:
 			let mut rng = thread_rng();
 			for g in validator_groups.iter_mut() {
@@ -228,6 +243,7 @@ impl SessionCache {
 				validator_groups,
 				our_index,
 				session_index,
+				our_group,
 			};
 			return Ok(Some(info));
 		}
