@@ -225,7 +225,6 @@ mod tests {
 	}
 
 	fn session_changes(n: BlockNumber) -> Option<SessionChangeNotification<BlockNumber>> {
-		println!("block {:?}", n);
 		if n % 10 == 0 {
 			Some(SessionChangeNotification {
 				session_index: n / 10,
