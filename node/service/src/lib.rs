@@ -279,7 +279,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		move |_: &sp_runtime::generic::BlockId<Block>, ()| async move {
+		move |_, ()| async move {
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
@@ -797,13 +797,12 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_import,
 			env: proposer,
 			sync_oracle: network.clone(),
-			inherent_data_providers: move |at: &sp_runtime::generic::BlockId<Block>, ()| {
+			inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
-				let at = *at;
 				async move {
 					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
 						&*client_clone,
-						&at,
+						parent,
 					)?;
 
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
@@ -970,7 +969,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		move |_: &sp_runtime::generic::BlockId<Block>, ()| async move {
+		move |_, ()| async move {
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
