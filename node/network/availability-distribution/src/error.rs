@@ -21,10 +21,7 @@ use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::Error as UtilError;
 use polkadot_primitives::v1::SessionIndex;
-use polkadot_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	SubsystemError,
-};
+use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
 
 #[derive(Debug, Error)]
 pub enum Error {

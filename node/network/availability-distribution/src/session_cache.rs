@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{HashMap, HashSet};
-use std::rc::{Rc, Weak};
+use std::collections::HashSet;
 
 use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
@@ -29,18 +28,13 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::SessionInfo as GlobalSessionInfo;
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState,
-	ErasureChunk, GroupIndex, Hash, HashT, SessionIndex, ValidatorId, ValidatorIndex,
-	PARACHAIN_KEY_TYPE_ID,
+	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorId, ValidatorIndex,
 };
-use polkadot_subsystem::{
-	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError,
-};
+use polkadot_subsystem::SubsystemContext;
 
 use super::{
 	error::{recv_runtime, Result},
-	Error, LOG_TARGET,
+	Error,
 };
 
 /// Caching of session info as needed by availability distribution.

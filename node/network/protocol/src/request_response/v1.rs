@@ -26,7 +26,9 @@ use super::Protocol;
 /// Request an availability chunk.
 #[derive(Debug, Copy, Clone, Encode, Decode)]
 pub struct AvailabilityFetchingRequest {
+	/// Hash of candidate we want a chunk for.
 	pub candidate_hash: CandidateHash,
+	/// The index of the chunk to fetch.
 	pub index: ValidatorIndex,
 }
 

@@ -19,12 +19,8 @@ use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	jaeger,
-	messages::AllMessages,
-	messages::AvailabilityDistributionMessage,
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
-	SubsystemContext, SubsystemError,
+	messages::AvailabilityDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	Subsystem, SubsystemContext, SubsystemError,
 };
 
 /// Error and [`Result`] type for this subsystem.

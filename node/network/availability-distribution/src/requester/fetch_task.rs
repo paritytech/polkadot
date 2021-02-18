@@ -15,8 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashSet;
-use std::pin::Pin;
-use std::rc::Rc;
 
 use futures::channel::mpsc;
 use futures::channel::oneshot;
@@ -29,19 +27,13 @@ use polkadot_node_network_protocol::request_response::{
 	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState,
-	ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore, SessionIndex, ValidatorId,
-	ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
+	AuthorityDiscoveryId, BlakeTwo256, ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore,
+	SessionIndex,
 };
 use polkadot_subsystem::messages::{
-	AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
-	NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage,
 };
-use polkadot_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
-};
+use polkadot_subsystem::SubsystemContext;
 
 use crate::{
 	error::{Error, Result},
@@ -360,6 +352,9 @@ impl RunningTask {
 				},
 			)))
 			.await;
+		if let Err(err) = r {
+			tracing::error!(target: LOG_TARGET, err= ?err, "Storing erasure chunk failed, system shutting down?");
+		}
 
 		if let Err(oneshot::Canceled) = rx.await {
 			tracing::error!(target: LOG_TARGET, "Storing erasure chunk failed");

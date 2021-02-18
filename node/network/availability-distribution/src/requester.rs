@@ -26,28 +26,20 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::mpsc,
 	task::{Context, Poll},
-	Stream, StreamExt,
+	Stream,
 };
-use jaeger::JaegerSpan;
 
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_subsystem_util::request_availability_cores_ctx;
-use polkadot_primitives::v1::{
-	BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState, ErasureChunk, Hash, HashT,
-	OccupiedCore, SessionIndex, ValidatorId, ValidatorIndex, PARACHAIN_KEY_TYPE_ID,
-};
+use polkadot_primitives::v1::{CandidateHash, CoreState, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	jaeger,
-	messages::{AllMessages, AvailabilityDistributionMessage},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
-	SubsystemContext, SubsystemError,
+	messages::AllMessages, ActiveLeavesUpdate, JaegerSpan, SubsystemContext,
 };
 
-use super::{error::recv_runtime, session_cache::SessionCache, Result, LOG_TARGET};
+use super::{error::recv_runtime, session_cache::SessionCache, Result};
 
 /// A task fetching a particular chunk.
 mod fetch_task;
@@ -134,7 +126,7 @@ impl Requester {
 	///
 	fn stop_requesting_chunks(&mut self, obsolete_leaves: impl Iterator<Item = Hash>) {
 		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().collect();
-		self.fetches.retain(|&c_hash, task| {
+		self.fetches.retain(|_, task| {
 			task.remove_leaves(&obsolete_leaves);
 			task.is_live()
 		})

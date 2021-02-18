@@ -297,7 +297,7 @@ impl<T: Config> Module<T> {
 					Error::<T>::UnoccupiedBitInBitfield,
 				);
 
-				let validator_public = &validators[signed_bitfield.validator_index() as usize];
+				let validator_public = &validators[signed_bitfield.validator_index().0 as usize];
 
 				signed_bitfield.check_signature(
 					&signing_context,
@@ -319,7 +319,7 @@ impl<T: Config> Module<T> {
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
-				let val_idx = signed_bitfield.validator_index() as usize;
+				let val_idx = signed_bitfield.validator_index().0 as usize;
 				if let Some(mut bit) = pending_availability.as_mut()
 					.and_then(|r| r.availability_votes.get_mut(val_idx))
 				{
@@ -532,7 +532,7 @@ impl<T: Config> Module<T> {
 									&signing_context,
 									group_vals.len(),
 									|idx| group_vals.get(idx)
-										.and_then(|i| validators.get(*i as usize))
+										.and_then(|i| validators.get(*i.0 as usize))
 										.map(|v| v.clone()),
 								);
 
