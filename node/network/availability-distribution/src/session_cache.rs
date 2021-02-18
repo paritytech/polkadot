@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::{Rc, Weak};
 
+use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 
 use sp_application_crypto::AppKey;
@@ -29,8 +30,8 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::SessionInfo as GlobalSessionInfo;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlakeTwo256, CandidateDescriptor, CandidateHash, CoreState,
-	ErasureChunk, Hash, HashT, SessionIndex, ValidatorId, ValidatorIndex,
-	PARACHAIN_KEY_TYPE_ID, GroupIndex,
+	ErasureChunk, GroupIndex, Hash, HashT, SessionIndex, ValidatorId, ValidatorIndex,
+	PARACHAIN_KEY_TYPE_ID,
 };
 use polkadot_subsystem::{
 	jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
@@ -47,20 +48,18 @@ use super::{
 /// It should be ensured that a cached session stays live in the cache as long as we might need it.
 /// A warning will be logged, if an already dead entry gets fetched.
 pub struct SessionCache {
-	/// Maintain caches for session information for currently relay parents of interest.
+	/// Get the session index for a given relay parent.
 	///
-	/// Fast path - if we have an entry here, no query to the runtime is necessary at all.
-	by_relay_parent: HashMap<Hash, Weak<SessionInfo>>,
+	/// We query this up to a 100 times per block, so caching it here without roundtrips over the
+	/// overseer seems sensible.
+	session_index_cache: LruCache<Hash, SessionIndex>,
 
 	/// Look up cached sessions by SessionIndex.
 	///
-	/// Slower path - we still have to look up the `SessionIndex` in the runtime, but still might have
-	/// the session ready already.
-	///
 	/// Note: Performance of fetching is really secondary here, but we need to ensure we are going
 	/// to get any existing cache entry, before fetching new information, as we should not mess up
-	/// the order of validators.
-	by_session_index: HashMap<SessionIndex, Weak<SessionInfo>>,
+	/// the order of validators. (We want live TCP connections wherever possible.)
+	session_info_cache: LruCache<SessionIndex, SessionInfo>,
 
 	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
 	keystore: SyncCryptoStorePtr,
@@ -79,6 +78,7 @@ pub struct SessionInfo {
 
 	/// Information about ourself:
 	pub our_index: ValidatorIndex,
+
 	//// Remember to which group we blong, so we won't start fetching chunks for candidates we
 	//// backed our selves.
 	// TODO: Implement this:
@@ -98,8 +98,10 @@ pub struct BadValidators {
 impl SessionCache {
 	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
 		SessionCache {
-			by_relay_parent: HashMap::new(),
-			by_session_index: HashMap::new(),
+			// 5 relatively conservative, 1 to 2 should suffice:
+			session_index_cache: LruCache::new(5),
+			// We need to cache the current and the last session the most:
+			session_info_cache: LruCache::new(2),
 			keystore,
 		}
 	}
@@ -112,35 +114,62 @@ impl SessionCache {
 		&mut self,
 		ctx: &mut Context,
 		parent: Hash,
-	) -> Result<Option<Rc<SessionInfo>>>
+	) -> Result<Option<SessionInfo>>
 	where
 		Context: SubsystemContext,
 	{
-		if let Some(info) = self.get_by_relay_parent(parent) {
-			return Ok(Some(info));
-		}
-		let session_index =
-			recv_runtime(request_session_index_for_child_ctx(parent, ctx).await).await?;
-		if let Some(info) = self.get_by_session_index(session_index) {
-			self.by_relay_parent.insert(parent, Rc::downgrade(&info));
-			return Ok(Some(info));
-		}
+		let session_index = match self.session_index_cache.get(parent) {
+			Some(index) => index,
+			None => {
+				let index =
+					recv_runtime(request_session_index_for_child_ctx(parent, ctx).await)
+						.await?;
+				self.session_index_cache.put(parent, index);
+				index
+			}
+		};
 
-		// About to fetch new stuff, time to get rid of dead bodies: We keep relay_parent to
-		// session info matches way longer than necessary (for an entire session), but the overhead
-		// should be low enough to not matter.
-		self.bury_dead();
+		if let Some(info) = self.session_info_cache.get(session_index) {
+			return Ok(Some(info.clone()));
+		}
 
 		if let Some(info) = self
 			.query_info_from_runtime(ctx, parent, session_index)
 			.await?
 		{
-			self.by_relay_parent.insert(parent, Rc::downgrade(&info));
-			self.by_session_index
-				.insert(session_index, Rc::downgrade(&info));
+			self.session_info_cache.put(session_index, info.clone());
 			return Ok(Some(info));
 		}
 		Ok(None)
+	}
+
+	pub async with_session_info<Context, F, R>(
+		&mut self,
+		ctx: &mut Context,
+		parent: Hash,
+		with_info: F,
+		) -> R 
+		where
+		Context: SubsystemContext,
+		F: Fn(info: &SessionInfo) -> R
+	{
+	}
+
+	/// Make sure we try unresponsive or misbehaving validators last.
+	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
+		let session = self
+			.session_info_cache
+			.get_mut(&report.session_index)
+			.ok_or(Error::ReportBadValidators("Session is not cached."))?;
+		let group = session
+			.validator_groups
+			.get_mut(report.group_index.0 as usize)
+			.ok_or(Error::ReportBadValidators("Validator group not found"))?;
+		let bad_set = report.bad_validators.iter().collect::<HashSet<_>>();
+		// Put the bad boys last:
+		group.retain(|v| !bad_set.contains(v));
+		group.append(report.bad_validators);
+		Ok(())
 	}
 
 	/// Get session info for a particular relay parent.
@@ -154,8 +183,7 @@ impl SessionCache {
 
 	/// Get session info for a given `SessionIndex`.
 	fn get_by_session_index(&self, session_index: SessionIndex) -> Option<Rc<SessionInfo>> {
-		let weak_ref = self.by_session_index.get(&session_index)?;
-		upgrade_report_dead(weak_ref)
+		self.by_session_index.get(&session_index)
 	}
 
 	/// Query needed information from runtime.
@@ -168,7 +196,7 @@ impl SessionCache {
 		ctx: &mut Context,
 		parent: Hash,
 		session_index: SessionIndex,
-	) -> Result<Option<Rc<SessionInfo>>>
+	) -> Result<Option<SessionInfo>>
 	where
 		Context: SubsystemContext,
 	{
@@ -201,11 +229,11 @@ impl SessionCache {
 				})
 				.collect();
 
-			let info = Rc::new(SessionInfo {
+			let info = SessionInfo {
 				validator_groups,
 				our_index,
 				session_index,
-			});
+			};
 			return Ok(Some(info));
 		}
 		return Ok(None);
