@@ -30,7 +30,7 @@ use std::collections::hash_map::Entry;
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 // slot_duration * 2 + DelayTranche gives the number of delay tranches since the
 // unix epoch.

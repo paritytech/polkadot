@@ -32,23 +32,16 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
-use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, ReputationChange, OurView};
+use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
 use std::collections::{HashMap, HashSet};
 
-const COST_SIGNATURE_INVALID: ReputationChange =
-	ReputationChange::new(-100, "Bitfield signature invalid");
-const COST_VALIDATOR_INDEX_INVALID: ReputationChange =
-	ReputationChange::new(-100, "Bitfield validator index invalid");
-const COST_MISSING_PEER_SESSION_KEY: ReputationChange =
-	ReputationChange::new(-133, "Missing peer session key");
-const COST_NOT_IN_VIEW: ReputationChange =
-	ReputationChange::new(-51, "Not interested in that parent hash");
-const COST_PEER_DUPLICATE_MESSAGE: ReputationChange =
-	ReputationChange::new(-500, "Peer sent the same message multiple times");
-const BENEFIT_VALID_MESSAGE_FIRST: ReputationChange =
-	ReputationChange::new(15, "Valid message with new information");
-const BENEFIT_VALID_MESSAGE: ReputationChange =
-	ReputationChange::new(10, "Valid message");
+const COST_SIGNATURE_INVALID: Rep = Rep::CostMajor("Bitfield signature invalid");
+const COST_VALIDATOR_INDEX_INVALID: Rep = Rep::CostMajor("Bitfield validator index invalid");
+const COST_MISSING_PEER_SESSION_KEY: Rep = Rep::CostMinor("Missing peer session key");
+const COST_NOT_IN_VIEW: Rep = Rep::CostMinor("Not interested in that parent hash");
+const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent the same message multiple times");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");
+const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
@@ -236,7 +229,7 @@ impl BitfieldDistribution {
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
-	rep: ReputationChange,
+	rep: Rep,
 )
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
