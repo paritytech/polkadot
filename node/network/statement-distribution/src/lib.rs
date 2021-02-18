@@ -516,14 +516,10 @@ async fn circulate_statement_and_dependents(
 		None => return,
 	};
 
-	let _span = {
-		let mut span = active_head.span.child("circulate-statement");
-		span.add_string_tag(
-			"candidate-hash",
-			&format!("{:?}", statement.payload().candidate_hash().0),
-		);
-		span
-	};
+	let _span = active_head.span.child_with_candidate(
+		"circulate-statement",
+		&statement.payload().candidate_hash()
+	);
 
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
@@ -701,18 +697,10 @@ async fn handle_incoming_message<'a>(
 	};
 
 	let candidate_hash = statement.payload().candidate_hash();
-	let handle_incoming_span = {
-		let mut span = active_head.span.child("handle-incoming");
-		span.add_string_tag(
-			"candidate-hash",
-			&format!("{:?}", candidate_hash.0),
-		);
-		span.add_string_tag(
-			"peer-id",
-			&peer.to_base58(),
-		);
-		span
-	};
+	let handle_incoming_span = active_head.span.child_builder("handle-incoming")
+		.with_candidate(&candidate_hash)
+		.with_peer_id(&peer)
+		.build();
 
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
