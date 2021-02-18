@@ -265,8 +265,11 @@ impl JaegerSpan {
 	/// A shortcut for
 	///
 	/// ```rust,no_run
-	/// # let span = unimplemented!()
-	/// span.child_builder("name").with_candidate(h).build()`
+	/// # use polkadot_primitives::v1::CandidateHash;
+	/// # use polkadot_node_jaeger::candidate_hash_span;
+	/// # let hash = CandidateHash::default();
+	/// # let span = candidate_hash_span(&hash, "foo");
+	/// let _span = span.child_builder("name").with_candidate(&hash).build();
 	/// ```
 	#[inline(always)]
 	pub fn child_with_candidate(&self, name: &'static str, candidate_hash: &CandidateHash) -> Self {
@@ -312,7 +315,7 @@ impl From<mick_jaeger::Span> for JaegerSpan {
 	}
 }
 
-/// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
+/// Shortcut for [`hash_span`] with the hash of the `Candidate` block.
 pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &'static str) -> JaegerSpan {
 	let mut span: JaegerSpan = INSTANCE.read_recursive()
 		.span(|| { candidate_hash.0 }, span_name).into();
