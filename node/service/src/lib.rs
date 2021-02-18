@@ -422,7 +422,7 @@ where
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
 
 	#[cfg(not(feature = "approval-checking"))]
-	let _ = slot_duration; // silence.
+	let _ = approval_voting_config; // silence.
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
