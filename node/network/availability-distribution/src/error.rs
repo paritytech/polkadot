@@ -59,6 +59,10 @@ pub enum Error {
 	/// Spawning a running task failed.
 	#[error("Spawning subsystem task failed")]
 	SpawnTask(#[source] SubsystemError),
+
+	/// Reporting bad validators failed.
+	#[error("Reporting bad validators failed")]
+	ReportBadValidators(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

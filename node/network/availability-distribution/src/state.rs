@@ -82,7 +82,7 @@ use polkadot_subsystem::{
 
 use super::{
 	error::recv_runtime,
-	fetch_task::{FetchTask, FromFetchTask},
+	fetch_task::{FetchTask, FromFetchTask, FetchTaskConfig},
 	session_cache::SessionCache,
 	Result, LOG_TARGET,
 };
@@ -138,20 +138,6 @@ impl ProtocolState {
 		Ok(())
 	}
 
-	pub(crate) async fn advance<Context>(&mut self, ctx: &mut Context) -> Result<()>
-	where
-		Context: SubsystemContext,
-	{
-		match self.rx.next().await {
-			Some(FromFetchTask::Message(m)) => ctx.send_message(m).await,
-			Some(FromFetchTask::Concluded(Some(bad_boys))) => {
-				self.session_cache.report_bad(bad_boys)?
-			}
-			Some(FromFetchTask::Concluded(None)) => {}
-		}
-		Ok(())
-	}
-
 	/// Start requesting chunks for newly imported heads.
 	async fn start_requesting_chunks<Context>(
 		&mut self,
@@ -175,7 +161,7 @@ impl ProtocolState {
 	fn stop_requesting_chunks(&mut self, obsolete_leaves: impl Iterator<Item = Hash>) {
 		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().collect();
 		self.fetches.retain(|&c_hash, task| {
-			task.remove_leaves(obsolete_leaves);
+			task.remove_leaves(&obsolete_leaves);
 			task.is_live()
 		})
 	}
@@ -201,18 +187,20 @@ impl ProtocolState {
 				Entry::Occupied(mut e) =>
 				// Just book keeping - we are already requesting that chunk:
 				{
-					e.get_mut().add_leaf(leaf)
+					e.get_mut().add_leaf(leaf);
 				}
 				Entry::Vacant(e) => {
-					let session_info = self
+					let tx = self.tx.clone();
+					let task_cfg = self
 						.session_cache
-						.fetch_session_info(ctx, core.candidate_descriptor.relay_parent)
+						.with_session_info(
+							ctx,
+							core.candidate_descriptor.relay_parent,
+							|info| FetchTaskConfig::new(leaf, &core, tx, info),
+						)
 						.await?;
-					if let Some(session_info) = session_info {
-						e.insert(
-							FetchTask::start(ctx, leaf, core, session_info, self.tx.clone())
-								.await?,
-						);
+					if let Some(task_cfg) = task_cfg {
+						e.insert(FetchTask::start(task_cfg, ctx).await?);
 					}
 					// Not a validator, nothing to do.
 				}

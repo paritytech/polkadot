@@ -21,6 +21,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 thiserror = "1.0.23"
 itertools = "0.10.0"
 rand = "0.8.3"
+lru = "0.6.5"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

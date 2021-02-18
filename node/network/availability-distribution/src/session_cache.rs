@@ -66,6 +66,7 @@ pub struct SessionCache {
 }
 
 /// Localized session information, tailored for the needs of availability distribution.
+#[derive(Clone)]
 pub struct SessionInfo {
 	/// The index of this session.
 	pub session_index: SessionIndex,
@@ -118,8 +119,27 @@ impl SessionCache {
 	where
 		Context: SubsystemContext,
 	{
-		let session_index = match self.session_index_cache.get(parent) {
-			Some(index) => index,
+		self.with_session_info(ctx, parent, Clone::clone).await
+	}
+
+	/// Tries to retrieve `SessionInfo` and calls `with_info` if successful.
+	///
+	/// If this node is not a validator, the function will return `None`.
+	///
+	/// Use this function over `fetch_session_info` if all you need is a reference to
+	/// `SessionInfo`, as it avoids an expensive clone.
+	pub async fn with_session_info<Context, F, R>(
+		&mut self,
+		ctx: &mut Context,
+		parent: Hash,
+		with_info: F,
+		) -> Result<Option<R>>
+		where
+		Context: SubsystemContext,
+		F: FnOnce(&SessionInfo) -> R
+	{
+		let session_index = match self.session_index_cache.get(&parent) {
+			Some(index) => *index,
 			None => {
 				let index =
 					recv_runtime(request_session_index_for_child_ctx(parent, ctx).await)
@@ -129,34 +149,23 @@ impl SessionCache {
 			}
 		};
 
-		if let Some(info) = self.session_info_cache.get(session_index) {
-			return Ok(Some(info.clone()));
+		if let Some(info) = self.session_info_cache.get(&session_index) {
+			return Ok(Some(with_info(info)))
 		}
 
 		if let Some(info) = self
 			.query_info_from_runtime(ctx, parent, session_index)
 			.await?
 		{
-			self.session_info_cache.put(session_index, info.clone());
-			return Ok(Some(info));
+			let r = with_info(&info);
+			self.session_info_cache.put(session_index, info);
+			return Ok(Some(r));
 		}
 		Ok(None)
 	}
 
-	pub async with_session_info<Context, F, R>(
-		&mut self,
-		ctx: &mut Context,
-		parent: Hash,
-		with_info: F,
-		) -> R 
-		where
-		Context: SubsystemContext,
-		F: Fn(info: &SessionInfo) -> R
-	{
-	}
-
 	/// Make sure we try unresponsive or misbehaving validators last.
-	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
+	pub fn report_bad(&mut self, mut report: BadValidators) -> Result<()> {
 		let session = self
 			.session_info_cache
 			.get_mut(&report.session_index)
@@ -168,22 +177,8 @@ impl SessionCache {
 		let bad_set = report.bad_validators.iter().collect::<HashSet<_>>();
 		// Put the bad boys last:
 		group.retain(|v| !bad_set.contains(v));
-		group.append(report.bad_validators);
+		group.append(&mut report.bad_validators);
 		Ok(())
-	}
-
-	/// Get session info for a particular relay parent.
-	///
-	/// Returns: None, if no entry for that relay parent exists in the cache (or it was dead
-	/// already - which should not happen.)
-	fn get_by_relay_parent(&self, parent: Hash) -> Option<Rc<SessionInfo>> {
-		let weak_ref = self.by_relay_parent.get(&parent)?;
-		upgrade_report_dead(weak_ref)
-	}
-
-	/// Get session info for a given `SessionIndex`.
-	fn get_by_session_index(&self, session_index: SessionIndex) -> Option<Rc<SessionInfo>> {
-		self.by_session_index.get(&session_index)
 	}
 
 	/// Query needed information from runtime.
@@ -251,27 +246,5 @@ impl SessionCache {
 			}
 		}
 		None
-	}
-
-	/// Get rid of the dead bodies from time to time.
-	fn bury_dead(&mut self) {
-		self.by_session_index
-			.retain(|_, info| info.upgrade().is_some());
-		self.by_relay_parent
-			.retain(|_, info| info.upgrade().is_some());
-	}
-}
-
-/// Upgrade a weak SessionInfo reference.
-///
-/// Warn if it was dead already, as this should not happen. Cache should stay valid at least as
-/// long as we need it.
-fn upgrade_report_dead(info: &Weak<SessionInfo>) -> Option<Rc<SessionInfo>> {
-	match info.upgrade() {
-		Some(info) => Some(info),
-		None => {
-			tracing::warn!(LOG_TARGET, "A no longer cached session got requested, this should not happen in normal operation.");
-			None
-		}
 	}
 }

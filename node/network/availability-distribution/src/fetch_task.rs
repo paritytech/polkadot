@@ -21,7 +21,7 @@ use std::rc::Rc;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::future::select;
-use futures::{SinkExt, FutureExt};
+use futures::{FutureExt, SinkExt};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
@@ -43,7 +43,20 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 
-use super::{session_cache::{SessionInfo, BadValidators}, LOG_TARGET, error::{Error, Result}};
+use super::{
+	error::{Error, Result},
+	session_cache::{BadValidators, SessionInfo},
+	LOG_TARGET,
+};
+
+/// Configuration for a `FetchTask`
+///
+/// This exists to separate preparation of a `FetchTask` from actual starting it, which is
+/// beneficial as this allows as for taking session info by reference.
+pub struct FetchTaskConfig {
+	prepared_running: RunningTask,
+	live_in: HashSet<Hash>,
+}
 
 pub struct FetchTask {
 	/// For what relay parents this task is relevant.
@@ -56,9 +69,6 @@ pub struct FetchTask {
 	/// We keep the task around in state `Fetched` until `live_in` becomes empty, to make
 	/// sure we won't re-fetch an already fetched candidate.
 	state: FetchedState,
-
-	/// Session information.
-	session: Rc<SessionInfo>,
 }
 
 /// State of a particular candidate chunk fetching process.
@@ -109,20 +119,17 @@ struct RunningTask {
 	sender: mpsc::Sender<FromFetchTask>,
 }
 
-impl FetchTask {
-	/// Start fetching a chunk.
-	pub async fn start<Context>(
-		ctx: &mut Context,
+impl FetchTaskConfig {
+	/// Create a new configuration for a [`FetchTask`].
+	///
+	/// The result of this function can be passed into [`FetchTask::start`].
+	pub fn new(
 		leaf: Hash,
-		core: OccupiedCore,
-		session_info: Rc<SessionInfo>,
+		core: &OccupiedCore,
 		sender: mpsc::Sender<FromFetchTask>,
-	) -> Result<Self>
-	where
-		Context: SubsystemContext,
-	{
-		let (handle, kill) = oneshot::channel();
-		let running =  RunningTask {
+		session_info: &SessionInfo,
+	) -> Self {
+		let prepared_running =  RunningTask {
 			session_index: session_info.session_index,
 			group_index: core.group_responsible,
 			group: session_info.validator_groups.get(core.group_responsible.0 as usize).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
@@ -134,13 +141,30 @@ impl FetchTask {
 			relay_parent: core.candidate_descriptor.relay_parent,
 			sender,
 		};
-		ctx.spawn("chunk-fetcher", running.run(kill).boxed())
+		FetchTaskConfig {
+			live_in: vec![leaf].into_iter().collect(),
+			prepared_running,
+		}
+	}
+}
+
+impl FetchTask {
+	/// Start fetching a chunk.
+	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
+	where
+		Context: SubsystemContext,
+	{
+		let FetchTaskConfig {
+			prepared_running,
+			live_in,
+		} = config;
+		let (handle, kill) = oneshot::channel();
+		ctx.spawn("chunk-fetcher", prepared_running.run(kill).boxed())
 			.await
 			.map_err(|e| Error::SpawnTask(e))?;
 		Ok(FetchTask {
-			live_in: vec![leaf].into_iter().collect(),
+			live_in,
 			state: FetchedState::Started(handle),
-			session: session_info,
 		})
 	}
 
@@ -151,8 +175,8 @@ impl FetchTask {
 
 	/// Remove leaves and cancel the task, if it was the last one and the task has still been
 	/// fetching.
-	pub fn remove_leaves(&mut self, leaves: HashSet<Hash>) {
-		self.live_in.difference(&leaves);
+	pub fn remove_leaves(&mut self, leaves: &HashSet<Hash>) {
+		self.live_in.difference(leaves);
 		if self.live_in.is_empty() {
 			self.state = FetchedState::Canceled
 		}
@@ -162,7 +186,7 @@ impl FetchTask {
 	///
 	/// That is, it is either canceled, succeeded or failed.
 	pub fn is_finished(&self) -> bool {
-		match self.state {
+		match &self.state {
 			FetchedState::Canceled => true,
 			FetchedState::Started(sender) => sender.is_canceled(),
 		}
@@ -303,7 +327,7 @@ impl RunningTask {
 	/// Store given chunk and log any error.
 	async fn store_chunk(&mut self, chunk: ErasureChunk) {
 		let (tx, rx) = oneshot::channel();
-		self.sender
+		let r = self.sender
 			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,
