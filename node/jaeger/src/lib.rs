@@ -169,8 +169,8 @@ impl std::ops::Deref for PerLeafSpan {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum Stage {
-	Availability,
-	Backing,
+	Backing = 1,
+	Availability = 2,
 	// TODO expand this
 }
 

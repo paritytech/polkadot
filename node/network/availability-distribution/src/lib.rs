@@ -845,7 +845,7 @@ impl AvailabilityDistributionSubsystem {
 				}
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
-				} => { 
+				} => {
 					// TODO: Implement issue 2306:
 					tracing::warn!(
 						target: LOG_TARGET,
