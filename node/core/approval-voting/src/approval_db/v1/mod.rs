@@ -27,9 +27,8 @@ use parity_scale_codec::{Encode, Decode};
 
 use std::collections::{BTreeMap, HashMap};
 use std::collections::hash_map::Entry;
+use std::sync::Arc;
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
-
-const DATA_COL: u32 = 0;
 
 #[cfg(test)]
 pub mod tests;
@@ -40,6 +39,9 @@ pub mod tests;
 pub struct Tick(u64);
 
 pub type Bitfield = BitVec<BitOrderLsb0, u8>;
+
+const NUM_COLUMNS: u32 = 1;
+const DATA_COL: u32 = 0;
 
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
@@ -103,6 +105,28 @@ pub struct BlockEntry {
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
+}
+
+/// Clear the given directory and create a RocksDB instance there.
+pub fn clear_and_recreate(path: &std::path::Path, cache_size: usize)
+	-> std::io::Result<Arc<dyn KeyValueDB>>
+{
+	use kvdb_rocksdb::{DatabaseConfig, Database as RocksDB};
+
+	tracing::info!("Recreating approval-checking DB at {:?}", path);
+	std::fs::remove_dir_all(path)?;
+	std::fs::create_dir_all(path)?;
+
+	let mut db_config = DatabaseConfig::with_columns(NUM_COLUMNS);
+
+	db_config.memory_budget.insert(DATA_COL, cache_size);
+
+	let path = path.to_str().ok_or_else(|| std::io::Error::new(
+		std::io::ErrorKind::Other,
+		format!("Non-UTF-8 database path {:?}", path),
+	))?;
+
+	Ok(Arc::new(RocksDB::open(&db_config, path)?))
 }
 
 /// A range from earliest..last block number stored within the DB.

@@ -74,6 +74,18 @@ mod tests;
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const LOG_TARGET: &str = "approval_voting";
 
+/// Configuration for the approval voting subsystem
+pub struct Config {
+	/// The path where the approval-voting DB should be kept. This directory is completely removed when starting
+	/// the service.
+	pub path: std::path::PathBuf,
+	/// The cache size, in bytes, to spend on approval checking metadata.
+	pub cache_size: Option<usize>,
+	/// The slot duration of the consensus algorithm, in milliseconds. Should be evenly
+	/// divisible by 500.
+	pub slot_duration_millis: u64,
+}
+
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem {
 	keystore: Arc<LocalKeystore>,
@@ -83,17 +95,24 @@ pub struct ApprovalVotingSubsystem {
 
 impl ApprovalVotingSubsystem {
 	/// Create a new approval voting subsystem with the given keystore, slot duration,
-	/// and underlying DB. The DB should be fresh, with nothing in it.
-	pub fn new(
+	/// which creates a DB at the given path. This function will delete the directory
+	/// at the given path if it already exists.
+	pub fn with_config(
+		config: Config,
 		keystore: Arc<LocalKeystore>,
-		slot_duration_millis: u64,
-		db: Arc<dyn KeyValueDB>,
-	) -> Self {
-		ApprovalVotingSubsystem {
+	) -> std::io::Result<Self> {
+		const DEFAULT_CACHE_SIZE: usize = 100 * 1024 * 1024; // 100MiB default should be fine unless finality stalls.
+
+		let db = approval_db::v1::clear_and_recreate(
+			&config.path,
+			config.cache_size.unwrap_or(DEFAULT_CACHE_SIZE),
+		)?;
+
+		Ok(ApprovalVotingSubsystem {
 			keystore,
-			slot_duration_millis,
+			slot_duration_millis: config.slot_duration_millis,
 			db,
-		}
+		})
 	}
 }
 
