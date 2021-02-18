@@ -16,8 +16,8 @@
 
 //! A module for any shared state that other pallets may want access to.
 //!
-//! To avoid cyclic dependencies, it is important that this module is only
-//! dependent on the `configuration` module.
+//! To avoid cyclic dependencies, it is important that this module is not
+//! dependent on any of the other modules.
 
 use primitives::v1::SessionIndex;
 use frame_support::{
