@@ -225,11 +225,17 @@ impl<T: Config> Module<T> {
 			validators.clone()
 		};
 
-		BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
-			validators,
-			queued,
-			session_index,
-		}));
+		if session_index == 0 {
+			// Genesis session should be immediately enacted.
+			Self::apply_new_session(0, validators, queued);
+		} else {
+			BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
+				validators,
+				queued,
+				session_index,
+			}));
+		}
+
 	}
 }
 
@@ -262,13 +268,31 @@ mod tests {
 	use primitives::v1::{Id as ParaId};
 	use crate::mock::{
 		new_test_ext,
-		Initializer, System, Dmp, Paras, Configuration, MockGenesisConfig,
+		Initializer, System, Dmp, Paras, Configuration, SessionInfo, MockGenesisConfig,
 	};
 
 	use frame_support::{
 		assert_ok,
 		traits::{OnFinalize, OnInitialize},
 	};
+
+	#[test]
+	fn session_0_is_instantly_applied() {
+		new_test_ext(Default::default()).execute_with(|| {
+			Initializer::on_new_session(
+				false,
+				0,
+				Vec::new().into_iter(),
+				Some(Vec::new().into_iter()),
+			);
+
+			let v = <BufferedSessionChanges>::get();
+			assert!(v.is_empty());
+
+			assert_eq!(SessionInfo::earliest_stored_session(), 0);
+			assert!(SessionInfo::session_info(0).is_some());
+		});
+	}
 
 	#[test]
 	fn session_change_before_initialize_is_still_buffered_after() {
