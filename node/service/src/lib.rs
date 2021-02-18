@@ -412,7 +412,12 @@ where
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
+
+	#[cfg(feature = "approval-checking")]
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
+
+	#[cfg(not(feature = "approval-checking"))]
+	let _ = slot_duration; // silence.
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -488,11 +493,14 @@ where
 		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
+		#[cfg(feature = "approval-checking")]
 		approval_voting: ApprovalVotingSubsystem::new(
 			keystore.clone(),
 			slot_duration,
 			runtime_client.clone(),
 		),
+		#[cfg(not(feature = "approval-checking"))]
+		approval_voting: polkadot_subsystem::DummySubsystem,
 	};
 
 	Overseer::new(
@@ -828,6 +836,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		// given delay.
 		let builder = grandpa::VotingRulesBuilder::default();
 
+		#[cfg(feature = "approval-checking")]
 		let builder = if let Some(ref overseer) = overseer_handler {
 			builder.add(grandpa_support::ApprovalCheckingDiagnostic::new(
 				overseer.clone(),
