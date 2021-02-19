@@ -20,7 +20,7 @@ use beefy_primitives::ValidatorSetId;
 use sp_core::H256;
 use sp_runtime::traits::Convert;
 use sp_std::prelude::*;
-use frame_support::{decl_module, decl_storage, RuntimeDebug,};
+use frame_support::{decl_module, decl_storage, RuntimeDebug};
 use pallet_mmr::primitives::LeafDataProvider;
 use parity_scale_codec::{Encode, Decode};
 use runtime_parachains::paras;
@@ -74,6 +74,8 @@ pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config {
 decl_storage! {
 	trait Store for Module<T: Config> as Beefy {
 		/// Details of next BEEFY authority set.
+		///
+		/// This storage entry is used as cache for calls to [`update_beefy_next_authority_set`].
 		pub BeefyNextAuthorities get(fn beefy_next_authorities): BeefyNextAuthoritySet<MerkleRootOf<T>>;
 	}
 }
@@ -96,7 +98,7 @@ impl<T: Config> LeafDataProvider for Module<T> where
 		MmrLeaf {
 			parent_number_and_hash: frame_system::Module::<T>::leaf_data(),
 			parachain_heads: Module::<T>::parachain_heads_merkle_root(),
-			beefy_next_authority_set: Module::<T>::beefy_next_authorities(),
+			beefy_next_authority_set: Module::<T>::update_beefy_next_authority_set(),
 		}
 	}
 }
@@ -122,14 +124,21 @@ impl<T: Config> Module<T> where
 		sp_io::trie::keccak_256_ordered_root(para_heads).into()
 	}
 
-	/// Returns a merkle root of a tree constructed from secp256k1 public keys of current BEEFY authority set.
+	/// Returns details of the next BEEFY authority set.
 	///
-	/// NOTE This is an initial and inefficient implementation, which re-constructs
-	/// the merkle tree every block. Instead we should update the merkle root in [on_new_session]
-	/// callback, cause we know it will only change every session - in future it should be optimized
-	/// to change every era instead.
-	fn update_beefy_next_authority_set() {
+	/// Details contain authority set id, authority set length and a merkle root,
+	/// constructed from uncompressed secp256k1 public keys of the next BEEFY authority set.
+	///
+	/// This function will use a storage-cached entry in case the set didn't change, or compute and cache
+	/// new one in case it did.
+	fn update_beefy_next_authority_set() -> BeefyNextAuthoritySet<MerkleRootOf<T>> {
 		let id = pallet_beefy::Module::<T>::validator_set_id() + 1;
+		let current_next = Self::beefy_next_authorities();
+		// avoid computing the merkle tree if validator set id didn't change.
+		if id == current_next.id {
+			return current_next;
+		}
+
 		let beefy_public_keys = pallet_beefy::Module::<T>::next_authorities()
 			.into_iter()
 			.map(T::BeefyAuthorityToMerkleLeaf::convert)
@@ -137,35 +146,13 @@ impl<T: Config> Module<T> where
 		let len = beefy_public_keys.len() as u32;
 		let root: MerkleRootOf<T> = sp_io::trie
 			::keccak_256_ordered_root(beefy_public_keys).into();
-		BeefyNextAuthorities::<T>::put(BeefyNextAuthoritySet {
+		let next_set = BeefyNextAuthoritySet {
 			id,
 			len,
 			root,
-		})
+		};
+		// cache the result
+		BeefyNextAuthorities::<T>::put(&next_set);
+		next_set
 	}
-}
-
-impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
-	type Public = <T as pallet_beefy::Config>::AuthorityId;
-}
-
-impl<T: Config> frame_support::traits::OneSessionHandler<T::AccountId> for Module<T> where
-	T: pallet_session::Config,
-	MerkleRootOf<T>: From<H256>,
-{
-	type Key = <T as pallet_beefy::Config>::AuthorityId;
-
-	fn on_genesis_session<'a, I: 'a>(_validators: I) where
-		I: Iterator<Item=(&'a T::AccountId, Self::Key)>, Self::Key: 'a
-	{
-		Self::update_beefy_next_authority_set();
-	}
-
-	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued_validators: I) where
-		I: Iterator<Item=(&'a T::AccountId, Self::Key)>
-	{
-		Self::update_beefy_next_authority_set();
-	}
-
-	fn on_disabled(_validator_index: usize) {}
 }
