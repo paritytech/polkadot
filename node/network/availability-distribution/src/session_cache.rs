@@ -90,7 +90,7 @@ pub struct BadValidators {
 }
 
 impl SessionCache {
-	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
 		SessionCache {
 			// 5 relatively conservative, 1 to 2 should suffice:
 			session_index_cache: LruCache::new(5),

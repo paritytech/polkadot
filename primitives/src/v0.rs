@@ -114,9 +114,12 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
+#[cfg(not(feature = "std"))]
 #[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Copy, Clone, Encode, Decode)]
+pub struct ValidatorIndex(pub u32);
+
 #[cfg(feature = "std")]
-#[derive(Debug, MallocSizeOf)]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Copy, Clone, Encode, Decode, Debug, MallocSizeOf)]
 pub struct ValidatorIndex(pub u32);
 
 // We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
