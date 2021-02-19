@@ -121,6 +121,10 @@ decl_error! {
 		NotParathread,
 		/// Cannot deregister para
 		CannotDeregister,
+		/// Cannot schedule downgrade of parachain to parathread
+		CannotDowngrade,
+		/// Cannot schedule upgrade of parathread to parachain
+		CannotUpgrade,
 	}
 }
 
@@ -183,12 +187,18 @@ decl_module! {
 					if let Some(id_lifecycle) = paras::Module::<T>::lifecycle(id) {
 						// identify which is a parachain and which is a parathread
 						if id_lifecycle.is_parachain() && other_lifecycle.is_parathread() {
-							runtime_parachains::schedule_parachain_downgrade::<T>(id);
-							runtime_parachains::schedule_parathread_upgrade::<T>(other);
+							// TODO: FIX w/ check
+							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
+							debug_assert!(res1.is_ok());
+							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
+							debug_assert!(res2.is_ok());
 							T::OnSwap::on_swap(id, other);
 						} else if id_lifecycle.is_parathread() && other_lifecycle.is_parachain() {
-							runtime_parachains::schedule_parachain_downgrade::<T>(other);
-							runtime_parachains::schedule_parathread_upgrade::<T>(id);
+							// TODO: FIX w/ check
+							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
+							debug_assert!(res1.is_ok());
+							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);
+							debug_assert!(res2.is_ok());
 							T::OnSwap::on_swap(id, other);
 						}
 
@@ -244,7 +254,7 @@ impl<T: Config> Registrar for Module<T> {
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parathread...
 		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
-		runtime_parachains::schedule_parathread_upgrade::<T>(id);
+		runtime_parachains::schedule_parathread_upgrade::<T>(id).map_err(|_| Error::<T>::CannotUpgrade)?;
 		Ok(())
 	}
 
@@ -252,7 +262,7 @@ impl<T: Config> Registrar for Module<T> {
 	fn make_parathread(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parachain...
 		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain), Error::<T>::NotParachain);
-		runtime_parachains::schedule_parachain_downgrade::<T>(id);
+		runtime_parachains::schedule_parachain_downgrade::<T>(id).map_err(|_| Error::<T>::CannotDowngrade)?;
 		Ok(())
 	}
 
@@ -297,7 +307,9 @@ impl<T: Config> Module<T> {
 		};
 
 		Paras::<T>::insert(id, info);
-		runtime_parachains::schedule_para_initialize::<T>(id, genesis);
+		// TODO: Fix w/ check
+		let res = runtime_parachains::schedule_para_initialize::<T>(id, genesis);
+		debug_assert!(res.is_ok());
 		Self::deposit_event(RawEvent::Registered(id, who));
 		Ok(())
 	}
@@ -305,12 +317,12 @@ impl<T: Config> Module<T> {
 	/// Deregister a Para Id, freeing all data returning any deposit.
 	fn do_deregister(id: ParaId) -> DispatchResult {
 		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
+		runtime_parachains::schedule_para_cleanup::<T>(id).map_err(|_| Error::<T>::CannotDeregister)?;
 
 		if let Some(info) = Paras::<T>::take(&id) {
 			<T as Config>::Currency::unreserve(&info.manager, info.deposit);
 		}
 
-		runtime_parachains::schedule_para_cleanup::<T>(id);
 		PendingSwap::remove(id);
 		Self::deposit_event(RawEvent::Deregistered(id));
 		Ok(())
@@ -341,23 +353,19 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::{
 		traits::{
-			BlakeTwo256, IdentityLookup, Extrinsic as ExtrinsicT,
-		}, testing::{UintAuthorityId, TestXt}, Perbill, curve::PiecewiseLinear,
+			BlakeTwo256, IdentityLookup,
+		}, Perbill,
 	};
-	use primitives::v1::{
-		Balance, BlockNumber, Header, Signature, AuthorityDiscoveryId, ValidatorIndex,
-	};
+	use primitives::v1::{Balance, BlockNumber, Header};
 	use frame_system::limits;
 	use frame_support::{
-		traits::{Randomness, OnInitialize, OnFinalize},
+		traits::{OnInitialize, OnFinalize},
 		error::BadOrigin,
 		assert_ok, assert_noop, parameter_types,
 	};
-	use keyring::Sr25519Keyring;
-	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp, shared};
+	use runtime_parachains::{configuration, shared};
 	use pallet_balances::Error as BalancesError;
 	use crate::traits::Registrar as RegistrarTrait;
-	use frame_support::traits::OneSessionHandler;
 	use crate::paras_registrar;
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -372,24 +380,9 @@ mod tests {
 			System: frame_system::{Module, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 			Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
-			Inclusion: inclusion::{Module, Call, Storage, Event<T>},
 			Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
-	 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
-			Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
-			Initializer: initializer::{Module, Call, Storage},
 		}
 	);
-
-	pallet_staking_reward_curve::build! {
-		const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-			min_inflation: 0_025_000,
-			max_inflation: 0_100_000,
-			ideal_stake: 0_500_000,
-			falloff: 0_050_000,
-			max_piece_count: 40,
-			test_precision: 0_005_000,
-		);
-	}
 
 	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
@@ -425,13 +418,6 @@ mod tests {
 		type SS58Prefix = ();
 	}
 
-	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test where
-		Call: From<C>,
-	{
-		type OverarchingCall = Call;
-		type Extrinsic = TestXt<Call, ()>;
-	}
-
 	parameter_types! {
 		pub const ExistentialDeposit: Balance = 1;
 	}
@@ -446,117 +432,8 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	parameter_types!{
-		pub const SlashDeferDuration: pallet_staking::EraIndex = 7;
-		pub const AttestationPeriod: BlockNumber = 100;
-		pub const MinimumPeriod: u64 = 3;
-		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-		pub const BondingDuration: pallet_staking::EraIndex = 28;
-		pub const MaxNominatorRewardedPerValidator: u32 = 64;
-	}
-
-	parameter_types! {
-		pub const Period: BlockNumber = 3;
-		pub const Offset: BlockNumber = 0;
-		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
-		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	}
-
-	impl pallet_session::Config for Test {
-		type SessionManager = ();
-		type Keys = UintAuthorityId;
-		type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-		type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-		type SessionHandler = pallet_session::TestSessionHandler;
-		type Event = Event;
-		type ValidatorId = u64;
-		type ValidatorIdOf = ();
-		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
-		type WeightInfo = ();
-	}
-
-	parameter_types! {
-		pub const ValidationUpgradeFrequency: BlockNumber = 10;
-		pub const ValidationUpgradeDelay: BlockNumber = 2;
-		pub const SlashPeriod: BlockNumber = 50;
-		pub const ElectionLookahead: BlockNumber = 0;
-		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
-	}
-
-	impl pallet_staking::Config for Test {
-		type RewardRemainder = ();
-		type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
-		type Event = Event;
-		type Currency = pallet_balances::Module<Test>;
-		type Slash = ();
-		type Reward = ();
-		type SessionsPerEra = SessionsPerEra;
-		type BondingDuration = BondingDuration;
-		type SlashDeferDuration = SlashDeferDuration;
-		type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
-		type SessionInterface = Self;
-		type UnixTime = pallet_timestamp::Module<Test>;
-		type RewardCurve = RewardCurve;
-		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
-		type NextNewSession = Session;
-		type ElectionLookahead = ElectionLookahead;
-		type Call = Call;
-		type UnsignedPriority = StakingUnsignedPriority;
-		type MaxIterations = ();
-		type MinSolutionScoreBump = ();
-		type OffchainSolutionWeightLimit = ();
-		type WeightInfo = ();
-	}
-
-	impl pallet_timestamp::Config for Test {
-		type Moment = u64;
-		type OnTimestampSet = ();
-		type MinimumPeriod = MinimumPeriod;
-		type WeightInfo = ();
-	}
-
 	impl shared::Config for Test {}
 
-	impl dmp::Config for Test {}
-
-	impl ump::Config for Test {
-		type UmpSink = ();
-	}
-
-	impl hrmp::Config for Test {
-		type Origin = Origin;
-		type Currency = pallet_balances::Module<Test>;
-	}
-
-	impl pallet_session::historical::Config for Test {
-		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
-		type FullIdentificationOf = pallet_staking::ExposureOf<Self>;
-	}
-
-	// This is needed for a custom `AccountId` type which is `u64` in testing here.
-	pub mod test_keys {
-		use sp_core::crypto::KeyTypeId;
-
-		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
-
-		mod app {
-			use super::super::Inclusion;
-			use sp_application_crypto::{app_crypto, sr25519};
-
-			app_crypto!(sr25519, super::KEY_TYPE);
-
-			impl sp_runtime::traits::IdentifyAccount for Public {
-				type AccountId = u64;
-
-				fn into_account(self) -> Self::AccountId {
-					let id = self.0.clone().into();
-					Inclusion::validators().iter().position(|b| *b == id).unwrap() as u64
-				}
-			}
-		}
-
-		pub type ReporterId = app::Public;
-	}
 
 	impl paras::Config for Test {
 		type Origin = Origin;
@@ -564,59 +441,6 @@ mod tests {
 
 	impl configuration::Config for Test { }
 
-	pub struct TestRewardValidators;
-
-	impl inclusion::RewardValidators for TestRewardValidators {
-		fn reward_backing(_: impl IntoIterator<Item = ValidatorIndex>) { }
-		fn reward_bitfields(_: impl IntoIterator<Item = ValidatorIndex>) { }
-	}
-
-	impl inclusion::Config for Test {
-		type Event = Event;
-		type RewardValidators = TestRewardValidators;
-	}
-
-	impl session_info::AuthorityDiscoveryConfig for Test {
-		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			Vec::new()
-		}
-	}
-
-	impl session_info::Config for Test { }
-
-	pub struct TestRandomness;
-
-	impl Randomness<H256> for TestRandomness {
-		fn random(_subject: &[u8]) -> H256 {
-			Default::default()
-		}
-	}
-
-	impl initializer::Config for Test {
-		type Randomness = TestRandomness;
-	}
-
-	impl scheduler::Config for Test { }
-
-	type Extrinsic = TestXt<Call, ()>;
-
-	impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test where
-		Call: From<LocalCall>,
-	{
-		fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-			call: Call,
-			_public: test_keys::ReporterId,
-			_account: <Test as frame_system::Config>::AccountId,
-			nonce: <Test as frame_system::Config>::Index,
-		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
-			Some((call, (nonce, ())))
-		}
-	}
-
-	impl frame_system::offchain::SigningTypes for Test {
-		type Public = test_keys::ReporterId;
-		type Signature = Signature;
-	}
 
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;
@@ -639,34 +463,14 @@ mod tests {
 	pub fn new_test_ext() -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
-		let authority_keys = [
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Eve,
-			Sr25519Keyring::Ferdie,
-			Sr25519Keyring::One,
-			Sr25519Keyring::Two,
-		];
-
-		let balances: Vec<_> = (0..authority_keys.len()).map(|i| (i as u64, 10_000_000)).collect();
-
 		pallet_balances::GenesisConfig::<Test> {
-			balances,
-		}.assimilate_storage(&mut t).unwrap();
-
-		// stashes are the index.
-		let session_keys: Vec<_> = authority_keys.iter().enumerate()
-			.map(|(i, _k)| (i as u64, i as u64, UintAuthorityId(i as u64)))
-			.collect();
-
-		pallet_session::GenesisConfig::<Test> {
-			keys: session_keys,
+			balances: vec![(1, 10_000_000), (2, 10_000_000)],
 		}.assimilate_storage(&mut t).unwrap();
 
 		t.into()
 	}
+
+	const BLOCKS_PER_SESSION: u32 = 3;
 
 	fn run_to_block(n: BlockNumber) {
 		// NOTE that this function only simulates modules of interest. Depending on new module may
@@ -680,7 +484,7 @@ mod tests {
 				System::on_finalize(System::block_number());
 			}
 			// Session change every 3 blocks.
-			if (b + 1) % Period::get() == 0 {
+			if (b + 1) % BLOCKS_PER_SESSION == 0 {
 				println!("New session at {}", System::block_number());
 				shared::Module::<Test>::set_session_index(
 					shared::Module::<Test>::session_index() + 1
@@ -690,12 +494,11 @@ mod tests {
 			System::set_block_number(b + 1);
 			println!("Initializing {}", System::block_number());
 			System::on_initialize(System::block_number());
-			Session::on_initialize(System::block_number());
 		}
 	}
 
 	fn run_to_session(n: BlockNumber) {
-		let block_number = n * Period::get();
+		let block_number = n * BLOCKS_PER_SESSION;
 		run_to_block(block_number);
 	}
 
