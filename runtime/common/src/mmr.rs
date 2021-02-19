@@ -33,7 +33,30 @@ pub struct MmrLeaf<BlockNumber, Hash, MerkleRoot> {
 	/// A merkle root of all registered parachain heads.
 	pub parachain_heads: MerkleRoot,
 	/// A merkle root of the next BEEFY authority set.
-	pub beefy_next_authority_set: (ValidatorSetId, MerkleRoot),
+	pub beefy_next_authority_set: BeefyNextAuthoritySet<MerkleRoot>,
+}
+
+/// Details of the next BEEFY authority set.
+#[derive(RuntimeDebug, Default, PartialEq, Eq, Clone, Encode, Decode)]
+pub struct BeefyNextAuthoritySet<MerkleRoot> {
+	/// Id of the next set.
+	///
+	/// Id is required to correlate BEEFY signed commitments with the validator set.
+	/// Light Client can easily verify that the commitment witness it is getting is
+	/// produced by the latest validator set.
+	pub id: ValidatorSetId,
+	/// Number of validators in the set.
+	///
+	/// Some BEEFY Light Clients may use an interactive protocol to verify only subset
+	/// of signatures. We put set length here, so that these clients can verify the minimal
+	/// number of required signatures.
+	pub len: u32,
+	/// Merkle Root Hash build from BEEFY AuthorityIds.
+	///
+	/// This is used by Light Clients to confirm that the commitments are signed by the correct
+	/// validator set. Light Clients using interactive protocol, might verify only subset of
+	/// signatures, hence don't require the full list here (will receive inclusion proofs).
+	pub root: MerkleRoot,
 }
 
 type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
@@ -50,8 +73,8 @@ pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config {
 
 decl_storage! {
 	trait Store for Module<T: Config> as Beefy {
-		/// The merkle root of the next BEEFY authority set.
-		pub BeefyNextAuthoritiesRoot get(fn beefy_next_authorities_root): MerkleRootOf<T>;
+		/// Details of next BEEFY authority set.
+		pub BeefyNextAuthorities get(fn beefy_next_authorities): BeefyNextAuthoritySet<MerkleRootOf<T>>;
 	}
 }
 
@@ -73,10 +96,7 @@ impl<T: Config> LeafDataProvider for Module<T> where
 		MmrLeaf {
 			parent_number_and_hash: frame_system::Module::<T>::leaf_data(),
 			parachain_heads: Module::<T>::parachain_heads_merkle_root(),
-			beefy_next_authority_set: (
-				Module::<T>::beefy_next_authority_set_id(),
-				Module::<T>::beefy_next_authority_set_merkle_root()
-			),
+			beefy_next_authority_set: Module::<T>::beefy_next_authorities(),
 		}
 	}
 }
@@ -108,22 +128,20 @@ impl<T: Config> Module<T> where
 	/// the merkle tree every block. Instead we should update the merkle root in [on_new_session]
 	/// callback, cause we know it will only change every session - in future it should be optimized
 	/// to change every era instead.
-	fn beefy_next_authority_set_merkle_root() -> MerkleRootOf<T> {
-		Self::beefy_next_authorities_root()
-	}
-
-	fn beefy_next_authority_set_id() -> ValidatorSetId {
-		pallet_beefy::Module::<T>::validator_set_id() + 1
-	}
-
-	fn update_beefy_next_authorities() {
+	fn update_beefy_next_authority_set() {
+		let id = pallet_beefy::Module::<T>::validator_set_id() + 1;
 		let beefy_public_keys = pallet_beefy::Module::<T>::next_authorities()
 			.into_iter()
 			.map(T::BeefyAuthorityToMerkleLeaf::convert)
 			.collect::<Vec<_>>();
-		let merkle_root: MerkleRootOf<T> = sp_io::trie
+		let len = beefy_public_keys.len() as u32;
+		let root: MerkleRootOf<T> = sp_io::trie
 			::keccak_256_ordered_root(beefy_public_keys).into();
-		BeefyNextAuthoritiesRoot::<T>::put(merkle_root)
+		BeefyNextAuthorities::<T>::put(BeefyNextAuthoritySet {
+			id,
+			len,
+			root,
+		})
 	}
 }
 
@@ -140,13 +158,13 @@ impl<T: Config> frame_support::traits::OneSessionHandler<T::AccountId> for Modul
 	fn on_genesis_session<'a, I: 'a>(_validators: I) where
 		I: Iterator<Item=(&'a T::AccountId, Self::Key)>, Self::Key: 'a
 	{
-		Self::update_beefy_next_authorities();
+		Self::update_beefy_next_authority_set();
 	}
 
 	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued_validators: I) where
 		I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-		Self::update_beefy_next_authorities();
+		Self::update_beefy_next_authority_set();
 	}
 
 	fn on_disabled(_validator_index: usize) {}
