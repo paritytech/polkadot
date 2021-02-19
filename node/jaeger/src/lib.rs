@@ -125,8 +125,8 @@ impl JaegerConfigBuilder {
 /// This just works as auxiliary structure to easily store both.
 #[derive(Debug)]
 pub struct PerLeafSpan {
-	leaf_span: Arc<JaegerSpan>,
-	span: JaegerSpan,
+	leaf_span: Arc<Span>,
+	span: Span,
 }
 
 impl PerLeafSpan {
@@ -135,7 +135,7 @@ impl PerLeafSpan {
 	/// Takes the `leaf_span` that is created by the overseer per leaf and a name for a child span.
 	/// Both will be stored in this object, while the child span is implicitly accessible by using the
 	/// [`Deref`](std::ops::Deref) implementation.
-	pub fn new(leaf_span: Arc<JaegerSpan>, name: &'static str) -> Self {
+	pub fn new(leaf_span: Arc<Span>, name: &'static str) -> Self {
 		let span = leaf_span.child(name);
 
 		Self {
@@ -145,16 +145,16 @@ impl PerLeafSpan {
 	}
 
 	/// Returns the leaf span.
-	pub fn leaf_span(&self) -> &Arc<JaegerSpan> {
+	pub fn leaf_span(&self) -> &Arc<Span> {
 		&self.leaf_span
 	}
 }
 
 /// Returns a reference to the child span.
 impl std::ops::Deref for PerLeafSpan {
-	type Target = JaegerSpan;
+	type Target = Span;
 
-	fn deref(&self) -> &JaegerSpan {
+	fn deref(&self) -> &Span {
 		&self.span
 	}
 }
@@ -186,7 +186,7 @@ pub enum Stage {
 /// Builder pattern for children and root spans to unify
 /// information annotations.
 pub struct SpanBuilder {
-	span: JaegerSpan,
+	span: Span,
 }
 
 impl SpanBuilder {
@@ -245,7 +245,7 @@ impl SpanBuilder {
 
 	/// Complete construction.
 	#[inline(always)]
-	pub fn build(self) -> JaegerSpan {
+	pub fn build(self) -> Span {
 		self.span
 	}
 }
@@ -254,14 +254,14 @@ impl SpanBuilder {
 /// A wrapper type for a span.
 ///
 /// Handles running with and without jaeger.
-pub enum JaegerSpan {
+pub enum Span {
 	/// Running with jaeger being enabled.
 	Enabled(mick_jaeger::Span),
 	/// Running with jaeger disabled.
 	Disabled,
 }
 
-impl JaegerSpan {
+impl Span {
 	/// Derive a child span from `self`.
 	pub fn child(&self, name: &'static str) -> Self {
 		match self {
@@ -323,19 +323,19 @@ impl JaegerSpan {
 	/// in order to avoid computational overhead.
 	pub const fn is_enabled(&self) -> bool {
 		match self {
-			JaegerSpan::Enabled(_) => true,
+			Span::Enabled(_) => true,
 			_ => false,
 		}
 	}
 }
 
-impl std::fmt::Debug for JaegerSpan {
+impl std::fmt::Debug for Span {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "<jaeger span>")
 	}
 }
 
-impl From<Option<mick_jaeger::Span>> for JaegerSpan {
+impl From<Option<mick_jaeger::Span>> for Span {
 	fn from(src: Option<mick_jaeger::Span>) -> Self {
 		if let Some(span) = src {
 			Self::Enabled(span)
@@ -345,15 +345,15 @@ impl From<Option<mick_jaeger::Span>> for JaegerSpan {
 	}
 }
 
-impl From<mick_jaeger::Span> for JaegerSpan {
+impl From<mick_jaeger::Span> for Span {
 	fn from(src: mick_jaeger::Span) -> Self {
 		Self::Enabled(src)
 	}
 }
 
 /// Shortcut for [`hash_span`] with the hash of the `Candidate` block.
-pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &'static str) -> JaegerSpan {
-	let mut span: JaegerSpan = INSTANCE.read_recursive()
+pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &'static str) -> Span {
+	let mut span: Span = INSTANCE.read_recursive()
 		.span(|| { candidate_hash.0 }, span_name).into();
 
 	span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
@@ -362,8 +362,8 @@ pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &'static s
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
 #[inline(always)]
-pub fn pov_span(pov: &PoV, span_name: &'static str) -> JaegerSpan {
-	let mut span: JaegerSpan = INSTANCE.read_recursive()
+pub fn pov_span(pov: &PoV, span_name: &'static str) -> Span {
+	let mut span: Span = INSTANCE.read_recursive()
 		.span(|| { pov.hash() }, span_name).into();
 
 	span.add_pov(pov);
@@ -375,8 +375,8 @@ pub fn pov_span(pov: &PoV, span_name: &'static str) -> JaegerSpan {
 ///
 /// This span automatically has the `relay-parent` tag set.
 #[inline(always)]
-pub fn hash_span(hash: &Hash, span_name: &'static str) -> JaegerSpan {
-	let mut span: JaegerSpan = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
+pub fn hash_span(hash: &Hash, span_name: &'static str) -> Span {
+	let mut span: Span = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
 	span.add_string_tag("relay-parent", &format!("{:?}", hash));
 	span
 }

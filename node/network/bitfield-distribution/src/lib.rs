@@ -777,7 +777,7 @@ mod test {
 	use std::time::Duration;
 	use assert_matches::assert_matches;
 	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
-	use polkadot_subsystem::JaegerSpan;
+	use polkadot_subsystem::jaeger;
 
 	macro_rules! launch {
 		($fut:expr) => {
@@ -809,7 +809,7 @@ mod test {
 						},
 						message_received_from_peer: hashmap!{},
 						message_sent_to_peer: hashmap!{},
-						span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+						span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 					},
 			},
 			peer_views: peers
@@ -843,7 +843,7 @@ mod test {
 					one_per_validator: hashmap!{},
 					message_received_from_peer: hashmap!{},
 					message_sent_to_peer: hashmap!{},
-					span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+					span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 				})
 			}).collect();
 

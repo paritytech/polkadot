@@ -166,7 +166,7 @@ struct PerCandidate {
 	live_in: HashSet<Hash>,
 
 	/// A Jaeger span relating to this candidate.
-	span: jaeger::JaegerSpan,
+	span: jaeger::Span,
 }
 
 impl PerCandidate {
@@ -185,7 +185,7 @@ impl PerCandidate {
 	fn drop_span_after_own_availability(&mut self) {
 		if let Some(validator_index) = self.validator_index {
 			if self.message_vault.contains_key(&validator_index) {
-				self.span = jaeger::JaegerSpan::Disabled;
+				self.span = jaeger::Span::Disabled;
 			}
 		}
 	}
@@ -251,7 +251,7 @@ impl ProtocolState {
 							span: if validator_index.is_some() {
 								jaeger::candidate_hash_span(&receipt_hash, "pending-availability")
 							} else {
-								jaeger::JaegerSpan::Disabled
+								jaeger::Span::Disabled
 							},
 						})
 					} else {
