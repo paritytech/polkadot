@@ -991,7 +991,7 @@ mod tests {
 		let candidate_hash = candidate.hash();
 
 		for (idx_in_group, val_idx) in group.iter().enumerate().take(signing) {
-			let key: Sr25519Keyring = validators[*val_idx as usize];
+			let key: Sr25519Keyring = validators[val_idx.0 as usize];
 			*validator_indices.get_mut(idx_in_group).unwrap() = true;
 
 			let signature = SignedStatement::sign(
@@ -1020,7 +1020,7 @@ mod tests {
 			&backed,
 			signing_context,
 			group.len(),
-			|i| Some(validators[group[i] as usize].public().into()),
+			|i| Some(validators[group[i].0 as usize].public().into()),
 		).ok().unwrap_or(0) * 2 > group.len();
 
 		if should_pass {
@@ -1238,7 +1238,7 @@ mod tests {
 				let signed = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield,
 					&signing_context,
 				));
@@ -1255,7 +1255,7 @@ mod tests {
 				let signed = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield,
 					&signing_context,
 				));
@@ -1272,7 +1272,7 @@ mod tests {
 				let signed_0 = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield.clone(),
 					&signing_context,
 				));
@@ -1280,7 +1280,7 @@ mod tests {
 				let signed_1 = block_on(sign_bitfield(
 					&keystore,
 					&validators[1],
-					1,
+					ValidatorIndex(1),
 					bare_bitfield,
 					&signing_context,
 				));
@@ -1298,7 +1298,7 @@ mod tests {
 				let signed = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield,
 					&signing_context,
 				));
@@ -1315,7 +1315,7 @@ mod tests {
 				let signed = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield,
 					&signing_context,
 				));
@@ -1349,7 +1349,7 @@ mod tests {
 				let signed = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield,
 					&signing_context,
 				));
@@ -1385,7 +1385,7 @@ mod tests {
 				let signed = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield,
 					&signing_context,
 				));
@@ -1509,7 +1509,7 @@ mod tests {
 				Some(block_on(sign_bitfield(
 					&keystore,
 					key,
-					i as ValidatorIndex,
+					ValidatorIndex(i as _),
 					to_sign,
 					&signing_context,
 				)))
@@ -1547,18 +1547,18 @@ mod tests {
 				let rewards = crate::mock::availability_rewards();
 
 				assert_eq!(rewards.len(), 4);
-				assert_eq!(rewards.get(&0).unwrap(), &1);
-				assert_eq!(rewards.get(&1).unwrap(), &1);
-				assert_eq!(rewards.get(&2).unwrap(), &1);
-				assert_eq!(rewards.get(&3).unwrap(), &1);
+				assert_eq!(rewards.get(&ValidatorIndex(0)).unwrap(), &1);
+				assert_eq!(rewards.get(&ValidatorIndex(1)).unwrap(), &1);
+				assert_eq!(rewards.get(&ValidatorIndex(2)).unwrap(), &1);
+				assert_eq!(rewards.get(&ValidatorIndex(3)).unwrap(), &1);
 			}
 
 			{
 				let rewards = crate::mock::backing_rewards();
 
 				assert_eq!(rewards.len(), 2);
-				assert_eq!(rewards.get(&3).unwrap(), &1);
-				assert_eq!(rewards.get(&4).unwrap(), &1);
+				assert_eq!(rewards.get(&ValidatorIndex(3)).unwrap(), &1);
+				assert_eq!(rewards.get(&ValidatorIndex(4)).unwrap(), &1);
 			}
 		});
 	}
@@ -1602,7 +1602,7 @@ mod tests {
 				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
 				group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
-			};
+			}.map(|m| m.map(ValidatorIndex));
 
 			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 

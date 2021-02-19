@@ -146,7 +146,7 @@ impl SessionCache {
 	///
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
-	pub fn report_bad(&mut self, mut report: BadValidators) -> Result<()> {
+	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
 		let session = self
 			.session_info_cache
 			.get_mut(&report.session_index)

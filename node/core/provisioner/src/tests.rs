@@ -78,9 +78,9 @@ mod select_availability_bitfields {
 		// we pass in three bitfields with two validators
 		// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 0)),
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 1)),
-			block_on(signed_bitfield(&keystore, bitvec, 1)),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
 		];
 
 		let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -116,9 +116,9 @@ mod select_availability_bitfields {
 		];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec0, 0)),
-			block_on(signed_bitfield(&keystore, bitvec1, 1)),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
+			block_on(signed_bitfield(&keystore, bitvec0, ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec1, ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -140,8 +140,8 @@ mod select_availability_bitfields {
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec, 1)),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -174,11 +174,11 @@ mod select_availability_bitfields {
 		// these are out of order but will be selected in order. The better
 		// bitfield for 3 will be selected.
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 3)),
-			block_on(signed_bitfield(&keystore, bitvec3.clone(), 3)),
-			block_on(signed_bitfield(&keystore, bitvec0.clone(), 0)),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(3))),
+			block_on(signed_bitfield(&keystore, bitvec3.clone(), ValidatorIndex(3))),
+			block_on(signed_bitfield(&keystore, bitvec0.clone(), ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);

@@ -174,7 +174,7 @@ impl Default for TestState {
 			.take(validator_public.len())
 			.collect();
 
-		let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]];
+		let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]].into_iter().map(|g| g.map(ValidatorIndex)).collect();
 		let group_rotation_info = GroupRotationInfo {
 			session_start_block: 0,
 			group_rotation_frequency: 100,
@@ -238,11 +238,11 @@ async fn test_validator_discovery(
 			assert_eq!(index, session_index);
 
 			let validators = validator_group.iter()
-				.map(|idx| validator_ids[*idx as usize].clone())
+				.map(|idx| validator_ids[idx.0 as usize].clone())
 				.collect();
 
 			let discovery_keys = validator_group.iter()
-				.map(|idx| discovery_ids[*idx as usize].clone())
+				.map(|idx| discovery_ids[idx.0 as usize].clone())
 				.collect();
 
 			tx.send(Ok(Some(SessionInfo {
@@ -737,7 +737,7 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 		.take(validators.len())
 		.collect();
 
-	let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]];
+	let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]].map(|g| g.map(ValidatorIndex)).collect();
 	let group_rotation_info = GroupRotationInfo {
 		session_start_block: 0,
 		group_rotation_frequency: 100,
