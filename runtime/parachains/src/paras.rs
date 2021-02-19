@@ -28,16 +28,16 @@ use sp_std::result;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData,
+	Id as ParaId, ValidationCode, HeadData, SessionIndex,
 };
-use sp_runtime::traits::One;
+use sp_runtime::{traits::One, DispatchResult};
 use frame_support::{
-	decl_storage, decl_module, decl_error,
+	decl_storage, decl_module, decl_error, ensure,
 	traits::Get,
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use crate::{configuration, initializer::SessionChangeNotification};
+use crate::{configuration, shared, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
@@ -45,7 +45,11 @@ use serde::{Serialize, Deserialize};
 
 pub use crate::Origin;
 
-pub trait Config: frame_system::Config + configuration::Config {
+pub trait Config:
+	frame_system::Config +
+	configuration::Config +
+	shared::Config
+{
 	/// The outer origin type.
 	type Origin: From<Origin>
 		+ From<<Self as frame_system::Config>::Origin>
@@ -90,6 +94,76 @@ enum UseCodeAt<N> {
 	/// This is an inclusive endpoint - a parablock in the context of a relay-chain block on this fork
 	/// with number N should use the code that is replaced at N.
 	ReplacedAt(N),
+}
+
+/// The possible states of a para, to take into account delayed lifecycle changes.
+///
+/// If the para is in a "transition state", it is expected that the parachain is
+/// queued in the `ActionsQueue` to transition it into a stable state. Its lifecycle
+/// state will be used to determine the state transition to apply to the para.
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+pub enum ParaLifecycle {
+	/// Para is new and is onboarding as a Parathread or Parachain.
+	Onboarding,
+	/// Para is a Parathread.
+	Parathread,
+	/// Para is a Parachain.
+	Parachain,
+	/// Para is a Parathread which is upgrading to a Parachain.
+	UpgradingParathread,
+	/// Para is a Parachain which is downgrading to a Parathread.
+	DowngradingParachain,
+	/// Parathread is queued to be offboarded.
+	OffboardingParathread,
+	/// Parachain is queued to be offboarded.
+	OffboardingParachain,
+}
+
+impl ParaLifecycle {
+	/// Returns true if parachain is currently onboarding. To learn if the
+	/// parachain is onboarding as a parachain or parathread, look at the
+	/// `UpcomingGenesis` storage item.
+	pub fn is_onboarding(&self) -> bool {
+		matches!(self, ParaLifecycle::Onboarding)
+	}
+
+	/// Returns true if para is in a stable state, i.e. it is currently
+	/// a parachain or parathread, and not in any transition state.
+	pub fn is_stable(&self) -> bool {
+		matches!(self, ParaLifecycle::Parathread | ParaLifecycle::Parachain)
+	}
+
+	/// Returns true if para is currently treated as a parachain.
+	/// This also includes transitioning states, so you may want to combine
+	/// this check with `is_stable` if you specifically want `Paralifecycle::Parachain`.
+	pub fn is_parachain(&self) -> bool {
+		matches!(self,
+			ParaLifecycle::Parachain |
+			ParaLifecycle::DowngradingParachain |
+			ParaLifecycle::OffboardingParachain
+		)
+	}
+
+	/// Returns true if para is currently treated as a parathread.
+	/// This also includes transitioning states, so you may want to combine
+	/// this check with `is_stable` if you specifically want `Paralifecycle::Parathread`.
+	pub fn is_parathread(&self) -> bool {
+		matches!(self,
+			ParaLifecycle::Parathread |
+			ParaLifecycle::UpgradingParathread |
+			ParaLifecycle::OffboardingParathread
+		)
+	}
+
+	/// Returns true if para is currently offboarding.
+	pub fn is_offboarding(&self) -> bool {
+		matches!(self, ParaLifecycle::OffboardingParathread | ParaLifecycle::OffboardingParachain)
+	}
+
+	/// Returns true if para is in any transitionary state.
+	pub fn is_transitioning(&self) -> bool {
+		!Self::is_stable(self)
+	}
 }
 
 impl<N: Ord + Copy> ParaPastCodeMeta<N> {
@@ -180,8 +254,8 @@ decl_storage! {
 	trait Store for Module<T: Config> as Paras {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 		Parachains get(fn parachains): Vec<ParaId>;
-		/// All parathreads.
-		Parathreads: map hasher(twox_64_concat) ParaId => Option<()>;
+		/// The current lifecycle of a all known Para IDs.
+		ParaLifecycles: map hasher(twox_64_concat) ParaId => Option<ParaLifecycle>;
 		/// The head-data of every registered para.
 		Heads get(fn para_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
 		/// The validation code of every live para.
@@ -206,15 +280,10 @@ decl_storage! {
 		FutureCodeUpgrades get(fn future_code_upgrade_at): map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
 		/// The actual future code of a para.
 		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
-
-		/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
-		/// entry in the upcoming-genesis map.
-		UpcomingParas get(fn upcoming_paras): Vec<ParaId>;
+		/// The actions to perform during the start of a specific session index.
+		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
-		/// Paras that are to be cleaned up at the end of the session.
-		OutgoingParas get(fn outgoing_paras): Vec<ParaId>;
-
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
@@ -240,11 +309,27 @@ fn build<T: Config>(config: &GenesisConfig<T>) {
 	for (id, genesis_args) in &config.paras {
 		<Module<T> as Store>::CurrentCode::insert(&id, &genesis_args.validation_code);
 		<Module<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
+		if genesis_args.parachain {
+			ParaLifecycles::insert(&id, ParaLifecycle::Parachain);
+		} else {
+			ParaLifecycles::insert(&id, ParaLifecycle::Parathread);
+		}
 	}
 }
 
 decl_error! {
-	pub enum Error for Module<T: Config> { }
+	pub enum Error for Module<T: Config> {
+		/// Para is not registered in our system.
+		NotRegistered,
+		/// Para cannot be onboarded because it is already tracked by our system.
+		CannotOnboard,
+		/// Para cannot be offboarded at this time.
+		CannotOffboard,
+		/// Para cannot be upgraded to a parachain.
+		CannotUpgrade,
+		/// Para cannot be downgraded to a parathread.
+		CannotDowngrade,
+	}
 }
 
 decl_module! {
@@ -264,58 +349,86 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the initializer to note that a new session has started.
-	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>) {
-		let now = <frame_system::Module<T>>::block_number();
-		let mut parachains = Self::clean_up_outgoing(now);
-		Self::apply_incoming(&mut parachains);
-		<Self as Store>::Parachains::set(parachains);
+	///
+	/// Returns the list of outgoing paras from the actions queue.
+	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) -> Vec<ParaId> {
+		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
+		outgoing_paras
 	}
 
-	/// Cleans up all outgoing paras. Returns the new set of parachains
-	fn clean_up_outgoing(now: T::BlockNumber) -> Vec<ParaId> {
+	// Apply all para actions queued for the given session index.
+	//
+	// The actions to take are based on the lifecycle of of the paras.
+	//
+	// The final state of any para after the actions queue should be as a
+	// parachain, parathread, or not registered. (stable states)
+	//
+	// Returns the list of outgoing paras from the actions queue.
+	fn apply_actions_queue(session: SessionIndex) -> Vec<ParaId> {
+		let actions = ActionsQueue::take(session);
 		let mut parachains = <Self as Store>::Parachains::get();
-		let outgoing = <Self as Store>::OutgoingParas::take();
+		let now = <frame_system::Module<T>>::block_number();
+		let mut outgoing = Vec::new();
 
-		for outgoing_para in outgoing {
-			if let Ok(i) = parachains.binary_search(&outgoing_para) {
-				parachains.remove(i);
-			} else {
-				<Self as Store>::Parathreads::remove(&outgoing_para);
-			}
+		for para in actions {
+			let lifecycle = ParaLifecycles::get(&para);
+			match lifecycle {
+				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */ },
+				// Onboard a new parathread or parachain.
+				Some(ParaLifecycle::Onboarding) => {
+					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
+						if genesis_data.parachain {
+							if let Err(i) = parachains.binary_search(&para) {
+								parachains.insert(i, para);
+							}
+							ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
+						} else {
+							ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
+						}
 
-			<Self as Store>::Heads::remove(&outgoing_para);
-			<Self as Store>::FutureCodeUpgrades::remove(&outgoing_para);
-			<Self as Store>::FutureCode::remove(&outgoing_para);
+						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
+						<Self as Store>::CurrentCode::insert(&para, genesis_data.validation_code);
+					}
+				},
+				// Upgrade a parathread to a parachain
+				Some(ParaLifecycle::UpgradingParathread) => {
+					if let Err(i) = parachains.binary_search(&para) {
+						parachains.insert(i, para);
+					}
+					ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
+				},
+				// Downgrade a parachain to a parathread
+				Some(ParaLifecycle::DowngradingParachain) => {
+					if let Ok(i) = parachains.binary_search(&para) {
+						parachains.remove(i);
+					}
+					ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
+				},
+				// Offboard a parathread or parachain from the system
+				Some(ParaLifecycle::OffboardingParachain) | Some(ParaLifecycle::OffboardingParathread) => {
+					if let Ok(i) = parachains.binary_search(&para) {
+						parachains.remove(i);
+					}
 
-			let removed_code = <Self as Store>::CurrentCode::take(&outgoing_para);
-			if let Some(removed_code) = removed_code {
-				Self::note_past_code(outgoing_para, now, now, removed_code);
+					<Self as Store>::Heads::remove(&para);
+					<Self as Store>::FutureCodeUpgrades::remove(&para);
+					<Self as Store>::FutureCode::remove(&para);
+					ParaLifecycles::remove(&para);
+
+					let removed_code = <Self as Store>::CurrentCode::take(&para);
+					if let Some(removed_code) = removed_code {
+						Self::note_past_code(para, now, now, removed_code);
+					}
+
+					outgoing.push(para);
+				},
 			}
 		}
 
-		parachains
-	}
+		// Place the new parachains set in storage.
+		<Self as Store>::Parachains::set(parachains);
 
-	/// Applies all incoming paras, updating the parachains list for those that are parachains.
-	fn apply_incoming(parachains: &mut Vec<ParaId>) {
-		let upcoming = <Self as Store>::UpcomingParas::take();
-		for upcoming_para in upcoming {
-			let genesis_data = match <Self as Store>::UpcomingParasGenesis::take(&upcoming_para) {
-				None => continue,
-				Some(g) => g,
-			};
-
-			if genesis_data.parachain {
-				if let Err(i) = parachains.binary_search(&upcoming_para) {
-					parachains.insert(i, upcoming_para);
-				}
-			} else {
-				<Self as Store>::Parathreads::insert(&upcoming_para, ());
-			}
-
-			<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
-			<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
-		}
+		return outgoing
 	}
 
 	// note replacement of the code of para with given `id`, which occured in the
@@ -395,53 +508,98 @@ impl<T: Config> Module<T> {
 		T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done)
 	}
 
+	/// Verify that `schedule_para_initialize` can be called successfully.
+	///
+	/// Returns false if para is already registered in the system.
+	pub fn can_schedule_para_initialize(id: &ParaId, _: &ParaGenesisArgs) -> bool {
+		let lifecycle = ParaLifecycles::get(id);
+		lifecycle.is_none()
+	}
+
 	/// Schedule a para to be initialized at the start of the next session.
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
-		let dup = UpcomingParas::mutate(|v| {
-			match v.binary_search(&id) {
-				Ok(_) => true,
-				Err(i) => {
-					v.insert(i, id);
-					false
-				}
+	///
+	/// Will return error if para is already registered in the system.
+	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
+		let scheduled_session = Self::scheduled_session();
+
+		// Make sure parachain isn't already in our system.
+		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
+
+		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
+		UpcomingParasGenesis::insert(&id, genesis);
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
 			}
 		});
 
-		if dup {
-			let weight = T::DbWeight::get().reads_writes(1, 0);
-			return weight;
-		}
-
-		UpcomingParasGenesis::insert(&id, &genesis);
-
-		T::DbWeight::get().reads_writes(1, 2)
+		Ok(())
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
-		let upcoming_weight = UpcomingParas::mutate(|v| {
-			match v.binary_search(&id) {
-				Ok(i) => {
-					v.remove(i);
-					UpcomingParasGenesis::remove(id);
-					// If a para was only in the pending state it should not be moved to `Outgoing`
-					return T::DbWeight::get().reads_writes(2, 2);
-				}
-				Err(_) => T::DbWeight::get().reads_writes(1, 0),
+	///
+	/// Will return error if para is not a stable parachain or parathread.
+	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
+		let scheduled_session = Self::scheduled_session();
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
+
+		match lifecycle {
+			ParaLifecycle::Parathread => {
+				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParathread);
+			},
+			ParaLifecycle::Parachain => {
+				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParachain);
+			},
+			_ => return Err(Error::<T>::CannotOffboard)?,
+		}
+
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
 			}
 		});
 
-		let outgoing_weight = OutgoingParas::mutate(|v| {
-			match v.binary_search(&id) {
-				Ok(_) => T::DbWeight::get().reads_writes(1, 0),
-				Err(i) => {
-					v.insert(i, id);
-					T::DbWeight::get().reads_writes(1, 1)
-				}
+		Ok(())
+	}
+
+	/// Schedule a parathread to be upgraded to a parachain.
+	///
+	/// Will return error if `ParaLifecycle` is not `Parathread`.
+	#[allow(unused)]
+	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
+		let scheduled_session = Self::scheduled_session();
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
+
+		ensure!(lifecycle == ParaLifecycle::Parathread, Error::<T>::CannotUpgrade);
+
+		ParaLifecycles::insert(&id, ParaLifecycle::UpgradingParathread);
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
 			}
 		});
 
-		outgoing_weight + upcoming_weight
+		Ok(())
+	}
+
+	/// Schedule a parachain to be downgraded to a parathread.
+	///
+	/// Noop if `ParaLifecycle` is not `Parachain`.
+	#[allow(unused)]
+	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
+		let scheduled_session = Self::scheduled_session();
+		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
+
+		ensure!(lifecycle == ParaLifecycle::Parachain, Error::<T>::CannotDowngrade);
+
+		ParaLifecycles::insert(&id, ParaLifecycle::DowngradingParachain);
+		ActionsQueue::mutate(scheduled_session, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
+			}
+		});
+
+		Ok(())
 	}
 
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
@@ -541,15 +699,42 @@ impl<T: Config> Module<T> {
 		}
 	}
 
+	/// Returns the current lifecycle state of the para.
+	pub fn lifecycle(id: ParaId) -> Option<ParaLifecycle> {
+		ParaLifecycles::get(&id)
+	}
+
 	/// Returns whether the given ID refers to a valid para.
+	///
+	/// Paras that are onboarding or offboarding are not included.
 	pub fn is_valid_para(id: ParaId) -> bool {
-		Self::parachains().binary_search(&id).is_ok()
-			|| Self::is_parathread(id)
+		if let Some(state) = ParaLifecycles::get(&id) {
+			!state.is_onboarding() && !state.is_offboarding()
+		} else {
+			false
+		}
+	}
+
+	/// Whether a para ID corresponds to any live parachain.
+	///
+	/// Includes parachains which will downgrade to a parathread in the future.
+	pub fn is_parachain(id: ParaId) -> bool {
+		if let Some(state) = ParaLifecycles::get(&id) {
+			state.is_parachain()
+		} else {
+			false
+		}
 	}
 
 	/// Whether a para ID corresponds to any live parathread.
-	pub(crate) fn is_parathread(id: ParaId) -> bool {
-		Parathreads::get(&id).is_some()
+	///
+	/// Includes parathreads which will upgrade to parachains in the future.
+	pub fn is_parathread(id: ParaId) -> bool {
+		if let Some(state) = ParaLifecycles::get(&id) {
+			state.is_parathread()
+		} else {
+			false
+		}
 	}
 
 	/// The block number of the last scheduled upgrade of the requested para. Includes future upgrades
@@ -563,29 +748,42 @@ impl<T: Config> Module<T> {
 
 		Self::past_code_meta(&id).most_recent_change()
 	}
+
+	/// Return the session index that should be used for any future scheduled changes.
+	fn scheduled_session() -> SessionIndex {
+		shared::Module::<T>::scheduled_session()
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use primitives::v1::BlockNumber;
-	use frame_support::traits::{OnFinalize, OnInitialize};
+	use frame_support::{
+		assert_ok,
+		traits::{OnFinalize, OnInitialize}
+	};
 
-	use crate::mock::{new_test_ext, Paras, System, GenesisConfig as MockGenesisConfig};
+	use crate::mock::{new_test_ext, Paras, Shared, System, MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
+			Shared::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&Default::default());
+				let mut session_change_notification = SessionChangeNotification::default();
+				session_change_notification.session_index = Shared::session_index() + 1;
+				Shared::initializer_on_new_session(&session_change_notification);
+				Paras::initializer_on_new_session(&session_change_notification);
 			}
 			System::on_finalize(b);
 
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
+			Shared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 		}
 	}
@@ -1044,11 +1242,14 @@ mod tests {
 				expected_at
 			};
 
-			Paras::schedule_para_cleanup(para_id);
+			assert_ok!(Paras::schedule_para_cleanup(para_id));
 
 			// Just scheduling cleanup shouldn't change anything.
 			{
-				assert_eq!(<Paras as Store>::OutgoingParas::get(), vec![para_id]);
+				assert_eq!(
+					<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
+					vec![para_id],
+				);
 				assert_eq!(Paras::parachains(), vec![para_id]);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
@@ -1059,8 +1260,8 @@ mod tests {
 				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
 			}
 
-			// run to block №4, with a session change at the end of the block 3.
-			run_to_block(4, Some(vec![4]));
+			// run to block #4, with a 2 session changes at the end of the block 2 & 3.
+			run_to_block(4, Some(vec![3,4]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
@@ -1094,120 +1295,73 @@ mod tests {
 			let a = ParaId::from(999);
 			let c = ParaId::from(333);
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				b,
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![1].into(),
 					validation_code: vec![1].into(),
 				},
-			);
+			));
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				a,
 				ParaGenesisArgs {
 					parachain: false,
 					genesis_head: vec![2].into(),
 					validation_code: vec![2].into(),
 				},
-			);
+			));
 
-			Paras::schedule_para_initialize(
+			assert_ok!(Paras::schedule_para_initialize(
 				c,
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![3].into(),
 					validation_code: vec![3].into(),
 				},
+			));
+
+			assert_eq!(
+				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
+				vec![c, b, a],
 			);
 
-			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
-			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
-
+			// Lifecycle is tracked correctly
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 			// run to block without session change.
 			run_to_block(2, None);
 
 			assert_eq!(Paras::parachains(), Vec::new());
-			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
-			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
+			assert_eq!(
+				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
+				vec![c, b, a],
+			);
+
+			// Lifecycle is tracked correctly
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 
-			run_to_block(3, Some(vec![3]));
+			// Two sessions pass, so action queue is triggered
+			run_to_block(4, Some(vec![3,4]));
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
-			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
+			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), Vec::new());
 
-			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
+			// Lifecycle is tracked correctly
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Parachain));
 
 			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
 			assert_eq!(Paras::current_code(&c), Some(vec![3].into()));
 		})
-	}
-
-	#[test]
-	fn para_cleanup_removes_upcoming() {
-		new_test_ext(Default::default()).execute_with(|| {
-			run_to_block(1, None);
-
-			let b = ParaId::from(525);
-			let a = ParaId::from(999);
-			let c = ParaId::from(333);
-
-			Paras::schedule_para_initialize(
-				b,
-				ParaGenesisArgs {
-					parachain: true,
-					genesis_head: vec![1].into(),
-					validation_code: vec![1].into(),
-				},
-			);
-
-			Paras::schedule_para_initialize(
-				a,
-				ParaGenesisArgs {
-					parachain: false,
-					genesis_head: vec![2].into(),
-					validation_code: vec![2].into(),
-				},
-			);
-
-			Paras::schedule_para_initialize(
-				c,
-				ParaGenesisArgs {
-					parachain: true,
-					genesis_head: vec![3].into(),
-					validation_code: vec![3].into(),
-				},
-			);
-
-			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
-			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
-
-
-			// run to block without session change.
-			run_to_block(2, None);
-
-			assert_eq!(Paras::parachains(), Vec::new());
-			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
-			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
-
-			Paras::schedule_para_cleanup(c);
-
-			run_to_block(3, Some(vec![3]));
-
-			assert_eq!(Paras::parachains(), vec![b]);
-			assert_eq!(<Paras as Store>::OutgoingParas::get(), vec![]);
-			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
-			assert!(<Paras as Store>::UpcomingParasGenesis::get(a).is_none());
-
-			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
-
-			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
-			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
-			assert!(Paras::current_code(&c).is_none());
-		});
 	}
 
 	#[test]

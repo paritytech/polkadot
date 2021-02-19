@@ -36,7 +36,7 @@ use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_subsystem_util::request_availability_cores_ctx;
 use polkadot_primitives::v1::{CandidateHash, CoreState, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActiveLeavesUpdate, JaegerSpan, SubsystemContext,
+	messages::AllMessages, ActiveLeavesUpdate, jaeger, SubsystemContext,
 };
 
 use super::{error::recv_runtime, session_cache::SessionCache, Result};
@@ -110,7 +110,7 @@ impl Requester {
 	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
-		new_heads: impl Iterator<Item = (Hash, Arc<JaegerSpan>)>,
+		new_heads: impl Iterator<Item = (Hash, Arc<jaeger::Span>)>,
 	) -> Result<()>
 	where
 		Context: SubsystemContext,

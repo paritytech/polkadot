@@ -19,7 +19,7 @@ use futures::channel::mpsc;
 
 use parity_scale_codec::Decode;
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, PeerId, ReputationChange,
+	peer_set::PeerSet, v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockNumber};
 use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
@@ -50,11 +50,12 @@ pub(crate) enum Action {
 	/// Ask network to connect to validators.
 	ConnectToValidators {
 		validator_ids: Vec<AuthorityDiscoveryId>,
+		peer_set: PeerSet,
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 	},
 
 	/// Report a peer to the network implementation (decreasing/increasing its reputation).
-	ReportPeer(PeerId, ReputationChange),
+	ReportPeer(PeerId, UnifiedReputationChange),
 
 	/// A subsystem updates us on the relay chain leaves we consider active.
 	///
@@ -133,9 +134,11 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 				}
 				NetworkBridgeMessage::ConnectToValidators {
 					validator_ids,
+					peer_set,
 					connected,
 				} => Action::ConnectToValidators {
 					validator_ids,
+					peer_set,
 					connected,
 				},
 			},

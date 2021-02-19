@@ -33,10 +33,9 @@ use frame_support::{
 };
 use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, dmp, ump, hrmp, scheduler::CoreAssignment};
+use crate::{configuration, paras, dmp, ump, hrmp, shared, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -51,8 +50,6 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-// TODO: split this type and change this to hold a plain `CandidateReceipt`.
-// https://github.com/paritytech/polkadot/issues/1357
 #[derive(Encode, Decode, PartialEq)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
@@ -70,6 +67,8 @@ pub struct CandidatePendingAvailability<H, N> {
 	relay_parent_number: N,
 	/// The block number of the relay-chain block this was backed in.
 	backed_in_number: N,
+	/// The group index backing this block.
+	backing_group: GroupIndex,
 }
 
 impl<H, N> CandidatePendingAvailability<H, N> {
@@ -111,6 +110,7 @@ pub trait RewardValidators {
 
 pub trait Config:
 	frame_system::Config
+	+ shared::Config
 	+ paras::Config
 	+ dmp::Config
 	+ ump::Config
@@ -137,9 +137,6 @@ decl_storage! {
 
 		/// The current validators, by their parachain session keys.
 		Validators get(fn validators) config(validators): Vec<ValidatorId>;
-
-		/// The current session index.
-		CurrentSessionIndex get(fn session_index): SessionIndex;
 	}
 }
 
@@ -197,11 +194,11 @@ decl_error! {
 decl_event! {
 	pub enum Event<T> where <T as frame_system::Config>::Hash {
 		/// A candidate was backed. [candidate, head_data]
-		CandidateBacked(CandidateReceipt<Hash>, HeadData),
+		CandidateBacked(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate was included. [candidate, head_data]
-		CandidateIncluded(CandidateReceipt<Hash>, HeadData),
+		CandidateIncluded(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate timed out. [candidate, head_data]
-		CandidateTimedOut(CandidateReceipt<Hash>, HeadData),
+		CandidateTimedOut(CandidateReceipt<Hash>, HeadData, CoreIndex),
 	}
 }
 
@@ -236,7 +233,6 @@ impl<T: Config> Module<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() { }
 
 		Validators::set(notification.validators.clone()); // substrate forces us to clone, stupidly.
-		CurrentSessionIndex::set(notification.session_index);
 	}
 
 	/// Process a set of incoming bitfields. Return a vec of cores freed by candidates
@@ -246,7 +242,7 @@ impl<T: Config> Module<T> {
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 	) -> Result<Vec<CoreIndex>, DispatchError> {
 		let validators = Validators::get();
-		let session_index = CurrentSessionIndex::get();
+		let session_index = shared::Module::<T>::session_index();
 		let config = <configuration::Module<T>>::config();
 		let parachains = <paras::Module<T>>::parachains();
 
@@ -368,6 +364,8 @@ impl<T: Config> Module<T> {
 					receipt,
 					pending_availability.backers,
 					pending_availability.availability_votes,
+					pending_availability.core,
+					pending_availability.backing_group,
 				);
 
 				freed_cores.push(pending_availability.core);
@@ -426,7 +424,7 @@ impl<T: Config> Module<T> {
 
 			let signing_context = SigningContext {
 				parent_hash,
-				session_index: CurrentSessionIndex::get(),
+				session_index: shared::Module::<T>::session_index(),
 			};
 
 			// We combine an outer loop over candidates with an inner loop over the scheduled,
@@ -555,7 +553,7 @@ impl<T: Config> Module<T> {
 							}
 						}
 
-						core_indices_and_backers.push((assignment.core, backers));
+						core_indices_and_backers.push((assignment.core, backers, assignment.group_idx));
 						continue 'a;
 					}
 				}
@@ -578,8 +576,8 @@ impl<T: Config> Module<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _)| c.clone()).collect();
-		for (candidate, (core, backers)) in candidates.into_iter().zip(core_indices_and_backers) {
+		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _, _)| c.clone()).collect();
+		for (candidate, (core, backers, group)) in candidates.into_iter().zip(core_indices_and_backers) {
 			let para_id = candidate.descriptor().para_id;
 
 			// initialize all availability votes to 0.
@@ -589,6 +587,8 @@ impl<T: Config> Module<T> {
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
+				core,
+				group,
 			));
 
 			let candidate_hash = candidate.candidate.hash();
@@ -606,6 +606,7 @@ impl<T: Config> Module<T> {
 				relay_parent_number,
 				backers,
 				backed_in_number: check_cx.now,
+				backing_group: group,
 			});
 			<PendingAvailabilityCommitments>::insert(&para_id, commitments);
 		}
@@ -651,6 +652,8 @@ impl<T: Config> Module<T> {
 		receipt: CommittedCandidateReceipt<T::Hash>,
 		backers: BitVec<BitOrderLsb0, u8>,
 		availability_votes: BitVec<BitOrderLsb0, u8>,
+		core_index: CoreIndex,
+		backing_group: GroupIndex,
 	) -> Weight {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
@@ -695,7 +698,7 @@ impl<T: Config> Module<T> {
 		);
 
 		Self::deposit_event(
-			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
+			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone(), core_index, backing_group)
 		);
 
 		weight + <paras::Module<T>>::note_new_head(
@@ -736,6 +739,7 @@ impl<T: Config> Module<T> {
 				Self::deposit_event(Event::<T>::CandidateTimedOut(
 					candidate,
 					commitments.head_data,
+					pending.core,
 				));
 			}
 		}
@@ -764,6 +768,8 @@ impl<T: Config> Module<T> {
 				candidate,
 				pending.backers,
 				pending.availability_votes,
+				pending.core,
+				pending.backing_group,
 			);
 		}
 	}
@@ -907,7 +913,7 @@ mod tests {
 	use sc_keystore::LocalKeystore;
 	use crate::mock::{
 		new_test_ext, Configuration, Paras, System, Inclusion,
-		GenesisConfig as MockGenesisConfig, Test,
+		MockGenesisConfig, Test, Shared,
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
@@ -1035,8 +1041,10 @@ mod tests {
 
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
+			Shared::initializer_finalize();
 
 			if let Some(notification) = new_session(b + 1) {
+				Shared::initializer_on_new_session(&notification);
 				Paras::initializer_on_new_session(&notification);
 				Inclusion::initializer_on_new_session(&notification);
 			}
@@ -1046,6 +1054,7 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
+			Shared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 			Inclusion::initializer_initialize(b + 1);
 		}
@@ -1154,6 +1163,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(0),
 			});
 			PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments.clone());
 
@@ -1165,6 +1175,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(1),
 			});
 			PendingAvailabilityCommitments::insert(chain_b, default_candidate.commitments);
 
@@ -1206,7 +1217,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
 				parent_hash: System::parent_hash(),
@@ -1330,6 +1341,7 @@ mod tests {
 					relay_parent_number: 0,
 					backed_in_number: 0,
 					backers: default_backing_bitfield(),
+					backing_group: GroupIndex::from(0),
 				});
 				PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments);
 
@@ -1366,6 +1378,7 @@ mod tests {
 					relay_parent_number: 0,
 					backed_in_number: 0,
 					backers: default_backing_bitfield(),
+					backing_group: GroupIndex::from(0),
 				});
 
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
@@ -1411,7 +1424,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
 				parent_hash: System::parent_hash(),
@@ -1439,6 +1452,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: backing_bitfield(&[3, 4]),
+				backing_group: GroupIndex::from(0),
 			});
 			PendingAvailabilityCommitments::insert(chain_a, candidate_a.commitments);
 
@@ -1456,6 +1470,7 @@ mod tests {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: backing_bitfield(&[0, 2]),
+				backing_group: GroupIndex::from(1),
 			});
 			PendingAvailabilityCommitments::insert(chain_b, candidate_b.commitments);
 
@@ -1573,7 +1588,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -1893,6 +1908,7 @@ mod tests {
 					relay_parent_number: 3,
 					backed_in_number: 4,
 					backers: default_backing_bitfield(),
+					backing_group: GroupIndex::from(0),
 				});
 				<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments);
 
@@ -2059,7 +2075,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2187,6 +2203,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[0, 1]),
+					backing_group: GroupIndex::from(0),
 				})
 			);
 			assert_eq!(
@@ -2204,6 +2221,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[2, 3]),
+					backing_group: GroupIndex::from(1),
 				})
 			);
 			assert_eq!(
@@ -2221,6 +2239,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[4]),
+					backing_group: GroupIndex::from(2),
 				})
 			);
 			assert_eq!(
@@ -2253,7 +2272,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2318,6 +2337,7 @@ mod tests {
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 					backers: backing_bitfield(&[0, 1, 2]),
+					backing_group: GroupIndex::from(0),
 				})
 			);
 			assert_eq!(
@@ -2349,7 +2369,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			let validators_new = vec![
 				Sr25519Keyring::Alice,
@@ -2394,6 +2414,7 @@ mod tests {
 				relay_parent_number: 5,
 				backed_in_number: 6,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(0),
 			});
 			<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments.clone());
 
@@ -2405,13 +2426,14 @@ mod tests {
 				relay_parent_number: 6,
 				backed_in_number: 7,
 				backers: default_backing_bitfield(),
+				backing_group: GroupIndex::from(1),
 			});
 			<PendingAvailabilityCommitments>::insert(&chain_b, candidate.commitments);
 
 			run_to_block(11, |_| None);
 
 			assert_eq!(Validators::get(), validator_public);
-			assert_eq!(CurrentSessionIndex::get(), 5);
+			assert_eq!(shared::Module::<Test>::session_index(), 5);
 
 			assert!(<AvailabilityBitfields<Test>>::get(&0).is_some());
 			assert!(<AvailabilityBitfields<Test>>::get(&1).is_some());
@@ -2435,7 +2457,7 @@ mod tests {
 			});
 
 			assert_eq!(Validators::get(), validator_public_new);
-			assert_eq!(CurrentSessionIndex::get(), 6);
+			assert_eq!(shared::Module::<Test>::session_index(), 6);
 
 			assert!(<AvailabilityBitfields<Test>>::get(&0).is_none());
 			assert!(<AvailabilityBitfields<Test>>::get(&1).is_none());

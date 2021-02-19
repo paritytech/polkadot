@@ -229,10 +229,6 @@ pub trait Config: frame_system::Config + configuration::Config + paras::Config +
 
 decl_storage! {
 	trait Store for Module<T: Config> as Hrmp {
-		/// Paras that are to be cleaned up at the end of the session.
-		/// The entries are sorted ascending by the para id.
-		OutgoingParas: Vec<ParaId>;
-
 		/// The set of pending HRMP open channel requests.
 		///
 		/// The set is accompanied by a list for iteration.
@@ -404,42 +400,33 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
 		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId],
 	) {
-		Self::perform_outgoing_para_cleanup();
+		Self::perform_outgoing_para_cleanup(outgoing_paras);
 		Self::process_hrmp_open_channel_requests(&notification.prev_config);
 		Self::process_hrmp_close_channel_requests();
 	}
 
-	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
-	fn perform_outgoing_para_cleanup() {
-		let outgoing = OutgoingParas::take();
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
 		for outgoing_para in outgoing {
 			Self::clean_hrmp_after_outgoing(outgoing_para);
 		}
 	}
 
-	/// Schedule a para to be cleaned up at the start of the next session.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) {
-		OutgoingParas::mutate(|v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
-	}
-
 	/// Remove all storage entries associated with the given para.
-	fn clean_hrmp_after_outgoing(outgoing_para: ParaId) {
-		<Self as Store>::HrmpOpenChannelRequestCount::remove(&outgoing_para);
-		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&outgoing_para);
+	fn clean_hrmp_after_outgoing(outgoing_para: &ParaId) {
+		<Self as Store>::HrmpOpenChannelRequestCount::remove(outgoing_para);
+		<Self as Store>::HrmpAcceptedChannelRequestCount::remove(outgoing_para);
 
-		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(&outgoing_para)
+		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(outgoing_para)
 			.into_iter()
 			.map(|sender| HrmpChannelId {
 				sender,
 				recipient: outgoing_para.clone(),
 			});
-		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(&outgoing_para)
+		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(outgoing_para)
 			.into_iter()
 			.map(|recipient| HrmpChannelId {
 				sender: outgoing_para.clone(),
@@ -1124,9 +1111,9 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Test, Configuration, Paras, Hrmp, System, GenesisConfig as MockGenesisConfig,
+		new_test_ext, Test, Configuration, Paras, Shared, Hrmp, System, MockGenesisConfig,
 	};
-	use frame_support::{assert_err, traits::Currency as _};
+	use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 	use primitives::v1::BlockNumber;
 	use std::collections::{BTreeMap, HashSet};
 
@@ -1140,17 +1127,20 @@ mod tests {
 			// NOTE: this is in reverse initialization order.
 			Hrmp::initializer_finalize();
 			Paras::initializer_finalize();
+			Shared::initializer_finalize();
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let notification = crate::initializer::SessionChangeNotification {
 					prev_config: config.clone(),
 					new_config: config.clone(),
+					session_index: Shared::session_index() + 1,
 					..Default::default()
 				};
 
 				// NOTE: this is in initialization order.
-				Paras::initializer_on_new_session(&notification);
-				Hrmp::initializer_on_new_session(&notification);
+				Shared::initializer_on_new_session(&notification);
+				let outgoing_paras = Paras::initializer_on_new_session(&notification);
+				Hrmp::initializer_on_new_session(&notification, &outgoing_paras);
 			}
 
 			System::on_finalize(b);
@@ -1159,6 +1149,7 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			// NOTE: this is in initialization order.
+			Shared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 			Hrmp::initializer_initialize(b + 1);
 		}
@@ -1198,7 +1189,7 @@ mod tests {
 	}
 
 	impl GenesisConfigBuilder {
-		fn build(self) -> crate::mock::GenesisConfig {
+		fn build(self) -> crate::mock::MockGenesisConfig {
 			let mut genesis = default_genesis_config();
 			let config = &mut genesis.configuration.config;
 			config.hrmp_channel_max_capacity = self.hrmp_channel_max_capacity;
@@ -1230,14 +1221,14 @@ mod tests {
 	}
 
 	fn register_parachain_with_balance(id: ParaId, balance: Balance) {
-		Paras::schedule_para_initialize(
+		assert_ok!(Paras::schedule_para_initialize(
 			id,
 			crate::paras::ParaGenesisArgs {
 				parachain: true,
 				genesis_head: vec![1].into(),
 				validation_code: vec![1].into(),
 			},
-		);
+		));
 		<Test as Config>::Currency::make_free_balance_be(&id.into_account(), balance);
 	}
 
@@ -1246,8 +1237,7 @@ mod tests {
 	}
 
 	fn deregister_parachain(id: ParaId) {
-		Paras::schedule_para_cleanup(id);
-		Hrmp::schedule_para_cleanup(id);
+		assert_ok!(Paras::schedule_para_cleanup(id));
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
@@ -1444,7 +1434,7 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			assert_storage_consistency_exhaustive();
 
@@ -1472,7 +1462,7 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
@@ -1511,7 +1501,7 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
@@ -1549,17 +1539,17 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(1, Some(vec![1]));
+			run_to_block(2, Some(vec![1,2]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 20).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 
-			run_to_block(2, Some(vec![2]));
+			run_to_block(3, Some(vec![3]));
 			let _ = Hrmp::queue_outbound_hrmp(para_a, vec![OutboundHrmpMessage {
 				recipient: para_b,
 				data: vec![1, 2, 3],
 			}]);
 
-			run_to_block(3, None);
+			run_to_block(4, None);
 			let _ = Hrmp::queue_outbound_hrmp(para_a, vec![OutboundHrmpMessage {
 				recipient: para_b,
 				data: vec![4, 5, 6],
@@ -1568,7 +1558,7 @@ mod tests {
 			assert_eq!(
 				Hrmp::hrmp_mqc_heads(para_b),
 				vec![
-					(para_a, hex_literal::hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into()),
+					(para_a, hex_literal::hex!["a964fd3b4f3d3ce92a0e25e576b87590d92bb5cb7031909c7f29050e1f04a375"].into()),
 				],
 			);
 		});
@@ -1583,13 +1573,13 @@ mod tests {
 			register_parachain(para_a);
 			register_parachain(para_b);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			deregister_parachain(para_a);
 
-			// On Block 6: session change. The channel should not be created.
-			run_to_block(6, Some(vec![6]));
+			// On Block 7: 2x session change. The channel should not be created.
+			run_to_block(7, Some(vec![6, 7]));
 			assert!(!Paras::is_valid_para(para_a));
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();
@@ -1607,7 +1597,7 @@ mod tests {
 			register_parachain(para_b);
 			register_parachain(para_c);
 
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 
 			// Open two channels to the same receiver, b:
 			// a -> b, c -> b
@@ -1676,7 +1666,7 @@ mod tests {
 			// request and accept that, and finally wait until the next session.
 			register_parachain(para_a);
 			register_parachain(para_b);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			run_to_block(8, Some(vec![8]));
@@ -1742,9 +1732,9 @@ mod tests {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			register_parachain_with_balance(para_a, 0);
 			register_parachain(para_b);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 
-			assert_err!(
+			assert_noop!(
 				Hrmp::init_open_channel(para_a, para_b, 2, 8),
 				pallet_balances::Error::<Test, _>::InsufficientBalance
 			);
@@ -1753,11 +1743,11 @@ mod tests {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			register_parachain(para_a);
 			register_parachain_with_balance(para_b, 0);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 
-			assert_err!(
+			assert_noop!(
 				Hrmp::accept_open_channel(para_b, para_a),
 				pallet_balances::Error::<Test, _>::InsufficientBalance
 			);
@@ -1776,7 +1766,7 @@ mod tests {
 			// Register two parachains funded with different amounts of funds and arrange a channel.
 			register_parachain_with_balance(para_a, 100);
 			register_parachain_with_balance(para_b, 110);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			assert_eq!(
@@ -1824,7 +1814,7 @@ mod tests {
 			// request but do not accept it.
 			register_parachain_with_balance(para_a, 100);
 			register_parachain_with_balance(para_b, 110);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			assert_eq!(
 				<Test as Config>::Currency::free_balance(&para_a.into_account()),
@@ -1863,7 +1853,7 @@ mod tests {
 			// Register two parachains and open a channel between them.
 			register_parachain_with_balance(para_a, 100);
 			register_parachain_with_balance(para_b, 110);
-			run_to_block(5, Some(vec![5]));
+			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 			Hrmp::accept_open_channel(para_b, para_a).unwrap();
 			assert_eq!(
@@ -1879,7 +1869,7 @@ mod tests {
 
 			// Then deregister one parachain.
 			deregister_parachain(para_a);
-			run_to_block(10, Some(vec![10]));
+			run_to_block(10, Some(vec![9, 10]));
 
 			// The channel should be removed.
 			assert!(!Paras::is_valid_para(para_a));
