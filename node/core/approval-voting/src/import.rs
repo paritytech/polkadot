@@ -1547,7 +1547,7 @@ mod tests {
 			validators: vec![Sr25519Keyring::Alice.public().into(); 6],
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(5)], vec![ValidatorIndex(0), ValidatorIndex(2)]],
+			validator_groups: vec![vec![ValidatorIndex(0); 5], vec![ValidatorIndex(0); 2]],
 			n_cores: 6,
 			needed_approvals: 2,
 			zeroth_delay_tranche_width: irrelevant,
