@@ -64,6 +64,10 @@ pub enum Error {
 	/// Requester stream exhausted.
 	#[error("Erasure chunk requester stream exhausted")]
 	RequesterExhausted,
+
+	/// Sending response failed.
+	#[error("Sending a request's response failed.")]
+	SendResponse,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

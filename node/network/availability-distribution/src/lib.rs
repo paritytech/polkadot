@@ -32,6 +32,10 @@ use error::Result;
 mod requester;
 use requester::Requester;
 
+/// Responding to erasure chunk requests:
+mod responder;
+use responder::answer_request;
+
 /// Cache for session information.
 mod session_cache;
 
@@ -109,13 +113,9 @@ impl AvailabilityDistributionSubsystem {
 					return Ok(());
 				}
 				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
+					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(req),
 				} => {
-					// TODO: Implement issue 2306:
-					tracing::warn!(
-						target: LOG_TARGET,
-						"To be implemented, see: https://github.com/paritytech/polkadot/issues/2306!",
-						);
+					answer_request(&mut ctx, req).await?
 				}
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::NetworkBridgeUpdateV1(_),

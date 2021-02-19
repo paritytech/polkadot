@@ -234,16 +234,21 @@ impl RunningTask {
 						target: LOG_TARGET,
 						"Node seems to be shutting down, canceling fetch task"
 					);
-					return;
+					return
 				}
 				Err(TaskError::PeerError) => {
 					bad_validators.push(validator);
-					continue;
+					continue
 				}
 			};
 			let chunk = match resp {
 				AvailabilityFetchingResponse::Chunk(resp) => {
 					resp.reconstruct_erasure_chunk(&self.request)
+				}
+				AvailabilityFetchingResponse::NoSuchChunk => {
+					tracing::debug!(target: LOG_TARGET, validator = ?validator, "Validator did not have our chunk");
+					bad_validators.push(validator);
+					continue
 				}
 			};
 

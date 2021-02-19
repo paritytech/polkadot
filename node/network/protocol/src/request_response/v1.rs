@@ -38,6 +38,9 @@ pub enum AvailabilityFetchingResponse {
 	/// The requested chunk data.
 	#[codec(index = 0)]
 	Chunk(ChunkResponse),
+	/// Node was not in possession of the requested chunk.
+	#[codec(index = 1)]
+	NoSuchChunk,
 }
 
 /// Skimmed down variant of `ErasureChunk`.
