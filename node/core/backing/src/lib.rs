@@ -36,6 +36,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_subsystem::{
 	JaegerSpan, PerLeafSpan, Stage,
+	jaeger,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
@@ -415,7 +416,11 @@ async fn validate_and_make_available(
 	};
 
 	let v = {
-		let _span = span.as_ref().map(|s| s.child("request-validation"));
+		let _span = span.as_ref().map(|s| {
+			s.child_builder("request-validation")
+			.with_pov(&pov)
+			.build()
+		});
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
 
@@ -747,8 +752,15 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self, span), fields(subsystem = LOG_TARGET))]
 	async fn process_msg(&mut self, span: &JaegerSpan, msg: CandidateBackingMessage) -> Result<(), Error> {
 		match msg {
-			CandidateBackingMessage::Second(_, candidate, pov) => {
+			CandidateBackingMessage::Second(_relay_parent, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
+
+				let span = span.child_builder("second")
+					.with_stage(jaeger::Stage::CandidateBacking)
+					.with_pov(&pov)
+					.with_candidate(&candidate.hash())
+					.with_relay_parent(&_relay_parent)
+					.build();
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
@@ -768,8 +780,13 @@ impl CandidateBackingJob {
 					}
 				}
 			}
-			CandidateBackingMessage::Statement(_, statement) => {
+			CandidateBackingMessage::Statement(_relay_parent, statement) => {
 				let _timer = self.metrics.time_process_statement();
+				let span = span.child_builder("statement")
+					.with_stage(jaeger::Stage::CandidateBacking)
+					.with_candidate(&statement.payload().candidate_hash())
+					.with_relay_parent(&_relay_parent)
+					.build();
 
 				self.check_statement_signature(&statement)?;
 				match self.maybe_validate_and_import(&span, statement).await {
@@ -913,7 +930,7 @@ impl CandidateBackingJob {
 			.map(|span| {
 				span.child_builder("validation")
 					.with_candidate(&hash)
-					.with_stage(Stage::Backing)
+					.with_stage(Stage::CandidateBacking)
 					.build()
 			})
 	}

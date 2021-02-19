@@ -169,15 +169,17 @@ impl std::ops::Deref for PerLeafSpan {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum Stage {
-	Backing = 1,
-	Availability = 2,
-	AvailabilityDistribution = 3,
-	AvailabilityRecovery = 4,
-	BitfieldDistribution = 5,
-	StatementDistribution = 6,
-	PoVDistribution = 7,
+	CandidateSelection = 1,
+	CandidateBacking = 2,
+	StatementDistribution = 3,
+	PoVDistribution = 4,
+	AvailabilityDistribution = 5,
+	AvailabilityRecovery = 6,
+	BitfieldDistribution = 7,
 	// Expand as needed, numbers should be ascending according to the stage
-	// through the inclusion pipeline,
+	// through the inclusion pipeline, or according to the descriptions
+	// in [the path of a para chain block]
+	// (https://polkadot.network/the-path-of-a-parachain-block/)
 	// see [issue](https://github.com/paritytech/polkadot/issues/2389)
 }
 
@@ -235,6 +237,12 @@ impl SpanBuilder {
 		self
 	}
 
+	#[inline(always)]
+	pub fn with_pov(mut self, pov: &PoV) -> Self {
+		self.span.add_pov(pov);
+		self
+	}
+
 	/// Complete construction.
 	#[inline(always)]
 	pub fn build(self) -> JaegerSpan {
@@ -288,6 +296,13 @@ impl JaegerSpan {
 		self.add_string_tag("candidate-stage", &format!("{}", stage as u8));
 	}
 
+	pub fn add_pov(&mut self, pov: &PoV) {
+		if self.is_enabled() {
+			// avoid computing the pov hash if jaeger is not enabled
+			self.add_string_tag("pov", &format!("{:?}", pov.hash()));
+		}
+	}
+
 	/// Add an additional tag to the span.
 	pub fn add_string_tag(&mut self, tag: &str, value: &str) {
 		match self {
@@ -301,6 +316,15 @@ impl JaegerSpan {
 		match (self, other) {
 			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
 			_ => {},
+		}
+	}
+
+	/// Helper to check whether jaeger is enabled
+	/// in order to avoid computational overhead.
+	pub const fn is_enabled(&self) -> bool {
+		match self {
+			JaegerSpan::Enabled(_) => true,
+			_ => false,
 		}
 	}
 }
@@ -339,7 +363,11 @@ pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &'static s
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
 #[inline(always)]
 pub fn pov_span(pov: &PoV, span_name: &'static str) -> JaegerSpan {
-	INSTANCE.read_recursive().span(|| { pov.hash() }, span_name).into()
+	let mut span: JaegerSpan = INSTANCE.read_recursive()
+		.span(|| { pov.hash() }, span_name).into();
+
+	span.add_pov(pov);
+	span
 }
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
