@@ -377,7 +377,7 @@ async fn select_candidates(
 					}
 				}
 			}
-			_ => continue,
+			CoreState::Free => continue,
 		};
 
 		let validation_data = match request_persisted_validation_data(
@@ -401,7 +401,16 @@ async fn select_candidates(
 			descriptor.para_id == scheduled_core.para_id
 				&& descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
-			selected_candidates.push(candidate.hash());
+			let candidate_hash = candidate.hash();
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Selecting candidate {}. para_id={} core={}",
+				candidate_hash,
+				candidate.descriptor.para_id,
+				core_idx,
+			);
+
+			selected_candidates.push(candidate_hash);
 		}
 	}
 
@@ -443,6 +452,13 @@ async fn select_candidates(
 
 		true
 	});
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Selected {} candidates for {} cores",
+		candidates.len(),
+		availability_cores.len(),
+	);
 
 	Ok(candidates)
 }
