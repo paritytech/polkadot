@@ -1223,6 +1223,12 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
+			// Polkadot Parachain Benchmarks
+			add_benchmark!(params, batches, auctions, Auctions);
+			add_benchmark!(params, batches, crowdloan, Crowdloan);
+			add_benchmark!(params, batches, paras_registrar, Registrar);
+			add_benchmark!(params, batches, slots, Slots);
+
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
