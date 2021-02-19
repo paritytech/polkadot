@@ -30,7 +30,7 @@ use polkadot_primitives::v1::{
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers as test_helpers;
-use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent}, JaegerSpan};
+use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent}, jaeger};
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
@@ -537,7 +537,7 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -601,7 +601,7 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -664,7 +664,7 @@ fn bad_merkle_path_leads_to_recovery_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -719,7 +719,7 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -790,7 +790,7 @@ fn invalid_erasure_coding_leads_to_invalid_error() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -831,7 +831,7 @@ fn fast_path_backing_group_recovers() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -876,7 +876,7 @@ fn wrong_data_from_fast_path_peer_leads_to_punishment() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;
@@ -921,7 +921,7 @@ fn no_answers_in_fast_path_causes_chunk_requests() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![(test_state.current.clone(), Arc::new(JaegerSpan::Disabled))],
+				activated: smallvec![(test_state.current.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![],
 			}),
 		).await;

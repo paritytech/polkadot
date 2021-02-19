@@ -25,7 +25,7 @@ use futures::prelude::*;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult, JaegerSpan,
+	SubsystemResult, jaeger,
 };
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
@@ -155,7 +155,7 @@ where
 	let mut event_stream = bridge.network_service.event_stream().fuse();
 
 	// Most recent heads are at the back.
-	let mut live_heads: Vec<(Hash, Arc<JaegerSpan>)> = Vec::with_capacity(MAX_VIEW_HEADS);
+	let mut live_heads: Vec<(Hash, Arc<jaeger::Span>)> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut local_view = View::default();
 	let mut finalized_number = 0;
 
@@ -419,7 +419,7 @@ fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_n
 async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
-	live_heads: &[(Hash, Arc<JaegerSpan>)],
+	live_heads: &[(Hash, Arc<jaeger::Span>)],
 	local_view: &mut View,
 	finalized_number: BlockNumber,
 	validation_peers: &HashMap<PeerId, PeerData>,
@@ -873,7 +873,7 @@ mod tests {
 			let head = Hash::repeat_byte(1);
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(head, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(head, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
@@ -928,7 +928,7 @@ mod tests {
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
@@ -990,7 +990,7 @@ mod tests {
 			// This should trigger the view update to our peers.
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
@@ -1180,7 +1180,7 @@ mod tests {
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
@@ -1372,7 +1372,7 @@ mod tests {
 			).await;
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_b, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_b, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
