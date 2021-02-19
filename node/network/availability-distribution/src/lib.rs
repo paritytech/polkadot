@@ -262,9 +262,7 @@ impl ProtocolState {
 			};
 
 			// Create some span that will make it able to switch between the candidate and relay parent span.
-			let mut span = per_relay_parent.span.child("live-candidate");
-			span.add_string_tag("candidate-hash", &format!("{:?}", receipt_hash));
-
+			let span = per_relay_parent.span.child_with_candidate("live-candidate", &receipt_hash);
 			candidate_entry.span.add_follows_from(&span);
 			candidate_entry.live_in.insert(relay_parent);
 		}
@@ -429,11 +427,12 @@ where
 
 		// distribute all erasure messages to interested peers
 		for chunk_index in 0u32..(validator_count as u32) {
-			let _span = {
-				let mut span = per_candidate.span.child("load-and-distribute");
-				span.add_string_tag("chunk-index", &format!("{}", chunk_index));
-				span
-			};
+			let _span = per_candidate.span
+				.child_builder("load-and-distribute")
+				.with_candidate(&candidate_hash)
+				.with_chunk_index(chunk_index)
+				.build();
+
 			let message = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -624,14 +623,15 @@ where
 	let live_candidates = state.cached_live_candidates_unioned(state.view.heads.iter());
 
 	// check if the candidate is of interest
-	let candidate_entry = if live_candidates.contains(&message.candidate_hash) {
+	let candidate_hash = message.candidate_hash;
+	let candidate_entry = if live_candidates.contains(&candidate_hash) {
 		state.per_candidate
-			.get_mut(&message.candidate_hash)
+			.get_mut(&candidate_hash)
 			.expect("All live candidates are contained in per_candidate; qed")
 	} else {
 		tracing::trace!(
 			target: LOG_TARGET,
-			candidate_hash = ?message.candidate_hash,
+			candidate_hash = ?candidate_hash,
 			peer = %origin,
 			"Peer send not live candidate",
 		);
@@ -641,10 +641,10 @@ where
 
 	// Handle a duplicate before doing expensive checks.
 	if let Some(existing) = candidate_entry.message_vault.get(&message.erasure_chunk.index) {
-		let span = candidate_entry.span.child("handle-duplicate");
+		let span = candidate_entry.span.child_with_candidate("handle-duplicate", &candidate_hash);
 		// check if this particular erasure chunk was already sent by that peer before
 		{
-			let _span = span.child("check-entry");
+			let _span = span.child_with_candidate("check-entry", &candidate_hash);
 			let received_set = candidate_entry
 				.received_messages
 				.entry(origin.clone())
@@ -659,7 +659,7 @@ where
 		// check that the message content matches what we have already before rewarding
 		// the peer.
 		{
-			let _span = span.child("check-accurate");
+			let _span = span.child_with_candidate("check-accurate", &candidate_hash);
 			if existing == &message {
 				modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
 			} else {
@@ -670,15 +670,15 @@ where
 		return Ok(());
 	}
 
-	let span = {
-		let mut span = candidate_entry.span.child("process-new-chunk");
-		span.add_string_tag("peer-id", &origin.to_base58());
-		span
-	};
+	let span = candidate_entry.span
+			.child_builder("process-new-chunk")
+			.with_candidate(&candidate_hash)
+			.with_peer_id(&origin)
+			.build();
 
 	// check the merkle proof against the erasure root in the candidate descriptor.
 	let anticipated_hash = {
-		let _span = span.child("check-merkle-root");
+		let _span = span.child_with_candidate("check-merkle-root", &candidate_hash);
 		match branch_hash(
 			&candidate_entry.descriptor.erasure_root,
 			&message.erasure_chunk.proof,
@@ -845,7 +845,7 @@ impl AvailabilityDistributionSubsystem {
 				}
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
-				} => { 
+				} => {
 					// TODO: Implement issue 2306:
 					tracing::warn!(
 						target: LOG_TARGET,

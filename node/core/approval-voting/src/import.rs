@@ -42,8 +42,8 @@ use polkadot_node_primitives::approval::{
 	self as approval_types, BlockApprovalMeta, RelayVRFStory,
 };
 use sc_keystore::LocalKeystore;
-use sc_client_api::backend::AuxStore;
 use sp_consensus_slots::Slot;
+use kvdb::KeyValueDB;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
@@ -317,7 +317,7 @@ async fn cache_session_info_for_head(
 					session_window.session_info.drain(..outdated);
 					session_window.session_info.extend(s);
 					// we need to account for this case:
-					// window_start ................................... session_index 
+					// window_start ................................... session_index
 					//              old_window_start ........... latest
 					let new_earliest = std::cmp::max(window_start, old_window_start);
 					session_window.earliest_session = Some(new_earliest);
@@ -516,7 +516,7 @@ pub struct BlockImportedCandidates {
 pub(crate) async fn handle_new_head(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl DBReader>,
-	db_writer: &impl AuxStore,
+	db_writer: &dyn KeyValueDB,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -1543,7 +1543,7 @@ mod tests {
 		let session = 5;
 		let irrelevant = 666;
 		let session_info = SessionInfo {
-			validators: vec![Sr25519Keyring::Alice.public().into(); 6], 
+			validators: vec![Sr25519Keyring::Alice.public().into(); 6],
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
 			validator_groups: vec![vec![0; 5], vec![0; 2]],
@@ -1610,7 +1610,7 @@ mod tests {
 			}.into(),
 		);
 
-		let db_writer = crate::approval_db::v1::tests::TestStore::default();
+		let db_writer = kvdb_memorydb::create(1);
 
 		let test_fut = {
 			Box::pin(async move {

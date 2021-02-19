@@ -40,11 +40,15 @@ decl_error! {
 	pub enum Error for Module<T: Config> {
 		/// The specified parachain or parathread is not registered.
 		ParaDoesntExist,
+		/// The specified parachain or parathread is already registered.
+		ParaAlreadyExists,
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
 		/// message.
 		ExceedsMaxMessageSize,
 		/// The validation code provided doesn't start with the Wasm file magic string.
 		DefinitelyNotWasm,
+		/// Could not schedule para cleanup.
+		CouldntCleanup,
 	}
 }
 
@@ -62,7 +66,7 @@ decl_module! {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(genesis.validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
-			runtime_parachains::schedule_para_initialize::<T>(id, genesis);
+			runtime_parachains::schedule_para_initialize::<T>(id, genesis).map_err(|_| Error::<T>::ParaAlreadyExists)?;
 			Ok(())
 		}
 
@@ -70,7 +74,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn sudo_schedule_para_cleanup(origin, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
-			runtime_parachains::schedule_para_cleanup::<T>(id);
+			runtime_parachains::schedule_para_cleanup::<T>(id).map_err(|_| Error::<T>::CouldntCleanup)?;
 			Ok(())
 		}
 

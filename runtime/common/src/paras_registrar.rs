@@ -119,6 +119,8 @@ decl_error! {
 		NotParachain,
 		/// Para is not a Parathread.
 		NotParathread,
+		/// Cannot deregister para
+		CannotDeregister,
 	}
 }
 
@@ -352,7 +354,7 @@ mod tests {
 		assert_ok, assert_noop, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
-	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp};
+	use runtime_parachains::{initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp, shared};
 	use pallet_balances::Error as BalancesError;
 	use crate::traits::Registrar as RegistrarTrait;
 	use frame_support::traits::OneSessionHandler;
@@ -393,7 +395,7 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 		pub BlockWeights: limits::BlockWeights =
-			limits::BlockWeights::with_sensible_defaults(4 * 1024 * 1024, NORMAL_RATIO);
+			frame_system::limits::BlockWeights::simple_max(1024);
 		pub BlockLength: limits::BlockLength =
 			limits::BlockLength::max_with_normal_ratio(4 * 1024 * 1024, NORMAL_RATIO);
 	}
@@ -454,7 +456,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const Period: BlockNumber = 1;
+		pub const Period: BlockNumber = 3;
 		pub const Offset: BlockNumber = 0;
 		pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
@@ -512,6 +514,8 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 		type WeightInfo = ();
 	}
+
+	impl shared::Config for Test {}
 
 	impl dmp::Config for Test {}
 
@@ -674,22 +678,25 @@ mod tests {
 			if System::block_number() > 1 {
 				println!("Finalizing {}", System::block_number());
 				System::on_finalize(System::block_number());
-				Initializer::on_finalize(System::block_number());
 			}
 			// Session change every 3 blocks.
-			if (b + 1) % 3 == 0 {
+			if (b + 1) % Period::get() == 0 {
 				println!("New session at {}", System::block_number());
-				Initializer::on_new_session(
-					false,
-					Vec::new().into_iter(),
-					Vec::new().into_iter(),
+				shared::Module::<Test>::set_session_index(
+					shared::Module::<Test>::session_index() + 1
 				);
+				Parachains::test_on_new_session();
 			}
 			System::set_block_number(b + 1);
 			println!("Initializing {}", System::block_number());
 			System::on_initialize(System::block_number());
-			Initializer::on_initialize(System::block_number());
+			Session::on_initialize(System::block_number());
 		}
+	}
+
+	fn run_to_session(n: BlockNumber) {
+		let block_number = n * Period::get();
+		run_to_block(block_number);
 	}
 
 	fn test_genesis_head(size: usize) -> HeadData {
@@ -731,19 +738,19 @@ mod tests {
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
-			run_to_block(4); // Move to the next session
+			run_to_session(2);
 			// It is now a parathread.
 			assert!(Parachains::is_parathread(32.into()));
 			assert!(!Parachains::is_parachain(32.into()));
 			// Some other external process will elevate parathread to parachain
 			assert_ok!(Registrar::make_parachain(32.into()));
-			run_to_block(8); // Move to the next session
+			run_to_session(4);
 			// It is now a parachain.
 			assert!(!Parachains::is_parathread(32.into()));
 			assert!(Parachains::is_parachain(32.into()));
 			// Turn it back into a parathread
 			assert_ok!(Registrar::make_parathread(32.into()));
-			run_to_block(12); // Move to the next session
+			run_to_session(6);
 			assert!(Parachains::is_parathread(32.into()));
 			assert!(!Parachains::is_parachain(32.into()));
 			// Deregister it
@@ -751,7 +758,7 @@ mod tests {
 				Origin::root(),
 				32.into(),
 			));
-			run_to_block(16); // Move to the next session
+			run_to_session(8);
 			// It is nothing
 			assert!(!Parachains::is_parathread(32.into()));
 			assert!(!Parachains::is_parachain(32.into()));
@@ -769,7 +776,7 @@ mod tests {
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
-			run_to_block(4); // Move to the next session
+			run_to_session(2);
 			assert!(Parachains::is_parathread(32.into()));
 			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 		});
@@ -785,6 +792,10 @@ mod tests {
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			));
+
+			run_to_session(2);
+
+			assert_ok!(Registrar::deregister(Origin::root(), 32u32.into()));
 
 			// Can't do it again
 			assert_noop!(Registrar::register(
@@ -832,13 +843,13 @@ mod tests {
 				test_validation_code(32),
 			));
 			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
-			run_to_block(4); // Move to the next session
+			run_to_session(2);
 			assert!(Parachains::is_parathread(32.into()));
 			assert_ok!(Registrar::deregister(
 				Origin::root(),
 				32.into(),
 			));
-			run_to_block(8); // Move to the next session
+			run_to_session(4);
 			assert!(paras::Module::<Test>::lifecycle(32.into()).is_none());
 			assert_eq!(Balances::reserved_balance(&1), 0);
 		});
@@ -855,7 +866,7 @@ mod tests {
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
-			run_to_block(4); // Move to the next session
+			run_to_session(2);
 			assert!(Parachains::is_parathread(32.into()));
 			// Origin check
 			assert_noop!(Registrar::deregister(
@@ -868,7 +879,7 @@ mod tests {
 				33.into(),
 			), Error::<Test>::NotParathread);
 			assert_ok!(Registrar::make_parachain(32.into()));
-			run_to_block(8); // Move to the next session
+			run_to_session(4);
 			// Cant directly deregister parachain
 			assert_noop!(Registrar::deregister(
 				Origin::root(),
@@ -893,12 +904,12 @@ mod tests {
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			));
-			run_to_block(4); // Move to the next session
+			run_to_session(2);
 
 			// Upgrade 23 into a parachain
 			assert_ok!(Registrar::make_parachain(23.into()));
 
-			run_to_block(8); // Move to the next session
+			run_to_session(4);
 
 			// Roles are as we expect
 			assert!(Parachains::is_parachain(23.into()));
@@ -916,7 +927,13 @@ mod tests {
 				23.into()
 			));
 
-			run_to_block(12); // Move to the next session
+			run_to_session(6);
+
+			// Deregister a parathread that was originally a parachain
+			assert_eq!(Parachains::lifecycle(23u32.into()), Some(ParaLifecycle::Parathread));
+			assert_ok!(Registrar::deregister(runtime_parachains::Origin::Parachain(23u32.into()).into(), 23u32.into()));
+
+			run_to_block(21);
 
 			// Roles are swapped
 			assert!(!Parachains::is_parachain(23.into()));
@@ -929,7 +946,7 @@ mod tests {
 	#[test]
 	fn cannot_register_until_para_is_cleaned_up() {
 		new_test_ext().execute_with(|| {
-			run_to_block(2);
+			run_to_block(1);
 
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
@@ -938,10 +955,14 @@ mod tests {
 				WASM_MAGIC.to_vec().into(),
 			));
 
-			run_to_block(4);
+			// 2 session changes to fully onboard.
+			run_to_session(2);
 
+			assert_eq!(Parachains::lifecycle(1u32.into()), Some(ParaLifecycle::Parathread));
 			assert_ok!(Registrar::deregister(Origin::root(), 1u32.into()));
-			run_to_block(5);
+
+			// Cannot register while it is offboarding.
+			run_to_session(3);
 
 			assert_noop!(Registrar::register(
 				Origin::signed(1),
@@ -950,9 +971,9 @@ mod tests {
 				WASM_MAGIC.to_vec().into(),
 			), Error::<Test>::AlreadyRegistered);
 
-			// The session will be changed on the 6th block, as part of finalization. The change
-			// will be observed on the 7th.
-			run_to_block(7);
+			// By session 4, it is offboarded, and we can register again.
+			run_to_session(4);
+
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				1u32.into(),
