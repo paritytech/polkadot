@@ -238,7 +238,7 @@ impl RunningTask {
 	/// Try validators in backing group in order.
 	async fn run_inner(mut self) {
 		let mut bad_validators = Vec::new();
-		// Try validators in order:
+		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
 			// Send request:
 			let resp = match self.do_request(&validator).await {

@@ -143,6 +143,9 @@ impl SessionCache {
 	}
 
 	/// Make sure we try unresponsive or misbehaving validators last.
+	///
+	/// We assume validators in a group are tried in reverse order, so the reported bad validators
+	/// will be put at the beginning of the group.
 	pub fn report_bad(&mut self, mut report: BadValidators) -> Result<()> {
 		let session = self
 			.session_info_cache
@@ -153,9 +156,14 @@ impl SessionCache {
 			.get_mut(report.group_index.0 as usize)
 			.ok_or(Error::ReportBadValidators("Validator group not found"))?;
 		let bad_set = report.bad_validators.iter().collect::<HashSet<_>>();
-		// Put the bad boys last:
+
+		// Get rid of bad boys:
 		group.retain(|v| !bad_set.contains(v));
-		group.append(&mut report.bad_validators);
+
+		// We are trying validators in reverse order, so bad ones should be first:
+		let mut new_group = report.bad_validators;
+		new_group.append(group);
+		*group = new_group;
 		Ok(())
 	}
 
