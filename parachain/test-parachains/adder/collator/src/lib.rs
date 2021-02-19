@@ -28,7 +28,6 @@ use std::{
 };
 use test_parachain_adder::{execute, hash_state, BlockData, HeadData};
 use futures::channel::oneshot;
-use assert_matches::assert_matches;
 
 /// The amount we add when producing a new block.
 ///
@@ -180,11 +179,13 @@ impl Collator {
 			let seconded_collations = seconded_collations.clone();
 			spawner.spawn("adder-collator-seconded", async move {
 				if let Ok(res) = recv.await {
-					assert_matches!(
+					if !matches!(
 						res.payload(),
 						Statement::Seconded(s) if s.descriptor.pov_hash == pov.hash(),
-						"Seconded statement should match our collation!",
-					);
+					) {
+						log::error!("Seconded statement should match our collation: {:?}", res.payload());
+						std::process::exit(-1);
+					}
 
 					seconded_collations.fetch_add(1, Ordering::Relaxed);
 				}

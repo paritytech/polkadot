@@ -157,8 +157,9 @@ check-transaction-versions:
   <<:                              *docker-env
   needs:
     - job:                         test-linux-stable
-      artifacts:                   false
+      artifacts:                   true
   before_script:
+    - apt-get -y update; apt-get -y install jq lsof
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     - git fetch origin release
   script:

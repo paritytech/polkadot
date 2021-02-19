@@ -64,8 +64,6 @@ enum Statement {
   Seconded(CommittedCandidateReceipt),
   /// A statement about the validity of a candidate, based on candidate's hash.
   Valid(Hash),
-  /// A statement about the invalidity of a candidate.
-  Invalid(Hash),
 }
 
 /// A statement about the validity of a parachain candidate.
@@ -79,8 +77,6 @@ enum CompactStatement {
   Seconded(Hash),
   /// A statement about the validity of a candidate, based on candidate's hash.
   Valid(Hash),
-  /// A statement about the invalidity of a candidate.
-  Invalid(Hash),
 }
 ```
 
