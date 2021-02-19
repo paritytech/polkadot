@@ -34,6 +34,19 @@ use crate::traits::{Leaser, LeaseError, Auctioneer};
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+pub trait WeightInfo {
+	fn new_auction() -> Weight;
+	fn bid() -> Weight;
+	fn on_initialize() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn new_auction() -> Weight { 0 }
+	fn bid() -> Weight { 0 }
+	fn on_initialize() -> Weight { 0 }
+}
+
 /// The module's configuration trait.
 pub trait Config: frame_system::Config {
 	/// The overarching event type.
@@ -50,6 +63,9 @@ pub trait Config: frame_system::Config {
 
 	/// The origin which may initiate auctions.
 	type InitiateOrigin: EnsureOrigin<Self::Origin>;
+
+	/// Weight Information for the Extrinsics in the Pallet
+	type WeightInfo: WeightInfo;
 }
 
 /// An auction index. We count auctions in this type.
@@ -182,8 +198,7 @@ decl_module! {
 				);
 			}
 
-			// TODO: weight
-			0
+			T::WeightInfo::on_initialize()
 		}
 
 		/// Create a new auction.
@@ -191,7 +206,7 @@ decl_module! {
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
-		#[weight = (100_000_000, DispatchClass::Operational)]
+		#[weight = (T::WeightInfo::new_auction(), DispatchClass::Operational)]
 		pub fn new_auction(origin,
 			#[compact] duration: T::BlockNumber,
 			#[compact] lease_period_index: LeasePeriodOf<T>,
@@ -227,7 +242,7 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
-		#[weight = 500_000_000]
+		#[weight = T::WeightInfo::bid()]
 		pub fn bid(origin,
 			#[compact] para: ParaId,
 			#[compact] auction_index: AuctionIndex,
@@ -680,6 +695,7 @@ mod tests {
 		type EndingPeriod = EndingPeriod;
 		type Randomness = TestRandomness;
 		type InitiateOrigin = RootOrSix;
+		type WeightInfo = crate::auctions::TestWeightInfo;
 	}
 
 	// This function basically just builds a genesis storage key/value store according to

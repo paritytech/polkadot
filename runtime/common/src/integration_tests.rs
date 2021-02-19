@@ -152,6 +152,7 @@ impl paras_registrar::Config for Test {
 	type MaxHeadSize = MaxHeadSize;
 	type Currency = Balances;
 	type Origin = Origin;
+	type WeightInfo = crate::paras_registrar::TestWeightInfo;
 }
 
 parameter_types! {
@@ -164,6 +165,7 @@ impl auctions::Config for Test {
 	type EndingPeriod = EndingPeriod;
 	type Randomness = TestRandomness;
 	type InitiateOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = crate::auctions::TestWeightInfo;
 }
 
 parameter_types! {
@@ -175,6 +177,7 @@ impl slots::Config for Test {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
+	type WeightInfo = crate::slots::TestWeightInfo;
 }
 
 parameter_types! {
@@ -196,6 +199,7 @@ impl crowdloan::Config for Test {
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
+	type WeightInfo = crate::crowdloan::TestWeightInfo;
 }
 
 /// Create a new set of test externalities.

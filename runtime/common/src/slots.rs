@@ -32,6 +32,18 @@ use frame_system::ensure_root;
 use crate::traits::{Leaser, LeaseError, Registrar};
 
 type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
+
+pub trait WeightInfo {
+	fn force_lease() -> Weight;
+	fn on_initialize() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn force_lease() -> Weight { 0 }
+	fn on_initialize() -> Weight { 0 }
+}
 
 /// The module's configuration trait.
 pub trait Config: frame_system::Config {
@@ -46,9 +58,10 @@ pub trait Config: frame_system::Config {
 
 	/// The number of blocks over which a single period lasts.
 	type LeasePeriod: Get<Self::BlockNumber>;
-}
 
-type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
+	/// Weight Information for the Extrinsics in the Pallet
+	type WeightInfo: WeightInfo;
+}
 
 // This module's storage items.
 decl_storage! {
@@ -134,12 +147,12 @@ decl_module! {
 				Self::manage_lease_period_start(lease_period_index);
 			}
 
-			0
+			T::WeightInfo::on_initialize()
 		}
 
 		/// Just a hotwire into the `lease_out` call, in case Root wants to force some lease to happen
 		/// independently of any other on-chain mechanism to use it.
-		#[weight = 0]
+		#[weight = T::WeightInfo::force_lease()]
 		fn force_lease(origin,
 			para: ParaId,
 			leaser: T::AccountId,
@@ -422,6 +435,7 @@ mod tests {
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
+		type WeightInfo = crate::slots::TestWeightInfo;
 	}
 
 	// This function basically just builds a genesis storage key/value store according to

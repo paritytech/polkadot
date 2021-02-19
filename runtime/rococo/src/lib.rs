@@ -595,6 +595,7 @@ impl paras_registrar::Config for Runtime {
 	type ParaDeposit = ParaDeposit;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
+	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
 impl pallet_sudo::Config for Runtime {

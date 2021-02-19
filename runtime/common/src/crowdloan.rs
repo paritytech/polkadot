@@ -72,6 +72,7 @@ use frame_support::{
 	traits::{
 		Currency, ReservableCurrency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
 	},
+	pallet_prelude::Weight,
 };
 use frame_system::ensure_signed;
 use sp_runtime::{
@@ -89,6 +90,23 @@ type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::Acco
 
 #[allow(dead_code)]
 type NegativeImbalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+
+pub trait WeightInfo {
+	fn create() -> Weight;
+	fn contribute() -> Weight;
+	fn withdraw() -> Weight;
+	fn dissolve() -> Weight;
+	fn on_initialize() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn create() -> Weight { 0 }
+	fn contribute() -> Weight { 0 }
+	fn withdraw() -> Weight { 0 }
+	fn dissolve() -> Weight { 0 }
+	fn on_initialize() -> Weight { 0 }
+}
 
 pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
@@ -123,6 +141,9 @@ pub trait Config: frame_system::Config {
 		BlockNumber=Self::BlockNumber,
 		LeasePeriod=Self::BlockNumber,
 	>;
+
+	/// Weight Information for the Extrinsics in the Pallet
+	type WeightInfo: WeightInfo;
 }
 
 #[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -259,7 +280,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		/// Create a new crowdloaning campaign for a parachain slot deposit for the current auction.
-		#[weight = 100_000_000]
+		#[weight = T::WeightInfo::create()]
 		pub fn create(origin,
 			#[compact] index: ParaId,
 			#[compact] cap: BalanceOf<T>,
@@ -299,7 +320,7 @@ decl_module! {
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
 		/// slot is unable to be purchased and the timeout expires.
-		#[weight = 0]
+		#[weight = T::WeightInfo::contribute()]
 		pub fn contribute(origin, #[compact] index: ParaId, #[compact] value: BalanceOf<T>) {
 			let who = ensure_signed(origin)?;
 
@@ -368,7 +389,7 @@ decl_module! {
 		///
 		/// - `who`: The account whose contribution should be withdrawn.
 		/// - `index`: The parachain to whose crowdloan the contribution was made.
-		#[weight = 0]
+		#[weight = T::WeightInfo::withdraw()]
 		pub fn withdraw(origin, who: T::AccountId, #[compact] index: ParaId) {
 			ensure_signed(origin)?;
 
@@ -404,7 +425,7 @@ decl_module! {
 		/// Remove a fund after the retirement period has ended.
 		///
 		/// This places any deposits that were not withdrawn into the treasury.
-		#[weight = 0]
+		#[weight = T::WeightInfo::dissolve()]
 		pub fn dissolve(origin, #[compact] index: ParaId) {
 			ensure_signed(origin)?;
 
@@ -454,7 +475,7 @@ decl_module! {
 				}
 			}
 
-			0
+			T::WeightInfo::on_initialize()
 		}
 	}
 }
@@ -661,6 +682,7 @@ mod tests {
 		type RemoveKeysLimit = RemoveKeysLimit;
 		type Registrar = TestRegistrar<Test>;
 		type Auctioneer = TestAuctioneer;
+		type WeightInfo = crate::crowdloan::TestWeightInfo;
 	}
 
 	use pallet_balances::Error as BalancesError;

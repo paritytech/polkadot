@@ -23,6 +23,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure,
 	dispatch::DispatchResult,
 	traits::{Get, Currency, ReservableCurrency},
+	pallet_prelude::Weight,
 };
 use frame_system::{self, ensure_root, ensure_signed};
 use primitives::v1::{
@@ -50,6 +51,19 @@ pub struct ParaInfo<Account, Balance> {
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+pub trait WeightInfo {
+	fn register() -> Weight;
+	fn deregister() -> Weight;
+	fn swap() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn register() -> Weight { 0 }
+	fn deregister() -> Weight { 0 }
+	fn swap() -> Weight { 0 }
+}
+
 pub trait Config: paras::Config {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
@@ -76,6 +90,9 @@ pub trait Config: paras::Config {
 
 	/// The maximum size for the head data.
 	type MaxHeadSize: Get<u32>;
+
+	/// Weight Information for the Extrinsics in the Pallet
+	type WeightInfo: WeightInfo;
 }
 
 decl_storage! {
@@ -144,7 +161,7 @@ decl_module! {
 		///
 		/// The origin must pay a deposit for the registration information,
 		/// including the genesis information and validation code.
-		#[weight = 0]
+		#[weight = T::WeightInfo::register()]
 		pub fn register(
 			origin,
 			id: ParaId,
@@ -158,7 +175,7 @@ decl_module! {
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
 		/// The caller must be the para itself or Root and the para must be a parathread.
-		#[weight = 0]
+		#[weight = T::WeightInfo::deregister()]
 		pub fn deregister(origin, id: ParaId) -> DispatchResult {
 			match ensure_root(origin.clone()) {
 				Ok(_) => {},
@@ -179,7 +196,7 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
-		#[weight = 0]
+		#[weight = T::WeightInfo::swap()]
 		fn swap(origin, other: ParaId) {
 			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			if PendingSwap::get(other) == Some(id) {
@@ -458,6 +475,7 @@ mod tests {
 		type ParaDeposit = ParaDeposit;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadSize = MaxHeadSize;
+		type WeightInfo = TestWeightInfo;
 	}
 
 	pub fn new_test_ext() -> TestExternalities {
