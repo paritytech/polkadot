@@ -481,9 +481,7 @@ impl parachains_hrmp::Config for Runtime {
 
 impl parachains_scheduler::Config for Runtime {}
 
-impl paras_sudo_wrapper::Config for Runtime {
-	type ParachainCleanup = polkadot_runtime_parachains::AllParachainCleanup<Runtime>;
-}
+impl paras_sudo_wrapper::Config for Runtime {}
 
 construct_runtime! {
 	pub enum Runtime where
