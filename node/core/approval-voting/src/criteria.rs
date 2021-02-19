@@ -246,6 +246,10 @@ pub(crate) fn compute_assignments(
 	config: &Config,
 	leaving_cores: impl IntoIterator<Item = (CoreIndex, GroupIndex)> + Clone,
 ) -> HashMap<CoreIndex, OurAssignment> {
+	if config.n_cores == 0 || config.assignment_keys.is_empty() || config.validator_groups.is_empty() {
+		return HashMap::new()
+	}
+
 	let (index, assignments_key): (ValidatorIndex, AssignmentPair) = {
 		let key = config.assignment_keys.iter().enumerate()
 			.filter_map(|(i, p)| match keystore.key_pair(p) {
@@ -607,6 +611,34 @@ mod tests {
 
 		assert_eq!(assignments.len(), 1);
 		assert!(assignments.get(&CoreIndex(1)).is_some());
+	}
+
+	#[test]
+	fn succeeds_empty_for_0_cores() {
+		let keystore = futures::executor::block_on(
+			make_keystore(&[Sr25519Keyring::Alice])
+		);
+
+		let relay_vrf_story = RelayVRFStory([42u8; 32]);
+		let assignments = compute_assignments(
+			&keystore,
+			relay_vrf_story,
+			&Config {
+				assignment_keys: assignment_keys(&[
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				]),
+				validator_groups: vec![],
+				n_cores: 0,
+				zeroth_delay_tranche_width: 10,
+				relay_vrf_modulo_samples: 3,
+				n_delay_tranches: 40,
+			},
+			vec![],
+		);
+
+		assert!(assignments.is_empty());
 	}
 
 	struct MutatedAssignment {
