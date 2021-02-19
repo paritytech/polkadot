@@ -252,15 +252,15 @@ pub(crate) fn compute_assignments(
 
 	let (index, assignments_key): (ValidatorIndex, AssignmentPair) = {
 		let key = config.assignment_keys.iter().enumerate()
-			.filter_map(|(i, p)| match keystore.key_pair(p) {
+			.find_map(|(i, p)| match keystore.key_pair(p) {
 				Ok(pair) => Some((i as ValidatorIndex, pair)),
-				Err(sc_keystore::Error::PairNotFound(_)) => None,
+				Err(sc_keystore::Error::PairNotFound(_)) | Err(sc_keystore::Error::Unavailable) => None,
+				Err(sc_keystore::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => None,
 				Err(e) => {
 					tracing::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
 					None
 				}
-			})
-			.next();
+			});
 
 		match key {
 			None => return Default::default(),
