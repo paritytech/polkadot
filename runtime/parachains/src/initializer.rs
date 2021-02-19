@@ -246,10 +246,10 @@ impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
-	fn on_genesis_session<'a, I: 'a>(_validators: I)
+	fn on_genesis_session<'a, I: 'a>(validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-
+		<Module<T>>::on_new_session(false, 0, validators, None);
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
