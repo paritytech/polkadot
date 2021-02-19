@@ -1602,7 +1602,7 @@ mod tests {
 				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
 				group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
-			}.map(|m| m.map(ValidatorIndex));
+			}.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>());
 
 			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
@@ -2089,7 +2089,7 @@ mod tests {
 				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
 				group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
-			};
+			}.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>());
 
 			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
@@ -2284,7 +2284,7 @@ mod tests {
 			let group_validators = |group_index: GroupIndex| match group_index {
 				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1, 2, 3, 4]),
 				_ => panic!("Group index out of bounds for 1 parachain"),
-			};
+			}.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>());
 
 			let chain_a_assignment = CoreAssignment {
 				core: CoreIndex::from(0),
@@ -2382,7 +2382,7 @@ mod tests {
 			run_to_block(10, |_| None);
 
 			<AvailabilityBitfields<Test>>::insert(
-				&0,
+				&ValidatorIndex(0),
 				AvailabilityBitfieldRecord {
 					bitfield: default_bitfield(),
 					submitted_at: 9,
@@ -2390,7 +2390,7 @@ mod tests {
 			);
 
 			<AvailabilityBitfields<Test>>::insert(
-				&1,
+				&ValidatorIndex(1),
 				AvailabilityBitfieldRecord {
 					bitfield: default_bitfield(),
 					submitted_at: 9,
@@ -2398,7 +2398,7 @@ mod tests {
 			);
 
 			<AvailabilityBitfields<Test>>::insert(
-				&4,
+				&ValidatorIndex(4),
 				AvailabilityBitfieldRecord {
 					bitfield: default_bitfield(),
 					submitted_at: 9,
@@ -2435,9 +2435,9 @@ mod tests {
 			assert_eq!(Validators::get(), validator_public);
 			assert_eq!(shared::Module::<Test>::session_index(), 5);
 
-			assert!(<AvailabilityBitfields<Test>>::get(&0).is_some());
-			assert!(<AvailabilityBitfields<Test>>::get(&1).is_some());
-			assert!(<AvailabilityBitfields<Test>>::get(&4).is_some());
+			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(0)).is_some());
+			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(1)).is_some());
+			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(4)).is_some());
 
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_some());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
@@ -2459,9 +2459,9 @@ mod tests {
 			assert_eq!(Validators::get(), validator_public_new);
 			assert_eq!(shared::Module::<Test>::session_index(), 6);
 
-			assert!(<AvailabilityBitfields<Test>>::get(&0).is_none());
-			assert!(<AvailabilityBitfields<Test>>::get(&1).is_none());
-			assert!(<AvailabilityBitfields<Test>>::get(&4).is_none());
+			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(0)).is_none());
+			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(1)).is_none());
+			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(4)).is_none());
 
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_none());

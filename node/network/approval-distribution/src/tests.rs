@@ -208,7 +208,7 @@ fn try_import_the_same_assignment() {
 		overseer_send(overseer, msg).await;
 
 		// send the assignment related to `hash`
-		let validator_index = 0u32;
+		let validator_index = ValidatorIndex(0);
 		let cert = fake_assignment_cert(hash, validator_index);
 		let assignments = vec![(cert.clone(), 0u32)];
 
@@ -299,7 +299,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 		// to populate our knowledge
 		let assignments: Vec<_> = (0..candidates_count)
 			.map(|candidate_index| {
-				let validator_index = candidate_index as u32;
+				let validator_index = ValidatorIndex(candidate_index as u32);
 				let cert = fake_assignment_cert(hash_b, validator_index);
 				(cert, candidate_index as u32)
 			}).collect();
@@ -372,7 +372,7 @@ fn import_approval_happy_path() {
 		overseer_send(overseer, msg).await;
 
 		// import an assignment related to `hash` locally
-		let validator_index = 0u32;
+		let validator_index = ValidatorIndex(0);
 		let candidate_index = 0u32;
 		let cert = fake_assignment_cert(hash, validator_index);
 		overseer_send(
@@ -455,7 +455,7 @@ fn import_approval_bad() {
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 		overseer_send(overseer, msg).await;
 
-		let validator_index = 0u32;
+		let validator_index = ValidatorIndex(0);
 		let candidate_index = 0u32;
 		let cert = fake_assignment_cert(hash, validator_index);
 
@@ -616,8 +616,8 @@ fn update_peer_view() {
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
 		overseer_send(overseer, msg).await;
 
-		let cert_a = fake_assignment_cert(hash_a, 0);
-		let cert_b = fake_assignment_cert(hash_b, 0);
+		let cert_a = fake_assignment_cert(hash_a, ValidatorIndex(0));
+		let cert_b = fake_assignment_cert(hash_b, ValidatorIndex(0));
 
 		overseer_send(
 			overseer,
@@ -670,7 +670,7 @@ fn update_peer_view() {
 			)
 		).await;
 
-		let cert_c = fake_assignment_cert(hash_c, 0);
+		let cert_c = fake_assignment_cert(hash_c, ValidatorIndex(0));
 
 		overseer_send(
 			overseer,
@@ -753,7 +753,7 @@ fn import_remotely_then_locally() {
 		overseer_send(overseer, msg).await;
 
 		// import the assignment remotely first
-		let validator_index = 0u32;
+		let validator_index = ValidatorIndex(0);
 		let candidate_index = 0u32;
 		let cert = fake_assignment_cert(hash, validator_index);
 		let assignments = vec![(cert.clone(), candidate_index)];

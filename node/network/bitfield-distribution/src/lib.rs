@@ -767,7 +767,7 @@ mod test {
 	use bitvec::bitvec;
 	use futures::executor;
 	use maplit::hashmap;
-	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
+	use polkadot_primitives::v1::{Signed, AvailabilityBitfield, ValidatorIndex};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
@@ -882,7 +882,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&malicious.into(),
 		)).expect("should be signed");
 
@@ -947,7 +947,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			42,
+			ValidatorIndex(42),
 			&validator,
 		)).expect("should be signed");
 
@@ -1004,7 +1004,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).expect("should be signed");
 
@@ -1119,7 +1119,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).expect("should be signed");
 
@@ -1215,7 +1215,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).expect("should be signed");
 
@@ -1374,7 +1374,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).expect("should be signed");
 
