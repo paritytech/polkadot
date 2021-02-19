@@ -353,7 +353,6 @@ impl<T: Config> Module<T> {
 	/// Returns the list of outgoing paras from the actions queue.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) -> Vec<ParaId> {
 		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
-		println!(" apply actions queue {:?}", notification.session_index);
 		outgoing_paras
 	}
 

@@ -475,24 +475,21 @@ mod tests {
 	fn run_to_block(n: BlockNumber) {
 		// NOTE that this function only simulates modules of interest. Depending on new module may
 		// require adding it here.
-		println!("Running until block {}", n);
+		assert!(System::block_number() < n);
 		while System::block_number() < n {
 			let b = System::block_number();
 
 			if System::block_number() > 1 {
-				println!("Finalizing {}", System::block_number());
 				System::on_finalize(System::block_number());
 			}
 			// Session change every 3 blocks.
 			if (b + 1) % BLOCKS_PER_SESSION == 0 {
-				println!("New session at {}", System::block_number());
 				shared::Module::<Test>::set_session_index(
 					shared::Module::<Test>::session_index() + 1
 				);
 				Parachains::test_on_new_session();
 			}
 			System::set_block_number(b + 1);
-			println!("Initializing {}", System::block_number());
 			System::on_initialize(System::block_number());
 		}
 	}
