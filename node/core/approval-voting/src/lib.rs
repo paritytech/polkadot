@@ -88,6 +88,9 @@ pub struct Config {
 
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem {
+	/// LocalKeystore is needed for assignment keys, but not necessarily approval keys.
+	///
+	/// We do a lot of VRF signing and need the keys to have low latency.
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: Arc<dyn KeyValueDB>,
