@@ -58,7 +58,7 @@ pub struct FetchTask {
 	/// stop keeping track of that candidate/chunk.
 	live_in: HashSet<Hash>,
 
-	/// We keep the task around in state `Fetched` until `live_in` becomes empty, to make
+	/// We keep the task around in until `live_in` becomes empty, to make
 	/// sure we won't re-fetch an already fetched candidate.
 	state: FetchedState,
 }
@@ -80,7 +80,7 @@ pub enum FromFetchTask {
 
 	/// Concluded with result.
 	///
-	/// In case of `None` everything was fine, in case of `Some` some validators in the group
+	/// In case of `None` everything was fine, in case of `Some`, some validators in the group
 	/// did not serve us our chunk as expected.
 	Concluded(Option<BadValidators>),
 }

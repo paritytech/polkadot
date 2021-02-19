@@ -57,8 +57,6 @@ pub struct Requester {
 	fetches: HashMap<CandidateHash, FetchTask>,
 
 	/// Localized information about sessions we are currently interested in.
-	///
-	/// This is the current one and the last one.
 	session_cache: SessionCache,
 
 	/// Sender to be cloned for `FetchTask`s.
@@ -73,7 +71,7 @@ impl Requester {
 	///
 	/// You must feed it with `ActiveLeavesUpdate` via `update_fetching_heads` and make it progress
 	/// by advancing the stream.
-	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
 		// All we do is forwarding messages, no need to make this big.
 		let (tx, rx) = mpsc::channel(1);
 		Requester {
@@ -86,7 +84,7 @@ impl Requester {
 	/// Update heads that need availability distribution.
 	///
 	/// For all active heads we will be fetching our chunks for availabilty distribution.
-	pub(crate) async fn update_fetching_heads<Context>(
+	pub async fn update_fetching_heads<Context>(
 		&mut self,
 		ctx: &mut Context,
 		update: ActiveLeavesUpdate,
