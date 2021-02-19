@@ -317,21 +317,27 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the initializer to note that a new session has started.
-	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>) {
+	///
+	/// Returns the list of outgoing parachains for this session.
+	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>)
+		-> Vec<ParaId>
+	{
 		let now = <frame_system::Module<T>>::block_number();
-		let mut parachains = Self::clean_up_outgoing(now);
+		let (mut parachains, outgoing) = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
 		Self::apply_upgrades(&mut parachains);
 		Self::apply_downgrades(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
+
+		outgoing
 	}
 
-	/// Cleans up all outgoing paras. Returns the new set of parachains
-	fn clean_up_outgoing(now: T::BlockNumber) -> Vec<ParaId> {
+	/// Cleans up all outgoing paras. Returns the new set of parachains and any outgoing parachains.
+	fn clean_up_outgoing(now: T::BlockNumber) -> (Vec<ParaId>, Vec<ParaId>) {
 		let mut parachains = <Self as Store>::Parachains::get();
 		let outgoing = <Self as Store>::OutgoingParas::take();
 
-		for outgoing_para in outgoing {
+		for outgoing_para in &outgoing {
 			// Warn if there is a state error... but still perform the offboarding to be defensive.
 			if let Some(state) = ParaLifecycles::get(&outgoing_para) {
 				if !state.is_outgoing() {
@@ -353,11 +359,11 @@ impl<T: Config> Module<T> {
 
 			let removed_code = <Self as Store>::CurrentCode::take(&outgoing_para);
 			if let Some(removed_code) = removed_code {
-				Self::note_past_code(outgoing_para, now, now, removed_code);
+				Self::note_past_code(*outgoing_para, now, now, removed_code);
 			}
 		}
 
-		parachains
+		(parachains, outgoing)
 	}
 
 	/// Applies all incoming paras, updating the parachains list for those that are parachains.

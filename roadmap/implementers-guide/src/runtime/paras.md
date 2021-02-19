@@ -168,6 +168,7 @@ UpcomingDowngrades: Vec<ParaId>;
    `ParaLifecycle`.
 1. Downgrade all parachains that should become parathreads, updating the `Parachains` list and
    `ParaLifecycle`.
+1. Return list of outgoing paras to the initializer for use by other modules.
 
 ## Initialization
 

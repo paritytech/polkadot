@@ -54,39 +54,7 @@ pub fn schedule_para_initialize<T: paras::Config>(
 	<paras::Module<T>>::schedule_para_initialize(id, genesis);
 }
 
-/// Trait to trigger parachain cleanup.
-#[impl_trait_for_tuples::impl_for_tuples(30)]
-pub trait ParachainCleanup {
-	fn schedule_para_cleanup(id: ParaId);
-}
-
-/// Helper struct which contains all the needed parachain cleanups.
-pub struct AllParachainCleanup<T>(core::marker::PhantomData<T>);
-impl<T> ParachainCleanup for AllParachainCleanup<T>
-where
-	T: paras::Config
-	+ dmp::Config
-	+ ump::Config
-	+ hrmp::Config,
-{
-	fn schedule_para_cleanup(id: ParaId) {
-		<paras::Module<T>>::schedule_para_cleanup(id);
-		<dmp::Module<T>>::schedule_para_cleanup(id);
-		<ump::Module<T>>::schedule_para_cleanup(id);
-		<hrmp::Module<T>>::schedule_para_cleanup(id);
-	}
-}
-
-/// Schedule a parathread to be upgraded to a parachain.
-///
-/// Noop if `ParaLifecycle` is not `Parathread`.
-pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) {
-	paras::Module::<T>::schedule_parathread_upgrade(id);
-}
-
-/// Schedule a parachain to be downgraded to a parathread.
-///
-/// Noop if `ParaLifecycle` is not `Parachain`.
-pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) {
-	paras::Module::<T>::schedule_parachain_downgrade(id);
+/// Schedule a para to be cleaned up at the start of the next session.
+pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v1::Id) {
+	<paras::Module<T>>::schedule_para_cleanup(id);
 }
