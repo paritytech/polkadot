@@ -844,6 +844,8 @@ mod benchmarking {
 	}
 
 	benchmarks! {
+		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
+
 		register {
 			let para = ParaId::from(1337);
 			let genesis_head = Registrar::<T>::worst_head_data();
@@ -883,11 +885,14 @@ mod benchmarking {
 			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
 			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
 
-			//Registrar::<T>::swap(parathread_origin, parachain)?;
+			Registrar::<T>::swap(parathread_origin.into(), parachain)?;
 		}: {
-			//Registrar::<T>::swap(parachain_origin, parathread)?;
+			Registrar::<T>::swap(parachain_origin.into(), parathread)?;
 		} verify {
-
+			next_scheduled_session::<T>();
+			// Swapped!
+			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
 		}
 	}
 
