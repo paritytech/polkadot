@@ -218,7 +218,7 @@ construct_runtime! {
 		Beefy: pallet_beefy::{Module, Config<T>, Storage},
 		// Make sure to place MmrLeaf after BEEFY, MMR and Paras,
 		// because it depends on session handlers of these pallets.
-		MmrLeaf: mmr_common::{Module},
+		MmrLeaf: mmr_common::{Module, Storage},
 	}
 }
 
