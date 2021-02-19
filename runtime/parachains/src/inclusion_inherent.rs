@@ -169,8 +169,29 @@ decl_module! {
 /// This is somewhat less desirable than attempting to fit some of them, but is more fair in the
 /// even that we can't trust the provisioner to provide a fair / random ordering of candidates.
 fn limit_backed_candidates<T: Config>(
-	backed_candidates: Vec<BackedCandidate<T::Hash>>,
+	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
+	const MAX_CODE_UPGRADES: usize = 1;
+
+	// Ignore any candidates beyond one that contain code upgrades.
+	//
+	// This is an artificial limitation that does not appear in the guide as it is a practical
+	// concern around execution.
+	{
+		let mut code_upgrades = 0;
+		backed_candidates.retain(|c| {
+			if c.candidate.commitments.new_validation_code.is_some() {
+				if code_upgrades >= MAX_CODE_UPGRADES {
+					return false
+				}
+
+				code_upgrades +=1;
+			}
+
+			true
+		});
+	}
+
 	// the weight of the inclusion inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 	if frame_system::Module::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
@@ -270,6 +291,16 @@ mod tests {
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight + 1, 0);
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
+			});
+		}
+
+		#[test]
+		fn ignores_subsequent_code_upgrades() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let mut backed = BackedCandidate::default();
+				backed.candidate.commitments.new_validation_code = Some(Vec::new().into());
+				let backed_candidates = (0..3).map(|_| backed.clone()).collect();
+				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
 			});
 		}
 	}

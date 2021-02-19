@@ -29,7 +29,7 @@ use sc_network::{NetworkService, IfDisconnected};
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response::{OutgoingRequest, Requests},
-	PeerId, ReputationChange,
+	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
@@ -86,7 +86,7 @@ where
 #[derive(Debug, PartialEq)]
 pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
-	ReputationChange(PeerId, ReputationChange),
+	ReputationChange(PeerId, Rep),
 	/// Write a notification to a given peer on the given peer-set.
 	WriteNotification(PeerId, PeerSet, Vec<u8>),
 }
@@ -111,7 +111,7 @@ pub trait Network: Send + 'static {
 	fn report_peer(
 		&mut self,
 		who: PeerId,
-		cost_benefit: ReputationChange,
+		cost_benefit: Rep,
 	) -> BoxFuture<SubsystemResult<()>> {
 		async move {
 			self.action_sink()
@@ -167,7 +167,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 							cost_benefit,
 							peer
 						);
-						self.0.report_peer(peer, cost_benefit)
+						self.0.report_peer(peer, cost_benefit.into_base_rep())
 					}
 					NetworkAction::WriteNotification(peer, peer_set, message) => self
 						.0

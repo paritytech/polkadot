@@ -41,19 +41,19 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_node_network_protocol::{
-	PeerId, View, v1 as protocol_v1, ReputationChange as Rep,
+	PeerId, View, v1 as protocol_v1, UnifiedReputationChange as Rep,
+
 };
 
 const LOG_TARGET: &str = "approval_distribution";
 
-const COST_UNEXPECTED_MESSAGE: Rep = Rep::new(-100, "Peer sent an out-of-view assignment or approval");
-const COST_DUPLICATE_MESSAGE: Rep = Rep::new(-100, "Peer sent identical messages");
-const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep = Rep::new(-30, "The vote was valid but too far in the future");
-const COST_INVALID_MESSAGE: Rep = Rep::new(-1000, "The vote was bad");
+const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("Peer sent an out-of-view assignment or approval");
+const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical messages");
+const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep = Rep::CostMinor("The vote was valid but too far in the future");
+const COST_INVALID_MESSAGE: Rep = Rep::CostMajor("The vote was bad");
 
-const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Peer sent a valid message");
-const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::new(15, "Valid message with new information");
-
+const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Peer sent a valid message");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");
 
 /// The Approval Distribution subsystem.
 pub struct ApprovalDistribution {

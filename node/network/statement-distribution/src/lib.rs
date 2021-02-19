@@ -31,12 +31,12 @@ use polkadot_subsystem::{
 	},
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use node_primitives::SignedFullStatement;
+use polkadot_node_primitives::{SignedFullStatement};
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, OurView,
+	v1 as protocol_v1, View, PeerId, OurView, UnifiedReputationChange as Rep,
 };
 
 use futures::prelude::*;
@@ -45,14 +45,13 @@ use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet};
 
-const COST_UNEXPECTED_STATEMENT: Rep = Rep::new(-100, "Unexpected Statement");
-const COST_INVALID_SIGNATURE: Rep = Rep::new(-500, "Invalid Statement Signature");
-const COST_DUPLICATE_STATEMENT: Rep = Rep::new(-250, "Statement sent more than once by peer");
-const COST_APPARENT_FLOOD: Rep = Rep::new(-1000, "Peer appears to be flooding us with statements");
+const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
+const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
+const COST_DUPLICATE_STATEMENT: Rep = Rep::CostMajorRepeated("Statement sent more than once by peer");
+const COST_APPARENT_FLOOD: Rep = Rep::Malicious("Peer appears to be flooding us with statements");
 
-const BENEFIT_VALID_STATEMENT: Rep = Rep::new(5, "Peer provided a valid statement");
-const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::new(
-	25,
+const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
+const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::BenefitMajorFirst(
 	"Peer was the first to provide a valid statement",
 );
 
@@ -517,14 +516,10 @@ async fn circulate_statement_and_dependents(
 		None => return,
 	};
 
-	let _span = {
-		let mut span = active_head.span.child("circulate-statement");
-		span.add_string_tag(
-			"candidate-hash",
-			&format!("{:?}", statement.payload().candidate_hash().0),
-		);
-		span
-	};
+	let _span = active_head.span.child_with_candidate(
+		"circulate-statement",
+		&statement.payload().candidate_hash()
+	);
 
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
@@ -702,18 +697,10 @@ async fn handle_incoming_message<'a>(
 	};
 
 	let candidate_hash = statement.payload().candidate_hash();
-	let handle_incoming_span = {
-		let mut span = active_head.span.child("handle-incoming");
-		span.add_string_tag(
-			"candidate-hash",
-			&format!("{:?}", candidate_hash.0),
-		);
-		span.add_string_tag(
-			"peer-id",
-			&peer.to_base58(),
-		);
-		span
-	};
+	let handle_incoming_span = active_head.span.child_builder("handle-incoming")
+		.with_candidate(&candidate_hash)
+		.with_peer_id(&peer)
+		.build();
 
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
@@ -1077,7 +1064,7 @@ mod tests {
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
-	use node_primitives::Statement;
+	use polkadot_node_primitives::Statement;
 	use polkadot_primitives::v1::CommittedCandidateReceipt;
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};

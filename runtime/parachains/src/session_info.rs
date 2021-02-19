@@ -166,7 +166,7 @@ mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
-		Origin,
+		Origin, Shared,
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
@@ -181,10 +181,16 @@ mod tests {
 			let b = System::block_number();
 
 			SessionInfo::initializer_finalize();
+			Shared::initializer_finalize();
 			Configuration::initializer_finalize();
 
 			if let Some(notification) = new_session(b + 1) {
-				Configuration::initializer_on_new_session(&notification.validators, &notification.queued);
+				Configuration::initializer_on_new_session(
+					&notification.validators,
+					&notification.queued,
+					&notification.session_index,
+				);
+				Shared::initializer_on_new_session(&notification);
 				SessionInfo::initializer_on_new_session(&notification);
 			}
 
@@ -194,6 +200,7 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			Configuration::initializer_initialize(b + 1);
+			Shared::initializer_initialize(b + 1);
 			SessionInfo::initializer_initialize(b + 1);
 		}
 	}
@@ -218,24 +225,13 @@ mod tests {
 	}
 
 	fn session_changes(n: BlockNumber) -> Option<SessionChangeNotification<BlockNumber>> {
-		match n {
-			100 => Some(SessionChangeNotification {
-				session_index: 10,
+		if n % 10 == 0 {
+			Some(SessionChangeNotification {
+				session_index: n / 10,
 				..Default::default()
-			}),
-			200 => Some(SessionChangeNotification {
-				session_index: 20,
-				..Default::default()
-			}),
-			300 => Some(SessionChangeNotification {
-				session_index: 30,
-				..Default::default()
-			}),
-			400 => Some(SessionChangeNotification {
-				session_index: 40,
-				..Default::default()
-			}),
-			_ => None,
+			})
+		} else {
+			None
 		}
 	}
 
@@ -249,29 +245,55 @@ mod tests {
 	#[test]
 	fn session_pruning_is_based_on_dispute_period() {
 		new_test_ext(genesis_config()).execute_with(|| {
-			let default_info = primitives::v1::SessionInfo::default();
-			Sessions::insert(9, default_info);
+			// Dispute period starts at 2
+			let config = Configuration::config();
+			assert_eq!(config.dispute_period, 2);
+
+			// Move to session 10
 			run_to_block(100, session_changes);
-			// but the first session change is not based on dispute_period
-			assert_eq!(EarliestStoredSession::get(), 10);
-			// and we didn't prune the last changes
+			// Earliest stored session is 10 - 2 = 8
+			assert_eq!(EarliestStoredSession::get(), 8);
+			// Pruning works as expected
+			assert!(Sessions::get(7).is_none());
+			assert!(Sessions::get(8).is_some());
 			assert!(Sessions::get(9).is_some());
 
 			// changing dispute_period works
 			let dispute_period = 5;
 			Configuration::set_dispute_period(Origin::root(), dispute_period).unwrap();
+
+			// Dispute period does not automatically change
+			let config = Configuration::config();
+			assert_eq!(config.dispute_period, 2);
+			// Two sessions later it will though
+			run_to_block(120, session_changes);
+			let config = Configuration::config();
+			assert_eq!(config.dispute_period, 5);
+
 			run_to_block(200, session_changes);
 			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
 
-			// we don't have that many sessions stored
+			// Increase dispute period even more
 			let new_dispute_period = 16;
 			Configuration::set_dispute_period(Origin::root(), new_dispute_period).unwrap();
+
+			run_to_block(210, session_changes);
+			assert_eq!(EarliestStoredSession::get(), 21 - dispute_period);
+
+			// Two sessions later it kicks in
+			run_to_block(220, session_changes);
+			let config = Configuration::config();
+			assert_eq!(config.dispute_period, 16);
+			// Earliest session stays the same
+			assert_eq!(EarliestStoredSession::get(), 21 - dispute_period);
+
+			// We still don't have enough stored sessions to start pruning
 			run_to_block(300, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
+			assert_eq!(EarliestStoredSession::get(), 21 - dispute_period);
 
 			// now we do
-			run_to_block(400, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 40 - new_dispute_period);
+			run_to_block(420, session_changes);
+			assert_eq!(EarliestStoredSession::get(), 42 - new_dispute_period);
 		})
 	}
 
@@ -284,8 +306,9 @@ mod tests {
 
 			// change some param
 			Configuration::set_needed_approvals(Origin::root(), 42).unwrap();
-			run_to_block(2, new_session_every_block);
-			let session = Sessions::get(&2).unwrap();
+			// 2 sessions later
+			run_to_block(3, new_session_every_block);
+			let session = Sessions::get(&3).unwrap();
 			assert_eq!(session.needed_approvals, 42);
 		})
 	}
