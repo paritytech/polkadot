@@ -844,13 +844,7 @@ impl<T: Config> Module<T> {
 	/// Test function for triggering a new session in this pallet.
 	//#[cfg(test)]
 	pub fn test_on_new_session() {
-		Self::initializer_on_new_session(&Default::default())
-	}
-}
-
-impl<T: Config> crate::ParachainCleanup for Module<T> {
-	fn schedule_para_cleanup(id: ParaId) {
-		Self::schedule_para_cleanup(id);
+		Self::initializer_on_new_session(&Default::default());
 	}
 }
 

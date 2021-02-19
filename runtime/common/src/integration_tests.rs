@@ -150,7 +150,6 @@ impl paras_registrar::Config for Test {
 	type MaxHeadSize = MaxHeadSize;
 	type Currency = Balances;
 	type Origin = Origin;
-	type ParachainCleanup = ();
 }
 
 parameter_types! {

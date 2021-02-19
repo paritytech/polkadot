@@ -212,12 +212,6 @@ impl<T: Config> Module<T> {
 	}
 }
 
-impl<T: Config> crate::ParachainCleanup for Module<T> {
-	fn schedule_para_cleanup(id: ParaId) {
-		Self::schedule_para_cleanup(id);
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;

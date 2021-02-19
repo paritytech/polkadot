@@ -34,7 +34,7 @@ use runtime_parachains::{
 		ParaGenesisArgs,
 	},
 	ensure_parachain,
-	Origin, ParachainCleanup, ParaLifecycle,
+	Origin, ParaLifecycle,
 };
 
 use crate::traits::{Registrar, OnSwap};
@@ -66,9 +66,6 @@ pub trait Config: paras::Config {
 
 	/// Runtime hook for when a parachain and parathread swap.
 	type OnSwap: crate::traits::OnSwap;
-
-	/// Runtime hook for when a parachain should be cleaned up.
-	type ParachainCleanup: runtime_parachains::ParachainCleanup;
 
 	/// The deposit to be paid to run a parathread.
 	/// This should include the cost for storing the genesis head and validation code.
@@ -311,7 +308,7 @@ impl<T: Config> Module<T> {
 			<T as Config>::Currency::unreserve(&info.manager, info.deposit);
 		}
 
-		T::ParachainCleanup::schedule_para_cleanup(id);
+		runtime_parachains::schedule_para_cleanup::<T>(id);
 		PendingSwap::remove(id);
 		Self::deposit_event(RawEvent::Deregistered(id));
 		Ok(())
@@ -629,7 +626,6 @@ mod tests {
 		type Event = Event;
 		type Origin = Origin;
 		type Currency = Balances;
-		type ParachainCleanup = Parachains;
 		type OnSwap = ();
 		type ParaDeposit = ParaDeposit;
 		type MaxCodeSize = MaxCodeSize;

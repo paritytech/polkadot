@@ -58,3 +58,13 @@ pub fn schedule_para_initialize<T: paras::Config>(
 pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v1::Id) {
 	<paras::Module<T>>::schedule_para_cleanup(id);
 }
+
+/// Schedule a parathread to be upgraded to a parachain.
+pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) {
+	paras::Module::<T>::schedule_parathread_upgrade(id);
+}
+
+/// Schedule a parachain to be downgraded to a parathread.
+pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) {
+	paras::Module::<T>::schedule_parachain_downgrade(id);
+}

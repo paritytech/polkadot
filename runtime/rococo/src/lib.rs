@@ -246,8 +246,6 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
-	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 	pub const ValidationUpgradeFrequency: BlockNumber = 2 * DAYS;
 	pub const ValidationUpgradeDelay: BlockNumber = 8 * HOURS;
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
@@ -356,7 +354,6 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
@@ -578,19 +575,22 @@ impl parachains_initializer::Config for Runtime {
 	type Randomness = Babe;
 }
 
-impl paras_sudo_wrapper::Config for Runtime {
-	type ParachainCleanup = runtime_parachains::AllParachainCleanup<Runtime>;
+impl paras_sudo_wrapper::Config for Runtime {}
+
+parameter_types! {
+	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
 impl paras_registrar::Config for Runtime {
 	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
 	type OnSwap = ();
 	type ParaDeposit = ParaDeposit;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
-	type Currency = Balances;
-	type Origin = Origin;
-	type ParachainCleanup = runtime_parachains::AllParachainCleanup<Runtime>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -631,7 +631,6 @@ impl propose_parachain::Config for Runtime {
 	type MaxNameLength = MaxNameLength;
 	type ProposeDeposit = ProposeDeposit;
 	type PriviledgedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PriviledgedOrigin>;
-	type ParachainCleanup = runtime_parachains::AllParachainCleanup<Runtime>;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]

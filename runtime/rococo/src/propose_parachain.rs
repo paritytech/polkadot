@@ -39,10 +39,7 @@ use frame_system::{ensure_signed, EnsureOneOf, EnsureSigned};
 use sp_runtime::Either;
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
-use runtime_parachains::{
-	ParachainCleanup,
-	paras::ParaGenesisArgs
-};
+use runtime_parachains::paras::ParaGenesisArgs;
 
 type EnsurePriviledgedOrSigned<T> = EnsureOneOf<
 	<T as frame_system::Config>::AccountId,
@@ -70,9 +67,6 @@ pub trait Config: pallet_session::Config
 
 	/// Priviledged origin that can approve/cancel/deregister parachain and proposals.
 	type PriviledgedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
-
-	/// Runtime hook for when a parachain should be cleaned up.
-	type ParachainCleanup: runtime_parachains::ParachainCleanup;
 }
 
 /// A proposal for adding a parachain to the relay chain.
@@ -294,7 +288,7 @@ decl_module! {
 
 			ParachainInfo::<T>::remove(&para_id);
 			info.validators.into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
-			T::ParachainCleanup::schedule_para_cleanup(para_id);
+			runtime_parachains::schedule_para_cleanup::<T>(para_id);
 
 			pallet_balances::Module::<T>::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
