@@ -34,7 +34,7 @@ use polkadot_subsystem::messages::{
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
-	ReputationChange, PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView,
+	PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView, UnifiedReputationChange as Rep,
 };
 
 /// Peer set infos for network initialization.
@@ -72,10 +72,10 @@ pub use multiplexer::RequestMultiplexer;
 const MAX_VIEW_HEADS: usize = 5;
 
 
-const MALFORMED_MESSAGE_COST: ReputationChange = ReputationChange::new(-500, "Malformed Network-bridge message");
-const UNCONNECTED_PEERSET_COST: ReputationChange = ReputationChange::new(-50, "Message sent to un-connected peer-set");
-const MALFORMED_VIEW_COST: ReputationChange = ReputationChange::new(-500, "Malformed view");
-const EMPTY_VIEW_COST: ReputationChange = ReputationChange::new(-500, "Peer sent us an empty view");
+const MALFORMED_MESSAGE_COST: Rep = Rep::CostMajor("Malformed Network-bridge message");
+const UNCONNECTED_PEERSET_COST: Rep = Rep::CostMinor("Message sent to un-connected peer-set");
+const MALFORMED_VIEW_COST: Rep = Rep::CostMajor("Malformed view");
+const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
 
 // network bridge log target
 const LOG_TARGET: &'static str = "network_bridge";

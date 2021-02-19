@@ -2028,7 +2028,7 @@ mod tests {
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, JaegerSpan};
 	use polkadot_node_primitives::{CollationResult, CollationGenerationConfig};
-	use polkadot_node_network_protocol::{PeerId, ReputationChange};
+	use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 	use polkadot_node_subsystem_util::metered;
 
 	use sp_core::crypto::Pair as _;
@@ -2726,6 +2726,7 @@ mod tests {
 		AvailabilityRecoveryMessage::RecoverAvailableData(
 			Default::default(),
 			Default::default(),
+			None,
 			sender,
 		)
 	}
@@ -2754,7 +2755,7 @@ mod tests {
 	}
 
 	fn test_network_bridge_msg() -> NetworkBridgeMessage {
-		NetworkBridgeMessage::ReportPeer(PeerId::random(), ReputationChange::new(42, ""))
+		NetworkBridgeMessage::ReportPeer(PeerId::random(), UnifiedReputationChange::BenefitMinor(""))
 	}
 
 	fn test_approval_distribution_msg() -> ApprovalDistributionMessage {

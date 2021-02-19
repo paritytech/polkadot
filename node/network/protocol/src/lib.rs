@@ -23,12 +23,14 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::{fmt, collections::HashMap};
 
-pub use sc_network::{ReputationChange, PeerId};
+pub use sc_network::PeerId;
 #[doc(hidden)]
 pub use polkadot_node_jaeger::JaegerSpan;
 #[doc(hidden)]
 pub use std::sync::Arc;
 
+mod reputation;
+pub use self::reputation::{ReputationChange, UnifiedReputationChange};
 
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
@@ -240,7 +242,7 @@ impl View {
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex,
+		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex, AvailableData,
 	};
 	use polkadot_node_primitives::{
 		SignedFullStatement,
@@ -266,6 +268,11 @@ pub mod v1 {
 		/// Respond with chunk for a given candidate hash and validator index.
 		/// The response may be `None` if the requestee does not have the chunk.
 		Chunk(RequestId, Option<ErasureChunk>),
+		/// Request full data for a given candidate hash.
+		RequestFullData(RequestId, CandidateHash),
+		/// Respond with full data for a given candidate hash.
+		/// The response may be `None` if the requestee does not have the data.
+		FullData(RequestId, Option<AvailableData>),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
@@ -372,7 +379,7 @@ pub mod v1 {
 	}
 
 	impl std::fmt::Debug for CompressedPoV {
-    	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 			write!(f, "CompressedPoV({} bytes)", self.0.len())
 		}
 	}

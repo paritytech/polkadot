@@ -28,7 +28,7 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, Hash,
 };
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
+use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
@@ -228,7 +228,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	//
 	// Incidentally, this is also the rationale for why it is OK to query validators or
 	// occupied cores or etc. and expect the correct response "for child".
-	<inclusion::Module<T>>::session_index()
+	<shared::Module<T>>::session_index()
 }
 
 /// Implementation for the `validation_code` function of the runtime API.

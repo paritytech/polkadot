@@ -18,17 +18,20 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::v1::{Block as PolkadotBlock, Header as PolkadotHeader, BlockNumber, Hash};
-use polkadot_subsystem::messages::ApprovalVotingMessage;
+use polkadot_primitives::v1::Hash;
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
 
-use prometheus_endpoint::{self, Registry};
-use polkadot_overseer::OverseerHandler;
-
-use futures::channel::oneshot;
+#[cfg(feature = "approval-checking")]
+use {
+	polkadot_primitives::v1::{Block as PolkadotBlock, Header as PolkadotHeader, BlockNumber},
+	polkadot_subsystem::messages::ApprovalVotingMessage,
+	prometheus_endpoint::{self, Registry},
+	polkadot_overseer::OverseerHandler,
+	futures::channel::oneshot,
+};
 
 /// A custom GRANDPA voting rule that acts as a diagnostic for the approval
 /// voting subsystem's desired votes.
@@ -36,14 +39,14 @@ use futures::channel::oneshot;
 /// The practical effect of this voting rule is to implement a fixed delay of
 /// blocks and to issue a prometheus metric on the lag behind the head that
 /// approval checking would indicate.
-#[cfg(feature = "full-node")]
+#[cfg(feature = "approval-checking")]
 #[derive(Clone)]
 pub(crate) struct ApprovalCheckingDiagnostic {
 	checking_lag: Option<prometheus_endpoint::Histogram>,
 	overseer: OverseerHandler,
 }
 
-#[cfg(feature = "full-node")]
+#[cfg(feature = "approval-checking")]
 impl ApprovalCheckingDiagnostic {
 	/// Create a new approval checking diagnostic voting rule.
 	pub fn new(overseer: OverseerHandler, registry: Option<&Registry>)
@@ -68,7 +71,7 @@ impl ApprovalCheckingDiagnostic {
 	}
 }
 
-#[cfg(feature = "full-node")]
+#[cfg(feature = "approval-checking")]
 impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 	where B: sp_blockchain::HeaderBackend<PolkadotBlock>
 {

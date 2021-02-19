@@ -69,6 +69,7 @@ use pallet_mmr_primitives as mmr;
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
+use runtime_parachains::shared as parachains_shared;
 use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
@@ -173,7 +174,7 @@ construct_runtime! {
 		System: frame_system::{Module, Call, Storage, Config, Event<T>},
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
+		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned},
 
 		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
 		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
@@ -192,6 +193,7 @@ construct_runtime! {
 		// Parachains modules.
 		ParachainsOrigin: parachains_origin::{Module, Origin},
 		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
+		Shared: parachains_shared::{Module, Call, Storage},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
@@ -511,6 +513,8 @@ impl pallet_authorship::Config for Runtime {
 impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {}
+
+impl parachains_shared::Config for Runtime {}
 
 /// Special `RewardValidators` that does nothing ;)
 pub struct RewardValidators;

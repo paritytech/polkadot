@@ -25,6 +25,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-cu
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 
 [dev-dependencies]
