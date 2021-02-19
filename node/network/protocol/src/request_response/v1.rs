@@ -69,7 +69,7 @@ impl ChunkResponse {
 		ErasureChunk {
 			chunk: self.chunk,
 			proof: self.proof,
-			index: req.index.0,
+			index: req.index,
 		}
 	}
 }

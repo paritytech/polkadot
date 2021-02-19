@@ -312,7 +312,7 @@ impl RunningTask {
 
 	fn validate_chunk(&self, validator: &AuthorityDiscoveryId, chunk: &ErasureChunk) -> bool {
 		let anticipated_hash =
-			match branch_hash(&self.erasure_root, &chunk.proof, chunk.index as usize) {
+			match branch_hash(&self.erasure_root, &chunk.proof, chunk.index.0 as usize) {
 				Ok(hash) => hash,
 				Err(e) => {
 					tracing::trace!(

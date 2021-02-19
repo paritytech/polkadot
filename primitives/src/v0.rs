@@ -114,12 +114,8 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-#[cfg(not(feature = "std"))]
-#[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Copy, Clone, Encode, Decode)]
-pub struct ValidatorIndex(pub u32);
-
-#[cfg(feature = "std")]
-#[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Copy, Clone, Encode, Decode, Debug, MallocSizeOf)]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash, MallocSizeOf))]
 pub struct ValidatorIndex(pub u32);
 
 // We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
@@ -676,7 +672,7 @@ pub struct ErasureChunk {
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
 	/// The index of this erasure-encoded chunk of data.
-	pub index: u32,
+	pub index: ValidatorIndex,
 	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }

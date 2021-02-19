@@ -195,7 +195,7 @@ impl Interaction {
 					if let Ok(anticipated_hash) = branch_hash(
 						&self.erasure_root,
 						&chunk.proof,
-						chunk.index as usize,
+						chunk.index.0 as usize,
 					) {
 						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
@@ -269,7 +269,7 @@ impl Interaction {
 			if self.received_chunks.len() >= self.threshold {
 				let concluded = match polkadot_erasure_coding::reconstruct_v1(
 					self.validators.len(),
-					self.received_chunks.values().map(|c| (&c.chunk[..], c.index as usize)),
+					self.received_chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
 				) {
 					Ok(data) => {
 						if reconstructed_data_matches_root(self.validators.len(), &self.erasure_root, &data) {
@@ -423,7 +423,7 @@ async fn launch_interaction(
 	let erasure_root = receipt.descriptor.erasure_root;
 	let validators = session_info.validators.clone();
 	let validator_authority_keys = session_info.discovery_keys.clone();
-	let mut shuffling: Vec<_> = (0..validators.len() as ValidatorIndex).collect();
+	let mut shuffling: Vec<_> = (0..validators.len() as u32).map(ValidatorIndex).collect();
 
 	state.interactions.insert(
 		candidate_hash.clone(),
