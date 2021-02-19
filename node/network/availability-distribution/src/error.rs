@@ -15,6 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+//! Error handling related code and Error/Result definitions.
+
 use thiserror::Error;
 
 use futures::channel::oneshot;
@@ -23,6 +25,7 @@ use polkadot_node_subsystem_util::Error as UtilError;
 use polkadot_primitives::v1::SessionIndex;
 use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
 
+/// Errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum Error {
 	#[error("Response channel to obtain StoreChunk failed")]
