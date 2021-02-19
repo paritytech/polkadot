@@ -45,7 +45,7 @@ const LOG_TARGET: &'static str = "availability_distribution";
 /// TODO: Dummy for now.
 type Metrics = ();
 
-/// The bitfield distribution subsystem.
+/// The availability distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
 	keystore: SyncCryptoStorePtr,
@@ -90,6 +90,8 @@ impl AvailabilityDistributionSubsystem {
 					from_task = state.next() => Either::Right(from_task),
 				}
 			};
+
+			// Handle task messages sending:
 			let message = match action {
 				Either::Left(subsystem_msg) => {
 					subsystem_msg.map_err(|e| Error::IncomingMessageChannel(e))?

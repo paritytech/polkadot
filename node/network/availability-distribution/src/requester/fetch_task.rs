@@ -152,6 +152,8 @@ impl FetchTaskConfig {
 
 impl FetchTask {
 	/// Start fetching a chunk.
+	///
+	/// A task handling the fetching of the configured chunk will be spawned.
 	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
 	where
 		Context: SubsystemContext,
@@ -181,6 +183,8 @@ impl FetchTask {
 	}
 
 	/// Add the given leaf to the relay parents which are making this task relevant.
+	///
+	/// This is for book keeping, so we know we are already fetching a chunk.
 	pub fn add_leaf(&mut self, leaf: Hash) {
 		self.live_in.insert(leaf);
 	}
@@ -189,7 +193,7 @@ impl FetchTask {
 	/// fetching.
 	pub fn remove_leaves(&mut self, leaves: &HashSet<Hash>) {
 		self.live_in.difference(leaves);
-		if self.live_in.is_empty() {
+		if self.live_in.is_empty() && !self.is_finished() {
 			self.state = FetchedState::Canceled
 		}
 	}
@@ -198,6 +202,16 @@ impl FetchTask {
 	/// availability.
 	pub fn is_live(&self) -> bool {
 		!self.live_in.is_empty()
+	}
+
+	/// Whether or not this task can be considered finished.
+	///
+	/// That is, it is either canceled, succeeded or failed.
+	pub fn is_finished(&self) -> bool {
+		match &self.state {
+			FetchedState::Canceled => true,
+			FetchedState::Started(sender) => sender.is_canceled(),
+		}
 	}
 }
 
