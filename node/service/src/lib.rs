@@ -502,7 +502,8 @@ where
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			keystore.clone(),
-		)?,
+			Metrics::register(registry)?,
+		),
 		#[cfg(not(feature = "approval-checking"))]
 		approval_voting: polkadot_subsystem::DummySubsystem,
 	};

@@ -21,7 +21,7 @@ use polkadot_node_primitives::approval::{
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
 };
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_subsystem::messages::AllMessages;
+use polkadot_node_subsystem::messages::AllMessages;
 use sp_core::testing::TaskExecutor;
 
 use parking_lot::Mutex;
@@ -1489,7 +1489,7 @@ fn approved_ancestor_all_approved() {
 
 	let test_fut = Box::pin(async move {
 		assert_eq!(
-			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			handle_approved_ancestor(&mut ctx, &super::Metrics(None), &state.db, block_hash_4, 0).await.unwrap(),
 			Some((block_hash_4, 4)),
 		)
 	});
@@ -1571,7 +1571,7 @@ fn approved_ancestor_missing_approval() {
 
 	let test_fut = Box::pin(async move {
 		assert_eq!(
-			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			handle_approved_ancestor(&mut ctx, &super::Metrics(None), &state.db, block_hash_4, 0).await.unwrap(),
 			Some((block_hash_2, 2)),
 		)
 	});

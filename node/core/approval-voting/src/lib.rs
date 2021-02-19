@@ -21,7 +21,7 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{
 		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
@@ -30,6 +30,9 @@ use polkadot_subsystem::{
 	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal,
+};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
@@ -91,15 +94,65 @@ pub struct ApprovalVotingSubsystem {
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: Arc<dyn KeyValueDB>,
+	metrics: Metrics,
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	imported_candidates_total: prometheus::Counter<prometheus::U64>,
+	broadcasted_assignments_total: prometheus::Counter<prometheus::U64>,
+}
+
+/// Aproval Voting metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_candidate_imported(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.imported_candidates_total.inc();
+		}
+	}
+
+	fn on_assignment_broadcasted(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.broadcasted_assignments_total.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(
+		registry: &prometheus::Registry,
+	) -> std::result::Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			imported_candidates_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_imported_candidates_total",
+					"Number of candidates imported by the approval voting subsystem",
+				)?,
+				registry,
+			)?,
+			broadcasted_assignments_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_broadcasted_assignments_total",
+					"Number of assignments broadcasted by the approval voting subsystem",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
 }
 
 impl ApprovalVotingSubsystem {
-	/// Create a new approval voting subsystem with the given keystore, slot duration,
+	/// Create a new approval voting subsystem with the given keystore and config,
 	/// which creates a DB at the given path. This function will delete the directory
 	/// at the given path if it already exists.
 	pub fn with_config(
 		config: Config,
 		keystore: Arc<LocalKeystore>,
+		metrics: Metrics,
 	) -> std::io::Result<Self> {
 		const DEFAULT_CACHE_SIZE: usize = 100 * 1024 * 1024; // 100MiB default should be fine unless finality stalls.
 
@@ -112,6 +165,7 @@ impl ApprovalVotingSubsystem {
 			keystore,
 			slot_duration_millis: config.slot_duration_millis,
 			db,
+			metrics,
 		})
 	}
 }
@@ -350,6 +404,7 @@ async fn run<C>(
 				handle_from_overseer(
 					&mut ctx,
 					&mut state,
+					&subsystem.metrics,
 					db_writer,
 					next_msg?,
 					&mut last_finalized_height,
@@ -370,6 +425,7 @@ async fn run<C>(
 
 		if handle_actions(
 			&mut ctx,
+			&subsystem.metrics,
 			&mut wakeups,
 			db_writer,
 			&background_tx,
@@ -385,6 +441,7 @@ async fn run<C>(
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
 	ctx: &mut impl SubsystemContext,
+	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	db: &dyn KeyValueDB,
 	background_tx: &mpsc::Sender<BackgroundRequest>,
@@ -413,6 +470,7 @@ async fn handle_actions(
 				candidate,
 				backing_group,
 			} => {
+				metrics.on_assignment_broadcasted();
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
@@ -446,6 +504,7 @@ async fn handle_actions(
 async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl DBReader>,
+	metrics: &Metrics,
 	db_writer: &dyn KeyValueDB,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
@@ -468,6 +527,8 @@ async fn handle_from_overseer(
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
 							for (c_hash, c_entry) in block_batch.imported_candidates {
+								metrics.on_candidate_imported();
+
 								let our_tranche = c_entry
 									.approval_entry(&block_batch.block_hash)
 									.and_then(|a| a.our_assignment().map(|a| a.tranche()));
@@ -511,7 +572,7 @@ async fn handle_from_overseer(
 				check_and_import_approval(state, a, |r| { let _ = res.send(r); })?.0
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
-				match handle_approved_ancestor(ctx, &state.db, target, lower_bound).await {
+				match handle_approved_ancestor(ctx, metrics, &state.db, target, lower_bound).await {
 					Ok(v) => {
 						let _ = res.send(v);
 					}
@@ -560,6 +621,7 @@ async fn handle_background_request(
 
 async fn handle_approved_ancestor(
 	ctx: &mut impl SubsystemContext,
+	_metrics: &Metrics,
 	db: &impl DBReader,
 	target: Hash,
 	lower_bound: BlockNumber,
