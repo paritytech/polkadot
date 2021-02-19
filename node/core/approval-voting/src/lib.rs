@@ -1283,7 +1283,7 @@ async fn launch_approval(
 			Err(_) => return,
 			Ok(Ok(a)) => a,
 			Ok(Err(RecoveryError::Unavailable)) => {
-				tracing::debug!(
+				tracing::warn!(
 					target: LOG_TARGET,
 					"Data unavailable for candidate {:?}",
 					(candidate_hash, candidate.descriptor.para_id),
@@ -1292,7 +1292,7 @@ async fn launch_approval(
 				return;
 			}
 			Ok(Err(RecoveryError::Invalid)) => {
-				tracing::debug!(
+				tracing::warn!(
 					target: LOG_TARGET,
 					"Data recovery invalid for candidate {:?}",
 					(candidate_hash, candidate.descriptor.para_id),
