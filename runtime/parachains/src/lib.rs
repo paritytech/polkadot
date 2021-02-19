@@ -61,11 +61,11 @@ pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v1::Id) -> Result
 }
 
 /// Schedule a parathread to be upgraded to a parachain.
-pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) {
-	paras::Module::<T>::schedule_parathread_upgrade(id);
+pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
+	paras::Module::<T>::schedule_parathread_upgrade(id).map_err(|_| ())
 }
 
 /// Schedule a parachain to be downgraded to a parathread.
-pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) {
-	paras::Module::<T>::schedule_parachain_downgrade(id);
+pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
+	paras::Module::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
 }

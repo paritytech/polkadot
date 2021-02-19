@@ -36,7 +36,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use runtime_parachains::{
 	ParaLifecycle,
-	paras, configuration,
+	paras, configuration, shared,
 };
 use crate::{
 	auctions, crowdloan, slots, paras_registrar,
@@ -132,6 +132,8 @@ impl pallet_balances::Config for Test {
 
 impl configuration::Config for Test { }
 
+impl shared::Config for Test { }
+
 impl paras::Config for Test {
 	type Origin = Origin;
 }
@@ -202,14 +204,19 @@ pub fn new_test_ext() -> TestExternalities {
 	t.into()
 }
 
+const BLOCKS_PER_SESSION: u32 = 10;
+
 fn maybe_new_session(n: u32) {
-	let new_session_every = 10;
-	if n % new_session_every == 0 {
+	if n % BLOCKS_PER_SESSION == 0 {
+		shared::Module::<Test>::set_session_index(
+			shared::Module::<Test>::session_index() + 1
+		);
 		Paras::test_on_new_session();
 	}
 }
 
 fn run_to_block(n: u32) {
+	assert!(System::block_number() < n);
 	while System::block_number() < n {
 		let block_number = System::block_number();
 		AllModules::on_finalize(block_number);
@@ -219,6 +226,11 @@ fn run_to_block(n: u32) {
 		maybe_new_session(block_number + 1);
 		AllModules::on_initialize(block_number + 1);
 	}
+}
+
+fn run_to_session(n: u32) {
+	let block_number = BLOCKS_PER_SESSION * n;
+	run_to_block(block_number);
 }
 
 fn last_event() -> Event {
@@ -257,7 +269,7 @@ fn basic_end_to_end_works() {
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
 		// 2 sessions later they are parathreads
-		run_to_block(20);
+		run_to_session(2);
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
 
@@ -326,7 +338,7 @@ fn basic_end_to_end_works() {
 		run_to_block(lease_start_block);
 
 		// First slot, Para 1 should be transitioning to Parachain
-		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::UpgradingToParachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::UpgradingParathread));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
 
 		// Two sessions later, it has upgraded
@@ -341,8 +353,8 @@ fn basic_end_to_end_works() {
 
 		// Third slot, Para 2 should be upgrading, and Para 1 is downgrading
 		run_to_block(lease_start_block + 200);
-		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::DowngradingToParathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::UpgradingToParachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::DowngradingParachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::UpgradingParathread));
 
 		// Two sessions later, they have transitioned
 		run_to_block(lease_start_block + 220);
@@ -357,7 +369,7 @@ fn basic_end_to_end_works() {
 		// Fifth slot, Para 2 is downgrading
 		run_to_block(lease_start_block + 400);
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::DowngradingToParathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::DowngradingParachain));
 
 		// Two sessions later, Para 2 is downgraded
 		run_to_block(lease_start_block + 420);

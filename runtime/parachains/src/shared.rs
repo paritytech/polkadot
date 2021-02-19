@@ -72,8 +72,8 @@ impl<T: Config> Module<T> {
 		Self::session_index().saturating_add(SESSION_DELAY)
 	}
 
-	#[cfg(test)]
-	pub(crate) fn set_session_index(index: SessionIndex) {
+	//#[cfg(test)]
+	pub fn set_session_index(index: SessionIndex) {
 		CurrentSessionIndex::set(index);
 	}
 }
