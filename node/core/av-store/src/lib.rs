@@ -968,7 +968,7 @@ fn process_message(
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
 			let a = load_meta(&subsystem.db, &candidate)?
 				.map_or(false, |m|
-					*m.chunks_stored.get(validator_index as usize).as_deref().unwrap_or(&false)
+					*m.chunks_stored.get(validator_index.0 as usize).as_deref().unwrap_or(&false)
 				);
 			let _ = tx.send(a);
 		}

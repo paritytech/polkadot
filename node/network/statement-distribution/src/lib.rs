@@ -494,7 +494,7 @@ fn check_statement_signature(
 		parent_hash: relay_parent,
 	};
 
-	head.validators.get(statement.validator_index() as usize)
+	head.validators.get(statement.validator_index().0 as usize)
 		.ok_or(())
 		.and_then(|v| statement.check_signature(&signing_context, v))
 }

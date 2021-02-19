@@ -670,7 +670,7 @@ pub struct AvailableData {
 }
 
 /// A chunk of erasure-encoded block data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash))]
 pub struct ErasureChunk {
 	/// The erasure-encoded chunk of data belonging to the candidate block.

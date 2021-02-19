@@ -861,7 +861,7 @@ impl CandidateBackingJob {
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
-		let idx = statement.validator_index() as usize;
+		let idx = statement.validator_index().0 as usize;
 
 		if self.table_context.validators.len() > idx {
 			statement.check_signature(
@@ -902,7 +902,7 @@ impl CandidateBackingJob {
 	) -> Option<JaegerSpan> {
 		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| {
 			let mut span = span.child("import-statement");
-			span.add_string_tag("validator-index", &format!("{}", validator));
+			span.add_string_tag("validator-index", &format!("{:?}", validator));
 			span
 		})
 	}

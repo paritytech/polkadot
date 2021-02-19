@@ -329,8 +329,8 @@ async fn determine_our_validators(
 
 	let validators = request_validators_ctx(relay_parent, ctx).await?.await??;
 
-	let current_validators = current_validators.iter().map(|i| validators[*i as usize].clone()).collect();
-	let next_validators = next_validators.iter().map(|i| validators[*i as usize].clone()).collect();
+	let current_validators = current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
+	let next_validators = next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
 	Ok((current_validators, next_validators))
 }

@@ -288,7 +288,7 @@ impl<T: Config> Module<T> {
 				);
 
 				ensure!(
-					signed_bitfield.validator_index() < validators.len() as ValidatorIndex,
+					(signed_bitfield.validator_index().0 as usize) < validators.len(),
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
 
@@ -532,7 +532,7 @@ impl<T: Config> Module<T> {
 									&signing_context,
 									group_vals.len(),
 									|idx| group_vals.get(idx)
-										.and_then(|i| validators.get(*i.0 as usize))
+										.and_then(|i| validators.get(i.0 as usize))
 										.map(|v| v.clone()),
 								);
 
@@ -551,7 +551,7 @@ impl<T: Config> Module<T> {
 								let val_idx = group_vals.get(bit_idx)
 									.expect("this query done above; qed");
 
-								backers.set(*val_idx as _, true);
+								backers.set(val_idx.0 as _, true);
 							}
 						}
 
@@ -658,12 +658,12 @@ impl<T: Config> Module<T> {
 
 		T::RewardValidators::reward_backing(backers.iter().enumerate()
 			.filter(|(_, backed)| **backed)
-			.map(|(i, _)| i as _)
+			.map(|(i, _)| ValidatorIndex(i as _))
 		);
 
 		T::RewardValidators::reward_bitfields(availability_votes.iter().enumerate()
 			.filter(|(_, voted)| **voted)
-			.map(|(i, _)| i as _)
+			.map(|(i, _)| ValidatorIndex(i as _))
 		);
 
 		// initial weight is config read.

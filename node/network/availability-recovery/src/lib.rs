@@ -165,7 +165,7 @@ impl Interaction {
 				let (tx, rx) = oneshot::channel();
 
 				self.to_state.send(FromInteraction::MakeRequest(
-					self.validator_authority_keys[validator_index as usize].clone(),
+					self.validator_authority_keys[validator_index.0 as usize].clone(),
 					self.candidate_hash.clone(),
 					validator_index,
 					tx,

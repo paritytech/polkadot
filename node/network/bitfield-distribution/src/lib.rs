@@ -284,7 +284,7 @@ where
 		return;
 	}
 
-	let validator_index = signed_availability.validator_index() as usize;
+	let validator_index = signed_availability.validator_index().0 as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
@@ -410,7 +410,7 @@ where
 		span.add_string_tag("peer-id", &origin.to_base58());
 		span.add_string_tag(
 			"claimed-validator",
-			&message.signed_availability.validator_index().to_string(),
+			&message.signed_availability.validator_index().0.to_string(),
 		);
 		span
 	};
@@ -429,7 +429,7 @@ where
 	// Use the (untrusted) validator index provided by the signed payload
 	// and see if that one actually signed the availability bitset.
 	let signing_context = job_data.signing_context.clone();
-	let validator_index = message.signed_availability.validator_index() as usize;
+	let validator_index = message.signed_availability.validator_index().0 as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
