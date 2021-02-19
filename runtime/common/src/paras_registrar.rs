@@ -791,7 +791,7 @@ mod benchmarking {
 	use frame_support::assert_ok;
 	use sp_runtime::traits::Bounded;
 	use crate::traits::{Registrar as RegistrarT};
-	use runtime_parachains::{paras, Origin as ParaOrigin};
+	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller};
 
@@ -817,6 +817,14 @@ mod benchmarking {
 		ParaOrigin::Parachain(id.into())
 	}
 
+	// This function moves forward to the next scheduled session for parachain lifecycle upgrades.
+	fn next_scheduled_session<T: Config>() {
+		shared::Module::<T>::set_session_index(
+			shared::Module::<T>::scheduled_session()
+		);
+		paras::Module::<T>::test_on_new_session();
+	}
+
 	benchmarks! {
 		register {
 			let para = ParaId::from(1337);
@@ -828,13 +836,13 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(RawEvent::Registered(para, caller).into());
 			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
-			paras::Module::<T>::test_on_new_session();
+			next_scheduled_session::<T>();
 			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
 		}
 
 		deregister {
 			let para = register_para::<T>(1337);
-			paras::Module::<T>::test_on_new_session();
+			next_scheduled_session::<T>();
 		}: _(RawOrigin::Root, para)
 		verify {
 			assert_last_event::<T>(RawEvent::Deregistered(para).into());
@@ -848,17 +856,16 @@ mod benchmarking {
 			let parachain_origin = para_origin(1338);
 
 			// Actually finish registration process
-			paras::Module::<T>::test_on_new_session();
+			next_scheduled_session::<T>();
 
 			// Upgrade the parachain
 			Registrar::<T>::make_parachain(parachain)?;
-			paras::Module::<T>::test_on_new_session();
+			next_scheduled_session::<T>();
 
 			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
 			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
 
 			//Registrar::<T>::swap(parathread_origin, parachain)?;
-
 		}: {
 			//Registrar::<T>::swap(parachain_origin, parathread)?;
 		} verify {
