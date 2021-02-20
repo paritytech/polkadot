@@ -28,7 +28,7 @@ use polkadot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
 };
 use polkadot_subsystem::{
-	jaeger, PerLeafSpan, JaegerSpan,
+	jaeger, PerLeafSpan,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
@@ -598,7 +598,7 @@ async fn handle_our_view_change(
 ) -> Result<()> {
 	let old_view = std::mem::replace(&mut state.view, view);
 
-	let added: HashMap<Hash, Arc<JaegerSpan>> = state.view
+	let added: HashMap<Hash, Arc<jaeger::Span>> = state.view
 		.span_per_head()
 		.iter()
 		.filter(|v| !old_view.contains(&v.0))
