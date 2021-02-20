@@ -486,8 +486,8 @@ async fn handle_from_overseer(
 									let tick = our_tranche as Tick + block_batch.block_tick;
 									tracing::trace!(
 										target: LOG_TARGET,
-										"Scheduling next wakeup at {} for candidate {} in block ({}, tick={})",
-										tick,
+										"Scheduling first wakeup at tranche {} for candidate {} in block ({}, tick={})",
+										our_tranche,
 										c_hash,
 										block_batch.block_hash,
 										block_batch.block_tick,
@@ -584,6 +584,10 @@ async fn handle_approved_ancestor(
 	target: Hash,
 	lower_bound: BlockNumber,
 ) -> SubsystemResult<Option<(Hash, BlockNumber)>> {
+	const MAX_TRACING_WINDOW: usize = 200;
+
+	use bitvec::{order::Lsb0, vec::BitVec};
+
 	let mut all_approved_max = None;
 
 	let target_number = {
@@ -620,15 +624,29 @@ async fn handle_approved_ancestor(
 		Vec::new()
 	};
 
+	let mut bits: BitVec<Lsb0, u8> = Default::default();
 	for (i, block_hash) in std::iter::once(target).chain(ancestry).enumerate() {
 		// Block entries should be present as the assumption is that
 		// nothing here is finalized. If we encounter any missing block
 		// entries we can fail.
 		let entry = match db.load_block_entry(&block_hash)? {
-			None => return Ok(None),
+			None => {
+				tracing::trace!{
+					target: LOG_TARGET,
+					"Chain between ({}, {}) and {} not fully known. Forcing vote on {}",
+					target,
+					target_number,
+					lower_bound,
+					lower_bound,
+				}
+				return Ok(None);
+			}
 			Some(b) => b,
 		};
 
+		// even if traversing millions of blocks this is fairly cheap and always dwarfed by the
+		// disk lookups.
+		bits.push(entry.is_fully_approved());
 		if entry.is_fully_approved() {
 			if all_approved_max.is_none() {
 				// First iteration of the loop is target, i = 0. After that,
@@ -639,6 +657,32 @@ async fn handle_approved_ancestor(
 			all_approved_max = None;
 		}
 	}
+
+	tracing::trace!(
+		target: LOG_TARGET,
+		"approved blocks {}-[{}]-{}",
+		target_number,
+		{
+			// formatting to divide bits by groups of 10.
+			// when comparing logs on multiple machines where the exact vote
+			// targets may differ, this grouping is useful.
+			let mut s = String::with_capacity(bits.len());
+			for (i, bit) in bits.iter().enumerate().take(MAX_TRACING_WINDOW) {
+				s.push(if *bit { '1' } else { '0' });
+				if (target_number - i as u32) % 10 == 0 && i != bits.len() - 1 { s.push(' '); }
+			}
+
+			s
+		},
+		if bits.len() > MAX_TRACING_WINDOW {
+			format!(
+				"{}... (truncated due to large window)",
+				target_number - MAX_TRACING_WINDOW as u32 + 1,
+			)
+		} else {
+			format!("{}", lower_bound + 1)
+		},
+	);
 
 	Ok(all_approved_max)
 }
@@ -1028,6 +1072,13 @@ fn check_and_apply_full_approval(
 		);
 
 		if now_approved {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Candidate approved {} under block {}",
+				candidate_hash,
+				block_hash,
+			);
+
 			newly_approved.push(*block_hash);
 			block_entry.mark_approved_by_hash(&candidate_hash);
 
