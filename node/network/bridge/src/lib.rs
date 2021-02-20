@@ -31,6 +31,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
 	CollatorProtocolMessage, ApprovalDistributionMessage, NetworkBridgeEvent,
+	AvailabilityRecoveryMessage,
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
@@ -564,7 +565,7 @@ async fn dispatch_validation_events_to_all<I>(
 		I::IntoIter: Send,
 {
 	let messages_for = |event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>| {
-		let a = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
+		let av_d = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
 			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
 
@@ -584,7 +585,11 @@ async fn dispatch_validation_events_to_all<I>(
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
 
-		a.chain(b).chain(p).chain(s).chain(ap).filter_map(|x| x)
+		let av_r = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityRecovery(
+			AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(m)
+		)));
+
+		av_d.chain(b).chain(p).chain(s).chain(ap).chain(av_r).filter_map(|x| x)
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
