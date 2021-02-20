@@ -285,12 +285,16 @@ impl<T: Config> Registrar for Module<T> {
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn worst_head_data() -> HeadData {
-		vec![0u8; T::MaxHeadSize::get() as usize].into()
+		// TODO: Figure a way to allow bigger head data in benchmarks?
+		let max_head_size = (T::MaxHeadSize::get()).min(1 * 1024 * 1024);
+		vec![0u8; max_head_size as usize].into()
 	}
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn worst_validation_code() -> ValidationCode {
-		let mut validation_code = vec![0u8; T::MaxCodeSize::get() as usize];
+		// TODO: Figure a way to allow bigger wasm in benchmarks?
+		let max_code_size = (T::MaxCodeSize::get()).min(4 * 1024 * 1024);
+		let mut validation_code = vec![0u8; max_code_size as usize];
 		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
 		let _ = validation_code.splice(
 			..crate::WASM_MAGIC.len(),

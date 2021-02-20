@@ -1136,8 +1136,16 @@ mod benchmarking {
 				contribute_fund::<T>(&account("contributor", i, 0), fund_index);
 			}
 
+			// One extra contributor so we can trigger withdraw
+			contribute_fund::<T>(&account("last_contributor", 0, 0), fund_index);
+
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Module::<T>::set_block_number(T::RetirementPeriod::get().saturating_add(200u32.into()));
+			frame_system::Module::<T>::set_block_number(T::BlockNumber::max_value());
+			Crowdloan::<T>::withdraw(
+				RawOrigin::Signed(caller.clone()).into(),
+				account("last_contributor", 0, 0),
+				fund_index,
+			)?;
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
@@ -1202,7 +1210,7 @@ mod benchmarking {
 		#[test]
 		fn dissolve() {
 			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_contribute::<Test>());
+				assert_ok!(test_benchmark_dissolve::<Test>());
 			});
 		}
 
