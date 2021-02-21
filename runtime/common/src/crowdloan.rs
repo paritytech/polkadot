@@ -96,7 +96,7 @@ pub trait WeightInfo {
 	fn contribute() -> Weight;
 	fn withdraw() -> Weight;
 	fn dissolve() -> Weight;
-	fn on_initialize() -> Weight;
+	fn on_initialize(n: u32, ) -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -105,7 +105,7 @@ impl WeightInfo for TestWeightInfo {
 	fn contribute() -> Weight { 0 }
 	fn withdraw() -> Weight { 0 }
 	fn dissolve() -> Weight { 0 }
-	fn on_initialize() -> Weight { 0 }
+	fn on_initialize(_n: u32, ) -> Weight { 0 }
 }
 
 pub trait Config: frame_system::Config {
@@ -460,7 +460,9 @@ decl_module! {
 					// first block of ending period.
 					EndingsCount::mutate(|c| *c += 1);
 				}
-				for (fund, para_id) in NewRaise::take().into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
+				let new_raise = NewRaise::take();
+				let new_raise_len = new_raise.len() as u32;
+				for (fund, para_id) in new_raise.into_iter().filter_map(|i| Self::funds(i).map(|f| (f, i))) {
 					// Care needs to be taken by the crowdloan creator that this function will succeed given
 					// the crowdloaning configuration. We do some checks ahead of time in crowdloan `create`.
 					let result = T::Auctioneer::place_bid(
@@ -473,9 +475,10 @@ decl_module! {
 
 					Self::deposit_event(RawEvent::HandleBidResult(para_id, result));
 				}
+				T::WeightInfo::on_initialize(new_raise_len)
+			} else {
+				T::DbWeight::get().reads(1)
 			}
-
-			T::WeightInfo::on_initialize()
 		}
 	}
 }
@@ -1109,6 +1112,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			assert!(NewRaise::get().is_empty());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution)
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
