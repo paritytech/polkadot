@@ -54,7 +54,6 @@ use futures::channel::{mpsc, oneshot};
 use std::collections::{BTreeMap, HashMap};
 use std::collections::btree_map::Entry;
 use std::sync::Arc;
-use std::ops::{RangeBounds, Bound as RangeBound};
 
 use approval_checking::RequiredTranches;
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
@@ -193,25 +192,29 @@ impl Wakeups {
 		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
 	}
 
-	// drains all wakeups within the given range.
-	// panics if the given range is empty.
-	//
-	// only looks at the end bound of the range.
-	fn drain<'a, R: RangeBounds<Tick>>(&'a mut self, range: R)
-		-> impl Iterator<Item = (Hash, CandidateHash)> + 'a
-	{
-		let reverse = &mut self.reverse_wakeups;
+	// Returns the next wakeup. this future never returns if there are no wakeups.
+	async fn next(&mut self, clock: &(dyn Clock + Sync)) -> (Hash, CandidateHash) {
+		match self.first() {
+			None => future::pending().await,
+			Some(tick) => {
+				clock.wait(tick).await;
+				match self.wakeups.entry(tick) {
+					Entry::Vacant(_) => panic!("entry is known to exist since `first` was `Some`; qed"),
+					Entry::Occupied(mut entry) => {
+						let (hash, candidate_hash) = entry.get_mut().pop()
+							.expect("empty entries are removed here and in `schedule`; no other mutation of this map; qed");
 
-		// BTreeMap has no `drain` method :(
-		let after = match range.end_bound() {
-			RangeBound::Unbounded => BTreeMap::new(),
-			RangeBound::Included(last) => self.wakeups.split_off(&(last + 1)),
-			RangeBound::Excluded(last) => self.wakeups.split_off(&last),
-		};
-		let prev = std::mem::replace(&mut self.wakeups, after);
-		prev.into_iter()
-			.flat_map(|(_, wakeup)| wakeup)
-			.inspect(move |&(ref b, ref c)| { let _ = reverse.remove(&(*b, *c)); })
+						if entry.get().is_empty() {
+							let _ = entry.remove();
+						}
+
+						self.reverse_wakeups.remove(&(hash, candidate_hash));
+
+						(hash, candidate_hash)
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -326,28 +329,13 @@ async fn run<C>(
 	let db_writer = &*subsystem.db;
 
 	loop {
-		let wait_til_next_tick = match wakeups.first() {
-			None => future::Either::Left(future::pending()),
-			Some(tick) => future::Either::Right(
-				state.clock.wait(tick).map(move |()| tick)
-			),
-		};
-		futures::pin_mut!(wait_til_next_tick);
-
 		let actions = futures::select! {
-			tick_wakeup = wait_til_next_tick.fuse() => {
-				let woken = wakeups.drain(..=tick_wakeup).collect::<Vec<_>>();
-
-				let mut actions = Vec::new();
-				for (woken_block, woken_candidate) in woken {
-					actions.extend(process_wakeup(
-						&mut state,
-						woken_block,
-						woken_candidate,
-					)?);
-				}
-
-				actions
+			(woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
+				process_wakeup(
+					&mut state,
+					woken_block,
+					woken_candidate,
+				)?
 			}
 			next_msg = ctx.recv().fuse() => {
 				handle_from_overseer(
