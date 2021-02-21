@@ -486,7 +486,8 @@ decl_module! {
 
 			// Try killing the crowdloan child trie
 			match Self::crowdloan_kill(index) {
-				child::KillOutcome::AllRemoved => {
+				// TODO use this value for refund
+				child::KillOutcome::AllRemoved(_) => {
 					let account = Self::fund_account_id(index);
 					T::Currency::transfer(&account, &fund.owner, fund.deposit, AllowDeath)?;
 
@@ -498,7 +499,8 @@ decl_module! {
 
 					Self::deposit_event(RawEvent::Dissolved(index));
 				},
-				child::KillOutcome::SomeRemaining => {
+				// TODO use this value for refund
+				child::KillOutcome::SomeRemaining(_) => {
 					Self::deposit_event(RawEvent::PartiallyDissolved(index));
 				}
 			}
