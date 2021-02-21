@@ -42,6 +42,11 @@ Output:
 ```rust
 type BlockScopedCandidate = (Hash, CandidateHash);
 
+enum PendingMessage {
+  Assignment(IndirectAssignmentCert, CoreIndex),
+  Approval(IndirectSignedApprovalVote),
+}
+
 /// The `State` struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain, which assignments and approvals we have seen, and our peers' views.
@@ -49,6 +54,14 @@ struct State {
   // These two fields are used in conjunction to construct a view over the unfinalized chain.
   blocks_by_number: BTreeMap<BlockNumber, Vec<Hash>>,
   blocks: HashMap<Hash, BlockEntry>,
+
+  /// Our view updates to our peers can race with `NewBlocks` updates. We store messages received
+  /// against the directly mentioned blocks in our view in this map until `NewBlocks` is received.
+  ///
+  /// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't delayed
+  /// by more than a block length, this strategy will work well for mitigating the race. This is
+  /// also a race that occurs typically on local networks.
+  pending_known: HashMap<Hash, (PeerId, PendingMessage>)>,
 
   // Peer view data is partially stored here, and partially inline within the `BlockEntry`s
   peer_views: HashMap<PeerId, View>,
@@ -102,6 +115,11 @@ Remove the view under the associated `PeerId` from `State::peer_views`.
 
 Iterate over every `BlockEntry` and remove `PeerId` from it.
 
+#### `NetworkBridgeEvent::OurViewChange`
+
+Remove entries in `pending_known` for all hashes not present in the view.
+Ensure a vector is present in `pending_known` for each hash in the view that does not have an entry in `blocks`.
+
 #### `NetworkBridgeEvent::PeerViewChange`
 
 Invoke `unify_with_peer(peer, view)` to catch them up to messages we have.
@@ -116,6 +134,8 @@ From there, we can loop backwards from `constrain(view.finalized_number)` until 
 
 #### `NetworkBridgeEvent::PeerMessage`
 
+If the block hash referenced by the message exists in `pending_known`, add it to the vector of pending messages and return.
+
 If the message is of type `ApprovalDistributionV1Message::Assignment(assignment_cert, claimed_index)`, then call `import_and_circulate_assignment(MessageSource::Peer(sender), assignment_cert, claimed_index)`
 
 If the message is of type `ApprovalDistributionV1Message::Approval(approval_vote)`, then call `import_and_circulate_approval(MessageSource::Peer(sender), approval_vote)`
@@ -125,6 +145,9 @@ If the message is of type `ApprovalDistributionV1Message::Approval(approval_vote
 #### `ApprovalDistributionMessage::NewBlocks`
 
 Create `BlockEntry` and `CandidateEntries` for all blocks.
+
+For all entries in `pending_known`:
+  * If there is now an entry under `blocks` for the block hash, drain all messages and import with `import_and_circulate_assignment` and `import_and_circulate_approval`.
 
 For all peers:
   * Compute `view_intersection` as the intersection of the peer's view blocks with the hashes of the new blocks.
