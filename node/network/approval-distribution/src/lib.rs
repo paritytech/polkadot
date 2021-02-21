@@ -70,6 +70,14 @@ struct State {
 	blocks_by_number: BTreeMap<BlockNumber, Vec<Hash>>,
 	blocks: HashMap<Hash, BlockEntry>,
 
+	/// Our view updates to our peers can race with `NewBlocks` updates. We store messages received
+	/// against the directly mentioned blocks in our view in this map until `NewBlocks` is received.
+	///
+	/// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't delayed
+	/// by more than a block length, this strategy will work well for mitigating the race. This is
+	/// also a race that occurs typically on local networks.
+	pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage)>>,
+
 	/// Peer view data is partially stored here, and partially inline within the [`BlockEntry`]s
 	peer_views: HashMap<PeerId, View>,
 }
@@ -129,6 +137,11 @@ impl MessageSource {
 	}
 }
 
+enum PendingMessage {
+	Assignment(IndirectAssignmentCert, CandidateIndex),
+	Approval(IndirectSignedApprovalVote),
+}
+
 impl State {
 	async fn handle_network_msg(
 		&mut self,
@@ -150,8 +163,14 @@ impl State {
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, peer_id, view).await;
 			}
-			NetworkBridgeEvent::OurViewChange(_view) => {
-				// handled by `BlockFinalized` notification
+			NetworkBridgeEvent::OurViewChange(view) => {
+				for head in &view.heads {
+					if !self.blocks.contains_key(head) {
+						self.pending_known.entry(*head).or_default();
+					}
+				}
+
+				self.pending_known.retain(|h, _| view.contains(h));
 			}
 			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg).await;
@@ -162,6 +181,7 @@ impl State {
 	async fn handle_new_blocks(
 		&mut self,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 	) {
 		let mut new_hashes = HashSet::new();
@@ -191,6 +211,40 @@ impl State {
 			"Got new blocks {:?}",
 			metas.iter().map(|m| (m.hash, m.number)).collect::<Vec<_>>(),
 		);
+
+		{
+			let pending_now_known = self.pending_known.keys()
+				.filter(|k| self.blocks.contains_key(k))
+				.copied()
+				.collect::<Vec<_>>();
+
+			let to_import = pending_now_known.into_iter()
+				.filter_map(|k| self.pending_known.remove(&k))
+				.flatten()
+				.collect::<Vec<_>>();
+
+			for (peer_id, message) in to_import {
+				match message {
+					PendingMessage::Assignment(assignment, claimed_index) => {
+						self.import_and_circulate_assignment(
+							ctx,
+							metrics,
+							MessageSource::Peer(peer_id),
+							assignment,
+							claimed_index,
+						).await;
+					}
+					PendingMessage::Approval(approval_vote) => {
+						self.import_and_circulate_approval(
+							ctx,
+							metrics,
+							MessageSource::Peer(peer_id),
+							approval_vote,
+						).await;
+					}
+				}
+			}
+		}
 
 		for (peer_id, view) in self.peer_views.iter() {
 			let intersection = view.heads.iter().filter(|h| new_hashes.contains(h));
@@ -223,6 +277,15 @@ impl State {
 					"Processing assignments from a peer",
 				);
 				for (assignment, claimed_index) in assignments.into_iter() {
+					if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
+						pending.push((
+							peer_id.clone(),
+							PendingMessage::Assignment(assignment, claimed_index),
+						));
+
+						continue;
+					}
+
 					self.import_and_circulate_assignment(
 						ctx,
 						metrics,
@@ -240,6 +303,15 @@ impl State {
 					"Processing approvals from a peer",
 				);
 				for approval_vote in approvals.into_iter() {
+					if let Some(pending) = self.pending_known.get_mut(&approval_vote.block_hash) {
+						pending.push((
+							peer_id.clone(),
+							PendingMessage::Approval(approval_vote),
+						));
+
+						continue;
+					}
+
 					self.import_and_circulate_approval(
 						ctx,
 						metrics,
@@ -816,7 +888,7 @@ impl ApprovalDistribution {
 					msg: ApprovalDistributionMessage::NewBlocks(metas),
 				} => {
 					tracing::debug!(target: LOG_TARGET, "Processing NewBlocks");
-					state.handle_new_blocks(&mut ctx, metas).await;
+					state.handle_new_blocks(&mut ctx, &self.metrics, metas).await;
 				}
 				FromOverseer::Communication {
 					msg: ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index),
