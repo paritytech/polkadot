@@ -165,7 +165,7 @@ impl State {
 		metas: Vec<BlockApprovalMeta>,
 	) {
 		let mut new_hashes = HashSet::new();
-		for meta in metas.into_iter() {
+		for meta in &metas {
 			match self.blocks.entry(meta.hash.clone()) {
 				hash_map::Entry::Vacant(entry) => {
 					let candidates_count = meta.candidates.len();
@@ -185,6 +185,13 @@ impl State {
 			}
 			self.blocks_by_number.entry(meta.number).or_default().push(meta.hash);
 		}
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			"Got new blocks {:?}",
+			metas.iter().map(|m| (m.hash, m.number)).collect::<Vec<_>>(),
+		);
+
 		for (peer_id, view) in self.peer_views.iter() {
 			let intersection = view.heads.iter().filter(|h| new_hashes.contains(h));
 			let view_intersection = View {
@@ -446,6 +453,14 @@ impl State {
 		}
 
 		if !peers.is_empty() {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Sending assignment (block={}, index={})to {} peers",
+				block_hash,
+				claimed_candidate_index,
+				peers.len(),
+			);
+
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -616,6 +631,14 @@ impl State {
 
 		let approvals = vec![vote];
 		if !peers.is_empty() {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Sending approval (block={}, index={})to {} peers",
+				block_hash,
+				candidate_index,
+				peers.len(),
+			);
+
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
@@ -681,6 +704,14 @@ impl State {
 				Some(entry) => entry,
 				None => continue, // should be unreachable
 			};
+
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Sending all assignments and approvals in block {} to peer {}",
+				block,
+				peer_id,
+			);
+
 			for (candidate_index, candidate_entry) in entry.candidates.iter().enumerate() {
 				let candidate_index = candidate_index as u32;
 				for (validator_index, approval_state) in candidate_entry.approvals.iter() {
@@ -790,7 +821,13 @@ impl ApprovalDistribution {
 				FromOverseer::Communication {
 					msg: ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index),
 				} => {
-					tracing::debug!(target: LOG_TARGET, "Processing DistributeAssignment");
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Distributing our assignment on candidate (block={}, index={})",
+						cert.block_hash,
+						candidate_index,
+					);
+
 					state.import_and_circulate_assignment(
 						&mut ctx,
 						&self.metrics,
@@ -802,7 +839,13 @@ impl ApprovalDistribution {
 				FromOverseer::Communication {
 					msg: ApprovalDistributionMessage::DistributeApproval(vote),
 				} => {
-					tracing::debug!(target: LOG_TARGET, "Processing DistributeApproval");
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Distributing our approval vote on candidate (block={}, index={})",
+						vote.block_hash,
+						vote.candidate_index,
+					);
+
 					state.import_and_circulate_approval(
 						&mut ctx,
 						&self.metrics,

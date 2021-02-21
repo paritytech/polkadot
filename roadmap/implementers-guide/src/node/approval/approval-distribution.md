@@ -157,8 +157,8 @@ enum MessageSource {
 Imports an assignment cert referenced by block hash and candidate index. As a postcondition, if the cert is valid, it will have distributed the cert to all peers who have the block in their view, with the exclusion of the peer referenced by the `MessageSource`.
 
 We maintain a few invariants:
-  * we only send an assignment to a peer after we add its fingerpring to our knownledge
-  * we add a fingerprint of an assignment to our knownledge only if it's valid and hasn't been added before
+  * we only send an assignment to a peer after we add its fingerprint to our knowledge
+  * we add a fingerprint of an assignment to our knowledge only if it's valid and hasn't been added before
 
 The algorithm is the following:
 
@@ -167,7 +167,7 @@ The algorithm is the following:
   * If the source is `MessageSource::Peer(sender)`:
     * check if `peer` appears under `known_by` and whether the fingerprint is in the `known_messages` of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the knowledge contains the fingerprint, report for providing replicate data and return.
     * If the message fingerprint appears under the `BlockEntry`'s `Knowledge`, give the peer a small positive reputation boost,
-    add the fingerpring to the peer's knownledge only if it knows about the block and return.
+    add the fingerprint to the peer's knowledge only if it knows about the block and return.
     Note that we must do this after checking for out-of-view and if the peers knows about the block to avoid being spammed.
     If we did this check earlier, a peer could provide data out-of-view repeatedly and be rewarded for it.
     * Dispatch `ApprovalVotingMessage::CheckAndImportAssignment(assignment)` and wait for the response.
@@ -194,7 +194,7 @@ Imports an approval signature referenced by block hash and candidate index:
   * If the source is `MessageSource::Peer(sender)`:
     * check if `peer` appears under `known_by` and whether the fingerprint is in the `known_messages` of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the knowledge contains the fingerprint, report for providing replicate data and return.
     * If the message fingerprint appears under the `BlockEntry`'s `Knowledge`, give the peer a small positive reputation boost,
-    add the fingerpring to the peer's knownledge only if it knows about the block and return.
+    add the fingerprint to the peer's knowledge only if it knows about the block and return.
     Note that we must do this after checking for out-of-view to avoid being spammed. If we did this check earlier, a peer could provide data out-of-view repeatedly and be rewarded for it.
     * Dispatch `ApprovalVotingMessage::CheckAndImportApproval(approval)` and wait for the response.
     * If the result is `VoteCheckResult::Accepted(())`:
