@@ -11,7 +11,7 @@ tracing = "0.1.22"
 tracing-futures = "0.2.4"
 polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom", default-features = false }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
