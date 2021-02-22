@@ -28,8 +28,8 @@ use polkadot_subsystem::{
 	SubsystemResult, jaeger,
 };
 use polkadot_subsystem::messages::{
-	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
-	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
+	NetworkBridgeMessage, AllMessages, BitfieldDistributionMessage,
+	PoVDistributionMessage, StatementDistributionMessage,
 	CollatorProtocolMessage, ApprovalDistributionMessage, NetworkBridgeEvent,
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
@@ -567,10 +567,6 @@ async fn dispatch_validation_events_to_all<I>(
 		I::IntoIter: Send,
 {
 	let messages_for = |event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>| {
-		let a = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
-			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
-		)));
-
 		let b = std::iter::once(event.focus().ok().map(|m| AllMessages::BitfieldDistribution(
 			BitfieldDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
@@ -587,7 +583,7 @@ async fn dispatch_validation_events_to_all<I>(
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
 
-		a.chain(b).chain(p).chain(s).chain(ap).filter_map(|x| x)
+		b.chain(p).chain(s).chain(ap).filter_map(|x| x)
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
@@ -817,13 +813,6 @@ mod tests {
 		event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
 		virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
 	) {
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::AvailabilityDistribution(
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(e)
-			) if e == event.focus().expect("could not focus message")
-		);
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::BitfieldDistribution(
