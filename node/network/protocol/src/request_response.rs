@@ -60,7 +60,11 @@ pub enum Protocol {
 }
 
 /// Default request timeout in seconds.
-const DEFAULT_REQUEST_TIMEOUT: u64 = 8; 
+///
+/// When decreasing this value, take into account that the very first request might need to open a
+/// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
+/// sets.
+const DEFAULT_REQUEST_TIMEOUT: u64 = 3; 
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
