@@ -1135,7 +1135,7 @@ mod tests {
 			&signing_context,
 			0,
 			&alice_public.into(),
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 		let noted = head_data.note_statement(a_seconded_val_0.clone());
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
@@ -1152,7 +1152,7 @@ mod tests {
 			&signing_context,
 			0,
 			&alice_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1163,7 +1163,7 @@ mod tests {
 			&signing_context,
 			0,
 			&alice_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::NotUseful);
 
@@ -1174,7 +1174,7 @@ mod tests {
 			&signing_context,
 			1,
 			&bob_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1185,7 +1185,7 @@ mod tests {
 			&signing_context,
 			1,
 			&bob_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 	}
@@ -1388,7 +1388,7 @@ mod tests {
 				&signing_context,
 				0,
 				&alice_public.into(),
-			)).expect("should be signed"));
+			)).ok().flatten().expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1398,7 +1398,7 @@ mod tests {
 				&signing_context,
 				1,
 				&bob_public.into(),
-			)).expect("should be signed"));
+			)).ok().flatten().expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1408,7 +1408,7 @@ mod tests {
 				&signing_context,
 				2,
 				&charlie_public.into(),
-			)).expect("should be signed"));
+			)).ok().flatten().expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1540,7 +1540,7 @@ mod tests {
 					&signing_context,
 					0,
 					&alice_public.into(),
-				).await.expect("should be signed");
+				).await.ok().flatten().expect("should be signed");
 
 				StoredStatement {
 					comparator: StoredStatementComparator {
@@ -1708,7 +1708,7 @@ mod tests {
 					&signing_context,
 					0,
 					&alice_public.into(),
-				).await.expect("should be signed")
+				).await.ok().flatten().expect("should be signed")
 			};
 
 			handle.send(FromOverseer::Communication {

@@ -884,7 +884,7 @@ mod test {
 			&signing_context,
 			0,
 			&malicious.into(),
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -949,7 +949,7 @@ mod test {
 			&signing_context,
 			42,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1006,7 +1006,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1121,7 +1121,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);
@@ -1217,7 +1217,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1376,7 +1376,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);
