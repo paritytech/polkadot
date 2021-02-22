@@ -118,11 +118,6 @@ impl AvailabilityDistributionSubsystem {
 				} => {
 					answer_request(&mut ctx, req).await?
 				}
-				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::NetworkBridgeUpdateV1(_),
-				} => {
-					// There are currently no bridge updates we are interested in.
-				}
 			}
 		}
 	}
