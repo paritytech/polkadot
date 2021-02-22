@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, errors::RuntimeApiError, JaegerSpan, messages::AllMessages,
+	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, messages::AllMessages,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
@@ -240,7 +240,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![(new_leaf, Arc::new(JaegerSpan::Disabled))].into(),
+				activated: vec![(new_leaf, Arc::new(jaeger::Span::Disabled))].into(),
 				deactivated: vec![].into(),
 			}),
 		).await;
@@ -885,7 +885,7 @@ async fn import_leaf(
 	overseer_signal(
 		virtual_overseer,
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![(new_leaf, Arc::new(JaegerSpan::Disabled))].into(),
+			activated: vec![(new_leaf, Arc::new(jaeger::Span::Disabled))].into(),
 			deactivated: vec![].into(),
 		}),
 	).await;

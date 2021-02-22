@@ -26,6 +26,7 @@ use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::Encode;
 
 use polkadot_runtime_parachains::configuration as parachains_configuration;
+use polkadot_runtime_parachains::shared as parachains_shared;
 use polkadot_runtime_parachains::inclusion as parachains_inclusion;
 use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use polkadot_runtime_parachains::initializer as parachains_initializer;
@@ -447,6 +448,8 @@ impl pallet_sudo::Config for Runtime {
 }
 
 impl parachains_configuration::Config for Runtime {}
+
+impl parachains_shared::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;

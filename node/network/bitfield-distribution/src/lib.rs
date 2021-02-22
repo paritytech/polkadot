@@ -29,6 +29,7 @@ use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemResult,
+	jaeger,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
@@ -398,15 +399,12 @@ where
 		return;
 	};
 
-	let mut _span = {
-		let mut span = job_data.span.child("msg-received");
-		span.add_string_tag("peer-id", &origin.to_base58());
-		span.add_string_tag(
-			"claimed-validator",
-			&message.signed_availability.validator_index().to_string(),
-		);
-		span
-	};
+	let mut _span = job_data.span
+			.child_builder("msg-received")
+			.with_peer_id(&origin)
+			.with_claimed_validator_index(message.signed_availability.validator_index())
+			.with_stage(jaeger::Stage::BitfieldDistribution)
+			.build();
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
@@ -779,7 +777,7 @@ mod test {
 	use std::time::Duration;
 	use assert_matches::assert_matches;
 	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
-	use polkadot_subsystem::JaegerSpan;
+	use polkadot_subsystem::jaeger;
 
 	macro_rules! launch {
 		($fut:expr) => {
@@ -811,7 +809,7 @@ mod test {
 						},
 						message_received_from_peer: hashmap!{},
 						message_sent_to_peer: hashmap!{},
-						span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+						span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 					},
 			},
 			peer_views: peers
@@ -845,7 +843,7 @@ mod test {
 					one_per_validator: hashmap!{},
 					message_received_from_peer: hashmap!{},
 					message_sent_to_peer: hashmap!{},
-					span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+					span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 				})
 			}).collect();
 

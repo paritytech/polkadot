@@ -44,9 +44,9 @@ use polkadot_node_primitives::approval::{
 use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
-use sc_client_api::backend::AuxStore;
 use sp_runtime::traits::AppVerify;
 use sp_application_crypto::Pair;
+use kvdb::KeyValueDB;
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
@@ -74,29 +74,53 @@ mod tests;
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const LOG_TARGET: &str = "approval_voting";
 
-/// The approval voting subsystem.
-pub struct ApprovalVotingSubsystem<T> {
-	keystore: Arc<LocalKeystore>,
-	slot_duration_millis: u64,
-	db: Arc<T>,
+/// Configuration for the approval voting subsystem
+pub struct Config {
+	/// The path where the approval-voting DB should be kept. This directory is completely removed when starting
+	/// the service.
+	pub path: std::path::PathBuf,
+	/// The cache size, in bytes, to spend on approval checking metadata.
+	pub cache_size: Option<usize>,
+	/// The slot duration of the consensus algorithm, in milliseconds. Should be evenly
+	/// divisible by 500.
+	pub slot_duration_millis: u64,
 }
 
-impl<T> ApprovalVotingSubsystem<T> {
+/// The approval voting subsystem.
+pub struct ApprovalVotingSubsystem {
+	keystore: Arc<LocalKeystore>,
+	slot_duration_millis: u64,
+	db: Arc<dyn KeyValueDB>,
+}
+
+impl ApprovalVotingSubsystem {
 	/// Create a new approval voting subsystem with the given keystore, slot duration,
-	/// and underlying DB.
-	pub fn new(keystore: Arc<LocalKeystore>, slot_duration_millis: u64, db: Arc<T>) -> Self {
-		ApprovalVotingSubsystem {
+	/// which creates a DB at the given path. This function will delete the directory
+	/// at the given path if it already exists.
+	pub fn with_config(
+		config: Config,
+		keystore: Arc<LocalKeystore>,
+	) -> std::io::Result<Self> {
+		const DEFAULT_CACHE_SIZE: usize = 100 * 1024 * 1024; // 100MiB default should be fine unless finality stalls.
+
+		let db = approval_db::v1::clear_and_recreate(
+			&config.path,
+			config.cache_size.unwrap_or(DEFAULT_CACHE_SIZE),
+		)?;
+
+		Ok(ApprovalVotingSubsystem {
 			keystore,
-			slot_duration_millis,
+			slot_duration_millis: config.slot_duration_millis,
 			db,
-		}
+		})
 	}
 }
 
-impl<T, C> Subsystem<C> for ApprovalVotingSubsystem<T>
-	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage> {
+impl<C> Subsystem<C> for ApprovalVotingSubsystem
+	where C: SubsystemContext<Message = ApprovalVotingMessage>
+{
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run::<T, C>(
+		let future = run::<C>(
 			ctx,
 			self,
 			Box::new(SystemClock),
@@ -204,20 +228,20 @@ trait DBReader {
 // This is a submodule to enforce opacity of the inner DB type.
 mod approval_db_v1_reader {
 	use super::{
-		DBReader, AuxStore, Hash, CandidateHash, BlockEntry, CandidateEntry,
+		DBReader, KeyValueDB, Hash, CandidateHash, BlockEntry, CandidateEntry,
 		Arc, SubsystemResult, SubsystemError, approval_db,
 	};
 
 	/// A DB reader that uses the approval-db V1 under the hood.
-	pub(super) struct ApprovalDBV1Reader<T>(Arc<T>);
+	pub(super) struct ApprovalDBV1Reader<T: ?Sized>(Arc<T>);
 
-	impl<T> From<Arc<T>> for ApprovalDBV1Reader<T> {
+	impl<T: ?Sized> From<Arc<T>> for ApprovalDBV1Reader<T> {
 		fn from(a: Arc<T>) -> Self {
 			ApprovalDBV1Reader(a)
 		}
 	}
 
-	impl<T: AuxStore> DBReader for ApprovalDBV1Reader<T> {
+	impl DBReader for ApprovalDBV1Reader<dyn KeyValueDB> {
 		fn load_block_entry(
 			&self,
 			block_hash: &Hash,
@@ -273,13 +297,13 @@ enum Action {
 	Conclude,
 }
 
-async fn run<T, C>(
+async fn run<C>(
 	mut ctx: C,
-	subsystem: ApprovalVotingSubsystem<T>,
+	subsystem: ApprovalVotingSubsystem,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 ) -> SubsystemResult<()>
-	where T: AuxStore + Send + Sync + 'static, C: SubsystemContext<Message = ApprovalVotingMessage>
+	where C: SubsystemContext<Message = ApprovalVotingMessage>
 {
 	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state = State {
@@ -297,11 +321,6 @@ async fn run<T, C>(
 	let mut background_rx = background_rx.fuse();
 
 	let db_writer = &*subsystem.db;
-
-	if let Err(e) = approval_db::v1::clear(db_writer) {
-		tracing::warn!(target: LOG_TARGET, "Failed to clear DB: {:?}", e);
-		return Err(SubsystemError::with_origin("db", e));
-	}
 
 	loop {
 		let wait_til_next_tick = match wakeups.first() {
@@ -367,7 +386,7 @@ async fn run<T, C>(
 async fn handle_actions(
 	ctx: &mut impl SubsystemContext,
 	wakeups: &mut Wakeups,
-	db: &impl AuxStore,
+	db: &dyn KeyValueDB,
 	background_tx: &mpsc::Sender<BackgroundRequest>,
 	actions: impl IntoIterator<Item = Action>,
 ) -> SubsystemResult<bool> {
@@ -427,7 +446,7 @@ async fn handle_actions(
 async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl DBReader>,
-	db_writer: &impl AuxStore,
+	db_writer: &dyn KeyValueDB,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 ) -> SubsystemResult<Vec<Action>> {

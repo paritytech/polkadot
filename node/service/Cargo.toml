@@ -107,6 +107,7 @@ default = ["db", "full-node"]
 db = ["service/db"]
 full-node = [
 	"polkadot-node-core-av-store",
+	"polkadot-node-core-approval-voting",
 	"sc-finality-grandpa-warp-sync"
 ]
 
@@ -134,7 +135,6 @@ real-overseer = [
 	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
-	"polkadot-node-core-approval-voting",
 ]
 
 approval-checking = [
