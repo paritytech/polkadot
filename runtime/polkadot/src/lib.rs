@@ -56,7 +56,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
@@ -735,7 +735,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e);
+			log::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
 		let signature = raw_payload.using_encoded(|payload| {
 			C::sign(payload, public)
