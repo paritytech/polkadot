@@ -436,7 +436,8 @@ decl_module! {
 
 			// Try killing the crowdloan child trie
 			match Self::crowdloan_kill(index) {
-				child::KillOutcome::AllRemoved => {
+				// TODO use this value for refund
+				child::KillChildStorageResult::AllRemoved(_) => {
 					CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 
 					// Remove all other balance from the account into orphaned funds.
@@ -448,7 +449,8 @@ decl_module! {
 
 					Self::deposit_event(RawEvent::Dissolved(index));
 				},
-				child::KillOutcome::SomeRemaining => {
+				// TODO use this value for refund
+				child::KillChildStorageResult::SomeRemaining(_) => {
 					Self::deposit_event(RawEvent::PartiallyDissolved(index));
 				}
 			}
@@ -514,7 +516,7 @@ impl<T: Config> Module<T> {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdloan_kill(index: ParaId) -> child::KillOutcome {
+	pub fn crowdloan_kill(index: ParaId) -> child::KillChildStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 }
