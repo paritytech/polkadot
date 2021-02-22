@@ -271,7 +271,6 @@ where
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
 				live_heads.retain(|h| !deactivated.contains(&h.0));
-				live_heads.sort_by(|(hash_a, _), (hash_b, _)| hash_a.cmp(hash_b));
 
 				update_our_view(
 					&mut bridge.network_service,
