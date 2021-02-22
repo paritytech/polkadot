@@ -271,6 +271,7 @@ where
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
 				live_heads.retain(|h| !deactivated.contains(&h.0));
+				live_heads.sort_by(|(hash_a, _), (hash_b, _)| hash_a.cmp(hash_b));
 
 				update_our_view(
 					&mut bridge.network_service,
@@ -409,8 +410,10 @@ where
 }
 
 fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_number: BlockNumber) -> View {
+	let mut heads: Vec<_> = live_heads.rev().take(MAX_VIEW_HEADS).collect();
+	heads.sort();
 	View {
-		heads: live_heads.rev().take(MAX_VIEW_HEADS).collect(),
+		heads,
 		finalized_number
 	}
 }

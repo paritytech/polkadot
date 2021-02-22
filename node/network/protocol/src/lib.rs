@@ -127,12 +127,13 @@ impl OurView {
 	/// Creates a new instance.
 	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<JaegerSpan>)>, finalized_number: BlockNumber) -> Self {
 		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
-
+		let mut view = View {
+			heads: state_per_head.keys().cloned().collect(),
+			finalized_number,
+		};
+		view.heads.sort();
 		Self {
-			view: View {
-				heads: state_per_head.keys().cloned().collect(),
-				finalized_number,
-			},
+			view,
 			span_per_head: state_per_head,
 		}
 	}
@@ -184,12 +185,67 @@ macro_rules! our_view {
 /// and the highest known finalized block number.
 ///
 /// Up to `N` (5?) chain heads.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Default, Debug, Clone, Encode, Decode)]
 pub struct View {
 	/// A bounded amount of chain heads.
+	/// Invariant: Contains no duplicates.
 	pub heads: Vec<Hash>,
 	/// The highest known finalized block number.
 	pub finalized_number: BlockNumber,
+}
+
+impl View {
+	/// Checks if one view is a superset of another.
+	///
+	/// Generally this only makes sense for match
+	/// `finalized_number`.
+	/// Equivalence is also.
+	pub fn is_superset_of(&self, other: &Self) -> bool {
+		// None of the others' heads must be missed in our heads.
+		// Resistant to duplicates.
+		other.heads.iter().filter(|x| !self.heads.contains(x)).count() == 0
+	}
+}
+
+impl PartialEq for View {
+	fn eq(&self, other: &Self) -> bool {
+		if self.finalized_number != other.finalized_number {
+			return false
+		}
+		// if one is empty, but not the other, early exit
+		// the loop below does not catch that case
+		if self.heads.is_empty() != other.heads.is_empty() {
+			return false
+		}
+		// Merge sort equivalence check based on sorted heads
+		let mut inner = other.heads.iter();
+		let mut last_inner = None;
+		'outer: for x in self.heads.iter() {
+			// check if the previous inner matches
+			if let Some(last_inner) = last_inner {
+				if last_inner != x {
+					return false
+				}
+			}
+			// advance inner as much as possible
+			'inner: while let Some(y) = inner.next() {
+				last_inner = Some(y);
+				if y == x {
+					continue 'inner;
+				}
+				continue 'outer;
+			}
+		}
+		if let Some(last_inner) = last_inner {
+			if let Some(last_mine_head) = self.heads.last() {
+				// check if the last elements match
+				return last_inner == last_mine_head
+			} else {
+				return false;
+			}
+		}
+		return true
+	}
 }
 
 /// Construct a new view with the given chain heads and finalized number 0.
@@ -442,6 +498,8 @@ pub mod v1 {
 mod tests {
 	use polkadot_primitives::v1::PoV;
 	use super::v1::{CompressedPoV, CompressedPoVError};
+	use itertools::Itertools;
+	use super::{Hash, View};
 
 	#[test]
 	fn decompress_huge_pov_block_fails() {
@@ -449,5 +507,29 @@ mod tests {
 
 		let compressed = CompressedPoV::compress(&pov).unwrap();
 		assert_eq!(CompressedPoVError::Decode, compressed.decompress().unwrap_err());
+	}
+
+
+	#[test]
+	fn view_equiv_integrity() {
+		let v1 = View::default();
+		let v2 = view![Hash::repeat_byte(0x77), Hash::repeat_byte(0x78), Hash::repeat_byte(0x79)];
+		let v3 = view![Hash::repeat_byte(0x78), Hash::repeat_byte(0x78), Hash::repeat_byte(0x80)];
+		let v4 = view![Hash::repeat_byte(0x76), Hash::repeat_byte(0x78), Hash::repeat_byte(0x80)];
+		let v5 = view![Hash::repeat_byte(0x80), Hash::repeat_byte(0x80), Hash::repeat_byte(0x80)];
+		let v6 = view![Hash::repeat_byte(0x77), Hash::repeat_byte(0x77), Hash::repeat_byte(0x77)];
+		let v7 = view![Hash::repeat_byte(0x77), Hash::repeat_byte(0x77), Hash::repeat_byte(0x77)];
+		let v8 = view![Hash::repeat_byte(0x77), Hash::repeat_byte(0x77)];
+		let v9 = view![Hash::repeat_byte(0x11), Hash::repeat_byte(0x99)];
+
+		for mut combo in vec![v1,v2,v3,v4,v5,v6,v7,v8,v9].into_iter().combinations(2) {
+			let view_a = combo.pop().unwrap();
+			let view_b = combo.pop().unwrap();
+			let res_1 = view_a.is_superset_of(&view_b) && view_b.is_superset_of(&view_a);
+			let res_2 = view_b == view_a;
+			println!("{:?} vs {:?} -> {}|{}", &view_a, &view_b, res_1, res_2);
+
+			assert_eq!(view_a.is_superset_of(&view_b) && view_b.is_superset_of(&view_a), view_b == view_a);
+		}
 	}
 }
