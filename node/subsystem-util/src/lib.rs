@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
-use polkadot_node_jaeger::JaegerSpan;
+use polkadot_node_jaeger as jaeger;
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
@@ -481,7 +481,7 @@ pub trait JobTrait: Unpin {
 	/// The job should be ended when `receiver` returns `None`.
 	fn run(
 		parent: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
@@ -552,7 +552,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	fn spawn_job(
 		&mut self,
 		parent_hash: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
 	) -> Result<(), Error> {
@@ -1045,9 +1045,10 @@ mod tests {
 	use super::*;
 	use executor::block_on;
 	use thiserror::Error;
+	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem, JaegerSpan,
+		SpawnedSubsystem,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
@@ -1089,7 +1090,7 @@ mod tests {
 		// this function is in charge of creating and executing the job's main loop
 		fn run(
 			_: Hash,
-			_: Arc<JaegerSpan>,
+			_: Arc<jaeger::Span>,
 			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<CandidateSelectionMessage>,
@@ -1173,7 +1174,7 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(jaeger::Span::Disabled)),
 				)))
 				.await;
 			assert_matches!(
@@ -1202,7 +1203,7 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(jaeger::Span::Disabled)),
 				)))
 				.await;
 

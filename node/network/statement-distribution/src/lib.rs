@@ -25,6 +25,7 @@
 use polkadot_subsystem::{
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
+	jaeger,
 	messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
@@ -516,10 +517,10 @@ async fn circulate_statement_and_dependents(
 		None => return,
 	};
 
-	let _span = active_head.span.child_with_candidate(
-		"circulate-statement",
-		&statement.payload().candidate_hash()
-	);
+	let _span = active_head.span.child_builder("circulate-statement")
+		.with_candidate(&statement.payload().candidate_hash())
+		.with_stage(jaeger::Stage::StatementDistribution)
+		.build();
 
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
@@ -533,10 +534,14 @@ async fn circulate_statement_and_dependents(
 		}
 	};
 
+	let _span = _span.child("send-to-peers");
 	// Now send dependent statements to all peers needing them, if any.
 	if let Some((candidate_hash, peers_needing_dependents)) = outputs {
 		for peer in peers_needing_dependents {
 			if let Some(peer_data) = peers.get_mut(&peer) {
+				let _span_loop = _span.child_builder("to-peer")
+					.with_peer_id(&peer)
+					.build();
 				// defensive: the peer data should always be some because the iterator
 				// of peers is derived from the set of peers.
 				send_statements_about(
@@ -1071,7 +1076,7 @@ mod tests {
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
-	use polkadot_subsystem::JaegerSpan;
+	use polkadot_subsystem::jaeger;
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -1112,7 +1117,7 @@ mod tests {
 		let mut head_data = ActiveHeadData::new(
 			validators,
 			session_index,
-			PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+			PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 		);
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
@@ -1374,7 +1379,7 @@ mod tests {
 			let mut data = ActiveHeadData::new(
 				validators,
 				session_index,
-				PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+				PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 			);
 
 			let noted = data.note_statement(block_on(SignedFullStatement::sign(
@@ -1627,7 +1632,7 @@ mod tests {
 		let test_fut = async move {
 			// register our active heads.
 			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![(hash_a, Arc::new(JaegerSpan::Disabled))].into(),
+				activated: vec![(hash_a, Arc::new(jaeger::Span::Disabled))].into(),
 				deactivated: vec![].into(),
 			}))).await;
 
