@@ -59,13 +59,13 @@ pub struct ChunkResponse {
 
 impl From<ErasureChunk> for ChunkResponse {
 	fn from(ErasureChunk {chunk, index: _, proof}: ErasureChunk) -> Self {
-		ChunkResponse { chunk, proof}
+		ChunkResponse {chunk, proof}
 	}
 }
 
 impl ChunkResponse {
 	/// Re-build an `ErasureChunk` from response and request.
-	pub fn reconstruct_erasure_chunk(self, req: &AvailabilityFetchingRequest) -> ErasureChunk {
+	pub fn recombine_into_chunk(self, req: &AvailabilityFetchingRequest) -> ErasureChunk {
 		ErasureChunk {
 			chunk: self.chunk,
 			proof: self.proof,

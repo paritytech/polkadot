@@ -262,7 +262,7 @@ impl RunningTask {
 			};
 			let chunk = match resp {
 				AvailabilityFetchingResponse::Chunk(resp) => {
-					resp.reconstruct_erasure_chunk(&self.request)
+					resp.recombine_into_chunk(&self.request)
 				}
 				AvailabilityFetchingResponse::NoSuchChunk => {
 					tracing::debug!(target: LOG_TARGET, validator = ?validator, "Validator did not have our chunk");

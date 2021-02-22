@@ -225,7 +225,8 @@ impl SessionCache {
 						.into_iter()
 						.map(|index| {
 							discovery_keys.get(index.0 as usize)
-							.expect("There should be a discovery key for each validator of each validator group. qed.").clone()
+								.expect("There should be a discovery key for each validator of each validator group. qed.")
+								.clone()
 						})
 						.collect()
 				})
