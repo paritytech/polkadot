@@ -40,7 +40,6 @@ use super::{
 /// Caching of session info as needed by availability distribution.
 ///
 /// It should be ensured that a cached session stays live in the cache as long as we might need it.
-/// A warning will be logged, if an already dead entry gets fetched.
 pub struct SessionCache {
 	/// Get the session index for a given relay parent.
 	///
@@ -52,7 +51,8 @@ pub struct SessionCache {
 	///
 	/// Note: Performance of fetching is really secondary here, but we need to ensure we are going
 	/// to get any existing cache entry, before fetching new information, as we should not mess up
-	/// the order of validators. (We want live TCP connections wherever possible.)
+	/// the order of validators in `SessionInfo::validator_groups`. (We want live TCP connections
+	/// wherever possible.)
 	session_info_cache: LruCache<SessionIndex, SessionInfo>,
 
 	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
@@ -64,32 +64,38 @@ pub struct SessionCache {
 pub struct SessionInfo {
 	/// The index of this session.
 	pub session_index: SessionIndex,
+
 	/// Validator groups of the current session.
 	///
 	/// Each group's order is randomized. This way we achieve load balancing when requesting
 	/// chunks, as the validators in a group will be tried in that randomized order. Each node
-	/// should arrive at a different order, therefore we distribute the load.
+	/// should arrive at a different order, therefore we distribute the load on individual
+	/// validators.
 	pub validator_groups: Vec<Vec<AuthorityDiscoveryId>>,
 
 	/// Information about ourself:
 	pub our_index: ValidatorIndex,
 
-	/// Remember to which group we belong, so we won't start fetching chunks for candidates those
-	/// candidates (We should have them via PoV distribution).
+	/// Remember to which group we belong, so we won't start fetching chunks for candidates with
+	/// our group being responsible. (We should have that chunk already.)
 	pub our_group: GroupIndex,
 }
 
 /// Report of bad validators.
+///
+/// Fetching tasks will report back validators that did not respond as expected, so we can re-order
+/// them.
 pub struct BadValidators {
 	/// The session index that was used.
 	pub session_index: SessionIndex,
-	/// The group the not properly responding validators are.
+	/// The group, the not properly responding validators belong to.
 	pub group_index: GroupIndex,
-	/// The indeces of the bad validators.
+	/// The list of bad validators.
 	pub bad_validators: Vec<AuthorityDiscoveryId>,
 }
 
 impl SessionCache {
+	/// Create a new `SessionCache`.
 	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
 		SessionCache {
 			// 5 relatively conservative, 1 to 2 should suffice:
@@ -104,7 +110,7 @@ impl SessionCache {
 	///
 	/// If this node is not a validator, the function will return `None`.
 	///
-	/// Use this function over `fetch_session_info` if all you need is a reference to
+	/// Use this function over any `fetch_session_info` if all you need is a reference to
 	/// `SessionInfo`, as it avoids an expensive clone.
 	pub async fn with_session_info<Context, F, R>(
 		&mut self,
@@ -170,7 +176,7 @@ impl SessionCache {
 	/// Query needed information from runtime.
 	///
 	/// We need to pass in the relay parent for our call to `request_session_info_ctx`. We should
-	/// actually don't need that, I suppose it is used for internal caching based on relay parents,
+	/// actually don't need that: I suppose it is used for internal caching based on relay parents,
 	/// which we don't use here. It should not do any harm though.
 	async fn query_info_from_runtime<Context>(
 		&self,
@@ -204,7 +210,6 @@ impl SessionCache {
 						}
 					})
 				})
-				// TODO: Make sure this is correct and should be enforced:
 				.expect("Every validator should be in a validator group. qed.");
 
 			// Shuffle validators in groups:
@@ -237,9 +242,9 @@ impl SessionCache {
 		return Ok(None);
 	}
 
-	/// Get our validator id and the validators in the current session.
+	/// Get our `ValidatorIndex`.
 	///
-	/// Returns: Ok(None) if we are not a validator.
+	/// Returns: None if we are not a validator.
 	async fn get_our_index(&self, validators: Vec<ValidatorId>) -> Option<ValidatorIndex> {
 		for (i, v) in validators.iter().enumerate() {
 			if CryptoStore::has_keys(&*self.keystore, &[(v.to_raw_vec(), ValidatorId::ID)])

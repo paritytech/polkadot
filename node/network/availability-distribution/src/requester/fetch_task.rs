@@ -50,6 +50,7 @@ pub struct FetchTaskConfig {
 	live_in: HashSet<Hash>,
 }
 
+/// Information about a task fetching an erasure chunk.
 pub struct FetchTask {
 	/// For what relay parents this task is relevant.
 	///
@@ -90,7 +91,9 @@ struct RunningTask {
 	/// For what session we have been spawned.
 	session_index: SessionIndex,
 
-	/// Index of validator group.
+	/// Index of validator group to fetch the chunk from.
+	///
+	/// Needef for reporting bad validators.
 	group_index: GroupIndex,
 
 	/// Validators to request the chunk from.
@@ -134,7 +137,9 @@ impl FetchTaskConfig {
 		let prepared_running = RunningTask {
 			session_index: session_info.session_index,
 			group_index: core.group_responsible,
-			group: session_info.validator_groups.get(core.group_responsible.0 as usize).expect("The responsible group of a candidate should be available in the corresponding session. qed.").clone(),
+			group: session_info.validator_groups.get(core.group_responsible.0 as usize)
+				.expect("The responsible group of a candidate should be available in the corresponding session. qed.")
+				.clone(),
 			request: AvailabilityFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
@@ -184,7 +189,7 @@ impl FetchTask {
 
 	/// Add the given leaf to the relay parents which are making this task relevant.
 	///
-	/// This is for book keeping, so we know we are already fetching a chunk.
+	/// This is for book keeping, so we know we are already fetching a given chunk.
 	pub fn add_leaf(&mut self, leaf: Hash) {
 		self.live_in.insert(leaf);
 	}

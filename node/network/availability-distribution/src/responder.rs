@@ -46,6 +46,7 @@ where
 	req.send_response(response).map_err(|_| Error::SendResponse)
 }
 
+/// Query chunk from the availability store.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_chunk<Context>(
 	ctx: &mut Context,

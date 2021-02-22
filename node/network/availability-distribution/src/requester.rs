@@ -123,7 +123,7 @@ impl Requester {
 	/// Stop requesting chunks for obsolete heads.
 	///
 	fn stop_requesting_chunks(&mut self, obsolete_leaves: impl Iterator<Item = Hash>) {
-		let obsolete_leaves: HashSet<_> = obsolete_leaves.into_iter().collect();
+		let obsolete_leaves: HashSet<_> = obsolete_leaves.collect();
 		self.fetches.retain(|_, task| {
 			task.remove_leaves(&obsolete_leaves);
 			task.is_live()
@@ -155,6 +155,7 @@ impl Requester {
 				}
 				Entry::Vacant(e) => {
 					let tx = self.tx.clone();
+
 					let task_cfg = self
 						.session_cache
 						.with_session_info(
@@ -163,6 +164,7 @@ impl Requester {
 							|info| FetchTaskConfig::new(leaf, &core, tx, info),
 						)
 						.await?;
+
 					if let Some(task_cfg) = task_cfg {
 						e.insert(FetchTask::start(task_cfg, ctx).await?);
 					}
@@ -200,8 +202,8 @@ impl Stream for Requester {
 	}
 }
 
-///// Query all hashes and descriptors of candidates pending availability at a particular block.
-// #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+/// Query all hashes and descriptors of candidates pending availability at a particular block.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_occupied_cores<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
