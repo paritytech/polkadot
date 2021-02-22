@@ -39,7 +39,7 @@ use polkadot_subsystem::{
 	messages::AllMessages, ActiveLeavesUpdate, jaeger, SubsystemContext,
 };
 
-use super::{error::recv_runtime, session_cache::SessionCache, Result};
+use super::{error::recv_runtime, session_cache::SessionCache, Result, LOG_TARGET};
 
 /// A task fetching a particular chunk.
 mod fetch_task;
