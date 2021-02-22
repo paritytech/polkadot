@@ -23,7 +23,7 @@
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
-	jaeger, PerLeafSpan, JaegerSpan,
+	jaeger, PerLeafSpan,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
 		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -75,7 +75,7 @@ async fn get_core_availability(
 	core: CoreState,
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
-	span: &jaeger::JaegerSpan,
+	span: &jaeger::Span,
 ) -> Result<bool, Error> {
 	if let CoreState::Occupied(core) = core {
 		let _span = span.child("query-chunk-availability");
@@ -132,7 +132,7 @@ async fn get_availability_cores(
 #[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
-	span: &jaeger::JaegerSpan,
+	span: &jaeger::Span,
 	validator_idx: ValidatorIndex,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<AvailabilityBitfield, Error> {
@@ -218,7 +218,7 @@ impl JobTrait for BitfieldSigningJob {
 	#[tracing::instrument(skip(span, keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
@@ -321,7 +321,7 @@ mod tests {
 
 			let future = construct_availability_bitfield(
 				relay_parent,
-				&jaeger::JaegerSpan::Disabled,
+				&jaeger::Span::Disabled,
 				validator_index,
 				&mut sender,
 			).fuse();

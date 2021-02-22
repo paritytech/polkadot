@@ -35,7 +35,8 @@ use polkadot_node_primitives::{
 	Statement, SignedFullStatement, ValidationResult,
 };
 use polkadot_subsystem::{
-	JaegerSpan, PerLeafSpan,
+	PerLeafSpan, Stage,
+	jaeger,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
@@ -134,7 +135,7 @@ struct CandidateBackingJob {
 	/// The collator required to author the candidate, if any.
 	required_collator: Option<CollatorId>,
 	/// Spans for all candidates that are not yet backable.
-	unbacked_candidates: HashMap<CandidateHash, JaegerSpan>,
+	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
 	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.
 	issued_statements: HashSet<CandidateHash>,
 	/// These candidates are undergoing validation in the background.
@@ -294,7 +295,7 @@ async fn make_pov_available(
 	candidate_hash: CandidateHash,
 	validation_data: polkadot_primitives::v1::PersistedValidationData,
 	expected_erasure_root: Hash,
-	span: Option<&JaegerSpan>,
+	span: Option<&jaeger::Span>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
 	let available_data = AvailableData {
 		pov,
@@ -383,7 +384,7 @@ struct BackgroundValidationParams<F> {
 	pov: Option<Arc<PoV>>,
 	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
-	span: Option<JaegerSpan>,
+	span: Option<jaeger::Span>,
 	make_command: F,
 }
 
@@ -415,7 +416,11 @@ async fn validate_and_make_available(
 	};
 
 	let v = {
-		let _span = span.as_ref().map(|s| s.child("request-validation"));
+		let _span = span.as_ref().map(|s| {
+			s.child_builder("request-validation")
+			.with_pov(&pov)
+			.build()
+		});
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
 
@@ -513,7 +518,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
-		parent_span: &JaegerSpan,
+		parent_span: &jaeger::Span,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
@@ -609,7 +614,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self, parent_span, pov), fields(subsystem = LOG_TARGET))]
 	async fn validate_and_second(
 		&mut self,
-		parent_span: &JaegerSpan,
+		parent_span: &jaeger::Span,
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
@@ -649,7 +654,7 @@ impl CandidateBackingJob {
 	async fn sign_import_and_distribute_statement(
 		&mut self,
 		statement: Statement,
-		parent_span: &JaegerSpan,
+		parent_span: &jaeger::Span,
 	) -> Result<Option<SignedFullStatement>, Error> {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
 			self.import_statement(&signed_statement, parent_span).await?;
@@ -682,7 +687,7 @@ impl CandidateBackingJob {
 	async fn import_statement(
 		&mut self,
 		statement: &SignedFullStatement,
-		parent_span: &JaegerSpan,
+		parent_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -745,10 +750,17 @@ impl CandidateBackingJob {
 	}
 
 	#[tracing::instrument(level = "trace", skip(self, span), fields(subsystem = LOG_TARGET))]
-	async fn process_msg(&mut self, span: &JaegerSpan, msg: CandidateBackingMessage) -> Result<(), Error> {
+	async fn process_msg(&mut self, span: &jaeger::Span, msg: CandidateBackingMessage) -> Result<(), Error> {
 		match msg {
-			CandidateBackingMessage::Second(_, candidate, pov) => {
+			CandidateBackingMessage::Second(_relay_parent, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
+
+				let span = span.child_builder("second")
+					.with_stage(jaeger::Stage::CandidateBacking)
+					.with_pov(&pov)
+					.with_candidate(&candidate.hash())
+					.with_relay_parent(&_relay_parent)
+					.build();
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
@@ -768,8 +780,13 @@ impl CandidateBackingJob {
 					}
 				}
 			}
-			CandidateBackingMessage::Statement(_, statement) => {
+			CandidateBackingMessage::Statement(_relay_parent, statement) => {
 				let _timer = self.metrics.time_process_statement();
+				let span = span.child_builder("statement")
+					.with_stage(jaeger::Stage::CandidateBacking)
+					.with_candidate(&statement.payload().candidate_hash())
+					.with_relay_parent(&_relay_parent)
+					.build();
 
 				self.check_statement_signature(&statement)?;
 				match self.maybe_validate_and_import(&span, statement).await {
@@ -801,7 +818,7 @@ impl CandidateBackingJob {
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
-		span: Option<JaegerSpan>,
+		span: Option<jaeger::Span>,
 	) -> Result<(), Error> {
 		let candidate_hash = summary.candidate;
 
@@ -851,7 +868,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self, parent_span), fields(subsystem = LOG_TARGET))]
 	async fn maybe_validate_and_import(
 		&mut self,
-		parent_span: &JaegerSpan,
+		parent_span: &jaeger::Span,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
@@ -896,7 +913,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Insert or get the unbacked-span for the given candidate hash.
-	fn insert_or_get_unbacked_span(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) -> Option<&JaegerSpan> {
+	fn insert_or_get_unbacked_span(&mut self, parent_span: &jaeger::Span, hash: CandidateHash) -> Option<&jaeger::Span> {
 		if !self.backed.contains(&hash) {
 			// only add if we don't consider this backed.
 			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
@@ -908,16 +925,22 @@ impl CandidateBackingJob {
 		}
 	}
 
-	fn get_unbacked_validation_child(&mut self, parent_span: &JaegerSpan, hash: CandidateHash) -> Option<JaegerSpan> {
-		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| span.child_with_candidate("validation", &hash))
+	fn get_unbacked_validation_child(&mut self, parent_span: &jaeger::Span, hash: CandidateHash) -> Option<jaeger::Span> {
+		self.insert_or_get_unbacked_span(parent_span, hash)
+			.map(|span| {
+				span.child_builder("validation")
+					.with_candidate(&hash)
+					.with_stage(Stage::CandidateBacking)
+					.build()
+			})
 	}
 
 	fn get_unbacked_statement_child(
 		&mut self,
-		parent_span: &JaegerSpan,
+		parent_span: &jaeger::Span,
 		hash: CandidateHash,
 		validator: ValidatorIndex,
-	) -> Option<JaegerSpan> {
+	) -> Option<jaeger::Span> {
 		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| {
 			span.child_builder("import-statement")
 				.with_candidate(&hash)
@@ -926,7 +949,7 @@ impl CandidateBackingJob {
 		})
 	}
 
-	fn remove_unbacked_span(&mut self, hash: &CandidateHash) -> Option<JaegerSpan> {
+	fn remove_unbacked_span(&mut self, hash: &CandidateHash) -> Option<jaeger::Span> {
 		self.unbacked_candidates.remove(hash)
 	}
 
@@ -966,7 +989,7 @@ impl util::JobTrait for CandidateBackingJob {
 	#[tracing::instrument(skip(span, keystore, metrics, rx_to, tx_from), fields(subsystem = LOG_TARGET))]
 	fn run(
 		parent: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
@@ -1379,7 +1402,7 @@ mod tests {
 		virtual_overseer.send(FromOverseer::Signal(
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 				test_state.relay_parent,
-				Arc::new(JaegerSpan::Disabled),
+				Arc::new(jaeger::Span::Disabled),
 			)))
 		).await;
 

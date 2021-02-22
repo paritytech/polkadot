@@ -869,7 +869,7 @@ mod tests {
 		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
 		SessionIndex, SessionInfo,
 	};
-	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
+	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_node_network_protocol::{view, our_view};
@@ -1125,7 +1125,7 @@ mod tests {
 		overseer_signal(
 			virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(test_state.relay_parent, Arc::new(JaegerSpan::Disabled))][..].into(),
+				activated: [(test_state.relay_parent, Arc::new(jaeger::Span::Disabled))][..].into(),
 				deactivated: [][..].into(),
 			}),
 		).await;
