@@ -1000,7 +1000,7 @@ mod tests {
 				signing_context,
 				*val_idx,
 				&key.public().into(),
-			).await.unwrap().signature().clone();
+			).await.unwrap().unwrap().signature().clone();
 
 			validity_votes.push(ValidityAttestation::Explicit(signature).into());
 		}
@@ -1101,7 +1101,7 @@ mod tests {
 			&signing_context,
 			validator_index,
 			&key.public().into(),
-		).await.unwrap()
+		).await.unwrap().unwrap()
 	}
 
 	#[derive(Default)]
