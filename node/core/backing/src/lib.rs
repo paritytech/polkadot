@@ -891,7 +891,8 @@ impl CandidateBackingJob {
 			.as_ref()?
 			.sign(self.keystore.clone(), statement)
 			.await
-			.ok()?;
+			.ok()
+			.flatten()?;
 		self.metrics.on_statement_signed();
 		Some(signed)
 	}
@@ -1601,7 +1602,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let signed_b = SignedFullStatement::sign(
 				&test_state.keystore,
@@ -1609,7 +1610,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(5),
 				&public1.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
@@ -1743,7 +1744,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let signed_b = SignedFullStatement::sign(
 				&test_state.keystore,
@@ -1751,7 +1752,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(5),
 				&public1.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let signed_c = SignedFullStatement::sign(
 				&test_state.keystore,
@@ -1759,7 +1760,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(3),
 				&public3.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
@@ -1896,7 +1897,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let signed_b = SignedFullStatement::sign(
 				&test_state.keystore,
@@ -1904,7 +1905,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let signed_c = SignedFullStatement::sign(
 				&test_state.keystore,
@@ -1912,7 +1913,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(0),
 				&public0.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
@@ -2225,7 +2226,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&validator2.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			// Send in a `Statement` with a candidate.
 			let statement = CandidateBackingMessage::Statement(
@@ -2363,7 +2364,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			// Send in a `Statement` with a candidate.
 			let statement = CandidateBackingMessage::Statement(
@@ -2505,7 +2506,7 @@ mod tests {
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
-			).await.expect("should be signed");
+			).await.ok().flatten().expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(
 				test_state.relay_parent,

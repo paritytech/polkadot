@@ -249,8 +249,8 @@ pub(crate) fn compute_assignments(
 	let (index, assignments_key): (ValidatorIndex, AssignmentPair) = {
 		let key = config.assignment_keys.iter().enumerate()
 			.find_map(|(i, p)| match keystore.key_pair(p) {
-				Ok(pair) => Some((ValidatorIndex(i as _), pair)),
-				Err(sc_keystore::Error::PairNotFound(_)) => None,
+				Ok(Some(pair)) => Some((ValidatorIndex(i as _), pair)),
+				Ok(None) => None,
 				Err(e) => {
 					tracing::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
 					None

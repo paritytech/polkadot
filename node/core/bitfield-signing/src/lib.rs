@@ -268,10 +268,20 @@ impl JobTrait for BitfieldSigningJob {
 			drop(span_availability);
 			let _span = span.child("signing");
 
-			let signed_bitfield = validator
-				.sign(keystore.clone(), bitfield)
+			let signed_bitfield = match validator.sign(keystore.clone(), bitfield)
 				.await
-				.map_err(|e| Error::Keystore(e))?;
+				.map_err(|e| Error::Keystore(e))?
+			{
+				Some(b) => b,
+				None => {
+					tracing::error!(
+						target: LOG_TARGET,
+						"Key was found at construction, but while signing it could not be found.",
+					);
+					return Ok(());
+				}
+			};
+
 			metrics.on_bitfield_signed();
 
 			drop(_span);

@@ -1384,7 +1384,7 @@ fn sign_approval(
 	candidate_hash: CandidateHash,
 	session_index: SessionIndex,
 ) -> Option<ValidatorSignature> {
-	let key = keystore.key_pair::<ValidatorPair>(public).ok()?;
+	let key = keystore.key_pair::<ValidatorPair>(public).ok().flatten()?;
 
 	let payload = approval_signing_payload(
 		ApprovalVote(candidate_hash),
