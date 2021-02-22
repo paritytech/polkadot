@@ -335,11 +335,11 @@ impl RunningTask {
 				Ok(hash) => hash,
 				Err(e) => {
 					tracing::trace!(
-					target: LOG_TARGET,
-					candidate_hash = ?self.request.candidate_hash,
-					origin = ?validator,
-					error = ?e,
-					"Failed to calculate chunk merkle proof",
+						target: LOG_TARGET,
+						candidate_hash = ?self.request.candidate_hash,
+						origin = ?validator,
+						error = ?e,
+						"Failed to calculate chunk merkle proof",
 					);
 					return false;
 				}
