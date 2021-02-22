@@ -80,13 +80,13 @@ impl AvailabilityDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
-		let mut state = Requester::new(self.keystore.clone()).fuse();
+		let mut requester = Requester::new(self.keystore.clone()).fuse();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
 				futures::select! {
 					subsystem_msg = subsystem_next => Either::Left(subsystem_msg),
-					from_task = state.next() => Either::Right(from_task),
+					from_task = requester.next() => Either::Right(from_task),
 				}
 			};
 
@@ -104,7 +104,7 @@ impl AvailabilityDistributionSubsystem {
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					// Update the relay chain heads we are fetching our pieces for:
-					state
+					requester
 						.get_mut()
 						.update_fetching_heads(&mut ctx, update)
 						.await?;
