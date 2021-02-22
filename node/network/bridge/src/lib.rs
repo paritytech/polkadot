@@ -554,16 +554,12 @@ async fn dispatch_collation_event_to_all(
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
-#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
-async fn dispatch_validation_events_to_all<I>(
-	events: I,
-	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-)
-	where
-		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
-		I::IntoIter: Send,
+fn multiply_messages<I>(events: I) -> impl Iterator<AllMessages>
+where
+	I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
+	I::IntoIter: Send,
 {
-	let messages_for = |event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>| {
+	let message_spread = |x| {
 		let a = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
 			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
@@ -587,7 +583,19 @@ async fn dispatch_validation_events_to_all<I>(
 		a.chain(b).chain(p).chain(s).chain(ap).filter_map(|x| x)
 	};
 
-	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
+	events.into_iter().flat_map(message_spread)
+}
+
+#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
+async fn dispatch_validation_events_to_all<I>(
+	events: I,
+	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+)
+	where
+		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
+		I::IntoIter: Send,
+{
+	ctx.send_messages(spread_event_to_subsystems(events)).await
 }
 
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
@@ -1535,5 +1543,33 @@ mod tests {
 				);
 			}
 		});
+	}
+
+
+	#[test]
+	fn verify_coverage() {
+		for msg in spread_event_to_subsystems(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
+			match msg {
+				AllMessages::CandidateValidation(_) => unreachable!("Not interested in network events"),
+				AllMessages::CandidateBacking(_) => unreachable!("Not interested in network events"),
+				AllMessages::CandidateSelection(_) => unreachable!("Not interested in network events"),
+				AllMessages::ChainApi(_) => unreachable!("Not interested in network events"),
+				AllMessages::CollatorProtocol(_) => unreachable!("Not interested in network events"),
+				AllMessages::StatementDistribution(_) => {}
+				AllMessages::AvailabilityDistribution(_) => {}
+				AllMessages::AvailabilityRecovery(_) => unreachable!("Not interested in network events"),
+				AllMessages::BitfieldDistribution(_) => {}
+				AllMessages::BitfieldSigning(_) => unreachable!("Not interested in network events"),
+				AllMessages::Provisioner(_) => unreachable!("Not interested in network events"),
+				AllMessages::PoVDistribution(_) => {}
+				AllMessages::RuntimeApi(_) => unreachable!("Not interested in network events"),
+				AllMessages::AvailabilityStore(_) => unreachable!("Not interested in network events"),
+				AllMessages::NetworkBridge(_) => unreachable!("Not interested in network events"),
+				AllMessages::CollationGeneration(_) => unreachable!("Not interested in network events"),
+				AllMessages::ApprovalVoting(_) => unreachable!("Not interested in network events"),
+				AllMessages::ApprovalDistribution(_) => {}
+				// add new variants as needed
+			}
+		}
 	}
 }
