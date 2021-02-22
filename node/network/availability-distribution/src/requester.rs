@@ -160,7 +160,10 @@ impl Requester {
 						.session_cache
 						.with_session_info(
 							ctx,
-							core.candidate_descriptor.relay_parent,
+							// We use leaf here, as relay_parent must be in the same session as the
+							// leaf. (Cores are dropped at session boundaries.) At the same time,
+							// only leaves are guaranteed to be fetchable by the state trie.
+							leaf,
 							|info| FetchTaskConfig::new(leaf, &core, tx, info),
 						)
 						.await?;
