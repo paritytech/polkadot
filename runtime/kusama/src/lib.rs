@@ -980,7 +980,7 @@ construct_runtime! {
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage} = 32,
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned} = 1,
+		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned} = 1,
 
 		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent} = 2,
 		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>} = 3,

@@ -134,6 +134,8 @@ decl_error! {
 		DefinitelyNotWasm,
 		/// Registration requires at least one validator.
 		AtLeastOneValidatorRequired,
+		/// Couldn't schedule parachain cleanup.
+		CouldntCleanup,
 	}
 }
 
@@ -195,11 +197,7 @@ decl_module! {
 			ensure!(validators.len() > 0, Error::<T>::AtLeastOneValidatorRequired);
 			ensure!(!Proposals::<T>::contains_key(&para_id), Error::<T>::ParachainIdAlreadyProposed);
 			ensure!(
-				!runtime_parachains::paras::Module::<T>::parachains().contains(&para_id),
-				Error::<T>::ParachainIdAlreadyTaken,
-			);
-			ensure!(
-				!runtime_parachains::paras::Module::<T>::upcoming_paras().contains(&para_id),
+				runtime_parachains::paras::Module::<T>::lifecycle(para_id).is_none(),
 				Error::<T>::ParachainIdAlreadyTaken,
 			);
 			ensure!(validation_code.0.starts_with(runtime_common::WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
@@ -289,10 +287,10 @@ decl_module! {
 			if let Some(who) = who {
 				ensure!(who == info.proposer, Error::<T>::NotAuthorized);
 			}
+			runtime_parachains::schedule_para_cleanup::<T>(para_id).map_err(|_| Error::<T>::CouldntCleanup)?;
 
 			ParachainInfo::<T>::remove(&para_id);
 			info.validators.into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
-			runtime_parachains::schedule_para_cleanup::<T>(para_id);
 
 			pallet_balances::Module::<T>::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
@@ -354,7 +352,8 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 				parachain: true,
 			};
 
-			runtime_parachains::schedule_para_initialize::<T>(*id, genesis);
+			// Not much we can do if this fails...
+			let _ = runtime_parachains::schedule_para_initialize::<T>(*id, genesis);
 
 			validators.extend(proposal.validators);
 		}
