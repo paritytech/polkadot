@@ -553,7 +553,7 @@ type LocalOriginConverter = (
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = xcm_sender::XcmSender<Runtime>;
+	type XcmSender = xcm_sender::RelayChainXcmSender<Runtime>;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();

@@ -21,10 +21,10 @@ use sp_std::marker::PhantomData;
 use xcm::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
 use runtime_parachains::{configuration, dmp};
 
-/// Xcm sender for relay chain.
-pub struct XcmSender<T>(PhantomData<T>);
+/// Xcm sender for relay chain. It only sends downward message.
+pub struct RelayChainXcmSender<T>(PhantomData<T>);
 
-impl<T: configuration::Config + dmp::Config> SendXcm for XcmSender<T> {
+impl<T: configuration::Config + dmp::Config> SendXcm for RelayChainXcmSender<T> {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
 		if let MultiLocation::X1(Junction::Parachain { id }) = dest {
 			// Downward message passing.
