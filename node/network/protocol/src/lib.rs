@@ -230,6 +230,16 @@ impl View {
 		}
 	}
 
+	/// Obtain the number of heads that are in view.
+	pub fn len(&self) -> usize {
+		self.heads.len()
+	}
+
+	/// Check if the number of heads contained, is null.
+	pub fn is_empty(&self) -> bool {
+		self.heads.is_empty()
+	}
+
 	/// Obtain an iterator over all heads.
 	pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a Hash> {
 		self.heads.iter()
