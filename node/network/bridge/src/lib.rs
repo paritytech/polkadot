@@ -1418,7 +1418,7 @@ mod tests {
 				peer_a.clone(),
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-					View::new(vec![], 1),
+					View::new(vec![], 0),
 				).encode(),
 			).await;
 
