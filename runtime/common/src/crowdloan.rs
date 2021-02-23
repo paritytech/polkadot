@@ -508,7 +508,8 @@ decl_module! {
 
 			// Try killing the crowdloan child trie
 			match Self::crowdloan_kill(index) {
-				child::KillOutcome::AllRemoved => {
+				// TODO use this value for refund
+				child::KillChildStorageResult::AllRemoved(_) => {
 					let account = Self::fund_account_id(index);
 					T::Currency::transfer(&account, &fund.owner, fund.deposit, AllowDeath)?;
 
@@ -520,7 +521,8 @@ decl_module! {
 
 					Self::deposit_event(RawEvent::Dissolved(index));
 				},
-				child::KillOutcome::SomeRemaining => {
+				// TODO use this value for refund
+				child::KillChildStorageResult::SomeRemaining(_) => {
 					Self::deposit_event(RawEvent::PartiallyDissolved(index));
 				}
 			}
@@ -591,7 +593,7 @@ impl<T: Config> Module<T> {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdloan_kill(index: FundIndex) -> child::KillOutcome {
+	pub fn crowdloan_kill(index: FundIndex) -> child::KillChildStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 }
@@ -602,7 +604,7 @@ mod tests {
 
 	use std::{collections::HashMap, cell::RefCell, sync::Arc, convert::TryFrom};
 	use frame_support::{
-		impl_outer_origin, impl_outer_event, assert_ok, assert_noop, parameter_types,
+		assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
 	};
 	use sp_core::H256;
@@ -615,35 +617,27 @@ mod tests {
 	};
 	use sp_keystore::{KeystoreExt, testing::KeyStore};
 	use sp_io::crypto::{ed25519_generate, ed25519_sign};
-	use crate::slots::Registrar;
+	use crate::slots::{self, Registrar};
+	use crate::crowdloan;
 
-	impl_outer_origin! {
-		pub enum Origin for Test {}
-	}
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+	type Block = frame_system::mocking::MockBlock<Test>;
 
-	mod runtime_common_slots {
-		pub use crate::slots::Event;
-	}
-
-	mod runtime_common_crowdloan {
-		pub use crate::crowdloan::Event;
-	}
-
-	impl_outer_event! {
-		pub enum Event for Test {
-			frame_system<T>,
-			pallet_balances<T>,
-			pallet_treasury<T>,
-			runtime_common_slots<T>,
-			runtime_common_crowdloan<T>,
+	frame_support::construct_runtime!(
+		pub enum Test where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Module, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+			Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>},
+			Slots: slots::{Module, Call, Storage, Event<T>},
+			Crowdloan: crowdloan::{Module, Call, Storage, Event<T>},
+	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
 		}
-	}
+	);
 
-	// For testing the module, we construct most of a mock runtime. This means
-	// first constructing a configuration type (`Test`) which `impl`s each of the
-	// configuration traits of modules we want to use.
-	#[derive(Clone, Eq, PartialEq)]
-	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 	}
@@ -654,7 +648,7 @@ mod tests {
 		type BlockLength = ();
 		type DbWeight = ();
 		type Origin = Origin;
-		type Call = ();
+		type Call = Call;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -665,7 +659,7 @@ mod tests {
 		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
-		type PalletInfo = ();
+		type PalletInfo = PalletInfo;
 		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
@@ -789,12 +783,6 @@ mod tests {
 		type RemoveKeysLimit = RemoveKeysLimit;
 	}
 
-	type System = frame_system::Module<Test>;
-	type Balances = pallet_balances::Module<Test>;
-	type Slots = slots::Module<Test>;
-	type Treasury = pallet_treasury::Module<Test>;
-	type Crowdloan = Module<Test>;
-	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	use pallet_balances::Error as BalancesError;
 	use slots::Error as SlotsError;
 

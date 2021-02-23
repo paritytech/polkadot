@@ -58,6 +58,12 @@ enum AvailabilityRecoveryV1Message {
 	/// Respond with chunk for a given candidate hash and validator index.
 	/// The response may be `None` if the requestee does not have the chunk.
 	Chunk(RequestId, Option<ErasureChunk>),
+	/// Request the full data for a given candidate hash.
+	RequestFullData(RequestId, CandidateHash),
+	/// Respond with data for a given candidate hash and validator index.
+	/// The response may be `None` if the requestee does not have the data.
+	FullData(RequestId, Option<AvailableData>),
+
 }
 ```
 
@@ -105,6 +111,8 @@ enum CollatorProtocolV1Message {
 	RequestCollation(RequestId, Hash, ParaId),
 	/// A requested collation.
 	Collation(RequestId, CandidateReceipt, CompressedPoV),
+	/// A collation sent to a validator was seconded.
+	CollationSeconded(SignedFullStatement),
 }
 ```
 

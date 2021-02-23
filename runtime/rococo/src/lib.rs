@@ -65,6 +65,7 @@ use runtime_common::{paras_sudo_wrapper, paras_registrar};
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
+use runtime_parachains::shared as parachains_shared;
 use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
@@ -100,7 +101,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1-1"),
 	authoring_version: 0,
-	spec_version: 200,
+	spec_version: 210,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -168,7 +169,7 @@ construct_runtime! {
 		System: frame_system::{Module, Call, Storage, Config, Event<T>},
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
+		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned},
 
 		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
 		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
@@ -187,6 +188,7 @@ construct_runtime! {
 		// Parachains modules.
 		ParachainsOrigin: parachains_origin::{Module, Origin},
 		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
+		Shared: parachains_shared::{Module, Call, Storage},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
@@ -420,6 +422,7 @@ impl pallet_session::Config for Runtime {
 
 parameter_types! {
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
+	pub ReportLongevity: u64 = EpochDurationInBlocks::get() as u64 * 10;
 }
 
 impl pallet_babe::Config for Runtime {
@@ -442,7 +445,7 @@ impl pallet_babe::Config for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
 
 	type WeightInfo = ();
 }
@@ -477,7 +480,8 @@ impl pallet_grandpa::Config for Runtime {
 		GrandpaId,
 	)>>::IdentificationTuple;
 
-	type HandleEquivocation = pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+	type HandleEquivocation =
+		pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
 
 	type WeightInfo = ();
 }
@@ -497,6 +501,8 @@ impl pallet_authorship::Config for Runtime {
 impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {}
+
+impl parachains_shared::Config for Runtime {}
 
 /// Special `RewardValidators` that does nothing ;)
 pub struct RewardValidators;
@@ -801,7 +807,7 @@ sp_api::impl_runtime_apis! {
 				c: PRIMARY_PROBABILITY,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 			}
 		}
 
@@ -843,7 +849,7 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			AuthorityDiscovery::authorities()
+			runtime_api_impl::relevant_authority_ids::<Runtime>()
 		}
 	}
 
