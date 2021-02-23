@@ -456,7 +456,7 @@ impl parachains_inclusion::Config for Runtime {
 impl parachains_inclusion_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = RandomnessCollectiveFlip;
+	type Randomness = Babe;
 }
 
 impl parachains_session_info::Config for Runtime {}
