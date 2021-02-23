@@ -234,11 +234,11 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
 /// It is a heavy call, but currently only used for authority discovery, so it is fine.
-/// Gets current and historical authority ids using session_info module.
-pub fn get_historical_and_current_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
+/// Gets next, current and some historical authority ids using session_info module.
+pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
-	let mut authority_ids = vec![];
+	let mut authority_ids = <pallet_authority_discovery::Module<T>>::next_authorities();
 
 	for session_index in earliest_stored_session..=current_session_index {
 		let info = <session_info::Module<T>>::session_info(session_index);
@@ -246,9 +246,6 @@ pub fn get_historical_and_current_authority_ids<T: initializer::Config + pallet_
 			authority_ids.append(&mut info.discovery_keys);
 		}
 	}
-
-	let mut next_authorities = <pallet_authority_discovery::Module<T>>::next_authorities();
-	authority_ids.append(&mut next_authorities);
 
 	authority_ids.sort();
 	authority_ids.dedup();
