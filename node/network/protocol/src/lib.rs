@@ -23,11 +23,14 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::{fmt, collections::HashMap};
 
-pub use sc_network::{ReputationChange, PeerId};
+pub use sc_network::PeerId;
 #[doc(hidden)]
-pub use polkadot_node_jaeger::JaegerSpan;
+pub use polkadot_node_jaeger as jaeger;
 #[doc(hidden)]
 pub use std::sync::Arc;
+
+mod reputation;
+pub use self::reputation::{ReputationChange, UnifiedReputationChange};
 
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
@@ -115,16 +118,16 @@ macro_rules! impl_try_from {
 
 /// Specialized wrapper around [`View`].
 ///
-/// Besides the access to the view itself, it also gives access to the [`JaegerSpan`] per leave/head.
+/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per leave/head.
 #[derive(Debug, Clone, Default)]
 pub struct OurView {
 	view: View,
-	span_per_head: HashMap<Hash, Arc<JaegerSpan>>,
+	span_per_head: HashMap<Hash, Arc<jaeger::Span>>,
 }
 
 impl OurView {
 	/// Creates a new instance.
-	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<JaegerSpan>)>, finalized_number: BlockNumber) -> Self {
+	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<jaeger::Span>)>, finalized_number: BlockNumber) -> Self {
 		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
 		let view = View::new(
 			state_per_head.keys().cloned(),
@@ -139,7 +142,7 @@ impl OurView {
 	/// Returns the span per head map.
 	///
 	/// For each head there exists one span in this map.
-	pub fn span_per_head(&self) -> &HashMap<Hash, Arc<JaegerSpan>> {
+	pub fn span_per_head(&self) -> &HashMap<Hash, Arc<jaeger::Span>> {
 		&self.span_per_head
 	}
 }
@@ -158,7 +161,7 @@ impl std::ops::Deref for OurView {
 	}
 }
 
-/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`JaegerSpan`]'s.
+/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`jaeger::Span`]'s.
 ///
 /// NOTE: Use for tests only.
 ///
@@ -173,7 +176,7 @@ impl std::ops::Deref for OurView {
 macro_rules! our_view {
 	( $( $hash:expr ),* $(,)? ) => {
 		$crate::OurView::new(
-			vec![ $( $hash.clone() ),* ].into_iter().map(|h| (h, $crate::Arc::new($crate::JaegerSpan::Disabled))),
+			vec![ $( $hash.clone() ),* ].into_iter().map(|h| (h, $crate::Arc::new($crate::jaeger::Span::Disabled))),
 			0,
 		)
 	};
@@ -287,7 +290,7 @@ impl View {
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex,
+		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex, AvailableData,
 	};
 	use polkadot_node_primitives::{
 		SignedFullStatement,
@@ -313,6 +316,11 @@ pub mod v1 {
 		/// Respond with chunk for a given candidate hash and validator index.
 		/// The response may be `None` if the requestee does not have the chunk.
 		Chunk(RequestId, Option<ErasureChunk>),
+		/// Request full data for a given candidate hash.
+		RequestFullData(RequestId, CandidateHash),
+		/// Respond with full data for a given candidate hash.
+		/// The response may be `None` if the requestee does not have the data.
+		FullData(RequestId, Option<AvailableData>),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
@@ -419,7 +427,7 @@ pub mod v1 {
 	}
 
 	impl std::fmt::Debug for CompressedPoV {
-    	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 			write!(f, "CompressedPoV({} bytes)", self.0.len())
 		}
 	}
