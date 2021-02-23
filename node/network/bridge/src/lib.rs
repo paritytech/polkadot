@@ -1547,7 +1547,12 @@ mod tests {
 
 
 	#[test]
-	fn verify_coverage() {
+	fn spread_event_to_subsystems_is_up_to_date() {
+		// Number of subsystems expected to be interested in a network event,
+		// and hence the network event broadcasted to.
+		const EXPECTED_COUNT: usize = 5;
+
+		let mut cnt = 0_usize;
 		for msg in spread_event_to_subsystems(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
 			match msg {
 				AllMessages::CandidateValidation(_) => unreachable!("Not interested in network events"),
@@ -1555,21 +1560,23 @@ mod tests {
 				AllMessages::CandidateSelection(_) => unreachable!("Not interested in network events"),
 				AllMessages::ChainApi(_) => unreachable!("Not interested in network events"),
 				AllMessages::CollatorProtocol(_) => unreachable!("Not interested in network events"),
-				AllMessages::StatementDistribution(_) => {}
-				AllMessages::AvailabilityDistribution(_) => {}
+				AllMessages::StatementDistribution(_) => { cnt += 1; }
+				AllMessages::AvailabilityDistribution(_) => { cnt += 1; }
 				AllMessages::AvailabilityRecovery(_) => unreachable!("Not interested in network events"),
-				AllMessages::BitfieldDistribution(_) => {}
+				AllMessages::BitfieldDistribution(_) => { cnt += 1; }
 				AllMessages::BitfieldSigning(_) => unreachable!("Not interested in network events"),
 				AllMessages::Provisioner(_) => unreachable!("Not interested in network events"),
-				AllMessages::PoVDistribution(_) => {}
+				AllMessages::PoVDistribution(_) => { cnt += 1; }
 				AllMessages::RuntimeApi(_) => unreachable!("Not interested in network events"),
 				AllMessages::AvailabilityStore(_) => unreachable!("Not interested in network events"),
 				AllMessages::NetworkBridge(_) => unreachable!("Not interested in network events"),
 				AllMessages::CollationGeneration(_) => unreachable!("Not interested in network events"),
 				AllMessages::ApprovalVoting(_) => unreachable!("Not interested in network events"),
-				AllMessages::ApprovalDistribution(_) => {}
-				// add new variants as needed
+				AllMessages::ApprovalDistribution(_) => { cnt += 1; }
+				// Add variants here as needed, `{ cnt += 1; }` for those that need to be
+				// notified, `unreachable!()` for those that should not.
 			}
 		}
 	}
+	assert_eq!(cnt, EXPECTED_COUNT);
 }
