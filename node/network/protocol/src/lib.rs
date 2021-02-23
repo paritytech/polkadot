@@ -250,22 +250,6 @@ impl View {
 		self.heads.into_iter()
 	}
 
-	/// Replace the view with a vec of new heads.
-	pub fn replace(&mut self, mut heads: Vec<Hash>) {
-		heads.sort();
-		self.heads = heads;
-	}
-
-	/// Add a head to the view.
-	///
-	/// Prevents duplicates.
-	pub fn add(&mut self, head: Hash) {
-		match { self.heads.binary_search(&head) } {
-			Ok(_pos) => {} // element already contained
-			Err(pos) => self.heads.insert(pos, head),
-		}
-	}
-
 	/// Replace `self` with `new`.
 	///
 	/// Returns an iterator that will yield all elements of `new` that were not part of `self`.
