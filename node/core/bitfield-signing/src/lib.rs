@@ -71,13 +71,12 @@ pub enum Error {
 /// for whether we have the availability chunk for our validator index.
 #[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
-	relay_parent: Hash,
-	core: CoreState,
+	core: &CoreState,
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
 	span: &jaeger::Span,
 ) -> Result<bool, Error> {
-	if let CoreState::Occupied(core) = core {
+	if let &CoreState::Occupied(ref core) = core {
 		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();
@@ -152,9 +151,16 @@ async fn construct_availability_bitfield(
 	// Handle all cores concurrently
 	// `try_join_all` returns all results in the same order as the input futures.
 	let results = future::try_join_all(
-		availability_cores.into_iter()
-			.map(|core| get_core_availability(relay_parent, core, validator_idx, &sender, span)),
+		availability_cores.iter()
+			.map(|core| get_core_availability(core, validator_idx, &sender, span)),
 	).await?;
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Signing Bitfield for {} cores: {:?}",
+		availability_cores.len(),
+		results,
+	);
 
 	Ok(AvailabilityBitfield(FromIterator::from_iter(results)))
 }

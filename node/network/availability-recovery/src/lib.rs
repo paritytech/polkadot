@@ -846,6 +846,15 @@ async fn handle_network_update(
 					// message.
 					let chunk = query_chunk(ctx, candidate_hash, validator_index).await?;
 
+					tracing::trace!(
+						target: LOG_TARGET,
+						"Responding({}) to chunk request req_id={} candidate={} index={}",
+						chunk.is_some(),
+						request_id,
+						candidate_hash,
+						validator_index,
+					);
+
 					// Whatever the result, issue an
 					// AvailabilityRecoveryV1Message::Chunk(r_id, response) message.
 					let wire_message = protocol_v1::AvailabilityRecoveryMessage::Chunk(
@@ -867,6 +876,15 @@ async fn handle_network_update(
 							report_peer(ctx, peer, COST_UNEXPECTED_CHUNK).await;
 						}
 						Some((peer_id, Awaited::Chunk(awaited_chunk))) if peer_id == peer => {
+							tracing::trace!(
+								target: LOG_TARGET,
+								"Received chunk response({}) req_id={} candidate={} index={}",
+								chunk.is_some(),
+								request_id,
+								awaited_chunk.candidate_hash,
+								awaited_chunk.validator_index,
+							);
+
 							// If there exists an entry under r_id, remove it.
 							// Send the chunk response on the awaited_chunk for the interaction to handle.
 							if let Some(chunk) = chunk {
@@ -897,6 +915,14 @@ async fn handle_network_update(
 					// message.
 					let full_data = query_full_data(ctx, candidate_hash).await?;
 
+					tracing::trace!(
+						target: LOG_TARGET,
+						"Responding({}) to full data request req_id={} candidate={}",
+						full_data.is_some(),
+						request_id,
+						candidate_hash,
+					);
+
 					// Whatever the result, issue an
 					// AvailabilityRecoveryV1Message::FullData(r_id, response) message.
 					let wire_message = protocol_v1::AvailabilityRecoveryMessage::FullData(
@@ -918,6 +944,14 @@ async fn handle_network_update(
 							report_peer(ctx, peer, COST_UNEXPECTED_CHUNK).await;
 						}
 						Some((peer_id, Awaited::FullData(awaited))) if peer_id == peer => {
+							tracing::trace!(
+								target: LOG_TARGET,
+								"Received full data response({}) req_id={} candidate={}",
+								data.is_some(),
+								request_id,
+								awaited.candidate_hash,
+							);
+
 							// If there exists an entry under r_id, remove it.
 							// Send the response on the awaited for the interaction to handle.
 							if let Some(data) = data {
@@ -962,16 +996,40 @@ async fn issue_request(
 	state.next_request_id += 1;
 
 	let wire_message = match awaited {
-		Awaited::Chunk(ref awaited_chunk) => protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
-			request_id,
-			awaited_chunk.candidate_hash,
-			awaited_chunk.validator_index,
-		),
-		Awaited::FullData(ref awaited_data) => protocol_v1::AvailabilityRecoveryMessage::RequestFullData(
-			request_id,
-			awaited_data.candidate_hash,
-		),
+		Awaited::Chunk(ref awaited_chunk) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Requesting chunk req_id={} peer_id={} candidate={} index={}",
+				request_id,
+				peer_id,
+				awaited_chunk.candidate_hash,
+				awaited_chunk.validator_index,
+			);
+
+			protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
+				request_id,
+				awaited_chunk.candidate_hash,
+				awaited_chunk.validator_index,
+			)
+		}
+		Awaited::FullData(ref awaited_data) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Requesting full data req_id={} peer_id={} candidate={} index={}",
+				request_id,
+				peer_id,
+				awaited_data.candidate_hash,
+				awaited_data.validator_index,
+			);
+
+			protocol_v1::AvailabilityRecoveryMessage::RequestFullData(
+				request_id,
+				awaited_data.candidate_hash,
+			)
+		}
 	};
+
+
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendValidationMessage(

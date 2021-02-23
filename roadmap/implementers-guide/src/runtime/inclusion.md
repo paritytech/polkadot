@@ -48,8 +48,8 @@ Validators: Vec<ValidatorId>;
 
 All failed checks should lead to an unrecoverable error making the block invalid.
 
-* `process_bitfields(Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
-  1. check that the number of bitfields and bits in each bitfield is correct.
+* `process_bitfields(expected_bits, Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
+  1. check that there is at most 1 bitfield per validator and that the number of bits in each bitfield is equal to expected_bits.
   1. check that there are no duplicates
   1. check all validator signatures.
   1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
