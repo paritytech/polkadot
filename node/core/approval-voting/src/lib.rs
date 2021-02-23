@@ -846,7 +846,7 @@ fn check_and_import_assignment(
 			tracing::trace!(
 				target: LOG_TARGET,
 				"Imported assignment from validator {} on candidate {:?}",
-				assignment.validator,
+				assignment.validator.0,
 				(assigned_candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
 			);
 

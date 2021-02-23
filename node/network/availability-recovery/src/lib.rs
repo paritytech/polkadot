@@ -852,7 +852,7 @@ async fn handle_network_update(
 						chunk.is_some(),
 						request_id,
 						candidate_hash,
-						validator_index,
+						validator_index.0,
 					);
 
 					// Whatever the result, issue an
@@ -882,7 +882,7 @@ async fn handle_network_update(
 								chunk.is_some(),
 								request_id,
 								awaited_chunk.candidate_hash,
-								awaited_chunk.validator_index,
+								awaited_chunk.validator_index.0,
 							);
 
 							// If there exists an entry under r_id, remove it.
@@ -1003,7 +1003,7 @@ async fn issue_request(
 				request_id,
 				peer_id,
 				awaited_chunk.candidate_hash,
-				awaited_chunk.validator_index,
+				awaited_chunk.validator_index.0,
 			);
 
 			protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
@@ -1019,7 +1019,7 @@ async fn issue_request(
 				request_id,
 				peer_id,
 				awaited_data.candidate_hash,
-				awaited_data.validator_index,
+				awaited_data.validator_index.0,
 			);
 
 			protocol_v1::AvailabilityRecoveryMessage::RequestFullData(

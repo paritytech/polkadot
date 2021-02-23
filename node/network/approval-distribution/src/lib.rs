@@ -164,7 +164,7 @@ impl State {
 				self.handle_peer_view_change(ctx, peer_id, view).await;
 			}
 			NetworkBridgeEvent::OurViewChange(view) => {
-				for head in &view.heads {
+				for head in view.iter() {
 					if !self.blocks.contains_key(head) {
 						self.pending_known.entry(*head).or_default();
 					}
