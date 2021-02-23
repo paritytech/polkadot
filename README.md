@@ -183,6 +183,8 @@ cargo build # Builds all native code
 
 You can run the tests if you like:
 
+> :warning: **Running tests is a very memory-intensive process**. Before running the tests, make sure you have at least 30 GiB of RAM(plus swap) available.
+
 ```bash
 cargo test --all
 ```
