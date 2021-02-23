@@ -84,7 +84,7 @@ impl metrics::Metrics for Metrics {
 						"Number of fetched chunks",
 						"Total number of fetched chunks.",
 					),
-					&[FAILED, SUCCEEDED]
+					&["success"]
 				)?,
 				registry,
 			)?,
@@ -94,7 +94,7 @@ impl metrics::Metrics for Metrics {
 						"Number of served chunks",
 						"Total number of chunks served by this backer.",
 					),
-					&[FAILED, SUCCEEDED, NOT_FOUND]
+					&["success"]
 				)?,
 				registry,
 			)?,
