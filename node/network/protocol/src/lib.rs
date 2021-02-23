@@ -276,7 +276,8 @@ impl View {
 
 	/// Check if two views have the same heads.
 	///
-	/// Equivalent to the
+	/// Equivalent to the `PartialEq` fn,
+	/// but ignores the `finalized_number` field.
 	pub fn check_heads_eq(&self, other: &Self) -> bool {
 		self.heads == other.heads
 	}
