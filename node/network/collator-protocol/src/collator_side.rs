@@ -1342,7 +1342,7 @@ mod tests {
 		overseer_send(
 			virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: hashes, finalized_number: 0 }),
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::new(hashes, 0)),
 			),
 		).await;
 	}
