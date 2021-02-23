@@ -849,18 +849,7 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			// Past session's authority ids
-			let mut past_authority_ids = runtime_api_impl::get_historical_authority_ids::<Runtime>();
-			// Current and next session's authority ids
-			let mut current_and_next_authority_ids = AuthorityDiscovery::authorities();
-
-			past_authority_ids.append(&mut current_and_next_authority_ids);
-			let mut authorities = past_authority_ids;
-
-			authorities.sort();
-			authorities.dedup();
-
-			authorities
+			runtime_api_impl::get_historical_and_current_authority_ids::<Runtime>()
 		}
 	}
 
