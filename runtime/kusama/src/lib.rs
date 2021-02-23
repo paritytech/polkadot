@@ -331,7 +331,10 @@ impl pallet_session::historical::Config for Runtime {
 parameter_types! {
 	// no signed phase for now, just unsigned.
 	pub const SignedPhase: u32 = 0;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
+	// NOTE: length of unsigned phase is, for now, different than `ElectionLookahead` to make sure
+	// that we won't run OCW threads at the same time with staking. Once staking's election is out,
+	// replace with `/ 4`.
+	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 8;
 
 	// fallback: no need to do on-chain phragmen while we re on a dry-run.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
@@ -341,7 +344,7 @@ parameter_types! {
 
 	// miner configs
 	pub MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
-	pub const MinerMaxIterations: u32 = 20;
+	pub const MinerMaxIterations: u32 = 10;
 }
 
 impl pallet_election_provider_multi_phase::Config for Runtime {

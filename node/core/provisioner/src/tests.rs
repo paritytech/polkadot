@@ -63,7 +63,7 @@ mod select_availability_bitfields {
 			&<SigningContext<Hash>>::default(),
 			validator_idx,
 			&public.into(),
-		).await.expect("Should be signed")
+		).await.ok().flatten().expect("Should be signed")
 	}
 
 	#[test]

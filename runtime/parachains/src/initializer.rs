@@ -21,14 +21,14 @@
 
 use sp_std::prelude::*;
 use frame_support::weights::Weight;
-use primitives::v1::ValidatorId;
+use primitives::v1::{ValidatorId, SessionIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
+	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
 /// Information about a session change that has just occurred.
@@ -45,7 +45,7 @@ pub struct SessionChangeNotification<BlockNumber> {
 	/// A secure random seed for the session, gathered from BABE.
 	pub random_seed: [u8; 32],
 	/// New session index.
-	pub session_index: sp_staking::SessionIndex,
+	pub session_index: SessionIndex,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
@@ -65,12 +65,13 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 struct BufferedSessionChange {
 	validators: Vec<ValidatorId>,
 	queued: Vec<ValidatorId>,
-	session_index: sp_staking::SessionIndex,
+	session_index: SessionIndex,
 }
 
 pub trait Config:
 	frame_system::Config
 	+ configuration::Config
+	+ shared::Config
 	+ paras::Config
 	+ scheduler::Config
 	+ inclusion::Config
@@ -126,6 +127,7 @@ decl_module! {
 			// - UMP
 			// - HRMP
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
+				shared::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
@@ -148,6 +150,7 @@ decl_module! {
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
+			shared::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
@@ -170,7 +173,7 @@ decl_module! {
 
 impl<T: Config> Module<T> {
 	fn apply_new_session(
-		session_index: sp_staking::SessionIndex,
+		session_index: SessionIndex,
 		validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
@@ -186,7 +189,7 @@ impl<T: Config> Module<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&validators, &queued);
+		configuration::Module::<T>::initializer_on_new_session(&validators, &queued, &session_index);
 
 		let new_config = <configuration::Module<T>>::config();
 
@@ -199,6 +202,7 @@ impl<T: Config> Module<T> {
 			session_index,
 		};
 
+		shared::Module::<T>::initializer_on_new_session(&notification);
 		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
@@ -212,7 +216,7 @@ impl<T: Config> Module<T> {
 	/// at the end of the block. If `queued` is `None`, the `validators` are considered queued.
 	fn on_new_session<'a, I: 'a>(
 		_changed: bool,
-		session_index: sp_staking::SessionIndex,
+		session_index: SessionIndex,
 		validators: I,
 		queued: Option<I>,
 	)
@@ -361,10 +365,11 @@ mod tests {
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), c, vec![7, 8, 9]));
 
-			Paras::schedule_para_cleanup(a);
-			Paras::schedule_para_cleanup(b);
+			assert_ok!(Paras::schedule_para_cleanup(a));
+			assert_ok!(Paras::schedule_para_cleanup(b));
 
-			Initializer::apply_new_session(1, vec![], vec![]);
+			// Apply session 2 in the future
+			Initializer::apply_new_session(2, vec![], vec![]);
 
 			assert!(Dmp::dmq_contents(a).is_empty());
 			assert!(Dmp::dmq_contents(b).is_empty());
