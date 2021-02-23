@@ -76,7 +76,9 @@ impl Requester {
 	/// by advancing the stream.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		// All we do is forwarding messages, no need to make this big.
-		let (tx, rx) = mpsc::channel(1);
+		// Each sender will get one slot, see
+		// [here](https://docs.rs/futures/0.3.13/futures/channel/mpsc/fn.channel.html).
+		let (tx, rx) = mpsc::channel(0);
 		Requester {
 			fetches: HashMap::new(),
 			session_cache: SessionCache::new(keystore),
