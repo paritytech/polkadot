@@ -604,7 +604,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 
-	use std::{collections::HashMap, cell::RefCell};
+	use std::{collections::HashMap, cell::RefCell, sync::Arc};
 	use frame_support::{
 		impl_outer_origin, impl_outer_event, assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
@@ -618,6 +618,7 @@ mod tests {
 		traits::{BlakeTwo256, IdentityLookup},
 		testing::{UintAuthorityId, TestSignature},
 	};
+	use sp_keystore::{KeystoreExt, testing::KeyStore};
 	use crate::slots::Registrar;
 
 	impl_outer_origin! {
@@ -810,7 +811,10 @@ mod tests {
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
 		}.assimilate_storage(&mut t).unwrap();
-		t.into()
+		let keystore = KeyStore::new();
+		let mut t: sp_io::TestExternalities = t.into();
+		t.register_extension(KeystoreExt(Arc::new(keystore)));
+		t
 	}
 
 	fn run_to_block(n: u64) {
