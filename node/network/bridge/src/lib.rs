@@ -427,8 +427,9 @@ async fn update_our_view(
 ) -> SubsystemResult<()> {
 	let new_view = construct_view(live_heads.iter().map(|v| v.0), finalized_number);
 
-	// We only want to send a view update when the heads changed, not when only the finalized block changed.
-	if local_view.heads == new_view.heads {
+	// We only want to send a view update when the heads changed.
+	// A change in finalized block number only is _not_ sufficient.
+	if local_view.check_heads_eq(&new_view) {
 		return Ok(())
 	}
 

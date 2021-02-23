@@ -289,6 +289,13 @@ impl View {
 	pub fn contains(&self, hash: &Hash) -> bool {
 		self.heads.contains(hash)
 	}
+
+	/// Check if two views have the same heads.
+	///
+	/// Equivalent to the
+	pub fn check_heads_eq(&self, other: &Self) -> bool {
+		self.heads == other.heads
+	}
 }
 
 /// v1 protocol types.
