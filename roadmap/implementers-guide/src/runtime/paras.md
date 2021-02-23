@@ -1,9 +1,9 @@
 # Paras Module
 
 The Paras module is responsible for storing information on parachains and parathreads. Registered
-parachains and parathreads cannot change except at session boundaries. This is primarily to ensure
-that the number and meaning of bits required for the availability bitfields does not change except at session
-boundaries.
+parachains and parathreads cannot change except at session boundaries and after at least a full
+session has passed. This is primarily to ensure that the number and meaning of bits required for the
+availability bitfields does not change except at session boundaries.
 
 It's also responsible for managing parachain validation code upgrades as well as maintaining
 availability of old parachain code and its pruning.
@@ -63,9 +63,9 @@ pub enum ParaLifecycle {
   /// Para is a Parachain.
   Parachain,
   /// Para is a Parathread which is upgrading to a Parachain.
-  UpgradingToParachain,
+  UpgradingParathread,
   /// Para is a Parachain which is downgrading to a Parathread.
-  DowngradingToParathread,
+  DowngradingParachain,
   /// Parathread is being offboarded.
   OutgoingParathread,
   /// Parachain is being offboarded.
@@ -82,7 +82,7 @@ state of the para using the `ParaLifecycle` enum.
 None                 Parathread                  Parachain
  +                        +                          +
  |                        |                          |
- |    (Session Delay)     |                          |
+ |   (2 Session Delay)    |                          |
  |                        |                          |
  +----------------------->+                          |
  |       Onboarding       |                          |
@@ -91,10 +91,10 @@ None                 Parathread                  Parachain
  |       Onboarding       |                          |
  |                        |                          |
  |                        +------------------------->+
- |                        |  UpgradingToParachain    |
+ |                        |   UpgradingParathread    |
  |                        |                          |
  |                        +<-------------------------+
- |                        |  DowngradingToParathread |
+ |                        |   DowngradingParachain   |
  |                        |                          |
  |<-----------------------+                          |
  |   OutgoingParathread   |                          |
@@ -137,38 +137,31 @@ PastCodePruning: Vec<(ParaId, BlockNumber)>;
 FutureCodeUpgrades: map ParaId => Option<BlockNumber>;
 /// The actual future code of a para.
 FutureCode: map ParaId => Option<ValidationCode>;
-
-/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
-/// entry in the upcoming-genesis map. Ordered ascending by ParaId.
-UpcomingParas: Vec<ParaId>;
+/// The actions to perform during the start of a specific session index.
+ActionsQueue: map SessionIndex => Vec<ParaId>;
 /// Upcoming paras instantiation arguments.
 UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
-/// Paras that are to be cleaned up at the end of the session. Ordered ascending by ParaId.
-OutgoingParas: Vec<ParaId>;
-/// Existing Parathreads that should upgrade to be a Parachain. Ordered ascending by ParaId.
-UpcomingUpgrades: Vec<ParaId>;
-/// Existing Parachains that should downgrade to be a Parathread. Ordered ascending by ParaId.
-UpcomingDowngrades: Vec<ParaId>;
 ```
 
 ## Session Change
 
-1. Clean up outgoing paras.
-  1. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and
-     `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and
-     `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is
-     because any outdated validation code must remain available on-chain for a determined amount of
-     blocks, and validation code outdated by de-registering the para is still subject to that
-     invariant.
-1. Apply all incoming paras by initializing the `Heads` and `ValidationCode` using the genesis
-   parameters.
-1. Amend the `Parachains` list and `ParaLifecycle` to reflect changes in registered parachains.
-1. Amend the `ParaLifecycle` set to reflect changes in registered parathreads.
-1. Upgrade all parathreads that should become parachains, updating the `Parachains` list and
-   `ParaLifecycle`.
-1. Downgrade all parachains that should become parathreads, updating the `Parachains` list and
-   `ParaLifecycle`.
-1. Return list of outgoing paras to the initializer for use by other modules.
+1. Execute all queued actions for paralifecycle changes:
+  1. Clean up outgoing paras.
+     1. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and
+        `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and
+        `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is
+        because any outdated validation code must remain available on-chain for a determined amount
+        of blocks, and validation code outdated by de-registering the para is still subject to that
+        invariant.
+  1. Apply all incoming paras by initializing the `Heads` and `ValidationCode` using the genesis
+     parameters.
+  1. Amend the `Parachains` list and `ParaLifecycle` to reflect changes in registered parachains.
+  1. Amend the `ParaLifecycle` set to reflect changes in registered parathreads.
+  1. Upgrade all parathreads that should become parachains, updating the `Parachains` list and
+     `ParaLifecycle`.
+  1. Downgrade all parachains that should become parathreads, updating the `Parachains` list and
+     `ParaLifecycle`.
+  1. Return list of outgoing paras to the initializer for use by other modules.
 
 ## Initialization
 
@@ -179,11 +172,9 @@ UpcomingDowngrades: Vec<ParaId>;
 
 * `schedule_para_initialize(ParaId, ParaGenesisArgs)`: Schedule a para to be initialized at the next
   session. Noop if para is already registered in the system with some `ParaLifecycle`.
-* `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up at the next session.
-* `schedule_parathread_upgrade(ParaId)`: Schedule a parathread to be upgraded to a parachain. Noop
-  if `ParaLifecycle` is not `Parathread`.
+* `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up after the next full session.
+* `schedule_parathread_upgrade(ParaId)`: Schedule a parathread to be upgraded to a parachain.
 * `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread.
-  Noop if `ParaLifecycle` is not `Parachain`.
 * `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code
   upgrade of the given parachain, to be applied after inclusion of a block of the same parachain
   executed in the context of a relay-chain block with number >= `expected_at`.
@@ -197,8 +188,8 @@ UpcomingDowngrades: Vec<ParaId>;
   current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if
   provided, must be before `at`. If the validation code has been pruned, this will return `None`.
 * `lifecycle(ParaId) -> Option<ParaLifecycle>`: Return the `ParaLifecycle` of a para.
-* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain, including
-  those which may be transitioning to a parathread in the future.
+* `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain,
+  including those which may be transitioning to a parathread in the future.
 * `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread,
   including those which may be transitioning to a parachain in the future.
 * `is_valid_para(ParaId) -> bool`: Returns true if the para ID references either a live parathread

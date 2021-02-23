@@ -37,6 +37,7 @@ use polkadot_subsystem::{
 	SubsystemContext, SubsystemResult, SubsystemError, Subsystem, SpawnedSubsystem, FromOverseer,
 	OverseerSignal, ActiveLeavesUpdate,
 	errors::RecoveryError,
+	jaeger,
 	messages::{
 		AvailabilityStoreMessage, AvailabilityRecoveryMessage, AllMessages, NetworkBridgeMessage,
 		NetworkBridgeEvent,
@@ -664,6 +665,9 @@ async fn handle_recover(
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
+	let mut span = jaeger::candidate_hash_span(&candidate_hash, "availbility-recovery");
+	span.add_stage(jaeger::Stage::AvailabilityRecovery);
+
 	if let Some(result) = state.availability_lru.get(&candidate_hash) {
 		if let Err(e) = response_sender.send(result.clone()) {
 			tracing::warn!(
@@ -680,12 +684,14 @@ async fn handle_recover(
 		return Ok(());
 	}
 
+	let _span = span.child("not-cached");
 	let session_info = request_session_info_ctx(
 		state.live_block_hash,
 		session_index,
 		ctx,
 	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
 
+	let _span = span.child("session-info-ctx-received");
 	match session_info {
 		Some(session_info) => {
 			launch_interaction(

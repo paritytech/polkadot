@@ -28,6 +28,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, SubsystemResult, SubsystemError, Subsystem,
 	FromOverseer, SpawnedSubsystem,
+	jaeger,
 	messages::{
 		PoVDistributionMessage, AllMessages, NetworkBridgeMessage, NetworkBridgeEvent,
 	},
@@ -154,7 +155,11 @@ async fn handle_signal(
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 			let _timer = state.metrics.time_handle_signal();
 
-			for (relay_parent, _span) in activated {
+			for (relay_parent, span) in activated {
+				let _span = span.child_builder("pov-dist")
+					.with_stage(jaeger::Stage::PoVDistribution)
+					.build();
+
 				match request_validators_ctx(relay_parent, ctx).await {
 					Ok(vals_rx) => {
 						let n_validators = match vals_rx.await? {

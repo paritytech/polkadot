@@ -33,10 +33,9 @@ use frame_support::{
 };
 use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, dmp, ump, hrmp, scheduler::CoreAssignment};
+use crate::{configuration, paras, dmp, ump, hrmp, shared, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -111,6 +110,7 @@ pub trait RewardValidators {
 
 pub trait Config:
 	frame_system::Config
+	+ shared::Config
 	+ paras::Config
 	+ dmp::Config
 	+ ump::Config
@@ -137,9 +137,6 @@ decl_storage! {
 
 		/// The current validators, by their parachain session keys.
 		Validators get(fn validators) config(validators): Vec<ValidatorId>;
-
-		/// The current session index.
-		CurrentSessionIndex get(fn session_index): SessionIndex;
 	}
 }
 
@@ -236,7 +233,6 @@ impl<T: Config> Module<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() { }
 
 		Validators::set(notification.validators.clone()); // substrate forces us to clone, stupidly.
-		CurrentSessionIndex::set(notification.session_index);
 	}
 
 	/// Process a set of incoming bitfields. Return a vec of cores freed by candidates
@@ -247,7 +243,7 @@ impl<T: Config> Module<T> {
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 	) -> Result<Vec<CoreIndex>, DispatchError> {
 		let validators = Validators::get();
-		let session_index = CurrentSessionIndex::get();
+		let session_index = shared::Module::<T>::session_index();
 
 		let mut assigned_paras_record: Vec<_> = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
@@ -425,7 +421,7 @@ impl<T: Config> Module<T> {
 
 			let signing_context = SigningContext {
 				parent_hash,
-				session_index: CurrentSessionIndex::get(),
+				session_index: shared::Module::<T>::session_index(),
 			};
 
 			// We combine an outer loop over candidates with an inner loop over the scheduled,
@@ -914,7 +910,7 @@ mod tests {
 	use sc_keystore::LocalKeystore;
 	use crate::mock::{
 		new_test_ext, Configuration, Paras, System, Inclusion,
-		MockGenesisConfig, Test,
+		MockGenesisConfig, Test, Shared,
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
@@ -1001,7 +997,7 @@ mod tests {
 				signing_context,
 				*val_idx,
 				&key.public().into(),
-			).await.unwrap().signature().clone();
+			).await.unwrap().unwrap().signature().clone();
 
 			validity_votes.push(ValidityAttestation::Explicit(signature).into());
 		}
@@ -1042,8 +1038,10 @@ mod tests {
 
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
+			Shared::initializer_finalize();
 
 			if let Some(notification) = new_session(b + 1) {
+				Shared::initializer_on_new_session(&notification);
 				Paras::initializer_on_new_session(&notification);
 				Inclusion::initializer_on_new_session(&notification);
 			}
@@ -1053,6 +1051,7 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
+			Shared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 			Inclusion::initializer_initialize(b + 1);
 		}
@@ -1101,7 +1100,7 @@ mod tests {
 			&signing_context,
 			validator_index,
 			&key.public().into(),
-		).await.unwrap()
+		).await.unwrap().unwrap()
 	}
 
 	#[derive(Default)]
@@ -1217,7 +1216,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
 				parent_hash: System::parent_hash(),
@@ -1450,7 +1449,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
 				parent_hash: System::parent_hash(),
@@ -1615,7 +1614,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2102,7 +2101,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2299,7 +2298,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2396,7 +2395,7 @@ mod tests {
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			Validators::set(validator_public.clone());
-			CurrentSessionIndex::set(5);
+			shared::Module::<Test>::set_session_index(5);
 
 			let validators_new = vec![
 				Sr25519Keyring::Alice,
@@ -2460,7 +2459,7 @@ mod tests {
 			run_to_block(11, |_| None);
 
 			assert_eq!(Validators::get(), validator_public);
-			assert_eq!(CurrentSessionIndex::get(), 5);
+			assert_eq!(shared::Module::<Test>::session_index(), 5);
 
 			assert!(<AvailabilityBitfields<Test>>::get(&0).is_some());
 			assert!(<AvailabilityBitfields<Test>>::get(&1).is_some());
@@ -2484,7 +2483,7 @@ mod tests {
 			});
 
 			assert_eq!(Validators::get(), validator_public_new);
-			assert_eq!(CurrentSessionIndex::get(), 6);
+			assert_eq!(shared::Module::<Test>::session_index(), 6);
 
 			assert!(<AvailabilityBitfields<Test>>::get(&0).is_none());
 			assert!(<AvailabilityBitfields<Test>>::get(&1).is_none());
