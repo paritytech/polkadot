@@ -28,14 +28,8 @@ use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
 /// Errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum Error {
-	#[error("Response channel to obtain StoreChunk failed")]
-	StoreChunkResponseChannel(#[source] oneshot::Canceled),
-
 	#[error("Response channel to obtain QueryChunk failed")]
 	QueryChunkResponseChannel(#[source] oneshot::Canceled),
-
-	#[error("Response channel to obtain AvailabilityCores failed")]
-	QueryAvailabilityResponseChannel(#[source] oneshot::Canceled),
 
 	#[error("Receive channel closed")]
 	IncomingMessageChannel(#[source] SubsystemError),
