@@ -13,6 +13,9 @@ tracing-futures = "0.2.4"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 merlin = "2.0"
 schnorrkel = "0.9.1"
+kvdb = "0.9.0"
+kvdb-rocksdb = "0.11.0"
+derive_more = "0.99.1"
 
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
@@ -36,3 +39,4 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 maplit = "1.0.2"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
+kvdb-memorydb = "0.9.0"

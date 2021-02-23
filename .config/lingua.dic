@@ -37,6 +37,7 @@ instantiate/B
 intrinsic/MS
 intrinsics
 io
+jaeger/MS
 js
 keccak256/M
 KSM/S
@@ -68,6 +69,7 @@ struct/MS
 subsystem/MS
 subsystems'
 taskmanager/MS
+TCP
 teleport/RG
 teleportation/SM
 teleporter/SM
@@ -76,6 +78,8 @@ testnet/MS
 trie/MS
 trustless/Y
 ubuntu/M
+UDP
+UI
 union/MSG
 unservable/B
 validator/SM

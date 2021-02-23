@@ -259,7 +259,7 @@ pub type UpwardMessage = Vec<u8>;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Decode)]
+#[derive(PartialEq, Eq, Decode, Clone)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
 	/// Previous head-data.
@@ -274,7 +274,7 @@ pub struct ValidationParams {
 
 /// The result of parachain validation.
 // TODO: balance uploads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Encode)]
+#[derive(PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "std", derive(Debug, Decode))]
 pub struct ValidationResult {
 	/// New head data that should be included in the relay chain state.

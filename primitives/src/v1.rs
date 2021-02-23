@@ -598,7 +598,7 @@ pub enum CoreOccupied {
 
 /// This is the data we keep available for each candidate included in the relay chain.
 #[cfg(feature = "std")]
-#[derive(Clone, Encode, Decode, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Debug)]
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: std::sync::Arc<PoV>,
