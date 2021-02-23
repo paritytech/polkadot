@@ -54,9 +54,9 @@ pub enum Error {
 	#[error("Spawning subsystem task failed")]
 	SpawnTask(#[source] SubsystemError),
 
-	/// Reporting bad validators failed.
-	#[error("Reporting bad validators failed")]
-	ReportBadValidators(&'static str),
+	/// We tried accessing a session that was not cached.
+	#[error("Session is not cached.")]
+	NoSuchCachedSession,
 
 	/// Requester stream exhausted.
 	#[error("Erasure chunk requester stream exhausted")]

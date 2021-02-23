@@ -167,15 +167,16 @@ impl SessionCache {
 	///
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
+	#[tracing::instrument(level = "trace", skip(self, report), fields(subsystem = LOG_TARGET))]
 	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
 		let session = self
 			.session_info_cache
 			.get_mut(&report.session_index)
-			.ok_or(Error::ReportBadValidators("Session is not cached."))?;
+			.ok_or(Error::NoSuchCachedSession)?;
 		let group = session
 			.validator_groups
 			.get_mut(report.group_index.0 as usize)
-			.ok_or(Error::ReportBadValidators("Validator group not found"))?;
+			.expect("A bad validator report must contain a valid group for the reported session. qed.");
 		let bad_set = report.bad_validators.iter().collect::<HashSet<_>>();
 
 		// Get rid of bad boys:
