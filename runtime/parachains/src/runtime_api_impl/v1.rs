@@ -233,24 +233,19 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 }
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
+/// It is a heavy call, but currently only used for authority discovery, so it is fine.
 /// Gets current and historical authority ids using session_info module.
-pub fn get_current_and_historical_authority_ids<T: initializer::Config>() -> Vec<AuthorityDiscoveryId> {
+pub fn get_historical_authority_ids<T: initializer::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
 	let mut authority_ids = vec![];
 
-	// At session boundary, If there is a race condition between getting session indexes above and
-	// loop execution, we might miss latest session's authority ids, which can break the semantics.
-	// So, to cover widest possible range here we are querying session info for current+1.
-	for session_index in earliest_stored_session..=current_session_index+1 {
+	for session_index in earliest_stored_session..current_session_index {
 		let info = <session_info::Module<T>>::session_info(session_index);
 		if let Some(mut info) = info {
 			authority_ids.append(&mut info.discovery_keys);
 		}
 	}
-
-	authority_ids.sort();
-	authority_ids.dedup();
 
 	authority_ids
 }
