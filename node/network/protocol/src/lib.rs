@@ -29,7 +29,6 @@ pub use polkadot_node_jaeger::JaegerSpan;
 #[doc(hidden)]
 pub use std::sync::Arc;
 
-
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
 
@@ -127,11 +126,10 @@ impl OurView {
 	/// Creates a new instance.
 	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<JaegerSpan>)>, finalized_number: BlockNumber) -> Self {
 		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
-		let mut view = View {
-			heads: state_per_head.keys().cloned().collect(),
+		let view = View::new(
+			state_per_head.keys().cloned(),
 			finalized_number,
-		};
-		view.heads.sort();
+		);
 		Self {
 			view,
 			span_per_head: state_per_head,
@@ -189,7 +187,7 @@ macro_rules! our_view {
 pub struct View {
 	/// A bounded amount of chain heads.
 	/// Invariant: Sorted.
-	pub heads: Vec<Hash>,
+	heads: Vec<Hash>,
 	/// The highest known finalized block number.
 	pub finalized_number: BlockNumber,
 }
@@ -208,11 +206,56 @@ pub struct View {
 #[macro_export]
 macro_rules! view {
 	( $( $hash:expr ),* $(,)? ) => {
-		$crate::View { heads: vec![ $( $hash.clone() ),* ], finalized_number: 0 }
+		$crate::View::new(vec![ $( $hash.clone() ),* ], 0)
 	};
 }
 
 impl View {
+	/// Construct a new view based on heads and a finalized block number.
+	pub fn new(heads: impl IntoIterator<Item=Hash>, finalized_number: BlockNumber) -> Self
+	{
+		let mut heads = heads.into_iter().collect::<Vec<Hash>>();
+		heads.sort();
+		Self {
+			heads,
+			finalized_number,
+		}
+	}
+
+	/// Start with no heads, but only a finalized block number.
+	pub fn with_finalized(finalized_number: BlockNumber) -> Self {
+		Self {
+			heads: Vec::new(),
+			finalized_number,
+		}
+	}
+
+	/// Obtain an iterator over all heads.
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a Hash> {
+		self.heads.iter()
+	}
+
+	/// Obtain an iterator over all heads.
+	pub fn into_iter(self) -> impl Iterator<Item=Hash> {
+		self.heads.into_iter()
+	}
+
+	/// Replace the view with a vec of new heads.
+	pub fn replace(&mut self, mut heads: Vec<Hash>) {
+		heads.sort();
+		self.heads = heads;
+	}
+
+	/// Add a head to the view.
+	///
+	/// Prevents duplicates.
+	pub fn add(&mut self, head: Hash) {
+		match { self.heads.binary_search(&head) } {
+			Ok(_pos) => {} // element already contained
+			Err(pos) => self.heads.insert(pos, head),
+		}
+	}
+
 	/// Replace `self` with `new`.
 	///
 	/// Returns an iterator that will yield all elements of `new` that were not part of `self`.
@@ -444,8 +487,6 @@ pub mod v1 {
 mod tests {
 	use polkadot_primitives::v1::PoV;
 	use super::v1::{CompressedPoV, CompressedPoVError};
-	use itertools::Itertools;
-	use super::{Hash, View};
 
 	#[test]
 	fn decompress_huge_pov_block_fails() {

@@ -186,11 +186,11 @@ impl State {
 			self.blocks_by_number.entry(meta.number).or_default().push(meta.hash);
 		}
 		for (peer_id, view) in self.peer_views.iter() {
-			let intersection = view.heads.iter().filter(|h| new_hashes.contains(h));
-			let view_intersection = View {
-				heads: intersection.cloned().collect(),
-				finalized_number: view.finalized_number,
-			};
+			let intersection = view.iter().filter(|h| new_hashes.contains(h));
+			let view_intersection = View::new(
+				intersection.cloned(),
+				view.finalized_number,
+			);
 			Self::unify_with_peer(
 				&mut self.blocks,
 				ctx,
@@ -634,7 +634,7 @@ impl State {
 		let mut to_send = HashSet::new();
 
 		let view_finalized_number = view.finalized_number;
-		for head in view.heads.into_iter() {
+		for head in view.into_iter() {
 			let mut block = head;
 			let interesting_blocks = std::iter::from_fn(|| {
 				// step 2.
