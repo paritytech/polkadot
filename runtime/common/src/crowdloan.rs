@@ -68,19 +68,21 @@
 
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure,
-	storage::child, Parameter,
+	storage::child,
 	traits::{
 		Currency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
 	},
 };
 use frame_system::ensure_signed;
 use sp_runtime::{ModuleId, DispatchResult,
-	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded, Verify, IdentifyAccount}
+	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
 };
 use crate::slots;
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
+use sp_io::crypto::ed25519_verify;
+use sp_core::ed25519;
 
 pub type BalanceOf<T> =
 	<<T as slots::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -110,12 +112,6 @@ pub trait Config: slots::Config {
 
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
-
-	/// The Signer type for contribution validation.
-	type ContributionSigner: IdentifyAccount<AccountId = Self::AccountId>;
-
-	/// The Signature type for contribution validation.
-	type ContributionSignature: Verify<Signer = Self::ContributionSigner> + Parameter;
 }
 
 /// Simple index for identifying a fund.
@@ -147,7 +143,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The owning account who placed the deposit.
 	owner: AccountId,
 	/// An optional verifier. If exists, contributions must be signed by verifier.
-	verifier: Option<AccountId>,
+	verifier: Option<ed25519::Public>,
 	/// The amount of deposit placed.
 	deposit: Balance,
 	/// The total amount raised.
@@ -284,7 +280,7 @@ decl_module! {
 			#[compact] first_slot: T::BlockNumber,
 			#[compact] last_slot: T::BlockNumber,
 			#[compact] end: T::BlockNumber,
-			verifier: Option<T::AccountId>,
+			verifier: Option<ed25519::Public>,
 		) {
 			let owner = ensure_signed(origin)?;
 
@@ -325,7 +321,7 @@ decl_module! {
 			origin,
 			#[compact] index: FundIndex,
 			#[compact] value: BalanceOf<T>,
-			signature: Option<T::ContributionSignature>
+			signature: Option<ed25519::Signature>
 		) {
 			let who = ensure_signed(origin)?;
 
@@ -339,7 +335,7 @@ decl_module! {
 			if let Some(ref verifier) = fund.verifier {
 				let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
 				let payload = (index, &who, old_balance, value);
-				let valid = payload.using_encoded(|encoded| signature.verify(encoded, verifier));
+				let valid = payload.using_encoded(|encoded| ed25519_verify(&signature, encoded, verifier));
 				ensure!(valid, Error::<T>::InvalidSignature);
 			}
 
@@ -604,7 +600,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 
-	use std::{collections::HashMap, cell::RefCell, sync::Arc};
+	use std::{collections::HashMap, cell::RefCell, sync::Arc, convert::TryFrom};
 	use frame_support::{
 		impl_outer_origin, impl_outer_event, assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
@@ -616,9 +612,9 @@ mod tests {
 	use sp_runtime::{
 		Permill, testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
-		testing::{UintAuthorityId, TestSignature},
 	};
 	use sp_keystore::{KeystoreExt, testing::KeyStore};
+	use sp_io::crypto::{ed25519_generate, ed25519_sign};
 	use crate::slots::Registrar;
 
 	impl_outer_origin! {
@@ -791,8 +787,6 @@ mod tests {
 		type OrphanedFunds = Treasury;
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
-		type ContributionSigner = UintAuthorityId;
-		type ContributionSignature = TestSignature;
 	}
 
 	type System = frame_system::Module<Test>;
@@ -881,14 +875,15 @@ mod tests {
 	#[test]
 	fn create_with_verifier_works() {
 		new_test_ext().execute_with(|| {
+			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
 			// Now try to create a crowdloan campaign
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(101)));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey)));
 			assert_eq!(Crowdloan::fund_count(), 1);
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
 				parachain: None,
 				owner: 1,
-				verifier: Some(101),
+				verifier: Some(pubkey),
 				deposit: 1,
 				raised: 0,
 				// 5 blocks length + 3 block ending period + 1 starting block
@@ -964,16 +959,18 @@ mod tests {
 	#[test]
 	fn contribute_with_verifier_works() {
 		new_test_ext().execute_with(|| {
+			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(101)));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey)));
 			assert_eq!(Balances::free_balance(1), 999);
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
 
 			// Missing signature
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, None), Error::<Test>::InvalidSignature);
 
-			let invalid_signature = TestSignature(101, vec![]);
-			let valid_signature = TestSignature(101, Encode::encode(&(0u32, 1u64, 0u64, 49u64)));
+			let payload = (0u32, 1u64, 0u64, 49u64);
+			let valid_signature = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
+			let invalid_signature = ed25519::Signature::try_from(&[0u8; 64][..]).unwrap();
 
 			// Invalid signature
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(invalid_signature)), Error::<Test>::InvalidSignature);
@@ -988,7 +985,8 @@ mod tests {
 			// Reuse valid signature
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(valid_signature)), Error::<Test>::InvalidSignature);
 
-			let valid_signature_2 = TestSignature(101, Encode::encode(&(0u32, 1u64, 49u64, 10u64)));
+			let payload_2 = (0u32, 1u64, 49u64, 10u64);
+			let valid_signature_2 = payload_2.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
 
 			// New valid signature
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 10, Some(valid_signature_2)));
@@ -1390,7 +1388,6 @@ mod tests {
 			// Partially dissolve the crowdloan, again
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), 0));
 			for i in 0 .. 20 {
-				println!("{:?}", i);
 				assert_eq!(Crowdloan::contribution_get(0, &i), 0);
 			}
 			for i in 20 .. 30 {
@@ -1560,7 +1557,6 @@ mod benchmarking {
 	};
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
-	use sp_runtime::MultiSignature;
 	use sp_io::crypto::{ed25519_generate, ed25519_sign};
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
@@ -1587,10 +1583,8 @@ mod benchmarking {
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
 		let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
-		// hack to convert types
-		let verifier: T::AccountId = Decode::decode(&mut pubkey.as_ref()).unwrap();
 
-		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end, Some(verifier)));
+		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end, Some(pubkey)));
 		FundCount::get() - 1
 	}
 
@@ -1599,11 +1593,8 @@ mod benchmarking {
 		let value = T::MinContribution::get();
 
 		let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
-		let payload = (index, &who, 0, value);
-		let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded));
-		let sig = MultiSignature::Ed25519(sig.unwrap());
-		// hack to convert types
-		let sig = T::ContributionSignature::decode(&mut &sig.encode()[..]).unwrap();
+		let payload = (index, &who, BalanceOf::<T>::default(), value);
+		let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
 
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, Some(sig)));
 	}
@@ -1690,11 +1681,8 @@ mod benchmarking {
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
 			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
-			let payload = (fund_index, &caller, 0, contribution);
-			let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded));
-			let sig = MultiSignature::Ed25519(sig.unwrap());
-			// hack to convert types
-			let sig = T::ContributionSignature::decode(&mut &sig.encode()[..]).unwrap();
+			let payload = (fund_index, &caller, BalanceOf::<T>::default(), contribution);
+			let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
 
 		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, Some(sig))
 		verify {
@@ -1781,12 +1769,18 @@ mod benchmarking {
 			let n in 2 .. 100;
 			let end_block: T::BlockNumber = 100u32.into();
 
+			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
+
 			for i in 0 .. n {
 				let fund_index = create_fund::<T>(end_block);
 				let contributor: T::AccountId = account("contributor", i, 0);
 				let contribution = T::MinContribution::get() * (i + 1).into();
 				T::Currency::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
-				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, None)?;
+
+				let payload = (fund_index, &contributor, BalanceOf::<T>::default(), contribution);
+				let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
+
+				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, Some(sig))?;
 			}
 
 			let lease_period_index = end_block / T::LeasePeriod::get();
