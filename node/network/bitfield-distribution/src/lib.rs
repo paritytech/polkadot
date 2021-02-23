@@ -835,7 +835,7 @@ mod test {
 		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
 
-		state.per_relay_parent = view.heads.iter().map(|relay_parent| {(
+		state.per_relay_parent = view.iter().map(|relay_parent| {(
 				relay_parent.clone(),
 				PerRelayParentData {
 					signing_context: signing_context.clone(),
