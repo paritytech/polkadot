@@ -823,6 +823,8 @@ impl pallet_society::Config for Runtime {
 	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
 	type ModuleId = SocietyModuleId;
+	type Call = Call;
+	type ActionByteDeposit = PreimageByteDeposit;
 }
 
 parameter_types! {
