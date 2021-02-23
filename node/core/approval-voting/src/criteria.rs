@@ -255,7 +255,7 @@ pub(crate) fn compute_assignments(
 			.find_map(|(i, p)| match keystore.key_pair(p) {
 				Ok(Some(pair)) => Some((i as ValidatorIndex, pair)),
 				Ok(None) => None,
-				Err(sc_keystore::Error::PairNotFound(_)) | Err(sc_keystore::Error::Unavailable) => None,
+				Err(sc_keystore::Error::Unavailable) => None,
 				Err(sc_keystore::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => None,
 				Err(e) => {
 					tracing::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
