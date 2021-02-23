@@ -40,7 +40,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "kiz-election-provider-2-two-phase-unsigned", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
