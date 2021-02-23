@@ -34,18 +34,18 @@ pub struct Metrics(Option<MetricsInner>);
 
 #[derive(Clone)]
 struct MetricsInner {
-    /// Number of chunks fetched.
+	/// Number of chunks fetched.
 	///
 	/// Note: The failed count gets incremented, when we were not able to fetch the chunk at all.
 	/// For times, where we failed downloading, but succeeded on the next try (with different
 	/// backers), see `retries`.
-    fetched_chunks: CounterVec<U64>,
+	fetched_chunks: CounterVec<U64>,
 
-    /// Number of chunks served.
+	/// Number of chunks served.
 	///
 	/// Note: Right now, `Succeeded` gets incremented whenever we were able to successfully respond
 	/// to a chunk request. This includes `NoSuchChunk` responses.
-    served_chunks: CounterVec<U64>,
+	served_chunks: CounterVec<U64>,
 
 	/// Number of times our first set of validators did not provide the needed chunk and we had to
 	/// query further validators.
