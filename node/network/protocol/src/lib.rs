@@ -129,12 +129,12 @@ impl OurView {
 	/// Creates a new instance.
 	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<jaeger::Span>)>, finalized_number: BlockNumber) -> Self {
 		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
-
+		let view = View::new(
+			state_per_head.keys().cloned(),
+			finalized_number,
+		);
 		Self {
-			view: View {
-				heads: state_per_head.keys().cloned().collect(),
-				finalized_number,
-			},
+			view,
 			span_per_head: state_per_head,
 		}
 	}
@@ -189,7 +189,8 @@ macro_rules! our_view {
 #[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct View {
 	/// A bounded amount of chain heads.
-	pub heads: Vec<Hash>,
+	/// Invariant: Sorted.
+	heads: Vec<Hash>,
 	/// The highest known finalized block number.
 	pub finalized_number: BlockNumber,
 }
@@ -208,11 +209,50 @@ pub struct View {
 #[macro_export]
 macro_rules! view {
 	( $( $hash:expr ),* $(,)? ) => {
-		$crate::View { heads: vec![ $( $hash.clone() ),* ], finalized_number: 0 }
+		$crate::View::new(vec![ $( $hash.clone() ),* ], 0)
 	};
 }
 
 impl View {
+	/// Construct a new view based on heads and a finalized block number.
+	pub fn new(heads: impl IntoIterator<Item=Hash>, finalized_number: BlockNumber) -> Self
+	{
+		let mut heads = heads.into_iter().collect::<Vec<Hash>>();
+		heads.sort();
+		Self {
+			heads,
+			finalized_number,
+		}
+	}
+
+	/// Start with no heads, but only a finalized block number.
+	pub fn with_finalized(finalized_number: BlockNumber) -> Self {
+		Self {
+			heads: Vec::new(),
+			finalized_number,
+		}
+	}
+
+	/// Obtain the number of heads that are in view.
+	pub fn len(&self) -> usize {
+		self.heads.len()
+	}
+
+	/// Check if the number of heads contained, is null.
+	pub fn is_empty(&self) -> bool {
+		self.heads.is_empty()
+	}
+
+	/// Obtain an iterator over all heads.
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a Hash> {
+		self.heads.iter()
+	}
+
+	/// Obtain an iterator over all heads.
+	pub fn into_iter(self) -> impl Iterator<Item=Hash> {
+		self.heads.into_iter()
+	}
+
 	/// Replace `self` with `new`.
 	///
 	/// Returns an iterator that will yield all elements of `new` that were not part of `self`.
@@ -235,6 +275,14 @@ impl View {
 	/// Whether the view contains a given hash.
 	pub fn contains(&self, hash: &Hash) -> bool {
 		self.heads.contains(hash)
+	}
+
+	/// Check if two views have the same heads.
+	///
+	/// Equivalent to the `PartialEq` fn,
+	/// but ignores the `finalized_number` field.
+	pub fn check_heads_eq(&self, other: &Self) -> bool {
+		self.heads == other.heads
 	}
 }
 
