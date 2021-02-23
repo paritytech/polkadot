@@ -290,6 +290,41 @@ impl pallet_session::historical::Config for Runtime {
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
+parameter_types! {
+	// no signed phase for now, just unsigned.
+	pub const SignedPhase: u32 = 0;
+	// NOTE: length of unsigned phase is, for now, different than `ElectionLookahead` to make sure
+	// that we won't run OCW threads at the same time with staking.
+	pub const UnsignedPhase: u32 = ElectionLookahead::get() / 2;
+
+	// fallback: no need to do on-chain phragmen while we re on a dry-run.
+	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
+		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
+
+	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational_approximation(1u32, 10_000);
+
+	// miner configs
+	pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
+	pub const MinerMaxIterations: u32 = 10;
+}
+
+impl pallet_election_provider_multi_phase::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type SignedPhase = SignedPhase;
+	type UnsignedPhase = UnsignedPhase;
+	type SolutionImprovementThreshold = MinSolutionScoreBump;
+	type MinerMaxIterations = MinerMaxIterations;
+	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
+	type MinerTxPriority = MultiPhaseUnsignedPriority;
+	type DataProvider = Staking;
+	type OnChainAccuracy = Perbill;
+	type CompactSolution = pallet_staking::CompactAssignments;
+	type Fallback = Fallback;
+	type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Runtime>;
+	type BenchmarkingConfig = ();
+}
+
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
@@ -339,6 +374,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
+	type ElectionProvider = ElectionProviderMultiPhase;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -701,6 +737,9 @@ construct_runtime! {
 
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 23,
+
+		// Election pallet. Only works with staking, but placed here to maintain indices.
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 24,
 	}
 }
 
