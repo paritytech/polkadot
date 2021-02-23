@@ -1104,6 +1104,13 @@ fn store_available_data(
 	write_available_data(&mut tx, &candidate_hash, &available_data);
 
 	subsystem.db.write(tx)?;
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Stored data and chunks for candidate={}",
+		candidate_hash,
+	);
+
 	Ok(())
 }
 

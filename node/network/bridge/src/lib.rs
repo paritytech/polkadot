@@ -25,12 +25,13 @@ use futures::prelude::*;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult, JaegerSpan,
+	SubsystemResult, jaeger,
 };
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
 	CollatorProtocolMessage, ApprovalDistributionMessage, NetworkBridgeEvent,
+	AvailabilityRecoveryMessage,
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
@@ -155,7 +156,7 @@ where
 	let mut event_stream = bridge.network_service.event_stream().fuse();
 
 	// Most recent heads are at the back.
-	let mut live_heads: Vec<(Hash, Arc<JaegerSpan>)> = Vec::with_capacity(MAX_VIEW_HEADS);
+	let mut live_heads: Vec<(Hash, Arc<jaeger::Span>)> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut local_view = View::default();
 	let mut finalized_number = 0;
 
@@ -409,17 +410,17 @@ where
 }
 
 fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_number: BlockNumber) -> View {
-	View {
-		heads: live_heads.rev().take(MAX_VIEW_HEADS).collect(),
+	View::new(
+		live_heads.rev().take(MAX_VIEW_HEADS),
 		finalized_number
-	}
+	)
 }
 
 #[tracing::instrument(level = "trace", skip(net, ctx, validation_peers, collation_peers), fields(subsystem = LOG_TARGET))]
 async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
-	live_heads: &[(Hash, Arc<JaegerSpan>)],
+	live_heads: &[(Hash, Arc<jaeger::Span>)],
 	local_view: &mut View,
 	finalized_number: BlockNumber,
 	validation_peers: &HashMap<PeerId, PeerData>,
@@ -427,8 +428,9 @@ async fn update_our_view(
 ) -> SubsystemResult<()> {
 	let new_view = construct_view(live_heads.iter().map(|v| v.0), finalized_number);
 
-	// We only want to send a view update when the heads changed, not when only the finalized block changed.
-	if local_view.heads == new_view.heads {
+	// We only want to send a view update when the heads changed.
+	// A change in finalized block number only is _not_ sufficient.
+	if local_view.check_heads_eq(&new_view) {
 		return Ok(())
 	}
 
@@ -477,7 +479,7 @@ async fn handle_peer_messages<M>(
 	for message in messages {
 		outgoing_messages.push(match message {
 			WireMessage::ViewUpdate(new_view) => {
-				if new_view.heads.len() > MAX_VIEW_HEADS ||
+				if new_view.len() > MAX_VIEW_HEADS ||
 					new_view.finalized_number < peer_data.view.finalized_number
 				{
 					net.report_peer(
@@ -486,7 +488,7 @@ async fn handle_peer_messages<M>(
 					).await?;
 
 					continue
-				} else if new_view.heads.is_empty() {
+				} else if new_view.is_empty() {
 					net.report_peer(
 						peer.clone(),
 						EMPTY_VIEW_COST,
@@ -564,7 +566,7 @@ async fn dispatch_validation_events_to_all<I>(
 		I::IntoIter: Send,
 {
 	let messages_for = |event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>| {
-		let a = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
+		let av_d = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
 			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
 
@@ -584,7 +586,11 @@ async fn dispatch_validation_events_to_all<I>(
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(m)
 		)));
 
-		a.chain(b).chain(p).chain(s).chain(ap).filter_map(|x| x)
+		let av_r = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityRecovery(
+			AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(m)
+		)));
+
+		av_d.chain(b).chain(p).chain(s).chain(ap).chain(av_r).filter_map(|x| x)
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
@@ -846,6 +852,13 @@ mod tests {
 				ApprovalDistributionMessage::NetworkBridgeUpdateV1(e)
 			) if e == event.focus().expect("could not focus message")
 		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityRecovery(
+				AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		);
 	}
 
 	async fn assert_sends_collation_event_to_all(
@@ -873,7 +886,7 @@ mod tests {
 			let head = Hash::repeat_byte(1);
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(head, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(head, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
@@ -928,7 +941,7 @@ mod tests {
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
@@ -990,13 +1003,13 @@ mod tests {
 			// This should trigger the view update to our peers.
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
 			let actions = network_handle.next_network_actions(4).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View { heads: vec![hash_a], finalized_number: 5 }
+				View::new(vec![hash_a], 5)
 			).encode();
 
 			assert_network_actions_contains(
@@ -1180,7 +1193,7 @@ mod tests {
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
@@ -1372,16 +1385,13 @@ mod tests {
 			).await;
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_b, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(hash_b, Arc::new(jaeger::Span::Disabled)),
 				))
 			).await;
 
 			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View {
-					heads: vec![hash_b],
-					finalized_number: 1,
-				}
+				View::new(vec![hash_b], 1)
 			).encode();
 
 			assert_network_actions_contains(
@@ -1412,7 +1422,7 @@ mod tests {
 				peer_a.clone(),
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-					View { heads: vec![Hash::repeat_byte(0x01)], finalized_number: 1 },
+					View::new(vec![Hash::repeat_byte(0x01)], 1),
 				).encode(),
 			).await;
 
@@ -1420,7 +1430,7 @@ mod tests {
 				peer_a.clone(),
 				PeerSet::Validation,
 				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-					View { heads: vec![], finalized_number: 0 },
+					View::new(vec![], 0),
 				).encode(),
 			).await;
 
