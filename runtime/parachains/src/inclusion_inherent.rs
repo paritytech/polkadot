@@ -107,7 +107,9 @@ decl_module! {
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
+			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Module<T>>::process_bitfields(
+				expected_bits,
 				signed_bitfields,
 				<scheduler::Module<T>>::core_para,
 			)?;
