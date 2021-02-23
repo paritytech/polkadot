@@ -851,6 +851,13 @@ mod tests {
 				ApprovalDistributionMessage::NetworkBridgeUpdateV1(e)
 			) if e == event.focus().expect("could not focus message")
 		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityRecovery(
+				AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		);
 	}
 
 	async fn assert_sends_collation_event_to_all(
