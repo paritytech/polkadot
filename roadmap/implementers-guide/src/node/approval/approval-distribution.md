@@ -61,7 +61,7 @@ struct State {
   /// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't delayed
   /// by more than a block length, this strategy will work well for mitigating the race. This is
   /// also a race that occurs typically on local networks.
-  pending_known: HashMap<Hash, (PeerId, PendingMessage>)>,
+  pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage>)>>,
 
   // Peer view data is partially stored here, and partially inline within the `BlockEntry`s
   peer_views: HashMap<PeerId, View>,
