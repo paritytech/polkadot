@@ -4125,9 +4125,11 @@ name = "pallet-election-provider-multi-phase"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#1c434cd3a20c03461cb17b1e94244e134fc1b27c"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "rand 0.7.3",
  "serde",
  "sp-arithmetic",
  "sp-election-providers",
