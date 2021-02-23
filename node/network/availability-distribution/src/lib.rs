@@ -39,17 +39,18 @@ use responder::answer_request;
 /// Cache for session information.
 mod session_cache;
 
-const LOG_TARGET: &'static str = "availability_distribution";
+mod metrics;
+/// Prometheus `Metrics` for availability distribution.
+pub use metrics::Metrics;
 
-/// Availability Distribution metrics.
-type Metrics = ();
+const LOG_TARGET: &'static str = "availability_distribution";
 
 /// The availability distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
 	keystore: SyncCryptoStorePtr,
-	//// Prometheus metrics.
-	// metrics: Metrics,
+	/// Prometheus metrics.
+	metrics: Metrics,
 }
 
 impl<Context> Subsystem<Context> for AvailabilityDistributionSubsystem
@@ -71,8 +72,8 @@ where
 
 impl AvailabilityDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: SyncCryptoStorePtr, _metrics: Metrics) -> Self {
-		Self { keystore }
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+		Self { keystore, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
