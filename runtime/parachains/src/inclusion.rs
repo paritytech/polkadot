@@ -1256,7 +1256,7 @@ mod tests {
 				let signed = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
-					0,
+					ValidatorIndex(0),
 					bare_bitfield,
 					&signing_context,
 				));
