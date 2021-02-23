@@ -1379,7 +1379,7 @@ mod tests {
 
 			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-				View::new(vec![hash_b],1)
+				View::new(vec![hash_b], 1)
 			).encode();
 
 			assert_network_actions_contains(
