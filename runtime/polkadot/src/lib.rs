@@ -1317,54 +1317,10 @@ sp_api::impl_runtime_apis! {
 
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade(target: frame_try_runtime::Target) -> Weight {
+		fn on_runtime_upgrade() -> Result<(Weight, Weight), sp_runtime::RuntimeString> {
 			frame_support::debug::RuntimeLogger::init();
-
-			let weight = match target {
-				frame_try_runtime::Target::All => {
-					frame_support::debug::info!("Dry-running all on-runtime-upgrades.");
-					Executive::try_runtime_upgrade()
-				},
-				frame_try_runtime::Target::Pallet(name) => {
-					let name = sp_std::str::from_utf8(&name).unwrap();
-					frame_support::debug::info!("Dry-running on-runtime-upgrade of {}.", name);
-
-					frame_try_runtime::match_pallet_on_runtime_upgrade!(name,
-						System,
-						RandomnessCollectiveFlip,
-						Babe,
-						Timestamp,
-						Indices,
-						Balances,
-						TransactionPayment,
-						Authorship,
-						Staking,
-						Offences,
-						Historical,
-						Session,
-						Grandpa,
-						ImOnline,
-						AuthorityDiscovery,
-						Democracy,
-						Council,
-						TechnicalCommittee,
-						ElectionsPhragmen,
-						TechnicalMembership,
-						Treasury,
-						Claims,
-						Utility,
-						Identity,
-						Vesting,
-						Scheduler,
-						Proxy,
-						Multisig,
-						Bounties,
-						Tips,
-					)
-				}
-			};
-
-			weight
+			let weight = Executive::try_runtime_upgrade()?;
+			Ok((weight, BlockWeights::get().max_block))
 		}
 	}
 

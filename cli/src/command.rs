@@ -276,6 +276,7 @@ pub fn run() -> Result<()> {
 			})?)
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
+		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -287,7 +288,6 @@ pub fn run() -> Result<()> {
 				let task_manager = TaskManager::new(
 					config.task_executor.clone(),
 					registry,
-					config.telemetry_span.clone(),
 				).unwrap();
 
 				Ok((

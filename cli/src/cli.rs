@@ -54,6 +54,7 @@ pub enum Subcommand {
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
 	/// Testing subcommand for runtime testing and trying.
+	#[cfg(feature = "try-runtime")]
 	TryRuntime(try_runtime_cli::TryRuntimeCmd),
 
 	/// Key management cli utilities
