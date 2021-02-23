@@ -39,7 +39,7 @@ use polkadot_subsystem::{
 	messages::AllMessages, ActiveLeavesUpdate, jaeger, SubsystemContext,
 };
 
-use super::{error::recv_runtime, session_cache::SessionCache, Result, LOG_TARGET};
+use super::{error::recv_runtime, session_cache::SessionCache, Result, LOG_TARGET, Metrics};
 
 /// A task fetching a particular chunk.
 mod fetch_task;
@@ -64,6 +64,9 @@ pub struct Requester {
 
 	/// Receive messages from `FetchTask`.
 	rx: mpsc::Receiver<FromFetchTask>,
+
+	/// Prometheus Metrics
+	metrics: Metrics,
 }
 
 impl Requester {
@@ -71,7 +74,7 @@ impl Requester {
 	///
 	/// You must feed it with `ActiveLeavesUpdate` via `update_fetching_heads` and make it progress
 	/// by advancing the stream.
-	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		// All we do is forwarding messages, no need to make this big.
 		let (tx, rx) = mpsc::channel(1);
 		Requester {
@@ -79,6 +82,7 @@ impl Requester {
 			session_cache: SessionCache::new(keystore),
 			tx,
 			rx,
+			metrics,
 		}
 	}
 	/// Update heads that need availability distribution.
@@ -155,6 +159,7 @@ impl Requester {
 				}
 				Entry::Vacant(e) => {
 					let tx = self.tx.clone();
+					let metrics = self.metrics.clone();
 
 					let task_cfg = self
 						.session_cache
@@ -164,7 +169,7 @@ impl Requester {
 							// leaf. (Cores are dropped at session boundaries.) At the same time,
 							// only leaves are guaranteed to be fetchable by the state trie.
 							leaf,
-							|info| FetchTaskConfig::new(leaf, &core, tx, info),
+							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
 						)
 						.await?;
 
@@ -180,26 +185,26 @@ impl Requester {
 }
 
 impl Stream for Requester {
-	type Item = Result<AllMessages>;
+	type Item = AllMessages;
 
 	fn poll_next(
 		mut self: Pin<&mut Self>,
 		ctx: &mut Context,
-	) -> Poll<Option<Result<AllMessages>>> {
+	) -> Poll<Option<AllMessages>> {
 		loop {
 			match Pin::new(&mut self.rx).poll_next(ctx) {
-				Poll::Ready(Some(FromFetchTask::Message(m))) => {
-					return Poll::Ready(Some(Ok(m)))
-				}
+				Poll::Ready(Some(FromFetchTask::Message(m))) =>
+					return Poll::Ready(Some(m)),
 				Poll::Ready(Some(FromFetchTask::Concluded(Some(bad_boys)))) => {
-					match self.session_cache.report_bad(bad_boys) {
-						Err(err) => return Poll::Ready(Some(Err(err))),
-						Ok(()) => continue,
-					}
+					self.session_cache.report_bad_log(bad_boys);
+					continue
 				}
-				Poll::Ready(Some(FromFetchTask::Concluded(None))) => continue,
-				Poll::Ready(None) => return Poll::Ready(None),
-				Poll::Pending => return Poll::Pending,
+				Poll::Ready(Some(FromFetchTask::Concluded(None))) =>
+					continue,
+				Poll::Ready(None) =>
+					return Poll::Ready(None),
+				Poll::Pending =>
+					return Poll::Pending,
 			}
 		}
 	}

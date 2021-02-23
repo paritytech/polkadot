@@ -26,24 +26,55 @@ use polkadot_subsystem::{
 };
 
 use crate::error::{Error, Result};
-use crate::LOG_TARGET;
+use crate::{LOG_TARGET, metrics::{Metrics, SUCCEEDED, FAILED, NOT_FOUND}};
+
+/// Variant of `answer_request` that does Prometheus metric and logging on errors.
+///
+/// Any errors of `answer_request` will simply be logged.
+pub async fn answer_request_log<Context>(
+	ctx: &mut Context,
+	req: IncomingRequest<v1::AvailabilityFetchingRequest>,
+	metrics: &Metrics,
+) -> ()
+where
+	Context: SubsystemContext,
+{
+	let res = answer_request(ctx, req).await;
+	match res {
+		Ok(result) =>
+			metrics.on_served(if result {SUCCEEDED} else {NOT_FOUND}),
+		Err(err) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				err= ?err,
+				"Serving chunk failed with error"
+			);
+			metrics.on_served(FAILED);
+		}
+	}
+}
 
 /// Answer an incoming chunk request by querying the av store.
+///
+/// Returns: Ok(true) if chunk was found and served.
 pub async fn answer_request<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::AvailabilityFetchingRequest>,
-) -> Result<()>
+) -> Result<bool>
 where
 	Context: SubsystemContext,
 {
 	let chunk = query_chunk(ctx, req.payload.candidate_hash, req.payload.index).await?;
+
+	let result = chunk.is_some();
 
 	let response = match chunk {
 		None => v1::AvailabilityFetchingResponse::NoSuchChunk,
 		Some(chunk) => v1::AvailabilityFetchingResponse::Chunk(chunk.into()),
 	};
 
-	req.send_response(response).map_err(|_| Error::SendResponse)
+	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	Ok(result)
 }
 
 /// Query chunk from the availability store.

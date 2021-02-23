@@ -35,6 +35,7 @@ use polkadot_subsystem::SubsystemContext;
 use super::{
 	error::{recv_runtime, Result},
 	Error,
+	LOG_TARGET,
 };
 
 /// Caching of session info as needed by availability distribution.
@@ -146,6 +147,20 @@ impl SessionCache {
 			return Ok(Some(r));
 		}
 		Ok(None)
+	}
+
+	/// Variant of `report_bad` that never fails, but just logs errors.
+	///
+	/// Not being able to report bad validators is not fatal, so we should not shutdown the
+	/// subsystem on this.
+	pub fn report_bad_log(&mut self, report: BadValidators) {
+		if let Err(err) =  self.report_bad(report) {
+			tracing::warn!(
+				target: LOG_TARGET,
+				err= ?err,
+				"Reporting bad validators failed with error"
+			);
+		}
 	}
 
 	/// Make sure we try unresponsive or misbehaving validators last.

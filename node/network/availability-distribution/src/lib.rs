@@ -34,7 +34,7 @@ use requester::Requester;
 
 /// Responding to erasure chunk requests:
 mod responder;
-use responder::answer_request;
+use responder::answer_request_log;
 
 /// Cache for session information.
 mod session_cache;
@@ -81,7 +81,7 @@ impl AvailabilityDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
-		let mut requester = Requester::new(self.keystore.clone()).fuse();
+		let mut requester = Requester::new(self.keystore.clone(), self.metrics.clone()).fuse();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
@@ -97,7 +97,7 @@ impl AvailabilityDistributionSubsystem {
 					subsystem_msg.map_err(|e| Error::IncomingMessageChannel(e))?
 				}
 				Either::Right(from_task) => {
-					let from_task = from_task.ok_or(Error::RequesterExhausted)??;
+					let from_task = from_task.ok_or(Error::RequesterExhausted)?;
 					ctx.send_message(from_task).await;
 					continue;
 				}
@@ -117,7 +117,7 @@ impl AvailabilityDistributionSubsystem {
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(req),
 				} => {
-					answer_request(&mut ctx, req).await?
+					answer_request_log(&mut ctx, req, &self.metrics).await
 				}
 			}
 		}

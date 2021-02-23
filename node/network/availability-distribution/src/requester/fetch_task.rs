@@ -39,6 +39,7 @@ use crate::{
 	error::{Error, Result},
 	session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
+	metrics::{Metrics, SUCCEEDED, FAILED},
 };
 
 /// Configuration for a `FetchTask`
@@ -112,6 +113,9 @@ struct RunningTask {
 
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
+	
+	/// Prometheues metrics for reporting results.
+	metrics: Metrics,
 }
 
 impl FetchTaskConfig {
@@ -122,6 +126,7 @@ impl FetchTaskConfig {
 		leaf: Hash,
 		core: &OccupiedCore,
 		sender: mpsc::Sender<FromFetchTask>,
+		metrics: Metrics,
 		session_info: &SessionInfo,
 	) -> Self {
 		let live_in = vec![leaf].into_iter().collect();
@@ -146,6 +151,7 @@ impl FetchTaskConfig {
 			},
 			erasure_root: core.candidate_descriptor.erasure_root,
 			relay_parent: core.candidate_descriptor.relay_parent,
+			metrics,
 			sender,
 		};
 		FetchTaskConfig {
@@ -243,8 +249,16 @@ impl RunningTask {
 	/// Try validators in backing group in order.
 	async fn run_inner(mut self) {
 		let mut bad_validators = Vec::new();
+		let mut label = FAILED;
+		let mut count: u32 = 0;
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
+			// Report retries:
+			if count > 0 {
+				self.metrics.on_retry();
+			}
+			count +=1;
+
 			// Send request:
 			let resp = match self.do_request(&validator).await {
 				Ok(resp) => resp,
@@ -253,6 +267,7 @@ impl RunningTask {
 						target: LOG_TARGET,
 						"Node seems to be shutting down, canceling fetch task"
 					);
+					self.metrics.on_fetch(FAILED);
 					return
 				}
 				Err(TaskError::PeerError) => {
@@ -265,7 +280,11 @@ impl RunningTask {
 					resp.recombine_into_chunk(&self.request)
 				}
 				AvailabilityFetchingResponse::NoSuchChunk => {
-					tracing::debug!(target: LOG_TARGET, validator = ?validator, "Validator did not have our chunk");
+					tracing::debug!(
+						target: LOG_TARGET,
+						validator = ?validator,
+						"Validator did not have our chunk"
+					);
 					bad_validators.push(validator);
 					continue
 				}
@@ -279,8 +298,10 @@ impl RunningTask {
 
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
+			label = SUCCEEDED;
 			break;
 		}
+		self.metrics.on_fetch(label);
 		self.conclude(bad_validators).await;
 	}
 
