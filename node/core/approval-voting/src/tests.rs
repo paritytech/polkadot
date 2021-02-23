@@ -37,7 +37,7 @@ fn slot_to_tick(t: impl Into<Slot>) -> crate::time::Tick {
 	crate::time::slot_number_to_tick(SLOT_DURATION_MILLIS, t.into())
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct MockClock {
 	inner: Arc<Mutex<MockClockInner>>,
 }
@@ -1209,7 +1209,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 }
 
 #[test]
-fn wakeups_drain() {
+fn wakeups_next() {
 	let mut wakeups = Wakeups::default();
 
 	let b_a = Hash::repeat_byte(0);
@@ -1224,12 +1224,24 @@ fn wakeups_drain() {
 
 	assert_eq!(wakeups.first().unwrap(), 1);
 
-	assert_eq!(
-		wakeups.drain(..=3).collect::<Vec<_>>(),
-		vec![(b_a, c_a), (b_b, c_b)],
-	);
+	let clock = MockClock::new(0);
+	let clock_aux = clock.clone();
 
-	assert_eq!(wakeups.first().unwrap(), 4);
+	let test_fut = Box::pin(async move {
+		assert_eq!(wakeups.next(&clock).await, (b_a, c_a));
+		assert_eq!(wakeups.next(&clock).await, (b_b, c_b));
+		assert_eq!(wakeups.next(&clock).await, (b_a, c_b));
+		assert!(wakeups.first().is_none());
+		assert!(wakeups.wakeups.is_empty());
+	});
+
+	let aux_fut = Box::pin(async move {
+		clock_aux.inner.lock().set_tick(1);
+		// skip direct set to 3.
+		clock_aux.inner.lock().set_tick(4);
+	});
+
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]
@@ -1243,14 +1255,20 @@ fn wakeup_earlier_supersedes_later() {
 	wakeups.schedule(b_a, c_a, 2);
 	wakeups.schedule(b_a, c_a, 3);
 
-	assert_eq!(wakeups.first().unwrap(), 2);
+	let clock = MockClock::new(0);
+	let clock_aux = clock.clone();
 
-	assert_eq!(
-		wakeups.drain(..=2).collect::<Vec<_>>(),
-		vec![(b_a, c_a)],
-	);
+	let test_fut = Box::pin(async move {
+		assert_eq!(wakeups.next(&clock).await, (b_a, c_a));
+		assert!(wakeups.first().is_none());
+		assert!(wakeups.reverse_wakeups.is_empty());
+	});
 
-	assert!(wakeups.first().is_none());
+	let aux_fut = Box::pin(async move {
+		clock_aux.inner.lock().set_tick(2);
+	});
+
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]
@@ -1517,7 +1535,7 @@ fn approved_ancestor_all_approved() {
 		);
 	});
 
-	futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]
@@ -1599,7 +1617,7 @@ fn approved_ancestor_missing_approval() {
 		);
 	});
 
-	futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]

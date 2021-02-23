@@ -330,7 +330,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: Default::default(), finalized_number: 2 })
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::with_finalized(2))
 			)
 		).await;
 
@@ -666,7 +666,7 @@ fn update_peer_view() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: vec![hash_b, hash_c, hash_d], finalized_number: 2 })
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::new(vec![hash_b, hash_c, hash_d], 2))
 			)
 		).await;
 
@@ -713,7 +713,7 @@ fn update_peer_view() {
 		overseer_send(
 			overseer,
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View { heads: vec![], finalized_number })
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::with_finalized(finalized_number))
 			)
 		).await;
 	});

@@ -60,8 +60,8 @@ pub enum Subcommand {
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub struct ValidationWorkerCommand {
-	/// The path that the executor can use for it's caching purposes.
-	pub cache_base_path: Option<std::path::PathBuf>,
+	/// The path that the executor can use for its caching purposes.
+	pub cache_base_path: std::path::PathBuf,
 
 	#[allow(missing_docs)]
 	pub mem_id: String,

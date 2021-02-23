@@ -206,7 +206,16 @@ async fn load_all_sessions(
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Ok(None),
+			Ok(Ok(None)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Session {} is missing from session-info state of block {}",
+					i,
+					block_hash,
+				);
+
+				return Ok(None);
+			}
 			Ok(Err(e)) => return Err(SubsystemError::with_origin("approval-voting", e)),
 			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
 		};

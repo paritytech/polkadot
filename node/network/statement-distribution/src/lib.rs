@@ -1510,7 +1510,7 @@ mod tests {
 
 		let peer_data_from_view = |view: View| PeerData {
 			view: view.clone(),
-			view_knowledge: view.heads.iter().map(|v| (v.clone(), Default::default())).collect(),
+			view_knowledge: view.iter().map(|v| (v.clone(), Default::default())).collect(),
 		};
 
 		let mut peer_data: HashMap<_, _> = vec![
