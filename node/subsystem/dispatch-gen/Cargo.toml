@@ -1,0 +1,16 @@
+[package]
+name = "polkadot-procmacro-subsystem-dispatch-gen"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+description = "Small proc macro to create the distribution code for network events"
+
+[lib]
+proc-macro = true
+
+
+[dependencies]
+syn = { version = "1.0", features = ["full"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+assert_matches = "1"

@@ -554,38 +554,6 @@ async fn dispatch_collation_event_to_all(
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
-fn multiply_messages<I>(events: I) -> impl Iterator<AllMessages>
-where
-	I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
-	I::IntoIter: Send,
-{
-	let message_spread = |x| {
-		let a = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
-			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
-		)));
-
-		let b = std::iter::once(event.focus().ok().map(|m| AllMessages::BitfieldDistribution(
-			BitfieldDistributionMessage::NetworkBridgeUpdateV1(m)
-		)));
-
-		let p = std::iter::once(event.focus().ok().map(|m| AllMessages::PoVDistribution(
-			PoVDistributionMessage::NetworkBridgeUpdateV1(m)
-		)));
-
-		let s = std::iter::once(event.focus().ok().map(|m| AllMessages::StatementDistribution(
-			StatementDistributionMessage::NetworkBridgeUpdateV1(m)
-		)));
-
-		let ap = std::iter::once(event.focus().ok().map(|m| AllMessages::ApprovalDistribution(
-			ApprovalDistributionMessage::NetworkBridgeUpdateV1(m)
-		)));
-
-		a.chain(b).chain(p).chain(s).chain(ap).filter_map(|x| x)
-	};
-
-	events.into_iter().flat_map(message_spread)
-}
-
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
@@ -595,7 +563,7 @@ async fn dispatch_validation_events_to_all<I>(
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
 		I::IntoIter: Send,
 {
-	ctx.send_messages(spread_event_to_subsystems(events)).await
+	ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
 }
 
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
