@@ -711,7 +711,6 @@ pub enum AllMessages {
 	/// Message for the availability distribution subsystem.
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the availability recovery subsystem.
-	#[skip]
 	AvailabilityRecovery(AvailabilityRecoveryMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),

@@ -351,7 +351,7 @@ impl Validator {
 		&self,
 		keystore: SyncCryptoStorePtr,
 		payload: Payload,
-	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
+	) -> Result<Option<Signed<Payload, RealPayload>>, KeystoreError> {
 		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
 	}
 
