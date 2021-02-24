@@ -305,12 +305,13 @@ impl AvailabilityDistributionMessage {
 }
 
 /// Bitfield distribution message.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum BitfieldDistributionMessage {
 	/// Distribute a bitfield via gossip to other validators.
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
 
 	/// Event from the network bridge.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
 }
 
