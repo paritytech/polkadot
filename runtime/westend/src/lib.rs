@@ -321,8 +321,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = pallet_staking::CompactAssignments;
 	type Fallback = Fallback;
-	type WeightInfo = ();
 	type BenchmarkingConfig = ();
+	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
 pallet_staking_reward_curve::build! {

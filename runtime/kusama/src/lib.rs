@@ -330,8 +330,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = pallet_staking::CompactAssignments;
 	type Fallback = Fallback;
-	type WeightInfo = ();
 	type BenchmarkingConfig = ();
+	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
