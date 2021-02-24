@@ -1,0 +1,89 @@
+# Compose file for quickly spinning up a local instance of the Rialto Substrate network.
+#
+# Note that the Rialto network is only used for testing, so the configuration settings you see here
+# are *not* recommended for a production environment.
+#
+# For example, do *not* keep your `node-key` in version control, and unless you're _really_ sure you
+# want to provide public access to your nodes do *not* publicly expose RPC methods.
+version: '3.5'
+services:
+  rialto-node-alice: &rialto-bridge-node
+    image: paritytech/rialto-bridge-node
+    entrypoint:
+      - /home/user/rialto-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/rialto-node-bob/tcp/30333/p2p/12D3KooWSEpHJj29HEzgPFcRYVc5X3sEuP3KgiUoqJNCet51NiMX
+      - --alice
+      - --node-key=79cf382988364291a7968ae7825c01f68c50d679796a8983237d07fe0ccf363b
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    environment:
+      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,pallet_substrate_bridge=trace,pallet_bridge_call_dispatch=trace,pallet_message_lane=trace
+    ports:
+      - "9933:9933"
+      - "9944:9944"
+
+  rialto-node-bob:
+    <<: *rialto-bridge-node
+    entrypoint:
+      - /home/user/rialto-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/rialto-node-alice/tcp/30333/p2p/12D3KooWMF6JvV319a7kJn5pqkKbhR3fcM2cvK5vCbYZHeQhYzFE
+      - --bob
+      - --node-key=4f9d0146dd9b7b3bf5a8089e3880023d1df92057f89e96e07bb4d8c2ead75bbd
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    environment:
+      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,pallet_substrate_bridge=trace,pallet_bridge_call_dispatch=trace,pallet_message_lane=trace,jsonrpc_ws_server=trace,parity_ws=trace
+    ports:
+      - "10033:9933"
+      - "10044:9944"
+
+  rialto-node-charlie:
+    <<: *rialto-bridge-node
+    entrypoint:
+      - /home/user/rialto-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/rialto-node-alice/tcp/30333/p2p/12D3KooWMF6JvV319a7kJn5pqkKbhR3fcM2cvK5vCbYZHeQhYzFE
+      - --charlie
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    ports:
+      - "10133:9933"
+      - "10144:9944"
+
+  rialto-node-dave:
+    <<: *rialto-bridge-node
+    entrypoint:
+      - /home/user/rialto-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/rialto-node-alice/tcp/30333/p2p/12D3KooWMF6JvV319a7kJn5pqkKbhR3fcM2cvK5vCbYZHeQhYzFE
+      - --dave
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    ports:
+      - "10233:9933"
+      - "10244:9944"
+
+  rialto-node-eve:
+    <<: *rialto-bridge-node
+    entrypoint:
+      - /home/user/rialto-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/rialto-node-alice/tcp/30333/p2p/12D3KooWMF6JvV319a7kJn5pqkKbhR3fcM2cvK5vCbYZHeQhYzFE
+      - --eve
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    ports:
+      - "10333:9933"
+      - "10344:9944"
