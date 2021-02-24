@@ -1549,7 +1549,7 @@ where
 			&mut seed,
 		)?;
 
-		let availability_store_subsystem = spawn(
+		let availability_store_subsystem = spawn_blocking(
 			&mut s,
 			&mut running_subsystems,
 			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
@@ -1604,7 +1604,7 @@ where
 			&mut seed,
 		)?;
 
-		let approval_voting_subsystem = spawn(
+		let approval_voting_subsystem = spawn_blocking(
 			&mut s,
 			&mut running_subsystems,
 			metered::UnboundedMeteredSender::<_>::clone(&to_overseer_tx),
@@ -2018,6 +2018,51 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	})
 }
 
+fn spawn_blocking<S: SpawnNamed, M: Send + 'static>(
+	spawner: &mut S,
+	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
+	to_overseer: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
+	s: impl Subsystem<OverseerSubsystemContext<M>>,
+	metrics: &Metrics,
+	seed: &mut u64,
+) -> SubsystemResult<OverseenSubsystem<M>> {
+	let (to_tx, to_rx) = metered::channel(CHANNEL_CAPACITY, "subsystem_spawn");
+	let ctx = OverseerSubsystemContext::new(
+		to_rx,
+		to_overseer,
+		metrics.clone(),
+		*seed,
+		MESSAGE_TIMER_METRIC_CAPTURE_RATE,
+	);
+	let SpawnedSubsystem { future, name } = s.start(ctx);
+
+	// increment the seed now that it's been used, so the next context will have its own distinct RNG
+	*seed += 1;
+
+	let (tx, rx) = oneshot::channel();
+
+	let fut = Box::pin(async move {
+		if let Err(e) = future.await {
+			tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
+		} else {
+			tracing::debug!(subsystem=name, "subsystem exited without an error");
+		}
+		let _ = tx.send(());
+	});
+
+	spawner.spawn_blocking(name, fut);
+
+	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
+
+	let instance = Some(SubsystemInstance {
+		tx: to_tx,
+		name,
+	});
+
+	Ok(OverseenSubsystem {
+		instance,
+	})
+}
 
 #[cfg(test)]
 mod tests {
