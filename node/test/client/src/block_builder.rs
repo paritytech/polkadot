@@ -62,7 +62,13 @@ impl InitPolkadotBlockBuilder for Client {
 		let minimum_period = BasicExternalities::new_empty()
 			.execute_with(|| polkadot_test_runtime::MinimumPeriod::get());
 
-		let timestamp = last_timestamp + minimum_period;
+		let timestamp = if last_timestamp == 0 {
+			std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH)
+				.expect("Time is always after UNIX_EPOCH; qed")
+				.as_millis() as u64
+		} else {
+			last_timestamp + minimum_period
+		};
 
 		// `SlotDuration` is a storage parameter type that requires externalities to access the value.
 		let slot_duration = BasicExternalities::new_empty()
