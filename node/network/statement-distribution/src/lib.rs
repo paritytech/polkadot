@@ -25,18 +25,19 @@
 use polkadot_subsystem::{
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
+	jaeger,
 	messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
 	},
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use node_primitives::SignedFullStatement;
+use polkadot_node_primitives::{SignedFullStatement};
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, OurView,
+	v1 as protocol_v1, View, PeerId, OurView, UnifiedReputationChange as Rep,
 };
 
 use futures::prelude::*;
@@ -45,14 +46,13 @@ use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet};
 
-const COST_UNEXPECTED_STATEMENT: Rep = Rep::new(-100, "Unexpected Statement");
-const COST_INVALID_SIGNATURE: Rep = Rep::new(-500, "Invalid Statement Signature");
-const COST_DUPLICATE_STATEMENT: Rep = Rep::new(-250, "Statement sent more than once by peer");
-const COST_APPARENT_FLOOD: Rep = Rep::new(-1000, "Peer appears to be flooding us with statements");
+const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
+const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
+const COST_DUPLICATE_STATEMENT: Rep = Rep::CostMajorRepeated("Statement sent more than once by peer");
+const COST_APPARENT_FLOOD: Rep = Rep::Malicious("Peer appears to be flooding us with statements");
 
-const BENEFIT_VALID_STATEMENT: Rep = Rep::new(5, "Peer provided a valid statement");
-const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::new(
-	25,
+const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
+const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::BenefitMajorFirst(
 	"Peer was the first to provide a valid statement",
 );
 
@@ -517,14 +517,10 @@ async fn circulate_statement_and_dependents(
 		None => return,
 	};
 
-	let _span = {
-		let mut span = active_head.span.child("circulate-statement");
-		span.add_string_tag(
-			"candidate-hash",
-			&format!("{:?}", statement.payload().candidate_hash().0),
-		);
-		span
-	};
+	let _span = active_head.span.child_builder("circulate-statement")
+		.with_candidate(&statement.payload().candidate_hash())
+		.with_stage(jaeger::Stage::StatementDistribution)
+		.build();
 
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
@@ -538,10 +534,14 @@ async fn circulate_statement_and_dependents(
 		}
 	};
 
+	let _span = _span.child("send-to-peers");
 	// Now send dependent statements to all peers needing them, if any.
 	if let Some((candidate_hash, peers_needing_dependents)) = outputs {
 		for peer in peers_needing_dependents {
 			if let Some(peer_data) = peers.get_mut(&peer) {
+				let _span_loop = _span.child_builder("to-peer")
+					.with_peer_id(&peer)
+					.build();
 				// defensive: the peer data should always be some because the iterator
 				// of peers is derived from the set of peers.
 				send_statements_about(
@@ -702,18 +702,10 @@ async fn handle_incoming_message<'a>(
 	};
 
 	let candidate_hash = statement.payload().candidate_hash();
-	let handle_incoming_span = {
-		let mut span = active_head.span.child("handle-incoming");
-		span.add_string_tag(
-			"candidate-hash",
-			&format!("{:?}", candidate_hash.0),
-		);
-		span.add_string_tag(
-			"peer-id",
-			&peer.to_base58(),
-		);
-		span
-	};
+	let handle_incoming_span = active_head.span.child_builder("handle-incoming")
+		.with_candidate(&candidate_hash)
+		.with_peer_id(&peer)
+		.build();
 
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
@@ -1077,14 +1069,14 @@ mod tests {
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
-	use node_primitives::Statement;
+	use polkadot_node_primitives::Statement;
 	use polkadot_primitives::v1::CommittedCandidateReceipt;
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
-	use polkadot_subsystem::JaegerSpan;
+	use polkadot_subsystem::jaeger;
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -1125,7 +1117,7 @@ mod tests {
 		let mut head_data = ActiveHeadData::new(
 			validators,
 			session_index,
-			PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+			PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 		);
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
@@ -1143,7 +1135,7 @@ mod tests {
 			&signing_context,
 			0,
 			&alice_public.into(),
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 		let noted = head_data.note_statement(a_seconded_val_0.clone());
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
@@ -1160,7 +1152,7 @@ mod tests {
 			&signing_context,
 			0,
 			&alice_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1171,7 +1163,7 @@ mod tests {
 			&signing_context,
 			0,
 			&alice_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::NotUseful);
 
@@ -1182,7 +1174,7 @@ mod tests {
 			&signing_context,
 			1,
 			&bob_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1193,7 +1185,7 @@ mod tests {
 			&signing_context,
 			1,
 			&bob_public.into(),
-		)).expect("should be signed"));
+		)).ok().flatten().expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 	}
@@ -1387,7 +1379,7 @@ mod tests {
 			let mut data = ActiveHeadData::new(
 				validators,
 				session_index,
-				PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+				PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 			);
 
 			let noted = data.note_statement(block_on(SignedFullStatement::sign(
@@ -1396,7 +1388,7 @@ mod tests {
 				&signing_context,
 				0,
 				&alice_public.into(),
-			)).expect("should be signed"));
+			)).ok().flatten().expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1406,7 +1398,7 @@ mod tests {
 				&signing_context,
 				1,
 				&bob_public.into(),
-			)).expect("should be signed"));
+			)).ok().flatten().expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1416,7 +1408,7 @@ mod tests {
 				&signing_context,
 				2,
 				&charlie_public.into(),
-			)).expect("should be signed"));
+			)).ok().flatten().expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1518,7 +1510,7 @@ mod tests {
 
 		let peer_data_from_view = |view: View| PeerData {
 			view: view.clone(),
-			view_knowledge: view.heads.iter().map(|v| (v.clone(), Default::default())).collect(),
+			view_knowledge: view.iter().map(|v| (v.clone(), Default::default())).collect(),
 		};
 
 		let mut peer_data: HashMap<_, _> = vec![
@@ -1548,7 +1540,7 @@ mod tests {
 					&signing_context,
 					0,
 					&alice_public.into(),
-				).await.expect("should be signed");
+				).await.ok().flatten().expect("should be signed");
 
 				StoredStatement {
 					comparator: StoredStatementComparator {
@@ -1640,7 +1632,7 @@ mod tests {
 		let test_fut = async move {
 			// register our active heads.
 			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![(hash_a, Arc::new(JaegerSpan::Disabled))].into(),
+				activated: vec![(hash_a, Arc::new(jaeger::Span::Disabled))].into(),
 				deactivated: vec![].into(),
 			}))).await;
 
@@ -1716,7 +1708,7 @@ mod tests {
 					&signing_context,
 					0,
 					&alice_public.into(),
-				).await.expect("should be signed")
+				).await.ok().flatten().expect("should be signed")
 			};
 
 			handle.send(FromOverseer::Communication {

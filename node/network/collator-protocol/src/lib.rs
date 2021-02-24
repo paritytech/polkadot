@@ -32,7 +32,7 @@ use polkadot_subsystem::{
 	},
 };
 use polkadot_node_network_protocol::{
-	PeerId, ReputationChange as Rep,
+	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::CollatorId;
 use polkadot_node_subsystem_util::{

@@ -160,6 +160,7 @@ enum AvailabilityRecoveryMessage {
     RecoverAvailableData(
         CandidateReceipt,
         SessionIndex,
+        Option<GroupIndex>, // Backing validator group to request the data directly from.
         ResponseChannel<Result<AvailableData, RecoveryError>>,
     ),
 }
@@ -453,9 +454,6 @@ enum ProvisionableData {
 ///
 /// In all cases, the Hash is that of the relay parent.
 enum ProvisionerMessage {
-  /// This message allows potential block authors to be kept updated with all new authorship data
-  /// as it becomes available.
-  RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
   /// This message allows external subsystems to request current inherent data that could be used for
   /// advancing the state of parachain consensus in a block building upon the given hash.
   ///

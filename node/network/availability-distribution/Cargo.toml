@@ -14,16 +14,16 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"]  , branch = "kiz-election-provider-2-two-phase-unsigned" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-election-provider-2-two-phase-unsigned" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"]  , branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.23"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "kiz-election-provider-2-two-phase-unsigned" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "kiz-election-provider-2-two-phase-unsigned" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-election-provider-2-two-phase-unsigned" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "kiz-election-provider-2-two-phase-unsigned" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-election-provider-2-two-phase-unsigned" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
 maplit = "1.0"
