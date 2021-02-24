@@ -1076,10 +1076,14 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn execute_block(block: Block) {
+			frame_support::debug::RuntimeLogger::init();
+			frame_support::debug::info!("Runtime logs here!");
 			Executive::execute_block(block)
 		}
 
 		fn initialize_block(header: &<Block as BlockT>::Header) {
+			frame_support::debug::RuntimeLogger::init();
+			frame_support::debug::info!("Runtime logs here!");
 			Executive::initialize_block(header)
 		}
 	}
@@ -1092,14 +1096,20 @@ sp_api::impl_runtime_apis! {
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
+			frame_support::debug::RuntimeLogger::init();
+			frame_support::debug::info!("Runtime logs here!");
 			Executive::apply_extrinsic(extrinsic)
 		}
 
 		fn finalize_block() -> <Block as BlockT>::Header {
+			frame_support::debug::RuntimeLogger::init();
+			frame_support::debug::info!("Runtime logs here!");
 			Executive::finalize_block()
 		}
 
 		fn inherent_extrinsics(data: inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			frame_support::debug::RuntimeLogger::init();
+			frame_support::debug::info!("Runtime logs here!");
 			data.create_extrinsics()
 		}
 
@@ -1107,6 +1117,8 @@ sp_api::impl_runtime_apis! {
 			block: Block,
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
+			frame_support::debug::RuntimeLogger::init();
+			frame_support::debug::info!("Runtime logs here!");
 			data.check_extrinsics(&block)
 		}
 
