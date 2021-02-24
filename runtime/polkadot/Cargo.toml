@@ -66,6 +66,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -177,7 +178,10 @@ runtime-benchmarks = [
 	"frame-system-benchmarking",
 	"hex-literal",
 ]
-
+try-runtime = [
+	"frame-executive/try-runtime",
+	"frame-try-runtime",
+]
 # When enabled, the runtime api will not be build.
 #
 # This is required by Cumulus to access certain types of the

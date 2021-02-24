@@ -1779,6 +1779,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "frame-try-runtime"
+version = "0.9.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#904495bc14eff5171fca5912247e772948439411"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "fs-swap"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2634,6 +2646,7 @@ checksum = "489b9c612e60c766f751ab40fcb43cbb55a1e10bb44a9b4307ed510ca598cbd7"
 dependencies = [
  "failure",
  "futures 0.1.29",
+ "hyper 0.12.35",
  "jsonrpc-core",
  "jsonrpc-pubsub",
  "log",
@@ -2775,6 +2788,7 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
+ "frame-try-runtime",
  "hex-literal",
  "libsecp256k1",
  "log",
@@ -5137,6 +5151,7 @@ dependencies = [
  "substrate-build-script-utils",
  "thiserror",
  "tracing-futures",
+ "try-runtime-cli",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -5709,6 +5724,7 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
+ "frame-try-runtime",
  "hex-literal",
  "libsecp256k1",
  "log",
@@ -6712,6 +6728,24 @@ dependencies = [
  "libc",
  "mach",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "remote-externalities"
+version = "0.9.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#904495bc14eff5171fca5912247e772948439411"
+dependencies = [
+ "bincode",
+ "env_logger 0.8.2",
+ "futures 0.1.29",
+ "hex-literal",
+ "jsonrpc-core-client",
+ "log",
+ "sc-rpc",
+ "sc-rpc-api",
+ "sp-core",
+ "sp-io",
+ "tokio 0.1.22",
 ]
 
 [[package]]
@@ -9835,6 +9869,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e604eb7b43c06650e854be16a2a03155743d3752dd1c943f6829e26b7a36e382"
 
 [[package]]
+name = "try-runtime-cli"
+version = "0.9.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#904495bc14eff5171fca5912247e772948439411"
+dependencies = [
+ "frame-try-runtime",
+ "log",
+ "parity-scale-codec",
+ "remote-externalities",
+ "sc-cli",
+ "sc-client-api",
+ "sc-executor",
+ "sc-service",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
+ "structopt",
+]
+
+[[package]]
 name = "twox-hash"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10447,6 +10503,7 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
+ "frame-try-runtime",
  "hex-literal",
  "libsecp256k1",
  "log",

@@ -27,6 +27,7 @@ polkadot-parachain = { path = "../parachain", optional = true }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tracing-futures = "0.2.4"
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -47,6 +48,7 @@ cli = [
 	"sc-cli",
 	"sc-service",
 	"frame-benchmarking-cli",
+	"try-runtime-cli",
 ]
 browser = [
 	"wasm-bindgen",
@@ -58,3 +60,4 @@ runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
 full-node = [ "service/full-node" ]
 real-overseer = [ "service/real-overseer" ]
+try-runtime = [ "service/try-runtime" ]
