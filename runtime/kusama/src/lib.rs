@@ -1067,11 +1067,6 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-<<<<<<< HEAD
-	(UpgradeSessionKeys, PhragmenElectionDepositRuntimeUpgrade),
-=======
-	()
->>>>>>> c66049ddda26c9609d1a2cf23c0975a1f9677712
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
