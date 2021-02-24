@@ -141,7 +141,3 @@ real-overseer = [
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
 ]
-
-approval-checking = [
-	"real-overseer"
-]
