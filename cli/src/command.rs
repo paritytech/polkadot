@@ -245,7 +245,7 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli),task_manager))
+				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
@@ -288,13 +288,13 @@ pub fn run() -> Result<()> {
 				let task_manager = TaskManager::new(
 					config.task_executor.clone(),
 					registry,
-				).unwrap();
+				).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
 				Ok((
 					cmd.run::<
 						service::kusama_runtime::Block,
 						service::KusamaExecutor,
-					>(config).map_err(|e| Error::SubstrateCli(e)),
+					>(config).map_err(Error::SubstrateCli),
 					task_manager
 				))
 				// NOTE: we fetch only the block number from the block type, the chance of disparity

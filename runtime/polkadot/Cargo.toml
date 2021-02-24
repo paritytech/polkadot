@@ -144,7 +144,6 @@ std = [
 	"runtime-common/std",
 	"pallet-vesting/std",
 	"pallet-utility/std",
-	"frame-try-runtime/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",

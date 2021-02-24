@@ -148,7 +148,6 @@ std = [
 	"sp-session/std",
 	"pallet-randomness-collective-flip/std",
 	"runtime-common/std",
-	"frame-try-runtime/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
