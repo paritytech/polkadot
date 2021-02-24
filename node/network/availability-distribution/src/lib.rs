@@ -417,7 +417,7 @@ where
 			.filter(|(_peer, view)| {
 				// collect all direct interests of a peer w/o ancestors
 				state
-					.cached_live_candidates_unioned(view.heads.iter())
+					.cached_live_candidates_unioned(view.iter())
 					.contains(&candidate_hash)
 			})
 			.map(|(peer, _view)| peer.clone())
@@ -623,7 +623,7 @@ where
 	let _timer = metrics.time_process_incoming_peer_message();
 
 	// obtain the set of candidates we are interested in based on our current view
-	let live_candidates = state.cached_live_candidates_unioned(state.view.heads.iter());
+	let live_candidates = state.cached_live_candidates_unioned(state.view.iter());
 
 	// check if the candidate is of interest
 	let candidate_hash = message.candidate_hash;
@@ -764,7 +764,7 @@ where
 				// peers view must contain the candidate hash too
 				cached_live_candidates_unioned(
 					per_relay_parent,
-					view.heads.iter(),
+					view.iter(),
 				).contains(&message.candidate_hash)
 			})
 			.map(|(peer, _)| -> PeerId { peer.clone() })
