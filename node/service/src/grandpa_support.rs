@@ -79,7 +79,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 		&self,
 		backend: Arc<B>,
 		base: &PolkadotHeader,
-		_best_target: &PolkadotHeader,
+		best_target: &PolkadotHeader,
 		current_target: &PolkadotHeader,
 	) -> grandpa::VotingRuleResult<PolkadotBlock> {
 		// always wait 50 blocks behind the head to finalize.
@@ -109,8 +109,16 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 				}
 			};
 
+			// delay blocks behind the head, but make sure we're not ahead of the current
+			// target.
+			let target_number = std::cmp::min(
+				best_target.number().saturating_sub(DIAGNOSTIC_GRANDPA_DELAY),
+				current_target.number().clone(),
+			);
+
+			// don't go below base
 			let target_number = std::cmp::max(
-				current_target.number().saturating_sub(DIAGNOSTIC_GRANDPA_DELAY),
+				target_number,
 				base.number().clone(),
 			);
 
@@ -123,8 +131,8 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 		let mut overseer = self.overseer.clone();
 		let checking_lag = self.checking_lag.clone();
 
-		let current_hash = current_target.hash();
-		let current_number = current_target.number.clone();
+		let best_hash = best_target.hash();
+		let best_number = best_target.number.clone();
 
 		let base_number = base.number;
 
@@ -132,7 +140,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 			let (tx, rx) = oneshot::channel();
 			let approval_checking_subsystem_vote = {
 				overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
-					current_hash,
+					best_hash,
 					base_number,
 					tx,
 				)).await;
@@ -141,13 +149,20 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 			};
 
 			let approval_checking_subsystem_lag = approval_checking_subsystem_vote.map_or(
-				current_number - base_number,
-				|(_h, n)| current_number - n,
+				best_number - base_number,
+				|(_h, n)| best_number - n,
 			);
 
 			if let Some(ref checking_lag) = checking_lag {
 				checking_lag.observe(approval_checking_subsystem_lag as _);
 			}
+
+			tracing::debug!(
+				target: "approval_voting",
+				"GRANDPA: voting on {:?}. Approval-checking lag behind best is {}",
+				actual_vote_target,
+				approval_checking_subsystem_lag,
+			);
 
 			actual_vote_target
 		})
