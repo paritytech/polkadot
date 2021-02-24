@@ -28,9 +28,8 @@ use polkadot_subsystem::{
 	SubsystemResult, jaeger,
 };
 use polkadot_subsystem::messages::{
-	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
-	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
-	CollatorProtocolMessage, ApprovalDistributionMessage, NetworkBridgeEvent,
+	NetworkBridgeMessage, AllMessages,
+	CollatorProtocolMessage, NetworkBridgeEvent,
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
@@ -605,8 +604,11 @@ mod tests {
 
 	use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 	use polkadot_subsystem::messages::{
-		StatementDistributionMessage, BitfieldDistributionMessage,
+		AvailabilityDistributionMessage,
 		ApprovalDistributionMessage,
+		BitfieldDistributionMessage,
+		PoVDistributionMessage,
+		StatementDistributionMessage
 	};
 	use polkadot_node_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
@@ -1521,7 +1523,7 @@ mod tests {
 		const EXPECTED_COUNT: usize = 5;
 
 		let mut cnt = 0_usize;
-		for msg in spread_event_to_subsystems(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
+		for msg in AllMessages::dispatch_iter(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
 			match msg {
 				AllMessages::CandidateValidation(_) => unreachable!("Not interested in network events"),
 				AllMessages::CandidateBacking(_) => unreachable!("Not interested in network events"),
@@ -1545,6 +1547,6 @@ mod tests {
 				// notified, `unreachable!()` for those that should not.
 			}
 		}
+		assert_eq!(cnt, EXPECTED_COUNT);
 	}
-	assert_eq!(cnt, EXPECTED_COUNT);
 }
