@@ -321,8 +321,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = pallet_staking::CompactAssignments;
 	type Fallback = Fallback;
-	type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Runtime>;
 	type BenchmarkingConfig = ();
+	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
 pallet_staking_reward_curve::build! {
@@ -774,7 +774,6 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-	()
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1031,6 +1030,15 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[cfg(feature = "try-runtime")]
+	impl frame_try_runtime::TryRuntime<Block> for Runtime {
+		fn on_runtime_upgrade() -> Result<(Weight, Weight), sp_runtime::RuntimeString> {
+			frame_support::debug::RuntimeLogger::init();
+			let weight = Executive::try_runtime_upgrade()?;
+			Ok((weight, BlockWeights::get().max_block))
+		}
+	}
+
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
@@ -1067,6 +1075,7 @@ sp_api::impl_runtime_apis! {
 			let params = (&config, &whitelist);
 
 			add_benchmark!(params, batches, pallet_balances, Balances);
+			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
 			add_benchmark!(params, batches, pallet_identity, Identity);
 			add_benchmark!(params, batches, pallet_im_online, ImOnline);
 			add_benchmark!(params, batches, pallet_indices, Indices);

@@ -92,6 +92,7 @@ panic = "unwind"
 runtime-benchmarks=["cli/runtime-benchmarks"]
 real-overseer=["cli/real-overseer"]
 approval-checking=["real-overseer", "service/approval-checking"]
+try-runtime = ["cli/try-runtime"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
