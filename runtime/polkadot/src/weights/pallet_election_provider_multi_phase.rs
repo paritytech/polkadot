@@ -44,47 +44,47 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo for WeightInfo<T> {
 	fn on_initialize_nothing() -> Weight {
-		(21_498_000 as Weight)
+		(20_985_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(7 as Weight))
 	}
 	fn on_initialize_open_signed() -> Weight {
-		(73_385_000 as Weight)
+		(70_912_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(7 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	fn on_initialize_open_unsigned_with_snapshot() -> Weight {
-		(72_735_000 as Weight)
+		(70_069_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(7 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	fn on_initialize_open_unsigned_without_snapshot() -> Weight {
-		(19_735_000 as Weight)
+		(18_773_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
 		(0 as Weight)
 			// Standard Error: 22_000
-			.saturating_add((4_204_000 as Weight).saturating_mul(v as Weight))
-			// Standard Error: 73_000
-			.saturating_add((273_000 as Weight).saturating_mul(t as Weight))
+			.saturating_add((4_166_000 as Weight).saturating_mul(v as Weight))
+			// Standard Error: 74_000
+			.saturating_add((116_000 as Weight).saturating_mul(t as Weight))
 			// Standard Error: 22_000
-			.saturating_add((13_840_000 as Weight).saturating_mul(a as Weight))
-			// Standard Error: 110_000
-			.saturating_add((4_795_000 as Weight).saturating_mul(d as Weight))
+			.saturating_add((13_966_000 as Weight).saturating_mul(a as Weight))
+			// Standard Error: 111_000
+			.saturating_add((4_713_000 as Weight).saturating_mul(d as Weight))
 			.saturating_add(T::DbWeight::get().reads(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn feasibility_check(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
 		(0 as Weight)
 			// Standard Error: 12_000
-			.saturating_add((4_284_000 as Weight).saturating_mul(v as Weight))
-			// Standard Error: 43_000
-			.saturating_add((680_000 as Weight).saturating_mul(t as Weight))
+			.saturating_add((4_283_000 as Weight).saturating_mul(v as Weight))
+			// Standard Error: 40_000
+			.saturating_add((763_000 as Weight).saturating_mul(t as Weight))
 			// Standard Error: 12_000
-			.saturating_add((10_301_000 as Weight).saturating_mul(a as Weight))
-			// Standard Error: 64_000
-			.saturating_add((4_349_000 as Weight).saturating_mul(d as Weight))
+			.saturating_add((10_442_000 as Weight).saturating_mul(a as Weight))
+			// Standard Error: 61_000
+			.saturating_add((4_521_000 as Weight).saturating_mul(d as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 	}
 }
