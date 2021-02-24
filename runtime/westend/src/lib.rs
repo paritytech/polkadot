@@ -100,9 +100,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
 	babe_primitives::BabeEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
 	};
-
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
