@@ -59,7 +59,6 @@ frame_support::construct_runtime!(
 	{
 		// System Stuff
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		//Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 
 		// Parachains Runtime

@@ -91,6 +91,8 @@ type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::Acco
 #[allow(dead_code)]
 type NegativeImbalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
+type TrieIndex = u32;
+
 pub trait WeightInfo {
 	fn create() -> Weight;
 	fn contribute() -> Weight;
@@ -185,6 +187,8 @@ pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// Last slot in range to bid on; it's actually a LeasePeriod, but that's the same type as
 	/// BlockNumber.
 	last_slot: LeasePeriod,
+	/// Index used for the child trie of this fund
+	trie_index: TrieIndex,
 }
 
 decl_storage! {
@@ -200,6 +204,9 @@ decl_storage! {
 
 		/// The number of auctions that have entered into their ending period so far.
 		EndingsCount get(fn endings_count): u32;
+
+		/// Tracker for the next available trie index
+		NextTrieIndex get(fn next_trie_index): u32;
 	}
 }
 
@@ -298,6 +305,9 @@ decl_module! {
 			let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(depositor == manager, Error::<T>::InvalidOrigin);
 
+			let trie_index = Self::next_trie_index();
+			let new_trie_index = trie_index.checked_add(1).ok_or(Error::<T>::Overflow)?;
+
 			let deposit = T::SubmissionDeposit::get();
 
 			CurrencyOf::<T>::reserve(&depositor, deposit)?;
@@ -312,7 +322,10 @@ decl_module! {
 				last_contribution: LastContribution::Never,
 				first_slot,
 				last_slot,
+				trie_index,
 			});
+
+			NextTrieIndex::put(new_trie_index);
 
 			Self::deposit_event(RawEvent::Created(index));
 		}
@@ -335,9 +348,9 @@ decl_module! {
 
 			CurrencyOf::<T>::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
-			let balance = Self::contribution_get(index, &who);
+			let balance = Self::contribution_get(fund.trie_index, &who);
 			let balance = balance.saturating_add(value);
-			Self::contribution_put(index, &who, &balance);
+			Self::contribution_put(fund.trie_index, &who, &balance);
 
 			if T::Auctioneer::is_ending(now).is_some() {
 				match fund.last_contribution {
@@ -404,13 +417,13 @@ decl_module! {
 			// free balance must equal amount raised, otherwise a bid or lease must be active.
 			ensure!(CurrencyOf::<T>::free_balance(&fund_account) == fund.raised, Error::<T>::BidOrLeaseActive);
 
-			let balance = Self::contribution_get(index, &who);
+			let balance = Self::contribution_get(fund.trie_index, &who);
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			// Avoid using transfer to ensure we don't pay any fees.
 			CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
 
-			Self::contribution_kill(index, &who);
+			Self::contribution_kill(fund.trie_index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
 			if !fund.retiring {
 				fund.retiring = true;
@@ -435,7 +448,7 @@ decl_module! {
 			ensure!((fund.retiring && now >= dissolution) || fund.raised.is_zero(), Error::<T>::InRetirementPeriod);
 
 			// Try killing the crowdloan child trie
-			match Self::crowdloan_kill(index) {
+			match Self::crowdloan_kill(fund.trie_index) {
 				// TODO use this value for refund
 				child::KillChildStorageResult::AllRemoved(_) => {
 					CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
@@ -494,30 +507,40 @@ impl<T: Config> Module<T> {
 		T::ModuleId::get().into_sub_account(index)
 	}
 
-	pub fn id_from_index(index: ParaId) -> child::ChildInfo {
+	pub fn id_from_index(index: TrieIndex) -> child::ChildInfo {
 		let mut buf = Vec::new();
 		buf.extend_from_slice(b"crowdloan");
 		buf.extend_from_slice(&index.encode()[..]);
 		child::ChildInfo::new_default(T::Hashing::hash(&buf[..]).as_ref())
 	}
 
-	pub fn contribution_put(index: ParaId, who: &T::AccountId, balance: &BalanceOf<T>) {
+	pub fn contribution_put(index: TrieIndex, who: &T::AccountId, balance: &BalanceOf<T>) {
 		who.using_encoded(|b| child::put(&Self::id_from_index(index), b, balance));
 	}
 
-	pub fn contribution_get(index: ParaId, who: &T::AccountId) -> BalanceOf<T> {
+	pub fn contribution_get(index: TrieIndex, who: &T::AccountId) -> BalanceOf<T> {
 		who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(
 			&Self::id_from_index(index),
 			b,
 		))
 	}
 
-	pub fn contribution_kill(index: ParaId, who: &T::AccountId) {
+	pub fn contribution_kill(index: TrieIndex, who: &T::AccountId) {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdloan_kill(index: ParaId) -> child::KillChildStorageResult {
+	pub fn crowdloan_kill(index: TrieIndex) -> child::KillChildStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
+	}
+}
+
+impl<T: Config> crate::traits::OnSwap for Module<T> {
+	fn on_swap(one: ParaId, other: ParaId) {
+		Funds::<T>::mutate(one, |x|
+			Funds::<T>::mutate(other, |y|
+				sp_std::mem::swap(x, y)
+			)
+		)
 	}
 }
 
@@ -537,8 +560,11 @@ mod tests {
 	use sp_runtime::{
 		testing::Header, traits::{BlakeTwo256, IdentityLookup},
 	};
-	use crate::mock::TestRegistrar;
-	use crate::crowdloan;
+	use crate::{
+		mock::TestRegistrar,
+		traits::OnSwap,
+		crowdloan,
+	};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -731,7 +757,7 @@ mod tests {
 			assert_eq!(Crowdloan::funds(ParaId::from(0)), None);
 			let empty: Vec<ParaId> = Vec::new();
 			assert_eq!(Crowdloan::new_raise(), empty);
-			assert_eq!(Crowdloan::contribution_get(0.into(), &1), 0);
+			assert_eq!(Crowdloan::contribution_get(0u32, &1), 0);
 			assert_eq!(Crowdloan::endings_count(), 0);
 
 			assert_ok!(TestAuctioneer::new_auction(5, 0));
@@ -765,6 +791,7 @@ mod tests {
 				last_contribution: LastContribution::Never,
 				first_slot: 1,
 				last_slot: 4,
+				trie_index: 0,
 			};
 			assert_eq!(Crowdloan::funds(ParaId::from(0)), Some(fund_info));
 			// User has deposit removed from their free balance
@@ -807,14 +834,14 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9));
 
 			// No contributions yet
-			assert_eq!(Crowdloan::contribution_get(para, &1), 0);
+			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1), 0);
 
 			// User 1 contributes to their own crowdloan
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 49));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
-			assert_eq!(Crowdloan::contribution_get(para, &1), 49);
+			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1), 49);
 			// Contributions appear in free balance of crowdloan
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(para)), 49);
 			// Crowdloan is added to NewRaise
@@ -1025,7 +1052,7 @@ mod tests {
 			let para = new_para();
 			let issuance = Balances::total_issuance();
 
-			// Set up two crowdloans
+			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9));
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100));
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50));
@@ -1039,6 +1066,29 @@ mod tests {
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
 			assert_eq!(Balances::free_balance(1), 1000);
 			assert_eq!(Balances::total_issuance(), issuance - 50);
+		});
+	}
+
+	#[test]
+	fn on_swap_works() {
+		new_test_ext().execute_with(|| {
+			let para_1 = new_para();
+			let para_2 = new_para();
+
+			// Set up crowdloans
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9));
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 1, 9));
+			// Different contributions
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para_1, 100));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), para_2, 50));
+			// Original state
+			assert_eq!(Funds::<Test>::get(para_1).unwrap().raised, 100);
+			assert_eq!(Funds::<Test>::get(para_2).unwrap().raised, 50);
+			// Swap
+			Crowdloan::on_swap(para_1, para_2);
+			// Final state
+			assert_eq!(Funds::<Test>::get(para_2).unwrap().raised, 100);
+			assert_eq!(Funds::<Test>::get(para_1).unwrap().raised, 50);
 		});
 	}
 }
