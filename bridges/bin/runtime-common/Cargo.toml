@@ -1,0 +1,56 @@
+[package]
+name = "bridge-runtime-common"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+homepage = "https://substrate.dev"
+repository = "https://github.com/paritytech/parity-bridges-common/"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+ed25519-dalek = { version = "1.0", default-features = false, optional = true }
+hash-db = { version = "0.15.2", default-features = false }
+
+# Bridge dependencies
+
+bp-message-dispatch = { path = "../../primitives/message-dispatch", default-features = false }
+bp-message-lane = { path = "../../primitives/message-lane", default-features = false }
+bp-runtime = { path = "../../primitives/runtime", default-features = false }
+pallet-bridge-call-dispatch = { path = "../../modules/call-dispatch", default-features = false }
+pallet-message-lane = { path = "../../modules/message-lane", default-features = false }
+pallet-substrate-bridge = { path = "../../modules/substrate", default-features = false }
+
+# Substrate dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-state-machine = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false, optional = true }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"bp-message-dispatch/std",
+	"bp-message-lane/std",
+	"bp-runtime/std",
+	"codec/std",
+	"frame-support/std",
+	"hash-db/std",
+	"pallet-bridge-call-dispatch/std",
+	"pallet-message-lane/std",
+	"pallet-substrate-bridge/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-state-machine/std",
+	"sp-std/std",
+	"sp-trie/std",
+]
+runtime-benchmarks = [
+	"ed25519-dalek/u64_backend",
+	"pallet-message-lane/runtime-benchmarks",
+	"pallet-substrate-bridge/runtime-benchmarks",
+	"sp-state-machine",
+]

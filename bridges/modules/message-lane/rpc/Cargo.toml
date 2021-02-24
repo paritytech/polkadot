@@ -1,0 +1,29 @@
+[package]
+name = "pallet-message-lane-rpc"
+description = "Module that provides RPC methods specific to message-lane pallet."
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+derive_more = "0.99.2"
+futures = { version = "0.3.5", features = ["compat"] }
+jsonrpc-core = "15.1.0"
+jsonrpc-core-client = "15.1.0"
+jsonrpc-derive = "15.1.0"
+log = "0.4.11"
+
+# Bridge dependencies
+
+bp-runtime = { path = "../../../primitives/runtime" }
+bp-message-lane = { path = "../../../primitives/message-lane" }
+
+# Substrate Dependencies
+
+sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" }

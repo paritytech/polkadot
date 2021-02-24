@@ -1,0 +1,49 @@
+[package]
+name = "substrate-relay"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+async-std = "1.9.0"
+async-trait = "0.1.42"
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+futures = "0.3.12"
+hex = "0.4"
+log = "0.4.14"
+num-traits = "0.2"
+paste = "1.0"
+structopt = "0.3"
+
+# Bridge dependencies
+
+bp-header-chain = { path = "../../primitives/header-chain" }
+bp-kusama = { path = "../../primitives/kusama" }
+bp-message-lane = { path = "../../primitives/message-lane" }
+bp-millau = { path = "../../primitives/millau" }
+bp-polkadot = { path = "../../primitives/polkadot" }
+bp-runtime = { path = "../../primitives/runtime" }
+bp-rialto = { path = "../../primitives/rialto" }
+bridge-runtime-common = { path = "../../bin/runtime-common" }
+headers-relay = { path = "../headers-relay" }
+messages-relay = { path = "../messages-relay" }
+millau-runtime = { path = "../../bin/millau/runtime" }
+pallet-bridge-call-dispatch = { path = "../../modules/call-dispatch" }
+pallet-message-lane = { path = "../../modules/message-lane" }
+pallet-substrate-bridge = { path = "../../modules/substrate" }
+relay-kusama-client = { path = "../kusama-client" }
+relay-millau-client = { path = "../millau-client" }
+relay-polkadot-client = { path = "../polkadot-client" }
+relay-rialto-client = { path = "../rialto-client" }
+relay-substrate-client = { path = "../substrate-client" }
+relay-utils = { path = "../utils" }
+rialto-runtime = { path = "../../bin/rialto/runtime" }
+
+# Substrate Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
