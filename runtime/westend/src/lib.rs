@@ -861,7 +861,9 @@ construct_runtime! {
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 23,
 
-<<<<<<< HEAD
+		// Election pallet. Only works with staking, but placed here to maintain indices.
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 24,
+
 		// Parachains Runtime
 		ParachainsOrigin: parachains_origin::{Module, Origin} = 28,
 		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>} = 29,
@@ -881,10 +883,6 @@ construct_runtime! {
 		Auctions: auctions::{Module, Call, Storage, Event<T>} = 41,
 		Crowdloan: crowdloan::{Module, Call, Storage, Event<T>} = 42,
 		Slots: slots::{Module, Call, Storage, Event<T>} = 43,
-=======
-		// Election pallet. Only works with staking, but placed here to maintain indices.
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 24,
->>>>>>> master
 	}
 }
 
