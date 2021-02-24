@@ -815,7 +815,7 @@ sp_api::impl_runtime_apis! {
 				c: PRIMARY_PROBABILITY,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 			}
 		}
 
@@ -857,7 +857,7 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			AuthorityDiscovery::authorities()
+			runtime_api_impl::relevant_authority_ids::<Runtime>()
 		}
 	}
 
