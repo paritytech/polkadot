@@ -117,6 +117,11 @@ runtime-benchmarks = [
 	"westend-runtime/runtime-benchmarks",
 	"rococo-runtime/runtime-benchmarks"
 ]
+try-runtime = [
+	"polkadot-runtime/try-runtime",
+	"kusama-runtime/try-runtime",
+	"westend-runtime/try-runtime",
+]
 
 real-overseer = [
 	"polkadot-availability-bitfield-distribution",
