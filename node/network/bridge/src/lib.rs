@@ -28,15 +28,8 @@ use polkadot_subsystem::{
 	SubsystemResult, jaeger,
 };
 use polkadot_subsystem::messages::{
-<<<<<<< HEAD
 	NetworkBridgeMessage, AllMessages,
 	CollatorProtocolMessage, NetworkBridgeEvent,
-=======
-	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
-	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
-	CollatorProtocolMessage, ApprovalDistributionMessage, NetworkBridgeEvent,
-	AvailabilityRecoveryMessage,
->>>>>>> origin/master
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
