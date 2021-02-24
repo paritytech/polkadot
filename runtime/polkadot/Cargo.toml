@@ -40,6 +40,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -82,6 +83,7 @@ keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substra
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.22.3"
 serde_json = "1.0.61"
+separator = "0.4.1"
 
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"
@@ -112,6 +114,7 @@ std = [
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-collective/std",
 	"pallet-elections-phragmen/std",
+	"pallet-election-provider-multi-phase/std",
 	"pallet-democracy/std",
 	"frame-executive/std",
 	"pallet-grandpa/std",
