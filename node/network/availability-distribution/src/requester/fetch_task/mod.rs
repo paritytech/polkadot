@@ -42,6 +42,9 @@ use crate::{
 	metrics::{Metrics, SUCCEEDED, FAILED},
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Configuration for a `FetchTask`
 ///
 /// This exists to separate preparation of a `FetchTask` from actual starting it, which is
