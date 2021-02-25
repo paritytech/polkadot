@@ -81,7 +81,7 @@ impl metrics::Metrics for Metrics {
 			fetched_chunks: prometheus::register(
 				CounterVec::new(
 					Opts::new(
-						"fetched_chunks",
+						"parachain_fetched_chunks_total",
 						"Total number of fetched chunks.",
 					),
 					&["success"]
@@ -91,7 +91,7 @@ impl metrics::Metrics for Metrics {
 			served_chunks: prometheus::register(
 				CounterVec::new(
 					Opts::new(
-						"served_chunks",
+						"parachain_served_chunks_total",
 						"Total number of chunks served by this backer.",
 					),
 					&["success"]
@@ -100,7 +100,7 @@ impl metrics::Metrics for Metrics {
 			)?,
 			retries: prometheus::register(
 				Counter::new(
-					"fetch_retries",
+					"parachain_fetch_retries_total",
 					"Number of times we did not succeed in fetching a chunk and needed to try more backers.",
 				)?,
 				registry,
