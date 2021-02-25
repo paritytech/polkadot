@@ -16,8 +16,8 @@
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{parse2, Error, Fields, FieldsNamed, FieldsUnnamed, Ident, ItemEnum, Path, Result, Type, Variant};
 use std::fmt;
+use syn::{parse2, Error, Fields, FieldsNamed, FieldsUnnamed, Ident, ItemEnum, Path, Result, Type, Variant};
 
 #[proc_macro_attribute]
 pub fn subsystem_dispatch_gen(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -74,37 +74,41 @@ impl fmt::Debug for EnumVariantDispatch {
 
 fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 	let skip = variant.attrs.iter().find(|attr| attr.path.is_ident("skip")).is_some();
-	variant.attrs = variant.attrs.iter().filter(|attr| { !attr.path.is_ident("skip") }).cloned().collect::<Vec<_>>();
+	variant.attrs = variant.attrs.iter().filter(|attr| !attr.path.is_ident("skip")).cloned().collect::<Vec<_>>();
 
 	let variant = variant.clone();
-	let inner =
-		match variant.fields.clone() {
-			// look for one called inner
-			Fields::Named(FieldsNamed { brace_token: _, named }) if !skip => named
-				.iter()
-				.filter(|field| {
+	let inner = match variant.fields.clone() {
+		// look for one called inner
+		Fields::Named(FieldsNamed { brace_token: _, named }) if !skip => named
+			.iter()
+			.filter(
+				|field| {
 					if let Some(ident) = &field.ident {
 						ident.to_string() == "inner".to_owned()
 					} else {
 						false
 					}
-				})
-				.map(|field| Some(field.ty.clone()))
-				.next()
-				.ok_or_else(|| Error::new(variant.span(), "To dispatch with struct enum variant, one element must named `inner`"))?,
+				},
+			)
+			.map(|field| Some(field.ty.clone()))
+			.next()
+			.ok_or_else(|| {
+				Error::new(variant.span(), "To dispatch with struct enum variant, one element must named `inner`")
+			})?,
 
-			// take the first one, if it has no inner types we do not require the #[skip] annotation
-			Fields::Unnamed(FieldsUnnamed { paren_token: _, unnamed }) if !skip => unnamed
-				.first()
-				.map(|field| Some(field.ty.clone()))
-				.ok_or_else(|| Error::new(variant.span(), "Must be annotated with skip, even if no inner types exist."))?,
-			_ if skip => None,
-			_ => {
-				return Err(
-				 	Error::new(variant.span(), "Must be annotated with #[skip] or the inner type must impl `From<_>`.")
-				)
-			}
-		};
+		// take the first one, if it has no inner types we do not require the #[skip] annotation
+		Fields::Unnamed(FieldsUnnamed { paren_token: _, unnamed }) if !skip => unnamed
+			.first()
+			.map(|field| Some(field.ty.clone()))
+			.ok_or_else(|| Error::new(variant.span(), "Must be annotated with skip, even if no inner types exist."))?,
+		_ if skip => None,
+		_ => {
+			return Err(Error::new(
+				variant.span(),
+				"Must be annotated with #[skip] or the inner type must impl `From<_>`.",
+			))
+		}
+	};
 
 	Ok(EnumVariantDispatch { name: variant.ident, inner })
 }
@@ -115,14 +119,13 @@ fn impl_subsystem_dispatch_gen2(attr: TokenStream, item: TokenStream) -> Result<
 	let mut ie = parse2::<ItemEnum>(item)?;
 
 	let message_enum = ie.ident.clone();
-	let variants = ie.variants.iter_mut()
-		.try_fold(Vec::<EnumVariantDispatchWithTy>::new(), |mut acc, variant| {
-			let variant = prepare_enum_variant(variant)?;
-			if variant.inner.is_some() {
-				acc.push(EnumVariantDispatchWithTy { ty: message_enum.clone(), variant })
-			}
-			Ok::<_, syn::Error>(acc)
-		})?;
+	let variants = ie.variants.iter_mut().try_fold(Vec::<EnumVariantDispatchWithTy>::new(), |mut acc, variant| {
+		let variant = prepare_enum_variant(variant)?;
+		if variant.inner.is_some() {
+			acc.push(EnumVariantDispatchWithTy { ty: message_enum.clone(), variant })
+		}
+		Ok::<_, syn::Error>(acc)
+	})?;
 
 	let mut orig = ie.to_token_stream();
 
@@ -192,5 +195,4 @@ mod tests {
 		let t = trybuild::TestCases::new();
 		t.compile_fail("tests/ui/*.rs");
 	}
-
 }
