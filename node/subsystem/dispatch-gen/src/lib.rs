@@ -47,9 +47,10 @@ impl ToTokens for EnumVariantDispatchWithTy {
 			let enum_name = &self.ty;
 			let variant_name = &self.variant.name;
 
-			quote! {
+			let quoted = quote! {
 				#enum_name::#variant_name(#inner::from(event))
-			}.to_tokens(tokens);
+			};
+			quoted.to_tokens(tokens);
 		}
 	}
 }
