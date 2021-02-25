@@ -81,17 +81,16 @@ fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 		// look for one called inner
 		Fields::Named(FieldsNamed { brace_token: _, named }) if !skip => named
 			.iter()
-			.filter(
+			.find_map(
 				|field| {
 					if let Some(ident) = &field.ident {
-						ident.to_string() == "inner".to_owned()
-					} else {
-						false
+						if ident == "inner" {
+							return Some(Some(field.ty.clone()))
+						}
 					}
+					None
 				},
 			)
-			.map(|field| Some(field.ty.clone()))
-			.next()
 			.ok_or_else(|| {
 				Error::new(span, "To dispatch with struct enum variant, one element must named `inner`")
 			})?,
