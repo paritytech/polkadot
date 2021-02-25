@@ -1536,7 +1536,7 @@ mod tests {
 				AllMessages::CollatorProtocol(_) => unreachable!("Not interested in network events"),
 				AllMessages::StatementDistribution(_) => { cnt += 1; }
 				AllMessages::AvailabilityDistribution(_) => { cnt += 1; }
-				AllMessages::AvailabilityRecovery(_) => unreachable!("Not interested in network events"),
+				AllMessages::AvailabilityRecovery(_) => { cnt += 1; }
 				AllMessages::BitfieldDistribution(_) => { cnt += 1; }
 				AllMessages::BitfieldSigning(_) => unreachable!("Not interested in network events"),
 				AllMessages::Provisioner(_) => unreachable!("Not interested in network events"),
