@@ -21,9 +21,7 @@ use syn::{parse2, Error, Fields, FieldsNamed, FieldsUnnamed, Ident, ItemEnum, Pa
 
 #[proc_macro_attribute]
 pub fn subsystem_dispatch_gen(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-	let attr = proc_macro2::TokenStream::from(attr);
-	let item = proc_macro2::TokenStream::from(item);
-	proc_macro::TokenStream::from(subsystem_dispatch_gen_inner(attr, item))
+	subsystem_dispatch_gen_inner(attr.into(), item.into()).into()
 }
 
 /// An enum variant without base type.
