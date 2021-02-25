@@ -23,7 +23,7 @@ use syn::{parse2, Error, Fields, FieldsNamed, FieldsUnnamed, Ident, ItemEnum, Pa
 pub fn subsystem_dispatch_gen(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let attr = proc_macro2::TokenStream::from(attr);
 	let item = proc_macro2::TokenStream::from(item);
-	proc_macro::TokenStream::from(subsystem_dispatch_gen2(attr, item))
+	proc_macro::TokenStream::from(subsystem_dispatch_gen_inner(attr, item))
 }
 
 /// An enum variant without base type.
@@ -124,7 +124,7 @@ fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 	Ok(EnumVariantDispatch { name: variant.ident, inner })
 }
 
-fn impl_subsystem_dispatch_gen2(attr: TokenStream, item: TokenStream) -> Result<proc_macro2::TokenStream> {
+fn impl_subsystem_dispatch_gen_inner(attr: TokenStream, item: TokenStream) -> Result<proc_macro2::TokenStream> {
 	let event_ty = parse2::<Path>(attr)?;
 
 	let mut ie = parse2::<ItemEnum>(item)?;
@@ -161,9 +161,9 @@ fn impl_subsystem_dispatch_gen2(attr: TokenStream, item: TokenStream) -> Result<
 	Ok(orig)
 }
 
-fn subsystem_dispatch_gen2(attr: proc_macro2::TokenStream, item: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+fn subsystem_dispatch_gen_inner(attr: proc_macro2::TokenStream, item: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
 	let mut backup = item.clone();
-	impl_subsystem_dispatch_gen2(attr, item).unwrap_or_else(|err| {
+	impl_subsystem_dispatch_gen_inner(attr, item).unwrap_or_else(|err| {
 		backup.extend(err.to_compile_error());
 		backup
 	}).into()
@@ -199,7 +199,7 @@ mod tests {
 			}
 		};
 
-		let output = impl_subsystem_dispatch_gen2(attr, item).expect("Simple example always works. qed");
+		let output = impl_subsystem_dispatch_gen_inner(attr, item).expect("Simple example always works. qed");
 		println!("//generated:");
 		println!("{}", output);
 	}
