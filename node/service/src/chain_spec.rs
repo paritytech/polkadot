@@ -263,7 +263,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		pallet_membership_Instance1: Some(Default::default()),
 		pallet_babe: Some(polkadot::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: polkadot::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
@@ -453,7 +453,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		}),
 		pallet_babe: Some(westend::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: westend::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(westend::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
@@ -652,7 +652,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		pallet_membership_Instance1: Some(Default::default()),
 		pallet_babe: Some(kusama::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: kusama::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
@@ -861,7 +861,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		}),
 		pallet_babe: Some(rococo_runtime::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: rococo_runtime::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
@@ -1144,7 +1144,7 @@ pub fn polkadot_testnet_genesis(
 		pallet_membership_Instance1: Some(Default::default()),
 		pallet_babe: Some(polkadot::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: polkadot::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
@@ -1242,7 +1242,7 @@ pub fn kusama_testnet_genesis(
 		pallet_membership_Instance1: Some(Default::default()),
 		pallet_babe: Some(kusama::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: kusama::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
@@ -1329,7 +1329,7 @@ pub fn westend_testnet_genesis(
 		}),
 		pallet_babe: Some(westend::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: westend::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(westend::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
@@ -1386,7 +1386,7 @@ pub fn rococo_testnet_genesis(
 		}),
 		pallet_babe: Some(rococo_runtime::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: rococo_runtime::BABE_GENESIS_EPOCH_CONFIG,
+			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
 		}),
 		pallet_grandpa: Some(Default::default()),
 		pallet_im_online: Some(Default::default()),
