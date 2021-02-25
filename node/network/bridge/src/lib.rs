@@ -1520,7 +1520,6 @@ mod tests {
 		});
 	}
 
-
 	#[test]
 	fn spread_event_to_subsystems_is_up_to_date() {
 		// Number of subsystems expected to be interested in a network event,
