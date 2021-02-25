@@ -269,7 +269,7 @@ impl NetworkBridgeMessage {
 /// Availability Distribution Message.
 #[derive(Debug, derive_more::From)]
 pub enum AvailabilityDistributionMessage {
-	/// Incoming request for an availability chunk.
+	/// Incoming network request for an availability chunk.
 	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>)
 }
 
