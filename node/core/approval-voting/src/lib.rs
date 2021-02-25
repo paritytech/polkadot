@@ -579,6 +579,8 @@ async fn handle_approved_ancestor(
 	use bitvec::{order::Lsb0, vec::BitVec};
 
 	let mut span = polkadot_node_jaeger::hash_span(&target, "approved-ancestor");
+	span.add_stage(JaegerStage::ApprovalChecking);
+
 	let mut all_approved_max = None;
 
 	let target_number = {
@@ -595,7 +597,6 @@ async fn handle_approved_ancestor(
 
 	if target_number <= lower_bound { return Ok(None) }
 
-	span.add_stage(JaegerStage::ApprovalChecking);
 	span.add_string_tag("target-number", &format!("{}", target_number));
 	span.add_string_tag("target-hash", &format!("{}", target));
 
