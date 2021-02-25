@@ -150,7 +150,7 @@ fn impl_subsystem_dispatch_gen2(attr: TokenStream, item: TokenStream) -> Result<
 				let mut iter = None.into_iter();
 
 				#(
-				let mut iter = iter.chain(std::iter::once(event.focus().ok().map(|event| {
+					let mut iter = iter.chain(std::iter::once(event.focus().ok().map(|event| {
 						#variants
 					})));
 				)*
