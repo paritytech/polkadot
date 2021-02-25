@@ -103,10 +103,22 @@ fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 			.map(|field| Some(field.ty.clone()))
 			.ok_or_else(|| Error::new(span, "Must be annotated with skip, even if no inner types exist."))?,
 		_ if skip => None,
-		_ => {
+		Fields::Unit => {
 			return Err(Error::new(
 				span,
-				"Must be annotated with #[skip] or the inner type must impl `From<_>`.",
+				"Must be annotated with #[skip].",
+			))
+		}
+		Fields::Unnamed(_) => {
+			return Err(Error::new(
+				span,
+				"Must be annotated with #[skip] or have in `inner` element which impls `From<_>`.",
+			))
+		}
+		Fields::Named(_) => {
+			return Err(Error::new(
+				span,
+				"Must be annotated with #[skip] or the first wrapped type must impl `From<_>`.",
 			))
 		}
 	};
@@ -153,7 +165,11 @@ fn impl_subsystem_dispatch_gen2(attr: TokenStream, item: TokenStream) -> Result<
 }
 
 fn subsystem_dispatch_gen2(attr: proc_macro2::TokenStream, item: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-	impl_subsystem_dispatch_gen2(attr, item).unwrap_or_else(|err| err.to_compile_error()).into()
+	let mut backup = item.clone();
+	impl_subsystem_dispatch_gen2(attr, item).unwrap_or_else(|err| {
+		backup.extend(err.to_compile_error());
+		backup
+	}).into()
 }
 
 #[cfg(test)]
@@ -161,7 +177,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn pass() {
+	fn basic() {
 		let attr = quote! {
 			NetEvent<foo::Bar>
 		};
@@ -186,7 +202,7 @@ mod tests {
 			}
 		};
 
-		let _output = impl_subsystem_dispatch_gen2(attr, item).expect("Simple example always works. qed");
+		let output = impl_subsystem_dispatch_gen2(attr, item).expect("Simple example always works. qed");
 		println!("//generated:");
 		println!("{}", output);
 	}
@@ -194,6 +210,7 @@ mod tests {
 	#[test]
 	fn ui() {
 		let t = trybuild::TestCases::new();
-		t.compile_fail("tests/ui/*.rs");
+		t.compile_fail("tests/err-*.rs");
+		t.pass("tests/ok-*.rs");
 	}
 }
