@@ -146,7 +146,6 @@ fn impl_subsystem_dispatch_gen_inner(attr: TokenStream, item: TokenStream) -> Re
 		impl #message_enum {
 			#[doc = #msg]
 			pub fn dispatch_iter(event: #event_ty) -> impl Iterator<Item=Self> + Send {
-
 				let mut iter = None.into_iter();
 
 				#(
