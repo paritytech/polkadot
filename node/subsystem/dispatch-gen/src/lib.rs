@@ -77,6 +77,7 @@ fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 	variant.attrs = variant.attrs.iter().filter(|attr| !attr.path.is_ident("skip")).cloned().collect::<Vec<_>>();
 
 	let variant = variant.clone();
+	let span = variant.ident.span();
 	let inner = match variant.fields.clone() {
 		// look for one called inner
 		Fields::Named(FieldsNamed { brace_token: _, named }) if !skip => named
@@ -93,18 +94,18 @@ fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 			.map(|field| Some(field.ty.clone()))
 			.next()
 			.ok_or_else(|| {
-				Error::new(variant.span(), "To dispatch with struct enum variant, one element must named `inner`")
+				Error::new(span, "To dispatch with struct enum variant, one element must named `inner`")
 			})?,
 
 		// take the first one, if it has no inner types we do not require the #[skip] annotation
 		Fields::Unnamed(FieldsUnnamed { paren_token: _, unnamed }) if !skip => unnamed
 			.first()
 			.map(|field| Some(field.ty.clone()))
-			.ok_or_else(|| Error::new(variant.span(), "Must be annotated with skip, even if no inner types exist."))?,
+			.ok_or_else(|| Error::new(span, "Must be annotated with skip, even if no inner types exist."))?,
 		_ if skip => None,
 		_ => {
 			return Err(Error::new(
-				variant.span(),
+				span,
 				"Must be annotated with #[skip] or the inner type must impl `From<_>`.",
 			))
 		}
