@@ -47,11 +47,9 @@ impl ToTokens for EnumVariantDispatchWithTy {
 			let enum_name = &self.ty;
 			let variant_name = &self.variant.name;
 
-			let ts = quote! {
+			quote! {
 				#enum_name::#variant_name(#inner::from(event))
-			};
-
-			tokens.extend(std::iter::once(ts));
+			}.to_tokens(tokens);
 		}
 	}
 }
