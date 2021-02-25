@@ -417,12 +417,7 @@ where
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-
-	#[cfg(feature = "real-overseer")]
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-
-	#[cfg(not(feature = "real-overseer"))]
-	let _ = approval_voting_config; // silence.
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -498,13 +493,10 @@ where
 		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
-		#[cfg(feature = "real-overseer")]
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			keystore.clone(),
 		)?,
-		#[cfg(not(feature = "real-overseer"))]
-		approval_voting: polkadot_subsystem::DummySubsystem,
 	};
 
 	Overseer::new(
