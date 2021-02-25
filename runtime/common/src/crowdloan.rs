@@ -302,6 +302,9 @@ decl_module! {
 			ensure!(last_slot < first_slot + 4u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
+			// There should not be an existing fund.
+			ensure!(!Funds::<T>::contains_key(index), Error::<T>::FundNotEnded);
+
 			let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(depositor == manager, Error::<T>::InvalidOrigin);
 
@@ -1089,6 +1092,21 @@ mod tests {
 			// Final state
 			assert_eq!(Funds::<Test>::get(para_2).unwrap().raised, 100);
 			assert_eq!(Funds::<Test>::get(para_1).unwrap().raised, 50);
+		});
+	}
+
+	#[test]
+	fn cannot_create_fund_when_already_active() {
+		new_test_ext().execute_with(|| {
+			let para_1 = new_para();
+
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9));
+			// Cannot create a fund again
+			assert_noop!(
+				Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9),
+				Error::<Test>::FundNotEnded,
+			);
+
 		});
 	}
 }
