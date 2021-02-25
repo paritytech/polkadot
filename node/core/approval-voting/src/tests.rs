@@ -1228,9 +1228,9 @@ fn wakeups_next() {
 	let clock_aux = clock.clone();
 
 	let test_fut = Box::pin(async move {
-		assert_eq!(wakeups.next(&clock).await, (b_a, c_a));
-		assert_eq!(wakeups.next(&clock).await, (b_b, c_b));
-		assert_eq!(wakeups.next(&clock).await, (b_a, c_b));
+		assert_eq!(wakeups.next(&clock).await, (1, b_a, c_a));
+		assert_eq!(wakeups.next(&clock).await, (3, b_b, c_b));
+		assert_eq!(wakeups.next(&clock).await, (4, b_a, c_b));
 		assert!(wakeups.first().is_none());
 		assert!(wakeups.wakeups.is_empty());
 	});
@@ -1259,7 +1259,7 @@ fn wakeup_earlier_supersedes_later() {
 	let clock_aux = clock.clone();
 
 	let test_fut = Box::pin(async move {
-		assert_eq!(wakeups.next(&clock).await, (b_a, c_a));
+		assert_eq!(wakeups.next(&clock).await, (2, b_a, c_a));
 		assert!(wakeups.first().is_none());
 		assert!(wakeups.reverse_wakeups.is_empty());
 	});
@@ -1645,6 +1645,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 		&state,
 		block_hash,
 		candidate_hash,
+		1,
 	).unwrap();
 
 	assert!(actions.is_empty());
@@ -1667,6 +1668,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 		&state,
 		block_hash,
 		candidate_hash,
+		1,
 	).unwrap();
 
 	assert_eq!(actions.len(), 3);
@@ -1744,6 +1746,7 @@ fn process_wakeup_schedules_wakeup() {
 		&state,
 		block_hash,
 		candidate_hash,
+		1,
 	).unwrap();
 
 	assert_eq!(actions.len(), 1);
