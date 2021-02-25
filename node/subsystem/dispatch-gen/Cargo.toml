@@ -9,10 +9,10 @@ description = "Small proc macro to create the distribution code for network even
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0", features = ["full"] }
-quote = "1.0"
-proc-macro2 = "1.0"
-assert_matches = "1"
+syn = { version = "1.0.60", features = ["full"] }
+quote = "1.0.9"
+proc-macro2 = "1.0.24"
+assert_matches = "1.5.0"
 
 [dev-dependencies]
-trybuild = "1.0"
+trybuild = "1.0.41"
