@@ -5695,6 +5695,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+ "trybuild",
 ]
 
 [[package]]
@@ -9901,6 +9902,20 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "structopt",
+]
+
+[[package]]
+name = "trybuild"
+version = "1.0.41"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99471a206425fba51842a9186315f32d91c56eadc21ea4c21f847b59cf778f8b"
+dependencies = [
+ "glob",
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "termcolor",
+ "toml",
 ]
 
 [[package]]

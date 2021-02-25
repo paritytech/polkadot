@@ -91,20 +91,18 @@ fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 				})
 				.map(|field| Some(field.ty.clone()))
 				.next()
-				.unwrap(),
-				// .ok_or_else(|| input.error("Missing field named `inner`"))?,
+				.ok_or_else(|| Error::new(variant.span(), "To dispatch with struct enum variant, one element must named `inner`"))?,
 
-			// take the first one
+			// take the first one, if it has no inner types we do not require the #[skip] annotation
 			Fields::Unnamed(FieldsUnnamed { paren_token: _, unnamed }) if !skip => unnamed
 				.first()
-				.map(|field| Some(field.ty.clone())).unwrap(),
-				// .ok_or_else(|| input.error("Must at least have one inner type or be skipped"))?,
+				.map(|field| Some(field.ty.clone()))
+				.ok_or_else(|| Error::new(variant.span(), "Must be annotated with skip, even if no inner types exist."))?,
 			_ if skip => None,
 			_ => {
-				// return Err(
-				// 	input.error("Enum variant has either not skip and doesn't match anything, or somethin worse")
-				// )
-				unreachable!("fooo")
+				return Err(
+				 	Error::new(variant.span(), "Must be annotated with #[skip] or the inner type must impl `From<_>`.")
+				)
 			}
 		};
 
@@ -184,8 +182,15 @@ mod tests {
 			}
 		};
 
-		let output = impl_subsystem_dispatch_gen2(attr, item).unwrap();
+		let _output = impl_subsystem_dispatch_gen2(attr, item).expect("Simple example always works. qed");
 		println!("//generated:");
 		println!("{}", output);
 	}
+
+	#[test]
+	fn ui() {
+		let t = trybuild::TestCases::new();
+		t.compile_fail("tests/ui/*.rs");
+	}
+
 }
