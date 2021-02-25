@@ -59,10 +59,10 @@ impl ToTokens for EnumVariantDispatchWithTy {
 /// An enum variant without the base type, contains the relevant inner type.
 #[derive(Clone)]
 struct EnumVariantDispatch {
-	// variant name
+	/// variant name
 	name: Ident,
-	// inner type, if any, `None` if skipped
-	// TODO make this a TokenStream and only accept verbatim
+	/// The inner type for which a `From::from` impl is anticipated from the input type.
+	/// No code will be generated for this enum variant if `inner` is `None`.
 	inner: Option<Type>,
 }
 
@@ -97,7 +97,7 @@ fn prepare_enum_variant(variant: &mut Variant) -> Result<EnumVariantDispatch> {
 				Error::new(span, "To dispatch with struct enum variant, one element must named `inner`")
 			})?,
 
-		// take the first one, if it has no inner types we do not require the #[skip] annotation
+		// technically, if it has no inner types we cound not require the #[skip] annotation, but better make it consistent
 		Fields::Unnamed(FieldsUnnamed { paren_token: _, unnamed }) if !skip => unnamed
 			.first()
 			.map(|field| Some(field.ty.clone()))
