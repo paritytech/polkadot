@@ -26,12 +26,6 @@ enum Inner {
 	Bar(Intermediate),
 }
 
-impl From<Intermediate> for Inner {
-	fn from(src: Intermediate) -> Self {
-		Inner::Bar(src)
-	}
-}
-
 #[subsystem_dispatch_gen(Event)]
 #[derive(Clone)]
 enum AllMessages {
