@@ -110,7 +110,7 @@ impl ApprovalEntry {
 
 	/// Whether a validator is already assigned.
 	pub fn is_assigned(&self, validator_index: ValidatorIndex) -> bool {
-		self.assignments.get(validator_index as usize).map(|b| *b).unwrap_or(false)
+		self.assignments.get(validator_index.0 as usize).map(|b| *b).unwrap_or(false)
 	}
 
 	/// Import an assignment. No-op if already assigned on the same tranche.
@@ -143,7 +143,7 @@ impl ApprovalEntry {
 		};
 
 		self.tranches[idx].assignments.push((validator_index, tick_now));
-		self.assignments.set(validator_index as _, true);
+		self.assignments.set(validator_index.0 as _, true);
 	}
 
 	// Produce a bitvec indicating the assignments of all validators up to and
@@ -153,7 +153,7 @@ impl ApprovalEntry {
 			.take_while(|e| e.tranche <= tranche)
 			.fold(bitvec::bitvec![BitOrderLsb0, u8; 0; self.assignments.len()], |mut a, e| {
 				for &(v, _) in &e.assignments {
-					a.set(v as _, true);
+					a.set(v.0 as _, true);
 				}
 
 				a
@@ -235,8 +235,8 @@ impl CandidateEntry {
 
 	/// Note that a given validator has approved. Return the previous approval state.
 	pub fn mark_approval(&mut self, validator: ValidatorIndex) -> bool {
-		let prev = self.approvals.get(validator as usize).map(|b| *b).unwrap_or(false);
-		self.approvals.set(validator as usize, true);
+		let prev = self.approvals.get(validator.0 as usize).map(|b| *b).unwrap_or(false);
+		self.approvals.set(validator.0 as usize, true);
 		prev
 	}
 

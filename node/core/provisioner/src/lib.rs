@@ -501,7 +501,7 @@ fn bitfields_indicate_availability(
 	let availability_len = availability.len();
 
 	for bitfield in bitfields {
-		let validator_idx = bitfield.validator_index() as usize;
+		let validator_idx = bitfield.validator_index().0 as usize;
 		match availability.get_mut(validator_idx) {
 			None => {
 				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition

@@ -379,8 +379,8 @@ async fn determine_our_validators(
 
 	let validators = request_validators_ctx(relay_parent, ctx).await?.await??;
 
-	let current_validators = current_validators.iter().map(|i| validators[*i as usize].clone()).collect();
-	let next_validators = next_validators.iter().map(|i| validators[*i as usize].clone()).collect();
+	let current_validators = current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
+	let next_validators = next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
 	Ok((current_validators, next_validators))
 }
@@ -937,7 +937,8 @@ mod tests {
 				.take(validator_public.len())
 				.collect();
 
-			let validator_groups = vec![vec![2, 0, 4], vec![3, 2, 4]];
+			let validator_groups = vec![vec![2, 0, 4], vec![3, 2, 4]]
+				.into_iter().map(|g| g.into_iter().map(ValidatorIndex).collect()).collect();
 			let group_rotation_info = GroupRotationInfo {
 				session_start_block: 0,
 				group_rotation_frequency: 100,
@@ -979,20 +980,20 @@ mod tests {
 		}
 
 		fn current_group_validator_peer_ids(&self) -> Vec<PeerId> {
-			self.current_group_validator_indices().iter().map(|i| self.validator_peer_id[*i as usize].clone()).collect()
+			self.current_group_validator_indices().iter().map(|i| self.validator_peer_id[i.0 as usize].clone()).collect()
 		}
 
 		fn current_group_validator_authority_ids(&self) -> Vec<AuthorityDiscoveryId> {
 			self.current_group_validator_indices()
 				.iter()
-				.map(|i| self.validator_authority_id[*i as usize].clone())
+				.map(|i| self.validator_authority_id[i.0 as usize].clone())
 				.collect()
 		}
 
 		fn current_group_validator_ids(&self) -> Vec<ValidatorId> {
 			self.current_group_validator_indices()
 				.iter()
-				.map(|i| self.validator_public[*i as usize].clone())
+				.map(|i| self.validator_public[i.0 as usize].clone())
 				.collect()
 		}
 
@@ -1003,7 +1004,7 @@ mod tests {
 		fn next_group_validator_authority_ids(&self) -> Vec<AuthorityDiscoveryId> {
 			self.next_group_validator_indices()
 				.iter()
-				.map(|i| self.validator_authority_id[*i as usize].clone())
+				.map(|i| self.validator_authority_id[i.0 as usize].clone())
 				.collect()
 		}
 

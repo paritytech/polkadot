@@ -271,11 +271,7 @@ impl NetworkBridgeMessage {
 /// Availability Distribution Message.
 #[derive(Debug, derive_more::From)]
 pub enum AvailabilityDistributionMessage {
-	/// Event from the network bridge.
-	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
-	/// Incoming request for an availability chunk.
-	#[from]
+	/// Incoming network request for an availability chunk.
 	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>)
 }
 
@@ -298,7 +294,6 @@ impl AvailabilityDistributionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::NetworkBridgeUpdateV1(_) => None,
 			Self::AvailabilityFetchingRequest(_) => None,
 		}
 	}
@@ -709,6 +704,7 @@ pub enum AllMessages {
 	/// Message for the statement distribution subsystem.
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.
+	#[skip]
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the availability recovery subsystem.
 	AvailabilityRecovery(AvailabilityRecoveryMessage),

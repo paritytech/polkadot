@@ -114,7 +114,16 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-pub type ValidatorIndex = u32;
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash, MallocSizeOf))]
+pub struct ValidatorIndex(pub u32);
+
+// We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
+impl From<u32> for ValidatorIndex {
+	fn from(n: u32) -> Self {
+		ValidatorIndex(n)
+	}
+}
 
 application_crypto::with_pair! {
 	/// A Parachain validator keypair.
@@ -657,13 +666,13 @@ pub struct AvailableData {
 }
 
 /// A chunk of erasure-encoded block data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash))]
 pub struct ErasureChunk {
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
 	/// The index of this erasure-encoded chunk of data.
-	pub index: u32,
+	pub index: ValidatorIndex,
 	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }

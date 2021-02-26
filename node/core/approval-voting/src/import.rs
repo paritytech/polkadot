@@ -707,6 +707,7 @@ mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+	use polkadot_primitives::v1::ValidatorIndex;
 	use polkadot_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
 	use sp_runtime::{Digest, DigestItem};
@@ -1561,7 +1562,7 @@ mod tests {
 			validators: vec![Sr25519Keyring::Alice.public().into(); 6],
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: vec![vec![0; 5], vec![0; 2]],
+			validator_groups: vec![vec![ValidatorIndex(0); 5], vec![ValidatorIndex(0); 2]],
 			n_cores: 6,
 			needed_approvals: 2,
 			zeroth_delay_tranche_width: irrelevant,

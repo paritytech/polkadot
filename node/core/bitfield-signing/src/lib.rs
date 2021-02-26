@@ -333,7 +333,7 @@ mod tests {
 		block_on(async move {
 			let (mut sender, mut receiver) = mpsc::channel(10);
 			let relay_parent = Hash::default();
-			let validator_index = 1u32;
+			let validator_index = ValidatorIndex(1u32);
 
 			let future = construct_availability_bitfield(
 				relay_parent,
