@@ -188,9 +188,9 @@ dependencies = [
 
 [[package]]
 name = "assert_matches"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "695579f0f2520f3774bb40461e5adb066459d4e0af4d59d20175484fb8e9edf1"
+checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
 
 [[package]]
 name = "async-channel"
@@ -5526,6 +5526,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
+ "polkadot-procmacro-subsystem-dispatch-gen",
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.6.1",
@@ -5684,6 +5685,17 @@ dependencies = [
  "sp-std",
  "sp-trie",
  "sp-version",
+]
+
+[[package]]
+name = "polkadot-procmacro-subsystem-dispatch-gen"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
 ]
 
 [[package]]
@@ -6402,9 +6414,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.7"
+version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa563d17ecb180e500da1cfd2b028310ac758de548efdd203e18f283af693f37"
+checksum = "c3d0b9745dc2debf507c8422de05d7226cc1f0644216dfdfead988f9b1ab32a7"
 dependencies = [
  "proc-macro2",
 ]
@@ -9891,6 +9903,20 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "structopt",
+]
+
+[[package]]
+name = "trybuild"
+version = "1.0.41"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99471a206425fba51842a9186315f32d91c56eadc21ea4c21f847b59cf778f8b"
+dependencies = [
+ "glob",
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "termcolor",
+ "toml",
 ]
 
 [[package]]

@@ -44,6 +44,7 @@ use polkadot_primitives::v1::{
 	CandidateIndex, GroupIndex,
 };
 use polkadot_statement_table::v1::Misbehavior;
+use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
 use std::{sync::Arc, collections::btree_map::BTreeMap};
 
 
@@ -171,7 +172,7 @@ impl CandidateValidationMessage {
 
 
 /// Messages received by the Collator Protocol subsystem.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum CollatorProtocolMessage {
 	/// Signal to the collator protocol that it should connect to validators with the expectation
 	/// of collating on the given para. This is only expected to be called once, early on, if at all,
@@ -195,6 +196,7 @@ pub enum CollatorProtocolMessage {
 	/// Notify a collator that its collation was seconded.
 	NotifyCollationSeconded(CollatorId, SignedFullStatement),
 	/// Get a network bridge update.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 }
 
@@ -270,13 +272,15 @@ impl NetworkBridgeMessage {
 #[derive(Debug, derive_more::From)]
 pub enum AvailabilityDistributionMessage {
 	/// Event from the network bridge.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
 	/// Incoming request for an availability chunk.
+	#[from]
 	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>)
 }
 
 /// Availability Recovery Message.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum AvailabilityRecoveryMessage {
 	/// Recover available data from validators on the network.
 	RecoverAvailableData(
@@ -286,6 +290,7 @@ pub enum AvailabilityRecoveryMessage {
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
 	/// Event from the network bridge.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
 }
 
@@ -300,12 +305,13 @@ impl AvailabilityDistributionMessage {
 }
 
 /// Bitfield distribution message.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum BitfieldDistributionMessage {
 	/// Distribute a bitfield via gossip to other validators.
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
 
 	/// Event from the network bridge.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
 }
 
@@ -509,12 +515,13 @@ impl RuntimeApiMessage {
 }
 
 /// Statement distribution message.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
 }
 
@@ -572,7 +579,7 @@ impl BoundToRelayParent for ProvisionerMessage {
 }
 
 /// Message to the PoV Distribution subsystem.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum PoVDistributionMessage {
 	/// Fetch a PoV from the network.
 	///
@@ -583,6 +590,7 @@ pub enum PoVDistributionMessage {
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
 	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
 	/// An update from the network bridge.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>),
 }
 
@@ -662,7 +670,7 @@ pub enum ApprovalVotingMessage {
 }
 
 /// Message to the Approval Distribution subsystem.
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum ApprovalDistributionMessage {
 	/// Notify the `ApprovalDistribution` subsystem about new blocks
 	/// and the candidates contained within them.
@@ -675,21 +683,28 @@ pub enum ApprovalDistributionMessage {
 	/// If not, the subsystem is free to drop the message.
 	DistributeApproval(IndirectSignedApprovalVote),
 	/// An update from the network bridge.
+	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
 }
 
 /// A message type tying together all message types that are used across Subsystems.
+#[subsystem_dispatch_gen(NetworkBridgeEvent<protocol_v1::ValidationProtocol>)]
 #[derive(Debug, derive_more::From)]
 pub enum AllMessages {
 	/// Message for the validation subsystem.
+	#[skip]
 	CandidateValidation(CandidateValidationMessage),
 	/// Message for the candidate backing subsystem.
+	#[skip]
 	CandidateBacking(CandidateBackingMessage),
 	/// Message for the candidate selection subsystem.
+	#[skip]
 	CandidateSelection(CandidateSelectionMessage),
 	/// Message for the Chain API subsystem.
+	#[skip]
 	ChainApi(ChainApiMessage),
 	/// Message for the Collator Protocol subsystem.
+	#[skip]
 	CollatorProtocol(CollatorProtocolMessage),
 	/// Message for the statement distribution subsystem.
 	StatementDistribution(StatementDistributionMessage),
@@ -700,20 +715,27 @@ pub enum AllMessages {
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
 	/// Message for the bitfield signing subsystem.
+	#[skip]
 	BitfieldSigning(BitfieldSigningMessage),
 	/// Message for the Provisioner subsystem.
+	#[skip]
 	Provisioner(ProvisionerMessage),
 	/// Message for the PoV Distribution subsystem.
 	PoVDistribution(PoVDistributionMessage),
 	/// Message for the Runtime API subsystem.
+	#[skip]
 	RuntimeApi(RuntimeApiMessage),
 	/// Message for the availability store subsystem.
+	#[skip]
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
+	#[skip]
 	NetworkBridge(NetworkBridgeMessage),
 	/// Message for the Collation Generation subsystem.
+	#[skip]
 	CollationGeneration(CollationGenerationMessage),
 	/// Message for the Approval Voting subsystem.
+	#[skip]
 	ApprovalVoting(ApprovalVotingMessage),
 	/// Message for the Approval Distribution subsystem.
 	ApprovalDistribution(ApprovalDistributionMessage),
