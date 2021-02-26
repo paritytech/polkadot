@@ -1524,7 +1524,7 @@ mod tests {
 	fn spread_event_to_subsystems_is_up_to_date() {
 		// Number of subsystems expected to be interested in a network event,
 		// and hence the network event broadcasted to.
-		const EXPECTED_COUNT: usize = 6;
+		const EXPECTED_COUNT: usize = 5;
 
 		let mut cnt = 0_usize;
 		for msg in AllMessages::dispatch_iter(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
