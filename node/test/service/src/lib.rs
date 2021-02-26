@@ -198,7 +198,6 @@ pub fn node_config(
 		base_path: Some(base_path),
 		informant_output_format: Default::default(),
 		disable_log_reloading: false,
-		telemetry_handle: None,
 	}
 }
 
