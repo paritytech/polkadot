@@ -5186,6 +5186,7 @@ dependencies = [
 name = "polkadot-connection-request-issuer"
 version = "0.1.0"
 dependencies = [
+ "futures 0.3.12",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
@@ -5938,6 +5939,7 @@ dependencies = [
  "polkadot-availability-distribution",
  "polkadot-availability-recovery",
  "polkadot-collator-protocol",
+ "polkadot-connection-request-issuer",
  "polkadot-network-bridge",
  "polkadot-node-collation-generation",
  "polkadot-node-core-approval-voting",

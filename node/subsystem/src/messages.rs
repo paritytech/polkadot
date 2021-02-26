@@ -742,7 +742,7 @@ pub enum AllMessages {
 	ApprovalDistribution(ApprovalDistributionMessage),
 	/// Message for the Connection Request Issuer subsystem.
 	#[skip]
-	ConnectionRequestIssuer(ConnectionRequestIssuerMessage)
+	ConnectionRequestIssuer(ConnectionRequestIssuerMessage),
 }
 
 impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {

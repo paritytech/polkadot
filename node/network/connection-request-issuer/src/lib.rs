@@ -18,11 +18,13 @@
 //! and issuing a connection request to the validators relevant to
 //! the gossiping subsystems on every new session.
 
+use futures::FutureExt as _;
 use polkadot_node_subsystem::{
 	messages::{
 		ConnectionRequestIssuerMessage,
 	},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+	Subsystem, SpawnedSubsystem, SubsystemContext,
 };
 use polkadot_node_subsystem_util::{
 	validator_discovery::{ConnectionRequest, self},
@@ -145,5 +147,21 @@ impl State {
 		}
 
 		Ok(())
+	}
+}
+
+impl<C> Subsystem<C> for ConnectionRequestIssuer
+where
+	C: SubsystemContext<Message = ConnectionRequestIssuerMessage> + Sync + Send,
+{
+	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = self.run(ctx)
+			.map(|_| Ok(()))
+			.boxed();
+
+		SpawnedSubsystem {
+			name: "connection-request-issuer-subsystem",
+			future,
+		}
 	}
 }

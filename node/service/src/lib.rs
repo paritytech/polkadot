@@ -418,6 +418,7 @@ where
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
+	use polkadot_connection_request_issuer::ConnectionRequestIssuer as ConnectionRequestIssuerSubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -497,6 +498,7 @@ where
 			approval_voting_config,
 			keystore.clone(),
 		)?,
+		connection_request_issuer: ConnectionRequestIssuerSubsystem::new(),
 	};
 
 	Overseer::new(
