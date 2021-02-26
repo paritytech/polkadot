@@ -606,6 +606,7 @@ mod tests {
 	use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 	use polkadot_subsystem::messages::{
 		AvailabilityDistributionMessage,
+		AvailabilityRecoveryMessage,
 		ApprovalDistributionMessage,
 		BitfieldDistributionMessage,
 		PoVDistributionMessage,
