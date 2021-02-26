@@ -74,15 +74,16 @@ use frame_support::{
 	},
 };
 use frame_system::ensure_signed;
-use sp_runtime::{ModuleId, DispatchResult,
-	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded}
+use sp_runtime::{
+	ModuleId, DispatchResult, MultiSignature, MultiSigner,
+	traits::{
+		AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded, Verify, IdentifyAccount,
+	},
 };
 use crate::slots;
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::{Id as ParaId, HeadData};
-use sp_io::crypto::ed25519_verify;
-use sp_core::ed25519;
 
 pub type BalanceOf<T> =
 	<<T as slots::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -143,7 +144,7 @@ pub struct FundInfo<AccountId, Balance, Hash, BlockNumber> {
 	/// The owning account who placed the deposit.
 	owner: AccountId,
 	/// An optional verifier. If exists, contributions must be signed by verifier.
-	verifier: Option<ed25519::Public>,
+	verifier: Option<MultiSigner>,
 	/// The amount of deposit placed.
 	deposit: Balance,
 	/// The total amount raised.
@@ -280,7 +281,7 @@ decl_module! {
 			#[compact] first_slot: T::BlockNumber,
 			#[compact] last_slot: T::BlockNumber,
 			#[compact] end: T::BlockNumber,
-			verifier: Option<ed25519::Public>,
+			verifier: Option<MultiSigner>,
 		) {
 			let owner = ensure_signed(origin)?;
 
@@ -321,7 +322,7 @@ decl_module! {
 			origin,
 			#[compact] index: FundIndex,
 			#[compact] value: BalanceOf<T>,
-			signature: Option<ed25519::Signature>
+			signature: Option<MultiSignature>
 		) {
 			let who = ensure_signed(origin)?;
 
@@ -335,7 +336,7 @@ decl_module! {
 			if let Some(ref verifier) = fund.verifier {
 				let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
 				let payload = (index, &who, old_balance, value);
-				let valid = payload.using_encoded(|encoded| ed25519_verify(&signature, encoded, verifier));
+				let valid = payload.using_encoded(|encoded| signature.verify(encoded, &verifier.clone().into_account()));
 				ensure!(valid, Error::<T>::InvalidSignature);
 			}
 
@@ -617,6 +618,7 @@ mod tests {
 	};
 	use sp_keystore::{KeystoreExt, testing::KeyStore};
 	use sp_io::crypto::{ed25519_generate, ed25519_sign};
+	use sp_core::ed25519;
 	use crate::slots::{self, Registrar};
 	use crate::crowdloan;
 
@@ -799,6 +801,12 @@ mod tests {
 		t
 	}
 
+	fn create_ed25519_signature(payload: (u32, u64, u64, u64), pubkey: MultiSigner) -> MultiSignature {
+		let edpubkey = ed25519::Public::try_from(pubkey).unwrap();
+		let edsig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &edpubkey, encoded).unwrap());
+		edsig.into()
+	}
+
 	fn run_to_block(n: u64) {
 		while System::block_number() < n {
 			Crowdloan::on_finalize(System::block_number());
@@ -863,9 +871,9 @@ mod tests {
 	#[test]
 	fn create_with_verifier_works() {
 		new_test_ext().execute_with(|| {
-			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
+			let pubkey: MultiSigner = ed25519_generate(0.into(), Some(b"//verifier".to_vec())).into();
 			// Now try to create a crowdloan campaign
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey)));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey.clone())));
 			assert_eq!(Crowdloan::fund_count(), 1);
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
@@ -947,9 +955,9 @@ mod tests {
 	#[test]
 	fn contribute_with_verifier_works() {
 		new_test_ext().execute_with(|| {
-			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
+			let pubkey: MultiSigner = ed25519_generate(0.into(), Some(b"//verifier".to_vec())).into();
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey)));
+			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey.clone())));
 			assert_eq!(Balances::free_balance(1), 999);
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(0)), 1);
 
@@ -957,8 +965,8 @@ mod tests {
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, None), Error::<Test>::InvalidSignature);
 
 			let payload = (0u32, 1u64, 0u64, 49u64);
-			let valid_signature = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
-			let invalid_signature = ed25519::Signature::try_from(&[0u8; 64][..]).unwrap();
+			let valid_signature = create_ed25519_signature(payload, pubkey.clone());
+			let invalid_signature = MultiSignature::default();
 
 			// Invalid signature
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(invalid_signature)), Error::<Test>::InvalidSignature);
@@ -974,7 +982,7 @@ mod tests {
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(valid_signature)), Error::<Test>::InvalidSignature);
 
 			let payload_2 = (0u32, 1u64, 49u64, 10u64);
-			let valid_signature_2 = payload_2.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
+			let valid_signature_2 = create_ed25519_signature(payload_2, pubkey);
 
 			// New valid signature
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 10, Some(valid_signature_2)));
