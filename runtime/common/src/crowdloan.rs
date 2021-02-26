@@ -331,6 +331,10 @@ decl_module! {
 			fund.raised  = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
 			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
 
+			// Make sure crowdloan has not ended
+			let now = <frame_system::Module<T>>::block_number();
+			ensure!(fund.end > now, Error::<T>::ContributionPeriodOver);
+
 			let old_balance = Self::contribution_get(index, &who);
 
 			if let Some(ref verifier) = fund.verifier {
@@ -339,10 +343,6 @@ decl_module! {
 				let valid = payload.using_encoded(|encoded| signature.verify(encoded, &verifier.clone().into_account()));
 				ensure!(valid, Error::<T>::InvalidSignature);
 			}
-
-			// Make sure crowdloan has not ended
-			let now = <frame_system::Module<T>>::block_number();
-			ensure!(fund.end > now, Error::<T>::ContributionPeriodOver);
 
 			T::Currency::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
