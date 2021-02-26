@@ -58,7 +58,7 @@ use telemetry::{TelemetryConnectionNotifier, TelemetrySpan};
 
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
-pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
+pub use consensus_common::{Proposal, SelectChain, BlockImport, block_validation::Chain};
 pub use polkadot_parachain::wasm_executor::IsolationStrategy;
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
@@ -417,12 +417,7 @@ where
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-
-	#[cfg(feature = "approval-checking")]
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-
-	#[cfg(not(feature = "approval-checking"))]
-	let _ = approval_voting_config; // silence.
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -498,13 +493,10 @@ where
 		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
-		#[cfg(feature = "approval-checking")]
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			keystore.clone(),
 		)?,
-		#[cfg(not(feature = "approval-checking"))]
-		approval_voting: polkadot_subsystem::DummySubsystem,
 	};
 
 	Overseer::new(
@@ -629,7 +621,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	adjust_yamux(&mut config.network);
 
 	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
-		&config, task_manager.spawn_handle(), backend.clone(),
+		&config, task_manager.spawn_handle(), backend.clone(), import_setup.1.shared_authority_set().clone(),
 	));
 	#[cfg(feature = "real-overseer")]
 	fn register_request_response(config: &mut sc_network::config::NetworkConfiguration) -> RequestMultiplexer {
@@ -848,7 +840,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		// given delay.
 		let builder = grandpa::VotingRulesBuilder::default();
 
-		#[cfg(feature = "approval-checking")]
+		#[cfg(feature = "real-overseer")]
 		let builder = if let Some(ref overseer) = overseer_handler {
 			builder.add(grandpa_support::ApprovalCheckingDiagnostic::new(
 				overseer.clone(),
