@@ -103,10 +103,11 @@ impl ConnectionRequestIssuer {
 
 async fn determine_relevant_validators(
 	ctx: &mut impl SubsystemContext,
-	session: SessionIndex,
+	relay_parent: Hash,
+	_session: SessionIndex,
 ) -> Result<Vec<ValidatorId>, util::Error> {
-	// TODO
-	Ok(Vec::new())
+	let validators = util::request_validators_ctx(relay_parent, ctx).await?.await??;
+	Ok(validators)
 }
 
 impl State {
@@ -116,34 +117,31 @@ impl State {
 	async fn handle_active_leaves(
 		&mut self,
 		ctx: &mut impl SubsystemContext,
-		mut leaves: impl Iterator<Item = Hash>,
+		leaves: impl Iterator<Item = Hash>,
 	) -> Result<(), util::Error> {
-		let new_session = if let Some(leaf) = leaves.next() {
+		for leaf in leaves {
 			let current_index = util::request_session_index_for_child_ctx(leaf, ctx).await?.await??;
-			match self.last_session_index {
-				Some(i) if i == current_index => None,
+			let maybe_new_session = match self.last_session_index {
+				Some(i) if i <= current_index => None,
 				_ => Some((current_index, leaf)),
+			};
+
+			if let Some((new_session, relay_parent)) = maybe_new_session {
+				tracing::debug!(target: LOG_TARGET, "New session detected {}", new_session);
+				let validators = determine_relevant_validators(ctx, relay_parent, new_session).await?;
+				tracing::debug!(target: LOG_TARGET, "Issuing a connection request to {:?}", validators);
+
+				let request = validator_discovery::connect_to_validators_in_session(
+					ctx,
+					relay_parent,
+					validators,
+					PeerSet::Validation,
+					new_session,
+				).await?;
+
+				self.last_session_index = Some(new_session);
+				self.last_connection_request = Some(request);
 			}
-		} else {
-			None
-		};
-
-		if let Some((new_session, relay_parent)) = new_session {
-			tracing::debug!(target: LOG_TARGET, "New session detected {}", new_session);
-			self.last_session_index = Some(new_session);
-
-			let validators = determine_relevant_validators(ctx, new_session).await?;
-			tracing::debug!(target: LOG_TARGET, "Issuing a connection request to {:?}", validators);
-
-			let request = validator_discovery::connect_to_validators_in_session(
-				ctx,
-				relay_parent,
-				validators,
-				PeerSet::Validation,
-				 new_session,
-			).await?;
-
-			self.last_connection_request = Some(request);
 		}
 
 		Ok(())

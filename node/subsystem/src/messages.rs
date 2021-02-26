@@ -682,8 +682,8 @@ pub enum ApprovalDistributionMessage {
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
 }
 
-#[derive(Debug)]
 /// Message to the Connection Request Issuer subsystem.
+#[derive(Debug)]
 pub enum ConnectionRequestIssuerMessage {
 }
 
@@ -740,8 +740,8 @@ pub enum AllMessages {
 	ApprovalVoting(ApprovalVotingMessage),
 	/// Message for the Approval Distribution subsystem.
 	ApprovalDistribution(ApprovalDistributionMessage),
-	#[skip]
 	/// Message for the Connection Request Issuer subsystem.
+	#[skip]
 	ConnectionRequestIssuer(ConnectionRequestIssuerMessage)
 }
 
