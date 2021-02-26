@@ -285,6 +285,7 @@ fn basic_end_to_end_works() {
 			lease_period_index_start + 2, // First Slot
 			lease_period_index_start + 3, // Last Slot
 			200, // Block End
+			None,
 		));
 		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2));
 
@@ -306,7 +307,7 @@ fn basic_end_to_end_works() {
 
 		// User 20 will be a contribute to crowdfund for parachain 2
 		Balances::make_free_balance_be(&2, 1_000);
-		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(2), 920));
+		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(2), 920, None));
 
 		// Auction ends at block 110
 		run_to_block(109);
@@ -416,6 +417,7 @@ fn basic_errors_fail() {
 			lease_period_index_start + 2, // First Slot
 			lease_period_index_start + 3, // Last Slot
 			200, // Block End
+			None,
 		), crowdloan::Error::<Test>::InvalidOrigin);
 	});
 }
@@ -534,7 +536,8 @@ fn competing_bids() {
 				100_000, // Cap
 				lease_period_index_start + 2, // First Slot
 				lease_period_index_start + 3, // Last Slot
-				200, // Block End
+				200, // Block End,
+				None,
 			));
 		}
 
@@ -562,6 +565,7 @@ fn competing_bids() {
 					Origin::signed(n * 10),
 					ParaId::from(para),
 					n + 900,
+					None,
 				));
 			}
 		}
