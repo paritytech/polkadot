@@ -206,7 +206,16 @@ async fn load_all_sessions(
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Ok(None),
+			Ok(Ok(None)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Session {} is missing from session-info state of block {}",
+					i,
+					block_hash,
+				);
+
+				return Ok(None);
+			}
 			Ok(Err(e)) => return Err(SubsystemError::with_origin("approval-voting", e)),
 			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
 		};
@@ -522,6 +531,8 @@ pub(crate) async fn handle_new_head(
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	// Update session info based on most recent head.
 
+	let mut span = polkadot_node_jaeger::hash_span(&head, "approval-checking-import");
+
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx).into()).await;
@@ -562,6 +573,10 @@ pub(crate) async fn handle_new_head(
 	let new_blocks = determine_new_blocks(ctx, &state.db, head, &header, finalized_number)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.await?;
+
+	span.add_string_tag("new-blocks", &format!("{}", new_blocks.len()));
+
+	if new_blocks.is_empty() { return Ok(Vec::new()) }
 
 	let mut approval_meta: Vec<BlockApprovalMeta> = Vec::with_capacity(new_blocks.len());
 	let mut imported_candidates = Vec::with_capacity(new_blocks.len());

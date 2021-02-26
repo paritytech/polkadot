@@ -45,7 +45,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent
 };
 use polkadot_subsystem::{
-	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
+	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, Stage,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 use std::collections::{HashMap, HashSet};
@@ -166,7 +166,7 @@ struct PerCandidate {
 	live_in: HashSet<Hash>,
 
 	/// A Jaeger span relating to this candidate.
-	span: jaeger::JaegerSpan,
+	span: jaeger::Span,
 }
 
 impl PerCandidate {
@@ -185,7 +185,7 @@ impl PerCandidate {
 	fn drop_span_after_own_availability(&mut self) {
 		if let Some(validator_index) = self.validator_index {
 			if self.message_vault.contains_key(&validator_index) {
-				self.span = jaeger::JaegerSpan::Disabled;
+				self.span = jaeger::Span::Disabled;
 			}
 		}
 	}
@@ -251,7 +251,7 @@ impl ProtocolState {
 							span: if validator_index.is_some() {
 								jaeger::candidate_hash_span(&receipt_hash, "pending-availability")
 							} else {
-								jaeger::JaegerSpan::Disabled
+								jaeger::Span::Disabled
 							},
 						})
 					} else {
@@ -262,7 +262,10 @@ impl ProtocolState {
 			};
 
 			// Create some span that will make it able to switch between the candidate and relay parent span.
-			let span = per_relay_parent.span.child_with_candidate("live-candidate", &receipt_hash);
+			let span = per_relay_parent.span.child_builder("live-candidate")
+				.with_candidate(&receipt_hash)
+				.with_stage(Stage::AvailabilityDistribution)
+				.build();
 			candidate_entry.span.add_follows_from(&span);
 			candidate_entry.live_in.insert(relay_parent);
 		}
@@ -414,7 +417,7 @@ where
 			.filter(|(_peer, view)| {
 				// collect all direct interests of a peer w/o ancestors
 				state
-					.cached_live_candidates_unioned(view.heads.iter())
+					.cached_live_candidates_unioned(view.iter())
 					.contains(&candidate_hash)
 			})
 			.map(|(peer, _view)| peer.clone())
@@ -620,7 +623,7 @@ where
 	let _timer = metrics.time_process_incoming_peer_message();
 
 	// obtain the set of candidates we are interested in based on our current view
-	let live_candidates = state.cached_live_candidates_unioned(state.view.heads.iter());
+	let live_candidates = state.cached_live_candidates_unioned(state.view.iter());
 
 	// check if the candidate is of interest
 	let candidate_hash = message.candidate_hash;
@@ -761,7 +764,7 @@ where
 				// peers view must contain the candidate hash too
 				cached_live_candidates_unioned(
 					per_relay_parent,
-					view.heads.iter(),
+					view.iter(),
 				).contains(&message.candidate_hash)
 			})
 			.map(|(peer, _)| -> PeerId { peer.clone() })

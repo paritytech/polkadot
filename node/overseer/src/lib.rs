@@ -90,7 +90,7 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, JaegerSpan, jaeger,
+	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, jaeger,
 };
 use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
@@ -580,8 +580,8 @@ pub struct Overseer<S> {
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
 
-	/// Stores the [`JaegerSpan`] per active leaf.
-	span_per_active_leaf: HashMap<Hash, Arc<JaegerSpan>>,
+	/// Stores the [`jaeger::Span`] per active leaf.
+	span_per_active_leaf: HashMap<Hash, Arc<jaeger::Span>>,
 
 	/// A set of leaves that `Overseer` starts working with.
 	///
@@ -1457,6 +1457,7 @@ where
 			all_subsystems.candidate_validation,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let candidate_backing_subsystem = spawn(
@@ -1466,6 +1467,7 @@ where
 			all_subsystems.candidate_backing,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let candidate_selection_subsystem = spawn(
@@ -1475,6 +1477,7 @@ where
 			all_subsystems.candidate_selection,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let statement_distribution_subsystem = spawn(
@@ -1484,6 +1487,7 @@ where
 			all_subsystems.statement_distribution,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let availability_distribution_subsystem = spawn(
@@ -1493,6 +1497,7 @@ where
 			all_subsystems.availability_distribution,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let availability_recovery_subsystem = spawn(
@@ -1502,6 +1507,7 @@ where
 			all_subsystems.availability_recovery,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let bitfield_signing_subsystem = spawn(
@@ -1511,6 +1517,7 @@ where
 			all_subsystems.bitfield_signing,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let bitfield_distribution_subsystem = spawn(
@@ -1520,6 +1527,7 @@ where
 			all_subsystems.bitfield_distribution,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let provisioner_subsystem = spawn(
@@ -1529,6 +1537,7 @@ where
 			all_subsystems.provisioner,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let pov_distribution_subsystem = spawn(
@@ -1538,6 +1547,7 @@ where
 			all_subsystems.pov_distribution,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let runtime_api_subsystem = spawn(
@@ -1547,6 +1557,7 @@ where
 			all_subsystems.runtime_api,
 			&metrics,
 			&mut seed,
+			TaskKind::Blocking,
 		)?;
 
 		let availability_store_subsystem = spawn(
@@ -1556,6 +1567,7 @@ where
 			all_subsystems.availability_store,
 			&metrics,
 			&mut seed,
+			TaskKind::Blocking,
 		)?;
 
 		let network_bridge_subsystem = spawn(
@@ -1565,6 +1577,7 @@ where
 			all_subsystems.network_bridge,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let chain_api_subsystem = spawn(
@@ -1574,6 +1587,7 @@ where
 			all_subsystems.chain_api,
 			&metrics,
 			&mut seed,
+			TaskKind::Blocking,
 		)?;
 
 		let collation_generation_subsystem = spawn(
@@ -1583,6 +1597,7 @@ where
 			all_subsystems.collation_generation,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 
@@ -1593,6 +1608,7 @@ where
 			all_subsystems.collator_protocol,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let approval_distribution_subsystem = spawn(
@@ -1602,6 +1618,7 @@ where
 			all_subsystems.approval_distribution,
 			&metrics,
 			&mut seed,
+			TaskKind::Regular,
 		)?;
 
 		let approval_voting_subsystem = spawn(
@@ -1611,6 +1628,7 @@ where
 			all_subsystems.approval_voting,
 			&metrics,
 			&mut seed,
+			TaskKind::Blocking,
 		)?;
 
 		let leaves = leaves
@@ -1913,7 +1931,7 @@ where
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>) -> Arc<JaegerSpan> {
+	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>) -> Arc<jaeger::Span> {
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			for listener in listeners {
@@ -1972,6 +1990,11 @@ where
 	}
 }
 
+enum TaskKind {
+	Regular,
+	Blocking,
+}
+
 fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
@@ -1979,6 +2002,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
 	seed: &mut u64,
+	task_kind: TaskKind,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
 	let (to_tx, to_rx) = metered::channel(CHANNEL_CAPACITY, "subsystem_spawn");
 	let ctx = OverseerSubsystemContext::new(
@@ -2004,7 +2028,10 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 		let _ = tx.send(());
 	});
 
-	spawner.spawn(name, fut);
+	match task_kind {
+		TaskKind::Regular => spawner.spawn(name, fut),
+		TaskKind::Blocking => spawner.spawn_blocking(name, fut),
+	}
 
 	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
 
@@ -2018,7 +2045,6 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	})
 }
 
-
 #[cfg(test)]
 mod tests {
 	use std::sync::atomic;
@@ -2026,7 +2052,7 @@ mod tests {
 	use futures::{executor, pin_mut, select, FutureExt, pending};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
-	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, JaegerSpan};
+	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, jaeger};
 	use polkadot_node_primitives::{CollationResult, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 	use polkadot_node_subsystem_util::metered;
@@ -2393,14 +2419,14 @@ mod tests {
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 					first_block_hash,
-					Arc::new(JaegerSpan::Disabled),
+					Arc::new(jaeger::Span::Disabled),
 				)),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [(second_block_hash, Arc::new(JaegerSpan::Disabled))].as_ref().into(),
+					activated: [(second_block_hash, Arc::new(jaeger::Span::Disabled))].as_ref().into(),
 					deactivated: [first_block_hash].as_ref().into(),
 				}),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [(third_block_hash, Arc::new(JaegerSpan::Disabled))].as_ref().into(),
+					activated: [(third_block_hash, Arc::new(jaeger::Span::Disabled))].as_ref().into(),
 					deactivated: [second_block_hash].as_ref().into(),
 				}),
 			];
@@ -2489,8 +2515,8 @@ mod tests {
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: [
-						(first_block_hash, Arc::new(JaegerSpan::Disabled)),
-						(second_block_hash, Arc::new(JaegerSpan::Disabled)),
+						(first_block_hash, Arc::new(jaeger::Span::Disabled)),
+						(second_block_hash, Arc::new(jaeger::Span::Disabled)),
 					].as_ref().into(),
 					..Default::default()
 				}),
@@ -2577,7 +2603,7 @@ mod tests {
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: [
-						(imported_block.hash, Arc::new(JaegerSpan::Disabled)),
+						(imported_block.hash, Arc::new(jaeger::Span::Disabled)),
 					].as_ref().into(),
 					..Default::default()
 				}),
