@@ -599,18 +599,20 @@ impl<T: Config> Module<T> {
 	}
 }
 
+#[cfg(any(feature = "runtime-benchmarks", test))]
 mod crypto {
 	use sp_core::ed25519;
 	use sp_io::crypto::{ed25519_sign, ed25519_generate};
-	use sp_std::convert::TryFrom;
+	use sp_std::{
+		vec::Vec,
+		convert::TryFrom,
+	};
 	use sp_runtime::{MultiSigner, MultiSignature};
 
-	#[allow(unused)]
 	pub fn create_ed25519_pubkey(seed: Vec<u8>) -> MultiSigner {
 		ed25519_generate(0.into(), Some(seed)).into()
 	}
 
-	#[allow(unused)]
 	pub fn create_ed25519_signature(payload: &[u8], pubkey: MultiSigner) -> MultiSignature {
 		let edpubkey = ed25519::Public::try_from(pubkey).unwrap();
 		let edsig = ed25519_sign(0.into(), &edpubkey, payload).unwrap();
