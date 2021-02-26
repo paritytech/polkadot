@@ -65,6 +65,7 @@ members = [
 	"node/primitives",
 	"node/service",
 	"node/subsystem",
+	"node/subsystem/dispatch-gen",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
