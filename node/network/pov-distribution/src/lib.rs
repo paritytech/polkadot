@@ -378,7 +378,7 @@ async fn determine_validators_for_core(
 
 	let validators = connect_to_validators
 		.into_iter()
-		.map(|idx| validators[idx as usize].clone())
+		.map(|idx| validators[idx.0 as usize].clone())
 		.collect();
 
 	Ok(Some(validators))

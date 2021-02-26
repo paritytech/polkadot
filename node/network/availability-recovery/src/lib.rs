@@ -239,7 +239,7 @@ impl RequestFromBackersPhase {
 
 			// Request data.
 			to_state.send(FromInteraction::MakeFullDataRequest(
-				params.validator_authority_keys[validator_index as usize].clone(),
+				params.validator_authority_keys[validator_index.0 as usize].clone(),
 				params.candidate_hash.clone(),
 				validator_index,
 				tx,
@@ -279,8 +279,8 @@ impl RequestFromBackersPhase {
 }
 
 impl RequestChunksPhase {
-	fn new(n_validators: ValidatorIndex) -> Self {
-		let mut shuffling: Vec<_> = (0..n_validators).collect();
+	fn new(n_validators: u32) -> Self {
+		let mut shuffling: Vec<_> = (0..n_validators).map(ValidatorIndex).collect();
 		shuffling.shuffle(&mut rand::thread_rng());
 
 		RequestChunksPhase {
@@ -300,7 +300,7 @@ impl RequestChunksPhase {
 				let (tx, rx) = oneshot::channel();
 
 				to_state.send(FromInteraction::MakeChunkRequest(
-					params.validator_authority_keys[validator_index as usize].clone(),
+					params.validator_authority_keys[validator_index.0 as usize].clone(),
 					params.candidate_hash.clone(),
 					validator_index,
 					tx,
@@ -347,7 +347,7 @@ impl RequestChunksPhase {
 					if let Ok(anticipated_hash) = branch_hash(
 						&params.erasure_root,
 						&chunk.proof,
-						chunk.index as usize,
+						chunk.index.0 as usize,
 					) {
 						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
@@ -415,7 +415,7 @@ impl RequestChunksPhase {
 			if self.received_chunks.len() >= params.threshold {
 				let concluded = match polkadot_erasure_coding::reconstruct_v1(
 					params.validators.len(),
-					self.received_chunks.values().map(|c| (&c.chunk[..], c.index as usize)),
+					self.received_chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
 				) {
 					Ok(data) => {
 						if reconstructed_data_matches_root(params.validators.len(), &params.erasure_root, &data) {
@@ -852,7 +852,7 @@ async fn handle_network_update(
 						chunk.is_some(),
 						request_id,
 						candidate_hash,
-						validator_index,
+						validator_index.0,
 					);
 
 					// Whatever the result, issue an
@@ -882,7 +882,7 @@ async fn handle_network_update(
 								chunk.is_some(),
 								request_id,
 								awaited_chunk.candidate_hash,
-								awaited_chunk.validator_index,
+								awaited_chunk.validator_index.0,
 							);
 
 							// If there exists an entry under r_id, remove it.
@@ -1003,7 +1003,7 @@ async fn issue_request(
 				request_id,
 				peer_id,
 				awaited_chunk.candidate_hash,
-				awaited_chunk.validator_index,
+				awaited_chunk.validator_index.0,
 			);
 
 			protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
@@ -1019,7 +1019,7 @@ async fn issue_request(
 				request_id,
 				peer_id,
 				awaited_data.candidate_hash,
-				awaited_data.validator_index,
+				awaited_data.validator_index.0,
 			);
 
 			protocol_v1::AvailabilityRecoveryMessage::RequestFullData(

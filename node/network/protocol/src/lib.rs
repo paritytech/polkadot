@@ -300,14 +300,6 @@ pub mod v1 {
 	use super::RequestId;
 	use std::convert::TryFrom;
 
-	/// Network messages used by the availability distribution subsystem
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum AvailabilityDistributionMessage {
-		/// An erasure chunk for a given candidate hash.
-		#[codec(index = 0)]
-		Chunk(CandidateHash, ErasureChunk),
-	}
-
 	/// Network messages used by the availability recovery subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AvailabilityRecoveryMessage {
@@ -456,9 +448,6 @@ pub mod v1 {
 	/// All network messages on the validation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum ValidationProtocol {
-		/// Availability distribution messages
-		#[codec(index = 0)]
-		AvailabilityDistribution(AvailabilityDistributionMessage),
 		/// Bitfield distribution messages
 		#[codec(index = 1)]
 		BitfieldDistribution(BitfieldDistributionMessage),
@@ -476,7 +465,6 @@ pub mod v1 {
 		ApprovalDistribution(ApprovalDistributionMessage),
 	}
 
-	impl_try_from!(ValidationProtocol, AvailabilityDistribution, AvailabilityDistributionMessage);
 	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
 	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);

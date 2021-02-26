@@ -494,7 +494,7 @@ fn check_statement_signature(
 		parent_hash: relay_parent,
 	};
 
-	head.validators.get(statement.validator_index() as usize)
+	head.validators.get(statement.validator_index().0 as usize)
 		.ok_or(())
 		.and_then(|v| statement.check_signature(&signing_context, v))
 }
@@ -1133,7 +1133,7 @@ mod tests {
 			&keystore,
 			Statement::Seconded(candidate_a.clone()),
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed");
 		let noted = head_data.note_statement(a_seconded_val_0.clone());
@@ -1150,7 +1150,7 @@ mod tests {
 			&keystore,
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed"));
 
@@ -1161,7 +1161,7 @@ mod tests {
 			&keystore,
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed"));
 
@@ -1172,7 +1172,7 @@ mod tests {
 			&keystore,
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
-			1,
+			ValidatorIndex(1),
 			&bob_public.into(),
 		)).ok().flatten().expect("should be signed"));
 
@@ -1183,7 +1183,7 @@ mod tests {
 			&keystore,
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
-			1,
+			ValidatorIndex(1),
 			&bob_public.into(),
 		)).ok().flatten().expect("should be signed"));
 
@@ -1233,7 +1233,7 @@ mod tests {
 		let hash_a = CandidateHash([1; 32].into());
 
 		// Sending an un-pinned statement should not work and should have no effect.
-		assert!(knowledge.send(&(CompactStatement::Valid(hash_a), 0)).is_none());
+		assert!(knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))).is_none());
 		assert!(!knowledge.known_candidates.contains(&hash_a));
 		assert!(knowledge.sent_statements.is_empty());
 		assert!(knowledge.received_statements.is_empty());
@@ -1241,8 +1241,8 @@ mod tests {
 		assert!(knowledge.received_message_count.is_empty());
 
 		// Make the peer aware of the candidate.
-		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), 0)), Some(true));
-		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), 1)), Some(false));
+		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0))), Some(true));
+		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), ValidatorIndex(1))), Some(false));
 		assert!(knowledge.known_candidates.contains(&hash_a));
 		assert_eq!(knowledge.sent_statements.len(), 2);
 		assert!(knowledge.received_statements.is_empty());
@@ -1250,7 +1250,7 @@ mod tests {
 		assert!(knowledge.received_message_count.get(&hash_a).is_none());
 
 		// And now it should accept the dependent message.
-		assert_eq!(knowledge.send(&(CompactStatement::Valid(hash_a), 0)), Some(false));
+		assert_eq!(knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))), Some(false));
 		assert!(knowledge.known_candidates.contains(&hash_a));
 		assert_eq!(knowledge.sent_statements.len(), 3);
 		assert!(knowledge.received_statements.is_empty());
@@ -1263,8 +1263,8 @@ mod tests {
 		let mut knowledge = PeerRelayParentKnowledge::default();
 
 		let hash_a = CandidateHash([1; 32].into());
-		assert!(knowledge.receive(&(CompactStatement::Candidate(hash_a), 0), 3).unwrap());
-		assert!(knowledge.send(&(CompactStatement::Candidate(hash_a), 0)).is_none());
+		assert!(knowledge.receive(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0)), 3).unwrap());
+		assert!(knowledge.send(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0))).is_none());
 	}
 
 	#[test]
@@ -1274,18 +1274,18 @@ mod tests {
 		let hash_a = CandidateHash([1; 32].into());
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Valid(hash_a), 0), 3),
+			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
 			Err(COST_UNEXPECTED_STATEMENT),
 		);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_a), 0), 3),
+			knowledge.receive(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
 		// Push statements up to the flood limit.
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Valid(hash_a), 1), 3),
+			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(1)), 3),
 			Ok(false),
 		);
 
@@ -1293,14 +1293,14 @@ mod tests {
 		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 2);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Valid(hash_a), 2), 3),
+			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
 			Ok(false),
 		);
 
 		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 3);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Valid(hash_a), 7), 3),
+			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(7)), 3),
 			Err(COST_APPARENT_FLOOD),
 		);
 
@@ -1312,23 +1312,23 @@ mod tests {
 		let hash_c = CandidateHash([3; 32].into());
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_b), 0), 3),
+			knowledge.receive(&(CompactStatement::Candidate(hash_b), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_c), 0), 3),
+			knowledge.receive(&(CompactStatement::Candidate(hash_c), ValidatorIndex(0)), 3),
 			Err(COST_UNEXPECTED_STATEMENT),
 		);
 
 		// Last, make sure that already-known statements are disregarded.
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Valid(hash_a), 2), 3),
+			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
 			Err(COST_DUPLICATE_STATEMENT),
 		);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_b), 0), 3),
+			knowledge.receive(&(CompactStatement::Candidate(hash_b), ValidatorIndex(0)), 3),
 			Err(COST_DUPLICATE_STATEMENT),
 		);
 	}
@@ -1386,7 +1386,7 @@ mod tests {
 				&keystore,
 				Statement::Seconded(candidate.clone()),
 				&signing_context,
-				0,
+				ValidatorIndex(0),
 				&alice_public.into(),
 			)).ok().flatten().expect("should be signed"));
 
@@ -1396,7 +1396,7 @@ mod tests {
 				&keystore,
 				Statement::Valid(candidate_hash),
 				&signing_context,
-				1,
+				ValidatorIndex(1),
 				&bob_public.into(),
 			)).ok().flatten().expect("should be signed"));
 
@@ -1406,7 +1406,7 @@ mod tests {
 				&keystore,
 				Statement::Valid(candidate_hash),
 				&signing_context,
-				2,
+				ValidatorIndex(2),
 				&charlie_public.into(),
 			)).ok().flatten().expect("should be signed"));
 
@@ -1451,13 +1451,13 @@ mod tests {
 
 			assert!(c_knowledge.known_candidates.contains(&candidate_hash));
 			assert!(c_knowledge.sent_statements.contains(
-				&(CompactStatement::Candidate(candidate_hash), 0)
+				&(CompactStatement::Candidate(candidate_hash), ValidatorIndex(0))
 			));
 			assert!(c_knowledge.sent_statements.contains(
-				&(CompactStatement::Valid(candidate_hash), 1)
+				&(CompactStatement::Valid(candidate_hash), ValidatorIndex(1))
 			));
 			assert!(c_knowledge.sent_statements.contains(
-				&(CompactStatement::Valid(candidate_hash), 2)
+				&(CompactStatement::Valid(candidate_hash), ValidatorIndex(2))
 			));
 
 			// now see if we got the 3 messages from the active head data.
@@ -1538,14 +1538,14 @@ mod tests {
 					&keystore,
 					Statement::Seconded(candidate),
 					&signing_context,
-					0,
+					ValidatorIndex(0),
 					&alice_public.into(),
 				).await.ok().flatten().expect("should be signed");
 
 				StoredStatement {
 					comparator: StoredStatementComparator {
 						compact: statement.payload().to_compact(),
-						validator_index: 0,
+						validator_index: ValidatorIndex(0),
 						signature: statement.signature().clone()
 					},
 					statement,
@@ -1565,7 +1565,7 @@ mod tests {
 				assert!(needs_dependents.contains(&peer_c));
 			}
 
-			let fingerprint = (statement.compact().clone(), 0);
+			let fingerprint = (statement.compact().clone(), ValidatorIndex(0));
 
 			assert!(
 				peer_data.get(&peer_b).unwrap()
@@ -1706,7 +1706,7 @@ mod tests {
 					&keystore,
 					Statement::Seconded(candidate),
 					&signing_context,
-					0,
+					ValidatorIndex(0),
 					&alice_public.into(),
 				).await.ok().flatten().expect("should be signed")
 			};

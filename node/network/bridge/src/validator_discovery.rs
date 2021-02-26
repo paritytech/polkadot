@@ -131,7 +131,7 @@ fn on_revoke(map: &mut HashMap<AuthorityDiscoveryId, u64>, id: AuthorityDiscover
 	None
 }
 
-fn peer_id_from_multiaddr(addr: &Multiaddr) -> Option<PeerId> {
+pub(crate) fn peer_id_from_multiaddr(addr: &Multiaddr) -> Option<PeerId> {
 	addr.iter().last().and_then(|protocol| if let Protocol::P2p(multihash) = protocol {
 		PeerId::from_multihash(multihash).ok()
 	} else {
