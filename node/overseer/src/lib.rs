@@ -1557,7 +1557,7 @@ where
 			all_subsystems.runtime_api,
 			&metrics,
 			&mut seed,
-			TaskKind::Blocking,
+			TaskKind::Regular,
 		)?;
 
 		let availability_store_subsystem = spawn(
