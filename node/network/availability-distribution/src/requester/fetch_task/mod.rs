@@ -358,7 +358,7 @@ impl RunningTask {
 			match branch_hash(&self.erasure_root, &chunk.proof, chunk.index.0 as usize) {
 				Ok(hash) => hash,
 				Err(e) => {
-					tracing::trace!(
+					tracing::warn!(
 						target: LOG_TARGET,
 						candidate_hash = ?self.request.candidate_hash,
 						origin = ?validator,

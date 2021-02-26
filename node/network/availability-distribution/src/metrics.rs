@@ -53,6 +53,11 @@ struct MetricsInner {
 }
 
 impl Metrics {
+	/// Create new dummy metrics, not reporting anything.
+	pub fn new_dummy() -> Self {
+		Metrics(None)
+	}
+
 	/// Increment counter on fetched labels.
 	pub fn on_fetch(&self, label: &'static str) {
 		if let Some(metrics) = &self.0 {

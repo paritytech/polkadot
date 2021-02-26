@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use parity_scale_codec::Encode;
 
@@ -22,16 +23,16 @@ use futures::channel::{mpsc, oneshot};
 use futures::{executor, Future, FutureExt, StreamExt, select};
 use futures::task::{Poll, Context, noop_waker};
 
+use polkadot_erasure_coding::{obtain_chunks_v1 as obtain_chunks, branches};
 use sc_network as network;
 use sp_keyring::Sr25519Keyring;
 
-use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
+use polkadot_primitives::v1::{AvailableData, BlockData, CandidateHash, HeadData, PersistedValidationData, PoV, ValidatorIndex};
 use polkadot_node_network_protocol::request_response::v1;
 use polkadot_subsystem::messages::AllMessages;
 
 use crate::metrics::Metrics;
 use super::*;
-
 
 #[test]
 fn task_can_be_canceled() {
@@ -56,10 +57,12 @@ fn task_does_not_accept_invalid_chunk() {
 			let mut m = HashMap::new();
 			m.insert(
 				Sr25519Keyring::Alice.public().into(),
-				v1::ChunkResponse {
-					chunk: vec![1,2,3],
-					proof: vec![vec![9,8,2], vec![2,3,4]],
-				}
+				AvailabilityFetchingResponse::Chunk(
+					v1::ChunkResponse {
+						chunk: vec![1,2,3],
+						proof: vec![vec![9,8,2], vec![2,3,4]],
+					}
+				)
 			);
 			m
 		},
@@ -68,10 +71,126 @@ fn task_does_not_accept_invalid_chunk() {
 	test.run(task, rx);
 }
 
+#[test]
+fn task_stores_valid_chunk() {
+	let (mut task, rx) = get_test_running_task();
+	let (root_hash, chunk) = get_valid_chunk_data();
+	task.erasure_root = root_hash;
+	task.request.index = chunk.index;
+
+	let validators = vec![Sr25519Keyring::Alice.public().into()];
+	task.group = validators;
+
+	let test = TestRun {
+		chunk_responses:  {
+			let mut m = HashMap::new();
+			m.insert(
+				Sr25519Keyring::Alice.public().into(),
+				AvailabilityFetchingResponse::Chunk(
+					v1::ChunkResponse {
+						chunk: chunk.chunk.clone(),
+						proof: chunk.proof,
+					}
+				)
+			);
+			m
+		},
+		valid_chunks: {
+			let mut s = HashSet::new();
+			s.insert(chunk.chunk);
+			s
+		},
+	};
+	test.run(task, rx);
+}
+
+#[test]
+fn task_does_not_accept_wrongly_indexed_chunk() {
+	let (mut task, rx) = get_test_running_task();
+	let (root_hash, chunk) = get_valid_chunk_data();
+	task.erasure_root = root_hash;
+	task.request.index = ValidatorIndex(chunk.index.0+1);
+
+	let validators = vec![Sr25519Keyring::Alice.public().into()];
+	task.group = validators;
+
+	let test = TestRun {
+		chunk_responses:  {
+			let mut m = HashMap::new();
+			m.insert(
+				Sr25519Keyring::Alice.public().into(),
+				AvailabilityFetchingResponse::Chunk(
+					v1::ChunkResponse {
+						chunk: chunk.chunk.clone(),
+						proof: chunk.proof,
+					}
+				)
+			);
+			m
+		},
+		valid_chunks: HashSet::new(),
+	};
+	test.run(task, rx);
+}
+
+/// Task stores chunk, if there is at least one validator having a valid chunk.
+#[test]
+fn task_stores_valid_chunk_if_there_is_one() {
+	let (mut task, rx) = get_test_running_task();
+	let (root_hash, chunk) = get_valid_chunk_data();
+	task.erasure_root = root_hash;
+	task.request.index = chunk.index;
+
+	let validators = [
+			// Only Alice has valid chunk - should succeed, even though she is tried last.
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob, Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave, Sr25519Keyring::Eve,
+		]
+		.iter().map(|v| v.public().into()).collect::<Vec<_>>();
+	task.group = validators;
+
+	let test = TestRun {
+		chunk_responses:  {
+			let mut m = HashMap::new();
+			m.insert(
+				Sr25519Keyring::Alice.public().into(),
+				AvailabilityFetchingResponse::Chunk(
+					v1::ChunkResponse {
+						chunk: chunk.chunk.clone(),
+						proof: chunk.proof,
+					}
+				)
+			);
+			m.insert(
+				Sr25519Keyring::Bob.public().into(),
+				AvailabilityFetchingResponse::NoSuchChunk
+			);
+			m.insert(
+				Sr25519Keyring::Charlie.public().into(),
+				AvailabilityFetchingResponse::Chunk(
+					v1::ChunkResponse {
+						chunk: vec![1,2,3],
+						proof: vec![vec![9,8,2], vec![2,3,4]],
+					}
+				)
+			);
+
+			m
+		},
+		valid_chunks: {
+			let mut s = HashSet::new();
+			s.insert(chunk.chunk);
+			s
+		},
+	};
+	test.run(task, rx);
+}
+
 struct TestRun {
 	/// Response to deliver for a given validator index.
 	/// None means, answer with NetworkError.
-	chunk_responses: HashMap<AuthorityDiscoveryId, v1::ChunkResponse>,
+	chunk_responses: HashMap<AuthorityDiscoveryId, AvailabilityFetchingResponse>,
 	/// Set of chunks that should be considered valid:
 	valid_chunks: HashSet<Vec<u8>>,
 }
@@ -79,6 +198,7 @@ struct TestRun {
 
 impl TestRun {
 	fn run(self, task: RunningTask, rx: mpsc::Receiver<FromFetchTask>) {
+		sp_tracing::try_init_simple();
 		let mut rx = rx.fuse();
 		let task = task.run_inner().fuse();
 		futures::pin_mut!(task);
@@ -120,7 +240,7 @@ impl TestRun {
 					let response = self.chunk_responses.get(&req.peer)
 						.ok_or(network::RequestFailure::Refused);
 
-					if let Ok(resp) = &response {
+					if let Ok(AvailabilityFetchingResponse::Chunk(resp)) = &response {
 						if self.valid_chunks.contains(&resp.chunk) {
 							valid_responses += 1;
 						}
@@ -131,9 +251,10 @@ impl TestRun {
 				return (valid_responses == 0) && self.valid_chunks.is_empty()
 			}
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreChunk { chunk, .. }
+				AvailabilityStoreMessage::StoreChunk { chunk, tx, .. }
 			) => {
 				assert!(self.valid_chunks.contains(&chunk.chunk));
+				tx.send(Ok(())).expect("Answering fetching task should work");
 				return true
 			}
 			_ => {
@@ -144,6 +265,7 @@ impl TestRun {
 	}
 }
 
+/// Get a `RunningTask` filled with dummy values.
 fn get_test_running_task() -> (RunningTask, mpsc::Receiver<FromFetchTask>) {
 	let (tx,rx) = mpsc::channel(0);
 
@@ -163,4 +285,31 @@ fn get_test_running_task() -> (RunningTask, mpsc::Receiver<FromFetchTask>) {
 		},
 		rx
 	)
+}
+
+fn get_valid_chunk_data() -> (Hash, ErasureChunk) {
+	let fake_validator_count = 10;
+	let persisted = PersistedValidationData {
+		parent_head: HeadData(vec![7, 8, 9]),
+		relay_parent_number: Default::default(),
+		max_pov_size: 1024,
+		relay_parent_storage_root: Default::default(),
+	};
+	let pov_block = PoV {
+		block_data: BlockData(vec![45, 46, 47]),
+	};
+	let available_data = AvailableData {
+		validation_data: persisted, pov: Arc::new(pov_block),
+	};
+	let chunks = obtain_chunks(fake_validator_count, &available_data).unwrap();
+	let branches = branches(chunks.as_ref());
+	let root = branches.root();
+	let chunk = branches.enumerate()
+			.map(|(index, (proof, chunk))| ErasureChunk {
+				chunk: chunk.to_vec(),
+				index: ValidatorIndex(index as _),
+				proof,
+			})
+			.next().expect("There really should be 10 chunks.");
+	(root, chunk)
 }
