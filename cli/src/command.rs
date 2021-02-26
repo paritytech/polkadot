@@ -170,7 +170,7 @@ pub fn run() -> Result<()> {
 				let role = config.role.clone();
 
 				let task_manager = match role {
-					Role::Light => service::build_light(config).map(|(task_manager, _, _)| task_manager),
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
 					_ => service::build_full(
 						config,
 						service::IsCollator::No,
