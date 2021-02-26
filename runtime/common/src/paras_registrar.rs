@@ -290,7 +290,7 @@ mod tests {
 	 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 			Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 			Initializer: initializer::{Module, Call, Storage},
-			Hrmp: hrmp::{Event},
+			Hrmp: hrmp::{Module, Call, Storage, Event},
 		}
 	);
 

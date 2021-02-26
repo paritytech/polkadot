@@ -21,8 +21,8 @@ use crate::{
 };
 use parity_scale_codec::{Decode, Encode};
 use frame_support::{
-	decl_storage, decl_module, decl_error, decl_event, ensure, traits::{Get, ReservableCurrency}, weights::Weight,
-	StorageMap, StorageValue, dispatch::DispatchResult,
+	decl_storage, decl_module, decl_error, decl_event, ensure, traits::{Get, ReservableCurrency},
+	weights::Weight, StorageMap, StorageValue, dispatch::DispatchResult,
 };
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
@@ -337,7 +337,8 @@ decl_error! {
 
 decl_event! {
 	pub enum Event {
-		/// Open HRMP channel requested. \[sender, recipient, proposed_max_capacity, proposed_max_message_size\]
+		/// Open HRMP channel requested.
+		/// \[sender, recipient, proposed_max_capacity, proposed_max_message_size\]
 		OpenChannelRequested(ParaId, ParaId, u32, u32),
 		/// Open HRMP channel accepted. \[sender, recipient\]
 		OpenChannelAccepted(ParaId, ParaId),
@@ -377,9 +378,12 @@ decl_module! {
 				proposed_max_capacity,
 				proposed_max_message_size
 			)?;
-			Self::deposit_event(
-				Event::OpenChannelRequested(origin, recipient, proposed_max_capacity, proposed_max_message_size)
-			);
+			Self::deposit_event(Event::OpenChannelRequested(
+				origin,
+				recipient,
+				proposed_max_capacity,
+				proposed_max_message_size
+			));
 			Ok(())
 		}
 
@@ -1132,7 +1136,8 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, Test, Configuration, Paras, Shared, Hrmp, System, MockGenesisConfig, Event as MockEvent,
+		new_test_ext, Test, Configuration, Paras, Shared, Hrmp, System, MockGenesisConfig,
+		Event as MockEvent,
 	};
 	use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 	use primitives::v1::BlockNumber;
@@ -1460,14 +1465,14 @@ mod tests {
 			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(
-				|record| record.event == MockEvent::hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))
+			assert!(System::events().iter().any(|record|
+				record.event == MockEvent::hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))
 			));
 
 			Hrmp::hrmp_accept_open_channel(para_b_origin.into(), para_a).unwrap();
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(
-				|record| record.event == MockEvent::hrmp(Event::OpenChannelAccepted(para_a, para_b))
+			assert!(System::events().iter().any(|record|
+				record.event == MockEvent::hrmp(Event::OpenChannelAccepted(para_a, para_b))
 			));
 
 			// Advance to a block 6, but without session change. That means that the channel has
@@ -1513,8 +1518,8 @@ mod tests {
 			run_to_block(8, Some(vec![8]));
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(
-				|record| record.event == MockEvent::hrmp(Event::ChannelClosed(para_b, channel_id.clone()))
+			assert!(System::events().iter().any(|record|
+				record.event == MockEvent::hrmp(Event::ChannelClosed(para_b, channel_id.clone()))
 			));
 		});
 	}
