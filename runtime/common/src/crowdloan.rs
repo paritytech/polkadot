@@ -599,11 +599,30 @@ impl<T: Config> Module<T> {
 	}
 }
 
+mod crypto {
+	use sp_core::ed25519;
+	use sp_io::crypto::{ed25519_sign, ed25519_generate};
+	use sp_std::convert::TryFrom;
+	use sp_runtime::{MultiSigner, MultiSignature};
+
+	#[allow(unused)]
+	pub fn create_ed25519_pubkey(seed: Vec<u8>) -> MultiSigner {
+		ed25519_generate(0.into(), Some(seed)).into()
+	}
+
+	#[allow(unused)]
+	pub fn create_ed25519_signature(payload: &[u8], pubkey: MultiSigner) -> MultiSignature {
+		let edpubkey = ed25519::Public::try_from(pubkey).unwrap();
+		let edsig = ed25519_sign(0.into(), &edpubkey, payload).unwrap();
+		edsig.into()
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
-	use std::{collections::HashMap, cell::RefCell, sync::Arc, convert::TryFrom};
+	use std::{collections::HashMap, cell::RefCell, sync::Arc};
 	use frame_support::{
 		assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
@@ -617,8 +636,6 @@ mod tests {
 		traits::{BlakeTwo256, IdentityLookup},
 	};
 	use sp_keystore::{KeystoreExt, testing::KeyStore};
-	use sp_io::crypto::{ed25519_generate, ed25519_sign};
-	use sp_core::ed25519;
 	use crate::slots::{self, Registrar};
 	use crate::crowdloan;
 
@@ -801,12 +818,6 @@ mod tests {
 		t
 	}
 
-	fn create_ed25519_signature(payload: (u32, u64, u64, u64), pubkey: MultiSigner) -> MultiSignature {
-		let edpubkey = ed25519::Public::try_from(pubkey).unwrap();
-		let edsig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &edpubkey, encoded).unwrap());
-		edsig.into()
-	}
-
 	fn run_to_block(n: u64) {
 		while System::block_number() < n {
 			Crowdloan::on_finalize(System::block_number());
@@ -871,7 +882,7 @@ mod tests {
 	#[test]
 	fn create_with_verifier_works() {
 		new_test_ext().execute_with(|| {
-			let pubkey: MultiSigner = ed25519_generate(0.into(), Some(b"//verifier".to_vec())).into();
+			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 			// Now try to create a crowdloan campaign
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey.clone())));
 			assert_eq!(Crowdloan::fund_count(), 1);
@@ -955,7 +966,7 @@ mod tests {
 	#[test]
 	fn contribute_with_verifier_works() {
 		new_test_ext().execute_with(|| {
-			let pubkey: MultiSigner = ed25519_generate(0.into(), Some(b"//verifier".to_vec())).into();
+			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), 1000, 1, 4, 9, Some(pubkey.clone())));
 			assert_eq!(Balances::free_balance(1), 999);
@@ -965,7 +976,7 @@ mod tests {
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, None), Error::<Test>::InvalidSignature);
 
 			let payload = (0u32, 1u64, 0u64, 49u64);
-			let valid_signature = create_ed25519_signature(payload, pubkey.clone());
+			let valid_signature = crypto::create_ed25519_signature(&payload.encode(), pubkey.clone());
 			let invalid_signature = MultiSignature::default();
 
 			// Invalid signature
@@ -982,7 +993,7 @@ mod tests {
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), 0, 49, Some(valid_signature)), Error::<Test>::InvalidSignature);
 
 			let payload_2 = (0u32, 1u64, 49u64, 10u64);
-			let valid_signature_2 = create_ed25519_signature(payload_2, pubkey);
+			let valid_signature_2 = crypto::create_ed25519_signature(&payload_2.encode(), pubkey);
 
 			// New valid signature
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), 0, 10, Some(valid_signature_2)));
@@ -1553,7 +1564,6 @@ mod benchmarking {
 	};
 	use sp_runtime::traits::Bounded;
 	use sp_std::prelude::*;
-	use sp_io::crypto::{ed25519_generate, ed25519_sign};
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, whitelist_account};
 
@@ -1578,7 +1588,8 @@ mod benchmarking {
 		let caller = account("fund_creator", 0, 0);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-		let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
+		// Assume ed25519 is most complex signature format
+		let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 
 		assert_ok!(Crowdloan::<T>::create(RawOrigin::Signed(caller).into(), cap, first_slot, last_slot, end, Some(pubkey)));
 		FundCount::get() - 1
@@ -1588,9 +1599,9 @@ mod benchmarking {
 		T::Currency::make_free_balance_be(&who, BalanceOf::<T>::max_value());
 		let value = T::MinContribution::get();
 
-		let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
+		let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 		let payload = (index, &who, BalanceOf::<T>::default(), value);
-		let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
+		let sig = crypto::create_ed25519_signature(&payload.encode(), pubkey);
 
 		assert_ok!(Crowdloan::<T>::contribute(RawOrigin::Signed(who.clone()).into(), index, value, Some(sig)));
 	}
@@ -1676,9 +1687,9 @@ mod benchmarking {
 			let contribution = T::MinContribution::get();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
-			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
+			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 			let payload = (fund_index, &caller, BalanceOf::<T>::default(), contribution);
-			let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
+			let sig = crypto::create_ed25519_signature(&payload.encode(), pubkey);
 
 		}: _(RawOrigin::Signed(caller.clone()), fund_index, contribution, Some(sig))
 		verify {
@@ -1765,7 +1776,7 @@ mod benchmarking {
 			let n in 2 .. 100;
 			let end_block: T::BlockNumber = 100u32.into();
 
-			let pubkey = ed25519_generate(0.into(), Some(b"//verifier".to_vec()));
+			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 
 			for i in 0 .. n {
 				let fund_index = create_fund::<T>(end_block);
@@ -1774,7 +1785,7 @@ mod benchmarking {
 				T::Currency::make_free_balance_be(&contributor, BalanceOf::<T>::max_value());
 
 				let payload = (fund_index, &contributor, BalanceOf::<T>::default(), contribution);
-				let sig = payload.using_encoded(|encoded| ed25519_sign(0.into(), &pubkey, encoded).unwrap());
+				let sig = crypto::create_ed25519_signature(&payload.encode(), pubkey.clone());
 
 				Crowdloan::<T>::contribute(RawOrigin::Signed(contributor).into(), fund_index, contribution, Some(sig))?;
 			}
