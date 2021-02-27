@@ -49,7 +49,7 @@ frame_support::construct_runtime!(
 		Initializer: initializer::{Module, Call, Storage},
 		Dmp: dmp::{Module, Call, Storage},
 		Ump: ump::{Module, Call, Storage},
-		Hrmp: hrmp::{Module, Call, Storage},
+		Hrmp: hrmp::{Module, Call, Storage, Event},
 		SessionInfo: session_info::{Module, Call, Storage},
 	}
 );
@@ -126,6 +126,7 @@ impl crate::ump::Config for Test {
 }
 
 impl crate::hrmp::Config for Test {
+	type Event = Event;
 	type Origin = Origin;
 	type Currency = pallet_balances::Module<Test>;
 }
