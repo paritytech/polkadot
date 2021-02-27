@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.8.28"
+version = "0.8.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -40,6 +40,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-collective = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 pallet-identity = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
@@ -65,6 +66,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", default-feat
 pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
@@ -81,6 +83,7 @@ keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substra
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 trie-db = "0.22.3"
 serde_json = "1.0.61"
+separator = "0.4.1"
 
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"
@@ -111,6 +114,7 @@ std = [
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-collective/std",
 	"pallet-elections-phragmen/std",
+	"pallet-election-provider-multi-phase/std",
 	"pallet-democracy/std",
 	"frame-executive/std",
 	"pallet-grandpa/std",
@@ -155,6 +159,7 @@ runtime-benchmarks = [
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
+	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
@@ -174,7 +179,10 @@ runtime-benchmarks = [
 	"frame-system-benchmarking",
 	"hex-literal",
 ]
-
+try-runtime = [
+	"frame-executive/try-runtime",
+	"frame-try-runtime",
+]
 # When enabled, the runtime api will not be build.
 #
 # This is required by Cumulus to access certain types of the

@@ -14,16 +14,20 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-node-core-runtime-api = { path = "../../core/runtime-api" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"]  , branch = "bkchr-inherent-something-future" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 thiserror = "1.0.23"
+rand = "0.8.3"
+lru = "0.6.5"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "bkchr-inherent-something-future" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 assert_matches = "1.4.0"
 maplit = "1.0"
