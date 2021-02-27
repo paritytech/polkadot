@@ -432,12 +432,7 @@ where
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-
-	#[cfg(feature = "approval-checking")]
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-
-	#[cfg(not(feature = "approval-checking"))]
-	let _ = slot_duration; // silence.
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
