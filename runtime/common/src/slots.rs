@@ -36,13 +36,13 @@ type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
 
 pub trait WeightInfo {
 	fn force_lease() -> Weight;
-	fn on_initialize() -> Weight;
+	fn manage_lease_period_start(c: u32, t: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn force_lease() -> Weight { 0 }
-	fn on_initialize() -> Weight { 0 }
+	fn manage_lease_period_start(_c: u32, _t:u32) -> Weight { 0 }
 }
 
 /// The module's configuration trait.
@@ -144,10 +144,10 @@ decl_module! {
 			let lease_period = T::LeasePeriod::get();
 			if (n % lease_period).is_zero() {
 				let lease_period_index = n / lease_period;
-				Self::manage_lease_period_start(lease_period_index);
+				Self::manage_lease_period_start(lease_period_index)
+			} else {
+				0
 			}
-
-			T::WeightInfo::on_initialize()
 		}
 
 		/// Just a hotwire into the `lease_out` call, in case Root wants to force some lease to happen
@@ -173,7 +173,7 @@ impl<T: Config> Module<T> {
 	///
 	/// We need to on-board and off-board parachains as needed. We should also handle reducing/
 	/// returning deposits.
-	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) {
+	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
 		Self::deposit_event(RawEvent::NewLeasePeriod(lease_period_index));
 
 		let old_parachains = T::Registrar::parachains();
@@ -241,6 +241,11 @@ impl<T: Config> Module<T> {
 				debug_assert!(res.is_ok());
 			}
 		}
+
+		T::WeightInfo::manage_lease_period_start(
+			old_parachains.len() as u32,
+			parachains.len() as u32,
+		)
 	}
 }
 
@@ -652,9 +657,12 @@ mod tests {
 mod benchmarking {
 	use super::*;
 	use frame_system::RawOrigin;
+	use frame_support::assert_ok;
 	use sp_runtime::traits::Bounded;
 
 	use frame_benchmarking::{benchmarks, account};
+
+	use crate::slots::Module as Slots;
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -662,6 +670,18 @@ mod benchmarking {
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
+	}
+
+	fn register_a_parathread<T: Config>(i: u32) -> (ParaId, T::AccountId) {
+		let para = ParaId::from(i);
+		let leaser: T::AccountId = account("leaser", i, 0);
+		T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
+		let worst_head_data = T::Registrar::worst_head_data();
+		let worst_validation_code = T::Registrar::worst_validation_code();
+
+		assert_ok!(T::Registrar::register(leaser.clone(), para, worst_head_data, worst_validation_code));
+
+		(para, leaser)
 	}
 
 	benchmarks! {
@@ -676,6 +696,53 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(RawEvent::Leased(para, leaser, period_begin, period_count, amount, amount).into());
 		}
+
+		// Worst case scenario, T parathreads onboard, and C parachains offboard.
+		manage_lease_period_start {
+			// Assume reasonable maximum of 100 paras at any time
+			let c in 1 .. 100;
+			let t in 1 .. 100;
+
+			// Specifically needed for using TestRegistrar from mock environment in tests
+			#[cfg(test)] crate::mock::TestRegistrar::<T>::clear_storage();
+
+			let period_begin = 0u32.into();
+			let period_count = 3u32.into();
+
+			// T parathread are upgrading to parachains
+			for i in 0 .. t {
+				let (para, leaser) = register_a_parathread::<T>(i);
+				let amount = T::Currency::minimum_balance();
+
+				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
+			}
+
+			// C parachains are downgrading to parathreads
+			for i in 200 .. 200 + c {
+				let (para, leaser) = register_a_parathread::<T>(i);
+				T::Registrar::make_parachain(para)?;
+				T::Registrar::execute_pending_transitions();
+			}
+
+			for i in 0 .. t {
+				assert!(T::Registrar::is_parathread(ParaId::from(i)));
+			}
+
+			for i in 200 .. 200 + c {
+				assert!(T::Registrar::is_parachain(ParaId::from(i)));
+			}
+		}: {
+				Slots::<T>::manage_lease_period_start(period_begin);
+		} verify {
+			// All paras should have switched.
+			T::Registrar::execute_pending_transitions();
+			for i in 0 .. t {
+				assert!(T::Registrar::is_parachain(ParaId::from(i)));
+			}
+			for i in 200 .. 200 + c {
+				assert!(T::Registrar::is_parathread(ParaId::from(i)));
+			}
+		}
 	}
 
 	#[cfg(test)]
@@ -685,9 +752,16 @@ mod benchmarking {
 		use frame_support::assert_ok;
 
 		#[test]
-		fn test_benchmarks() {
+		fn force_lease_benchmark() {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_force_lease::<Test>());
+			});
+		}
+
+		#[test]
+		fn manage_lease_period_start_benchmark() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_manage_lease_period_start::<Test>());
 			});
 		}
 	}

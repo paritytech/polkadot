@@ -302,6 +302,15 @@ impl<T: Config> Registrar for Module<T> {
 		).collect::<Vec<_>>();
 		validation_code.into()
 	}
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn execute_pending_transitions() {
+		use runtime_parachains::shared;
+		shared::Module::<T>::set_session_index(
+			shared::Module::<T>::scheduled_session()
+		);
+		paras::Module::<T>::test_on_new_session();
+	}
 }
 
 impl<T: Config> Module<T> {

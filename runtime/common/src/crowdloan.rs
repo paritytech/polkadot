@@ -1382,6 +1382,9 @@ mod benchmarking {
 			let n in 2 .. 100;
 			let end_block: T::BlockNumber = 100u32.into();
 
+			// Specifically needed for using TestRegistrar from mock environment in tests
+			#[cfg(test)] crate::mock::TestRegistrar::<T>::clear_storage();
+
 			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 
 			for i in 0 .. n {

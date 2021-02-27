@@ -65,7 +65,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
-				Ok(_) => {},
+				Ok(_) => panic!("Already Parathread"),
 				Err(i) => parathreads.insert(i, id),
 			}
 		});
@@ -154,6 +154,9 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 		).collect::<Vec<_>>();
 		validation_code.into()
 	}
+
+	#[cfg(test)]
+	fn execute_pending_transitions() {}
 }
 
 impl<T: frame_system::Config> TestRegistrar<T> {
@@ -169,5 +172,12 @@ impl<T: frame_system::Config> TestRegistrar<T> {
 	#[allow(dead_code)]
 	pub fn parathreads() -> Vec<ParaId> {
 		PARATHREADS.with(|x| x.borrow().clone())
+	}
+
+	pub fn clear_storage() {
+		OPERATIONS.with(|x| x.borrow_mut().clear());
+		PARACHAINS.with(|x| x.borrow_mut().clear());
+		PARATHREADS.with(|x| x.borrow_mut().clear());
+		MANAGERS.with(|x| x.borrow_mut().clear());
 	}
 }

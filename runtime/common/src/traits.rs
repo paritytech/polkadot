@@ -69,6 +69,9 @@ pub trait Registrar {
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn worst_validation_code() -> ValidationCode;
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn execute_pending_transitions();
 }
 
 /// Error type for something that went wrong with leasing.
