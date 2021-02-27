@@ -60,7 +60,11 @@ pub enum Protocol {
 }
 
 /// Default request timeout in seconds.
-const DEFAULT_REQUEST_TIMEOUT: u64 = 8; 
+///
+/// When decreasing this value, take into account that the very first request might need to open a
+/// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
+/// sets.
+const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3); 
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
@@ -86,7 +90,7 @@ impl Protocol {
 				max_request_size: 10_000,
 				max_response_size: 1_000_000,
 				// Also just some relative conservative guess:
-				request_timeout: Duration::from_secs(DEFAULT_REQUEST_TIMEOUT),
+				request_timeout: DEFAULT_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
 		};

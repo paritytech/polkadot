@@ -117,7 +117,7 @@ impl<N, AD> NetworkBridge<N, AD> {
 
 impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
-		Net: Network + validator_discovery::Network,
+		Net: Network + validator_discovery::Network + Sync,
 		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
@@ -237,7 +237,10 @@ where
 
 			Action::SendRequests(reqs) => {
 				for req in reqs {
-					bridge.network_service.start_request(req);
+					bridge
+						.network_service
+						.start_request(&mut bridge.authority_discovery_service, req)
+						.await;
 				}
 			},
 
@@ -605,7 +608,6 @@ mod tests {
 
 	use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 	use polkadot_subsystem::messages::{
-		AvailabilityDistributionMessage,
 		AvailabilityRecoveryMessage,
 		ApprovalDistributionMessage,
 		BitfieldDistributionMessage,
@@ -624,6 +626,7 @@ mod tests {
 	use polkadot_node_network_protocol::{ObservedRole, request_response::request::Requests};
 
 	use crate::network::{Network, NetworkAction};
+	use crate::validator_discovery::AuthorityDiscovery;
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	struct TestNetwork {
@@ -663,6 +666,7 @@ mod tests {
 		)
 	}
 
+	#[async_trait]
 	impl Network for TestNetwork {
 		fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 			self.net_events.lock()
@@ -677,7 +681,7 @@ mod tests {
 			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
 		}
 
-		fn start_request(&self, _: Requests) {
+		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests) {
 		}
 	}
 
@@ -798,13 +802,6 @@ mod tests {
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::NetworkBridgeUpdateV1(e)
-			) if e == event.focus().expect("could not focus message")
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::AvailabilityDistribution(
-				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(e)
 			) if e == event.focus().expect("could not focus message")
 		);
 
@@ -1527,7 +1524,7 @@ mod tests {
 	fn spread_event_to_subsystems_is_up_to_date() {
 		// Number of subsystems expected to be interested in a network event,
 		// and hence the network event broadcasted to.
-		const EXPECTED_COUNT: usize = 6;
+		const EXPECTED_COUNT: usize = 5;
 
 		let mut cnt = 0_usize;
 		for msg in AllMessages::dispatch_iter(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
@@ -1538,7 +1535,7 @@ mod tests {
 				AllMessages::ChainApi(_) => unreachable!("Not interested in network events"),
 				AllMessages::CollatorProtocol(_) => unreachable!("Not interested in network events"),
 				AllMessages::StatementDistribution(_) => { cnt += 1; }
-				AllMessages::AvailabilityDistribution(_) => { cnt += 1; }
+				AllMessages::AvailabilityDistribution(_) => unreachable!("Not interested in network events"),
 				AllMessages::AvailabilityRecovery(_) => { cnt += 1; }
 				AllMessages::BitfieldDistribution(_) => { cnt += 1; }
 				AllMessages::BitfieldSigning(_) => unreachable!("Not interested in network events"),
