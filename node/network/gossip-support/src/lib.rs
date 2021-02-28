@@ -21,7 +21,7 @@
 use futures::FutureExt as _;
 use polkadot_node_subsystem::{
 	messages::{
-		ConnectionRequestIssuerMessage,
+		GossipSupportMessage,
 	},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	Subsystem, SpawnedSubsystem, SubsystemContext,
@@ -35,10 +35,10 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_network_protocol::peer_set::PeerSet;
 
-const LOG_TARGET: &str = "connection_request_issuer";
+const LOG_TARGET: &str = "gossip_support";
 
 /// The Connection Request Issuer subsystem.
-pub struct ConnectionRequestIssuer {}
+pub struct GossipSupport {}
 
 #[derive(Default)]
 struct State {
@@ -47,8 +47,8 @@ struct State {
 	last_connection_request: Option<ConnectionRequest>,
 }
 
-impl ConnectionRequestIssuer {
-	/// Create a new instance of the [`ConnectionRequestIssuer`] subsystem.
+impl GossipSupport {
+	/// Create a new instance of the [`GossipSupport`] subsystem.
 	pub fn new() -> Self {
 		Self {}
 	}
@@ -56,7 +56,7 @@ impl ConnectionRequestIssuer {
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context)
 	where
-		Context: SubsystemContext<Message = ConnectionRequestIssuerMessage>,
+		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
 		self.run_inner(ctx, &mut state).await
@@ -65,7 +65,7 @@ impl ConnectionRequestIssuer {
 	#[tracing::instrument(skip(self, ctx, state), fields(subsystem = LOG_TARGET))]
 	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
 	where
-		Context: SubsystemContext<Message = ConnectionRequestIssuerMessage>,
+		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		loop {
 			let message = match ctx.recv().await {
@@ -150,9 +150,9 @@ impl State {
 	}
 }
 
-impl<C> Subsystem<C> for ConnectionRequestIssuer
+impl<C> Subsystem<C> for GossipSupport
 where
-	C: SubsystemContext<Message = ConnectionRequestIssuerMessage> + Sync + Send,
+	C: SubsystemContext<Message = GossipSupportMessage> + Sync + Send,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = self.run(ctx)

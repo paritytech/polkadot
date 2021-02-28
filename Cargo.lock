@@ -5183,19 +5183,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-connection-request-issuer"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.12",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
- "polkadot-primitives",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
 name = "polkadot-core-primitives"
 version = "0.7.30"
 dependencies = [
@@ -5216,6 +5203,19 @@ dependencies = [
  "sp-core",
  "sp-trie",
  "thiserror",
+]
+
+[[package]]
+name = "polkadot-gossip-support"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.12",
+ "polkadot-node-network-protocol",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5939,7 +5939,7 @@ dependencies = [
  "polkadot-availability-distribution",
  "polkadot-availability-recovery",
  "polkadot-collator-protocol",
- "polkadot-connection-request-issuer",
+ "polkadot-gossip-support",
  "polkadot-network-bridge",
  "polkadot-node-collation-generation",
  "polkadot-node-core-approval-voting",

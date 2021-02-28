@@ -682,9 +682,9 @@ pub enum ApprovalDistributionMessage {
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
 }
 
-/// Message to the Connection Request Issuer subsystem.
+/// Message to the Gossip Support subsystem.
 #[derive(Debug)]
-pub enum ConnectionRequestIssuerMessage {
+pub enum GossipSupportMessage {
 }
 
 /// A message type tying together all message types that are used across Subsystems.
@@ -740,9 +740,9 @@ pub enum AllMessages {
 	ApprovalVoting(ApprovalVotingMessage),
 	/// Message for the Approval Distribution subsystem.
 	ApprovalDistribution(ApprovalDistributionMessage),
-	/// Message for the Connection Request Issuer subsystem.
+	/// Message for the Gossip Support subsystem.
 	#[skip]
-	ConnectionRequestIssuer(ConnectionRequestIssuerMessage),
+	GossipSupport(GossipSupportMessage),
 }
 
 impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {
