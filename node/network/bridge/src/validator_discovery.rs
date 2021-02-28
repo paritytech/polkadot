@@ -22,7 +22,6 @@ use std::collections::{HashSet, HashMap, hash_map};
 use std::sync::Arc;
 use std::iter::FromIterator;
 use std::borrow::Cow::Owned;
-use std::collections::hash_map::Entry;
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
@@ -39,9 +38,10 @@ use polkadot_subsystem::{SubsystemContext, SubsystemResult};
 use polkadot_subsystem::messages::NetworkBridgeMessage;
 use futures::lock::Mutex;
 use std::collections::VecDeque;
-use futures::stream::Fuse;
 
 const LOG_TARGET: &str = "validator_discovery";
+
+const MAX_ADDR_PER_PEER: usize = 3;
 
 /// An abstraction over networking for the purposes of validator discovery service.
 #[async_trait]
@@ -87,26 +87,28 @@ type AuthorityDiscoveryPollingQueue = VecDeque<(AuthorityDiscoveryId, String, u3
 
 pub(super) struct AuthorityDiscoveryPollingJob {
 	polling_duration: Duration,
-	from_outside: mpsc::UnboundedReceiver<(AuthorityDiscoveryId, String)>,
 	max_retry: u32,
 	max_queue_size: usize,
 	batch_size: usize,
 }
 
+impl Default for AuthorityDiscoveryPollingJob {
+	fn default() -> Self {
+		AuthorityDiscoveryPollingJob::new(Duration::from_secs(10*60), 3, 128, 16)
+	}
+}
+
 impl AuthorityDiscoveryPollingJob {
-	pub(super) fn new(polling_duration: Duration, max_retry: u32, max_queue_size: usize, batch_size: usize) -> (Self, mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>) {
-		// TODO: Decide whether to make this bounded or unbounded
-		let (sender, receiver) = mpsc::unbounded();
-		(Self {
+	pub(super) fn new(polling_duration: Duration, max_retry: u32, max_queue_size: usize, batch_size: usize) -> Self {
+		Self {
 			polling_duration,
-			from_outside: receiver,
 			max_retry,
 			max_queue_size,
 			batch_size,
-		}, sender)
+		}
 	}
 
-	async fn run(mut self, mut network_service: impl Network, mut authority_discovery: impl AuthorityDiscovery) {
+	async fn run(self, mut receiver: mpsc::UnboundedReceiver<(AuthorityDiscoveryId, String)>, mut network_service: impl Network, mut authority_discovery: impl AuthorityDiscovery) {
 		let polling_queue: Arc<Mutex<AuthorityDiscoveryPollingQueue>> = Arc::new(Mutex::new(AuthorityDiscoveryPollingQueue::new()));
 
 		loop {
@@ -120,8 +122,7 @@ impl AuthorityDiscoveryPollingJob {
 							let result = authority_discovery.get_addresses_by_authority_id(authority_id.clone()).await;
 							if let Some(addresses) = result {
 								// We might have several `PeerId`s per `AuthorityId`
-								// TODO: Take `3` from constant
-								let addresses_to_take = addresses.into_iter().take(3);
+								let addresses_to_take = addresses.into_iter().take(MAX_ADDR_PER_PEER);
 
 								if multiaddr_to_add.contains_key(&protocol_name) {
 									multiaddr_to_add.entry(protocol_name).and_modify(|e| e.extend(addresses_to_take));
@@ -147,19 +148,20 @@ impl AuthorityDiscoveryPollingJob {
 						}
 					}
 				},
-				(authority_id, protocol_name) = self.from_outside.select_next_some().fuse() => {
+				(authority_id, protocol_name) = receiver.select_next_some().fuse() => {
 					let mut locked = polling_queue.lock().await;
 					// TODO: Better strategy than ignore?
 					if locked.len() < self.max_queue_size {
 						locked.push_back((authority_id, protocol_name, 0u32));
 					}
 				}
-		}
+			}
 		}
 	}
 
-	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> SubsystemResult<()> {
-		ctx.spawn("authority_discovery_polling", self.run(network_service, authority_discovery).boxed()).await
+	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> (mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>, SubsystemResult<()>) {
+		let (sender, receiver) = mpsc::unbounded();
+		(sender, ctx.spawn("authority_discovery_polling", self.run(receiver, network_service, authority_discovery).boxed()).await)
 	}
 }
 

@@ -164,13 +164,13 @@ where
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
-	let (polling_job, authority_id_tx) = AuthorityDiscoveryPollingJob::new(
+	let polling_job = AuthorityDiscoveryPollingJob::new(
 		Duration::from_secs(10*60),
 		3,
 		100,
 		10,
 	);
-	polling_job.start(&mut ctx, bridge.network_service.clone(), bridge.authority_discovery_service.clone()).await;
+	let (tx, result) = polling_job.start(&mut ctx, bridge.network_service.clone(), bridge.authority_discovery_service.clone()).await;
 
 	loop {
 
