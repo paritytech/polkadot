@@ -161,12 +161,10 @@ impl AuthorityDiscoveryPollingJob {
 
 	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> SubsystemResult<mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>> {
 		let (sender, receiver) = mpsc::unbounded();
-		ctx.spawn("authority_discovery_polling", self.run(receiver, network_service, authority_discovery).boxed()).await?;
+		ctx.spawn("authority-discovery-polling", self.run(receiver, network_service, authority_discovery).boxed()).await?;
 		Ok(sender)
 	}
 }
-
-
 
 /// This struct tracks the state for one `ConnectToValidators` request.
 struct NonRevokedConnectionRequestState {
