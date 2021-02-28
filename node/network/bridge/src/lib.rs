@@ -44,7 +44,6 @@ pub use polkadot_node_network_protocol::peer_set::peer_sets_info;
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::sync::Arc;
-use std::time::Duration;
 
 mod validator_discovery;
 
@@ -164,12 +163,7 @@ where
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
-	let polling_job = AuthorityDiscoveryPollingJob::new(
-		Duration::from_secs(10*60),
-		3,
-		100,
-		10,
-	);
+	let polling_job = AuthorityDiscoveryPollingJob::default();
 	let (tx, result) = polling_job.start(&mut ctx, bridge.network_service.clone(), bridge.authority_discovery_service.clone()).await;
 
 	loop {
