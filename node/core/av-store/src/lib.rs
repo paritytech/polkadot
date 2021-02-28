@@ -968,7 +968,7 @@ fn process_message(
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
 			let a = load_meta(&subsystem.db, &candidate)?
 				.map_or(false, |m|
-					*m.chunks_stored.get(validator_index as usize).as_deref().unwrap_or(&false)
+					*m.chunks_stored.get(validator_index.0 as usize).as_deref().unwrap_or(&false)
 				);
 			let _ = tx.send(a);
 		}
@@ -1034,10 +1034,10 @@ fn store_chunk(
 		None => return Ok(false), // we weren't informed of this candidate by import events.
 	};
 
-	match meta.chunks_stored.get(chunk.index as usize).map(|b| *b) {
+	match meta.chunks_stored.get(chunk.index.0 as usize).map(|b| *b) {
 		Some(true) => return Ok(true), // already stored.
 		Some(false) => {
-			meta.chunks_stored.set(chunk.index as usize, true);
+			meta.chunks_stored.set(chunk.index.0 as usize, true);
 
 			write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
 			write_meta(&mut tx, &candidate_hash, &meta);
@@ -1090,7 +1090,7 @@ fn store_available_data(
 		.map(|(index, (chunk, proof))| ErasureChunk {
 			chunk: chunk.clone(),
 			proof,
-			index: index as u32,
+			index: ValidatorIndex(index as u32),
 		});
 
 	for chunk in erasure_chunks {
@@ -1142,7 +1142,7 @@ fn prune_all(db: &Arc<dyn KeyValueDB>, clock: &dyn Clock) -> Result<(), Error> {
 			// delete chunks.
 			for (i, b) in meta.chunks_stored.iter().enumerate() {
 				if *b {
-					delete_chunk(&mut tx, &candidate_hash, i as _);
+					delete_chunk(&mut tx, &candidate_hash, ValidatorIndex(i as _));
 				}
 			}
 

@@ -470,7 +470,6 @@ mod tests {
 
 	impl configuration::Config for Test { }
 
-
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;
 		pub const QueueSize: usize = 2;
