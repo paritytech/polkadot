@@ -175,11 +175,15 @@ decl_module! {
 		fn deposit_event() = default;
 
 		fn on_initialize(n: T::BlockNumber) -> Weight {
+			let mut weight = T::DbWeight::get().reads(1);
+
 			// If the current auction was in its ending period last block, then ensure that the (sub-)range
 			// winner information is duplicated from the previous block in case no bids happened in the
 			// last block.
 			if let Some(offset) = n.checked_sub(&One::one()).and_then(|n| Self::is_ending(n)) {
+				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				if !Winning::<T>::contains_key(&offset) {
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					Winning::<T>::insert(offset,
 						offset.checked_sub(&One::one())
 							.and_then(Winning::<T>::get)
@@ -196,9 +200,10 @@ decl_module! {
 					auction_lease_period_index,
 					winning_ranges,
 				);
+				weight = weight.saturating_add(T::WeightInfo::on_initialize());
 			}
 
-			T::WeightInfo::on_initialize()
+			weight
 		}
 
 		/// Create a new auction.
@@ -428,6 +433,7 @@ impl<T: Config> Module<T> {
 	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
 			let ending_period = T::EndingPeriod::get();
+
 			if early_end + ending_period == now {
 				// Just ended!
 				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
@@ -452,8 +458,6 @@ impl<T: Config> Module<T> {
 		auction_lease_period_index: LeasePeriodOf<T>,
 		winning_ranges: WinningData<T>,
 	) {
-		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get()));
-
 		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
@@ -488,6 +492,8 @@ impl<T: Config> Module<T> {
 				Ok(()) => {}, // Nothing to report.
 			}
 		}
+
+		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get()));
 	}
 
 	/// Calculate the final winners from the winning slots.
@@ -1147,6 +1153,7 @@ mod tests {
 mod benchmarking {
 	use super::{*, Module as Auctions};
 	use frame_system::RawOrigin;
+	use frame_support::traits::OnInitialize;
 	use sp_runtime::traits::Bounded;
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
@@ -1210,7 +1217,53 @@ mod benchmarking {
 			).into());
 		}
 
-		// TODO: on_initialize
+		// Worst case: 10 bidders taking all wining spots, and we need to calculate the winner for auction end.
+		on_initialize {
+			// Create a new auction
+			let duration: T::BlockNumber = 99u32.into();
+			let lease_period_index = LeasePeriodOf::<T>::zero();
+			let now = frame_system::Module::<T>::block_number();
+			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+			let auction_index = AuctionCounter::get();
+
+			let minimum_balance = CurrencyOf::<T>::minimum_balance();
+
+			for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+				let bidder = account("bidder", n, 0);
+				CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
+
+				let (start, end) = match n {
+					1  => (0u32, 0u32),
+					2  => (0, 1),
+					3  => (0, 2),
+					4  => (0, 3),
+					5  => (1, 1),
+					6  => (1, 2),
+					7  => (1, 3),
+					8  => (2, 2),
+					9  => (2, 3),
+					10 => (3, 3),
+					_ => panic!("test not meant for this"),
+				};
+
+				Auctions::<T>::bid(
+					RawOrigin::Signed(bidder).into(),
+					ParaId::from(n),
+					auction_index,
+					lease_period_index + start.into(), // First Slot
+					lease_period_index + end.into(), // Last slot
+					minimum_balance.saturating_mul(n.into()), // Amount
+				)?;
+			}
+
+			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
+				assert!(winner.is_some());
+			}
+		}: {
+			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
+		} verify {
+			assert_last_event::<T>(RawEvent::AuctionClosed(auction_index).into());
+		}
 	}
 
 	#[cfg(test)]
@@ -1233,5 +1286,11 @@ mod benchmarking {
 			});
 		}
 
+		#[test]
+		fn on_initialize() {
+			new_test_ext().execute_with(|| {
+				assert_ok!(test_benchmark_on_initialize::<Test>());
+			});
+		}
 	}
 }

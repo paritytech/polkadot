@@ -325,11 +325,7 @@ fn basic_end_to_end_works() {
 		run_to_block(110);
 		assert_eq!(
 			last_event(),
-			slots::RawEvent::Leased(
-				ParaId::from(2),
-				crowdloan_account,
-				lease_period_index_start + 2, 2, 920, 920,
-			).into(),
+			auctions::RawEvent::AuctionClosed(1).into(),
 		);
 
 		// Paras should have won slots
