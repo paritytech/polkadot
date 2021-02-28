@@ -81,7 +81,7 @@ type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, Balan
 
 // This module's storage items.
 decl_storage! {
-	trait Store for Module<T: Config> as Slots {
+	trait Store for Module<T: Config> as Auctions {
 		/// Number of auctions started so far.
 		pub AuctionCounter: AuctionIndex;
 
