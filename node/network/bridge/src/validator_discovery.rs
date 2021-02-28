@@ -20,21 +20,32 @@ use core::marker::PhantomData;
 use std::borrow::Cow;
 use std::collections::{HashSet, HashMap, hash_map};
 use std::sync::Arc;
+use std::iter::FromIterator;
+use std::borrow::Cow::Owned;
+use std::collections::hash_map::Entry;
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
+use futures::{select, FutureExt, StreamExt};
+use futures_timer::Delay;
 
 use sc_network::multiaddr::{Multiaddr, Protocol};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
+use std::time::Duration;
+use polkadot_subsystem::{SubsystemContext, SubsystemResult};
+use polkadot_subsystem::messages::NetworkBridgeMessage;
+use futures::lock::Mutex;
+use std::collections::VecDeque;
+use futures::stream::Fuse;
 
 const LOG_TARGET: &str = "validator_discovery";
 
 /// An abstraction over networking for the purposes of validator discovery service.
 #[async_trait]
-pub trait Network: Send + 'static {
+pub trait Network: Send + Sync + 'static + Clone {
 	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
 	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 	/// Remove the peers from the priority group.
@@ -43,7 +54,7 @@ pub trait Network: Send + 'static {
 
 /// An abstraction over the authority discovery service.
 #[async_trait]
-pub trait AuthorityDiscovery: Send + 'static {
+pub trait AuthorityDiscovery: Send + Sync + 'static + Clone {
 	/// Get the addresses for the given [`AuthorityId`] from the local address cache.
 	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
@@ -71,6 +82,88 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 		AuthorityDiscoveryService::get_authority_id_by_peer_id(self, peer_id).await
 	}
 }
+
+type AuthorityDiscoveryPollingQueue = VecDeque<(AuthorityDiscoveryId, String, u32)>;
+
+pub(super) struct AuthorityDiscoveryPollingJob {
+	polling_duration: Duration,
+	from_outside: mpsc::UnboundedReceiver<(AuthorityDiscoveryId, String)>,
+	max_retry: u32,
+	max_queue_size: usize,
+	batch_size: usize,
+}
+
+impl AuthorityDiscoveryPollingJob {
+	pub(super) fn new(polling_duration: Duration, max_retry: u32, max_queue_size: usize, batch_size: usize) -> (Self, mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>) {
+		// TODO: Decide whether to make this bounded or unbounded
+		let (sender, receiver) = mpsc::unbounded();
+		(Self {
+			polling_duration,
+			from_outside: receiver,
+			max_retry,
+			max_queue_size,
+			batch_size,
+		}, sender)
+	}
+
+	async fn run(mut self, mut network_service: impl Network, mut authority_discovery: impl AuthorityDiscovery) {
+		let polling_queue: Arc<Mutex<AuthorityDiscoveryPollingQueue>> = Arc::new(Mutex::new(AuthorityDiscoveryPollingQueue::new()));
+
+		loop {
+			select! {
+				_ = Delay::new(self.polling_duration).fuse() => {
+					let mut locked = polling_queue.lock().await;
+					let mut multiaddr_to_add: HashMap<String, HashSet<Multiaddr>> = HashMap::new();
+
+					for _i in 0..self.batch_size {
+						if let Some((authority_id, protocol_name, retry_count)) = locked.pop_front() {
+							let result = authority_discovery.get_addresses_by_authority_id(authority_id.clone()).await;
+							if let Some(addresses) = result {
+								// We might have several `PeerId`s per `AuthorityId`
+								// TODO: Take `3` from constant
+								let addresses_to_take = addresses.into_iter().take(3);
+
+								if multiaddr_to_add.contains_key(&protocol_name) {
+									multiaddr_to_add.entry(protocol_name).and_modify(|e| e.extend(addresses_to_take));
+								} else {
+									multiaddr_to_add.insert(protocol_name, HashSet::from_iter(addresses_to_take));
+								}
+							} else {
+								if retry_count+1 < self.max_retry {
+									locked.push_back((authority_id, protocol_name, retry_count+1));
+								}
+							}
+						}
+					}
+
+					for (protocol_name, addresses) in multiaddr_to_add {
+						// ask the network to connect to these nodes and not disconnect
+						// from them until removed from the set
+						if let Err(e) = network_service.add_peers_to_reserved_set(
+							Owned(protocol_name),
+							addresses,
+						).await {
+							tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
+						}
+					}
+				},
+				(authority_id, protocol_name) = self.from_outside.select_next_some().fuse() => {
+					let mut locked = polling_queue.lock().await;
+					// TODO: Better strategy than ignore?
+					if locked.len() < self.max_queue_size {
+						locked.push_back((authority_id, protocol_name, 0u32));
+					}
+				}
+		}
+		}
+	}
+
+	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> SubsystemResult<()> {
+		ctx.spawn("authority_discovery_polling", self.run(network_service, authority_discovery).boxed()).await
+	}
+}
+
+
 
 /// This struct tracks the state for one `ConnectToValidators` request.
 struct NonRevokedConnectionRequestState {

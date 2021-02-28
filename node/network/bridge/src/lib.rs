@@ -44,6 +44,7 @@ pub use polkadot_node_network_protocol::peer_set::peer_sets_info;
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::sync::Arc;
+use std::time::Duration;
 
 mod validator_discovery;
 
@@ -63,6 +64,7 @@ use network::{Network, send_message};
 /// Request multiplexer for combining the multiple request sources into a single `Stream` of `AllMessages`.
 mod multiplexer;
 pub use multiplexer::RequestMultiplexer;
+use crate::validator_discovery::AuthorityDiscoveryPollingJob;
 
 
 /// The maximum amount of heads a peer is allowed to have in their view at any time.
@@ -162,6 +164,13 @@ where
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
+	let (polling_job, authority_id_tx) = AuthorityDiscoveryPollingJob::new(
+		Duration::from_secs(10*60),
+		3,
+		100,
+		10,
+	);
+	polling_job.start(&mut ctx, bridge.network_service.clone(), bridge.authority_discovery_service.clone()).await;
 
 	loop {
 
