@@ -44,38 +44,38 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	fn remark(_b: u32, ) -> Weight {
-		(1_326_000 as Weight)
+		(1_260_000 as Weight)
 	}
 	fn remark_with_event(b: u32, ) -> Weight {
-		(1 as Weight)
+		(0 as Weight)
 			// Standard Error: 0
 			.saturating_add((1_000 as Weight).saturating_mul(b as Weight))
 	}
 	fn set_heap_pages() -> Weight {
-		(1_849_000 as Weight)
+		(1_740_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn set_changes_trie_config() -> Weight {
-		(9_961_000 as Weight)
+		(9_222_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn set_storage(i: u32, ) -> Weight {
 		(0 as Weight)
 			// Standard Error: 0
-			.saturating_add((570_000 as Weight).saturating_mul(i as Weight))
+			.saturating_add((574_000 as Weight).saturating_mul(i as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(i as Weight)))
 	}
 	fn kill_storage(i: u32, ) -> Weight {
 		(0 as Weight)
 			// Standard Error: 0
-			.saturating_add((416_000 as Weight).saturating_mul(i as Weight))
+			.saturating_add((404_000 as Weight).saturating_mul(i as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(i as Weight)))
 	}
 	fn kill_prefix(p: u32, ) -> Weight {
 		(0 as Weight)
-			// Standard Error: 1_000
-			.saturating_add((859_000 as Weight).saturating_mul(p as Weight))
+			// Standard Error: 0
+			.saturating_add((879_000 as Weight).saturating_mul(p as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(p as Weight)))
 	}
 }
