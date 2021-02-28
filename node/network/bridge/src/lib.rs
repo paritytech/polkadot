@@ -162,9 +162,9 @@ where
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
-	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
 	let polling_job = AuthorityDiscoveryPollingJob::default();
-	let (tx, result) = polling_job.start(&mut ctx, bridge.network_service.clone(), bridge.authority_discovery_service.clone()).await;
+	let to_polling_job = polling_job.start(&mut ctx, bridge.network_service.clone(), bridge.authority_discovery_service.clone()).await?;
+	let mut validator_discovery = validator_discovery::Service::<N, AD>::new(to_polling_job);
 
 	loop {
 

@@ -25,7 +25,7 @@ use std::borrow::Cow::Owned;
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
-use futures::{select, FutureExt, StreamExt};
+use futures::{select, FutureExt, StreamExt, SinkExt};
 use futures_timer::Delay;
 
 use sc_network::multiaddr::{Multiaddr, Protocol};
@@ -159,9 +159,10 @@ impl AuthorityDiscoveryPollingJob {
 		}
 	}
 
-	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> (mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>, SubsystemResult<()>) {
+	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> SubsystemResult<mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>> {
 		let (sender, receiver) = mpsc::unbounded();
-		(sender, ctx.spawn("authority_discovery_polling", self.run(receiver, network_service, authority_discovery).boxed()).await)
+		ctx.spawn("authority_discovery_polling", self.run(receiver, network_service, authority_discovery).boxed()).await?;
+		Ok(sender)
 	}
 }
 
@@ -239,6 +240,7 @@ pub(super) struct Service<N, AD> {
 	state: PerPeerSet<StatePerPeerSet>,
 	// PhantomData used to make the struct generic instead of having generic methods
 	_phantom: PhantomData<(N, AD)>,
+	to_polling_job: mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>,
 }
 
 #[derive(Default)]
@@ -254,9 +256,10 @@ struct StatePerPeerSet {
 }
 
 impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
-	pub fn new() -> Self {
+	pub fn new(tx: mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>) -> Self {
 		Self {
 			state: PerPeerSet::default(),
+			to_polling_job: tx,
 			_phantom: PhantomData,
 		}
 	}
@@ -361,6 +364,12 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				multiaddr_to_add.extend(addresses.into_iter().take(MAX_ADDR_PER_PEER));
 			} else {
 				tracing::debug!(target: LOG_TARGET, "Authority Discovery couldn't resolve {:?}", authority);
+				match self.to_polling_job.send((authority.clone(), peer_set.into_protocol_name().into_owned())).await {
+					Err(e) => {
+						tracing::warn!(target: LOG_TARGET, err = ?e, "Unable to send authority id to authority discovery polling job.");
+					},
+					Ok(_) => {}
+				}
 			}
 		}
 
