@@ -73,4 +73,7 @@ impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 			.saturating_add((836_000 as Weight).saturating_mul(p as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(p as Weight)))
 	}
+	fn remark_with_event(_b: u32, ) -> Weight {
+		(1_317_000 as Weight)
+	}
 }
