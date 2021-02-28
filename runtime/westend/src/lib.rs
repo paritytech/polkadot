@@ -710,6 +710,7 @@ impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
 	type Origin = Origin;
+	type Event = Event;
 	type Currency = Balances;
 }
 
@@ -875,7 +876,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Module, Call, Storage} = 35,
 		Dmp: parachains_dmp::{Module, Call, Storage} = 36,
 		Ump: parachains_ump::{Module, Call, Storage} = 37,
-		Hrmp: parachains_hrmp::{Module, Call, Storage} = 38,
+		Hrmp: parachains_hrmp::{Module, Call, Storage, Event} = 38,
 		ParachainsSessionInfo: parachains_session_info::{Module, Call, Storage} = 39,
 
 		// Parachain Onboarding Pallets
