@@ -406,7 +406,8 @@ impl<T: Config> Module<T> {
 					// Previous bidder is no longer winning any ranges: unreserve their funds.
 					if let Some(amount) = ReservedAmounts::<T>::take(&(who.clone(), para)) {
 						// It really should be reserved; there's not much we can do here on fail.
-						let _ = CurrencyOf::<T>::unreserve(&who, amount);
+						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
+						debug_assert!(err_amt.is_zero());
 
 						Self::deposit_event(RawEvent::Unreserved(who, amount));
 					}
@@ -1200,7 +1201,7 @@ mod benchmarking {
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			let new_para = ParaId::from(1);
 			let bigger_amount = CurrencyOf::<T>::minimum_balance().saturating_mul(10u32.into());
-		}: _(RawOrigin::Signed(caller), new_para, auction_index, first_slot, last_slot, bigger_amount)
+		}: _(RawOrigin::Signed(caller.clone()), new_para, auction_index, first_slot, last_slot, bigger_amount)
 		verify {
 			// Confirms that we unreserved funds from a previous bidder, which is worst case scenario.
 			assert_last_event::<T>(RawEvent::Unreserved(
@@ -1215,15 +1216,22 @@ mod benchmarking {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use crate::auctions::tests::{new_test_ext, Test};
+		use crate::integration_tests::{new_test_ext, Test};
 		use frame_support::assert_ok;
 
 		#[test]
-		fn test_benchmarks() {
+		fn new_auction() {
 			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_new_auction::<Test>());
+			});
+		}
+
+		#[test]
+		fn bid() {
+			new_test_ext().execute_with(|| {
 				assert_ok!(test_benchmark_bid::<Test>());
 			});
 		}
+
 	}
 }

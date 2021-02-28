@@ -16,15 +16,17 @@
 
 //! Mocking utilities for testing with real pallets.
 
+use sp_std::sync::Arc;
 use sp_io::TestExternalities;
 use sp_core::H256;
 use sp_runtime::{
 	ModuleId,
 	curve::PiecewiseLinear,
 	traits::{
-		BlakeTwo256, IdentityLookup,
+		BlakeTwo256, IdentityLookup, One,
 	},
 };
+use sp_keystore::{KeystoreExt, testing::KeyStore};
 use primitives::v1::{BlockNumber, Header, Id as ParaId};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop,
@@ -116,7 +118,7 @@ pallet_staking_reward_curve::build! {
 }
 
 parameter_types! {
-	pub static ExistentialDeposit: Balance = 0;
+	pub static ExistentialDeposit: Balance = 1;
 }
 
 impl pallet_balances::Config for Test {
@@ -204,7 +206,11 @@ impl crowdloan::Config for Test {
 /// Create a new set of test externalities.
 pub fn new_test_ext() -> TestExternalities {
 	let t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-	t.into()
+	let keystore = KeyStore::new();
+	let mut ext: sp_io::TestExternalities = t.into();
+	ext.register_extension(KeystoreExt(Arc::new(keystore)));
+	ext.execute_with(|| System::set_block_number(1));
+	ext
 }
 
 const BLOCKS_PER_SESSION: u32 = 10;
@@ -243,6 +249,7 @@ fn last_event() -> Event {
 #[test]
 fn basic_end_to_end_works() {
 	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one());
 		// User 1 and 2 will own parachains
 		Balances::make_free_balance_be(&1, 1_000);
 		Balances::make_free_balance_be(&2, 1_000);
@@ -267,7 +274,7 @@ fn basic_end_to_end_works() {
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Onboarding));
 
 		// Start a new auction in the future
-		let duration = 100u32;
+		let duration = 99u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
@@ -385,6 +392,7 @@ fn basic_end_to_end_works() {
 #[test]
 fn basic_errors_fail() {
 	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one());
 		// Can't double register
 		Balances::make_free_balance_be(&1, 1_000);
 		Balances::make_free_balance_be(&2, 1_000);
@@ -405,7 +413,7 @@ fn basic_errors_fail() {
 		), paras_registrar::Error::<Test>::AlreadyRegistered);
 
 		// Start an auction
-		let duration = 100u32;
+		let duration = 99u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
@@ -426,6 +434,7 @@ fn basic_errors_fail() {
 fn competing_slots() {
 	// This test will verify that competing slots, from different sources will resolve appropriately.
 	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one());
 		let max_bids = 10u32;
 
 		// Create n paras and owners
@@ -442,7 +451,7 @@ fn competing_slots() {
 		}
 
 		// Start a new auction in the future
-		let duration = 100u32;
+		let duration = 99u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
@@ -511,9 +520,9 @@ fn competing_slots() {
 fn competing_bids() {
 	// This test will verify that competing bids, from different sources will resolve appropriately.
 	new_test_ext().execute_with(|| {
-
+		assert!(System::block_number().is_one());
 		// Start a new auction in the future
-		let duration = 100u32;
+		let duration = 99u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 

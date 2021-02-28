@@ -174,6 +174,7 @@ impl<T: frame_system::Config> TestRegistrar<T> {
 		PARATHREADS.with(|x| x.borrow().clone())
 	}
 
+	#[allow(dead_code)]
 	pub fn clear_storage() {
 		OPERATIONS.with(|x| x.borrow_mut().clear());
 		PARACHAINS.with(|x| x.borrow_mut().clear());

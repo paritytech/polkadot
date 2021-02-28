@@ -911,7 +911,7 @@ mod benchmarking {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use crate::paras_registrar::tests::{new_test_ext, Test};
+		use crate::integration_tests::{new_test_ext, Test};
 		use frame_support::assert_ok;
 
 		#[test]

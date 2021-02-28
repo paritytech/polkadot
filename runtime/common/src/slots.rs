@@ -680,6 +680,7 @@ mod benchmarking {
 		let worst_validation_code = T::Registrar::worst_validation_code();
 
 		assert_ok!(T::Registrar::register(leaser.clone(), para, worst_head_data, worst_validation_code));
+		T::Registrar::execute_pending_transitions();
 
 		(para, leaser)
 	}
@@ -703,9 +704,6 @@ mod benchmarking {
 			let c in 1 .. 100;
 			let t in 1 .. 100;
 
-			// Specifically needed for using TestRegistrar from mock environment in tests
-			#[cfg(test)] crate::mock::TestRegistrar::<T>::clear_storage();
-
 			let period_begin = 0u32.into();
 			let period_count = 3u32.into();
 
@@ -717,12 +715,15 @@ mod benchmarking {
 				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
 			}
 
+			T::Registrar::execute_pending_transitions();
+
 			// C parachains are downgrading to parathreads
 			for i in 200 .. 200 + c {
 				let (para, leaser) = register_a_parathread::<T>(i);
 				T::Registrar::make_parachain(para)?;
-				T::Registrar::execute_pending_transitions();
 			}
+
+			T::Registrar::execute_pending_transitions();
 
 			for i in 0 .. t {
 				assert!(T::Registrar::is_parathread(ParaId::from(i)));
@@ -748,7 +749,7 @@ mod benchmarking {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use crate::slots::tests::{new_test_ext, Test};
+		use crate::integration_tests::{new_test_ext, Test};
 		use frame_support::assert_ok;
 
 		#[test]

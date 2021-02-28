@@ -1244,7 +1244,7 @@ mod benchmarking {
 		assert_ok,
 		traits::OnInitialize,
 	};
-	use sp_runtime::traits::Bounded;
+	use sp_runtime::traits::{Bounded, CheckedSub};
 	use sp_std::prelude::*;
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
@@ -1382,9 +1382,6 @@ mod benchmarking {
 			let n in 2 .. 100;
 			let end_block: T::BlockNumber = 100u32.into();
 
-			// Specifically needed for using TestRegistrar from mock environment in tests
-			#[cfg(test)] crate::mock::TestRegistrar::<T>::clear_storage();
-
 			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 
 			for i in 0 .. n {
@@ -1399,7 +1396,10 @@ mod benchmarking {
 			}
 
 			let lease_period_index = T::Auctioneer::lease_period_index();
-			T::Auctioneer::new_auction(end_block, lease_period_index)?;
+			let duration = end_block
+				.checked_sub(&frame_system::Module::<T>::block_number())
+				.ok_or("duration of auction less than zero")?;
+			T::Auctioneer::new_auction(duration, lease_period_index)?;
 
 			assert_eq!(T::Auctioneer::is_ending(end_block), Some(0u32.into()));
 			assert_eq!(NewRaise::get().len(), n as usize);
@@ -1415,7 +1415,7 @@ mod benchmarking {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use crate::crowdloan::tests::{new_test_ext, Test};
+		use crate::integration_tests::{new_test_ext, Test};
 
 		#[test]
 		fn create() {
