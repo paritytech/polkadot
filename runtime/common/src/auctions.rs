@@ -20,7 +20,7 @@
 
 use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{CheckedSub, Zero, One, Saturating};
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::Decode;
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, Get, Randomness, EnsureOrigin},
@@ -72,15 +72,9 @@ pub trait Config: frame_system::Config {
 pub type AuctionIndex = u32;
 
 type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser>::LeasePeriod;
-
-
-// Winning data type. This encodes the top bidders of each range together with their bid and the auction this data is for.
-type Winners<AccountId, Balance> = [Option<(AccountId, ParaId, Balance)>; SLOT_RANGE_COUNT];
-#[derive(Encode, Decode, Default, Debug)]
-pub struct WinningData<AccountId, Balance> {
-	pub winners: Winners<AccountId, Balance>,
-	pub index: AuctionIndex,
-}
+// Winning data type. This encodes the top bidders of each range together with their bid.
+type WinningData<T> =
+	[Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>; SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>, SlotRange)>;
@@ -106,10 +100,7 @@ decl_storage! {
 		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
-		///
-		/// To avoid deleting all of this data at the end of an auction (potentially thousands of
-		/// storage writes), we keep previous auction data in storage.
-		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T::AccountId, BalanceOf<T>>>;
+		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
 	}
 }
 
@@ -191,7 +182,14 @@ decl_module! {
 			// last block.
 			if let Some(offset) = n.checked_sub(&One::one()).and_then(|n| Self::is_ending(n)) {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
-				Winning::<T>::insert(offset, Self::last_winning_data(offset));
+				if !Winning::<T>::contains_key(&offset) {
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					Winning::<T>::insert(offset,
+						offset.checked_sub(&One::one())
+							.and_then(Winning::<T>::get)
+							.unwrap_or_default()
+					);
+				}
 			}
 
 			// Check to see if an auction just ended.
@@ -308,38 +306,6 @@ impl<T: Config> Module<T> {
 		AuctionInfo::<T>::exists()
 	}
 
-	// Returns the last winning data known for this auction, checking the current auction index.
-	// * First checks the current winning data
-	// * Then checks the previous block's winning data
-	// * Then generates new winning data
-	fn last_winning_data(offset: T::BlockNumber) -> WinningData<T::AccountId, BalanceOf<T>> {
-		let current_index = AuctionCounter::get();
-		// Try to return the current winning data
-		let current_winning = Winning::<T>::get(offset);
-		if let Some(data) = current_winning {
-			if data.index == current_index {
-				return data;
-			}
-		}
-
-		// Current winning data does not exist.
-		// Try to return previous winning data...
-		if offset > 0u32.into() {
-			let previous_winning = Winning::<T>::get(offset - 1u32.into());
-			if let Some(data) = previous_winning {
-				if data.index == current_index {
-					return data;
-				}
-			}
-		}
-
-		// No current or previous winning data available... generate a new starting point.
-		WinningData {
-			winners: Default::default(),
-			index: current_index,
-		}
-	}
-
 	/// Create a new auction.
 	///
 	/// This can only happen when there isn't already an auction in progress. Accepts the `duration`
@@ -391,11 +357,13 @@ impl<T: Config> Module<T> {
 		// The offset into the auction ending set.
 		let offset = Self::is_ending(frame_system::Module::<T>::block_number()).unwrap_or_default();
 		// The current winning ranges.
-		let mut current_winning = Self::last_winning_data(offset);
+		let mut current_winning = Winning::<T>::get(offset)
+			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
+			.unwrap_or_default();
 		// If this bid beat the previous winner of our range.
-		if current_winning.winners[range_index].as_ref().map_or(true, |last| amount > last.2) {
+		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
 			// This must overlap with all existing ranges that we're winning on or it's invalid.
-			ensure!(current_winning.winners.iter()
+			ensure!(current_winning.iter()
 				.enumerate()
 				.all(|(i, x)| x.as_ref().map_or(true, |(w, _, _)|
 					w != &bidder || range.intersects(i.try_into()
@@ -434,9 +402,9 @@ impl<T: Config> Module<T> {
 			// Return any funds reserved for the previous winner if they no longer have any active
 			// bids.
 			let mut outgoing_winner = Some((bidder, para, amount));
-			swap(&mut current_winning.winners[range_index], &mut outgoing_winner);
+			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, para, _amount)) = outgoing_winner {
-				if current_winning.winners.iter()
+				if current_winning.iter()
 					.filter_map(Option::as_ref)
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
 				{
@@ -462,7 +430,7 @@ impl<T: Config> Module<T> {
 	///
 	/// This mutates the state, cleaning up `AuctionInfo` and `Winning` in the case of an auction
 	/// ending. An immediately subsequent call with the same argument will always return `None`.
-	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T::AccountId, BalanceOf<T>>, LeasePeriodOf<T>)> {
+	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
 			let ending_period = T::EndingPeriod::get();
 
@@ -470,9 +438,14 @@ impl<T: Config> Module<T> {
 				// Just ended!
 				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
 					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
+				let res = Winning::<T>::get(offset).unwrap_or_default();
+				let mut i = T::BlockNumber::zero();
+				while i < ending_period {
+					Winning::<T>::remove(i);
+					i += One::one();
+				}
 				AuctionInfo::<T>::kill();
-				let winning = Self::last_winning_data(offset);
-				return Some((winning, lease_period_index))
+				return Some((res, lease_period_index))
 			}
 		}
 		None
@@ -483,7 +456,7 @@ impl<T: Config> Module<T> {
 	/// range at the time of the auction's close.
 	fn manage_auction_end(
 		auction_lease_period_index: LeasePeriodOf<T>,
-		winning_ranges: WinningData<T::AccountId, BalanceOf<T>>,
+		winning_ranges: WinningData<T>,
 	) {
 		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
@@ -495,7 +468,7 @@ impl<T: Config> Module<T> {
 
 		// Next, calculate the winning combination of slots and thus the final winners of the
 		// auction.
-		let winners = Self::calculate_winners(winning_ranges.winners);
+		let winners = Self::calculate_winners(winning_ranges);
 
 		// Go through those winners and re-reserve their bid, updating our table of deposits
 		// accordingly.
@@ -528,7 +501,7 @@ impl<T: Config> Module<T> {
 	/// This is a simple dynamic programming algorithm designed by Al, the original code is at:
 	/// https://github.com/w3f/consensus/blob/master/NPoS/auctiondynamicthing.py
 	fn calculate_winners(
-		mut winning: Winners<T::AccountId, BalanceOf<T>>
+		mut winning: WinningData<T>
 	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at:
@@ -795,7 +768,7 @@ mod tests {
 			assert_eq!(Balances::reserved_balance(1), 5);
 			assert_eq!(Balances::free_balance(1), 5);
 			assert_eq!(
-				Auctions::winning(0).unwrap().winners[SlotRange::ZeroThree as u8 as usize],
+				Auctions::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
 				Some((1, 0.into(), 5))
 			);
 		});
@@ -828,7 +801,7 @@ mod tests {
 			assert_eq!(Balances::reserved_balance(2), 6);
 			assert_eq!(Balances::free_balance(2), 14);
 			assert_eq!(
-				Auctions::winning(0).unwrap().winners[SlotRange::ZeroThree as u8 as usize],
+				Auctions::winning(0).unwrap()[SlotRange::ZeroThree as u8 as usize],
 				Some((2, 0.into(), 6))
 			);
 		});
@@ -960,6 +933,7 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
 			assert_eq!(Balances::reserved_balance(1), 5);
+			println!("before {:?}", AuctionCounter::get());
 			run_to_block(10);
 
 			assert_eq!(leases(), vec![
@@ -969,6 +943,7 @@ mod tests {
 
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 2));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 2, 2, 2, 6));
+			println!("after {:?}", AuctionCounter::get());
 			// Only 1 reserved since we have a deposit credit of 5.
 			assert_eq!(Balances::reserved_balance(1), 1);
 			run_to_block(20);
@@ -1283,7 +1258,7 @@ mod benchmarking {
 				)?;
 			}
 
-			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().winners.iter() {
+			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
 				assert!(winner.is_some());
 			}
 		}: {
