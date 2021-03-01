@@ -35,7 +35,6 @@ use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
 use std::time::Duration;
 use polkadot_subsystem::{SubsystemContext, SubsystemResult};
 use polkadot_subsystem::messages::NetworkBridgeMessage;
-use futures::lock::Mutex;
 use std::collections::VecDeque;
 
 const LOG_TARGET: &str = "validator_discovery";
@@ -108,16 +107,15 @@ impl AuthorityDiscoveryPollingJob {
 	}
 
 	async fn run(self, mut receiver: mpsc::UnboundedReceiver<(AuthorityDiscoveryId, PeerSet)>, mut network_service: impl Network, mut authority_discovery: impl AuthorityDiscovery) {
-		let polling_queue: Arc<Mutex<AuthorityDiscoveryPollingQueue>> = Arc::new(Mutex::new(AuthorityDiscoveryPollingQueue::new()));
+		let mut polling_queue: AuthorityDiscoveryPollingQueue = AuthorityDiscoveryPollingQueue::new();
 
 		loop {
 			select! {
 				_ = Delay::new(self.polling_duration).fuse() => {
-					let mut locked = polling_queue.lock().await;
 					let mut multiaddr_to_add: HashMap<PeerSet, HashSet<Multiaddr>> = HashMap::new();
 
 					for _i in 0..self.batch_size {
-						if let Some((authority_id, peer_set, retry_count)) = locked.pop_front() {
+						if let Some((authority_id, peer_set, retry_count)) = polling_queue.pop_front() {
 							let result = authority_discovery.get_addresses_by_authority_id(authority_id.clone()).await;
 							if let Some(addresses) = result {
 								// We might have several `PeerId`s per `AuthorityId`
@@ -130,7 +128,7 @@ impl AuthorityDiscoveryPollingJob {
 								}
 							} else {
 								if retry_count+1 < self.max_retry {
-									locked.push_back((authority_id, peer_set, retry_count+1));
+									polling_queue.push_back((authority_id, peer_set, retry_count+1));
 								}
 							}
 						}
@@ -148,10 +146,8 @@ impl AuthorityDiscoveryPollingJob {
 					}
 				},
 				(authority_id, peer_set) = receiver.select_next_some().fuse() => {
-					let mut locked = polling_queue.lock().await;
-					// TODO: Better strategy than ignore?
-					if locked.len() < self.max_queue_size {
-						locked.push_back((authority_id, peer_set, 0u32));
+					if polling_queue.len() < self.max_queue_size {
+						polling_queue.push_back((authority_id, peer_set, 0u32));
 					}
 				}
 			}
@@ -480,12 +476,12 @@ mod tests {
 		(TestNetwork::default(), TestAuthorityDiscovery::new())
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	struct TestNetwork {
 		peers_set: HashSet<Multiaddr>,
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	struct TestAuthorityDiscovery {
 		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
 		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
