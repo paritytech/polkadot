@@ -483,7 +483,8 @@ fn competing_slots() {
 		}
 
 		// All winner slots are filled by bids
-		for winner in &auctions::Winning::<Test>::get(0).unwrap() {
+		let winners = auctions::Winning::<Test>::get(0).unwrap().winners;
+		for winner in &winners {
 			assert!(winner.is_some());
 		}
 
