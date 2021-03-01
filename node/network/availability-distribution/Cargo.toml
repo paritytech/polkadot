@@ -31,3 +31,5 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
 maplit = "1.0"
+bitvec = "0.20.1"
+smallvec = "1.6.1"
