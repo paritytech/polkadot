@@ -6089,11 +6089,15 @@ dependencies = [
  "polkadot-runtime",
  "polkadot-runtime-common",
  "polkadot-service",
+ "rand 0.7.3",
+ "sc-client-api",
  "sc-consensus",
  "sc-consensus-babe",
  "sc-consensus-manual-seal",
  "sc-executor",
  "sc-finality-grandpa",
+ "sc-informant",
+ "sc-network",
  "sc-service",
  "sp-api",
  "sp-consensus-babe",
@@ -9554,7 +9558,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-runner"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate-test-runner?branch=bump-substrate#8dca67a5a3bf08e337f533105e6b3fac3c1f533f"
+source = "git+https://github.com/paritytech/substrate-test-runner?branch=bump-substrate#6f70032b81a5e136c84f6c5f794d0f25deebec56"
 dependencies = [
  "env_logger 0.7.1",
  "frame-system",

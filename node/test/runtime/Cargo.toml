@@ -28,6 +28,9 @@ sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", br
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-informant = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -39,4 +42,4 @@ polkadot-service = { path = "../../../node/service", version = "0.8.3" }
 polkadot-runtime = { path = "../../../runtime/polkadot", version = "0.8.28" }
 polkadot-runtime-common = { path = "../../../runtime/common", version = "0.8.28" }
 
-
+rand = "0.7"

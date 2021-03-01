@@ -92,7 +92,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 29,
+	spec_version: 28,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1077,13 +1077,13 @@ sp_api::impl_runtime_apis! {
 
 		fn execute_block(block: Block) {
 			frame_support::debug::RuntimeLogger::init();
-			frame_support::debug::info!("Runtime logs here!");
+			frame_support::debug::info!("execute_block");
 			Executive::execute_block(block)
 		}
 
 		fn initialize_block(header: &<Block as BlockT>::Header) {
 			frame_support::debug::RuntimeLogger::init();
-			frame_support::debug::info!("Runtime logs here!");
+			frame_support::debug::info!("initialize_block");
 			Executive::initialize_block(header)
 		}
 	}
@@ -1097,19 +1097,19 @@ sp_api::impl_runtime_apis! {
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
 		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
 			frame_support::debug::RuntimeLogger::init();
-			frame_support::debug::info!("Runtime logs here!");
+			frame_support::debug::info!("apply_extrinsic");
 			Executive::apply_extrinsic(extrinsic)
 		}
 
 		fn finalize_block() -> <Block as BlockT>::Header {
 			frame_support::debug::RuntimeLogger::init();
-			frame_support::debug::info!("Runtime logs here!");
+			frame_support::debug::info!("finalize_block");
 			Executive::finalize_block()
 		}
 
 		fn inherent_extrinsics(data: inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
 			frame_support::debug::RuntimeLogger::init();
-			frame_support::debug::info!("Runtime logs here!");
+			frame_support::debug::info!("inherent_extrinsics");
 			data.create_extrinsics()
 		}
 
@@ -1118,7 +1118,7 @@ sp_api::impl_runtime_apis! {
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
 			frame_support::debug::RuntimeLogger::init();
-			frame_support::debug::info!("Runtime logs here!");
+			frame_support::debug::info!("check_inherents");
 			data.check_extrinsics(&block)
 		}
 
