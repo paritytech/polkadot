@@ -27,7 +27,6 @@ use primitives::v1::{
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
 	InboundDownwardMessage, InboundHrmpMessage, Hash, AuthorityDiscoveryId
 };
-use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
 
@@ -85,8 +84,11 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		match <scheduler::Module<T>>::group_assigned_to_core(core_index, backed_in_number) {
 			Some(g) => g,
 			None =>  {
-				debug::warn!("Could not determine the group responsible for core extracted \
-					from list of cores for some prior block in same session");
+				log::warn!(
+					target: "runtime::polkadot-api::v1",
+					"Could not determine the group responsible for core extracted \
+					from list of cores for some prior block in same session",
+				);
 
 				GroupIndex(0)
 			}

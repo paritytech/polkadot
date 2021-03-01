@@ -28,8 +28,8 @@ use primitives::v1::{
 	CandidateReceipt, HeadData, CandidateHash, Hash,
 };
 use frame_support::{
-	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
-	dispatch::DispatchResult, IterableStorageMap, weights::Weight, traits::Get,
+	decl_storage, decl_module, decl_error, decl_event, ensure, dispatch::DispatchResult, IterableStorageMap,
+	weights::Weight, traits::Get,
 };
 use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -213,7 +213,7 @@ decl_module! {
 	}
 }
 
-const LOG_TARGET: &str = "parachains_runtime_inclusion";
+const LOG_TARGET: &str = "runtime::inclusion";
 
 impl<T: Config> Module<T> {
 	/// Block initialization logic, called by initializer.
@@ -343,11 +343,11 @@ impl<T: Config> Module<T> {
 				let commitments = match PendingAvailabilityCommitments::take(&para_id) {
 					Some(commitments) => commitments,
 					None => {
-						debug::warn!(r#"
-						Inclusion::process_bitfields:
-							PendingAvailability and PendingAvailabilityCommitments
-							are out of sync, did someone mess with the storage?
-						"#);
+						log::warn!(
+							target: LOG_TARGET,
+							"Inclusion::process_bitfields: PendingAvailability and PendingAvailabilityCommitments
+							are out of sync, did someone mess with the storage?",
+						);
 						continue;
 					}
 				};
@@ -460,7 +460,6 @@ impl<T: Config> Module<T> {
 						&candidate.candidate.commitments.horizontal_messages,
 					)
 				{
-					frame_support::debug::RuntimeLogger::init();
 					log::debug!(
 						target: LOG_TARGET,
 						"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
@@ -631,7 +630,6 @@ impl<T: Config> Module<T> {
 			T::BlockNumber::from(validation_outputs.hrmp_watermark),
 			&validation_outputs.horizontal_messages,
 		) {
-			frame_support::debug::RuntimeLogger::init();
 			log::debug!(
 				target: LOG_TARGET,
 				"Validation outputs checking for parachain `{}` failed: {:?}",
