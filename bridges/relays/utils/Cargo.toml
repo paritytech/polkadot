@@ -1,0 +1,22 @@
+[package]
+name = "relay-utils"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+ansi_term = "0.12"
+async-std = "1.6.5"
+async-trait = "0.1.40"
+backoff = "0.2"
+env_logger = "0.8.2"
+futures = "0.3.5"
+log = "0.4.11"
+num-traits = "0.2"
+sysinfo = "0.15"
+time = "0.2"
+
+# Substrate dependencies
+
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate.git", branch = "master" }

@@ -1,0 +1,53 @@
+[package]
+name = "pallet-substrate-bridge"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+finality-grandpa = { version = "0.14.0", default-features = false }
+hash-db = { version = "0.15.2", default-features = false }
+serde = { version = "1.0", optional = true }
+
+# Bridge Dependencies
+
+bp-header-chain = { path = "../../primitives/header-chain", default-features = false }
+bp-runtime = { path = "../../primitives/runtime", default-features = false }
+
+# Substrate Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+
+[dev-dependencies]
+bp-test-utils = {path = "../../primitives/test-utils" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+
+[features]
+default = ["std"]
+std = [
+	"bp-header-chain/std",
+	"bp-runtime/std",
+	"bp-header-chain/std",
+	"codec/std",
+	"finality-grandpa/std",
+	"frame-support/std",
+	"frame-system/std",
+	"hash-db/std",
+	"serde",
+	"sp-finality-grandpa/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"sp-trie/std",
+]
+runtime-benchmarks = []
