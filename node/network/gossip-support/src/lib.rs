@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::peer_set::PeerSet;
 
 const LOG_TARGET: &str = "gossip_support";
 
-/// The Connection Request Issuer subsystem.
+/// The Gossip Support subsystem.
 pub struct GossipSupport {}
 
 #[derive(Default)]
@@ -80,9 +80,7 @@ impl GossipSupport {
 				},
 			};
 			match message {
-				FromOverseer::Communication {
-					msg: _,
-				} => {}
+				FromOverseer::Communication { .. } => {},
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
@@ -160,7 +158,7 @@ where
 			.boxed();
 
 		SpawnedSubsystem {
-			name: "connection-request-issuer-subsystem",
+			name: "gossip-support-subsystem",
 			future,
 		}
 	}
