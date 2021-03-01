@@ -960,7 +960,6 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
 			assert_eq!(Balances::reserved_balance(1), 5);
-			println!("before {:?}", AuctionCounter::get());
 			run_to_block(10);
 
 			assert_eq!(leases(), vec![
@@ -970,7 +969,6 @@ mod tests {
 
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 2));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 2, 2, 2, 6));
-			println!("after {:?}", AuctionCounter::get());
 			// Only 1 reserved since we have a deposit credit of 5.
 			assert_eq!(Balances::reserved_balance(1), 1);
 			run_to_block(20);
