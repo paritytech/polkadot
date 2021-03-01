@@ -36,6 +36,7 @@ pub enum Error {
 	MultiLocationFull,
 	FailedToDecode,
 	BadOrigin,
+	ExceedsMaxMessageSize,
 }
 
 impl From<()> for Error {
