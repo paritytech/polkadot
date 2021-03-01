@@ -59,14 +59,6 @@ impl GossipSupport {
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
-		self.run_inner(ctx, &mut state).await
-	}
-
-	#[tracing::instrument(skip(self, ctx, state), fields(subsystem = LOG_TARGET))]
-	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
-	where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-	{
 		loop {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
