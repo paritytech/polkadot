@@ -76,7 +76,7 @@ type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser>::LeasePeriod;
 
 // Winning data type. This encodes the top bidders of each range together with their bid and the auction this data is for.
 type Winners<AccountId, Balance> = [Option<(AccountId, ParaId, Balance)>; SLOT_RANGE_COUNT];
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, Debug)]
 pub struct WinningData<AccountId, Balance> {
 	pub winners: Winners<AccountId, Balance>,
 	pub index: AuctionIndex,
@@ -191,14 +191,7 @@ decl_module! {
 			// last block.
 			if let Some(offset) = n.checked_sub(&One::one()).and_then(|n| Self::is_ending(n)) {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
-				if !Winning::<T>::contains_key(&offset) {
-					weight = weight.saturating_add(T::DbWeight::get().writes(1));
-					Winning::<T>::insert(offset,
-						offset.checked_sub(&One::one())
-							.and_then(Winning::<T>::get)
-							.unwrap_or_default()
-					);
-				}
+				Winning::<T>::insert(offset, Self::last_winning_data(offset));
 			}
 
 			// Check to see if an auction just ended.
@@ -315,6 +308,38 @@ impl<T: Config> Module<T> {
 		AuctionInfo::<T>::exists()
 	}
 
+	// Returns the last winning data known for this auction, checking the current auction index.
+	// * First checks the current winning data
+	// * Then checks the previous block's winning data
+	// * Then generates new winning data
+	fn last_winning_data(offset: T::BlockNumber) -> WinningData<T::AccountId, BalanceOf<T>> {
+		let current_index = AuctionCounter::get();
+		// Try to return the current winning data
+		let current_winning = Winning::<T>::get(offset);
+		if let Some(data) = current_winning {
+			if data.index == current_index {
+				return data;
+			}
+		}
+
+		// Current winning data does not exist.
+		// Try to return previous winning data...
+		if offset > 0u32.into() {
+			let previous_winning = Winning::<T>::get(offset - 1u32.into());
+			if let Some(data) = previous_winning {
+				if data.index == current_index {
+					return data;
+				}
+			}
+		}
+
+		// No current or previous winning data available... generate a new starting point.
+		WinningData {
+			winners: Default::default(),
+			index: current_index,
+		}
+	}
+
 	/// Create a new auction.
 	///
 	/// This can only happen when there isn't already an auction in progress. Accepts the `duration`
@@ -366,9 +391,7 @@ impl<T: Config> Module<T> {
 		// The offset into the auction ending set.
 		let offset = Self::is_ending(frame_system::Module::<T>::block_number()).unwrap_or_default();
 		// The current winning ranges.
-		let mut current_winning = Winning::<T>::get(offset)
-			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
-			.unwrap_or_default();
+		let mut current_winning = Self::last_winning_data(offset);
 		// If this bid beat the previous winner of our range.
 		if current_winning.winners[range_index].as_ref().map_or(true, |last| amount > last.2) {
 			// This must overlap with all existing ranges that we're winning on or it's invalid.
@@ -447,14 +470,9 @@ impl<T: Config> Module<T> {
 				// Just ended!
 				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
 					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
-				let res = Winning::<T>::get(offset).unwrap_or_default();
-				let mut i = T::BlockNumber::zero();
-				while i < ending_period {
-					Winning::<T>::remove(i);
-					i += One::one();
-				}
 				AuctionInfo::<T>::kill();
-				return Some((res, lease_period_index))
+				let winning = Self::last_winning_data(offset);
+				return Some((winning, lease_period_index))
 			}
 		}
 		None
@@ -942,6 +960,7 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
 			assert_eq!(Balances::reserved_balance(1), 5);
+			println!("before {:?}", AuctionCounter::get());
 			run_to_block(10);
 
 			assert_eq!(leases(), vec![
@@ -951,6 +970,7 @@ mod tests {
 
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 2));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 2, 2, 2, 6));
+			println!("after {:?}", AuctionCounter::get());
 			// Only 1 reserved since we have a deposit credit of 5.
 			assert_eq!(Balances::reserved_balance(1), 1);
 			run_to_block(20);
@@ -1265,7 +1285,7 @@ mod benchmarking {
 				)?;
 			}
 
-			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
+			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().winners.iter() {
 				assert!(winner.is_some());
 			}
 		}: {
