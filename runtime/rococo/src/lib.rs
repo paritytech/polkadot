@@ -126,6 +126,16 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
+pub struct BabeEpochConfigMigrations;
+impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_babe::migrations::add_epoch_configurations::<Runtime>(
+			BABE_GENESIS_EPOCH_CONFIG, BABE_GENESIS_EPOCH_CONFIG,
+		);
+		Weight::max_value()
+	}
+}
+
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -152,7 +162,14 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllModules,
+	(BabeEpochConfigMigrations,),
+>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
