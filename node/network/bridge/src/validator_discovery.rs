@@ -21,7 +21,6 @@ use std::borrow::Cow;
 use std::collections::{HashSet, HashMap, hash_map};
 use std::sync::Arc;
 use std::iter::FromIterator;
-use std::borrow::Cow::Owned;
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
@@ -83,7 +82,7 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 	}
 }
 
-type AuthorityDiscoveryPollingQueue = VecDeque<(AuthorityDiscoveryId, String, u32)>;
+type AuthorityDiscoveryPollingQueue = VecDeque<(AuthorityDiscoveryId, PeerSet, u32)>;
 
 pub(super) struct AuthorityDiscoveryPollingJob {
 	polling_duration: Duration,
@@ -108,58 +107,58 @@ impl AuthorityDiscoveryPollingJob {
 		}
 	}
 
-	async fn run(self, mut receiver: mpsc::UnboundedReceiver<(AuthorityDiscoveryId, String)>, mut network_service: impl Network, mut authority_discovery: impl AuthorityDiscovery) {
+	async fn run(self, mut receiver: mpsc::UnboundedReceiver<(AuthorityDiscoveryId, PeerSet)>, mut network_service: impl Network, mut authority_discovery: impl AuthorityDiscovery) {
 		let polling_queue: Arc<Mutex<AuthorityDiscoveryPollingQueue>> = Arc::new(Mutex::new(AuthorityDiscoveryPollingQueue::new()));
 
 		loop {
 			select! {
 				_ = Delay::new(self.polling_duration).fuse() => {
 					let mut locked = polling_queue.lock().await;
-					let mut multiaddr_to_add: HashMap<String, HashSet<Multiaddr>> = HashMap::new();
+					let mut multiaddr_to_add: HashMap<PeerSet, HashSet<Multiaddr>> = HashMap::new();
 
 					for _i in 0..self.batch_size {
-						if let Some((authority_id, protocol_name, retry_count)) = locked.pop_front() {
+						if let Some((authority_id, peer_set, retry_count)) = locked.pop_front() {
 							let result = authority_discovery.get_addresses_by_authority_id(authority_id.clone()).await;
 							if let Some(addresses) = result {
 								// We might have several `PeerId`s per `AuthorityId`
 								let addresses_to_take = addresses.into_iter().take(MAX_ADDR_PER_PEER);
 
-								if multiaddr_to_add.contains_key(&protocol_name) {
-									multiaddr_to_add.entry(protocol_name).and_modify(|e| e.extend(addresses_to_take));
+								if multiaddr_to_add.contains_key(&peer_set) {
+									multiaddr_to_add.entry(peer_set).and_modify(|e| e.extend(addresses_to_take));
 								} else {
-									multiaddr_to_add.insert(protocol_name, HashSet::from_iter(addresses_to_take));
+									multiaddr_to_add.insert(peer_set, HashSet::from_iter(addresses_to_take));
 								}
 							} else {
 								if retry_count+1 < self.max_retry {
-									locked.push_back((authority_id, protocol_name, retry_count+1));
+									locked.push_back((authority_id, peer_set, retry_count+1));
 								}
 							}
 						}
 					}
 
-					for (protocol_name, addresses) in multiaddr_to_add {
+					for (peer_set, addresses) in multiaddr_to_add {
 						// ask the network to connect to these nodes and not disconnect
 						// from them until removed from the set
 						if let Err(e) = network_service.add_peers_to_reserved_set(
-							Owned(protocol_name),
+							peer_set.into_protocol_name(),
 							addresses,
 						).await {
 							tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 						}
 					}
 				},
-				(authority_id, protocol_name) = receiver.select_next_some().fuse() => {
+				(authority_id, peer_set) = receiver.select_next_some().fuse() => {
 					let mut locked = polling_queue.lock().await;
 					// TODO: Better strategy than ignore?
 					if locked.len() < self.max_queue_size {
-						locked.push_back((authority_id, protocol_name, 0u32));
+						locked.push_back((authority_id, peer_set, 0u32));
 					}
 				}
 			}
 		}
 	}
 
-	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> SubsystemResult<mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>> {
+	pub(super) async fn start(self, ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>, network_service: impl Network, authority_discovery: impl AuthorityDiscovery) -> SubsystemResult<mpsc::UnboundedSender<(AuthorityDiscoveryId, PeerSet)>> {
 		let (sender, receiver) = mpsc::unbounded();
 		ctx.spawn("authority-discovery-polling", self.run(receiver, network_service, authority_discovery).boxed()).await?;
 		Ok(sender)
@@ -238,7 +237,7 @@ pub(super) struct Service<N, AD> {
 	state: PerPeerSet<StatePerPeerSet>,
 	// PhantomData used to make the struct generic instead of having generic methods
 	_phantom: PhantomData<(N, AD)>,
-	to_polling_job: mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>,
+	to_polling_job: mpsc::UnboundedSender<(AuthorityDiscoveryId, PeerSet)>,
 }
 
 #[derive(Default)]
@@ -254,7 +253,7 @@ struct StatePerPeerSet {
 }
 
 impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
-	pub fn new(tx: mpsc::UnboundedSender<(AuthorityDiscoveryId, String)>) -> Self {
+	pub fn new(tx: mpsc::UnboundedSender<(AuthorityDiscoveryId, PeerSet)>) -> Self {
 		Self {
 			state: PerPeerSet::default(),
 			to_polling_job: tx,
@@ -362,7 +361,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				multiaddr_to_add.extend(addresses.into_iter().take(MAX_ADDR_PER_PEER));
 			} else {
 				tracing::debug!(target: LOG_TARGET, "Authority Discovery couldn't resolve {:?}", authority);
-				match self.to_polling_job.send((authority.clone(), peer_set.into_protocol_name().into_owned())).await {
+				match self.to_polling_job.send((authority.clone(), peer_set)).await {
 					Err(e) => {
 						tracing::warn!(target: LOG_TARGET, err = ?e, "Unable to send authority id to authority discovery polling job.");
 					},
