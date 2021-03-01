@@ -39,7 +39,7 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	parameter_types, construct_runtime, debug, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
+	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -289,7 +289,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e);
+			log::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
 		let signature = raw_payload.using_encoded(|payload| {
 			C::sign(payload, public)

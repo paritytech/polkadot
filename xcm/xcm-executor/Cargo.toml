@@ -15,6 +15,7 @@ sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+log = { version = "0.4.14", default-features = false }
 
 [features]
 default = ["std"]
@@ -27,4 +28,5 @@ std = [
 	"sp-core/std",
 	"sp-runtime/std",
 	"frame-support/std",
+	"log/std",
 ]
