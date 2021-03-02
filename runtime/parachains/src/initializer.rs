@@ -229,11 +229,17 @@ impl<T: Config> Module<T> {
 			validators.clone()
 		};
 
-		BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
-			validators,
-			queued,
-			session_index,
-		}));
+		if session_index == 0 {
+			// Genesis session should be immediately enacted.
+			Self::apply_new_session(0, validators, queued);
+		} else {
+			BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
+				validators,
+				queued,
+				session_index,
+			}));
+		}
+
 	}
 }
 
@@ -244,10 +250,10 @@ impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
-	fn on_genesis_session<'a, I: 'a>(_validators: I)
+	fn on_genesis_session<'a, I: 'a>(validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-
+		<Module<T>>::on_new_session(false, 0, validators, None);
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
@@ -266,13 +272,31 @@ mod tests {
 	use primitives::v1::{Id as ParaId};
 	use crate::mock::{
 		new_test_ext,
-		Initializer, System, Dmp, Paras, Configuration, MockGenesisConfig,
+		Initializer, System, Dmp, Paras, Configuration, SessionInfo, MockGenesisConfig,
 	};
 
 	use frame_support::{
 		assert_ok,
 		traits::{OnFinalize, OnInitialize},
 	};
+
+	#[test]
+	fn session_0_is_instantly_applied() {
+		new_test_ext(Default::default()).execute_with(|| {
+			Initializer::on_new_session(
+				false,
+				0,
+				Vec::new().into_iter(),
+				Some(Vec::new().into_iter()),
+			);
+
+			let v = <BufferedSessionChanges>::get();
+			assert!(v.is_empty());
+
+			assert_eq!(SessionInfo::earliest_stored_session(), 0);
+			assert!(SessionInfo::session_info(0).is_some());
+		});
+	}
 
 	#[test]
 	fn session_change_before_initialize_is_still_buffered_after() {

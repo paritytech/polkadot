@@ -83,6 +83,7 @@ polkadot-availability-bitfield-distribution = { path = "../network/bitfield-dist
 polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
 polkadot-availability-recovery = { path = "../network/availability-recovery", optional = true }
 polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
+polkadot-gossip-support = { path = "../network/gossip-support", optional = true }
 polkadot-network-bridge = { path = "../network/bridge", optional = true }
 polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
 polkadot-node-core-av-store = { path = "../core/av-store", optional = true }
@@ -117,12 +118,18 @@ runtime-benchmarks = [
 	"westend-runtime/runtime-benchmarks",
 	"rococo-runtime/runtime-benchmarks"
 ]
+try-runtime = [
+	"polkadot-runtime/try-runtime",
+	"kusama-runtime/try-runtime",
+	"westend-runtime/try-runtime",
+]
 
 real-overseer = [
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
 	"polkadot-collator-protocol",
+	"polkadot-gossip-support",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",
 	"polkadot-node-core-backing",
@@ -135,8 +142,4 @@ real-overseer = [
 	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
-]
-
-approval-checking = [
-	"real-overseer"
 ]

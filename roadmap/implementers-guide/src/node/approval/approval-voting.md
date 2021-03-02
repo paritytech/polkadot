@@ -135,7 +135,10 @@ struct State {
     session_info: Vec<SessionInfo>,
     babe_epoch: Option<BabeEpoch>, // information about a cached BABE epoch.
     keystore: KeyStorePtr,
-    wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>, // Tick -> [(Relay Block, Candidate Hash)]
+
+    // A scheduler which keeps at most one wakeup per hash, candidate hash pair and
+    // maps such pairs to `Tick`s.
+    wakeups: Wakeups, 
 
     // These are connected to each other.
     background_tx: mpsc::Sender<BackgroundRequest>,

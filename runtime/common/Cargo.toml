@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.8.28"
+version = "0.8.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -47,9 +47,11 @@ keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substra
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-election-providers = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.22.3"
 serde_json = "1.0.61"
 libsecp256k1 = "0.3.5"
