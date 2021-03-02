@@ -184,7 +184,7 @@ impl TestState {
 					validators: self.validator_public.clone(),
 					discovery_keys: self.validator_authority_id.clone(),
 					// all validators in the same group.
-					validator_groups: vec![(0..self.validators.len()).map(|i| i as ValidatorIndex).collect()],
+					validator_groups: vec![(0..self.validators.len()).map(|i| ValidatorIndex(i as _)).collect()],
 					..Default::default()
 				}))).unwrap();
 			}
@@ -272,10 +272,10 @@ impl TestState {
 						virtual_overseer,
 						AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(
 							NetworkBridgeEvent::PeerMessage(
-								self.validator_peer_id[validator_index as usize].clone(),
+								self.validator_peer_id[validator_index.0 as usize].clone(),
 								protocol_v1::AvailabilityRecoveryMessage::Chunk(
 									request_id,
-									Some(self.chunks[validator_index as usize].clone()),
+									Some(self.chunks[validator_index.0 as usize].clone()),
 								)
 							)
 						)
@@ -317,10 +317,10 @@ impl TestState {
 						virtual_overseer,
 						AvailabilityRecoveryMessage::NetworkBridgeUpdateV1(
 							NetworkBridgeEvent::PeerMessage(
-								self.validator_peer_id[validator_index as usize].clone(),
+								self.validator_peer_id[validator_index.0 as usize].clone(),
 								protocol_v1::AvailabilityRecoveryMessage::Chunk(
 									request_id,
-									Some(self.chunks[validator_index as usize].clone()),
+									Some(self.chunks[validator_index.0 as usize].clone()),
 								)
 							)
 						)
@@ -457,7 +457,7 @@ fn derive_erasure_chunks_with_proofs_and_root(
 		.enumerate()
 		.map(|(index, (proof, chunk))| ErasureChunk {
 			chunk: chunk.to_vec(),
-			index: index as _,
+			index: ValidatorIndex(index as _),
 			proof,
 		})
 		.collect::<Vec<ErasureChunk>>();

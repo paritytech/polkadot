@@ -278,7 +278,7 @@ where
 		return;
 	}
 
-	let validator_index = signed_availability.validator_index() as usize;
+	let validator_index = signed_availability.validator_index().0 as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
@@ -420,7 +420,7 @@ where
 	// Use the (untrusted) validator index provided by the signed payload
 	// and see if that one actually signed the availability bitset.
 	let signing_context = job_data.signing_context.clone();
-	let validator_index = message.signed_availability.validator_index() as usize;
+	let validator_index = message.signed_availability.validator_index().0 as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
@@ -767,7 +767,7 @@ mod test {
 	use bitvec::bitvec;
 	use futures::executor;
 	use maplit::hashmap;
-	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
+	use polkadot_primitives::v1::{Signed, AvailabilityBitfield, ValidatorIndex};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
@@ -882,7 +882,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&malicious.into(),
 		)).ok().flatten().expect("should be signed");
 
@@ -947,7 +947,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			42,
+			ValidatorIndex(42),
 			&validator,
 		)).ok().flatten().expect("should be signed");
 
@@ -1004,7 +1004,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).ok().flatten().expect("should be signed");
 
@@ -1119,7 +1119,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).ok().flatten().expect("should be signed");
 
@@ -1215,7 +1215,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).ok().flatten().expect("should be signed");
 
@@ -1374,7 +1374,7 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
 		)).ok().flatten().expect("should be signed");
 

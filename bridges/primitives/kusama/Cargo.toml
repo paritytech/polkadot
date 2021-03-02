@@ -1,0 +1,36 @@
+[package]
+name = "bp-kusama"
+description = "Primitives of Kusama runtime."
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+
+# Bridge Dependencies
+
+bp-message-lane = { path = "../message-lane", default-features = false }
+bp-runtime = { path = "../runtime", default-features = false }
+
+# Substrate Based Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"bp-message-lane/std",
+	"bp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"sp-api/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-std/std",
+]

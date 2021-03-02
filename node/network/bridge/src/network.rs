@@ -17,6 +17,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::prelude::*;
 use futures::stream::BoxStream;
@@ -24,7 +25,7 @@ use futures::stream::BoxStream;
 use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
-use sc_network::{NetworkService, IfDisconnected};
+use sc_network::{IfDisconnected, NetworkService, OutboundFailure, RequestFailure};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
@@ -33,6 +34,8 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
+
+use crate::validator_discovery::{peer_id_from_multiaddr, AuthorityDiscovery};
 
 use super::LOG_TARGET;
 
@@ -92,6 +95,7 @@ pub enum NetworkAction {
 }
 
 /// An abstraction over networking for the purposes of this subsystem.
+#[async_trait]
 pub trait Network: Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
@@ -105,7 +109,11 @@ pub trait Network: Send + 'static {
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>;
 
 	/// Send a request to a remote peer.
-	fn start_request(&self, req: Requests);
+	async fn start_request<AD: AuthorityDiscovery>(
+		&self,
+		authority_discovery: &mut AD,
+		req: Requests,
+	);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
 	fn report_peer(
@@ -137,6 +145,7 @@ pub trait Network: Send + 'static {
 	}
 }
 
+#[async_trait]
 impl Network for Arc<NetworkService<Block, Hash>> {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
@@ -189,7 +198,11 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		Box::pin(ActionSink(&**self))
 	}
 
-	fn start_request(&self, req: Requests) {
+	async fn start_request<AD: AuthorityDiscovery>(
+		&self,
+		authority_discovery: &mut AD,
+		req: Requests,
+	) {
 		let (
 			protocol,
 			OutgoingRequest {
@@ -199,8 +212,35 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			},
 		) = req.encode_request();
 
-		NetworkService::start_request(&*self,
-			peer,
+		let peer_id = authority_discovery
+			.get_addresses_by_authority_id(peer)
+			.await
+			.and_then(|addrs| {
+				addrs
+					.into_iter()
+					.find_map(|addr| peer_id_from_multiaddr(&addr))
+			});
+
+		let peer_id = match peer_id {
+			None => {
+				tracing::debug!(target: LOG_TARGET, "Discovering authority failed");
+				match pending_response
+					.send(Err(RequestFailure::Network(OutboundFailure::DialFailure)))
+				{
+					Err(_) => tracing::debug!(
+						target: LOG_TARGET,
+						"Sending failed request response failed."
+					),
+					Ok(_) => {}
+				}
+				return;
+			}
+			Some(peer_id) => peer_id,
+		};
+
+		NetworkService::start_request(
+			&*self,
+			peer_id,
 			protocol.into_protocol_name(),
 			payload,
 			pending_response,
