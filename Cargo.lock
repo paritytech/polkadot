@@ -5274,6 +5274,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-gossip-support"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.12",
+ "polkadot-node-network-protocol",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "rand 0.8.3",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
 name = "polkadot-network-bridge"
 version = "0.1.0"
 dependencies = [
@@ -5994,6 +6008,7 @@ dependencies = [
  "polkadot-availability-distribution",
  "polkadot-availability-recovery",
  "polkadot-collator-protocol",
+ "polkadot-gossip-support",
  "polkadot-network-bridge",
  "polkadot-node-collation-generation",
  "polkadot-node-core-approval-voting",
