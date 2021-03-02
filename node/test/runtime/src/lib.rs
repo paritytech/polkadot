@@ -243,6 +243,6 @@ mod tests {
     #[test]
     fn it_works() {
         let mut node = Node::<PolkadotChainInfo>::new().unwrap();
-        node.seal_blocks(5);
+        node.seal_blocks(15_000);
     }
 }

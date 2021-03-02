@@ -1138,6 +1138,8 @@ sp_api::impl_runtime_apis! {
 
 	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
 		fn offchain_worker(header: &<Block as BlockT>::Header) {
+			frame_support::debug::RuntimeLogger::init();
+			frame_support::debug::info!("offchain_worker");
 			Executive::offchain_worker(header)
 		}
 	}

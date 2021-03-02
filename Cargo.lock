@@ -9558,7 +9558,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-runner"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate-test-runner?branch=bump-substrate#6f70032b81a5e136c84f6c5f794d0f25deebec56"
+source = "git+https://github.com/paritytech/substrate-test-runner?branch=bump-substrate#67499e7bde5acd0dba19177685f21c1aac7dd1ab"
 dependencies = [
  "env_logger 0.7.1",
  "frame-system",
