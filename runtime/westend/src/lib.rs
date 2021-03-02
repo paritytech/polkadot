@@ -54,7 +54,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -476,7 +476,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e);
+			log::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
 		let signature = raw_payload.using_encoded(|payload| {
 			C::sign(payload, public)
@@ -1033,7 +1033,6 @@ sp_api::impl_runtime_apis! {
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
 		fn on_runtime_upgrade() -> Result<(Weight, Weight), sp_runtime::RuntimeString> {
-			frame_support::debug::RuntimeLogger::init();
 			let weight = Executive::try_runtime_upgrade()?;
 			Ok((weight, BlockWeights::get().max_block))
 		}

@@ -1,0 +1,25 @@
+[package]
+name = "relay-rialto-client"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+headers-relay = { path = "../headers-relay" }
+relay-substrate-client = { path = "../substrate-client" }
+relay-utils = { path = "../utils" }
+
+# Bridge dependencies
+
+rialto-runtime = { path = "../../bin/rialto/runtime" }
+
+# Substrate Dependencies
+
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }

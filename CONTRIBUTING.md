@@ -14,13 +14,13 @@ There are a few basic ground-rules for contributors (including the maintainer(s)
 - **Non-master branches**, prefixed with a short name moniker (e.g. `gav-my-feature`) must be used for ongoing work.
 - **All modifications** must be made in a **pull-request** to solicit feedback from other contributors.
 - A pull-request _must not be merged until CI_ has finished successfully.
-- Contributors should adhere to the https://github.com/paritytech/polkadot/wiki/Style-Guide[house coding style].
+- Contributors should adhere to the [house coding style](https://github.com/paritytech/polkadot/wiki/Style-Guide).
 
 #### Merging pull requests once CI is successful:
 
-- A pull request that does not alter any logic (e.g. comments, dependencies, docs) may be tagged https://github.com/paritytech/substrate/pulls?utf8=%E2%9C%93&q=is%3Apr+is%3Aopen+label%3AA2-insubstantial[`insubstantial`] and merged by its author.
+- A pull request that does not alter any logic (e.g. comments, dependencies, docs) may be tagged [`insubstantial`](https://github.com/paritytech/substrate/pulls?utf8=%E2%9C%93&q=is%3Apr+is%3Aopen+label%3AA2-insubstantial) and merged by its author.
 - A pull request with no large change to logic that is an urgent fix may be merged after a non-author contributor has reviewed it well.
-- All other PRs should sit for 48 hours with the https://github.com/paritytech/substrate/pulls?q=is%3Apr+is%3Aopen+label%3AA0-pleasereview[`pleasereview`] tag in order to garner feedback.
+- All other PRs should sit for 48 hours with the [`pleasereview`](https://github.com/paritytech/substrate/pulls?q=is%3Apr+is%3Aopen+label%3AA0-pleasereview) tag in order to garner feedback.
 - No PR should be merged until all reviews' comments are addressed.
 
 #### Reviewing pull requests:

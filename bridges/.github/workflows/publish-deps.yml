@@ -1,0 +1,49 @@
+name:                                               Publish Dependencies to Docker hub
+
+on:
+  push:
+    tags:
+      - v*
+    paths-ignore:
+      - '**/README.md'
+      - diagrams/*
+      - docs/*
+  schedule:                                         # Weekly build
+    - cron:                                         '0 0 * * 0'
+
+jobs:
+## Publish to Docker hub
+  publish:
+    name:                                           Publishing
+    runs-on:                                        ubuntu-latest
+    container:
+      image:                                        docker:git
+    steps:
+      - name:                                       Cancel Previous Runs
+        uses:                                       styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token:                             ${{ github.token }}
+      - name:                                       Checkout sources & submodules
+        uses:                                       actions/checkout@master
+        with:
+          fetch-depth:                              5
+          submodules:                               recursive
+      - name:                                       Build and push dependencies
+        uses:                                       docker/build-push-action@v1
+        with:
+          username:                                 ${{ secrets.DOCKER_USER }}
+          password:                                 ${{ secrets.DOCKER_PASSWORD }}
+          repository:                               paritytech/bridge-dependencies
+          dockerfile:                               deployments/BridgeDeps.Dockerfile
+          tag_with_ref:                             true
+          tag_with_sha:                             true
+          labels:
+            org.opencontainers.image.source="https://github.com/paritytech/parity-bridges-common",
+            org.opencontainers.image.authors="devops-team@parity.io",
+            org.opencontainers.image.vendor="Parity Technologies",
+            org.opencontainers.image.url="https://github.com/paritytech/parity-bridges-common",
+            org.opencontainers.image.documentation="https://github.com/paritytech/parity-bridges-common/README.md",
+            org.opencontainers.image.title=${{ matrix.project }},
+            org.opencontainers.image.description="${{ matrix.project }} - component of Parity Bridges Common",
+            org.opencontainers.image.licenses="GPL-3.0 License"
+          add_git_labels:                           true
