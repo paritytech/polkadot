@@ -244,10 +244,14 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-	let telemetry_worker = TelemetryWorker::new(16, None)?;
 	let telemetry = config.telemetry_endpoints.clone()
 		.filter(|x| !x.is_empty())
-		.map(|endpoints| telemetry_worker.handle().new_telemetry(endpoints));
+		.map(|endpoints| -> Result<_, sc_telemetry::Error> {
+			let worker = TelemetryWorker::new(16, None)?;
+			let telemetry = worker.handle().new_telemetry(endpoints);
+			Ok((worker, telemetry))
+		})
+		.transpose()?;
 
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(
@@ -256,7 +260,11 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, jaeger_agent: O
 		)?;
 	let client = Arc::new(client);
 
-	task_manager.spawn_handle().spawn("telemetry", telemetry_worker.run());
+	let telemetry = telemetry
+		.map(|(worker, telemetry)| {
+			task_manager.spawn_handle().spawn("telemetry", worker.run());
+			telemetry
+		});
 
 	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
@@ -588,9 +596,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	let telemetry_span = TelemetrySpan::new();
-	let _telemetry_span_entered = telemetry_span.enter();
-
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks =
@@ -931,18 +936,26 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
-	let telemetry_worker = TelemetryWorker::new(16, None)?;
-	let mut telemetry = config.telemetry_endpoints.clone()
+	let telemetry = config.telemetry_endpoints.clone()
 		.filter(|x| !x.is_empty())
-		.map(|endpoints| telemetry_worker.handle().new_telemetry(endpoints));
+		.map(|endpoints| -> Result<_, sc_telemetry::Error> {
+			let worker = TelemetryWorker::new(16, None)?;
+			let telemetry = worker.handle().new_telemetry(endpoints);
+			Ok((worker, telemetry))
+		})
+		.transpose()?;
 
 	let (client, backend, keystore_container, mut task_manager, on_demand) =
 		service::new_light_parts::<Block, Runtime, Dispatch>(
 			&config,
-			telemetry.as_ref().map(|x| x.handle()),
+			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
 		)?;
 
-	task_manager.spawn_handle().spawn("telemetry", telemetry_worker.run());
+	let telemetry = telemetry
+		.map(|(worker, telemetry)| {
+			task_manager.spawn_handle().spawn("telemetry", worker.run());
+			telemetry
+		});
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
