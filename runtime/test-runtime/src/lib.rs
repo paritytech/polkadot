@@ -66,11 +66,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use frame_support::{
-	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, Randomness},
-	weights::Weight,
-};
+use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}, weights::Weight};
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
@@ -392,7 +388,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e);
+			log::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
 		let signature = raw_payload.using_encoded(|payload| {
 			C::sign(payload, public)
@@ -483,6 +479,7 @@ impl parachains_ump::Config for Runtime {
 }
 
 impl parachains_hrmp::Config for Runtime {
+	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
 }
@@ -533,6 +530,7 @@ construct_runtime! {
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 		SessionInfo: parachains_session_info::{Module, Call, Storage},
+		Hrmp: parachains_hrmp::{Module, Call, Storage, Event},
 
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
@@ -577,7 +575,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn execute_block(block: Block) {
-			Executive::execute_block(block)
+			Executive::execute_block(block);
 		}
 
 		fn initialize_block(header: &<Block as BlockT>::Header) {
