@@ -156,8 +156,7 @@ impl SessionCache {
 			tracing::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
 			self.session_info_cache.put(session_index, Some(info));
 			return Ok(Some(r));
-		}
-		else {
+		} else {
 			// Avoid needless fetches if we are not a validator:
 			self.session_info_cache.put(session_index, None);
 		}
