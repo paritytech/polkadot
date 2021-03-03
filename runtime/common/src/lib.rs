@@ -32,6 +32,7 @@ pub mod traits;
 mod mock;
 #[cfg(test)]
 mod integration_tests;
+pub mod xcm_sender;
 
 use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
