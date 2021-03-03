@@ -155,13 +155,13 @@ impl SessionCache {
 			let r = with_info(&info);
 			tracing::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
 			self.session_info_cache.put(session_index, Some(info));
-			return Ok(Some(r));
+			Ok(Some(r))
 		} else {
 			// Avoid needless fetches if we are not a validator:
 			self.session_info_cache.put(session_index, None);
+			tracing::trace!(target: LOG_TARGET, session_index, "No session info found!");
+			Ok(None)
 		}
-		tracing::trace!(target: LOG_TARGET, session_index, "No session info found!");
-		Ok(None)
 	}
 
 	/// Variant of `report_bad` that never fails, but just logs errors.
@@ -211,6 +211,8 @@ impl SessionCache {
 	/// We need to pass in the relay parent for our call to `request_session_info_ctx`. We should
 	/// actually don't need that: I suppose it is used for internal caching based on relay parents,
 	/// which we don't use here. It should not do any harm though.
+	///
+	/// Returns: `None` if not a validator.
 	async fn query_info_from_runtime<Context>(
 		&self,
 		ctx: &mut Context,
