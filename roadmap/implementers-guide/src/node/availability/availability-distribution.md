@@ -57,7 +57,7 @@ in active leaves. This means though, if active leaves skips a block or we are
 particularly slow in fetching our chunk, we might not fetch our chunk if
 availability reached 2/3 fast enough (slot becomes free). This is not desirable
 as we would like as many validators as possible to have their chunk. See this
-[issue]https://github.com/paritytech/polkadot/issues/2513] for more details.
+[issue](https://github.com/paritytech/polkadot/issues/2513) for more details.
 
 
 ### Serving
