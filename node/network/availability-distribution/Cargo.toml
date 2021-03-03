@@ -29,5 +29,7 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 maplit = "1.0"
+smallvec = "1.6.1"

@@ -1,0 +1,19 @@
+[package]
+name = "messages-relay"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+async-std = "1.6.5"
+async-trait = "0.1.40"
+futures = "0.3.5"
+hex = "0.4"
+log = "0.4.11"
+parking_lot = "0.11.0"
+
+# Bridge Dependencies
+
+bp-message-lane = { path = "../../primitives/message-lane" }
+relay-utils = { path = "../utils" }

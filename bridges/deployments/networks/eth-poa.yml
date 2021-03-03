@@ -1,0 +1,46 @@
+# Compose file for quickly spinning up a local instance of an Ethereum PoA network.
+#
+# Note that this PoA network is only used for testing, so the configuration settings you see here
+# are *not* recommended for a production environment.
+#
+# For example, do *not* keep your account key in version control, and unless you're _really_ sure
+# you want to provide public access to your nodes do *not* publicly expose RPC methods.
+version: '3.5'
+services:
+  poa-node-arthur: &poa-node
+    image: hcastano/openethereum-bridge-builtins
+    entrypoint:
+      - /home/openethereum/openethereum
+      - --config=/config/poa-node-config
+      - --node-key=arthur
+      - --engine-signer=0x005e714f896a8b7cede9d38688c1a81de72a58e4
+    environment:
+      RUST_LOG: rpc=trace,txqueue=trace,bridge-builtin=trace
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "30303:30303"
+
+  poa-node-bertha:
+    <<: *poa-node
+    entrypoint:
+      - /home/openethereum/openethereum
+      - --config=/config/poa-node-config
+      - --node-key=bertha
+      - --engine-signer=0x007594304039c2937a12220338aab821d819f5a4
+    ports:
+      - "8645:8545"
+      - "8646:8546"
+      - "31303:30303"
+
+  poa-node-carlos:
+    <<: *poa-node
+    entrypoint:
+      - /home/openethereum/openethereum
+      - --config=/config/poa-node-config
+      - --node-key=carlos
+      - --engine-signer=0x004e7a39907f090e19b0b80a277e77b72b22e269
+    ports:
+      - "8745:8545"
+      - "8746:8546"
+      - "32303:30303"

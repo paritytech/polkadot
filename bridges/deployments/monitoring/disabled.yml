@@ -1,0 +1,15 @@
+# A disabled version of monitoring.
+#
+# We replace each service with a no-op container. We can't simply not include this file,
+# cause the bridge-specific compose files might have overrides.
+version: '3.5'
+services:
+  prometheus-metrics:
+    image: alpine
+
+  grafana-dashboard:
+    image: alpine
+
+  grafana-matrix-notifier:
+    image: alpine
+
