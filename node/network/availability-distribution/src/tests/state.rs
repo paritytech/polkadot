@@ -20,7 +20,8 @@ use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers::TestSubsystemContextHandle;
 use smallvec::smallvec;
 
-use futures::{FutureExt, channel::oneshot};
+use futures::{FutureExt, channel::oneshot, SinkExt, channel::mpsc, StreamExt};
+use futures_timer::Delay;
 
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::AppKey;
@@ -42,15 +43,17 @@ use polkadot_node_network_protocol::{jaeger,
 	request_response::{IncomingRequest, OutgoingRequest, Requests, v1}
 };
 use polkadot_subsystem_testhelpers as test_helpers;
+use test_helpers::SingleItemSink;
 
 use super::mock::{make_session_info, OccupiedCoreBuilder, };
+use crate::LOG_TARGET;
 
 pub struct TestHarness {
 	pub virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	pub pool: TaskExecutor,
 }
 
-/// TestState for mocking execution of this subsystem.Clone
+/// TestState for mocking execution of this subsystem.
 ///
 /// The `Default` instance provides data, which makes the system succeed by providing a couple of
 /// valid occupied cores. You can tune the data before calling `TestState::run`. E.g. modify some
@@ -105,7 +108,11 @@ impl Default for TestState {
 				]
 			);
 
-			let heads = relay_chain.iter().zip(relay_chain.iter().next());
+			let heads =  {
+				let mut advanced = relay_chain.iter();
+				advanced.next();
+				relay_chain.iter().zip(advanced)
+			};
 			for (relay_parent, relay_child) in heads {
 				let (p_cores, p_chunks): (Vec<_>, Vec<_>) = chain_ids.iter().enumerate()
 					.map(|(i, para_id)| {
@@ -119,7 +126,10 @@ impl Default for TestState {
 					)
 					.unzip();
 				cores.insert(relay_child.clone(), p_cores);
-				for (validator_index, chunk) in p_chunks {
+				// Skip chunks for our own group (won't get fetched):
+				let mut chunks_other_groups = p_chunks.into_iter();
+				chunks_other_groups.next();
+				for (validator_index, chunk) in chunks_other_groups {
 					chunks.insert((validator_index, chunk.index), chunk);
 				}
 			}
@@ -141,52 +151,67 @@ impl TestState {
 	/// Run, but fail after some timeout.
 	pub async fn run(self, harness: TestHarness) {
 		// Make sure test won't run forever.
-		let f = self.run_inner(harness.pool, harness.virtual_overseer).timeout(Duration::from_secs(2));
+		let f = self.run_inner(harness.pool, harness.virtual_overseer).timeout(Duration::from_secs(10));
 		assert!(f.await.is_some(), "Test ran into timeout");
 	}
 
 	/// Run tests with the given mock values in `TestState`.
 	///
-	/// This will simply advance through the simulated chain and examines whether the
-	/// subsystem behaves as expected:
-	///
-	/// - Fetches and stores valid chunks
-	/// - Delivers valid chunks
-	/// - Does not store invalid chunks.
-	async fn run_inner(self, executor: TaskExecutor, mut virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
+	/// This will simply advance through the simulated chain and examines whether the subsystem
+	/// behaves as expected: It will succeed if all valid chunks of other backing groups get stored
+	/// and no other.
+	async fn run_inner(self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
-		let mut updates: Vec<_> = self
-			.relay_chain.iter().zip(self.relay_chain.iter().next())
+		let updates = {
+			let mut advanced = self.relay_chain.iter();
+			advanced.next();
+			self
+			.relay_chain.iter().zip(advanced)
 			.map(|(old, new)| ActiveLeavesUpdate {
 				activated: smallvec![(new.clone(), Arc::new(jaeger::Span::Disabled))],
 				deactivated: smallvec![old.clone()],
-			}).collect();
-		updates.reverse();
+			}).collect::<Vec<_>>()
+		};
 
 		// We should be storing all valid chunks during execution:
 		//
 		// Test will fail if this does not happen until timeout.
 		let mut remaining_stores = self.valid_chunks.len();
+		
+		let TestSubsystemContextHandle { tx, mut rx } = virtual_overseer;
+
+		// Spawning necessary as incoming queue can only hold a single item, we don't want to dead
+		// lock ;-)
+		let update_tx = tx.clone();
+		executor.spawn("Sending active leaves updates", async move {
+			for update in updates {
+				overseer_signal(
+					update_tx.clone(),
+					OverseerSignal::ActiveLeaves(update)
+				).await;
+				// We need to give the subsystem a little time to do its job, otherwise it will
+				// cancel jobs as obsolete:
+				Delay::new(Duration::from_millis(20)).await;
+			}
+		}.boxed()
+		);
 
 		while remaining_stores > 0
 		{
-			if let Some(update) = updates.pop() {
-				// Advance subsystem by one block:
-				overseer_signal(
-					&mut virtual_overseer,
-					OverseerSignal::ActiveLeaves(update)
-				).await;
-			}
-			let msg = overseer_recv(&mut virtual_overseer).await;
+			tracing::trace!(target: LOG_TARGET, remaining_stores, "Stores left to go");
+			let msg = overseer_recv(&mut rx).await;
 			match msg {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs)) => {
 					for req in reqs {
 						// Forward requests:
 						let in_req = to_incoming_req(&executor, req);
-						overseer_send(
-							&mut virtual_overseer,
-							AvailabilityDistributionMessage::AvailabilityFetchingRequest(in_req)
-						).await;
+
+						executor.spawn("Request forwarding",
+									overseer_send(
+										tx.clone(),
+										AvailabilityDistributionMessage::AvailabilityFetchingRequest(in_req)
+									).boxed()
+						);
 					}
 				}
 				AllMessages::AvailabilityStore(AvailabilityStoreMessage::QueryChunk(candidate_hash,	validator_index, tx)) => {
@@ -201,6 +226,7 @@ impl TestState {
 					);
 					tx.send(Ok(()))
 						.expect("Receiver is expected to be alive");
+					tracing::trace!(target: LOG_TARGET, "'Stored' fetched chunk.");
 					remaining_stores -= 1;
 				}
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, req)) => {
@@ -215,6 +241,7 @@ impl TestState {
 							.expect("Receiver should be alive.");
 						}
 						RuntimeApiRequest::AvailabilityCores(tx) => {
+							tracing::trace!(target: LOG_TARGET, cores= ?self.cores[&hash], hash = ?hash, "Sending out cores for hash");
 							tx.send(Ok(self.cores[&hash].clone()))
 							.expect("Receiver should still be alive");
 						}
@@ -234,31 +261,33 @@ impl TestState {
 
 
 async fn overseer_signal(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+	mut tx: SingleItemSink<FromOverseer<AvailabilityDistributionMessage>>,
 	msg: impl Into<OverseerSignal>,
 ) {
 	let msg = msg.into();
-	tracing::trace!(msg = ?msg, "sending message");
-	overseer.send(FromOverseer::Signal(msg)).await
+	tracing::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
+	tx.send(FromOverseer::Signal(msg))
+		.await
+		.expect("Test subsystem no longer live");
 }
 
 async fn overseer_send(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+	mut tx: SingleItemSink<FromOverseer<AvailabilityDistributionMessage>>,
 	msg: impl Into<AvailabilityDistributionMessage>,
 ) {
 	let msg = msg.into();
-	tracing::trace!(msg = ?msg, "sending message");
-	overseer.send(FromOverseer::Communication { msg }).await
+	tracing::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
+	tx.send(FromOverseer::Communication { msg }).await
+		.expect("Test subsystem no longer live");
+	tracing::trace!(target: LOG_TARGET, "sent message");
 }
 
 
 async fn overseer_recv(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+	rx: &mut mpsc::UnboundedReceiver<AllMessages>,
 ) -> AllMessages {
-	tracing::trace!("waiting for message ...");
-	let msg = overseer.recv().await;
-	tracing::trace!(msg = ?msg, "received message");
-	msg
+	tracing::trace!(target: LOG_TARGET, "waiting for message ...");
+	rx.next().await.expect("Test subsystem no longer live")
 }
 
 fn to_incoming_req(

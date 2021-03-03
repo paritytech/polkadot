@@ -51,7 +51,7 @@ pub fn make_session_info() -> SessionInfo {
 			n_cores: validator_groups.len() as u32,
 			validator_groups,
 			// Not used values:
-			validators: Vec::new(),
+			validators: validators.iter().map(|k| k.public().into()).collect(),
 			assignment_keys: Vec::new(),
 			zeroth_delay_tranche_width: 0,
 			relay_vrf_modulo_samples: 0,

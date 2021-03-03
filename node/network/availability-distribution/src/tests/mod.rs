@@ -52,6 +52,8 @@ fn test_harness<T: Future<Output = ()>>(
 }
 
 /// Simple basic check, whether the subsystem works as expected.
+///
+/// Exceptional cases are tested as unit tests in `fetch_task`.
 #[test]
 fn check_basic() {
 	let state = TestState::default();
