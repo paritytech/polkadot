@@ -141,8 +141,7 @@ impl SessionCache {
 			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
 			if let Some(info) = o_info {
 				return Ok(Some(with_info(info)));
-			}
-			else {
+			} else {
 				// Info was cached - we are not a validator: return early:
 				return Ok(None)
 			}
