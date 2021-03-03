@@ -1041,10 +1041,9 @@ construct_runtime! {
 pub struct BabeEpochConfigMigrations;
 impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configurations::<Runtime>(
-			BABE_GENESIS_EPOCH_CONFIG, BABE_GENESIS_EPOCH_CONFIG,
-		);
-		Weight::max_value()
+		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
+			BABE_GENESIS_EPOCH_CONFIG,
+		)
 	}
 }
 
@@ -1080,7 +1079,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-	(BabeEpochConfigMigrations,),
+	(BabeEpochConfigMigrations),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
