@@ -951,7 +951,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
 		)?;
 
-	let telemetry = telemetry
+	let mut telemetry = telemetry
 		.map(|(worker, telemetry)| {
 			task_manager.spawn_handle().spawn("telemetry", worker.run());
 			telemetry
