@@ -1047,7 +1047,10 @@ pub struct BabeEpochConfigMigrations;
 impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			BABE_GENESIS_EPOCH_CONFIG,
+			babe_primitives::BabeEpochConfiguration {
+				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+				..BABE_GENESIS_EPOCH_CONFIG
+			}
 		)
 	}
 }
