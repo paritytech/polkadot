@@ -1,0 +1,101 @@
+[package]
+name = "millau-runtime"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+homepage = "https://substrate.dev"
+repository = "https://github.com/paritytech/parity-bridges-common/"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+hex-literal = "0.3"
+serde = { version = "1.0.123", optional = true, features = ["derive"] }
+
+# Bridge dependencies
+
+bp-header-chain = { path = "../../../primitives/header-chain", default-features = false }
+bp-message-lane = { path = "../../../primitives/message-lane", default-features = false }
+bp-millau = { path = "../../../primitives/millau", default-features = false }
+bp-rialto = { path = "../../../primitives/rialto", default-features = false }
+bp-runtime = { path = "../../../primitives/runtime", default-features = false }
+bridge-runtime-common = { path = "../../runtime-common", default-features = false }
+pallet-bridge-call-dispatch = { path = "../../../modules/call-dispatch", default-features = false }
+pallet-finality-verifier = { path = "../../../modules/finality-verifier", default-features = false }
+pallet-message-lane = { path = "../../../modules/message-lane", default-features = false }
+pallet-shift-session-manager = { path = "../../../modules/shift-session-manager", default-features = false }
+pallet-substrate-bridge = { path = "../../../modules/substrate", default-features = false }
+
+# Substrate Dependencies
+
+frame-executive = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-aura = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-session = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-sudo = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-block-builder = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-inherents = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-offchain = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
+
+[features]
+default = ["std"]
+std = [
+	"bp-header-chain/std",
+	"bp-message-lane/std",
+	"bp-millau/std",
+	"bp-rialto/std",
+	"bp-runtime/std",
+	"bridge-runtime-common/std",
+	"codec/std",
+	"frame-executive/std",
+	"frame-support/std",
+	"frame-system/std",
+	"frame-system-rpc-runtime-api/std",
+	"pallet-aura/std",
+	"pallet-balances/std",
+	"pallet-bridge-call-dispatch/std",
+	"pallet-finality-verifier/std",
+	"pallet-grandpa/std",
+	"pallet-message-lane/std",
+	"pallet-randomness-collective-flip/std",
+	"pallet-shift-session-manager/std",
+	"pallet-session/std",
+	"pallet-substrate-bridge/std",
+	"pallet-sudo/std",
+	"pallet-timestamp/std",
+	"pallet-transaction-payment/std",
+	"serde",
+	"sp-api/std",
+	"sp-block-builder/std",
+	"sp-consensus-aura/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"sp-finality-grandpa/std",
+	"sp-offchain/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-std/std",
+	"sp-transaction-pool/std",
+	"sp-trie/std",
+	"sp-version/std",
+]

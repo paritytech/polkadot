@@ -1,0 +1,166 @@
+name: ethsub-bridge
+version: "0.1.0"
+author: Parity Technologies <admin@parity.io>
+about: Parity Ethereum (PoA) <-> Substrate bridge
+subcommands:
+    - eth-to-sub:
+        about: Synchronize headers from Ethereum node to Substrate node.
+        args:
+            - eth-host: &eth-host
+                long: eth-host
+                value_name: ETH_HOST
+                help: Connect to Ethereum node at given host.
+                takes_value: true
+            - eth-port: &eth-port
+                long: eth-port
+                value_name: ETH_PORT
+                help: Connect to Ethereum node at given port.
+                takes_value: true
+            - sub-host: &sub-host
+                long: sub-host
+                value_name: SUB_HOST
+                help: Connect to Substrate node at given host.
+                takes_value: true
+            - sub-port: &sub-port
+                long: sub-port
+                value_name: SUB_PORT
+                help: Connect to Substrate node websocket server at given port.
+                takes_value: true
+            - sub-tx-mode:
+                long: sub-tx-mode
+                value_name: MODE
+                help: Submit headers using signed (default) or unsigned transactions. Third mode - backup - submits signed transactions only when we believe that sync has stalled.
+                takes_value: true
+                possible_values:
+                    - signed
+                    - unsigned
+                    - backup
+            - sub-signer: &sub-signer
+                long: sub-signer
+                value_name: SUB_SIGNER
+                help: The SURI of secret key to use when transactions are submitted to the Substrate node.
+            - sub-signer-password: &sub-signer-password
+                long: sub-signer-password
+                value_name: SUB_SIGNER_PASSWORD
+                help: The password for the SURI of secret key to use when transactions are submitted to the Substrate node.
+            - sub-pallet-instance: &sub-pallet-instance
+                long: instance
+                short: i
+                value_name: PALLET_INSTANCE
+                help: The instance of the bridge pallet the relay should follow.
+                takes_value: true
+                case_insensitive: true
+                possible_values:
+                  - Rialto
+                  - Kovan
+                default_value: Rialto
+            - no-prometheus: &no-prometheus
+                long: no-prometheus
+                help: Do not expose a Prometheus metric endpoint.
+            - prometheus-host: &prometheus-host
+                long: prometheus-host
+                value_name: PROMETHEUS_HOST
+                help: Expose Prometheus endpoint at given interface.
+            - prometheus-port: &prometheus-port
+                long: prometheus-port
+                value_name: PROMETHEUS_PORT
+                help: Expose Prometheus endpoint at given port.
+    - sub-to-eth:
+        about: Synchronize headers from Substrate node to Ethereum node.
+        args:
+            - eth-host: *eth-host
+            - eth-port: *eth-port
+            - eth-contract:
+                long: eth-contract
+                value_name: ETH_CONTRACT
+                help: Address of deployed bridge contract.
+                takes_value: true
+            - eth-chain-id: &eth-chain-id
+                long: eth-chain-id
+                value_name: ETH_CHAIN_ID
+                help: Chain ID to use for signing.
+            - eth-signer: &eth-signer
+                long: eth-signer
+                value_name: ETH_SIGNER
+                help: Hex-encoded secret to use when transactions are submitted to the Ethereum node.
+            - sub-host: *sub-host
+            - sub-port: *sub-port
+            - no-prometheus: *no-prometheus
+            - prometheus-host: *prometheus-host
+            - prometheus-port: *prometheus-port
+    - eth-deploy-contract:
+        about: Deploy Bridge contract on Ethereum node.
+        args:
+            - eth-host: *eth-host
+            - eth-port: *eth-port
+            - eth-signer: *eth-signer
+            - eth-chain-id: *eth-chain-id
+            - eth-contract-code:
+                long: eth-contract-code
+                value_name: ETH_CONTRACT_CODE
+                help: Bytecode of bridge contract.
+                takes_value: true
+            - sub-host: *sub-host
+            - sub-port: *sub-port
+            - sub-authorities-set-id:
+                long: sub-authorities-set-id
+                value_name: SUB_AUTHORITIES_SET_ID
+                help: ID of initial GRANDPA authorities set.
+                takes_value: true
+            - sub-authorities-set:
+                long: sub-authorities-set
+                value_name: SUB_AUTHORITIES_SET
+                help: Encoded initial GRANDPA authorities set.
+                takes_value: true
+            - sub-initial-header:
+                long: sub-initial-header
+                value_name: SUB_INITIAL_HEADER
+                help: Encoded initial Substrate header.
+                takes_value: true
+    - eth-submit-exchange-tx:
+        about: Submit lock funds transaction to Ethereum node.
+        args:
+            - eth-host: *eth-host
+            - eth-port: *eth-port
+            - eth-nonce:
+                long: eth-nonce
+                value_name: ETH_NONCE
+                help: Nonce that have to be used when building transaction. If not specified, read from PoA node.
+                takes_value: true
+            - eth-signer: *eth-signer
+            - eth-chain-id: *eth-chain-id
+            - eth-amount:
+                long: eth-amount
+                value_name: ETH_AMOUNT
+                help: Amount of ETH to lock (in wei).
+                takes_value: true
+            - sub-recipient:
+                long: sub-recipient
+                value_name: SUB_RECIPIENT
+                help: Hex-encoded Public key of funds recipient in Substrate chain.
+                takes_value: true
+    - eth-exchange-sub:
+        about: Submit proof of PoA lock funds transaction to Substrate node.
+        args:
+            - eth-host: *eth-host
+            - eth-port: *eth-port
+            - eth-start-with-block:
+                long: eth-start-with-block
+                value_name: ETH_START_WITH_BLOCK
+                help: Auto-relay transactions starting with given block number. If not specified, starts with best finalized Ethereum block (known to Substrate node) transactions.
+                takes_value: true
+                conflicts_with:
+                    - eth-tx-hash
+            - eth-tx-hash:
+                long: eth-tx-hash
+                value_name: ETH_TX_HASH
+                help: Hash of the lock funds transaction.
+                takes_value: true
+            - sub-host: *sub-host
+            - sub-port: *sub-port
+            - sub-signer: *sub-signer
+            - sub-signer-password: *sub-signer-password
+            - sub-pallet-instance: *sub-pallet-instance
+            - no-prometheus: *no-prometheus
+            - prometheus-host: *prometheus-host
+            - prometheus-port: *prometheus-port
