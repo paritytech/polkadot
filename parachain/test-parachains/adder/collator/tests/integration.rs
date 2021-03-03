@@ -25,7 +25,7 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 	use futures::join;
 	use polkadot_primitives::v1::Id as ParaId;
 
-	let mut builder = sc_cli::GlobalLoggerBuilder::new("");
+	let mut builder = sc_cli::LoggerBuilder::new("");
 	builder.with_colors(false);
 	builder.init().expect("Set up logger");
 
@@ -63,10 +63,17 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 		collator.collator_id(),
 	);
 
-	charlie.register_collator(collator.collator_key(), para_id, collator.create_collation_function()).await;
+	charlie.register_collator(
+		collator.collator_key(),
+		para_id,
+		collator.create_collation_function(charlie.task_manager.spawn_handle()),
+	).await;
 
 	// Wait until the parachain has 4 blocks produced.
 	collator.wait_for_blocks(4).await;
+
+	// Wait until the collator received `12` seconded statements for its collations.
+	collator.wait_for_seconded_collations(12).await;
 
 	join!(
 		alice.task_manager.clean_shutdown(),

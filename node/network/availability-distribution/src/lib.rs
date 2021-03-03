@@ -32,7 +32,7 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View, OurView,
+	v1 as protocol_v1, PeerId, View, OurView, UnifiedReputationChange as Rep,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{
@@ -42,10 +42,10 @@ use polkadot_primitives::v1::{
 };
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
-	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+	NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent
 };
 use polkadot_subsystem::{
-	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan,
+	jaeger, errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, Stage,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 use std::collections::{HashMap, HashSet};
@@ -95,11 +95,11 @@ enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Merkle proof was invalid");
-const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::new(-51, "Candidate is not live");
-const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::new(-500, "Peer sent identical messages");
-const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::new(15, "Valid message with new information");
-const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
+const COST_MERKLE_PROOF_INVALID: Rep = Rep::CostMinor("Merkle proof was invalid");
+const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::CostMinor("Candidate is not live");
+const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::CostMajorRepeated("Peer sent identical messages");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");
+const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
@@ -166,7 +166,7 @@ struct PerCandidate {
 	live_in: HashSet<Hash>,
 
 	/// A Jaeger span relating to this candidate.
-	span: jaeger::JaegerSpan,
+	span: jaeger::Span,
 }
 
 impl PerCandidate {
@@ -185,7 +185,7 @@ impl PerCandidate {
 	fn drop_span_after_own_availability(&mut self) {
 		if let Some(validator_index) = self.validator_index {
 			if self.message_vault.contains_key(&validator_index) {
-				self.span = jaeger::JaegerSpan::Disabled;
+				self.span = jaeger::Span::Disabled;
 			}
 		}
 	}
@@ -251,7 +251,7 @@ impl ProtocolState {
 							span: if validator_index.is_some() {
 								jaeger::candidate_hash_span(&receipt_hash, "pending-availability")
 							} else {
-								jaeger::JaegerSpan::Disabled
+								jaeger::Span::Disabled
 							},
 						})
 					} else {
@@ -262,9 +262,10 @@ impl ProtocolState {
 			};
 
 			// Create some span that will make it able to switch between the candidate and relay parent span.
-			let mut span = per_relay_parent.span.child("live-candidate");
-			span.add_string_tag("candidate-hash", &format!("{:?}", receipt_hash));
-
+			let span = per_relay_parent.span.child_builder("live-candidate")
+				.with_candidate(&receipt_hash)
+				.with_stage(Stage::AvailabilityDistribution)
+				.build();
 			candidate_entry.span.add_follows_from(&span);
 			candidate_entry.live_in.insert(relay_parent);
 		}
@@ -416,7 +417,7 @@ where
 			.filter(|(_peer, view)| {
 				// collect all direct interests of a peer w/o ancestors
 				state
-					.cached_live_candidates_unioned(view.heads.iter())
+					.cached_live_candidates_unioned(view.iter())
 					.contains(&candidate_hash)
 			})
 			.map(|(peer, _view)| peer.clone())
@@ -429,11 +430,12 @@ where
 
 		// distribute all erasure messages to interested peers
 		for chunk_index in 0u32..(validator_count as u32) {
-			let _span = {
-				let mut span = per_candidate.span.child("load-and-distribute");
-				span.add_string_tag("chunk-index", &format!("{}", chunk_index));
-				span
-			};
+			let _span = per_candidate.span
+				.child_builder("load-and-distribute")
+				.with_candidate(&candidate_hash)
+				.with_chunk_index(chunk_index)
+				.build();
+
 			let message = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -621,17 +623,18 @@ where
 	let _timer = metrics.time_process_incoming_peer_message();
 
 	// obtain the set of candidates we are interested in based on our current view
-	let live_candidates = state.cached_live_candidates_unioned(state.view.heads.iter());
+	let live_candidates = state.cached_live_candidates_unioned(state.view.iter());
 
 	// check if the candidate is of interest
-	let candidate_entry = if live_candidates.contains(&message.candidate_hash) {
+	let candidate_hash = message.candidate_hash;
+	let candidate_entry = if live_candidates.contains(&candidate_hash) {
 		state.per_candidate
-			.get_mut(&message.candidate_hash)
+			.get_mut(&candidate_hash)
 			.expect("All live candidates are contained in per_candidate; qed")
 	} else {
 		tracing::trace!(
 			target: LOG_TARGET,
-			candidate_hash = ?message.candidate_hash,
+			candidate_hash = ?candidate_hash,
 			peer = %origin,
 			"Peer send not live candidate",
 		);
@@ -641,10 +644,10 @@ where
 
 	// Handle a duplicate before doing expensive checks.
 	if let Some(existing) = candidate_entry.message_vault.get(&message.erasure_chunk.index) {
-		let span = candidate_entry.span.child("handle-duplicate");
+		let span = candidate_entry.span.child_with_candidate("handle-duplicate", &candidate_hash);
 		// check if this particular erasure chunk was already sent by that peer before
 		{
-			let _span = span.child("check-entry");
+			let _span = span.child_with_candidate("check-entry", &candidate_hash);
 			let received_set = candidate_entry
 				.received_messages
 				.entry(origin.clone())
@@ -659,7 +662,7 @@ where
 		// check that the message content matches what we have already before rewarding
 		// the peer.
 		{
-			let _span = span.child("check-accurate");
+			let _span = span.child_with_candidate("check-accurate", &candidate_hash);
 			if existing == &message {
 				modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
 			} else {
@@ -670,15 +673,15 @@ where
 		return Ok(());
 	}
 
-	let span = {
-		let mut span = candidate_entry.span.child("process-new-chunk");
-		span.add_string_tag("peer-id", &origin.to_base58());
-		span
-	};
+	let span = candidate_entry.span
+			.child_builder("process-new-chunk")
+			.with_candidate(&candidate_hash)
+			.with_peer_id(&origin)
+			.build();
 
 	// check the merkle proof against the erasure root in the candidate descriptor.
 	let anticipated_hash = {
-		let _span = span.child("check-merkle-root");
+		let _span = span.child_with_candidate("check-merkle-root", &candidate_hash);
 		match branch_hash(
 			&candidate_entry.descriptor.erasure_root,
 			&message.erasure_chunk.proof,
@@ -761,7 +764,7 @@ where
 				// peers view must contain the candidate hash too
 				cached_live_candidates_unioned(
 					per_relay_parent,
-					view.heads.iter(),
+					view.iter(),
 				).contains(&message.candidate_hash)
 			})
 			.map(|(peer, _)| -> PeerId { peer.clone() })
@@ -842,6 +845,15 @@ impl AvailabilityDistributionSubsystem {
 							"Failed to handle incoming network messages",
 						);
 					}
+				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(_),
+				} => {
+					// TODO: Implement issue 2306:
+					tracing::warn!(
+						target: LOG_TARGET,
+						"To be implemented, see: https://github.com/paritytech/polkadot/issues/2306 !",
+					);
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: _,

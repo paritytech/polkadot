@@ -119,11 +119,44 @@ pub mod well_known_keys {
 		})
 	}
 
+	/// The list of inbound channels for the given para.
+	///
+	/// The storage entry stores a `Vec<ParaId>`
+	pub fn hrmp_ingress_channel_index(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
 	/// The list of outbound channels for the given para.
 	///
 	/// The storage entry stores a `Vec<ParaId>`
 	pub fn hrmp_egress_channel_index(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cf12b746dcf32e843354583c9702cc020"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
+	/// The MQC head for the downward message queue of the given para. See more in the `Dmp` module.
+	///
+	/// The storage entry stores a `Hash`. This is polkadot hash which is at the moment
+	/// `blake2b-256`.
+	pub fn dmq_mqc_head(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5"];
 
 		para_id.using_encoded(|para_id: &[u8]| {
 			prefix.as_ref()
@@ -144,14 +177,20 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
-mod assigment_app {
+mod assignment_app {
 	use application_crypto::{app_crypto, sr25519};
 	app_crypto!(sr25519, super::ASSIGNMENT_KEY_TYPE_ID);
 }
 
 /// The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
-pub type AssignmentId = assigment_app::Public;
+pub type AssignmentId = assignment_app::Public;
+
+application_crypto::with_pair! {
+	/// The full keypair used by a validator for determining assignments to approve included
+	/// parachain candidates.
+	pub type AssignmentPair = assignment_app::Pair;
+}
 
 #[cfg(feature = "std")]
 impl MallocSizeOf for AssignmentId {
@@ -360,18 +399,9 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The relay-chain block number this is in the context of.
-	pub block_number: N,
+	pub relay_parent_number: N,
 	/// The relay-chain block storage root this is in the context of.
-	pub relay_storage_root: Hash,
-	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
-	/// The MQC head for the DMQ.
-	///
-	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
-	/// passed by the collator.
-	pub dmq_mqc_head: Hash,
+	pub relay_parent_storage_root: Hash,
 	/// The maximum legal size of a POV block, in bytes.
 	pub max_pov_size: u32,
 }
@@ -520,8 +550,8 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 }
 
 /// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, Hash)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {
@@ -531,8 +561,8 @@ impl From<u32> for CoreIndex {
 }
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy, Debug)]
-#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, MallocSizeOf))]
+#[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct GroupIndex(pub u32);
 
 impl From<u32> for GroupIndex {
@@ -568,7 +598,7 @@ pub enum CoreOccupied {
 
 /// This is the data we keep available for each candidate included in the relay chain.
 #[cfg(feature = "std")]
-#[derive(Clone, Encode, Decode, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Debug)]
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: std::sync::Arc<PoV>,
@@ -677,18 +707,18 @@ pub struct ScheduledCore {
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
-	#[codec(index = "0")]
+	#[codec(index = 0)]
 	Occupied(OccupiedCore<H, N>),
 	/// The core is currently free, with a para scheduled and given the opportunity
 	/// to occupy.
 	///
 	/// If a particular Collator is required to author this block, that is also present in this
 	/// variant.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
 	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
 	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Free,
 }
 
@@ -713,13 +743,13 @@ impl<N> CoreState<N> {
 #[cfg_attr(feature = "std", derive(PartialEq, Eq, Hash, Debug))]
 pub enum OccupiedCoreAssumption {
 	/// The candidate occupying the core was made available and included to free the core.
-	#[codec(index = "0")]
+	#[codec(index = 0)]
 	Included,
 	/// The candidate occupying the core timed out and freed the core without advancing the para.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	TimedOut,
 	/// The core was not occupied to begin with.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Free,
 }
 
@@ -728,14 +758,18 @@ pub enum OccupiedCoreAssumption {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
 pub enum CandidateEvent<H = Hash> {
 	/// This candidate receipt was backed in the most recent block.
-	#[codec(index = "0")]
-	CandidateBacked(CandidateReceipt<H>, HeadData),
+	/// This includes the core index the candidate is now occupying.
+	#[codec(index = 0)]
+	CandidateBacked(CandidateReceipt<H>, HeadData, CoreIndex, GroupIndex),
 	/// This candidate receipt was included and became a parablock at the most recent block.
-	#[codec(index = "1")]
-	CandidateIncluded(CandidateReceipt<H>, HeadData),
+	/// This includes the core index the candidate was occupying as well as the group responsible
+	/// for backing the candidate.
+	#[codec(index = 1)]
+	CandidateIncluded(CandidateReceipt<H>, HeadData, CoreIndex, GroupIndex),
 	/// This candidate receipt was not made available in time and timed out.
-	#[codec(index = "2")]
-	CandidateTimedOut(CandidateReceipt<H>, HeadData),
+	/// This includes the core index the candidate was occupying.
+	#[codec(index = 2)]
+	CandidateTimedOut(CandidateReceipt<H>, HeadData, CoreIndex),
 }
 
 /// Information about validator sets of a session.

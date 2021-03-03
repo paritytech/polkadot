@@ -20,6 +20,7 @@ struct CandidatePendingAvailability {
   relay_parent_number: BlockNumber, // number of the relay-parent.
   backers: Bitfield, // one bit per validator, set for those who backed the candidate.
   backed_in_number: BlockNumber,
+  backing_group: GroupIndex,
 }
 ```
 
@@ -35,9 +36,6 @@ PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
 
 /// The current validators, by their parachain session keys.
 Validators: Vec<ValidatorId>;
-
-/// The current session index.
-CurrentSessionIndex: SessionIndex;
 ```
 
 ## Session Change
@@ -45,20 +43,19 @@ CurrentSessionIndex: SessionIndex;
 1. Clear out all candidates pending availability.
 1. Clear out all validator bitfields.
 1. Update `Validators` with the validators from the session change notification.
-1. Update `CurrentSessionIndex` with the session index from the session change notification.
 
 ## Routines
 
 All failed checks should lead to an unrecoverable error making the block invalid.
 
-* `process_bitfields(Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
-  1. check that the number of bitfields and bits in each bitfield is correct.
+* `process_bitfields(expected_bits, Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
+  1. check that there is at most 1 bitfield per validator and that the number of bits in each bitfield is equal to expected_bits.
   1. check that there are no duplicates
   1. check all validator signatures.
   1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
   1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
-  1. Return a list of freed cores consisting of the cores where candidates have become available.
+  1. Return a list of `(CoreIndex, CandidateHash)` from freed cores consisting of the cores where candidates have become available.
 * `process_candidates(parent_storage_root, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
   1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
@@ -88,7 +85,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
 * `collect_pending`:
 
   ```rust
-    fn collect_pending(f: impl Fn(CoreIndex, BlockNumber) -> bool) -> Vec<u32> {
+    fn collect_pending(f: impl Fn(CoreIndex, BlockNumber) -> bool) -> Vec<CoreIndex> {
       // sweep through all paras pending availability. if the predicate returns true, when given the core index and
       // the block number the candidate has been pending availability since, then clean up the corresponding storage for that candidate and the commitments.
       // return a vector of cleaned-up core IDs.
@@ -97,3 +94,4 @@ All failed checks should lead to an unrecoverable error making the block invalid
 * `force_enact(ParaId)`: Forcibly enact the candidate with the given ID as though it had been deemed available by bitfields. Is a no-op if there is no candidate pending availability for this para-id. This should generally not be used but it is useful during execution of Runtime APIs, where the changes to the state are expected to be discarded directly after.
 * `candidate_pending_availability(ParaId) -> Option<CommittedCandidateReceipt>`: returns the `CommittedCandidateReceipt` pending availability for the para provided, if any.
 * `pending_availability(ParaId) -> Option<CandidatePendingAvailability>`: returns the metadata around the candidate pending availability for the para, if any.
+* `collect_disputed(disputed: Vec<CandidateHash>) -> Vec<CoreIndex>`: Sweeps through all paras pending availability. If the candidate hash is one of the disputed candidates, then clean up the corresponding storage for that candidate and the commitments. Return a vector of cleaned-up core IDs.

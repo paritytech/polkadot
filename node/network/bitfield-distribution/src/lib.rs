@@ -27,28 +27,22 @@ use futures::{channel::oneshot, FutureExt};
 
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
-	SubsystemResult,
+	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	SubsystemContext, SubsystemResult,
+	jaeger,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
-use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange, OurView};
+use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
 use std::collections::{HashMap, HashSet};
 
-const COST_SIGNATURE_INVALID: ReputationChange =
-	ReputationChange::new(-100, "Bitfield signature invalid");
-const COST_VALIDATOR_INDEX_INVALID: ReputationChange =
-	ReputationChange::new(-100, "Bitfield validator index invalid");
-const COST_MISSING_PEER_SESSION_KEY: ReputationChange =
-	ReputationChange::new(-133, "Missing peer session key");
-const COST_NOT_IN_VIEW: ReputationChange =
-	ReputationChange::new(-51, "Not interested in that parent hash");
-const COST_PEER_DUPLICATE_MESSAGE: ReputationChange =
-	ReputationChange::new(-500, "Peer sent the same message multiple times");
-const BENEFIT_VALID_MESSAGE_FIRST: ReputationChange =
-	ReputationChange::new(15, "Valid message with new information");
-const BENEFIT_VALID_MESSAGE: ReputationChange =
-	ReputationChange::new(10, "Valid message");
+const COST_SIGNATURE_INVALID: Rep = Rep::CostMajor("Bitfield signature invalid");
+const COST_VALIDATOR_INDEX_INVALID: Rep = Rep::CostMajor("Bitfield validator index invalid");
+const COST_MISSING_PEER_SESSION_KEY: Rep = Rep::CostMinor("Missing peer session key");
+const COST_NOT_IN_VIEW: Rep = Rep::CostMinor("Not interested in that parent hash");
+const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent the same message multiple times");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");
+const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
@@ -236,7 +230,7 @@ impl BitfieldDistribution {
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
-	rep: ReputationChange,
+	rep: Rep,
 )
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
@@ -405,15 +399,12 @@ where
 		return;
 	};
 
-	let mut _span = {
-		let mut span = job_data.span.child("msg-received");
-		span.add_string_tag("peer-id", &origin.to_base58());
-		span.add_string_tag(
-			"claimed-validator",
-			&message.signed_availability.validator_index().to_string(),
-		);
-		span
-	};
+	let mut _span = job_data.span
+			.child_builder("msg-received")
+			.with_peer_id(&origin)
+			.with_claimed_validator_index(message.signed_availability.validator_index())
+			.with_stage(jaeger::Stage::BitfieldDistribution)
+			.build();
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
@@ -786,7 +777,7 @@ mod test {
 	use std::time::Duration;
 	use assert_matches::assert_matches;
 	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
-	use polkadot_subsystem::JaegerSpan;
+	use polkadot_subsystem::jaeger;
 
 	macro_rules! launch {
 		($fut:expr) => {
@@ -818,7 +809,7 @@ mod test {
 						},
 						message_received_from_peer: hashmap!{},
 						message_sent_to_peer: hashmap!{},
-						span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+						span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 					},
 			},
 			peer_views: peers
@@ -844,7 +835,7 @@ mod test {
 		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
 
-		state.per_relay_parent = view.heads.iter().map(|relay_parent| {(
+		state.per_relay_parent = view.iter().map(|relay_parent| {(
 				relay_parent.clone(),
 				PerRelayParentData {
 					signing_context: signing_context.clone(),
@@ -852,7 +843,7 @@ mod test {
 					one_per_validator: hashmap!{},
 					message_received_from_peer: hashmap!{},
 					message_sent_to_peer: hashmap!{},
-					span: PerLeafSpan::new(Arc::new(JaegerSpan::Disabled), "test"),
+					span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 				})
 			}).collect();
 
@@ -893,7 +884,7 @@ mod test {
 			&signing_context,
 			0,
 			&malicious.into(),
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -958,7 +949,7 @@ mod test {
 			&signing_context,
 			42,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1015,7 +1006,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1130,7 +1121,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);
@@ -1226,7 +1217,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1385,7 +1376,7 @@ mod test {
 			&signing_context,
 			0,
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);

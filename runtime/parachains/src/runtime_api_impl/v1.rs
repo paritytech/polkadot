@@ -25,10 +25,11 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, Hash,
+	InboundDownwardMessage, InboundHrmpMessage, Hash, AuthorityDiscoveryId
 };
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
+use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
+
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
@@ -200,13 +201,13 @@ pub fn persisted_validation_data<T: initializer::Config>(
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
 	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	let relay_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+	let relay_parent_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
 		.expect("storage root must decode to the Hash type; qed");
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		crate::util::make_persisted_validation_data::<T>(
 			para_id,
 			relay_parent_number,
-			relay_storage_root,
+			relay_parent_storage_root,
 		)
 	})
 }
@@ -228,7 +229,28 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	//
 	// Incidentally, this is also the rationale for why it is OK to query validators or
 	// occupied cores or etc. and expect the correct response "for child".
-	<inclusion::Module<T>>::session_index()
+	<shared::Module<T>>::session_index()
+}
+
+/// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
+/// It is a heavy call, but currently only used for authority discovery, so it is fine.
+/// Gets next, current and some historical authority ids using session_info module.
+pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
+	let current_session_index = session_index_for_child::<T>();
+	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
+	let mut authority_ids = <pallet_authority_discovery::Module<T>>::next_authorities();
+
+	for session_index in earliest_stored_session..=current_session_index {
+		let info = <session_info::Module<T>>::session_info(session_index);
+		if let Some(mut info) = info {
+			authority_ids.append(&mut info.discovery_keys);
+		}
+	}
+
+	authority_ids.sort();
+	authority_ids.dedup();
+
+	authority_ids
 }
 
 /// Implementation for the `validation_code` function of the runtime API.
@@ -271,9 +293,12 @@ where
 	<frame_system::Module<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
-			RawEvent::<T>::CandidateBacked(c, h) => CandidateEvent::CandidateBacked(c, h),
-			RawEvent::<T>::CandidateIncluded(c, h) => CandidateEvent::CandidateIncluded(c, h),
-			RawEvent::<T>::CandidateTimedOut(c, h) => CandidateEvent::CandidateTimedOut(c, h),
+			RawEvent::<T>::CandidateBacked(c, h, core, group)
+				=> CandidateEvent::CandidateBacked(c, h, core, group),
+			RawEvent::<T>::CandidateIncluded(c, h, core, group)
+				=> CandidateEvent::CandidateIncluded(c, h, core, group),
+			RawEvent::<T>::CandidateTimedOut(c, h, core)
+				=> CandidateEvent::CandidateTimedOut(c, h, core),
 		})
 		.collect()
 }

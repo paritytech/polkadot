@@ -25,11 +25,13 @@
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
+	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
+	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
 };
 use polkadot_node_primitives::{
-	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
+	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	BabeEpoch,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
@@ -39,9 +41,15 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
-	CandidateIndex,
+	CandidateIndex, GroupIndex,
 };
+use polkadot_statement_table::v1::Misbehavior;
 use std::{sync::Arc, collections::btree_map::BTreeMap};
+
+
+/// Network events as transmitted to other subsystems, wrapped in their message types.
+pub mod network_bridge_event;
+pub use network_bridge_event::NetworkBridgeEvent;
 
 /// Subsystem messages where each message is always bound to a relay parent.
 pub trait BoundToRelayParent {
@@ -55,8 +63,13 @@ pub enum CandidateSelectionMessage {
 	/// A candidate collation can be fetched from a collator and should be considered for seconding.
 	Collation(Hash, ParaId, CollatorId),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+	///
 	/// The hash is the relay parent.
 	Invalid(Hash, CandidateReceipt),
+	/// The candidate we recommended to be seconded was validated successfully.
+	///
+	/// The hash is the relay parent.
+	Seconded(Hash, SignedFullStatement),
 }
 
 impl BoundToRelayParent for CandidateSelectionMessage {
@@ -64,6 +77,7 @@ impl BoundToRelayParent for CandidateSelectionMessage {
 		match self {
 			Self::Collation(hash, ..) => *hash,
 			Self::Invalid(hash, _) => *hash,
+			Self::Seconded(hash, _) => *hash,
 		}
 	}
 }
@@ -166,8 +180,11 @@ pub enum CollatorProtocolMessage {
 	///
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
-	/// Provide a collation to distribute to validators.
-	DistributeCollation(CandidateReceipt, PoV),
+	/// Provide a collation to distribute to validators with an optional result sender.
+	///
+	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
+	/// completely okay to just drop the sender.
+	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
 	/// Fetch a collation under the given relay-parent for the given ParaId.
 	FetchCollation(Hash, CollatorId, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
@@ -175,6 +192,8 @@ pub enum CollatorProtocolMessage {
 	ReportCollator(CollatorId),
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
+	/// Notify a collator that its collation was seconded.
+	NotifyCollationSeconded(CollatorId, SignedFullStatement),
 	/// Get a network bridge update.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 }
@@ -184,11 +203,12 @@ impl CollatorProtocolMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::CollateOn(_) => None,
-			Self::DistributeCollation(receipt, _) => Some(receipt.descriptor().relay_parent),
+			Self::DistributeCollation(receipt, _, _) => Some(receipt.descriptor().relay_parent),
 			Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
 			Self::ReportCollator(_) => None,
 			Self::NoteGoodCollation(_) => None,
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NotifyCollationSeconded(_, _) => None,
 		}
 	}
 }
@@ -197,7 +217,7 @@ impl CollatorProtocolMessage {
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
 	/// Report a peer for their actions.
-	ReportPeer(PeerId, ReputationChange),
+	ReportPeer(PeerId, UnifiedReputationChange),
 
 	/// Send a message to one or more peers on the validation peer-set.
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
@@ -211,6 +231,9 @@ pub enum NetworkBridgeMessage {
 	/// Send a batch of collation messages.
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
+	/// Send requests via substrate request/response.
+	SendRequests(Vec<Requests>),
+
 	/// Connect to peers who represent the given `validator_ids`.
 	///
 	/// Also ask the network to stay connected to these peers at least
@@ -219,6 +242,8 @@ pub enum NetworkBridgeMessage {
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
+		/// The underlying protocol to use for this request.
+		peer_set: PeerSet,
 		/// Response sender by which the issuer can learn the `PeerId`s of
 		/// the validators as they are connected.
 		/// The response is sent immediately for already connected peers.
@@ -236,6 +261,7 @@ impl NetworkBridgeMessage {
 			Self::SendValidationMessages(_) => None,
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
+			Self::SendRequests { .. } => None,
 		}
 	}
 }
@@ -245,6 +271,8 @@ impl NetworkBridgeMessage {
 pub enum AvailabilityDistributionMessage {
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
+	/// Incoming request for an availability chunk.
+	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>)
 }
 
 /// Availability Recovery Message.
@@ -254,6 +282,7 @@ pub enum AvailabilityRecoveryMessage {
 	RecoverAvailableData(
 		CandidateReceipt,
 		SessionIndex,
+		Option<GroupIndex>, // Optional backing group to request from first.
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
 	/// Event from the network bridge.
@@ -265,6 +294,7 @@ impl AvailabilityDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::AvailabilityFetchingRequest(_) => None,
 		}
 	}
 }
@@ -458,6 +488,8 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		RuntimeApiSender<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	),
+	/// Get information about the BABE epoch the block was included in.
+	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -484,8 +516,6 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-	/// Register a listener for shared statements.
-	RegisterStatementListener(mpsc::Sender<SignedFullStatement>),
 }
 
 impl StatementDistributionMessage {
@@ -494,7 +524,6 @@ impl StatementDistributionMessage {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdateV1(_) => None,
-			Self::RegisterStatementListener(_) => None,
 		}
 	}
 }
@@ -508,14 +537,14 @@ pub enum ProvisionableData {
 	/// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
 	BackedCandidate(CandidateReceipt),
 	/// Misbehavior reports are self-contained proofs of validator misbehavior.
-	MisbehaviorReport(Hash, MisbehaviorReport),
+	MisbehaviorReport(Hash, ValidatorIndex, Misbehavior),
 	/// Disputes trigger a broad dispute resolution process.
 	Dispute(Hash, ValidatorSignature),
 }
 
 /// This data needs to make its way from the provisioner into the InherentData.
 ///
-/// There, it is used to construct the InclusionInherent.
+/// There, it is used to construct the ParaInherent.
 pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
 
 /// Message to the Provisioner.
@@ -523,14 +552,11 @@ pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedC
 /// In all cases, the Hash is that of the relay parent.
 #[derive(Debug)]
 pub enum ProvisionerMessage {
-	/// This message allows potential block authors to be kept updated with all new authorship data
-	/// as it becomes available.
-	RequestBlockAuthorshipData(Hash, mpsc::Sender<ProvisionableData>),
 	/// This message allows external subsystems to request the set of bitfields and backed candidates
 	/// associated with a particular potential block hash.
 	///
 	/// This is expected to be used by a proposer, to inject that information into the InherentData
-	/// where it can be assembled into the InclusionInherent.
+	/// where it can be assembled into the ParaInherent.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(Hash, ProvisionableData),
@@ -539,7 +565,6 @@ pub enum ProvisionerMessage {
 impl BoundToRelayParent for ProvisionerMessage {
 	fn relay_parent(&self) -> Hash {
 		match self {
-			Self::RequestBlockAuthorshipData(hash, _) => *hash,
 			Self::RequestInherentData(hash, _) => *hash,
 			Self::ProvisionableData(hash, _) => *hash,
 		}
@@ -615,6 +640,7 @@ pub enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
 		IndirectAssignmentCert,
+		CandidateIndex,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
@@ -632,7 +658,7 @@ pub enum ApprovalVotingMessage {
 	///
 	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
-	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<Hash>>),
+	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<(Hash, BlockNumber)>>),
 }
 
 /// Message to the Approval Distribution subsystem.
@@ -691,4 +717,10 @@ pub enum AllMessages {
 	ApprovalVoting(ApprovalVotingMessage),
 	/// Message for the Approval Distribution subsystem.
 	ApprovalDistribution(ApprovalDistributionMessage),
+}
+
+impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::AvailabilityFetchingRequest>) -> Self {
+		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
 }

@@ -21,17 +21,22 @@
 
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
-use std::{convert::TryFrom, fmt, collections::HashMap};
+use std::{fmt, collections::HashMap};
 
-pub use sc_network::{ReputationChange, PeerId};
+pub use sc_network::PeerId;
 #[doc(hidden)]
-pub use polkadot_node_jaeger::JaegerSpan;
+pub use polkadot_node_jaeger as jaeger;
 #[doc(hidden)]
 pub use std::sync::Arc;
 
+mod reputation;
+pub use self::reputation::{ReputationChange, UnifiedReputationChange};
 
 /// Peer-sets and protocols used for parachains.
 pub mod peer_set;
+
+/// Request/response protocols used in Polkadot.
+pub mod request_response;
 
 /// A unique identifier of a request.
 pub type RequestId = u64;
@@ -67,10 +72,7 @@ impl From<sc_network::ObservedRole> for ObservedRole {
 		match role {
 			sc_network::ObservedRole::Light => ObservedRole::Light,
 			sc_network::ObservedRole::Authority => ObservedRole::Authority,
-			sc_network::ObservedRole::Full
-				| sc_network::ObservedRole::OurSentry
-				| sc_network::ObservedRole::OurGuardedAuthority
-				=> ObservedRole::Full,
+			sc_network::ObservedRole::Full => ObservedRole::Full,
 		}
 	}
 }
@@ -83,25 +85,6 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 			ObservedRole::Authority => sc_network::ObservedRole::Authority,
 		}
 	}
-}
-
-/// Events from network.
-#[derive(Debug, Clone, PartialEq)]
-pub enum NetworkBridgeEvent<M> {
-	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole),
-
-	/// A peer has disconnected.
-	PeerDisconnected(PeerId),
-
-	/// Peer has sent a message.
-	PeerMessage(PeerId, M),
-
-	/// Peer's `View` has changed.
-	PeerViewChange(PeerId, View),
-
-	/// Our view has changed.
-	OurViewChange(OurView),
 }
 
 macro_rules! impl_try_from {
@@ -132,49 +115,26 @@ macro_rules! impl_try_from {
 	}
 }
 
-impl<M> NetworkBridgeEvent<M> {
-	/// Focus an overarching network-bridge event into some more specific variant.
-	///
-	/// This acts as a call to `clone`, except in the case where the event is a message event,
-	/// in which case the clone can be expensive and it only clones if the message type can
-	/// be focused.
-	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
-		where T: 'a + Clone, &'a T: TryFrom<&'a M, Error = WrongVariant>
-	{
-		Ok(match *self {
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role)
-				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone()),
-			NetworkBridgeEvent::PeerDisconnected(ref peer)
-				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
-				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
-			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)
-				=> NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
-			NetworkBridgeEvent::OurViewChange(ref view)
-				=> NetworkBridgeEvent::OurViewChange(view.clone()),
-		})
-	}
-}
 
 /// Specialized wrapper around [`View`].
 ///
-/// Besides the access to the view itself, it also gives access to the [`JaegerSpan`] per leave/head.
+/// Besides the access to the view itself, it also gives access to the [`jaeger::Span`] per leave/head.
 #[derive(Debug, Clone, Default)]
 pub struct OurView {
 	view: View,
-	span_per_head: HashMap<Hash, Arc<JaegerSpan>>,
+	span_per_head: HashMap<Hash, Arc<jaeger::Span>>,
 }
 
 impl OurView {
 	/// Creates a new instance.
-	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<JaegerSpan>)>, finalized_number: BlockNumber) -> Self {
+	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<jaeger::Span>)>, finalized_number: BlockNumber) -> Self {
 		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
-
+		let view = View::new(
+			state_per_head.keys().cloned(),
+			finalized_number,
+		);
 		Self {
-			view: View {
-				heads: state_per_head.keys().cloned().collect(),
-				finalized_number,
-			},
+			view,
 			span_per_head: state_per_head,
 		}
 	}
@@ -182,7 +142,7 @@ impl OurView {
 	/// Returns the span per head map.
 	///
 	/// For each head there exists one span in this map.
-	pub fn span_per_head(&self) -> &HashMap<Hash, Arc<JaegerSpan>> {
+	pub fn span_per_head(&self) -> &HashMap<Hash, Arc<jaeger::Span>> {
 		&self.span_per_head
 	}
 }
@@ -201,7 +161,7 @@ impl std::ops::Deref for OurView {
 	}
 }
 
-/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`JaegerSpan`]'s.
+/// Construct a new [`OurView`] with the given chain heads, finalized number 0 and disabled [`jaeger::Span`]'s.
 ///
 /// NOTE: Use for tests only.
 ///
@@ -216,7 +176,7 @@ impl std::ops::Deref for OurView {
 macro_rules! our_view {
 	( $( $hash:expr ),* $(,)? ) => {
 		$crate::OurView::new(
-			vec![ $( $hash.clone() ),* ].into_iter().map(|h| (h, $crate::Arc::new($crate::JaegerSpan::Disabled))),
+			vec![ $( $hash.clone() ),* ].into_iter().map(|h| (h, $crate::Arc::new($crate::jaeger::Span::Disabled))),
 			0,
 		)
 	};
@@ -229,7 +189,8 @@ macro_rules! our_view {
 #[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct View {
 	/// A bounded amount of chain heads.
-	pub heads: Vec<Hash>,
+	/// Invariant: Sorted.
+	heads: Vec<Hash>,
 	/// The highest known finalized block number.
 	pub finalized_number: BlockNumber,
 }
@@ -248,11 +209,50 @@ pub struct View {
 #[macro_export]
 macro_rules! view {
 	( $( $hash:expr ),* $(,)? ) => {
-		$crate::View { heads: vec![ $( $hash.clone() ),* ], finalized_number: 0 }
+		$crate::View::new(vec![ $( $hash.clone() ),* ], 0)
 	};
 }
 
 impl View {
+	/// Construct a new view based on heads and a finalized block number.
+	pub fn new(heads: impl IntoIterator<Item=Hash>, finalized_number: BlockNumber) -> Self
+	{
+		let mut heads = heads.into_iter().collect::<Vec<Hash>>();
+		heads.sort();
+		Self {
+			heads,
+			finalized_number,
+		}
+	}
+
+	/// Start with no heads, but only a finalized block number.
+	pub fn with_finalized(finalized_number: BlockNumber) -> Self {
+		Self {
+			heads: Vec::new(),
+			finalized_number,
+		}
+	}
+
+	/// Obtain the number of heads that are in view.
+	pub fn len(&self) -> usize {
+		self.heads.len()
+	}
+
+	/// Check if the number of heads contained, is null.
+	pub fn is_empty(&self) -> bool {
+		self.heads.is_empty()
+	}
+
+	/// Obtain an iterator over all heads.
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a Hash> {
+		self.heads.iter()
+	}
+
+	/// Obtain an iterator over all heads.
+	pub fn into_iter(self) -> impl Iterator<Item=Hash> {
+		self.heads.into_iter()
+	}
+
 	/// Replace `self` with `new`.
 	///
 	/// Returns an iterator that will yield all elements of `new` that were not part of `self`.
@@ -276,13 +276,21 @@ impl View {
 	pub fn contains(&self, hash: &Hash) -> bool {
 		self.heads.contains(hash)
 	}
+
+	/// Check if two views have the same heads.
+	///
+	/// Equivalent to the `PartialEq` fn,
+	/// but ignores the `finalized_number` field.
+	pub fn check_heads_eq(&self, other: &Self) -> bool {
+		self.heads == other.heads
+	}
 }
 
 /// v1 protocol types.
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex,
+		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex, AvailableData,
 	};
 	use polkadot_node_primitives::{
 		SignedFullStatement,
@@ -296,7 +304,7 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum AvailabilityDistributionMessage {
 		/// An erasure chunk for a given candidate hash.
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		Chunk(CandidateHash, ErasureChunk),
 	}
 
@@ -308,13 +316,18 @@ pub mod v1 {
 		/// Respond with chunk for a given candidate hash and validator index.
 		/// The response may be `None` if the requestee does not have the chunk.
 		Chunk(RequestId, Option<ErasureChunk>),
+		/// Request full data for a given candidate hash.
+		RequestFullData(RequestId, CandidateHash),
+		/// Respond with full data for a given candidate hash.
+		/// The response may be `None` if the requestee does not have the data.
+		FullData(RequestId, Option<AvailableData>),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
 		/// A signed availability bitfield for a given relay-parent hash.
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		Bitfield(Hash, SignedAvailabilityBitfield),
 	}
 
@@ -323,11 +336,11 @@ pub mod v1 {
 	pub enum PoVDistributionMessage {
 		/// Notification that we are awaiting the given PoVs (by hash) against a
 		/// specific relay-parent hash.
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		Awaiting(Hash, Vec<Hash>),
 		/// Notification of an awaited PoV, in a given relay-parent context.
 		/// (relay_parent, pov_hash, compressed_pov)
-		#[codec(index = "1")]
+		#[codec(index = 1)]
 		SendPoV(Hash, Hash, CompressedPoV),
 	}
 
@@ -335,7 +348,7 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		Statement(Hash, SignedFullStatement)
 	}
 
@@ -345,10 +358,10 @@ pub mod v1 {
 		/// Assignments for candidates in recent, unfinalized blocks.
 		///
 		/// Actually checking the assignment may yield a different result.
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		Assignments(Vec<(IndirectAssignmentCert, CandidateIndex)>),
 		/// Approvals for candidates in some recent, unfinalized block.
-		#[codec(index = "1")]
+		#[codec(index = 1)]
 		Approvals(Vec<IndirectSignedApprovalVote>),
 	}
 
@@ -366,7 +379,7 @@ pub mod v1 {
 	}
 
 	/// SCALE and Zstd encoded [`PoV`].
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	#[derive(Clone, Encode, Decode, PartialEq, Eq)]
 	pub struct CompressedPoV(Vec<u8>);
 
 	impl CompressedPoV {
@@ -413,44 +426,53 @@ pub mod v1 {
 		}
 	}
 
+	impl std::fmt::Debug for CompressedPoV {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+			write!(f, "CompressedPoV({} bytes)", self.0.len())
+		}
+	}
+
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
 		/// Declare the intent to advertise collations under a collator ID.
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		Declare(CollatorId),
 		/// Advertise a collation to a validator. Can only be sent once the peer has declared
 		/// that they are a collator with given ID.
-		#[codec(index = "1")]
+		#[codec(index = 1)]
 		AdvertiseCollation(Hash, ParaId),
 		/// Request the advertised collation at that relay-parent.
-		#[codec(index = "2")]
+		#[codec(index = 2)]
 		RequestCollation(RequestId, Hash, ParaId),
 		/// A requested collation.
-		#[codec(index = "3")]
+		#[codec(index = 3)]
 		Collation(RequestId, CandidateReceipt, CompressedPoV),
+		/// A collation sent to a validator was seconded.
+		#[codec(index = 4)]
+		CollationSeconded(SignedFullStatement),
 	}
 
 	/// All network messages on the validation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum ValidationProtocol {
 		/// Availability distribution messages
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		AvailabilityDistribution(AvailabilityDistributionMessage),
 		/// Bitfield distribution messages
-		#[codec(index = "1")]
+		#[codec(index = 1)]
 		BitfieldDistribution(BitfieldDistributionMessage),
 		/// PoV Distribution messages
-		#[codec(index = "2")]
+		#[codec(index = 2)]
 		PoVDistribution(PoVDistributionMessage),
 		/// Statement distribution messages
-		#[codec(index = "3")]
+		#[codec(index = 3)]
 		StatementDistribution(StatementDistributionMessage),
 		/// Availability recovery messages
-		#[codec(index = "4")]
+		#[codec(index = 4)]
 		AvailabilityRecovery(AvailabilityRecoveryMessage),
 		/// Approval distribution messages
-		#[codec(index = "5")]
+		#[codec(index = 5)]
 		ApprovalDistribution(ApprovalDistributionMessage),
 	}
 
@@ -459,12 +481,13 @@ pub mod v1 {
 	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
 	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
+	impl_try_from!(ValidationProtocol, AvailabilityRecovery, AvailabilityRecoveryMessage);
 
 	/// All network messages on the collation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollationProtocol {
 		/// Collator protocol messages
-		#[codec(index = "0")]
+		#[codec(index = 0)]
 		CollatorProtocol(CollatorProtocolMessage),
 	}
 

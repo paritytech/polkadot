@@ -31,7 +31,7 @@ use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
 use frame_support::{
-	parameter_types, traits::{Currency},
+	parameter_types, traits::{Currency, OneSessionHandler},
 	weights::{Weight, constants::WEIGHT_PER_SECOND, DispatchClass},
 };
 use pallet_transaction_payment::{TargetedFeeAdjustment, Multiplier};
@@ -54,9 +54,9 @@ pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as fr
 /// valid wasm module.
 pub const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
-/// We assume that an on-initialize consumes 2.5% of the weight on average, hence a single extrinsic
-/// will not be allowed to consume more than `AvailableBlockRatio - 2.5%`.
-pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_perthousand(25);
+/// We assume that an on-initialize consumes 1% of the weight on average, hence a single extrinsic
+/// will not be allowed to consume more than `AvailableBlockRatio - 1%`.
+pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
@@ -77,7 +77,7 @@ parameter_types! {
 	/// Minimum amount of the multiplier. This value cannot be too low. A test case should ensure
 	/// that combined with `AdjustmentVariable`, we can recover from the minimum.
 	/// See `multiplier_can_grow_from_zero`.
-	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
+	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000u128);
 	/// Maximum length of block. Up to 5MB.
 	pub BlockLength: limits::BlockLength =
 		limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
@@ -136,8 +136,7 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for ParachainSessionKeyPlaceholder<T
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Config>
-	pallet_session::OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
+impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
 {
 	type Key = ValidatorId;
 
@@ -165,8 +164,7 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for AssignmentSessionKeyPlaceholder<
 	type Public = AssignmentId;
 }
 
-impl<T: pallet_session::Config>
-	pallet_session::OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
+impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
 {
 	type Key = AssignmentId;
 
@@ -190,7 +188,7 @@ impl<T: pallet_session::Config>
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
-	use frame_support::{impl_outer_origin, parameter_types, weights::Weight};
+	use frame_support::{parameter_types, weights::Weight};
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,
@@ -198,12 +196,18 @@ mod multiplier_tests {
 		Perbill,
 	};
 
-	#[derive(Clone, PartialEq, Eq, Debug)]
-	pub struct Runtime;
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
+	type Block = frame_system::mocking::MockBlock<Runtime>;
 
-	impl_outer_origin!{
-		pub enum Origin for Runtime {}
-	}
+	frame_support::construct_runtime!(
+		pub enum Runtime where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Module, Call, Config, Storage, Event<T>}
+		}
+	);
 
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
@@ -222,16 +226,16 @@ mod multiplier_tests {
 		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;
-		type Call = ();
+		type Call = Call;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = ();
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
-		type PalletInfo = ();
+		type PalletInfo = PalletInfo;
 		type AccountData = ();
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
@@ -239,9 +243,7 @@ mod multiplier_tests {
 		type SS58Prefix = ();
 	}
 
-	type System = frame_system::Module<Runtime>;
-
-	fn run_with_system_weight<F>(w: Weight, assertions: F) where F: Fn() -> () {
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F) where F: FnMut() -> () {
 		let mut t: sp_io::TestExternalities =
 			frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap().into();
 		t.execute_with(|| {
@@ -256,10 +258,32 @@ mod multiplier_tests {
 		let target = TargetBlockFullness::get() *
 			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
 		// if the min is too small, then this will not change, and we are doomed forever.
-		// the weight is 1/10th bigger than target.
+		// the weight is 1/100th bigger than target.
 		run_with_system_weight(target * 101 / 100, || {
 			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
 			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
 		})
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_growth_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = MinimumMultiplier::get();
+		let block_weight = TargetBlockFullness::get()
+			* BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap()
+			* 2;
+		let mut blocks = 0;
+		while multiplier <= Multiplier::one() {
+			run_with_system_weight(block_weight, || {
+				let next = SlowAdjustingFeeUpdate::<Runtime>::convert(multiplier);
+				// ensure that it is growing as well.
+				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+			});
+			blocks += 1;
+			println!("block = {} multiplier {:?}", blocks, multiplier);
+		}
 	}
 }

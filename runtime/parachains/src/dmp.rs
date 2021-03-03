@@ -66,10 +66,6 @@ pub trait Config: frame_system::Config + configuration::Config {}
 
 decl_storage! {
 	trait Store for Module<T: Config> as Dmp {
-		/// Paras that are to be cleaned up at the end of the session.
-		/// The entries are sorted ascending by the para id.
-		OutgoingParas: Vec<ParaId>;
-
 		/// The downward messages addressed for a certain para.
 		DownwardMessageQueues: map hasher(twox_64_concat) ParaId => Vec<InboundDownwardMessage<T::BlockNumber>>;
 		/// A mapping that stores the downward message queue MQC head for each para.
@@ -101,31 +97,23 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
 		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId],
 	) {
-		Self::perform_outgoing_para_cleanup();
+		Self::perform_outgoing_para_cleanup(outgoing_paras);
 	}
 
-	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
-	fn perform_outgoing_para_cleanup() {
-		let outgoing = OutgoingParas::take();
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
 		for outgoing_para in outgoing {
 			Self::clean_dmp_after_outgoing(outgoing_para);
 		}
 	}
 
-	fn clean_dmp_after_outgoing(outgoing_para: ParaId) {
-		<Self as Store>::DownwardMessageQueues::remove(&outgoing_para);
-		<Self as Store>::DownwardMessageQueueHeads::remove(&outgoing_para);
-	}
-
-	/// Schedule a para to be cleaned up at the start of the next session.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) {
-		OutgoingParas::mutate(|v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
+	/// Remove all relevant storage items for an outgoing parachain.
+	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
+		<Self as Store>::DownwardMessageQueues::remove(outgoing_para);
+		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
 	}
 
 	/// Enqueue a downward message to a specific recipient para.
@@ -202,7 +190,8 @@ impl<T: Config> Module<T> {
 
 	/// Returns the Head of Message Queue Chain for the given para or `None` if there is none
 	/// associated with it.
-	pub(crate) fn dmq_mqc_head(para: ParaId) -> Hash {
+	#[cfg(test)]
+	fn dmq_mqc_head(para: ParaId) -> Hash {
 		<Self as Store>::DownwardMessageQueueHeads::get(&para)
 	}
 
@@ -226,24 +215,26 @@ impl<T: Config> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use hex_literal::hex;
 	use primitives::v1::BlockNumber;
-	use frame_support::StorageValue;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use parity_scale_codec::Encode;
-	use crate::mock::{Configuration, new_test_ext, System, Dmp, GenesisConfig as MockGenesisConfig};
+	use crate::mock::{Configuration, new_test_ext, System, Dmp, MockGenesisConfig, Paras};
 
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
 			let b = System::block_number();
+			Paras::initializer_finalize();
 			Dmp::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Dmp::initializer_on_new_session(&Default::default());
+				Dmp::initializer_on_new_session(&Default::default(), &Vec::new());
 			}
 			System::on_finalize(b);
 
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
+			Paras::initializer_finalize();
 			Dmp::initializer_initialize(b + 1);
 		}
 	}
@@ -268,39 +259,24 @@ mod tests {
 	}
 
 	#[test]
-	fn scheduled_cleanup_performed() {
+	fn clean_dmp_works() {
 		let a = ParaId::from(1312);
 		let b = ParaId::from(228);
 		let c = ParaId::from(123);
 
 		new_test_ext(default_genesis_config()).execute_with(|| {
-			run_to_block(1, None);
-
 			// enqueue downward messages to A, B and C.
 			queue_downward_message(a, vec![1, 2, 3]).unwrap();
 			queue_downward_message(b, vec![4, 5, 6]).unwrap();
 			queue_downward_message(c, vec![7, 8, 9]).unwrap();
 
-			Dmp::schedule_para_cleanup(a);
-
-			// run to block without session change.
-			run_to_block(2, None);
-
-			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
-			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
-			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
-
-			Dmp::schedule_para_cleanup(b);
-
-			// run to block changing the session.
-			run_to_block(3, Some(vec![3]));
+			let notification = crate::initializer::SessionChangeNotification::default();
+			let outgoing_paras = vec![a, b];
+			Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
 			assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
 			assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
-
-			// verify that the outgoing paras are emptied.
-			assert!(OutgoingParas::get().is_empty())
 		});
 	}
 
@@ -319,6 +295,25 @@ mod tests {
 			assert_eq!(Dmp::dmq_length(b), 0);
 			assert!(!Dmp::dmq_mqc_head(a).is_zero());
 			assert!(Dmp::dmq_mqc_head(b).is_zero());
+		});
+	}
+
+	#[test]
+	fn dmp_mqc_head_fixture() {
+		let a = ParaId::from(2000);
+
+		new_test_ext(default_genesis_config()).execute_with(|| {
+			run_to_block(2, None);
+			assert!(Dmp::dmq_mqc_head(a).is_zero());
+			queue_downward_message(a, vec![1, 2, 3]).unwrap();
+
+			run_to_block(3, None);
+			queue_downward_message(a, vec![4, 5, 6]).unwrap();
+
+			assert_eq!(
+				Dmp::dmq_mqc_head(a),
+				hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
+			);
 		});
 	}
 
@@ -384,6 +379,27 @@ mod tests {
 			// that's too big
 			assert_eq!(big.encode().len(), 9);
 			assert!(queue_downward_message(a, big).is_err());
+		});
+	}
+
+	#[test]
+	fn verify_dmq_mqc_head_is_externally_accessible() {
+		use primitives::v1::well_known_keys;
+		use hex_literal::hex;
+
+		let a = ParaId::from(2020);
+
+		new_test_ext(default_genesis_config()).execute_with(|| {
+			let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+			assert_eq!(head, None);
+
+			queue_downward_message(a, vec![1, 2, 3]).unwrap();
+
+			let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+			assert_eq!(
+				head,
+				Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
+			);
 		});
 	}
 }

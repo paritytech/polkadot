@@ -259,7 +259,7 @@ pub type UpwardMessage = Vec<u8>;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Decode)]
+#[derive(PartialEq, Eq, Decode, Clone)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
 	/// Previous head-data.
@@ -267,23 +267,14 @@ pub struct ValidationParams {
 	/// The collation body.
 	pub block_data: BlockData,
 	/// The current relay-chain block number.
-	pub relay_chain_height: RelayChainBlockNumber,
+	pub relay_parent_number: RelayChainBlockNumber,
 	/// The relay-chain block's storage root.
-	pub relay_storage_root: Hash,
-	/// The MQC head for the DMQ.
-	///
-	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
-	/// passed by the collator.
-	pub dmq_mqc_head: Hash,
-	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
+	pub relay_parent_storage_root: Hash,
 }
 
 /// The result of parachain validation.
 // TODO: balance uploads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Encode)]
+#[derive(PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "std", derive(Debug, Decode))]
 pub struct ValidationResult {
 	/// New head data that should be included in the relay chain state.
