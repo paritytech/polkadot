@@ -208,7 +208,7 @@ generate-impl-guide:
   <<:                              *rules-test
   <<:                              *docker-env
   image:
-    name: michaelfbryan/mdbook-docker-image:latest
+    name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   script:
     - mdbook build roadmap/implementers-guide

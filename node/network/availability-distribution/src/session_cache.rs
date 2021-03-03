@@ -54,7 +54,10 @@ pub struct SessionCache {
 	/// to get any existing cache entry, before fetching new information, as we should not mess up
 	/// the order of validators in `SessionInfo::validator_groups`. (We want live TCP connections
 	/// wherever possible.)
-	session_info_cache: LruCache<SessionIndex, SessionInfo>,
+	///
+	/// We store `None` in case we are not a validator, so we won't do needless fetches for non
+	/// validator nodes.
+	session_info_cache: LruCache<SessionIndex, Option<SessionInfo>>,
 
 	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
 	keystore: SyncCryptoStorePtr,
@@ -134,19 +137,31 @@ impl SessionCache {
 			}
 		};
 
-		if let Some(info) = self.session_info_cache.get(&session_index) {
-			return Ok(Some(with_info(info)));
+		if let Some(o_info) = self.session_info_cache.get(&session_index) {
+			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
+			if let Some(info) = o_info {
+				return Ok(Some(with_info(info)));
+			} else {
+				// Info was cached - we are not a validator: return early:
+				return Ok(None)
+			}
 		}
 
 		if let Some(info) = self
 			.query_info_from_runtime(ctx, parent, session_index)
 			.await?
 		{
+			tracing::trace!(target: LOG_TARGET, session_index, "Calling `with_info`");
 			let r = with_info(&info);
-			self.session_info_cache.put(session_index, info);
-			return Ok(Some(r));
+			tracing::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
+			self.session_info_cache.put(session_index, Some(info));
+			Ok(Some(r))
+		} else {
+			// Avoid needless fetches if we are not a validator:
+			self.session_info_cache.put(session_index, None);
+			tracing::trace!(target: LOG_TARGET, session_index, "No session info found!");
+			Ok(None)
 		}
-		Ok(None)
 	}
 
 	/// Variant of `report_bad` that never fails, but just logs errors.
@@ -172,7 +187,9 @@ impl SessionCache {
 		let session = self
 			.session_info_cache
 			.get_mut(&report.session_index)
-			.ok_or(Error::NoSuchCachedSession)?;
+			.ok_or(Error::NoSuchCachedSession)?
+			.as_mut()
+			.ok_or(Error::NotAValidator)?;
 		let group = session
 			.validator_groups
 			.get_mut(report.group_index.0 as usize)
@@ -194,6 +211,8 @@ impl SessionCache {
 	/// We need to pass in the relay parent for our call to `request_session_info_ctx`. We should
 	/// actually don't need that: I suppose it is used for internal caching based on relay parents,
 	/// which we don't use here. It should not do any harm though.
+	///
+	/// Returns: `None` if not a validator.
 	async fn query_info_from_runtime<Context>(
 		&self,
 		ctx: &mut Context,
