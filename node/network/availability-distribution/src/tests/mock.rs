@@ -19,8 +19,6 @@
 
 use std::sync::Arc;
 
-use bitvec::vec::BitVec;
-
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
@@ -89,7 +87,7 @@ impl OccupiedCoreBuilder {
 			occupied_since: 0,
 			time_out_at: 0,
 			next_up_on_time_out: None,
-			availability: BitVec::new(),
+			availability: Default::default(),
 			group_responsible: self.group_responsible,
 			candidate_hash: candidate_receipt.hash(),
 			candidate_descriptor: candidate_receipt.descriptor().clone(),
