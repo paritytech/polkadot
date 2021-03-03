@@ -899,7 +899,7 @@ impl CandidateBackingJob {
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
-		let idx = statement.validator_index() as usize;
+		let idx = statement.validator_index().0 as usize;
 
 		if self.table_context.validators.len() > idx {
 			statement.check_signature(
@@ -1282,7 +1282,8 @@ mod tests {
 
 			let validator_public = validator_pubkeys(&validators);
 
-			let validator_groups = vec![vec![2, 0, 3, 5], vec![1], vec![4]];
+			let validator_groups = vec![vec![2, 0, 3, 5], vec![1], vec![4]]
+				.into_iter().map(|g| g.into_iter().map(ValidatorIndex).collect()).collect();
 			let group_rotation_info = GroupRotationInfo {
 				session_start_block: 0,
 				group_rotation_frequency: 100,
@@ -1599,7 +1600,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
-				2,
+				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -1607,7 +1608,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
-				5,
+				ValidatorIndex(5),
 				&public1.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -1741,7 +1742,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
-				2,
+				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -1749,7 +1750,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
-				5,
+				ValidatorIndex(5),
 				&public1.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -1757,7 +1758,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
-				3,
+				ValidatorIndex(3),
 				&public3.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -1894,7 +1895,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
-				2,
+				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -1902,7 +1903,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Invalid(candidate_a_hash),
 				&test_state.signing_context,
-				2,
+				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -1910,7 +1911,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Invalid(candidate_a_hash),
 				&test_state.signing_context,
-				0,
+				ValidatorIndex(0),
 				&public0.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -2002,7 +2003,7 @@ mod tests {
 						validator_index,
 						s1,
 						&test_state.signing_context,
-						&test_state.validator_public[validator_index as usize],
+						&test_state.validator_public[validator_index.0 as usize],
 					).expect("signature must be valid");
 
 					SignedFullStatement::new(
@@ -2010,7 +2011,7 @@ mod tests {
 						validator_index,
 						s2,
 						&test_state.signing_context,
-						&test_state.validator_public[validator_index as usize],
+						&test_state.validator_public[validator_index.0 as usize],
 					).expect("signature must be valid");
 				}
 			);
@@ -2042,7 +2043,7 @@ mod tests {
 						validator_index,
 						s1,
 						&test_state.signing_context,
-						&test_state.validator_public[validator_index as usize],
+						&test_state.validator_public[validator_index.0 as usize],
 					).expect("signature must be valid");
 
 					SignedFullStatement::new(
@@ -2050,7 +2051,7 @@ mod tests {
 						validator_index,
 						s2,
 						&test_state.signing_context,
-						&test_state.validator_public[validator_index as usize],
+						&test_state.validator_public[validator_index.0 as usize],
 					).expect("signature must be valid");
 				}
 			);
@@ -2223,7 +2224,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Seconded(candidate.clone()),
 				&test_state.signing_context,
-				2,
+				ValidatorIndex(2),
 				&validator2.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -2361,7 +2362,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Seconded(candidate.clone()),
 				&test_state.signing_context,
-				2,
+				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -2503,7 +2504,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
-				2,
+				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
@@ -2542,7 +2543,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 		let validator_groups = {
 			let mut validator_groups = HashMap::new();
-			validator_groups.insert(para_id, vec![0, 1, 2, 3, 4, 5]);
+			validator_groups.insert(para_id, vec![0, 1, 2, 3, 4, 5].into_iter().map(ValidatorIndex).collect());
 			validator_groups
 		};
 
@@ -2567,9 +2568,9 @@ mod tests {
 		let attested = TableAttestedCandidate {
 			candidate: Default::default(),
 			validity_votes: vec![
-				(5, fake_attestation(5)),
-				(3, fake_attestation(3)),
-				(1, fake_attestation(1)),
+				(ValidatorIndex(5), fake_attestation(5)),
+				(ValidatorIndex(3), fake_attestation(3)),
+				(ValidatorIndex(1), fake_attestation(1)),
 			],
 			group_id: para_id,
 		};

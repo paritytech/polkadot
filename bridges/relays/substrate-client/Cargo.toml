@@ -1,0 +1,37 @@
+[package]
+name = "relay-substrate-client"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+async-std = "1.6.5"
+async-trait = "0.1.40"
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+jsonrpsee = { git = "https://github.com/svyatonik/jsonrpsee.git", branch = "shared-client-in-rpc-api", default-features = false, features = ["ws"] }
+log = "0.4.11"
+num-traits = "0.2"
+rand = "0.7"
+
+# Bridge dependencies
+
+bp-message-lane = { path = "../../primitives/message-lane" }
+bp-runtime = { path = "../../primitives/runtime" }
+headers-relay = { path = "../headers-relay" }
+relay-utils = { path = "../utils" }
+
+# Substrate Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-version = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+
+#[dev-dependencies]
+futures = "0.3.7"

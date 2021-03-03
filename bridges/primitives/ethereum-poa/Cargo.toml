@@ -1,0 +1,57 @@
+[package]
+name = "bp-eth-poa"
+description = "Primitives of Ethereum PoA Bridge module."
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+ethbloom = { version = "0.10.0", default-features = false, features = ["rlp"] }
+fixed-hash = { version = "0.7", default-features = false }
+hash-db = { version = "0.15.2", default-features = false }
+impl-rlp = { version = "0.3", default-features = false }
+impl-serde = { version = "0.3.1", optional = true }
+libsecp256k1 = { version = "0.3.4", default-features = false, features = ["hmac"] }
+parity-bytes = { version = "0.1", default-features = false }
+plain_hasher = { version = "0.2.2", default-features = false }
+primitive-types = { version = "0.9", default-features = false, features = ["codec", "rlp"] }
+rlp = { version = "0.5", default-features = false }
+serde = { version = "1.0", optional = true }
+serde-big-array = { version = "0.2", optional = true }
+triehash = { version = "0.8.2", default-features = false }
+
+# Substrate Dependencies
+
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+
+[dev-dependencies]
+hex-literal = "0.2"
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"ethbloom/std",
+	"fixed-hash/std",
+	"hash-db/std",
+	"impl-rlp/std",
+	"impl-serde",
+	"libsecp256k1/std",
+	"parity-bytes/std",
+	"plain_hasher/std",
+	"primitive-types/std",
+	"primitive-types/serde",
+	"rlp/std",
+	"serde/std",
+	"serde-big-array",
+	"sp-api/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"triehash/std",
+]

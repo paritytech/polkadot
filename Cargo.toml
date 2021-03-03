@@ -26,6 +26,9 @@ tempfile = "3.2.0"
 
 [workspace]
 members = [
+	"bridges/primitives/kusama",
+	"bridges/primitives/polkadot",
+	"bridges/primitives/runtime",
 	"cli",
 	"core-primitives",
 	"erasure-coding",
@@ -61,10 +64,12 @@ members = [
 	"node/network/availability-distribution",
 	"node/network/availability-recovery",
 	"node/network/collator-protocol",
+	"node/network/gossip-support",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
 	"node/subsystem",
+	"node/subsystem/dispatch-gen",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",

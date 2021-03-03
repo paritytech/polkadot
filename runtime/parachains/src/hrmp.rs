@@ -21,8 +21,8 @@ use crate::{
 };
 use parity_scale_codec::{Decode, Encode};
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure, traits::{Get, ReservableCurrency}, weights::Weight,
-	StorageMap, StorageValue, dispatch::DispatchResult,
+	decl_storage, decl_module, decl_error, decl_event, ensure, traits::{Get, ReservableCurrency},
+	weights::Weight, StorageMap, StorageValue, dispatch::DispatchResult,
 };
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
@@ -215,6 +215,9 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 }
 
 pub trait Config: frame_system::Config + configuration::Config + paras::Config + dmp::Config {
+	/// The outer event type.
+	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
+
 	type Origin: From<crate::Origin>
 		+ From<<Self as frame_system::Config>::Origin>
 		+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
@@ -332,10 +335,24 @@ decl_error! {
 	 }
 }
 
+decl_event! {
+	pub enum Event {
+		/// Open HRMP channel requested.
+		/// \[sender, recipient, proposed_max_capacity, proposed_max_message_size\]
+		OpenChannelRequested(ParaId, ParaId, u32, u32),
+		/// Open HRMP channel accepted. \[sender, recipient\]
+		OpenChannelAccepted(ParaId, ParaId),
+		/// HRMP channel closed. \[by_parachain, channel_id\]
+		ChannelClosed(ParaId, HrmpChannelId),
+	}
+}
+
 decl_module! {
 	/// The HRMP module.
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
+
+		fn deposit_event() = default;
 
 		/// Initiate opening a channel from a parachain to a given recipient with given channel
 		/// parameters.
@@ -361,6 +378,12 @@ decl_module! {
 				proposed_max_capacity,
 				proposed_max_message_size
 			)?;
+			Self::deposit_event(Event::OpenChannelRequested(
+				origin,
+				recipient,
+				proposed_max_capacity,
+				proposed_max_message_size
+			));
 			Ok(())
 		}
 
@@ -371,6 +394,7 @@ decl_module! {
 		pub fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
+			Self::deposit_event(Event::OpenChannelAccepted(sender, origin));
 			Ok(())
 		}
 
@@ -381,7 +405,8 @@ decl_module! {
 		#[weight = 0]
 		pub fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
-			Self::close_channel(origin, channel_id)?;
+			Self::close_channel(origin, channel_id.clone())?;
+			Self::deposit_event(Event::ChannelClosed(origin, channel_id));
 			Ok(())
 		}
 	}
@@ -1112,6 +1137,7 @@ mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Test, Configuration, Paras, Shared, Hrmp, System, MockGenesisConfig,
+		Event as MockEvent,
 	};
 	use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 	use primitives::v1::BlockNumber;
@@ -1427,7 +1453,9 @@ mod tests {
 	#[test]
 	fn open_channel_works() {
 		let para_a = 1.into();
+		let para_a_origin: crate::Origin = 1.into();
 		let para_b = 3.into();
+		let para_b_origin: crate::Origin = 3.into();
 
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			// We need both A & B to be registered and alive parachains.
@@ -1435,11 +1463,17 @@ mod tests {
 			register_parachain(para_b);
 
 			run_to_block(5, Some(vec![4, 5]));
-			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
 			assert_storage_consistency_exhaustive();
+			assert!(System::events().iter().any(|record|
+				record.event == MockEvent::hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))
+			));
 
-			Hrmp::accept_open_channel(para_b, para_a).unwrap();
+			Hrmp::hrmp_accept_open_channel(para_b_origin.into(), para_a).unwrap();
 			assert_storage_consistency_exhaustive();
+			assert!(System::events().iter().any(|record|
+				record.event == MockEvent::hrmp(Event::OpenChannelAccepted(para_a, para_b))
+			));
 
 			// Advance to a block 6, but without session change. That means that the channel has
 			// not been created yet.
@@ -1457,6 +1491,7 @@ mod tests {
 	fn close_channel_works() {
 		let para_a = 5.into();
 		let para_b = 2.into();
+		let para_b_origin: crate::Origin = 2.into();
 
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			register_parachain(para_a);
@@ -1471,14 +1506,11 @@ mod tests {
 
 			// Close the channel. The effect is not immediate, but rather deferred to the next
 			// session change.
-			Hrmp::close_channel(
-				para_b,
-				HrmpChannelId {
-					sender: para_a,
-					recipient: para_b,
-				},
-			)
-			.unwrap();
+			let channel_id = HrmpChannelId {
+				sender: para_a,
+				recipient: para_b,
+			};
+			Hrmp::hrmp_close_channel(para_b_origin.into(), channel_id.clone()).unwrap();
 			assert!(channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();
 
@@ -1486,6 +1518,9 @@ mod tests {
 			run_to_block(8, Some(vec![8]));
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();
+			assert!(System::events().iter().any(|record|
+				record.event == MockEvent::hrmp(Event::ChannelClosed(para_b, channel_id.clone()))
+			));
 		});
 	}
 

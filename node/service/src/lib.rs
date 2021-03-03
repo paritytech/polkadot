@@ -417,12 +417,8 @@ where
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-
-	#[cfg(feature = "real-overseer")]
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-
-	#[cfg(not(feature = "real-overseer"))]
-	let _ = approval_voting_config; // silence.
+	use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -498,13 +494,11 @@ where
 		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
-		#[cfg(feature = "real-overseer")]
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			keystore.clone(),
 		)?,
-		#[cfg(not(feature = "real-overseer"))]
-		approval_voting: polkadot_subsystem::DummySubsystem,
+		gossip_support: GossipSupportSubsystem::new(),
 	};
 
 	Overseer::new(
@@ -578,6 +572,9 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
+	let telemetry_span = TelemetrySpan::new();
+	let _telemetry_span_entered = telemetry_span.enter();
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks =
@@ -667,9 +664,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		slot_duration_millis: slot_duration,
 		cache_size: None, // default is fine.
 	};
-
-	let telemetry_span = TelemetrySpan::new();
-	let _telemetry_span_entered = telemetry_span.enter();
 
 	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		config,

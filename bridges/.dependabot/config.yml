@@ -1,0 +1,20 @@
+version: 1
+update_configs:
+  - package_manager: "rust:cargo"
+    directory: "/"
+    update_schedule: "weekly"
+    ignored_updates:
+      - match:
+          dependency_name: "sp-*"
+      - match:
+          dependency_name: "sc-*"
+      - match:
+          dependency_name: "substrate-*"
+      - match:
+          dependency_name: "frame-*"
+      - match:
+          dependency_name: "pallet-*"
+    automerged_updates:
+      - match:
+          update_type: "all"
+    version_requirement_updates: "auto"
