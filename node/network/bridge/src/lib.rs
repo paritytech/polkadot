@@ -142,7 +142,7 @@ struct PeerData {
 }
 
 /// Main driver, processing network events and messages from other subsystems.
-#[tracing::instrument(skip(bridge, ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(skip(bridge, ctx), target = LOG_TARGET)]
 async fn run_network<N, AD>(
 	mut bridge: NetworkBridge<N, AD>,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
@@ -417,7 +417,7 @@ fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_n
 	)
 }
 
-#[tracing::instrument(level = "trace", skip(net, ctx, validation_peers, collation_peers), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(net, ctx, validation_peers, collation_peers), target = LOG_TARGET)]
 async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
@@ -460,7 +460,7 @@ async fn update_our_view(
 
 // Handle messages on a specific peer-set. The peer is expected to be connected on that
 // peer-set.
-#[tracing::instrument(level = "trace", skip(peers, messages, net), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(peers, messages, net), target = LOG_TARGET)]
 async fn handle_peer_messages<M>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
@@ -516,7 +516,7 @@ async fn handle_peer_messages<M>(
 	Ok(outgoing_messages)
 }
 
-#[tracing::instrument(level = "trace", skip(net, peers), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(net, peers), target = LOG_TARGET)]
 async fn send_validation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -529,7 +529,7 @@ async fn send_validation_message<I>(
 	send_message(net, peers, PeerSet::Validation, message).await
 }
 
-#[tracing::instrument(level = "trace", skip(net, peers), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(net, peers), target = LOG_TARGET)]
 async fn send_collation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -557,7 +557,7 @@ async fn dispatch_collation_event_to_all(
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
-#[tracing::instrument(level = "trace", skip(events, ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(events, ctx), target = LOG_TARGET)]
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
@@ -569,7 +569,7 @@ async fn dispatch_validation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
 }
 
-#[tracing::instrument(level = "trace", skip(events, ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(events, ctx), target = LOG_TARGET)]
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,

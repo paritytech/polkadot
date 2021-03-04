@@ -54,7 +54,7 @@ impl GossipSupport {
 		Self {}
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(target = LOG_TARGET))]
+	#[tracing::instrument(skip(self, ctx), target = LOG_TARGET)]
 	async fn run<Context>(self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
