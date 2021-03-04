@@ -151,7 +151,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), target = LOG_TARGET)]
+	#[tracing::instrument(level = "trace", skip(self), fields(target = LOG_TARGET))]
 	fn action_sink<'a>(
 		&'a mut self,
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>> {

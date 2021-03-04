@@ -169,7 +169,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	/// Find connected validators using the given `validator_ids`.
 	///
 	/// Returns a [`HashMap`] that contains the found [`AuthorityDiscoveryId`]'s and their associated [`PeerId`]'s.
-	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), target = LOG_TARGET)]
+	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), fields(target = LOG_TARGET))]
 	async fn find_connected_validators(
 		&mut self,
 		validator_ids: &[AuthorityDiscoveryId],
@@ -216,7 +216,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	/// This method will also clean up all previously revoked requests.
 	/// it takes `network_service` and `authority_discovery_service` by value
 	/// and returns them as a workaround for the Future: Send requirement imposed by async fn impl.
-	#[tracing::instrument(level = "trace", skip(self, connected, network_service, authority_discovery_service), target = LOG_TARGET)]
+	#[tracing::instrument(level = "trace", skip(self, connected, network_service, authority_discovery_service), fields(target = LOG_TARGET))]
 	pub async fn on_request(
 		&mut self,
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -335,7 +335,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	}
 
 	/// Should be called when a peer connected.
-	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), target = LOG_TARGET)]
+	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), fields(target = LOG_TARGET))]
 	pub async fn on_peer_connected(
 		&mut self,
 		peer_id: PeerId,

@@ -116,7 +116,7 @@ impl SessionCache {
 	///
 	/// Use this function over any `fetch_session_info` if all you need is a reference to
 	/// `SessionInfo`, as it avoids an expensive clone.
-	#[tracing::instrument(level = "trace", skip(self, ctx, with_info), target = LOG_TARGET)]
+	#[tracing::instrument(level = "trace", skip(self, ctx, with_info), fields(target = LOG_TARGET))]
 	pub async fn with_session_info<Context, F, R>(
 		&mut self,
 		ctx: &mut Context,
@@ -183,7 +183,7 @@ impl SessionCache {
 	///
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
-	#[tracing::instrument(level = "trace", skip(self, report), target = LOG_TARGET)]
+	#[tracing::instrument(level = "trace", skip(self, report), fields(target = LOG_TARGET))]
 	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
 		let session = self
 			.session_info_cache
