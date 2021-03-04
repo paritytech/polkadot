@@ -830,7 +830,7 @@ impl State {
 
 
 /// Modify the reputation of a peer based on its behavior.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(target = LOG_TARGET))]
 async fn modify_reputation(
 	ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 	peer_id: PeerId,
@@ -854,7 +854,7 @@ impl ApprovalDistribution {
 		Self { metrics }
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(self, ctx), fields(target = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
@@ -864,7 +864,7 @@ impl ApprovalDistribution {
 	}
 
 	/// Used for testing.
-	#[tracing::instrument(skip(self, ctx, state), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(self, ctx, state), fields(target = LOG_TARGET))]
 	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,

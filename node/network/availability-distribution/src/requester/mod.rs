@@ -213,7 +213,7 @@ impl Stream for Requester {
 }
 
 /// Query all hashes and descriptors of candidates pending availability at a particular block.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(target = LOG_TARGET))]
 async fn query_occupied_cores<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,

@@ -182,7 +182,7 @@ impl SessionCache {
 	///
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
-	#[tracing::instrument(level = "trace", skip(self, report), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, report), fields(target = LOG_TARGET))]
 	pub fn report_bad(&mut self, report: BadValidators) -> Result<()> {
 		let session = self
 			.session_info_cache

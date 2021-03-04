@@ -865,7 +865,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
-	#[tracing::instrument(level = "trace", skip(self, parent_span), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, parent_span), fields(target = LOG_TARGET))]
 	async fn maybe_validate_and_import(
 		&mut self,
 		parent_span: &jaeger::Span,
@@ -884,7 +884,7 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self), fields(target = LOG_TARGET))]
 	async fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
 		let signed = self.table_context
 			.validator
@@ -897,7 +897,7 @@ impl CandidateBackingJob {
 		Some(signed)
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self), fields(target = LOG_TARGET))]
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
 		let idx = statement.validator_index().0 as usize;
 
@@ -987,7 +987,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 	const NAME: &'static str = "CandidateBackingJob";
 
-	#[tracing::instrument(skip(span, keystore, metrics, rx_to, tx_from), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(span, keystore, metrics, rx_to, tx_from), fields(target = LOG_TARGET))]
 	fn run(
 		parent: Hash,
 		span: Arc<jaeger::Span>,

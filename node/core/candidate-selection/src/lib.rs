@@ -93,7 +93,7 @@ impl JobTrait for CandidateSelectionJob {
 
 	const NAME: &'static str = "CandidateSelectionJob";
 
-	#[tracing::instrument(skip(keystore, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(keystore, metrics, receiver, sender), fields(target = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
 		span: Arc<jaeger::Span>,
@@ -222,7 +222,7 @@ impl CandidateSelectionJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self), fields(target = LOG_TARGET))]
 	async fn handle_collation(
 		&mut self,
 		relay_parent: Hash,
@@ -280,7 +280,7 @@ impl CandidateSelectionJob {
 		}
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self), fields(target = LOG_TARGET))]
 	async fn handle_invalid(&mut self, candidate_receipt: CandidateReceipt) {
 		let _timer = self.metrics.time_handle_invalid();
 
@@ -358,7 +358,7 @@ impl CandidateSelectionJob {
 // get a collation from the Collator Protocol subsystem
 //
 // note that this gets an owned clone of the sender; that's becuase unlike `forward_invalidity_note`, it's expected to take a while longer
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(sender), fields(target = LOG_TARGET))]
 async fn get_collation(
 	relay_parent: Hash,
 	para_id: ParaId,

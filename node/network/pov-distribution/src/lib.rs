@@ -144,7 +144,7 @@ fn send_pov_message(
 
 /// Handles the signal. If successful, returns `true` if the subsystem should conclude,
 /// `false` otherwise.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(target = LOG_TARGET))]
 async fn handle_signal(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -211,7 +211,7 @@ async fn handle_signal(
 /// Notify peers that we are awaiting a given PoV hash.
 ///
 /// This only notifies peers who have the relay parent in their view.
-#[tracing::instrument(level = "trace", skip(peers, ctx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(peers, ctx), fields(target = LOG_TARGET))]
 async fn notify_all_we_are_awaiting(
 	peers: &mut HashMap<PeerId, PeerState>,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -240,7 +240,7 @@ async fn notify_all_we_are_awaiting(
 }
 
 /// Notify one peer about everything we're awaiting at a given relay-parent.
-#[tracing::instrument(level = "trace", skip(ctx, relay_parent_state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, relay_parent_state), fields(target = LOG_TARGET))]
 async fn notify_one_we_are_awaiting_many(
 	peer: &PeerId,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -267,7 +267,7 @@ async fn notify_one_we_are_awaiting_many(
 }
 
 /// Distribute a PoV to peers who are awaiting it.
-#[tracing::instrument(level = "trace", skip(peers, ctx, metrics, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(peers, ctx, metrics, pov), fields(target = LOG_TARGET))]
 async fn distribute_to_awaiting(
 	peers: &mut HashMap<PeerId, PeerState>,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -408,7 +408,7 @@ async fn determine_relevant_validators(
 }
 
 /// Handles a `FetchPoV` message.
-#[tracing::instrument(level = "trace", skip(ctx, state, response_sender), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state, response_sender), fields(target = LOG_TARGET))]
 async fn handle_fetch(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -460,7 +460,7 @@ async fn handle_fetch(
 }
 
 /// Handles a `DistributePoV` message.
-#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(target = LOG_TARGET))]
 async fn handle_distribute(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -512,7 +512,7 @@ async fn handle_distribute(
 }
 
 /// Report a reputation change for a peer.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(target = LOG_TARGET))]
 async fn report_peer(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
@@ -522,7 +522,7 @@ async fn report_peer(
 }
 
 /// Handle a notification from a peer that they are awaiting some PoVs.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(target = LOG_TARGET))]
 async fn handle_awaiting(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -576,7 +576,7 @@ async fn handle_awaiting(
 /// Handle an incoming PoV from our peer. Reports them if unexpected, rewards them if not.
 ///
 /// Completes any requests awaiting that PoV.
-#[tracing::instrument(level = "trace", skip(ctx, state, encoded_pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state, encoded_pov), fields(target = LOG_TARGET))]
 async fn handle_incoming_pov(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -663,7 +663,7 @@ fn handle_validator_connected(state: &mut State, peer_id: PeerId) {
 }
 
 /// Handles a network bridge update.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state), fields(target = LOG_TARGET))]
 async fn handle_network_update(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -733,7 +733,7 @@ impl PoVDistribution {
 		Self { metrics }
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(skip(self, ctx), fields(target = LOG_TARGET))]
 	async fn run(
 		self,
 		ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
