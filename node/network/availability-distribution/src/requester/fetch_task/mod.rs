@@ -267,10 +267,8 @@ impl RunningTask {
 			.with_chunk_index(self.request.index.0)
 			.with_relay_parent(&self.relay_parent)
 			.build();
-		let mut span_log = _span.log();
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
-			span_log = span_log.with_int("Try", count as _);
 			// Report retries:
 			if count > 0 {
 				self.metrics.on_retry();
@@ -317,9 +315,10 @@ impl RunningTask {
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
 			label = SUCCEEDED;
-			span_log.with_string("success", "true");
+			_span.add_string_tag("success", "true");
 			break;
 		}
+		_span.add_int_tag("tries", count as _);
 		self.metrics.on_fetch(label);
 		self.conclude(bad_validators).await;
 	}
