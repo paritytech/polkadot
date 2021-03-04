@@ -57,7 +57,6 @@ where
 /// Answer an incoming chunk request by querying the av store.
 ///
 /// Returns: Ok(true) if chunk was found and served.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 pub async fn answer_request<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::AvailabilityFetchingRequest>,
@@ -85,7 +84,7 @@ where
 }
 
 /// Query chunk from the availability store.
-#[tracing::instrument(level = "trace", skip(ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_chunk<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,

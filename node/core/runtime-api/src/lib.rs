@@ -257,7 +257,7 @@ impl<Client> RuntimeApiSubsystem<Client> where
 	}
 }
 
-#[tracing::instrument(skip(ctx, subsystem), fields(target = LOG_TARGET))]
+#[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	mut subsystem: RuntimeApiSubsystem<Client>,
@@ -282,7 +282,7 @@ async fn run<Client>(
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(client, metrics), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(client, metrics), fields(subsystem = LOG_TARGET))]
 fn make_runtime_api_request<Client>(
 	client: Arc<Client>,
 	metrics: Metrics,

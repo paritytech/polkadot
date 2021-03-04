@@ -85,7 +85,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	}
 }
 
-#[tracing::instrument(skip(ctx, spawn, metrics), fields(target = LOG_TARGET))]
+#[tracing::instrument(skip(ctx, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
@@ -183,7 +183,7 @@ enum AssumptionCheckOutcome {
 	BadRequest,
 }
 
-#[tracing::instrument(level = "trace", skip(ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn check_assumption_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -234,7 +234,7 @@ async fn check_assumption_validation_data(
 	})
 }
 
-#[tracing::instrument(level = "trace", skip(ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn find_assumed_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -266,7 +266,7 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, pov, spawn, metrics), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	isolation_strategy: IsolationStrategy,
@@ -328,7 +328,7 @@ async fn spawn_validate_from_chain_state(
 	validation_result
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, validation_code, pov, spawn, metrics), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	isolation_strategy: IsolationStrategy,
@@ -361,7 +361,7 @@ async fn spawn_validate_exhaustive(
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
 /// are passed, `Err` otherwise.
-#[tracing::instrument(level = "trace", skip(pov), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(pov), fields(subsystem = LOG_TARGET))]
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
 	max_pov_size: u32,
@@ -419,7 +419,7 @@ impl ValidationBackend for RealValidationBackend {
 /// Validates the candidate from exhaustive parameters.
 ///
 /// Sends the result of validation on the channel once complete.
-#[tracing::instrument(level = "trace", skip(backend_arg, validation_code, pov, spawn, metrics), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(backend_arg, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,

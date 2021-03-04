@@ -508,7 +508,7 @@ where
 	}
 }
 
-#[tracing::instrument(skip(subsystem, ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
@@ -534,7 +534,7 @@ where
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(target = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(subsystem, ctx), fields(subsystem = LOG_TARGET))]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
