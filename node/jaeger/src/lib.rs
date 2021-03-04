@@ -321,12 +321,47 @@ impl Span {
 		}
 	}
 
+	/// Add logs to this span.
+	pub fn log(&mut self) -> Log<'_> {
+		match self {
+			Self::Enabled(inner) => Log { inner: Some(inner.log()) },
+			Self::Disabled => Log { inner: None },
+		}
+	}
+
 	/// Helper to check whether jaeger is enabled
 	/// in order to avoid computational overhead.
 	pub const fn is_enabled(&self) -> bool {
 		match self {
 			Span::Enabled(_) => true,
 			_ => false,
+		}
+	}
+}
+
+/// Wrapper around jaeger logs
+///
+/// Supporting disabled spans by not logging anything.
+pub struct Log<'a> {
+	inner: Option<mick_jaeger::Log<'a>>,
+}
+
+impl<'a> Log<'a> {
+	/// Just a wrapper around `mick_jaeger::Log::with_int`.
+	pub fn with_int(self, key: &str, value: i64) -> Self {
+		if let Some(log) = self.inner {
+			Self{inner: Some(log.with_int(key, value))}
+		} else {
+			self
+		}
+	}
+	
+	/// Just a wrapper around `mick_jaeger::Log::with_string`.
+	pub fn with_string(self, key: &str, value: &str) -> Self {
+		if let Some(log) = self.inner {
+			Self{inner: Some(log.with_string(key, value))}
+		} else {
+			self
 		}
 	}
 }
