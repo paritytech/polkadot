@@ -269,6 +269,7 @@ impl RunningTask {
 			.build();
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
+			let _try_span = _span.child("try");
 			// Report retries:
 			if count > 0 {
 				self.metrics.on_retry();
