@@ -64,9 +64,9 @@ pub async fn answer_request<Context>(
 where
 	Context: SubsystemContext,
 {
-	let mut span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer_request");
+	let mut span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
 	span.add_stage(jaeger::Stage::AvailabilityDistribution);
-	let _child_span = span.child_builder("answer_chunk_request")
+	let _child_span = span.child_builder("answer-chunk-request")
 		.with_chunk_index(req.payload.index.0)
 		.build();
 
