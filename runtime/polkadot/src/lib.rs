@@ -1063,10 +1063,35 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-	()
+	(FixPolkadotCouncilVotersDeposit),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+struct FixPolkadotCouncilVotersDeposit;
+impl frame_support::traits::OnRuntimeUpgrade for FixPolkadotCouncilVotersDeposit {
+	fn on_runtime_upgrade() -> Weight {
+		use pallet_elections_phragmen::Voter;
+		use frame_support::IterableStorageMap;
+		let mut updated = 0;
+		let mut skipped = 0;
+		pallet_elections_phragmen::Voting::<Runtime>::translate::<Voter<AccountId, Balance>, _>(
+			|_who, mut vote| {
+				if vote.deposit == 5 * CENTS {
+					// If their deposit is what we set by mistake
+					vote.deposit = 5 * DOLLARS;
+					updated += 1;
+				} else {
+					skipped += 1;
+				}
+				Some(vote)
+			},
+		);
+
+		frame_support::debug::info!(target: "runtime::polkadot", "updated {} + {} voter's deposit.", updated, skipped);
+		BlockWeights::get().max_block
+	}
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
