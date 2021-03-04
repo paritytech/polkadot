@@ -175,7 +175,7 @@ impl FetchTask {
 	/// Start fetching a chunk.
 	///
 	/// A task handling the fetching of the configured chunk will be spawned.
-	#[tracing::instrument(level = "trace", skip(config, ctx), fields(target = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(config, ctx), fields(subsystem = LOG_TARGET))]
 	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
 	where
 		Context: SubsystemContext,
@@ -248,7 +248,7 @@ enum TaskError {
 }
 
 impl RunningTask {
-	#[tracing::instrument(level = "trace", skip(self, kill), fields(target = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, kill), fields(subsystem = LOG_TARGET))]
 	async fn run(self, kill: oneshot::Receiver<()>) {
 		// Wait for completion/or cancel.
 		let run_it = self.run_inner();
