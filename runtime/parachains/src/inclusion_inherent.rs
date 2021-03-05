@@ -107,7 +107,9 @@ decl_module! {
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
+			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Module<T>>::process_bitfields(
+				expected_bits,
 				signed_bitfields,
 				<scheduler::Module<T>>::core_para,
 			)?;
@@ -225,8 +227,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 					) {
 						Ok(_) => (signed_bitfields, backed_candidates),
 						Err(err) => {
-							frame_support::debug::RuntimeLogger::init();
-							frame_support::debug::warn!(
+							log::warn!(
 								target: "runtime_inclusion_inherent",
 								"dropping signed_bitfields and backed_candidates because they produced \
 								an invalid inclusion inherent: {:?}",

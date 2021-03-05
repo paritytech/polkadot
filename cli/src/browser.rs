@@ -14,27 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
+use browser_utils::{browser_configuration, init_logging_and_telemetry, set_console_error_panic_hook, Client};
 use log::info;
 use wasm_bindgen::prelude::*;
-use browser_utils::{
-	Client,
-	browser_configuration, init_logging_and_telemetry, set_console_error_panic_hook,
-};
 
 /// Starts the client.
 #[wasm_bindgen]
 pub async fn start_client(chain_spec: String, log_level: String) -> Result<Client, JsValue> {
-	start_inner(chain_spec, log_level)
-		.await
-		.map_err(|err| JsValue::from_str(&err.to_string()))
+	start_inner(chain_spec, log_level).await.map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
 async fn start_inner(chain_spec: String, log_directives: String) -> Result<Client, Box<dyn std::error::Error>> {
 	set_console_error_panic_hook();
 	let telemetry_worker = init_logging_and_telemetry(&log_directives)?;
 
-	let chain_spec = service::PolkadotChainSpec::from_json_bytes(chain_spec.as_bytes().to_vec())
-		.map_err(|e| format!("{:?}", e))?;
+	let chain_spec =
+		service::PolkadotChainSpec::from_json_bytes(chain_spec.as_bytes().to_vec()).map_err(|e| format!("{:?}", e))?;
 	let telemetry_handle = telemetry_worker.handle();
 	let config = browser_configuration(chain_spec, Some(telemetry_handle)).await?;
 

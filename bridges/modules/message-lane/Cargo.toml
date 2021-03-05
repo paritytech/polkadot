@@ -1,0 +1,51 @@
+[package]
+name = "pallet-message-lane"
+description = "Module that allows bridged chains to exchange messages using lane concept."
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+num-traits = { version = "0.2", default-features = false }
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+
+# Bridge dependencies
+
+bp-message-lane = { path = "../../primitives/message-lane", default-features = false }
+bp-rialto = { path = "../../primitives/rialto", default-features = false }
+bp-runtime = { path = "../../primitives/runtime", default-features = false }
+
+# Substrate Dependencies
+
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false, optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+
+[dev-dependencies]
+hex-literal = "0.3"
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+
+[features]
+default = ["std"]
+std = [
+	"bp-message-lane/std",
+	"bp-runtime/std",
+	"bp-rialto/std",
+	"codec/std",
+	"frame-support/std",
+	"frame-system/std",
+	"num-traits/std",
+	"serde",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-std/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking",
+]
