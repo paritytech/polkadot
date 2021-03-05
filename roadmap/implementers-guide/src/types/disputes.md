@@ -6,6 +6,7 @@
 /// A set of statements about a specific candidate.
 struct DisputeStatementSet {
     candidate_hash: CandidateHash,
+    candidate_receipt: CandidateReceipt,
     session: SessionIndex,
     statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 }
@@ -64,6 +65,7 @@ type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
 ```rust
 struct DisputeState {
+    candidate_receipt: CandidateReceipt,
     validators_for: Bitfield, // one bit per validator.
     validators_against: Bitfield, // one bit per validator.
     start: BlockNumber,
