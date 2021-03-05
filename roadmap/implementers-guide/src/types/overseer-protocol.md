@@ -310,6 +310,35 @@ enum CollatorProtocolMessage {
 }
 ```
 
+## Dispute Coordinator Message
+
+Messages received by the [Dispute Coordinator subsystem](../node/disputes/dispute-coordinator.md)
+
+This subsystem coordinates participation in disputes, tracks live disputes, and observed statements of validators from subsystems.
+
+```rust
+enum DisputeCoordinatorMessage {
+    /// Import a statement by a validator about a candidate.
+    ///
+    /// The subsystem will silently discard ancient statements or dispute-specific statements for
+    /// candidates that are previously unknown to the subsystem. The former is simply because ancient
+    /// data is not relevant and the latter is as a DoS prevention mechanism. Both backing and approval
+    /// statements already undergo anti-DoS procedures in their respective subsystems, but statements
+    /// cast specifically for disputes are not necessarily relevant to any candidate the system is
+    /// already aware of and thus present a DoS vector. Our expectation is that nodes will notify each
+    /// other of disputes over the network by providing 2 conflicting statements, of which one is either
+    /// a backing or validation statement.
+    ImportStatement {
+        /// The hash of the candidate.
+        candidate_hash: CandidateHash,
+        /// The session the candidate appears in.
+        session: SessionIndex,
+        /// A statement, either indicating validity or invalidity of the candidate.
+        statement: DisputeStatement,
+    }
+}
+```
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access
