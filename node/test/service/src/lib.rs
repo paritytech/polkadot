@@ -83,6 +83,7 @@ pub fn new_full(
 		None,
 		None,
 		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
+		None,
 	)
 }
 
