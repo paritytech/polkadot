@@ -339,6 +339,10 @@ enum DisputeCoordinatorMessage {
 }
 ```
 
+## Dispute Participation Message
+
+TODO [now]
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access

@@ -18,7 +18,7 @@ We use this database to encode the following schema:
 ```
 
 The meta information that we track per-candidate is defined as the `CandidateVotes` struct.
-This draws on the [dispute statement types](../../types/disputes.md)
+This draws on the [dispute statement types][DisputeTypes]
 
 ```rust
 struct CandidateVotes {
@@ -29,6 +29,14 @@ struct CandidateVotes {
 
 ## Protocol
 
-Input: [`DisputeCoordinatorMessage`](../../types/overseer-protocol.md) TODO
+Input: [`DisputeCoordinatorMessage`][DisputeCoordinatorMessage]
 
-Output: TODO
+Output:
+  - [`RuntimeApiMessage`][RuntimeApiMessage]
+  - [`DisputeParticipationMessage`][DisputeParticipationMessage]
+
+
+[DisputeTypes]: ../../types/disputes.md
+[DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
+[RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
+[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message
