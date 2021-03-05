@@ -30,8 +30,6 @@ struct CandidateVotes {
     valid: Vec<(ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
     // Sorted by validator index.
     invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
-    // An availability bitfield for validators to signal their respective chunk. One bit per validator in session.
-    availability: Bitfield,
 }
 
 struct ActiveDisputes {
@@ -82,14 +80,14 @@ Do nothing.
 
 ### On `DisputeCoordinatorMessage::ImportStatement`
 
-* Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statement, validator_index, validator_signature, local }`.
+* Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statements }`.
 * If the session is earlier than `state.highest_session - DISPUTE_WINDOW`, return.
 * If there is an entry in the `state.overlay`, load that. Otherwise, load from underlying DB by querying `(session, "candidate-votes", candidate_hash). If that does not exist, create fresh with the given candidate receipt.
-* If candidate votes is empty and the statement is a dispute-specific vote, return.
+* If candidate votes is empty and the statements only contain dispute-specific votes, return.
 * Otherwise, if there is already an entry from the validator in the respective `valid` or `invalid` field of the `CandidateVotes`, return.
-* Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes`. 
+* Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`. 
 * Write the `CandidateVotes` to the `state.overlay`.
-* If the added-to (`valid` or `invalid`) list now has length `1` and the other list has non-zero length, this candidate is now disputed. 
+* If the both `valid` and `invalid` lists now have non-zero length where previously one or both had zero length, the candidate is now freshly disputed.
 * If freshly disputed, load `"disputed"`, add the candidate hash and session index, and write `"disputed"`. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
 
 ### Periodically

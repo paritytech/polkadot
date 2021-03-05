@@ -60,7 +60,7 @@ This requires the parameters `{ candidate_receipt, candidate_hash, session, vote
 
 Dispatch a [`RuntimeApiRequest::SessionInfo`][RuntimeApiMessage] using the session index. Once the session info is gathered, construct a [`DisputeStatement`][DisputeStatement] based on `Valid` or `Invalid`, depending on the parameterization of this routine, and sign the statement with each key in the `SessionInfo`'s list of parachain validation keys which is present in the keystore, except those whose indices appear in `voted_indices`. This will typically just be one key, but this does provide some future-proofing for situations where the same node may run on behalf multiple validators. At the time of writing, this is not a use-case we support as other subsystems do not invariably provide this guarantee.
 
-For each signed copy of the dispute statement, invoke [`DisputeCoordinatorMessage::ImportStatement`][DisputeCoordinatorMessage]
+Invoke [`DisputeCoordinatorMessage::ImportStatements`][DisputeCoordinatorMessage] with each signed statement.
 
 [DisputeStatement]: ../../types/disputes.md#disputestatement
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message

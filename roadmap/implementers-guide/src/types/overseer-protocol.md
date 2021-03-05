@@ -320,29 +320,28 @@ This subsystem coordinates participation in disputes, tracks live disputes, and 
 enum DisputeCoordinatorMessage {
     /// Import a statement by a validator about a candidate.
     ///
-    /// The subsystem will silently discard ancient statements or dispute-specific statements for
+    /// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
     /// candidates that are previously unknown to the subsystem. The former is simply because ancient
     /// data is not relevant and the latter is as a DoS prevention mechanism. Both backing and approval
     /// statements already undergo anti-DoS procedures in their respective subsystems, but statements
     /// cast specifically for disputes are not necessarily relevant to any candidate the system is
     /// already aware of and thus present a DoS vector. Our expectation is that nodes will notify each
-    /// other of disputes over the network by providing 2 conflicting statements, of which one is either
+    /// other of disputes over the network by providing (at least) 2 conflicting statements, of which one is either
     /// a backing or validation statement.
     ///
     /// This does not do any checking of the message signature.
-    ImportStatement {
+    ImportStatements {
         /// The hash of the candidate.
         candidate_hash: CandidateHash,
         /// The candidate receipt itself.
         candidate_receipt: CandidateReceipt,
         /// The session the candidate appears in.
         session: SessionIndex,
-        /// A statement, either indicating validity or invalidity of the candidate.
-        statement: DisputeStatement,
-        /// The validator index (within the session of the candidate) of the validator casting the vote.
-        validator_index: ValidatorIndex,
-        /// The signature of the validator casting the vote.
-        validator_signature: ValidatorSignature,
+        /// Triples containing the following:
+        /// - A statement, either indicating validity or invalidity of the candidate.
+        /// - The validator index (within the session of the candidate) of the validator casting the vote.
+        /// - The signature of the validator casting the vote.
+        statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
     }
 }
 ```
