@@ -342,7 +342,11 @@ enum DisputeCoordinatorMessage {
         /// - The validator index (within the session of the candidate) of the validator casting the vote.
         /// - The signature of the validator casting the vote.
         statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
-    }
+    },
+    /// Fetch a list of all active disputes that the co-ordinator is aware of.
+    ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
+    /// Get candidate votes for a candidate.
+    QueryCandidateVotes(SessionIndex, CandidateHash, ResponseChannel<Option<CandidateVotes>>),
 }
 ```
 

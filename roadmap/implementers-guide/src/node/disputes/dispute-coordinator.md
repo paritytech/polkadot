@@ -88,7 +88,16 @@ Do nothing.
 * Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`. 
 * Write the `CandidateVotes` to the `state.overlay`.
 * If the both `valid` and `invalid` lists now have non-zero length where previously one or both had zero length, the candidate is now freshly disputed.
-* If freshly disputed, load `"disputed"`, add the candidate hash and session index, and write `"disputed"`. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
+* If freshly disputed, load `"active-disputes"`, add the candidate hash and session index, and write `"active-disputes"`. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
+
+### On `DisputeCoordinatorMessage::ActiveDisputes`
+
+* Load `"active-disputes"` and return the data contained within.
+
+### On `DisputeCoordinatorMessage::QueryCandidateVotes`
+
+* Load from the `state.overlay`, and return the data if `Some`. 
+* Otherwise, load `"candidate-votes"` and return the data within or `None` if missing.
 
 ### Periodically
 
