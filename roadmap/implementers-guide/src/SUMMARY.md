@@ -55,7 +55,7 @@
     - [Dispute Coordinator](node/disputes/dispute-coordinator.md)
     - [Dispute Participation](node/disputes/dispute-participation.md)
     - [Dispute Distribution](node/disputes/dispute-distribution.md)
-    - [Dispute Chain-Activity](node/disputes/chain-activity.md)
+    - [Dispute Chain-Activity](node/disputes/dispute-chain-activity.md)
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)
     - [Candidate Validation](node/utility/candidate-validation.md)
