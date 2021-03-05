@@ -333,6 +333,8 @@ enum DisputeCoordinatorMessage {
     ImportStatement {
         /// The hash of the candidate.
         candidate_hash: CandidateHash,
+        /// The candidate receipt itself.
+        candidate_receipt: CandidateReceipt,
         /// The session the candidate appears in.
         session: SessionIndex,
         /// A statement, either indicating validity or invalidity of the candidate.
@@ -341,8 +343,6 @@ enum DisputeCoordinatorMessage {
         validator_index: ValidatorIndex,
         /// The signature of the validator casting the vote.
         validator_signature: ValidatorSignature,
-        
-        TODO [now]: local & candidate-receipt
     }
 }
 ```
