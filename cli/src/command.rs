@@ -176,6 +176,7 @@ pub fn run() -> Result<()> {
 						service::IsCollator::No,
 						grandpa_pause,
 						jaeger_agent,
+						None,
 					).map(|full| full.task_manager)
 				}?;
 				Ok::<_, Error>(task_manager)
