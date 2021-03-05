@@ -341,13 +341,33 @@ enum DisputeCoordinatorMessage {
         validator_index: ValidatorIndex,
         /// The signature of the validator casting the vote.
         validator_signature: ValidatorSignature,
+        
+        TODO [now]: local & candidate-receipt
     }
 }
 ```
 
 ## Dispute Participation Message
 
-TODO [now]
+Messages received by the [Dispute Participation subsystem](../node/disputes/dispute-participation.md)
+
+This subsystem simply executes requests to evaluate a candidate.
+
+```rust
+enum DisputeParticipationMessage {
+    /// Validate a candidate for the purposes of participating in a dispute.
+    Participate {
+        /// The hash of the candidate
+        candidate_hash: CandidateHash,
+        /// The candidate receipt itself.
+        candidate_receipt: CandidateReceipt,
+        /// The session the candidate appears in.
+        session: SessionIndex,
+        /// The indices of validators who have already voted on this candidate.
+        voted_indices: Vec<ValidatorIndex>,
+    }
+}
+```
 
 ## Network Bridge Message
 
