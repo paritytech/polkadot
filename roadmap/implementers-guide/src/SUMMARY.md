@@ -31,6 +31,7 @@
   - [Candidate Pending Availability](runtime-api/candidate-pending-availability.md)
   - [Candidate Events](runtime-api/candidate-events.md)
   - [Disputes Info](runtime-api/disputes-info.md)
+  - [Candidates Included](runtime-api/candidates-included.md)
 - [Node Architecture](node/README.md)
   - [Subsystems and Jobs](node/subsystems-and-jobs.md)
   - [Overseer](node/overseer.md)
