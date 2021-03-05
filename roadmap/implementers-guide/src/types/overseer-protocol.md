@@ -337,6 +337,10 @@ enum DisputeCoordinatorMessage {
         session: SessionIndex,
         /// A statement, either indicating validity or invalidity of the candidate.
         statement: DisputeStatement,
+        /// The validator index (within the session of the candidate) of the validator casting the vote.
+        validator_index: ValidatorIndex,
+        /// The signature of the validator casting the vote.
+        validator_signature: ValidatorSignature,
     }
 }
 ```
