@@ -35,6 +35,8 @@ This is a networking component by which validators notify each other of live dis
 
 Validators will in the future distribute votes to each other via the network, but at the moment learn of disputes just from watching the chain.
 
+TODO [now]: rewrite
+
 ### Dispute Chain Activity
 
 This component has 3 roles:

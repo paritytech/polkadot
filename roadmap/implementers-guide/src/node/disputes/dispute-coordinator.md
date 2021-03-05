@@ -30,6 +30,8 @@ struct CandidateVotes {
     valid: Vec<(ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
     // Sorted by validator index.
     invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
+    // An availability bitfield for validators to signal their respective chunk. One bit per validator in session.
+    availability: Bitfield,
 }
 
 struct ActiveDisputes {

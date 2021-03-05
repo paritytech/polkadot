@@ -47,6 +47,7 @@ Conclude.
 * If the result is `Invalid`, [cast invalid votes](#cast-votes) and return.
 * Fetch the block number of `candidate_receipt.descriptor.relay_parent` using a [`ChainApiMessage::BlockNumber`][ChainApiMessage].
 * If the data is recovered, dispatch a [`RuntimeApiMessage::HistoricalValidationCode`][RuntimeApiMessage] with the parameters `(candidate_receipt.descriptor.para_id, relay_parent_number)`.
+* Dispatch a [`AvailabilityStoreMessage::StoreAvailableData`][AvailabilityStoreMessage] with the data.
 * If the code is not fetched from the chain, return. This should be impossible with correct relay chain configuration after the TODO above is addressed and is unlikely before then, at least if chain synchronization is working correctly.
 * Dispatch a [`CandidateValidationMessage::ValidateFromExhaustive`][CandidateValidationMessage] with the available data and the validation code.
 * If the validation result is `Invalid`, [cast invalid votes](#cast-votes) and return.
@@ -68,3 +69,4 @@ For each signed copy of the dispute statement, invoke [`DisputeCoordinatorMessag
 [CandidateValidationMessage]: ../../types/overseer-protocol.md#candidate-validation-message
 [AvailabilityRecoveryMessage]: ../../types/overseer-protocol.md#availability-recovery-message
 [ChainApiMessage]: ../../types/overseer-protocol.md#chain-api-message
+[AvailabilityStoreMessage]: ../../types/overseer-protocol.md#availability-store-message

@@ -70,3 +70,13 @@ struct DisputeState {
     concluded_at: Option<BlockNumber>,
 }
 ```
+
+## DisputeChunkAvailable
+
+A vote indicating that a validator has available their chunk of a disputed candidate.
+
+```rust
+type SignedDisputeChunkAvailable = Signed<DisputeChunkAvailable>;
+
+struct DisputeChunkAvailable(CandidateHash, SessionIndex);
+```
