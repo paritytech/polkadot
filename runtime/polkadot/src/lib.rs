@@ -959,13 +959,6 @@ impl pallet_proxy::Config for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-pub struct CustomOnRuntimeUpgrade;
-impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
-	}
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1088,8 +1081,16 @@ impl frame_support::traits::OnRuntimeUpgrade for FixPolkadotCouncilVotersDeposit
 			},
 		);
 
-		frame_support::debug::info!(target: "runtime::polkadot", "updated {} + {} voter's deposit.", updated, skipped);
+		log::info!(target: "runtime::polkadot", "updated {} + {} voter's deposit.", updated, skipped);
 		BlockWeights::get().max_block
+	}
+
+	fn pre_upgrade() -> Result<(), &'static str> {
+		todo!()
+	}
+
+	fn post_upgrade() -> Result<(), &'static str> {
+		todo!()
 	}
 }
 

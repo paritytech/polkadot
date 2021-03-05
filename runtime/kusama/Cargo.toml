@@ -151,6 +151,7 @@ std = [
 	"babe-primitives/std",
 	"sp-session/std",
 	"runtime-common/std",
+	"frame-try-runtime/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -187,6 +188,7 @@ runtime-benchmarks = [
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
+	"frame-system/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-balances/try-runtime",
@@ -217,6 +219,7 @@ try-runtime = [
 	"pallet-vesting/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-randomness-collective-flip/try-runtime",
+	"runtime-common/try-runtime",
 ]
 # When enabled, the runtime api will not be build.
 #
