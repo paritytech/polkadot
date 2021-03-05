@@ -159,9 +159,9 @@ parameter_types! {
 }
 
 pub struct TestPastRandomness;
-impl auctions::PastRandomness<H256, BlockNumber> for TestPastRandomness {
-	fn last_random() -> (H256, u32) {
-		(H256::default(), frame_system::Module::<Test>::block_number())
+impl<Output: Default> auctions::PastRandomness<Output, BlockNumber> for TestPastRandomness {
+	fn last_random() -> (Output, u32) {
+		(Output::default(), frame_system::Module::<Test>::block_number())
 	}
 }
 

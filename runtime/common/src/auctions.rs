@@ -20,7 +20,6 @@
 
 use sp_std::{prelude::*, mem::swap, convert::TryInto};
 use sp_runtime::traits::{CheckedSub, Zero, One, Saturating};
-use parity_scale_codec::Decode;
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
 	traits::{Randomness, Currency, ReservableCurrency, Get, EnsureOrigin},
@@ -84,7 +83,7 @@ pub trait Config: frame_system::Config {
 	type EndingPeriod: Get<Self::BlockNumber>;
 
 	/// Something that provides randomness in the runtime.
-	type Randomness: PastRandomness<Self::Hash, Self::BlockNumber>;
+	type Randomness: PastRandomness<Self::BlockNumber, Self::BlockNumber>;
 
 	/// The origin which may initiate auctions.
 	type InitiateOrigin: EnsureOrigin<Self::Origin>;
@@ -477,12 +476,11 @@ impl<T: Config> Module<T> {
 			if is_ended {
 				// auction definitely ended.
 				// check to see if we can determine the actual ending point.
-				let (seed, known_since) = T::Randomness::last_random();
+				let (raw_offset, known_since) = T::Randomness::last_random();
 
 				if late_end <= known_since {
 					// Our random seed was known only after the auction ended. Good to use.
-					let offset = T::BlockNumber::decode(&mut seed.as_ref())
-						.expect("secure hashes always bigger than block numbers; qed") % ending_period;
+					let offset = raw_offset % ending_period;
 					let res = Winning::<T>::get(offset).unwrap_or_default();
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
@@ -597,6 +595,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use std::{collections::BTreeMap, cell::RefCell};
+	use parity_scale_codec::{Encode, Decode};
 
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
@@ -743,19 +742,23 @@ mod tests {
 	>;
 
 	thread_local! {
-		pub static LAST_RANDOM:
-			RefCell<Option<(H256, u32)>> = RefCell::new(None);
+		pub static LAST_RANDOM: RefCell<Option<(Vec<u8>, u32)>> = RefCell::new(None);
 	}
-
-	fn set_last_random(seed: H256, known_since: u32) {
-		LAST_RANDOM.with(|p| *p.borrow_mut() = Some((seed, known_since)))
+	fn set_last_random(output: Vec<u8>, known_since: u32) {
+		LAST_RANDOM.with(|p| *p.borrow_mut() = Some((output, known_since)))
 	}
-
 	pub struct TestPastRandomness;
-	impl PastRandomness<H256, BlockNumber> for TestPastRandomness {
-		fn last_random() -> (H256, u32) {
-			LAST_RANDOM.with(|p| p.borrow().clone())
-				.unwrap_or_else(|| (H256::default(), frame_system::Module::<Test>::block_number()))
+	impl<Output: Decode + Default> PastRandomness<Output, BlockNumber> for TestPastRandomness {
+		fn last_random() -> (Output, u32) {
+			LAST_RANDOM.with(|p| {
+				if let Some((output, known_since)) = &*p.borrow() {
+					let output_value = Output::decode(&mut &output[..])
+						.expect("test code always gives big enough `output` vec to decode Output value");
+					(output_value, *known_since)
+				} else {
+					(Output::default(), frame_system::Module::<Test>::block_number())
+				}
+			})
 		}
 	}
 
@@ -949,7 +952,7 @@ mod tests {
 			assert!(Auctions::is_in_progress());
 			// This will prevent the auction's winner from being decided in the next block, since the random
 			// seed was known before the final bids were made.
-			set_last_random(H256::default(), 8);
+			set_last_random(0u32.encode(), 8);
 			// Auction definitely ended now, but we don't know exactly when in the last 3 blocks yet since
 			// no randomness available yet.
 			run_to_block(9);
@@ -960,7 +963,7 @@ mod tests {
 
 			// Random seed now updated to a value known at block 9, when the auction ended. This means
 			// that the winner can now be chosen.
-			set_last_random(H256::default(), 9);
+			set_last_random(0u32.encode(), 9);
 			run_to_block(10);
 			// Auction ended and winner selected
 			assert!(!Auctions::is_in_progress());
