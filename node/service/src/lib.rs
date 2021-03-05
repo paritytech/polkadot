@@ -572,6 +572,9 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
+	#[cfg(feature = "real-overseer")]
+	info!("real-overseer feature is ENABLED");
+
 	let telemetry_span = TelemetrySpan::new();
 	let _telemetry_span_entered = telemetry_span.enter();
 
