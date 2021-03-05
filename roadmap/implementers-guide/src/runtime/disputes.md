@@ -69,7 +69,6 @@ ConclusionByTimeOutPeriod: BlockNumber;
 
 * `provide_multi_dispute_data(MultiDisputeStatementSet) -> Vec<(SessionIndex, Hash)>`:
   1. Fail if any disputes in the set are duplicate or concluded before the `PostConclusionAcceptancePeriod` window relative to now.
-  1. Check that each candidate receipt in the dispute statement set matches the candiate hash. Fail if any do not pass this check.
   1. Pass on each dispute statement set to `provide_dispute_data`, propagating failure.
   1. Return a list of all candidates who just had disputes initiated.
 
