@@ -23,7 +23,7 @@ use sp_runtime::traits::{CheckedSub, Zero, One, Saturating};
 use parity_scale_codec::Decode;
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
-	traits::{Currency, ReservableCurrency, Get, Randomness, EnsureOrigin},
+	traits::{Randomness, Currency, ReservableCurrency, Get, EnsureOrigin},
 	weights::{DispatchClass, Weight},
 };
 use primitives::v1::Id as ParaId;
@@ -47,6 +47,31 @@ impl WeightInfo for TestWeightInfo {
 	fn on_initialize() -> Weight { 0 }
 }
 
+/// Temporary trait to express some on-chain-derived random seed whose value was known since some time in the past.
+pub trait PastRandomness<Output, BlockNumber> {
+	/// Get the most recently determined random seed, along with the time in the past since when it was determinable.
+	///
+	/// NOTE: The returned seed should only be used to distinguish commitments made before the returned block number.
+	/// If the block number is too early (i.e. commitments were made afterwards), then ensure no further commitments
+	/// may be made and repeatedly call this on later blocks until the block number returned is later than the latest
+	/// commitment.
+	fn last_random() -> (Output, BlockNumber);
+}
+
+/// Adapt an existing `Randomness` impl into a `PastRandomness` impl by assuming that the seed is known only as of the
+/// current block.
+pub struct PastRandomnessAdapter<R, T>(sp_std::marker::PhantomData<(R, T)>);
+
+impl<
+	R: Randomness<Output>,
+	T: frame_system::Config,
+	Output,
+> PastRandomness<Output, T::BlockNumber> for PastRandomnessAdapter<R, T> {
+	fn last_random() -> (Output, T::BlockNumber) {
+		(R::random_seed(), frame_system::Module::<T>::block_number())
+	}
+}
+
 /// The module's configuration trait.
 pub trait Config: frame_system::Config {
 	/// The overarching event type.
@@ -59,7 +84,7 @@ pub trait Config: frame_system::Config {
 	type EndingPeriod: Get<Self::BlockNumber>;
 
 	/// Something that provides randomness in the runtime.
-	type Randomness: Randomness<Self::Hash>;
+	type Randomness: PastRandomness<Self::Hash, Self::BlockNumber>;
 
 	/// The origin which may initiate auctions.
 	type InitiateOrigin: EnsureOrigin<Self::Origin>;
@@ -165,6 +190,8 @@ decl_error! {
 		CodeTooLarge,
 		/// Given initial head data is too large.
 		HeadDataTooLarge,
+		/// Auction has already ended.
+		AuctionEnded,
 	}
 }
 
@@ -303,7 +330,13 @@ impl<T: Config> Auctioneer for Module<T> {
 impl<T: Config> Module<T> {
 	/// True if an auction is in progress.
 	pub fn is_in_progress() -> bool {
-		AuctionInfo::<T>::exists()
+		AuctionInfo::<T>::get().map_or(false, |(_, early_end)| {
+			let late_end = early_end + T::EndingPeriod::get();
+			// We need to check that the auction isn't in the period where it has definitely ended, but yeah we keep the
+			// info around because we haven't yet decided *exactly* when in the `EndingPeriod` that it ended.
+			let now = frame_system::Module::<T>::block_number();
+			now < late_end
+		})
 	}
 
 	/// Create a new auction.
@@ -348,7 +381,13 @@ impl<T: Config> Module<T> {
 		// Bidding on latest auction.
 		ensure!(auction_index == AuctionCounter::get(), Error::<T>::NotCurrentAuction);
 		// Assume it's actually an auction (this should never fail because of above).
-		let (first_lease_period, _) = AuctionInfo::<T>::get().ok_or(Error::<T>::NotAuction)?;
+		let (first_lease_period, early_end) = AuctionInfo::<T>::get().ok_or(Error::<T>::NotAuction)?;
+		let late_end = early_end + T::EndingPeriod::get();
+
+		// We need to check that the auction isn't in the period where it has definitely ended, but yeah we keep the
+		// info around because we haven't yet decided *exactly* when in the `EndingPeriod` that it ended.
+		let now = frame_system::Module::<T>::block_number();
+		ensure!(now < late_end, Error::<T>::AuctionEnded);
 
 		// Our range.
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
@@ -433,19 +472,26 @@ impl<T: Config> Module<T> {
 	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
 			let ending_period = T::EndingPeriod::get();
+			let late_end = early_end + ending_period;
+			let is_ended = now >= late_end;
+			if is_ended {
+				// auction definitely ended.
+				// check to see if we can determine the actual ending point.
+				let (seed, known_since) = T::Randomness::last_random();
 
-			if early_end + ending_period == now {
-				// Just ended!
-				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
-					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
-				let res = Winning::<T>::get(offset).unwrap_or_default();
-				let mut i = T::BlockNumber::zero();
-				while i < ending_period {
-					Winning::<T>::remove(i);
-					i += One::one();
+				if late_end <= known_since {
+					// Our random seed was known only after the auction ended. Good to use.
+					let offset = T::BlockNumber::decode(&mut seed.as_ref())
+						.expect("secure hashes always bigger than block numbers; qed") % ending_period;
+					let res = Winning::<T>::get(offset).unwrap_or_default();
+					let mut i = T::BlockNumber::zero();
+					while i < ending_period {
+						Winning::<T>::remove(i);
+						i += One::one();
+					}
+					AuctionInfo::<T>::kill();
+					return Some((res, lease_period_index))
 				}
-				AuctionInfo::<T>::kill();
-				return Some((res, lease_period_index))
 			}
 		}
 		None
@@ -556,7 +602,7 @@ mod tests {
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
 		parameter_types, ord_parameter_types, assert_ok, assert_noop, assert_storage_noop,
-		traits::{OnInitialize, OnFinalize, TestRandomness},
+		traits::{OnInitialize, OnFinalize},
 		dispatch::DispatchError::BadOrigin,
 	};
 	use frame_system::{EnsureSignedBy, EnsureOneOf, EnsureRoot};
@@ -696,11 +742,28 @@ mod tests {
 		EnsureSignedBy<Six, u64>,
 	>;
 
+	thread_local! {
+		pub static LAST_RANDOM:
+			RefCell<Option<(H256, u32)>> = RefCell::new(None);
+	}
+
+	fn set_last_random(seed: H256, known_since: u32) {
+		LAST_RANDOM.with(|p| *p.borrow_mut() = Some((seed, known_since)))
+	}
+
+	pub struct TestPastRandomness;
+	impl PastRandomness<H256, BlockNumber> for TestPastRandomness {
+		fn last_random() -> (H256, u32) {
+			LAST_RANDOM.with(|p| p.borrow().clone())
+				.unwrap_or_else(|| (H256::default(), frame_system::Module::<Test>::block_number()))
+		}
+	}
+
 	impl Config for Test {
 		type Event = Event;
 		type Leaser = TestLeaser;
 		type EndingPeriod = EndingPeriod;
-		type Randomness = TestRandomness;
+		type Randomness = TestPastRandomness;
 		type InitiateOrigin = RootOrSix;
 		type WeightInfo = crate::auctions::TestWeightInfo;
 	}
@@ -862,6 +925,45 @@ mod tests {
 			assert_eq!(Balances::free_balance(1), 9);
 			run_to_block(9);
 
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 3), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 4), LeaseData { leaser: 1, amount: 1 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 1);
+		});
+	}
+
+	#[test]
+	fn can_win_auction_with_late_randomness() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 1));
+			assert_eq!(Balances::reserved_balance(1), 1);
+			assert_eq!(Balances::free_balance(1), 9);
+			run_to_block(8);
+			// Auction has not yet ended.
+			assert_eq!(leases(), vec![]);
+			assert!(Auctions::is_in_progress());
+			// This will prevent the auction's winner from being decided in the next block, since the random
+			// seed was known before the final bids were made.
+			set_last_random(H256::default(), 8);
+			// Auction definitely ended now, but we don't know exactly when in the last 3 blocks yet since
+			// no randomness available yet.
+			run_to_block(9);
+			// Auction has now ended...
+			assert!(!Auctions::is_in_progress());
+			// ...But auction winner still not yet decided, so no leases yet.
+			assert_eq!(leases(), vec![]);
+
+			// Random seed now updated to a value known at block 9, when the auction ended. This means
+			// that the winner can now be chosen.
+			set_last_random(H256::default(), 9);
+			run_to_block(10);
+			// Auction ended and winner selected
+			assert!(!Auctions::is_in_progress());
 			assert_eq!(leases(), vec![
 				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
 				((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),

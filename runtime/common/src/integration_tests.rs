@@ -31,9 +31,7 @@ use primitives::v1::{BlockNumber, Header, Id as ParaId};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop,
 	storage::StorageMap,
-	traits::{
-		TestRandomness, Currency, OnInitialize, OnFinalize,
-	}
+	traits::{Currency, OnInitialize, OnFinalize}
 };
 use frame_system::EnsureRoot;
 use runtime_parachains::{
@@ -160,11 +158,18 @@ parameter_types! {
 	pub const EndingPeriod: BlockNumber = 10;
 }
 
+pub struct TestPastRandomness;
+impl auctions::PastRandomness<H256, BlockNumber> for TestPastRandomness {
+	fn last_random() -> (H256, u32) {
+		(H256::default(), frame_system::Module::<Test>::block_number())
+	}
+}
+
 impl auctions::Config for Test {
 	type Event = Event;
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
-	type Randomness = TestRandomness;
+	type Randomness = TestPastRandomness;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::auctions::TestWeightInfo;
 }

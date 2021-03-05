@@ -771,7 +771,7 @@ impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
-	type Randomness = Babe;
+	type Randomness = auctions::PastRandomnessAdapter<Babe, Runtime, >;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;
 }
