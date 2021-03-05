@@ -30,7 +30,7 @@
   - [Validation Code](runtime-api/validation-code.md)
   - [Candidate Pending Availability](runtime-api/candidate-pending-availability.md)
   - [Candidate Events](runtime-api/candidate-events.md)
-  - [Known Disputes](runtime-api/known-disputes.md)
+  - [Disputes Info](runtime-api/disputes-info.md)
 - [Node Architecture](node/README.md)
   - [Subsystems and Jobs](node/subsystems-and-jobs.md)
   - [Overseer](node/overseer.md)
