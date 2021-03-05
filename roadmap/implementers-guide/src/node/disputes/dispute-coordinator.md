@@ -44,12 +44,6 @@ Output:
   - [`RuntimeApiMessage`][RuntimeApiMessage]
   - [`DisputeParticipationMessage`][DisputeParticipationMessage]
 
-
-[DisputeTypes]: ../../types/disputes.md
-[DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
-[RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
-[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message
-
 ## Functionality
 
 This assumes a constant `DISPUTE_WINDOW: SessionIndex`. This should correspond to at least 1 day.
@@ -98,3 +92,8 @@ Do nothing.
 
 * Flush the `state.overlay` to the DB, writing all entries within
 * Clear `state.overlay`.
+
+[DisputeTypes]: ../../types/disputes.md
+[DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
+[RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
+[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message
