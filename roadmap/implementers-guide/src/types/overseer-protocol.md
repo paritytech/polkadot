@@ -328,6 +328,8 @@ enum DisputeCoordinatorMessage {
     /// already aware of and thus present a DoS vector. Our expectation is that nodes will notify each
     /// other of disputes over the network by providing 2 conflicting statements, of which one is either
     /// a backing or validation statement.
+    ///
+    /// This does not do any checking of the message signature.
     ImportStatement {
         /// The hash of the candidate.
         candidate_hash: CandidateHash,
