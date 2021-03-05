@@ -17,12 +17,12 @@ bp-eth-poa = { path = "../../primitives/ethereum-poa", default-features = false 
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", default-features = false, optional = true , branch = "bkchr-block-request-reputation" }
+frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-io = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
 
 [dev-dependencies]
 libsecp256k1 = { version = "0.3.4", features = ["hmac"] }

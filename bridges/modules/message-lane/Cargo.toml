@@ -19,17 +19,17 @@ bp-runtime = { path = "../../primitives/runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", default-features = false, optional = true , branch = "bkchr-block-request-reputation" }
+frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
 
 [dev-dependencies]
 hex-literal = "0.3"
-sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
 
 [features]
 default = ["std"]

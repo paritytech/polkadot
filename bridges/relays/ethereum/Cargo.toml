@@ -12,9 +12,9 @@ async-trait = "0.1.42"
 clap = { version = "2.33.3", features = ["yaml"] }
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 env_logger = "0.8.3"
-ethabi = { git = "https://github.com/paritytech/ethabi.git", branch = "td-eth-types-11" }
-ethabi-contract = { git = "https://github.com/paritytech/ethabi.git", branch = "td-eth-types-11" }
-ethabi-derive = { git = "https://github.com/paritytech/ethabi.git", branch = "td-eth-types-11" }
+ethabi = { git = "https://github.com/paritytech/ethabi.git", branch = "bkchr-block-request-reputation" }
+ethabi-contract = { git = "https://github.com/paritytech/ethabi.git", branch = "bkchr-block-request-reputation" }
+ethabi-derive = { git = "https://github.com/paritytech/ethabi.git", branch = "bkchr-block-request-reputation" }
 futures = "0.3.12"
 hex = "0.4"
 hex-literal = "0.3"
@@ -40,9 +40,9 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
+sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }

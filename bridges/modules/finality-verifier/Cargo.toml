@@ -19,15 +19,15 @@ bp-header-chain = { path = "../../primitives/header-chain", default-features = f
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
+sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-block-request-reputation" }
 
 [dev-dependencies]
 bp-test-utils = {path = "../../primitives/test-utils" }
 pallet-substrate-bridge = { path = "../../modules/substrate" }
-sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-block-request-reputation" }
 
 
 [features]
