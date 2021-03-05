@@ -39,12 +39,9 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	construct_runtime, debug, parameter_types,
+	construct_runtime, parameter_types,
 	traits::{EnsureOrigin, Filter, KeyOwnerProofSystem, Randomness},
 	weights::Weight,
-// =======
-// 	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
-// >>>>>>> master
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -679,7 +676,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
