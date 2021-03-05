@@ -228,15 +228,15 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn extrinsic(
+	fn transaction(
 		&self,
 		id: &<Block as BlockT>::Hash
-	) -> sp_blockchain::Result<Option<<Block as BlockT>::Extrinsic>> {
+	) -> sp_blockchain::Result<Option<Vec<u8>>> {
 		match self {
-			Self::Polkadot(client) => client.extrinsic(id),
-			Self::Westend(client) => client.extrinsic(id),
-			Self::Kusama(client) => client.extrinsic(id),
-			Self::Rococo(client) => client.extrinsic(id),
+			Self::Polkadot(client) => client.transaction(id),
+			Self::Westend(client) => client.transaction(id),
+			Self::Kusama(client) => client.transaction(id),
+			Self::Rococo(client) => client.transaction(id),
 		}
 	}
 
