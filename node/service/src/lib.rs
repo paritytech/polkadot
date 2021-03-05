@@ -609,6 +609,9 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
+	#[cfg(feature = "real-overseer")]
+	info!("real-overseer feature is ENABLED");
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks =
