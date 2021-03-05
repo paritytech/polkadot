@@ -1235,6 +1235,9 @@ sp_api::impl_runtime_apis! {
 			BTreeMap::new()
 		}
 
+		fn validation_code_by_hash(_hash: Hash) -> Option<ValidationCode> {
+			None
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

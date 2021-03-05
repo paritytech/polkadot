@@ -128,6 +128,8 @@ pub enum InvalidCandidate {
 	BadSignature,
 	/// Para head hash does not match.
 	ParaHeadHashMismatch,
+	/// Validation code hash does not match.
+	CodeHashMismatch,
 }
 
 /// Result of the validation of the candidate.
@@ -162,6 +164,8 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub processed_downward_messages: u32,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	pub hrmp_watermark: BlockNumber,
+	/// The hash of validation code
+	pub validation_code_hash: Hash,
 }
 
 /// Result of the [`CollatorFn`] invocation.

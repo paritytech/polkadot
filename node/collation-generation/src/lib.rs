@@ -295,6 +295,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					&scheduled_core.para_id,
 					&persisted_validation_data_hash,
 					&pov_hash,
+					&collation.validation_code_hash,
 				);
 
 				let erasure_root = match erasure_root(
@@ -334,6 +335,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						pov_hash,
 						erasure_root,
 						para_head: commitments.head_data.hash(),
+						validation_code_hash: collation.validation_code_hash,
 					},
 				};
 
@@ -489,6 +491,7 @@ mod tests {
 				},
 				processed_downward_messages: Default::default(),
 				hrmp_watermark: Default::default(),
+				validation_code_hash: Default::default(),
 			}
 		}
 
@@ -733,11 +736,13 @@ mod tests {
 			let expect_validation_data_hash
 				= PersistedValidationData::<BlockNumber>::default().hash();
 			let expect_relay_parent = Hash::repeat_byte(4);
+			let expect_validation_code_hash = test_collation().validation_code_hash;
 			let expect_payload = collator_signature_payload(
 				&expect_relay_parent,
 				&config.para_id,
 				&expect_validation_data_hash,
 				&expect_pov_hash,
+				&expect_validation_code_hash,
 			);
 			let expect_descriptor = CandidateDescriptor {
 				signature: config.key.sign(&expect_payload),
@@ -748,6 +753,7 @@ mod tests {
 				pov_hash: expect_pov_hash,
 				erasure_root: Default::default(), // this isn't something we're checking right now
 				para_head: test_collation().head_data.hash(),
+				validation_code_hash: test_collation().validation_code_hash,
 			};
 
 			assert_eq!(sent_messages.len(), 1);
@@ -768,6 +774,7 @@ mod tests {
 							&descriptor.para_id,
 							&descriptor.persisted_validation_data_hash,
 							&descriptor.pov_hash,
+							&descriptor.validation_code_hash,
 						)
 						.as_ref(),
 						&descriptor.collator,
