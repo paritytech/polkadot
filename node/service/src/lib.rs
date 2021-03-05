@@ -678,8 +678,8 @@ pub fn new_full<RuntimeApi, Executor>(
 					if protocol == "/polkadot/collation/1" {
 						tracing::warn!(
 							"Incoming collator on a node with parachains disabled. This warning \
-							is harmless and is here to warn developers that they might have
-							accidentally compiled their node without the `real-overseer` feature
+							is harmless and is here to warn developers that they might have \
+							accidentally compiled their node without the `real-overseer` feature \
 							enabled."
 						);
 					}
