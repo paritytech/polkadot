@@ -290,6 +290,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				let pov_hash = collation.proof_of_validity.hash();
 
+				// TODO TODO: should validation_code_hash be in the signed payload ?
 				let signature_payload = collator_signature_payload(
 					&relay_parent,
 					&scheduled_core.para_id,
@@ -334,6 +335,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						pov_hash,
 						erasure_root,
 						para_head: commitments.head_data.hash(),
+						validation_code_hash: collation.validation_code_hash,
 					},
 				};
 

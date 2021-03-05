@@ -28,9 +28,9 @@ use sp_std::result;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, SessionIndex,
+	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlakeTwo256,
 };
-use sp_runtime::{traits::One, DispatchResult};
+use sp_runtime::{traits::{One, Hash as _}, DispatchResult};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure,
 	traits::Get,
@@ -284,6 +284,12 @@ decl_storage! {
 		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
+		/// TODO TODO
+		CodeByHashRefs: map hasher(identity) Hash => u32;
+		/// TODO TODO
+		/// incremented when initialize or upgrade decremented when pruned or offboard (for future
+		/// code)
+		CodeByHash get(fn code_by_hash): map hasher(identity) Hash => Option<ValidationCode>;
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
@@ -308,6 +314,7 @@ fn build<T: Config>(config: &GenesisConfig<T>) {
 
 	for (id, genesis_args) in &config.paras {
 		<Module<T> as Store>::CurrentCode::insert(&id, &genesis_args.validation_code);
+		<Module<T>>::increase_code_ref(&genesis_args.validation_code);
 		<Module<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
 		if genesis_args.parachain {
 			ParaLifecycles::insert(&id, ParaLifecycle::Parachain);
@@ -412,8 +419,11 @@ impl<T: Config> Module<T> {
 
 					<Self as Store>::Heads::remove(&para);
 					<Self as Store>::FutureCodeUpgrades::remove(&para);
-					<Self as Store>::FutureCode::remove(&para);
 					ParaLifecycles::remove(&para);
+					let removed_future_code = <Self as Store>::FutureCode::take(&para);
+					if let Some(removed_future_code) = removed_future_code {
+						Self::decrease_code_ref(&removed_future_code);
+					}
 
 					let removed_code = <Self as Store>::CurrentCode::take(&para);
 					if let Some(removed_code) = removed_code {
@@ -487,7 +497,14 @@ impl<T: Config> Module<T> {
 				for (para_id, _) in pruning_tasks_to_do {
 					let full_deactivate = <Self as Store>::PastCodeMeta::mutate(&para_id, |meta| {
 						for pruned_repl_at in meta.prune_up_to(pruning_height) {
-							<Self as Store>::PastCode::remove(&(para_id, pruned_repl_at));
+							let removed_code =
+								<Self as Store>::PastCode::take(&(para_id, pruned_repl_at));
+
+							if let Some(removed_code) = removed_code {
+								Self::decrease_code_ref(&removed_code);
+							} else {
+								todo!("log error");
+							}
 						}
 
 						meta.most_recent_change().is_none() && Self::para_head(&para_id).is_none()
@@ -526,6 +543,8 @@ impl<T: Config> Module<T> {
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
+		// TODO TODO: might be better to actually store in onboarding itself.
+		Self::increase_code_ref(&genesis.validation_code);
 		UpcomingParasGenesis::insert(&id, genesis);
 		ActionsQueue::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
@@ -617,6 +636,7 @@ impl<T: Config> Module<T> {
 				T::DbWeight::get().reads_writes(1, 0)
 			} else {
 				*up = Some(expected_at);
+				Self::increase_code_ref(&new_code);
 				FutureCode::insert(&id, new_code);
 				T::DbWeight::get().reads_writes(1, 2)
 			}
@@ -752,6 +772,31 @@ impl<T: Config> Module<T> {
 	/// Return the session index that should be used for any future scheduled changes.
 	fn scheduled_session() -> SessionIndex {
 		shared::Module::<T>::scheduled_session()
+	}
+
+	/// Store the validation code if not already stored, and increase the number of reference.
+	fn increase_code_ref(validation_code: &ValidationCode) {
+		// TODO TODO: we could also hash the validation_code encoding (like the Vec of bytes).
+		let hash = BlakeTwo256::hash(&validation_code.0[..]);
+		<Self as Store>::CodeByHashRefs::mutate(hash, |refs| {
+			if *refs == 0 {
+				<Self as Store>::CodeByHash::insert(hash, &validation_code);
+			}
+			*refs += 1;
+		});
+	}
+
+	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
+	/// is reached.
+	fn decrease_code_ref(validation_code: &ValidationCode) {
+		let hash = BlakeTwo256::hash(&validation_code.0[..]);
+		let refs = <Self as Store>::CodeByHashRefs::get(hash);
+		if refs <= 1 {
+			<Self as Store>::CodeByHash::remove(hash);
+			<Self as Store>::CodeByHashRefs::remove(hash);
+		} else {
+			<Self as Store>::CodeByHashRefs::insert(hash, refs - 1);
+		}
 	}
 }
 

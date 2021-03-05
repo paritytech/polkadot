@@ -18,9 +18,9 @@
 
 use futures_timer::Delay;
 use polkadot_node_primitives::{Collation, CollatorFn, CollationResult, Statement, SignedFullStatement};
-use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
+use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV, BlakeTwo256};
 use parity_scale_codec::{Encode, Decode};
-use sp_core::{Pair, traits::SpawnNamed};
+use sp_core::{Pair, Hasher, traits::SpawnNamed};
 use std::{
 	collections::HashMap,
 	sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}},
@@ -150,6 +150,7 @@ impl Collator {
 
 		let state = self.state.clone();
 		let seconded_collations = self.seconded_collations.clone();
+		let validation_code_hash = BlakeTwo256::hash(self.validation_code());
 
 		Box::new(move |relay_parent, validation_data| {
 			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
@@ -173,6 +174,7 @@ impl Collator {
 				proof_of_validity: pov.clone(),
 				processed_downward_messages: 0,
 				hrmp_watermark: validation_data.relay_parent_number,
+				validation_code_hash,
 			};
 
 			let (result_sender, recv) = oneshot::channel::<SignedFullStatement>();

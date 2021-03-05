@@ -323,3 +323,10 @@ pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
 	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
 }
+
+/// Implementation for the `validation_code_by_hash` function of the runtime API.
+pub fn validation_code_by_hash<T: paras::Config>(
+	hash: Hash,
+) -> Option<ValidationCode> {
+	<paras::Module<T>>::code_by_hash(hash)
+}
