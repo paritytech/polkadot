@@ -45,7 +45,10 @@
 //! ```
 
 use sp_core::traits::SpawnNamed;
-use polkadot_primitives::v1::{Hash, PoV, CandidateHash};
+use polkadot_primitives::v1::{CandidateHash, Hash, PoV, ValidatorIndex, BlakeTwo256, HashT};
+use parity_scale_codec::Encode;
+use sc_network::PeerId;
+
 use parking_lot::RwLock;
 use std::{sync::Arc, result};
 
@@ -123,8 +126,8 @@ impl JaegerConfigBuilder {
 /// This just works as auxiliary structure to easily store both.
 #[derive(Debug)]
 pub struct PerLeafSpan {
-	leaf_span: Arc<JaegerSpan>,
-	span: JaegerSpan,
+	leaf_span: Arc<Span>,
+	span: Span,
 }
 
 impl PerLeafSpan {
@@ -133,7 +136,7 @@ impl PerLeafSpan {
 	/// Takes the `leaf_span` that is created by the overseer per leaf and a name for a child span.
 	/// Both will be stored in this object, while the child span is implicitly accessible by using the
 	/// [`Deref`](std::ops::Deref) implementation.
-	pub fn new(leaf_span: Arc<JaegerSpan>, name: impl Into<String>) -> Self {
+	pub fn new(leaf_span: Arc<Span>, name: &'static str) -> Self {
 		let span = leaf_span.child(name);
 
 		Self {
@@ -143,36 +146,162 @@ impl PerLeafSpan {
 	}
 
 	/// Returns the leaf span.
-	pub fn leaf_span(&self) -> &Arc<JaegerSpan> {
+	pub fn leaf_span(&self) -> &Arc<Span> {
 		&self.leaf_span
 	}
 }
 
 /// Returns a reference to the child span.
 impl std::ops::Deref for PerLeafSpan {
-	type Target = JaegerSpan;
+	type Target = Span;
 
-	fn deref(&self) -> &JaegerSpan {
+	fn deref(&self) -> &Span {
 		&self.span
 	}
 }
 
+
+/// A helper to annotate the stage with a numerical value
+/// to ease the life of the tooling team creating viable
+/// statistical metrics for which stage of the inclusion
+/// pipeline drops a significant amount of candidates,
+/// statistically speaking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum Stage {
+	CandidateSelection = 1,
+	CandidateBacking = 2,
+	StatementDistribution = 3,
+	PoVDistribution = 4,
+	AvailabilityDistribution = 5,
+	AvailabilityRecovery = 6,
+	BitfieldDistribution = 7,
+	ApprovalChecking = 8,
+	// Expand as needed, numbers should be ascending according to the stage
+	// through the inclusion pipeline, or according to the descriptions
+	// in [the path of a para chain block]
+	// (https://polkadot.network/the-path-of-a-parachain-block/)
+	// see [issue](https://github.com/paritytech/polkadot/issues/2389)
+}
+
+/// Builder pattern for children and root spans to unify
+/// information annotations.
+pub struct SpanBuilder {
+	span: Span,
+}
+
+impl SpanBuilder {
+	/// Attach a peer id to the span.
+	#[inline(always)]
+	pub fn with_peer_id(mut self, peer: &PeerId) -> Self {
+		self.span.add_string_tag("peer-id", &peer.to_base58());
+		self
+	}
+	/// Attach a candidate hash to the span.
+	#[inline(always)]
+	pub fn with_candidate(mut self, candidate_hash: &CandidateHash) -> Self  {
+		self.span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
+		self
+	}
+	/// Attach a candidate stage.
+	/// Should always come with a `CandidateHash`.
+	#[inline(always)]
+	pub fn with_stage(mut self, stage: Stage) -> Self {
+		self.span.add_stage(stage);
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_validator_index(mut self, validator: ValidatorIndex) -> Self {
+		self.span.add_string_tag("validator-index", &validator.0.to_string());
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_chunk_index(mut self, chunk_index: u32) -> Self {
+		self.span.add_string_tag("chunk-index", &format!("{}", chunk_index));
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_relay_parent(mut self, relay_parent: &Hash) -> Self {
+		self.span.add_string_tag("relay-parent", &format!("{:?}", relay_parent));
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_claimed_validator_index(mut self, claimed_validator_index: ValidatorIndex) -> Self {
+		self.span.add_string_tag(
+			"claimed-validator",
+			&claimed_validator_index.0.to_string(),
+		);
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_pov(mut self, pov: &PoV) -> Self {
+		self.span.add_pov(pov);
+		self
+	}
+
+	/// Complete construction.
+	#[inline(always)]
+	pub fn build(self) -> Span {
+		self.span
+	}
+}
+
+
 /// A wrapper type for a span.
 ///
 /// Handles running with and without jaeger.
-pub enum JaegerSpan {
+pub enum Span {
 	/// Running with jaeger being enabled.
 	Enabled(mick_jaeger::Span),
 	/// Running with jaeger disabled.
 	Disabled,
 }
 
-impl JaegerSpan {
+impl Span {
 	/// Derive a child span from `self`.
-	pub fn child(&self, name: impl Into<String>) -> Self {
+	pub fn child(&self, name: &'static str) -> Self {
 		match self {
 			Self::Enabled(inner) => Self::Enabled(inner.child(name)),
 			Self::Disabled => Self::Disabled,
+		}
+	}
+
+	pub fn child_builder(&self, name: &'static str) -> SpanBuilder {
+		SpanBuilder {
+			span: self.child(name),
+		}
+	}
+
+	/// Derive a child span from `self` but add a candidate annotation.
+	/// A shortcut for
+	///
+	/// ```rust,no_run
+	/// # use polkadot_primitives::v1::CandidateHash;
+	/// # use polkadot_node_jaeger::candidate_hash_span;
+	/// # let hash = CandidateHash::default();
+	/// # let span = candidate_hash_span(&hash, "foo");
+	/// let _span = span.child_builder("name").with_candidate(&hash).build();
+	/// ```
+	#[inline(always)]
+	pub fn child_with_candidate(&self, name: &'static str, candidate_hash: &CandidateHash) -> Self {
+		self.child_builder(name).with_candidate(candidate_hash).build()
+	}
+
+	/// Add candidate stage annotation.
+	pub fn add_stage(&mut self, stage: Stage) {
+		self.add_string_tag("candidate-stage", &format!("{}", stage as u8));
+	}
+
+	pub fn add_pov(&mut self, pov: &PoV) {
+		if self.is_enabled() {
+			// avoid computing the pov hash if jaeger is not enabled
+			self.add_string_tag("pov", &format!("{:?}", pov.hash()));
 		}
 	}
 
@@ -184,6 +313,14 @@ impl JaegerSpan {
 		}
 	}
 
+	/// Add an additional int tag to the span.
+	pub fn add_int_tag(&mut self, tag: &str, value: i64) {
+		match self {
+			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
+			Self::Disabled => {},
+		}
+	}
+
 	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
@@ -191,15 +328,24 @@ impl JaegerSpan {
 			_ => {},
 		}
 	}
+
+	/// Helper to check whether jaeger is enabled
+	/// in order to avoid computational overhead.
+	pub const fn is_enabled(&self) -> bool {
+		match self {
+			Span::Enabled(_) => true,
+			_ => false,
+		}
+	}
 }
 
-impl std::fmt::Debug for JaegerSpan {
+impl std::fmt::Debug for Span {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "<jaeger span>")
 	}
 }
 
-impl From<Option<mick_jaeger::Span>> for JaegerSpan {
+impl From<Option<mick_jaeger::Span>> for Span {
 	fn from(src: Option<mick_jaeger::Span>) -> Self {
 		if let Some(span) = src {
 			Self::Enabled(span)
@@ -209,15 +355,15 @@ impl From<Option<mick_jaeger::Span>> for JaegerSpan {
 	}
 }
 
-impl From<mick_jaeger::Span> for JaegerSpan {
+impl From<mick_jaeger::Span> for Span {
 	fn from(src: mick_jaeger::Span) -> Self {
 		Self::Enabled(src)
 	}
 }
 
-/// Shortcut for [`candidate_hash_span`] with the hash of the `Candidate` block.
-pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<String>) -> JaegerSpan {
-	let mut span: JaegerSpan = INSTANCE.read_recursive()
+/// Shortcut for [`hash_span`] with the hash of the `Candidate` block.
+pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: &'static str) -> Span {
+	let mut span: Span = INSTANCE.read_recursive()
 		.span(|| { candidate_hash.0 }, span_name).into();
 
 	span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
@@ -226,8 +372,12 @@ pub fn candidate_hash_span(candidate_hash: &CandidateHash, span_name: impl Into<
 
 /// Shortcut for [`hash_span`] with the hash of the `PoV`.
 #[inline(always)]
-pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
-	INSTANCE.read_recursive().span(|| { pov.hash() }, span_name).into()
+pub fn pov_span(pov: &PoV, span_name: &'static str) -> Span {
+	let mut span: Span = INSTANCE.read_recursive()
+		.span(|| { pov.hash() }, span_name).into();
+
+	span.add_pov(pov);
+	span
 }
 
 /// Creates a `Span` referring to the given hash. All spans created with [`hash_span`] with the
@@ -235,10 +385,19 @@ pub fn pov_span(pov: &PoV, span_name: impl Into<String>) -> JaegerSpan {
 ///
 /// This span automatically has the `relay-parent` tag set.
 #[inline(always)]
-pub fn hash_span(hash: &Hash, span_name: impl Into<String>) -> JaegerSpan {
-	let mut span: JaegerSpan = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
+pub fn hash_span(hash: &Hash, span_name: &'static str) -> Span {
+	let mut span: Span = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
 	span.add_string_tag("relay-parent", &format!("{:?}", hash));
 	span
+}
+
+/// Creates a `Span` referring to the given descriptor, which should be unique.
+#[inline(always)]
+pub fn descriptor_span(descriptor: impl Encode, span_name: &'static str) -> Span {
+	INSTANCE.read_recursive().span(
+		|| { BlakeTwo256::hash_of(&descriptor) },
+		span_name,
+	).into()
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].
@@ -307,7 +466,7 @@ impl Jaeger {
 		Ok(())
 	}
 
-	fn span<F>(&self, lazy_hash: F, span_name: impl Into<String>) -> Option<mick_jaeger::Span>
+	fn span<F>(&self, lazy_hash: F, span_name: &'static str) -> Option<mick_jaeger::Span>
 	where
 		F: Fn() -> Hash,
 	{

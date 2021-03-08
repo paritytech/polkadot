@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width">
+		<title>High Level Bridge Components</title>
+	</head>
+	<body>
+		<h1>Header Sync</h1>
+		<p>Header pallet on the target chain, keeps track of the forks, but requires finality for blocks that perform authority set changes. That means, it won't sync a fork with authority set change unless that change finalized.</p>
+		<div class="mermaid">
+			sequenceDiagram
+			participant Source Chain
+			participant Relayer
+			participant Target Chain
+			Note right of Target Chain: Best: 0, Finalized: 0
+			Source Chain ->> Source Chain: Import Block 1
+			Source Chain ->> Source Chain: Import Block 2
+			Relayer ->> Target Chain: Submit Block 1
+			Note right of Target Chain: Best: 1, Finalized: 0
+			Relayer ->> Target Chain: Submit Block 2
+			Note right of Target Chain: Best: 2, Finalized: 0
+			Source Chain ->> Source Chain: Import Block 2'
+			Relayer ->> Target Chain: Submit Block 2'
+			Note right of Target Chain: Best: 2 or 2', Finalized: 0
+			Source Chain ->> Source Chain: Finalize Block 2'
+			Relayer ->> Target Chain: Submit Finality of Block 2'
+			Note right of Target Chain: Best: 2', Finalized: 2'
+		</div>
+		<h1>Message Delivery (single lane)</h1>
+		<p>Pending messages are stored on-chain (source) so the relayer code is completely stateless - it can read all the details from the chain.</p>
+		<p>Delivering pending messages requires finality first.</p>
+		<div class="mermaid">
+			sequenceDiagram
+			participant Source Chain
+			participant Relayer
+			participant Target Chain
+			Source Chain ->> Source Chain: Queue Message 1
+			Source Chain ->> Source Chain: Queue Message 2
+			Source Chain ->> Source Chain: Queue Message 3
+			Note left of Source Chain: Queued Messages: [1, 2, 3, ]
+			Note left of Source Chain: Reward for [1, 2, 3, ] reserved
+			Relayer ->> Target Chain: Deliver Messages 1..2
+			Note right of Target Chain: Target chain dispatches the messages.<br> To Confirm: {1..2 => relayer_1}
+			Relayer ->> Source Chain: Delivery Confirmation of 1..2
+			Note left of Source Chain: Queued Messages: [3, ]
+			Note left of Source Chain: Reward payout for [1, 2, ]
+			Relayer -->> Target Chain: Confirmed Messages 1..2
+			Note right of Target Chain: To Confirm: {}
+			Note over Relayer, Target Chain: (this is not a separate transaction, <br >it's bundled with the "Deliver Messages" proof)
+		</div>
+		<script src="https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js"></script>
+		<script>mermaid.initialize({startOnLoad: true})</script>
+	</body>
+</html>

@@ -1,0 +1,36 @@
+[package]
+name = "bp-header-chain"
+description = "A common interface for describing what a bridge pallet should be able to do."
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+finality-grandpa = { version = "0.14.0", default-features = false }
+serde = { version = "1.0", optional = true }
+
+# Substrate Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" , default-features = false }
+
+[dev-dependencies]
+bp-test-utils = { path = "../test-utils" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"finality-grandpa/std",
+	"serde/std",
+	"frame-support/std",
+	"sp-core/std",
+	"sp-finality-grandpa/std",
+	"sp-runtime/std",
+	"sp-std/std",
+]

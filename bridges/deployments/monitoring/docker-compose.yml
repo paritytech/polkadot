@@ -1,0 +1,28 @@
+version: '3.5'
+services:
+  prometheus-metrics:
+    image: prom/prometheus:v2.20.1
+    ports:
+      - "9090:9090"
+
+  grafana-dashboard:
+    image: grafana/grafana:7.1.3
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASS:-admin}
+      GF_SERVER_ROOT_URL: ${GRAFANA_SERVER_ROOT_URL}
+      GF_SERVER_DOMAIN: ${GRAFANA_SERVER_DOMAIN}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus-metrics
+
+  grafana-matrix-notifier:
+    build:
+      context: .
+      dockerfile: ./monitoring/GrafanaMatrix.Dockerfile
+    volumes:
+      - ./monitoring/grafana-matrix:/config
+    ports:
+      - "4567:4567"
+    depends_on:
+      - grafana-dashboard

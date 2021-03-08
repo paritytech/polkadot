@@ -22,6 +22,8 @@ use sc_network as network;
 use sc_network::config as netconfig;
 use sc_network::PeerId;
 
+use polkadot_primitives::v1::AuthorityDiscoveryId;
+
 use super::{v1, Protocol};
 
 /// Common properties of any `Request`.
@@ -69,7 +71,7 @@ impl Requests {
 #[derive(Debug)]
 pub struct OutgoingRequest<Req> {
 	/// Intendent recipient of this request.
-	pub peer: PeerId,
+	pub peer: AuthorityDiscoveryId,
 	/// The actual request to send over the wire.
 	pub payload: Req,
 	/// Sender which is used by networking to get us back a response.
@@ -98,7 +100,7 @@ where
 	/// It will contain a sender that is used by the networking for sending back responses. The
 	/// connected receiver is returned as the second element in the returned tuple.
 	pub fn new(
-		peer: PeerId,
+		peer: AuthorityDiscoveryId,
 		payload: Req,
 	) -> (
 		Self,

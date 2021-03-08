@@ -27,7 +27,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use crate::{
 	inclusion, scheduler, dmp, ump, hrmp, session_info, paras, configuration,
-	initializer,
+	initializer, shared,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -43,12 +43,13 @@ frame_support::construct_runtime!(
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		Paras: paras::{Module, Origin, Call, Storage, Config<T>},
 		Configuration: configuration::{Module, Call, Storage, Config<T>},
+		Shared: shared::{Module, Call, Storage},
 		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
 		Scheduler: scheduler::{Module, Call, Storage},
 		Initializer: initializer::{Module, Call, Storage},
 		Dmp: dmp::{Module, Call, Storage},
 		Ump: ump::{Module, Call, Storage},
-		Hrmp: hrmp::{Module, Call, Storage},
+		Hrmp: hrmp::{Module, Call, Storage, Event},
 		SessionInfo: session_info::{Module, Call, Storage},
 	}
 );
@@ -112,6 +113,8 @@ impl crate::initializer::Config for Test {
 
 impl crate::configuration::Config for Test { }
 
+impl crate::shared::Config for Test { }
+
 impl crate::paras::Config for Test {
 	type Origin = Origin;
 }
@@ -123,6 +126,7 @@ impl crate::ump::Config for Test {
 }
 
 impl crate::hrmp::Config for Test {
+	type Event = Event;
 	type Origin = Origin;
 	type Currency = pallet_balances::Module<Test>;
 }

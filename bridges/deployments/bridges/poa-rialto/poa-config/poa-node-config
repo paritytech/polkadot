@@ -1,0 +1,20 @@
+[parity]
+chain = "/config/poa.json"
+keys_path = "/config/keys"
+no_persistent_txqueue = true
+
+[account]
+password = ["/config/pass"]
+
+[network]
+reserved_peers = "/config/reserved"
+
+[rpc]
+apis = ["all"]
+cors = ["moz-extension://*", "chrome-extension://*"]
+
+[mining]
+force_sealing = true
+
+[misc]
+unsafe_expose = true

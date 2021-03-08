@@ -28,7 +28,7 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId,
 	ScheduledCore, ValidatorIndex, SessionIndex, SessionInfo,
 };
-use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
+use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_node_network_protocol::{view, our_view};
@@ -174,7 +174,8 @@ impl Default for TestState {
 			.take(validator_public.len())
 			.collect();
 
-		let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]];
+		let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]]
+			.into_iter().map(|g| g.into_iter().map(ValidatorIndex).collect()).collect();
 		let group_rotation_info = GroupRotationInfo {
 			session_start_block: 0,
 			group_rotation_frequency: 100,
@@ -238,11 +239,11 @@ async fn test_validator_discovery(
 			assert_eq!(index, session_index);
 
 			let validators = validator_group.iter()
-				.map(|idx| validator_ids[*idx as usize].clone())
+				.map(|idx| validator_ids[idx.0 as usize].clone())
 				.collect();
 
 			let discovery_keys = validator_group.iter()
-				.map(|idx| discovery_ids[*idx as usize].clone())
+				.map(|idx| discovery_ids[idx.0 as usize].clone())
 				.collect();
 
 			tx.send(Ok(Some(SessionInfo {
@@ -277,7 +278,7 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(test_state.relay_parent, Arc::new(JaegerSpan::Disabled))][..].into(),
+				activated: [(test_state.relay_parent, Arc::new(jaeger::Span::Disabled))][..].into(),
 				deactivated: [][..].into(),
 			}),
 		).await;
@@ -449,7 +450,7 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(next_leaf, Arc::new(JaegerSpan::Disabled))][..].into(),
+				activated: [(next_leaf, Arc::new(jaeger::Span::Disabled))][..].into(),
 				deactivated: [current.clone()][..].into(),
 			})
 		).await;
@@ -737,7 +738,8 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 		.take(validators.len())
 		.collect();
 
-	let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]];
+	let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]]
+		.into_iter().map(|g| g.into_iter().map(ValidatorIndex).collect()).collect();
 	let group_rotation_info = GroupRotationInfo {
 		session_start_block: 0,
 		group_rotation_frequency: 100,

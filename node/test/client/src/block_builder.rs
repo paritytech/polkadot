@@ -17,8 +17,9 @@
 use crate::{Client, FullBackend};
 use polkadot_test_runtime::{GetLastTimestamp, UncheckedExtrinsic};
 use polkadot_primitives::v1::Block;
-use sp_runtime::generic::BlockId;
+use sp_runtime::{generic::BlockId, Digest, DigestItem};
 use sp_api::ProvideRuntimeApi;
+use sp_consensus_babe::{BABE_ENGINE_ID, digests::{PreDigest, SecondaryPlainPreDigest}};
 use sc_block_builder::{BlockBuilderProvider, BlockBuilder};
 use sp_state_machine::BasicExternalities;
 use parity_scale_codec::{Encode, Decode};
@@ -52,10 +53,6 @@ impl InitPolkadotBlockBuilder for Client {
 		&self,
 		at: &BlockId<Block>,
 	) -> BlockBuilder<Block, Client, FullBackend> {
-		let mut block_builder = self.new_block_at(at, Default::default(), false)
-			.expect("Creates new block builder for test runtime");
-
-		let mut inherent_data = sp_inherents::InherentData::new();
 		let last_timestamp = self
 			.runtime_api()
 			.get_last_timestamp(&at)
@@ -65,7 +62,36 @@ impl InitPolkadotBlockBuilder for Client {
 		let minimum_period = BasicExternalities::new_empty()
 			.execute_with(|| polkadot_test_runtime::MinimumPeriod::get());
 
-		let timestamp = last_timestamp + minimum_period;
+		let timestamp = if last_timestamp == 0 {
+			std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH)
+				.expect("Time is always after UNIX_EPOCH; qed")
+				.as_millis() as u64
+		} else {
+			last_timestamp + minimum_period
+		};
+
+		// `SlotDuration` is a storage parameter type that requires externalities to access the value.
+		let slot_duration = BasicExternalities::new_empty()
+			.execute_with(|| polkadot_test_runtime::SlotDuration::get());
+
+		let slot = (timestamp / slot_duration).into();
+
+		let digest = Digest {
+			logs: vec![
+				DigestItem::PreRuntime(
+					BABE_ENGINE_ID,
+					PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+						slot,
+						authority_index: 42,
+					}).encode()
+				),
+			],
+		};
+
+		let mut block_builder = self.new_block_at(at, digest, false)
+			.expect("Creates new block builder for test runtime");
+
+		let mut inherent_data = sp_inherents::InherentData::new();
 
 		inherent_data
 			.put_data(sp_timestamp::INHERENT_IDENTIFIER, &timestamp)

@@ -25,10 +25,10 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, Hash,
+	InboundDownwardMessage, InboundHrmpMessage, Hash, AuthorityDiscoveryId
 };
-use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
+use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
+
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
@@ -84,8 +84,11 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		match <scheduler::Module<T>>::group_assigned_to_core(core_index, backed_in_number) {
 			Some(g) => g,
 			None =>  {
-				debug::warn!("Could not determine the group responsible for core extracted \
-					from list of cores for some prior block in same session");
+				log::warn!(
+					target: "runtime::polkadot-api::v1",
+					"Could not determine the group responsible for core extracted \
+					from list of cores for some prior block in same session",
+				);
 
 				GroupIndex(0)
 			}
@@ -228,7 +231,28 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	//
 	// Incidentally, this is also the rationale for why it is OK to query validators or
 	// occupied cores or etc. and expect the correct response "for child".
-	<inclusion::Module<T>>::session_index()
+	<shared::Module<T>>::session_index()
+}
+
+/// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
+/// It is a heavy call, but currently only used for authority discovery, so it is fine.
+/// Gets next, current and some historical authority ids using session_info module.
+pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
+	let current_session_index = session_index_for_child::<T>();
+	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
+	let mut authority_ids = <pallet_authority_discovery::Module<T>>::next_authorities();
+
+	for session_index in earliest_stored_session..=current_session_index {
+		let info = <session_info::Module<T>>::session_info(session_index);
+		if let Some(mut info) = info {
+			authority_ids.append(&mut info.discovery_keys);
+		}
+	}
+
+	authority_ids.sort();
+	authority_ids.dedup();
+
+	authority_ids
 }
 
 /// Implementation for the `validation_code` function of the runtime API.
