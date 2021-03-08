@@ -20,18 +20,24 @@ use sp_arithmetic::traits::SaturatedConversion;
 use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReasons};
 use xcm_executor::traits::{MatchesFungible, LocationConversion, TransactAsset};
 
-pub enum Error {
-	CannotMatchFungible,
-	LocationConversionFailed,
+/// The asset transact errors.
+enum Error {
+	/// Asset not found.
+	AssetNotFound,
+	/// `MultiLocation` to `AccountId` Conversion failed.
+	AccountIdConversionFailed,
+	/// `u128` amount to currency `Balance` conversion failed.
 	AmountToBalanceConversionFailed,
 }
 
-impl Into<XcmError> for Error {
-	fn into(self) -> XcmError {
-		match self {
-			Error::CannotMatchFungible => XcmError::FailedToTransactAsset("CannotMatchFungible"),
-			Error::LocationConversionFailed => XcmError::FailedToTransactAsset("LocationConversionFailed"),
-			Error::AmountToBalanceConversionFailed => XcmError::FailedToTransactAsset("AmountToBalanceConversionFailed"),
+impl From<Error> for XcmError {
+	fn from(e: Error) -> Self {
+		match e {
+			Error::AssetNotFound => XcmError::FailedToTransactAsset("AssetNotFound"),
+			Error::AccountIdConversionFailed =>
+				XcmError::FailedToTransactAsset("AccountIdConversionFailed"),
+			Error::AmountToBalanceConversionFailed =>
+				XcmError::FailedToTransactAsset("AmountToBalanceConversionFailed"),
 		}
 	}
 }
@@ -53,27 +59,30 @@ impl<
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
 		let amount: u128 = Matcher::matches_fungible(&what)
-			.ok_or(Into::<XcmError>::into(Error::CannotMatchFungible))?
+			.ok_or(XcmError::from(Error::AssetNotFound))?
 			.saturated_into();
 		let who = AccountIdConverter::from_location(who)
-			.ok_or(Into::<XcmError>::into(Error::LocationConversionFailed))?;
+			.ok_or(XcmError::from(Error::AccountIdConversionFailed))?;
 		let balance_amount = amount
 			.try_into()
-			.map_err(|_| Into::<XcmError>::into(Error::AmountToBalanceConversionFailed))?;
+			.map_err(|_| XcmError::from(Error::AmountToBalanceConversionFailed))?;
 		let _imbalance = Currency::deposit_creating(&who, balance_amount);
 		Ok(())
 	}
 
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<MultiAsset, XcmError> {
+	fn withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation
+	) -> result::Result<MultiAsset, XcmError> {
 		// Check we handle this asset.
 		let amount: u128 = Matcher::matches_fungible(&what)
-			.ok_or(Into::<XcmError>::into(Error::CannotMatchFungible))?
+			.ok_or(XcmError::from(Error::AssetNotFound))?
 			.saturated_into();
 		let who = AccountIdConverter::from_location(who)
-			.ok_or(Into::<XcmError>::into(Error::LocationConversionFailed))?;
+			.ok_or(XcmError::from(Error::AccountIdConversionFailed))?;
 		let balance_amount = amount
 			.try_into()
-			.map_err(|_| Into::<XcmError>::into(Error::AmountToBalanceConversionFailed))?;
+			.map_err(|_| XcmError::from(Error::AmountToBalanceConversionFailed))?;
 		Currency::withdraw(&who, balance_amount, WithdrawReasons::TRANSFER, AllowDeath)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone())
