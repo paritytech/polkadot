@@ -54,6 +54,7 @@ Ephemeral in-memory state:
 
 ```rust
 struct State {
+    keystore: KeyStore,
     // An in-memory overlay used as a write-cache.
     overlay: Map<(SessionIndex, CandidateReceipt), CandidateVotes>,
     highest_session: SessionIndex,
@@ -99,12 +100,19 @@ Do nothing.
 * Load from the `state.overlay`, and return the data if `Some`. 
 * Otherwise, load `"candidate-votes"` and return the data within or `None` if missing.
 
+### On `DisputeCoordinatorMessage::IssueLocalStatement`
+
+* Deconstruct into parts `{ session_index, candidate_hash, candidate_receipt, is_valid }`.
+* Construct a [`DisputeStatement`][DisputeStatement] based on `Valid` or `Invalid`, depending on the parameterization of this routine. 
+* Sign the statement with each key in the `SessionInfo`'s list of parachain validation keys which is present in the keystore, except those whose indices appear in `voted_indices`. This will typically just be one key, but this does provide some future-proofing for situations where the same node may run on behalf multiple validators. At the time of writing, this is not a use-case we support as other subsystems do not invariably provide this guarantee.
+
 ### Periodically
 
 * Flush the `state.overlay` to the DB, writing all entries within
 * Clear `state.overlay`.
 
 [DisputeTypes]: ../../types/disputes.md
+[DisputeStatement]: ../../types/disputes.md#disputestatement
 [DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
 [DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

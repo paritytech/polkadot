@@ -2,7 +2,7 @@
 
 This subsystem is responsible for actually participating in disputes: when notified of a dispute, we need to recover the candidate data, validate the candidate, and cast our vote in the dispute.
 
-Fortunately, most of that work is handled by other subsystems; this subsystem is just a small glue component for tying other subsystems together and signing statements based on their results.
+Fortunately, most of that work is handled by other subsystems; this subsystem is just a small glue component for tying other subsystems together and issuing statements based on their validity.
 
 ## Protocol
 
@@ -58,11 +58,10 @@ Conclude.
 
 This requires the parameters `{ candidate_receipt, candidate_hash, session, voted_indices }` as well as a choice of either `Valid` or `Invalid`.
 
-Dispatch a [`RuntimeApiRequest::SessionInfo`][RuntimeApiMessage] using the session index. Once the session info is gathered, construct a [`DisputeStatement`][DisputeStatement] based on `Valid` or `Invalid`, depending on the parameterization of this routine, and sign the statement with each key in the `SessionInfo`'s list of parachain validation keys which is present in the keystore, except those whose indices appear in `voted_indices`. This will typically just be one key, but this does provide some future-proofing for situations where the same node may run on behalf multiple validators. At the time of writing, this is not a use-case we support as other subsystems do not invariably provide this guarantee.
+Invoke [`DisputeCoordinatorMessage::IssueLocalStatement`][DisputeCoordinatorMessage] with `is_valid` according to the parameterization.
 
 Invoke [`DisputeCoordinatorMessage::ImportStatements`][DisputeCoordinatorMessage] with each signed statement.
 
-[DisputeStatement]: ../../types/disputes.md#disputestatement
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
 [DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message
 [DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message

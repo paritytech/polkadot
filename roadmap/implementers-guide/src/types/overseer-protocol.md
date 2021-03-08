@@ -347,6 +347,8 @@ enum DisputeCoordinatorMessage {
     ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
     /// Get candidate votes for a candidate.
     QueryCandidateVotes(SessionIndex, CandidateHash, ResponseChannel<Option<CandidateVotes>>),
+    /// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
+    IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
 }
 ```
 
