@@ -349,6 +349,16 @@ enum DisputeCoordinatorMessage {
     QueryCandidateVotes(SessionIndex, CandidateHash, ResponseChannel<Option<CandidateVotes>>),
     /// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
     IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
+    /// Determine the highest undisputed block within the given chain, based on where candidates
+    /// were included. If even the base block should not be finalized due to a dispute, 
+    /// then `None` should be returned on the channel.
+    ///
+    /// The block descriptions begin counting upwards from the given `base_number`.
+    DetermineUndisputedChain {
+        base_number: BlockNumber,
+        block_descriptions: Vec<(BlockHash, SessionIndex, Vec<CandidateHash>)>,
+        rx: ResponseSender<Option<(BlockNumber, BlockHash)>>,
+    }
 }
 ```
 

@@ -23,6 +23,10 @@ This will notify the dispute participation subsystem of a new dispute if the loc
 
 Locally authored statements related to disputes will be forwarded to the dispute distribution subsystem.
 
+This subsystem also provides two further behaviors for the interactions between disputes and fork-choice
+    - Enhancing the finality voting rule. Given description of a chain and candidates included at different heights in that chain, it returns the BlockHash corresponding to the highest BlockNumber that there are no disputes before. I expect that we will slightly change ApprovalVoting::ApprovedAncestor to return this set and then the target block to vote on will be further constrained by this function.
+    - Chain roll-backs. Whenever importing new blocks, the header should be scanned for a roll-back digest. If there is one, the chain should be rolled back according to the digest. I expect this would be implemented with a ChainApi function and possibly an ApprovalVoting function to clean up the approval voting DB.
+
 ### Dispute Participation
 
 This subsystem ties together the dispute tracker, availability recovery, candidate validation, and dispute distribution subsystems. When notified of a new dispute by the Dispute Tracker, the data should be recovered, the validation code loaded from the relay chain, and the candidate is executed.
@@ -34,13 +38,3 @@ A statement depending on the outcome of the execution is produced, signed, and i
 This is a networking component by which validators notify each other of live disputes and statements on those disputes.
 
 Validators will in the future distribute votes to each other via the network, but at the moment learn of disputes just from watching the chain.
-
-TODO [now]: rewrite
-
-### Dispute Chain Activity
-
-This component has 3 roles:
-
-    Providing data to a chain while authoring. Given a block hash, returns a set of dispute votes to be submitted to the chain. This is based on the known_disputes runtime API and draws data from the Dispute Coordinator.
-    Enhancing the finality voting rule. Given a set of (CandidateHash, BlockNumber, BlockHash), it returns the BlockHash corresponding to the highest BlockNumber that there are no disputes before. I expect that we will slightly change ApprovalVoting::ApprovedAncestor to return this set and then the target block to vote on will be further constrained by this function.
-    Chain roll-backs. Whenever importing new blocks, the header should be scanned for a roll-back digest. If there is one, the chain should be rolled back according to the digest. I expect this would be implemented with a ChainApi function and possibly an ApprovalVoting function to clean up the approval voting DB.
