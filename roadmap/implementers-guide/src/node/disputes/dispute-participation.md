@@ -21,7 +21,6 @@ In-memory state:
 ```rust
 struct State {
     recent_block_hash: Hash
-    keystore: KeyStore,
 }
 ```
 
