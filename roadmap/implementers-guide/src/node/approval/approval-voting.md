@@ -215,6 +215,7 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
   * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
   * Send `ApprovalCheckResult::Accepted`
+  * Dispatch a [`DisputeCoordinatorMessage::ImportStatement`](../../types/overseer-protocol#dispute-coordinator-message) with the approval statement.
   * [Import the checked approval vote](#import-checked-approval)
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
