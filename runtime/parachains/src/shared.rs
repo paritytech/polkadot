@@ -24,6 +24,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error,
 	weights::Weight,
 };
+use sp_std::vec::Vec;
 
 use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;

@@ -18,6 +18,7 @@
 //! on all modules.
 
 use primitives::v1::{Id as ParaId, PersistedValidationData, Hash, ValidatorIndex};
+use sp_std::vec::Vec;
 
 use crate::{configuration, paras, hrmp};
 
