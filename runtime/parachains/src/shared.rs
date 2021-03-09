@@ -19,12 +19,16 @@
 //! To avoid cyclic dependencies, it is important that this module is not
 //! dependent on any of the other modules.
 
-use primitives::v1::SessionIndex;
+use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	weights::Weight,
 };
-use crate::initializer::SessionChangeNotification;
+
+use rand::{SeedableRng, seq::SliceRandom};
+use rand_chacha::ChaCha20Rng;
+
+use crate::configuration::HostConfiguration;
 
 pub trait Config: frame_system::Config { }
 
@@ -37,6 +41,12 @@ decl_storage! {
 	trait Store for Module<T: Config> as ParasShared {
 		/// The current session index.
 		CurrentSessionIndex get(fn session_index): SessionIndex;
+		/// All the validators actively participating in parachain consensus.
+		/// Indices are into the broader validator set.
+		ActiveValidatorIndices get(fn active_validator_indices): Vec<ValidatorIndex>;
+		/// The parachain attestation keys of the validators actively participating in parachain consensus.
+		/// This should be the same length as `ActiveValidatorIndices`.
+		ActiveValidatorKeys get(fn active_validator_keys): Vec<ValidatorId>;
 	}
 }
 
@@ -63,8 +73,35 @@ impl<T: Config> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	///
 	/// Returns the list of outgoing paras from the actions queue.
-	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
-		CurrentSessionIndex::set(notification.session_index);
+	pub(crate) fn initializer_on_new_session(
+		session_index: SessionIndex,
+		random_seed: [u8; 32],
+		new_config: &HostConfiguration<T::BlockNumber>,
+		all_validators: Vec<ValidatorId>,
+	) -> Vec<ValidatorId> {
+		CurrentSessionIndex::set(session_index);
+		let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
+
+		let mut shuffled_indices: Vec<_> = (0..all_validators.len())
+			.enumerate()
+			.map(|(i, _)| ValidatorIndex(i as _))
+			.collect();
+
+		shuffled_indices.shuffle(&mut rng);
+
+		if let Some(max) = new_config.max_validators {
+			shuffled_indices.truncate(max as usize);
+		}
+
+		let active_validator_keys = crate::util::take_active_subset(
+			&shuffled_indices,
+			&all_validators,
+		);
+
+		ActiveValidatorIndices::set(shuffled_indices);
+		ActiveValidatorKeys::set(active_validator_keys.clone());
+
+		active_validator_keys
 	}
 
 	/// Return the session index that should be used for any future scheduled changes.
@@ -75,5 +112,10 @@ impl<T: Config> Module<T> {
 	#[cfg(test)]
 	pub(crate) fn set_session_index(index: SessionIndex) {
 		CurrentSessionIndex::set(index);
+	}
+
+	#[cfg(test)]
+	pub(crate) fn set_active_validators(active: Vec<ValidatorId>) {
+		ActiveValidatorKeys::set(active);
 	}
 }
