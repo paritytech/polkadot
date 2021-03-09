@@ -843,6 +843,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			backoff_authoring_blocks,
 			babe_link,
 			can_author_with,
+			block_proposal_slot_portion: babe::SlotProportion::new(2f32 / 3f32),
 		};
 
 		let babe = babe::start_babe(babe_config)?;
