@@ -469,6 +469,7 @@ impl<T: Config> Module<T> {
 					);
 					Err(err.strip_into_dispatch_err::<T>())?;
 				};
+				// TODO TODO: check for validation_code_hash!
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;

@@ -985,6 +985,27 @@ pub struct AbridgedHrmpChannel {
 	pub mqc_head: Option<Hash>,
 }
 
+// TODO TODO: move to parachain primitives ?
+/// Consensus engine id for polkadot v1 consensus engine.
+pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
+
+/// A consensus log item for polkadot validation. To be used with [`POLKADOT_ENGINE_ID`].
+#[derive(Decode, Encode, Clone, PartialEq, Eq)]
+pub enum ConsensusLog {
+	/// A parachain or parathread upgraded its code.
+	#[codec(index = 2)]
+	ParaUpgradeCode(Id, Hash),
+	/// A parachain or parathread scheduled a code ugprade.
+	#[codec(index = 3)]
+	ParaScheduleUpgradeCode(Id, Hash, BlockNumber),
+}
+
+impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
+	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
+		Self::Consensus(POLKADOT_ENGINE_ID, c.encode())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

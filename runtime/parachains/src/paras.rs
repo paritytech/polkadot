@@ -28,9 +28,9 @@ use sp_std::result;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlakeTwo256,
+	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlakeTwo256, ConsensusLog,
 };
-use sp_runtime::{traits::{One, Hash as _}, DispatchResult};
+use sp_runtime::{traits::{One, Hash as _}, DispatchResult, SaturatedConversion};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure,
 	traits::Get,
@@ -543,8 +543,10 @@ impl<T: Config> Module<T> {
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
+
 		// TODO TODO: might be better to actually store in onboarding itself.
 		Self::increase_code_ref(&genesis.validation_code);
+
 		UpcomingParasGenesis::insert(&id, genesis);
 		ActionsQueue::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
@@ -636,8 +638,14 @@ impl<T: Config> Module<T> {
 				T::DbWeight::get().reads_writes(1, 0)
 			} else {
 				*up = Some(expected_at);
-				Self::increase_code_ref(&new_code);
+
+				let hash = Self::increase_code_ref(&new_code);
+				let expected_at_u32 = expected_at.saturated_into();
+				let log = ConsensusLog::ParaScheduleUpgradeCode(id, hash, expected_at_u32);
+				<frame_system::Pallet<T>>::deposit_log(log.into());
+
 				FutureCode::insert(&id, new_code);
+				// TODO TODO: read writes for code ref.
 				T::DbWeight::get().reads_writes(1, 2)
 			}
 		})
@@ -661,6 +669,10 @@ impl<T: Config> Module<T> {
 				let new_code = FutureCode::take(&id).unwrap_or_default();
 				let prior_code = CurrentCode::get(&id).unwrap_or_default();
 				CurrentCode::insert(&id, &new_code);
+
+				let new_code_hash = BlakeTwo256::hash(&new_code.0);
+				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
+				<frame_system::Pallet<T>>::deposit_log(log.into());
 
 				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <frame_system::Module<T>>::block_number();
@@ -775,7 +787,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Store the validation code if not already stored, and increase the number of reference.
-	fn increase_code_ref(validation_code: &ValidationCode) {
+	fn increase_code_ref(validation_code: &ValidationCode) -> Hash {
 		// TODO TODO: we could also hash the validation_code encoding (like the Vec of bytes).
 		let hash = BlakeTwo256::hash(&validation_code.0[..]);
 		<Self as Store>::CodeByHashRefs::mutate(hash, |refs| {
@@ -784,6 +796,7 @@ impl<T: Config> Module<T> {
 			}
 			*refs += 1;
 		});
+		hash
 	}
 
 	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
