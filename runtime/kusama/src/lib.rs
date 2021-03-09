@@ -57,7 +57,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter, Imbalance},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -77,6 +77,7 @@ pub use pallet_balances::Call as BalancesCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
+use frame_support::traits::{OnUnbalanced, Currency};
 
 // Weights used in the runtime.
 mod weights;
@@ -372,12 +373,29 @@ type SlashCancelOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>
 >;
 
+type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
+pub struct CappedTreasury;
+impl OnUnbalanced<NegativeImbalance> for CappedTreasury {
+	fn on_unbalanced(rewards: NegativeImbalance) {
+		let blocks_per_era = SessionsPerEra::get() * EPOCH_DURATION_IN_BLOCKS;
+		let blocks_per_year = 365 * DAYS;
+		let eras_per_year = blocks_per_year / blocks_per_era;
+		let payout_per_year = Balances::total_issuance() / 10;	// max_inflation is 10% per year
+		let payout_per_era = payout_per_year / Balance::from(eras_per_year);
+		let remaining_issuance = rewards.peek();
+		let staking_issuance = payout_per_era.saturating_sub(remaining_issuance);
+		let treasury_rewards = staking_issuance.min(remaining_issuance);
+		let (for_treasury, _for_burning) = rewards.split(treasury_rewards);
+		Treasury::on_unbalanced(for_treasury);
+	}
+}
+
 impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type RewardRemainder = Treasury;
+	type RewardRemainder = CappedTreasury;
 	type Event = Event;
 	type Slash = Treasury;
 	type Reward = ();
