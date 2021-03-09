@@ -313,5 +313,6 @@ fn to_incoming_req(
 				tx
 			)
 		}
+		_ => panic!("Unexpected request!"),
 	}
 }
