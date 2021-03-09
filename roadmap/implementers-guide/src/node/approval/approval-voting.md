@@ -279,7 +279,9 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * Wait for the available data
     * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message
     * Wait for the result of validation
+    * Check that the result of validation, if valid, matches the commitments in the receipt.
     * If valid, issue a message on `background_tx` detailing the request.
+    * If any of the data, the candidate, or the commitments are invalid, issue on `background_tx` a [`DisputeCoordinatorMessage::IssueLocalStatement`](../../types/overseer-protocol#dispute-coordinator-message) with `valid = false` to initiate a dispute.
 
 #### Issue Approval Vote
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
