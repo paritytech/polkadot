@@ -23,15 +23,15 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+frame-support = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+frame-system = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+pallet-balances = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+sc-rpc-api = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+sp-std = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+sp-trie = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
+sp-version = { git = "https://github.com/tomaka/polkadot", branch = "rm-legacy" }
 
 #[dev-dependencies]
 futures = "0.3.7"

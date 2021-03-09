@@ -601,12 +601,12 @@ version = "0.1.0"
 dependencies = [
  "bp-message-lane",
  "bp-runtime",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support",
+ "frame-system",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -614,10 +614,10 @@ name = "bp-message-lane"
 version = "0.1.0"
 dependencies = [
  "bp-runtime",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-std",
 ]
 
 [[package]]
@@ -626,25 +626,25 @@ version = "0.1.0"
 dependencies = [
  "bp-message-lane",
  "bp-runtime",
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-system 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-api 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support",
+ "frame-system",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
 name = "bp-runtime"
 version = "0.1.0"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support",
  "num-traits",
  "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -1666,18 +1666,18 @@ name = "frame-benchmarking"
 version = "3.1.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "linregress",
  "log",
  "parity-scale-codec",
  "paste 1.0.4",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-storage 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -1695,11 +1695,11 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "structopt",
 ]
 
@@ -1708,26 +1708,15 @@ name = "frame-executive"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "frame-metadata"
-version = "13.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1737,34 +1726,8 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "frame-support"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "bitflags",
- "frame-metadata 13.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-support-procedural 3.0.0 (git+https://github.com/paritytech/substrate)",
- "impl-trait-for-tuples",
- "log",
- "once_cell",
- "parity-scale-codec",
- "paste 1.0.4",
- "serde",
- "smallvec 1.6.1",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-staking 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -1773,8 +1736,8 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "bitflags",
- "frame-metadata 13.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-support-procedural 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-metadata",
+ "frame-support-procedural",
  "impl-trait-for-tuples",
  "log",
  "once_cell",
@@ -1782,27 +1745,15 @@ dependencies = [
  "paste 1.0.4",
  "serde",
  "smallvec 1.6.1",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "frame-support-procedural"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "Inflector",
- "frame-support-procedural-tools 3.0.0 (git+https://github.com/paritytech/substrate)",
- "proc-macro2",
- "quote",
- "syn",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1811,19 +1762,7 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "Inflector",
- "frame-support-procedural-tools 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "proc-macro-crate",
+ "frame-support-procedural-tools",
  "proc-macro2",
  "quote",
  "syn",
@@ -1834,18 +1773,8 @@ name = "frame-support-procedural-tools"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support-procedural-tools-derive",
  "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
  "proc-macro2",
  "quote",
  "syn",
@@ -1864,35 +1793,18 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "frame-support 3.0.0 (git+https://github.com/paritytech/substrate)",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "frame-system"
-version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]
@@ -1901,12 +1813,12 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -1915,7 +1827,7 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
 ]
 
 [[package]]
@@ -1923,11 +1835,11 @@ name = "frame-try-runtime"
 version = "0.9.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2984,8 +2896,8 @@ dependencies = [
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -3035,22 +2947,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -4225,15 +4137,15 @@ name = "pallet-authority-discovery"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
  "sp-authority-discovery",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4241,14 +4153,14 @@ name = "pallet-authorship"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-authorship",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4257,22 +4169,22 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
  "pallet-session",
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -4282,13 +4194,13 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4297,13 +4209,13 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4312,15 +4224,15 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4329,13 +4241,13 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4344,18 +4256,18 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "rand 0.7.3",
  "serde",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
  "sp-election-providers",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -4365,14 +4277,14 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "serde",
  "sp-npos-elections",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4381,20 +4293,20 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4404,13 +4316,13 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4419,18 +4331,18 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4439,15 +4351,15 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
  "sp-keyring",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4455,13 +4367,13 @@ name = "pallet-membership"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4470,14 +4382,14 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4485,13 +4397,13 @@ name = "pallet-nicks"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4499,15 +4411,15 @@ name = "pallet-offences"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4516,8 +4428,8 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "pallet-babe",
  "pallet-balances",
  "pallet-grandpa",
@@ -4527,9 +4439,9 @@ dependencies = [
  "pallet-staking",
  "parity-scale-codec",
  "sp-election-providers",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4538,14 +4450,14 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4553,12 +4465,12 @@ name = "pallet-randomness-collective-flip"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "safe-mix",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4567,13 +4479,13 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "enumflags2",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4582,14 +4494,14 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4597,19 +4509,19 @@ name = "pallet-session"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -4618,14 +4530,14 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "pallet-session",
  "pallet-staking",
  "rand 0.7.3",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4633,13 +4545,13 @@ name = "pallet-society"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4648,21 +4560,21 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
  "sp-election-providers",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -4682,13 +4594,13 @@ name = "pallet-sudo"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4697,16 +4609,16 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -4716,13 +4628,13 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4730,15 +4642,15 @@ name = "pallet-transaction-payment"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4751,11 +4663,11 @@ dependencies = [
  "jsonrpc-derive",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4765,8 +4677,8 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4775,14 +4687,14 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4791,14 +4703,14 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4808,12 +4720,12 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5267,7 +5179,7 @@ dependencies = [
  "polkadot-primitives",
  "rand_core 0.5.1",
  "schnorrkel",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5288,9 +5200,9 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "tracing",
  "tracing-futures",
 ]
@@ -5316,11 +5228,11 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "smallvec 1.6.1",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5344,8 +5256,8 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.3",
  "smallvec 1.6.1",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
  "streamunordered",
  "thiserror",
@@ -5364,8 +5276,8 @@ dependencies = [
  "polkadot-service",
  "sc-cli",
  "sc-service",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-trie",
  "structopt",
  "substrate-browser-utils",
  "substrate-build-script-utils",
@@ -5391,7 +5303,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -5404,9 +5316,9 @@ version = "0.7.30"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5416,8 +5328,8 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "reed-solomon-erasure",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -5451,7 +5363,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-authority-discovery",
  "sc-network",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
  "strum",
  "tracing",
@@ -5469,7 +5381,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5501,14 +5413,14 @@ dependencies = [
  "sc-client-api",
  "sc-keystore",
  "schnorrkel",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-runtime",
  "tracing",
  "tracing-futures",
 ]
@@ -5535,7 +5447,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-service",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -5557,10 +5469,10 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-keystore",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5574,7 +5486,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5590,8 +5502,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5610,7 +5522,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
  "tracing",
  "tracing-futures",
@@ -5627,7 +5539,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5644,12 +5556,12 @@ dependencies = [
  "sc-basic-authorship",
  "sc-block-builder",
  "sc-client-api",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
  "tracing",
@@ -5665,8 +5577,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "tracing-futures",
@@ -5684,9 +5596,9 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5703,7 +5615,7 @@ dependencies = [
  "parking_lot 0.11.1",
  "polkadot-primitives",
  "sc-network",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "thiserror",
 ]
 
@@ -5731,11 +5643,11 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-statement-table",
  "schnorrkel",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -5764,7 +5676,7 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
@@ -5789,7 +5701,7 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5815,9 +5727,9 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-network",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "streamunordered",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -5841,7 +5753,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-client-api",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "tracing",
  "tracing-futures",
 ]
@@ -5862,12 +5774,12 @@ dependencies = [
  "sc-executor",
  "serde",
  "shared_memory",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-wasm-interface",
  "static_assertions",
  "thiserror",
 ]
@@ -5885,7 +5797,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -5897,7 +5809,7 @@ name = "polkadot-primitives"
 version = "0.8.29"
 dependencies = [
  "bitvec",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-system",
  "hex-literal",
  "parity-scale-codec",
  "parity-util-mem",
@@ -5905,20 +5817,20 @@ dependencies = [
  "polkadot-parachain",
  "pretty_assertions",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-authority-discovery",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-serializer",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
+ "sp-version",
 ]
 
 [[package]]
@@ -5950,13 +5862,13 @@ dependencies = [
  "sc-keystore",
  "sc-rpc",
  "sc-sync-state-rpc",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-runtime",
  "sp-transaction-pool",
  "substrate-frame-rpc-system",
 ]
@@ -5968,8 +5880,8 @@ dependencies = [
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -6017,22 +5929,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -6045,8 +5957,8 @@ version = "0.8.29"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "hex-literal",
  "libsecp256k1",
  "log",
@@ -6069,19 +5981,19 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
  "sp-election-providers",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
  "static_assertions",
  "trie-db",
  "xcm",
@@ -6094,8 +6006,8 @@ dependencies = [
  "bitvec",
  "derive_more",
  "frame-benchmarking",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "futures 0.3.12",
  "hex-literal",
  "libsecp256k1",
@@ -6120,19 +6032,19 @@ dependencies = [
  "sc-keystore",
  "serde",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
+ "sp-version",
  "xcm",
  "xcm-executor",
 ]
@@ -6198,24 +6110,24 @@ dependencies = [
  "sc-telemetry",
  "sc-transaction-pool",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
  "sp-offchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-storage 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-state-machine",
+ "sp-storage",
  "sp-transaction-pool",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
@@ -6238,11 +6150,11 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-staking",
  "tracing",
  "tracing-futures",
 ]
@@ -6253,7 +6165,7 @@ version = "0.8.29"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
 ]
 
 [[package]]
@@ -6268,15 +6180,15 @@ dependencies = [
  "sc-block-builder",
  "sc-consensus",
  "sc-service",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-timestamp",
  "substrate-test-client",
 ]
@@ -6287,8 +6199,8 @@ version = "0.8.29"
 dependencies = [
  "bitvec",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "libsecp256k1",
@@ -6320,23 +6232,23 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-election-providers",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
+ "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
 ]
@@ -6346,7 +6258,7 @@ name = "polkadot-test-service"
 version = "0.8.29"
 dependencies = [
  "frame-benchmarking",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-system",
  "futures 0.1.29",
  "futures 0.3.12",
  "hex",
@@ -6377,17 +6289,17 @@ dependencies = [
  "sc-tracing",
  "sc-transaction-pool",
  "serde_json",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
  "sp-authority-discovery",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-state-machine",
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
@@ -6992,8 +6904,8 @@ dependencies = [
  "jsonrpsee-types",
  "log",
  "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-io",
 ]
 
 [[package]]
@@ -7051,8 +6963,8 @@ name = "rococo-runtime"
 version = "0.8.29"
 dependencies = [
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "log",
@@ -7079,20 +6991,20 @@ dependencies = [
  "serde",
  "serde_derive",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-offchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
  "substrate-wasm-builder",
  "xcm",
  "xcm-builder",
@@ -7249,12 +7161,12 @@ dependencies = [
  "sc-client-api",
  "sc-network",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -7271,12 +7183,12 @@ dependencies = [
  "sc-client-api",
  "sc-proposer-metrics",
  "sc-telemetry",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
 ]
@@ -7288,13 +7200,13 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -7314,8 +7226,8 @@ dependencies = [
  "serde_json",
  "sp-chain-spec",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7354,13 +7266,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-panic-handler 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-panic-handler",
+ "sp-runtime",
  "sp-utils",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
  "structopt",
  "thiserror",
  "tiny-bip39",
@@ -7382,22 +7294,22 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "sc-executor",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-storage 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-storage",
  "sp-transaction-pool",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
  "sp-utils",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
  "substrate-prometheus-endpoint",
 ]
 
@@ -7420,14 +7332,14 @@ dependencies = [
  "sc-client-api",
  "sc-executor",
  "sc-state-db",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-database",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -7439,7 +7351,7 @@ dependencies = [
  "sc-client-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7469,22 +7381,22 @@ dependencies = [
  "sc-telemetry",
  "schnorrkel",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-timestamp",
  "sp-utils",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
  "substrate-prometheus-endpoint",
 ]
 
@@ -7502,14 +7414,14 @@ dependencies = [
  "sc-consensus-epochs",
  "sc-rpc-api",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7522,7 +7434,7 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-client-api",
  "sp-blockchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7537,17 +7449,17 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-client-api",
  "sc-telemetry",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -7560,9 +7472,9 @@ dependencies = [
  "sc-client-api",
  "sp-authorship",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7580,17 +7492,17 @@ dependencies = [
  "sc-executor-common",
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-panic-handler 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-panic-handler",
+ "sp-runtime-interface",
  "sp-serializer",
  "sp-tasks",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
+ "sp-version",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -7603,9 +7515,9 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "sp-allocator",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-serializer",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-wasm-interface",
  "thiserror",
  "wasmi",
 ]
@@ -7619,9 +7531,9 @@ dependencies = [
  "parity-scale-codec",
  "sc-executor-common",
  "sp-allocator",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -7637,9 +7549,9 @@ dependencies = [
  "sc-executor-common",
  "scoped-tls",
  "sp-allocator",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmtime",
 ]
 
@@ -7668,16 +7580,16 @@ dependencies = [
  "sc-network-gossip",
  "sc-telemetry",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
 ]
@@ -7702,8 +7614,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7724,7 +7636,7 @@ dependencies = [
  "sc-service",
  "sp-blockchain",
  "sp-finality-grandpa",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7739,7 +7651,7 @@ dependencies = [
  "sc-client-api",
  "sc-network",
  "sp-blockchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-transaction-pool",
  "sp-utils",
  "wasm-timer",
@@ -7759,9 +7671,9 @@ dependencies = [
  "parking_lot 0.11.1",
  "rand 0.7.3",
  "serde_json",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "subtle 2.2.3",
 ]
 
@@ -7776,12 +7688,12 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-client-api",
  "sc-executor",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -7823,11 +7735,11 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec 1.6.1",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -7848,7 +7760,7 @@ dependencies = [
  "log",
  "lru",
  "sc-network",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "wasm-timer",
 ]
@@ -7872,10 +7784,10 @@ dependencies = [
  "sc-client-api",
  "sc-keystore",
  "sc-network",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-core",
  "sp-offchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-utils",
  "threadpool",
 ]
@@ -7921,19 +7833,19 @@ dependencies = [
  "sc-rpc-api",
  "sc-tracing",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
  "sp-chain-spec",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-keystore",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-state-machine",
  "sp-transaction-pool",
  "sp-utils",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
 ]
 
 [[package]]
@@ -7953,11 +7865,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-transaction-pool",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
 ]
 
 [[package]]
@@ -7974,7 +7886,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8015,24 +7927,24 @@ dependencies = [
  "sc-transaction-pool",
  "serde",
  "serde_json",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-state-machine",
+ "sp-tracing",
  "sp-transaction-pool",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
  "sp-utils",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
  "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
@@ -8052,7 +7964,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.11.1",
  "sc-client-api",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "thiserror",
 ]
 
@@ -8072,7 +7984,7 @@ dependencies = [
  "sc-rpc-api",
  "serde_json",
  "sp-blockchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -8116,7 +8028,7 @@ dependencies = [
  "sc-tracing-proc-macro",
  "serde",
  "serde_json",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-core",
@@ -8151,8 +8063,8 @@ dependencies = [
  "retain_mut",
  "serde",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
  "sp-transaction-pool",
  "sp-utils",
  "thiserror",
@@ -8173,11 +8085,11 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-client-api",
  "sc-transaction-graph",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -8571,26 +8483,9 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "log",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-api"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "hash-db",
- "log",
- "parity-scale-codec",
- "sp-api-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-version 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-std",
+ "sp-wasm-interface",
  "thiserror",
 ]
 
@@ -8602,25 +8497,13 @@ dependencies = [
  "hash-db",
  "log",
  "parity-scale-codec",
- "sp-api-proc-macro 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api-proc-macro",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-version",
  "thiserror",
-]
-
-[[package]]
-name = "sp-api-proc-macro"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "blake2-rfc",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -8638,38 +8521,13 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-application-crypto"
-version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "integer-sqrt",
- "num-traits",
- "parity-scale-codec",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -8681,8 +8539,8 @@ dependencies = [
  "num-traits",
  "parity-scale-codec",
  "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -8691,10 +8549,10 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8703,9 +8561,9 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8714,10 +8572,10 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8730,11 +8588,11 @@ dependencies = [
  "lru",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-consensus",
  "sp-database",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
+ "sp-state-machine",
  "thiserror",
 ]
 
@@ -8759,15 +8617,15 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
  "sp-utils",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-version",
  "substrate-prometheus-endpoint",
  "thiserror",
  "wasm-timer",
@@ -8780,16 +8638,16 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "merlin",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -8799,8 +8657,8 @@ version = "0.9.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8810,53 +8668,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-core"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder",
- "dyn-clonable",
- "ed25519-dalek",
- "futures 0.3.12",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1",
- "log",
- "merlin",
- "num-traits",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.11.1",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "schnorrkel",
- "secrecy",
- "serde",
- "sha2 0.9.2",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-bip39",
- "thiserror",
- "tiny-bip39",
- "tiny-keccak",
- "twox-hash",
- "wasmi",
- "zeroize",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8889,11 +8703,11 @@ dependencies = [
  "secrecy",
  "serde",
  "sha2 0.9.2",
- "sp-debug-derive 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-storage 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
@@ -8915,16 +8729,6 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "proc-macro2",
@@ -8938,20 +8742,9 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
  "sp-npos-elections",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8961,8 +8754,8 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-storage 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -8974,24 +8767,12 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-inherents"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9001,33 +8782,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-std",
  "thiserror",
-]
-
-[[package]]
-name = "sp-io"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "futures 0.3.12",
- "hash-db",
- "libsecp256k1",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
 ]
 
 [[package]]
@@ -9041,15 +8798,15 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime-interface",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
+ "sp-trie",
+ "sp-wasm-interface",
  "tracing",
  "tracing-core",
 ]
@@ -9060,25 +8817,9 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "lazy_static",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
  "strum",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "async-trait",
- "derive_more",
- "futures 0.3.12",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "schnorrkel",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -9094,8 +8835,8 @@ dependencies = [
  "parking_lot 0.11.1",
  "schnorrkel",
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
 ]
 
 [[package]]
@@ -9105,10 +8846,10 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
+ "sp-core",
  "sp-npos-elections-compact",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-std",
 ]
 
 [[package]]
@@ -9127,17 +8868,9 @@ name = "sp-offchain"
 version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "backtrace",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9154,28 +8887,7 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "serde",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste 1.0.4",
- "rand 0.7.3",
- "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-arithmetic 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
 ]
 
 [[package]]
@@ -9192,28 +8904,11 @@ dependencies = [
  "paste 1.0.4",
  "rand 0.7.3",
  "serde",
- "sp-application-crypto 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface-proc-macro 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/paritytech/substrate)",
- "static_assertions",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -9224,25 +8919,13 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface-proc-macro 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-storage 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-tracing 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-wasm-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-storage",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "Inflector",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -9272,21 +8955,11 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-staking"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "parity-scale-codec",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -9295,30 +8968,8 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "parity-scale-codec",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "hash-db",
- "log",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "rand 0.7.3",
- "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.9.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 3.0.0 (git+https://github.com/paritytech/substrate)",
- "thiserror",
- "trie-db",
- "trie-root",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9333,11 +8984,11 @@ dependencies = [
  "parking_lot 0.11.1",
  "rand 0.7.3",
  "smallvec 1.6.1",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-panic-handler 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-panic-handler",
+ "sp-std",
+ "sp-trie",
  "thiserror",
  "trie-db",
  "trie-root",
@@ -9346,25 +8997,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-
-[[package]]
-name = "sp-std"
-version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
-
-[[package]]
-name = "sp-storage"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
 
 [[package]]
 name = "sp-storage"
@@ -9375,8 +9008,8 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -9385,11 +9018,11 @@ version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "log",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime-interface 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -9399,24 +9032,11 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
  "wasm-timer",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "log",
- "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -9426,7 +9046,7 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "log",
  "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-std",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -9442,24 +9062,10 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "thiserror",
-]
-
-[[package]]
-name = "sp-trie"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "trie-db",
- "trie-root",
 ]
 
 [[package]]
@@ -9470,8 +9076,8 @@ dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-std",
  "trie-db",
  "trie-root",
 ]
@@ -9491,36 +9097,13 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "serde",
- "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-version"
-version = "3.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69600759165fa058f2d34d06f820"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
  "serde",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate#af998b20151cf08d0757a0c4d040be9438197cdd"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/paritytech/substrate)",
- "wasmi",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9530,7 +9113,7 @@ source = "git+https://github.com/tomaka/polkadot?branch=rm-legacy#2df4c8e20a0f69
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-std",
  "wasmi",
 ]
 
@@ -9705,11 +9288,11 @@ dependencies = [
  "sc-client-api",
  "sc-rpc-api",
  "serde",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-runtime",
  "sp-transaction-pool",
 ]
 
@@ -9747,11 +9330,11 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -9873,8 +9456,8 @@ dependencies = [
  "dlmalloc",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-io",
+ "sp-std",
  "substrate-wasm-builder",
  "tiny-keccak",
 ]
@@ -9897,7 +9480,7 @@ dependencies = [
  "sc-authority-discovery",
  "sc-cli",
  "sc-service",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "sp-keyring",
  "structopt",
  "substrate-test-utils",
@@ -9918,7 +9501,7 @@ version = "0.7.22"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak",
@@ -10460,12 +10043,12 @@ dependencies = [
  "sc-client-api",
  "sc-executor",
  "sc-service",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-externalities 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-state-machine 0.9.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
  "structopt",
 ]
 
@@ -11101,8 +10684,8 @@ dependencies = [
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "frame-system 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -11151,22 +10734,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec 1.6.1",
- "sp-api 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-inherents 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-runtime",
  "sp-session",
- "sp-staking 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-version 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -11283,13 +10866,13 @@ dependencies = [
 name = "xcm-builder"
 version = "0.8.22"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -11298,15 +10881,15 @@ dependencies = [
 name = "xcm-executor"
 version = "0.8.22"
 dependencies = [
- "frame-support 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "frame-support",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-arithmetic 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-core 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-io 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-runtime 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
- "sp-std 3.0.0 (git+https://github.com/tomaka/polkadot?branch=rm-legacy)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
 ]
 
