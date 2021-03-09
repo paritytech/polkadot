@@ -271,7 +271,6 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		},
 		pallet_vesting: polkadot::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
-		pallet_gilt: Default::default(),
 	}
 }
 
@@ -655,6 +654,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		},
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
+		pallet_gilt: Default::default(),
 	}
 }
 
