@@ -119,3 +119,116 @@ impl<T: Config> Module<T> {
 		ActiveValidatorKeys::set(active);
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::configuration::HostConfiguration;
+	use crate::mock::{
+		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
+		Origin, Shared,
+	};
+	use keyring::Sr25519Keyring;
+
+	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
+	#[test]
+	fn sets_and_shuffles_validators() {
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+
+		let mut config = HostConfiguration::default();
+		config.max_validators = None;
+
+		let pubkeys = validator_pubkeys(&validators);
+
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let validators = Shared::initializer_on_new_session(
+				1,
+				[1; 32],
+				&config,
+				pubkeys,
+			);
+
+			assert_eq!(
+				validators,
+				validator_pubkeys(&[
+					Sr25519Keyring::Ferdie,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+					Sr25519Keyring::Dave,
+					Sr25519Keyring::Alice,
+				])
+			);
+
+			assert_eq!(
+				Shared::active_validator_keys(),
+				validators,
+			);
+
+			assert_eq!(
+				Shared::active_validator_indices(),
+				vec![
+					ValidatorIndex(4),
+					ValidatorIndex(1),
+					ValidatorIndex(2),
+					ValidatorIndex(3),
+					ValidatorIndex(0),
+				]
+			);
+		});
+	}
+
+	#[test]
+	fn sets_truncates_and_shuffles_validators() {
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+
+		let mut config = HostConfiguration::default();
+		config.max_validators = Some(2);
+
+		let pubkeys = validator_pubkeys(&validators);
+
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let validators = Shared::initializer_on_new_session(
+				1,
+				[1; 32],
+				&config,
+				pubkeys,
+			);
+
+			assert_eq!(
+				validators,
+				validator_pubkeys(&[
+					Sr25519Keyring::Ferdie,
+					Sr25519Keyring::Bob,
+				])
+			);
+
+			assert_eq!(
+				Shared::active_validator_keys(),
+				validators,
+			);
+
+			assert_eq!(
+				Shared::active_validator_indices(),
+				vec![
+					ValidatorIndex(4),
+					ValidatorIndex(1),
+				]
+			);
+		});
+	}
+}
