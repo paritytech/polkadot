@@ -71,7 +71,7 @@ impl Statement {
 	/// of the candidate.
 	pub fn to_compact(&self) -> CompactStatement {
 		match *self {
-			Statement::Seconded(ref c) => CompactStatement::Candidate(c.hash()),
+			Statement::Seconded(ref c) => CompactStatement::Seconded(c.hash()),
 			Statement::Valid(hash) => CompactStatement::Valid(hash),
 			Statement::Invalid(hash) => CompactStatement::Invalid(hash),
 		}
