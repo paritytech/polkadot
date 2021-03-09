@@ -1164,12 +1164,7 @@ mod tests {
 				};
 
 				// NOTE: this is in initialization order.
-				Shared::initializer_on_new_session(
-					notification.session_index,
-					notification.random_seed,
-					&notification.new_config,
-					notification.validators.clone(),
-				);
+				Shared::initializer_on_new_session(&notification);
 				let outgoing_paras = Paras::initializer_on_new_session(&notification);
 				Hrmp::initializer_on_new_session(&notification, &outgoing_paras);
 			}
