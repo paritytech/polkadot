@@ -57,6 +57,8 @@ pub mod v1;
 pub enum Protocol {
 	/// Protocol for availability fetching, used by availability distribution.
 	AvailabilityFetching,
+	/// Protocol for fetching collations from collators.
+	CollationFetching,
 }
 
 /// Default request timeout in seconds.
@@ -87,8 +89,19 @@ impl Protocol {
 				name: p_name,
 				// Arbitrary very conservative numbers:
 				// TODO: Get better numbers, see https://github.com/paritytech/polkadot/issues/2370
-				max_request_size: 10_000,
-				max_response_size: 1_000_000,
+				max_request_size: 1_000,
+				max_response_size: 100_000,
+				// Also just some relative conservative guess:
+				request_timeout: DEFAULT_REQUEST_TIMEOUT,
+				inbound_queue: Some(tx),
+			},
+			Protocol::CollationFetching => RequestResponseConfig {
+				name: p_name,
+				max_request_size: 1_000,
+				/// Collations are expected to be around 10Meg, probably much smaller with
+				/// compression. So 20Meg should be sufficient, we might be able to reduce this
+				/// further.
+				max_response_size: 20_000_000,
 				// Also just some relative conservative guess:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
@@ -106,6 +119,8 @@ impl Protocol {
 			// assuming we can service requests relatively quickly, which would need to be measured
 			// as well.
 			Protocol::AvailabilityFetching => 100,
+			// 10 seems reasonable, considering group sizes of max 10 validators.
+			Protocol::CollationFetching => 10,
 		}
 	}
 
@@ -118,6 +133,7 @@ impl Protocol {
 	pub const fn get_protocol_name_static(self) -> &'static str {
 		match self {
 			Protocol::AvailabilityFetching => "/polkadot/req_availability/1",
+			Protocol::CollationFetching => "/polkadot/req_collation/1",
 		}
 	}
 }
