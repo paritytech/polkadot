@@ -1063,7 +1063,7 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 37,
 
 		// Gilts module.
-		Gilt: pallet_gilt::{Module, Call, Storage, Event<T>} = 38,
+		Gilt: pallet_gilt::{Module, Call, Storage, Event<T>, Config} = 38,
 	}
 }
 

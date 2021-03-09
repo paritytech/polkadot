@@ -4293,9 +4293,11 @@ name = "pallet-gilt"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#ac1f7ff32bf0d0e9c328cfe083bee7492c639946"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "serde",
  "sp-arithmetic",
  "sp-runtime",
  "sp-std",
