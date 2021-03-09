@@ -23,7 +23,7 @@ use futures::{FutureExt, SinkExt};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
-	request::{OutgoingRequest, RequestError, Requests},
+	request::{OutgoingRequest, RequestError, Requests, Recipient},
 	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
 };
 use polkadot_primitives::v1::{
@@ -330,7 +330,7 @@ impl RunningTask {
 		validator: &AuthorityDiscoveryId,
 	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
-			OutgoingRequest::new(validator.clone(), self.request);
+			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
 		let requests = Requests::AvailabilityFetching(full_request);
 
 		self.sender

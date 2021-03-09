@@ -64,6 +64,15 @@ impl Requests {
 	}
 }
 
+/// Potential recipients of an outgoing request.
+#[derive(Debug)]
+pub enum Recipient {
+	/// Recipient is a regular peer and we know its peer id.
+	Peer(PeerId),
+	/// Recipient is a validator, we address it via this `AuthorityDiscoveryId`.
+	Authority(AuthorityDiscoveryId),
+}
+
 /// A request to be sent to the network bridge, including a sender for sending responses/failures.
 ///
 /// The network implementation will make use of that sender for informing the requesting subsystem
@@ -71,7 +80,7 @@ impl Requests {
 #[derive(Debug)]
 pub struct OutgoingRequest<Req> {
 	/// Intendent recipient of this request.
-	pub peer: AuthorityDiscoveryId,
+	pub peer: Recipient,
 	/// The actual request to send over the wire.
 	pub payload: Req,
 	/// Sender which is used by networking to get us back a response.
@@ -100,7 +109,7 @@ where
 	/// It will contain a sender that is used by the networking for sending back responses. The
 	/// connected receiver is returned as the second element in the returned tuple.
 	pub fn new(
-		peer: AuthorityDiscoveryId,
+		peer: Recipient,
 		payload: Req,
 	) -> (
 		Self,
