@@ -697,7 +697,9 @@ fn approval_signing_payload(
 	approval_vote: ApprovalVote,
 	session_index: SessionIndex,
 ) -> Vec<u8> {
-	(approval_vote, session_index).encode()
+	const MAGIC: [u8; 4] = *b"APPR";
+
+	(MAGIC, approval_vote, session_index).encode()
 }
 
 // `Option::cmp` treats `None` as less than `Some`.
