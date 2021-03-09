@@ -215,7 +215,7 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
   * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
   * Send `ApprovalCheckResult::Accepted`
-  * Dispatch a [`DisputeCoordinatorMessage::ImportStatement`](../../types/overseer-protocol#dispute-coordinator-message) with the approval statement.
+  * Dispatch a [`DisputeCoordinatorMessage::ImportStatement`](../../types/overseer-protocol.md#dispute-coordinator-message) with the approval statement.
   * [Import the checked approval vote](#import-checked-approval)
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
@@ -282,7 +282,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * Wait for the result of validation
     * Check that the result of validation, if valid, matches the commitments in the receipt.
     * If valid, issue a message on `background_tx` detailing the request.
-    * If any of the data, the candidate, or the commitments are invalid, issue on `background_tx` a [`DisputeCoordinatorMessage::IssueLocalStatement`](../../types/overseer-protocol#dispute-coordinator-message) with `valid = false` to initiate a dispute.
+    * If any of the data, the candidate, or the commitments are invalid, issue on `background_tx` a [`DisputeCoordinatorMessage::IssueLocalStatement`](../../types/overseer-protocol.md#dispute-coordinator-message) with `valid = false` to initiate a dispute.
 
 #### Issue Approval Vote
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.

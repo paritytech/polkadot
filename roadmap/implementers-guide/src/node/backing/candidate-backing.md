@@ -139,7 +139,7 @@ Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFul
 [CBM]: ../../types/overseer-protocol.md#candidate-backing-message
 [PDM]: ../../types/overseer-protocol.md#pov-distribution-message
 [SDM]: ../../types/overseer-protocol.md#statement-distribution-message
-[SDM]: ../../types/overseer-protocol.md#dispute-coordinator-message
+[DCM]: ../../types/overseer-protocol.md#dispute-coordinator-message
 
 [CS]: candidate-selection.md
 [CV]: ../utility/candidate-validation.md
