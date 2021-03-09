@@ -75,13 +75,25 @@ enum ApprovalVotingMessage {
         ResponseChannel<ApprovalCheckResult>,
     ),
     /// Returns the highest possible ancestor hash of the provided block hash which is
-    /// acceptable to vote on finality for.
+    /// acceptable to vote on finality for. Along with that, return the lists of candidate hashes
+    /// which appear in every block from the (non-inclusive) base number up to (inclusive) the specified
+    /// approved ancestor.
+    /// This list starts from the highest block (the approved ancestor itself) and moves backwards
+    /// towards the base number.
+    ///
+    /// The base number is typically the number of the last finalized block, but in GRANDPA it is
+    /// possible for the base to be slightly higher than the last finalized block.
+    /// 
     /// The `BlockNumber` provided is the number of the block's ancestor which is the
     /// earliest possible vote.
     ///
     /// It can also return the same block hash, if that is acceptable to vote upon.
     /// Return `None` if the input hash is unrecognized.
-    ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<(Hash, BlockNumber)>>),
+    ApprovedAncestor {
+        target_hash: Hash,
+        base_number: BlockNumber, 
+        rx: ResponseChannel<Option<(Hash, BlockNumber, Vec<(Hash, Vec<CandidateHash>)>)>>
+    },
 }
 ```
 
