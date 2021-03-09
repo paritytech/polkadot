@@ -103,7 +103,8 @@ pub struct ApprovalVotingSubsystem {
 #[derive(Clone)]
 struct MetricsInner {
 	imported_candidates_total: prometheus::Counter<prometheus::U64>,
-	broadcasted_assignments_total: prometheus::Counter<prometheus::U64>,
+	assignments_produced_total: prometheus::Counter<prometheus::U64>,
+	approvals_produced_total: prometheus::Counter<prometheus::U64>,
 }
 
 /// Aproval Voting metrics.
@@ -117,9 +118,15 @@ impl Metrics {
 		}
 	}
 
-	fn on_assignment_broadcasted(&self) {
+	fn on_assignment_produced(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.broadcasted_assignments_total.inc();
+			metrics.assignments_produced_total.inc();
+		}
+	}
+
+	fn on_approval_produced(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.inc();
 		}
 	}
 }
@@ -136,10 +143,17 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			broadcasted_assignments_total: prometheus::register(
+			assignments_produced_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_broadcasted_assignments_total",
-					"Number of assignments broadcasted by the approval voting subsystem",
+					"parachain_assignments_produced_total",
+					"Number of assignments produced by the approval voting subsystem",
+				)?,
+				registry,
+			)?,
+			approvals_produced_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_approvals_produced_total",
+					"Number of approvals produced by the approval voting subsystem",
 				)?,
 				registry,
 			)?,
@@ -408,6 +422,7 @@ async fn run<C>(
 					handle_background_request(
 						&mut ctx,
 						&mut state,
+						&subsystem.metrics,
 						req,
 					).await?
 				} else {
@@ -463,7 +478,7 @@ async fn handle_actions(
 				candidate,
 				backing_group,
 			} => {
-				metrics.on_assignment_broadcasted();
+				metrics.on_assignment_produced();
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
@@ -582,7 +597,7 @@ async fn handle_from_overseer(
 				check_and_import_approval(state, a, |r| { let _ = res.send(r); })?.0
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
-				match handle_approved_ancestor(ctx, metrics, &state.db, target, lower_bound).await {
+				match handle_approved_ancestor(ctx, &state.db, target, lower_bound).await {
 					Ok(v) => {
 						let _ = res.send(v);
 					}
@@ -603,11 +618,12 @@ async fn handle_from_overseer(
 async fn handle_background_request(
 	ctx: &mut impl SubsystemContext,
 	state: &State<impl DBReader>,
+	metrics: &Metrics,
 	request: BackgroundRequest,
 ) -> SubsystemResult<Vec<Action>> {
 	match request {
 		BackgroundRequest::ApprovalVote(vote_request) => {
-			issue_approval(ctx, state, vote_request).await
+			issue_approval(ctx, state, metrics, vote_request).await
 		}
 		BackgroundRequest::CandidateValidation(
 			validation_data,
@@ -631,7 +647,6 @@ async fn handle_background_request(
 
 async fn handle_approved_ancestor(
 	ctx: &mut impl SubsystemContext,
-	_metrics: &Metrics,
 	db: &impl DBReader,
 	target: Hash,
 	lower_bound: BlockNumber,
@@ -1503,6 +1518,7 @@ async fn launch_approval(
 async fn issue_approval(
 	ctx: &mut impl SubsystemContext,
 	state: &State<impl DBReader>,
+	metrics: &Metrics,
 	request: ApprovalVoteRequest,
 ) -> SubsystemResult<Vec<Action>> {
 	let ApprovalVoteRequest { validator_index, block_hash, candidate_index } = request;
@@ -1600,6 +1616,8 @@ async fn issue_approval(
 		candidate_entry,
 		validator_index as _,
 	)?;
+
+	metrics.on_approval_produced();
 
 	// dispatch to approval distribution.
 	ctx.send_message(ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
