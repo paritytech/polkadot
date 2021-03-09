@@ -149,7 +149,10 @@ enum FreedReason {
 Storage layout:
 
 ```rust
-/// All the validator groups. One for each core.
+/// All the validators actively participating in parachain consensus.
+/// Indices are into the broader validator set.
+ActiveValidators: Vec<ValidatorIndex>,
+/// All the validator groups. One for each core. Indices are into the `ActiveValidators` storage.
 ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 /// A queue of upcoming claims and which core they should be mapped onto.
 ParathreadQueue: ParathreadQueue;
@@ -178,12 +181,14 @@ Actions:
 1. Set `SessionStartBlock` to current block number + 1, as session changes are applied at the end of the block.
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../types/runtime.md#host-configuration))
+1. Determine `n_validators`, `active_validators`, `shuffled_validators` (SV): 
+   1. If `configuration.max_validators` is None, `n_validators` is the length of the validator set and `ActiveValidators` is simply all indices in range `0..n_validators`. `SV` is the validator set shuffled by the `SessionChangeNotification`'s random seed.
+   1. If `configuration.max_validators` is Some, Set `n_validators` accordingly. Shuffle the entire validator set with the `SessionChangeNotification`'s random seed and take the first `n_validators` entries. The indices of the original entries in the validator set form the `ActiveValidators`.
 1. Determine the number of cores & validator groups as `n_cores`. This is the maximum of
    1. `Paras::parachains().len() + configuration.parathread_cores`
    1. `n_validators / max_validators_per_core` if `configuration.max_validators_per_core` is `Some` and non-zero.
 1. Resize `AvailabilityCores` to have length `n_cores` with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
-   - We obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
    - Note that the total number of validators `V` in `SV` may not be evenly divided by `n_cores`.
    - The groups are selected by partitioning `SV`. The first V % N groups will have (V / n_cores) + 1 members, while the remaining groups will have (V / N) members each.
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
