@@ -715,7 +715,8 @@ impl From<CompactStatement> for CompactStatementInner {
 
 impl parity_scale_codec::Encode for CompactStatement {
 	fn size_hint(&self) -> usize {
-		CompactStatementInner::from(self.clone()).size_hint() + 4
+		// magic + discriminant + payload
+		4 + 1 + 32
 	}
 
 	fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
