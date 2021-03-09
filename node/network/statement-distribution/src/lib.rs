@@ -179,7 +179,7 @@ impl PeerRelayParentKnowledge {
 
 				self.known_candidates.insert(h.clone())
 			},
-			CompactStatement::Valid(ref h) | CompactStatement::Invalid(ref h) => {
+			CompactStatement::Valid(ref h) => {
 				// The peer can only accept Valid and Invalid statements for which it is aware
 				// of the corresponding candidate.
 				if !self.known_candidates.contains(h) {
@@ -235,7 +235,7 @@ impl PeerRelayParentKnowledge {
 
 				h
 			}
-			CompactStatement::Valid(ref h)| CompactStatement::Invalid(ref h) => {
+			CompactStatement::Valid(ref h) => {
 				if !self.known_candidates.contains(&h) {
 					return Err(COST_UNEXPECTED_STATEMENT);
 				}
@@ -454,7 +454,7 @@ impl ActiveHeadData {
 					NotedStatement::UsefulButKnown
 				}
 			}
-			CompactStatement::Valid(h) | CompactStatement::Invalid(h) => {
+			CompactStatement::Valid(h) => {
 				if !self.candidates.contains(&h) {
 					return NotedStatement::NotUseful;
 				}
