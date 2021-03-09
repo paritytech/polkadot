@@ -117,7 +117,7 @@ Do nothing.
 * Starting from the beginning of `block_descriptions`:
   1. Check the `ActiveDisputes` for a dispute of each candidate in the block description.
   1. If there is a dispute, exit the loop.
-* For the highest index `i` reached in the `block_descriptions`, send `(base_number + i - 1, block_hash)` on the channel, unless `i` is 0, in which case `None` should be sent. The `block_hash` is determined by inspecting `block_descriptions[i - 1]`.
+* For the highest index `i` reached in the `block_descriptions`, send `(base_number + i + 1, block_hash)` on the channel, unless `i` is 0, in which case `None` should be sent. The `block_hash` is determined by inspecting `block_descriptions[i]`.
 
 ### Periodically
 

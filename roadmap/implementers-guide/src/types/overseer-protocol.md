@@ -365,7 +365,9 @@ enum DisputeCoordinatorMessage {
     /// were included. If even the base block should not be finalized due to a dispute, 
     /// then `None` should be returned on the channel.
     ///
-    /// The block descriptions begin counting upwards from the given `base_number`.
+    /// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`
+    /// is typically the number of the last finalized block but may be slightly higher. This block
+    /// is inevitably going to be finalized so it is not accounted for by this function.
     DetermineUndisputedChain {
         base_number: BlockNumber,
         block_descriptions: Vec<(BlockHash, SessionIndex, Vec<CandidateHash>)>,
