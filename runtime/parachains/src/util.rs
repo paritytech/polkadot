@@ -50,7 +50,7 @@ pub fn take_active_subset<T: Clone>(active_validators: &[ValidatorIndex], set: &
 
 	if subset.len() != active_validators.len() {
 		log::warn!(
-			target: "parachains_runtime",
+			target: "runtime::parachains",
 			"Took active validators from set with wrong size",
 		);
 	}
