@@ -1043,6 +1043,12 @@ construct_runtime! {
 	}
 }
 
+impl pallet_babe::migrations::HasPalletPrefix for Runtime {
+	fn pallet_prefix() -> &'static str {
+		"BabeApi"
+	}
+}
+
 pub struct BabeEpochConfigMigrations;
 impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
