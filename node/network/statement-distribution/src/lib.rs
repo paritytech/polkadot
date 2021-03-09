@@ -172,7 +172,7 @@ impl PeerRelayParentKnowledge {
 		}
 
 		let new_known = match fingerprint.0 {
-			CompactStatement::Candidate(ref h) => {
+			CompactStatement::Seconded(ref h) => {
 				self.seconded_counts.entry(fingerprint.1)
 					.or_default()
 					.note_local(h.clone());
@@ -224,7 +224,7 @@ impl PeerRelayParentKnowledge {
 		}
 
 		let candidate_hash = match fingerprint.0 {
-			CompactStatement::Candidate(ref h) => {
+			CompactStatement::Seconded(ref h) => {
 				let allowed_remote = self.seconded_counts.entry(fingerprint.1)
 					.or_insert_with(Default::default)
 					.note_remote(h.clone());
@@ -437,7 +437,7 @@ impl ActiveHeadData {
 		};
 
 		match comparator.compact {
-			CompactStatement::Candidate(h) => {
+			CompactStatement::Seconded(h) => {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
 				if *seconded_so_far >= VC_THRESHOLD {
 					return NotedStatement::NotUseful;
@@ -1241,8 +1241,8 @@ mod tests {
 		assert!(knowledge.received_message_count.is_empty());
 
 		// Make the peer aware of the candidate.
-		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0))), Some(true));
-		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), ValidatorIndex(1))), Some(false));
+		assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))), Some(true));
+		assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(1))), Some(false));
 		assert!(knowledge.known_candidates.contains(&hash_a));
 		assert_eq!(knowledge.sent_statements.len(), 2);
 		assert!(knowledge.received_statements.is_empty());
@@ -1263,8 +1263,8 @@ mod tests {
 		let mut knowledge = PeerRelayParentKnowledge::default();
 
 		let hash_a = CandidateHash([1; 32].into());
-		assert!(knowledge.receive(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0)), 3).unwrap());
-		assert!(knowledge.send(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0))).is_none());
+		assert!(knowledge.receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3).unwrap());
+		assert!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))).is_none());
 	}
 
 	#[test]
@@ -1279,7 +1279,7 @@ mod tests {
 		);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_a), ValidatorIndex(0)), 3),
+			knowledge.receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
@@ -1312,12 +1312,12 @@ mod tests {
 		let hash_c = CandidateHash([3; 32].into());
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_b), ValidatorIndex(0)), 3),
+			knowledge.receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_c), ValidatorIndex(0)), 3),
+			knowledge.receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
 			Err(COST_UNEXPECTED_STATEMENT),
 		);
 
@@ -1328,7 +1328,7 @@ mod tests {
 		);
 
 		assert_eq!(
-			knowledge.receive(&(CompactStatement::Candidate(hash_b), ValidatorIndex(0)), 3),
+			knowledge.receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
 			Err(COST_DUPLICATE_STATEMENT),
 		);
 	}
@@ -1451,7 +1451,7 @@ mod tests {
 
 			assert!(c_knowledge.known_candidates.contains(&candidate_hash));
 			assert!(c_knowledge.sent_statements.contains(
-				&(CompactStatement::Candidate(candidate_hash), ValidatorIndex(0))
+				&(CompactStatement::Seconded(candidate_hash), ValidatorIndex(0))
 			));
 			assert!(c_knowledge.sent_statements.contains(
 				&(CompactStatement::Valid(candidate_hash), ValidatorIndex(1))
