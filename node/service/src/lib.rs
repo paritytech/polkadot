@@ -497,6 +497,7 @@ where
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			keystore.clone(),
+			Metrics::register(registry)?,
 		)?,
 		gossip_support: GossipSupportSubsystem::new(),
 	};
