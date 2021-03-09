@@ -43,5 +43,17 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 
 /// Take the active subset of a set containing all validators.
 pub fn take_active_subset<T: Clone>(active_validators: &[ValidatorIndex], set: &[T]) -> Vec<T> {
-	active_validators.iter().filter_map(|i| set.get(i.0 as usize)).cloned().collect()
+	let subset: Vec<_> = active_validators.iter()
+		.filter_map(|i| set.get(i.0 as usize))
+		.cloned()
+		.collect();
+
+	if subset.len() != active_validators.len() {
+		log::warn!(
+			target: "parachains_runtime",
+			"Took active validators from set with wrong size",
+		);
+	}
+
+	subset
 }
