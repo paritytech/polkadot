@@ -20,7 +20,7 @@ use sp_arithmetic::traits::SaturatedConversion;
 use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReasons};
 use xcm_executor::traits::{MatchesFungible, LocationConversion, TransactAsset};
 
-/// The asset transact errors.
+/// Asset transaction errors.
 enum Error {
 	/// Asset not found.
 	AssetNotFound,
