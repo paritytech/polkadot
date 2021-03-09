@@ -21,7 +21,7 @@ use polkadot_node_primitives::approval::{
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
 };
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_subsystem::messages::AllMessages;
+use polkadot_node_subsystem::messages::AllMessages;
 use sp_core::testing::TaskExecutor;
 
 use parking_lot::Mutex;
