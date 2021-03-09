@@ -125,10 +125,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use crate::configuration::HostConfiguration;
-	use crate::mock::{
-		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
-		Origin, Shared,
-	};
+	use crate::mock::{new_test_ext, MockGenesisConfig, Shared};
 	use keyring::Sr25519Keyring;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
