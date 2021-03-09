@@ -773,10 +773,10 @@ impl CandidateBackingJob {
 				if self.seconded.is_none() {
 					// This job has not seconded a candidate yet.
 					let candidate_hash = candidate.hash();
-					let pov = Arc::new(pov);
 
 					if !self.issued_statements.contains(&candidate_hash) {
-						self.validate_and_second(&span, &candidate, pov.clone()).await?;
+						let pov = Arc::new(pov);
+						self.validate_and_second(&span, &candidate, pov).await?;
 					}
 				}
 			}
