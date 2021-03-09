@@ -976,6 +976,7 @@ impl pallet_proxy::Config for Runtime {
 }
 
 parameter_types! {
+	pub IgnoredIssuance: Balance = Treasury::pot();
 	pub const QueueCount: u32 = 300;
 	pub const MaxQueueLen: u32 = 1000;
 	pub const FifoQueueLen: u32 = 250;
@@ -991,6 +992,7 @@ impl pallet_gilt::Config for Runtime {
 	type AdminOrigin = MoreThanHalfCouncil;
 	type Deficit = ();	// Mint
 	type Surplus = ();	// Burn
+	type IgnoredIssuance = IgnoredIssuance;
 	type QueueCount = QueueCount;
 	type MaxQueueLen = MaxQueueLen;
 	type FifoQueueLen = FifoQueueLen;
