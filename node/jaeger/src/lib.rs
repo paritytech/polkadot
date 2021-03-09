@@ -313,6 +313,14 @@ impl Span {
 		}
 	}
 
+	/// Add an additional int tag to the span.
+	pub fn add_int_tag(&mut self, tag: &str, value: i64) {
+		match self {
+			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
+			Self::Disabled => {},
+		}
+	}
+
 	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {

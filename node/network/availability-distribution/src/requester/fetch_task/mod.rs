@@ -33,7 +33,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage,
 };
-use polkadot_subsystem::SubsystemContext;
+use polkadot_subsystem::{SubsystemContext, jaeger};
 
 use crate::{
 	error::{Error, Result},
@@ -119,6 +119,9 @@ struct RunningTask {
 	
 	/// Prometheues metrics for reporting results.
 	metrics: Metrics,
+
+	/// Span tracking the fetching of this chunk.
+	span: jaeger::Span,
 }
 
 impl FetchTaskConfig {
@@ -142,6 +145,9 @@ impl FetchTaskConfig {
 			};
 		}
 
+		let mut span = jaeger::candidate_hash_span(&core.candidate_hash, "availability-distribution");
+		span.add_stage(jaeger::Stage::AvailabilityDistribution);
+
 		let prepared_running = RunningTask {
 			session_index: session_info.session_index,
 			group_index: core.group_responsible,
@@ -156,6 +162,7 @@ impl FetchTaskConfig {
 			relay_parent: core.candidate_descriptor.relay_parent,
 			metrics,
 			sender,
+			span,
 		};
 		FetchTaskConfig {
 			live_in,
@@ -168,6 +175,7 @@ impl FetchTask {
 	/// Start fetching a chunk.
 	///
 	/// A task handling the fetching of the configured chunk will be spawned.
+	#[tracing::instrument(level = "trace", skip(config, ctx), fields(subsystem = LOG_TARGET))]
 	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
 	where
 		Context: SubsystemContext,
@@ -240,6 +248,7 @@ enum TaskError {
 }
 
 impl RunningTask {
+	#[tracing::instrument(level = "trace", skip(self, kill), fields(subsystem = LOG_TARGET))]
 	async fn run(self, kill: oneshot::Receiver<()>) {
 		// Wait for completion/or cancel.
 		let run_it = self.run_inner();
@@ -254,8 +263,13 @@ impl RunningTask {
 		let mut bad_validators = Vec::new();
 		let mut label = FAILED;
 		let mut count: u32 = 0;
+		let mut _span = self.span.child_builder("fetch-task")
+			.with_chunk_index(self.request.index.0)
+			.with_relay_parent(&self.relay_parent)
+			.build();
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
+			let _try_span = _span.child("try");
 			// Report retries:
 			if count > 0 {
 				self.metrics.on_retry();
@@ -302,8 +316,10 @@ impl RunningTask {
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
 			label = SUCCEEDED;
+			_span.add_string_tag("success", "true");
 			break;
 		}
+		_span.add_int_tag("tries", count as _);
 		self.metrics.on_fetch(label);
 		self.conclude(bad_validators).await;
 	}

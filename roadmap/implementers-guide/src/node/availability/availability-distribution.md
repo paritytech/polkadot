@@ -2,39 +2,63 @@
 
 Distribute availability erasure-coded chunks to validators.
 
-After a candidate is backed, the availability of the PoV block must be confirmed by 2/3+ of all validators. Validating a candidate successfully and contributing it to being backable leads to the PoV and erasure-coding being stored in the [Availability Store](../utility/availability-store.md).
+After a candidate is backed, the availability of the PoV block must be confirmed
+by 2/3+ of all validators. Backing nodes will serve chunks for a PoV block from
+their [Availability Store](../utility/availability-store.md), all other
+validators request their chunks from backing nodes and store those received chunks in
+their local availability store.
 
 ## Protocol
 
-`PeerSet`: `Validation`
+This subsystem has no associated peer set right now, but instead relies on
+a request/response protocol, defined by `Protocol::AvailabilityFetching`.
 
 Input:
 
-- NetworkBridgeUpdateV1(update)
+- OverseerSignal::ActiveLeaves(`[ActiveLeavesUpdate]`)
+- AvailabilityDistributionMessage{msg: AvailabilityFetchingRequest}
 
 Output:
 
-- NetworkBridge::SendValidationMessage(`[PeerId]`, message)
-- NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
-- AvailabilityStore::QueryPoV(candidate_hash, response_channel)
-- AvailabilityStore::StoreChunk(candidate_hash, chunk_index, inclusion_proof, chunk_data)
+- NetworkBridgeMessage::SendRequests(`[Requests]`)
+- AvailabilityStore::QueryChunk(candidate_hash, index, response_channel)
+- AvailabilityStore::StoreChunk(candidate_hash, chunk)
+- RuntimeApiRequest::SessionIndexForChild
+- RuntimeApiRequest::SessionInfo
+- RuntimeApiRequest::AvailabilityCores
 
 ## Functionality
 
-For each relay-parent in our local view update, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have to peers.
+### Requesting
 
-We define an operation `live_candidates(relay_heads) -> Set<CandidateHash>` which returns a set of hashes corresponding to [`CandidateReceipt`s](../../types/candidate.md#candidate-receipt).
+This subsystems monitors currently occupied cores for all active leaves. For
+each occupied core it will spawn a task fetching the erasure chunk which has the
+`ValidatorIndex` of the node. For this an `AvailabilityFetchingRequest` is
+issued, via substrate's generic request/response protocol.
 
-This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors in the same session. We assume that state is not pruned within `K` blocks of the chain-head. `K` commonly is small and is currently fixed to `K=3`.
+The spawned task will start trying to fetch the chunk from validators in
+responsible group of the occupied core, in a random order. For ensuring that we
+use already open TCP connections wherever possible, the subsystem maintains a
+cache and preserves that random order for the entire session.
 
-We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_view_update)`.
-Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`.
-Each erasure chunk should be accompanied by a merkle proof that it is committed to by the erasure trie root in the candidate receipt, and this gossip system is responsible for checking such proof.
+Note however that, because not all validators in a group have to be actual
+backers, not all of them are required to have the needed chunk. This in turn
+could lead to low throughput, as we have to wait for a fetches to fail,
+before reaching a validator finally having our chunk. We do rank back validators
+not delivering our chunk, but as backers could vary from block to block on a
+perfectly legitimate basis, this is still not ideal. See issues [2509](https://github.com/paritytech/polkadot/issues/2509) and [2512](https://github.com/paritytech/polkadot/issues/2512)
+for more information.
 
-We re-attempt to send anything live to a peer upon any view update from that peer.
+The current implementation also only fetches chunks for occupied cores in blocks
+in active leaves. This means though, if active leaves skips a block or we are
+particularly slow in fetching our chunk, we might not fetch our chunk if
+availability reached 2/3 fast enough (slot becomes free). This is not desirable
+as we would like as many validators as possible to have their chunk. See this
+[issue](https://github.com/paritytech/polkadot/issues/2513) for more details.
 
-On our view change, for all live candidates, we will check if we have the PoV by issuing a `QueryAvailabileData` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages to peers that will accept them.
 
-If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the [Availability Store](../utility/availability-store.md) by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`.
+### Serving
 
-The back-and-forth seems suboptimal at first glance, but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed.
+On the other side the subsystem will listen for incoming
+`AvailabilityFetchingRequest`s from the network bridge and will respond to
+queries, by looking the requested chunk up in the availability store.
