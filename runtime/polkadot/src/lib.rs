@@ -1038,9 +1038,9 @@ construct_runtime! {
 	}
 }
 
-impl pallet_babe::migrations::HasPalletPrefix for Runtime {
+impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	fn pallet_prefix() -> &'static str {
-		"BabeApi"
+		"Babe"
 	}
 }
 
