@@ -32,9 +32,8 @@ use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 use thiserror::Error;
 
-use self::wrapped_shard::WrappedShard;
-
-mod wrapped_shard;
+use novelpoly::novel_poly_basis as novel_poly;
+use novelpoly::{CodeParams, WrappedShard};
 
 // we are limited to the field order of GF(2^16), which is 65536
 const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
@@ -77,49 +76,6 @@ pub enum Error {
 	BranchOutOfBounds,
 }
 
-#[derive(Debug, PartialEq)]
-struct CodeParams {
-	data_shards: usize,
-	parity_shards: usize,
-}
-
-impl CodeParams {
-	// the shard length needed for a payload with initial size `base_len`.
-	fn shard_len(&self, base_len: usize) -> usize {
-		// how many bytes we actually need.
-		let needed_shard_len = base_len / self.data_shards
-			+ (base_len % self.data_shards != 0) as usize;
-
-		// round up to next even number
-		// (no actual space overhead since we are working in GF(2^16)).
-		needed_shard_len + needed_shard_len % 2
-	}
-
-	fn make_shards_for(&self, payload: &[u8]) -> Vec<WrappedShard> {
-		let shard_len = self.shard_len(payload.len());
-		let mut shards = vec![
-			WrappedShard::new(vec![0; shard_len]);
-			self.data_shards + self.parity_shards
-		];
-
-		for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
-			// fill the empty shards with the corresponding piece of the payload,
-			// zero-padded to fit in the shards.
-			let len = std::cmp::min(shard_len, data_chunk.len());
-			let blank_shard: &mut [u8] = blank_shard.as_mut();
-			blank_shard[..len].copy_from_slice(&data_chunk[..len]);
-		}
-
-		shards
-	}
-
-	// make a reed-solomon instance.
-	fn make_encoder(&self) -> ReedSolomon {
-		ReedSolomon::new(self.data_shards, self.parity_shards)
-			.expect("this struct is not created with invalid shard number; qed")
-	}
-}
-
 /// Returns the maximum number of allowed, faulty chunks
 /// which does not prevent recovery given all other pieces
 /// are correct.
@@ -131,13 +87,7 @@ const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
 }
 
 fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
-	let n_faulty = n_faulty(n_validators)?;
-	let n_good = n_validators - n_faulty;
-
-	Ok(CodeParams {
-		data_shards: n_faulty + 1,
-		parity_shards: n_good - 1,
-	})
+	Ok(CodeParams::derive_from_validator_count(n_validators))
 }
 
 /// Obtain a threshold of chunks that should be enough to recover the data.
@@ -178,9 +128,7 @@ fn obtain_chunks<T: Encode>(n_validators: usize, data: &T)
 		return Err(Error::BadPayload);
 	}
 
-	let mut shards = params.make_shards_for(&encoded[..]);
-
-	params.make_encoder().encode(&mut shards[..])
+	let shards = params.make_encoder().encode(&encoded[..])
 		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
 	Ok(shards.into_iter().map(|w| w.into_inner()).collect())
@@ -225,7 +173,7 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;
-	let mut shards: Vec<Option<WrappedShard>> = vec![None; n_validators];
+	let mut received_shards: Vec<Option<WrappedShard>> = vec![None; n_validators];
 	let mut shard_len = None;
 	for (chunk_data, chunk_idx) in chunks.into_iter().take(n_validators) {
 		if chunk_idx >= n_validators {
@@ -245,14 +193,9 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 		shards[chunk_idx] = Some(WrappedShard::new(chunk_data.to_vec()));
 	}
 
-	if let Err(e) = params.make_encoder().reconstruct(&mut shards[..]) {
+	if let Err(e) = params.make_encoder().reconstruct(&mut received_shards[..]) {
 		match e {
-			reed_solomon::Error::TooFewShardsPresent => Err(Error::NotEnoughChunks)?,
-			reed_solomon::Error::InvalidShardFlags => Err(Error::WrongValidatorCount)?,
-			reed_solomon::Error::TooManyShards => Err(Error::TooManyChunks)?,
-			reed_solomon::Error::EmptyShard => panic!("chunks are all non-empty; this is checked above; qed"),
-			reed_solomon::Error::IncorrectShardSize => panic!("chunks are all same len; this is checked above; qed"),
-			_ => panic!("reed_solomon encoder returns no more variants for this function; qed"),
+
 		}
 	}
 
