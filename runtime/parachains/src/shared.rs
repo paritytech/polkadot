@@ -117,6 +117,9 @@ impl<T: Config> Module<T> {
 
 	#[cfg(test)]
 	pub(crate) fn set_active_validators(active: Vec<ValidatorId>) {
+		ActiveValidatorIndices::set(
+			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect()
+		);
 		ActiveValidatorKeys::set(active);
 	}
 }
