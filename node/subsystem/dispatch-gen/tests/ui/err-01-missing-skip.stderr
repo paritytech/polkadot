@@ -1,0 +1,14 @@
+error: Must be annotated with #[skip].
+  --> $DIR/err-01-missing-skip.rs:32:5
+   |
+32 |     Uuuuu,
+   |     ^^^^^
+
+error[E0599]: no variant or associated item named `dispatch_iter` found for enum `AllMessages` in the current scope
+  --> $DIR/err-01-missing-skip.rs:36:27
+   |
+27 | enum AllMessages {
+   | ---------------- variant or associated item `dispatch_iter` not found here
+...
+36 |     let _x = AllMessages::dispatch_iter(Event::Else);
+   |                           ^^^^^^^^^^^^^ variant or associated item not found in `AllMessages`

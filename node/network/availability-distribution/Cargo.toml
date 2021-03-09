@@ -14,16 +14,22 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"]  , branch = "rococo-v1" }
+polkadot-node-core-runtime-api = { path = "../../core/runtime-api" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", features = ["std"]  }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 thiserror = "1.0.23"
+rand = "0.8.3"
+lru = "0.6.5"
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "rococo-v1" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 maplit = "1.0"
+smallvec = "1.6.1"

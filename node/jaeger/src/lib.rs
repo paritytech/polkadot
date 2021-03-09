@@ -45,7 +45,8 @@
 //! ```
 
 use sp_core::traits::SpawnNamed;
-use polkadot_primitives::v1::{CandidateHash, Hash, PoV, ValidatorIndex};
+use polkadot_primitives::v1::{CandidateHash, Hash, PoV, ValidatorIndex, BlakeTwo256, HashT};
+use parity_scale_codec::Encode;
 use sc_network::PeerId;
 
 use parking_lot::RwLock;
@@ -176,6 +177,7 @@ pub enum Stage {
 	AvailabilityDistribution = 5,
 	AvailabilityRecovery = 6,
 	BitfieldDistribution = 7,
+	ApprovalChecking = 8,
 	// Expand as needed, numbers should be ascending according to the stage
 	// through the inclusion pipeline, or according to the descriptions
 	// in [the path of a para chain block]
@@ -212,7 +214,7 @@ impl SpanBuilder {
 
 	#[inline(always)]
 	pub fn with_validator_index(mut self, validator: ValidatorIndex) -> Self {
-		self.span.add_string_tag("validator-index", &validator.to_string());
+		self.span.add_string_tag("validator-index", &validator.0.to_string());
 		self
 	}
 
@@ -232,7 +234,7 @@ impl SpanBuilder {
 	pub fn with_claimed_validator_index(mut self, claimed_validator_index: ValidatorIndex) -> Self {
 		self.span.add_string_tag(
 			"claimed-validator",
-			&claimed_validator_index.to_string(),
+			&claimed_validator_index.0.to_string(),
 		);
 		self
 	}
@@ -311,6 +313,14 @@ impl Span {
 		}
 	}
 
+	/// Add an additional int tag to the span.
+	pub fn add_int_tag(&mut self, tag: &str, value: i64) {
+		match self {
+			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
+			Self::Disabled => {},
+		}
+	}
+
 	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
@@ -379,6 +389,15 @@ pub fn hash_span(hash: &Hash, span_name: &'static str) -> Span {
 	let mut span: Span = INSTANCE.read_recursive().span(|| { *hash }, span_name).into();
 	span.add_string_tag("relay-parent", &format!("{:?}", hash));
 	span
+}
+
+/// Creates a `Span` referring to the given descriptor, which should be unique.
+#[inline(always)]
+pub fn descriptor_span(descriptor: impl Encode, span_name: &'static str) -> Span {
+	INSTANCE.read_recursive().span(
+		|| { BlakeTwo256::hash_of(&descriptor) },
+		span_name,
+	).into()
 }
 
 /// Stateful convenience wrapper around [`mick_jaeger`].

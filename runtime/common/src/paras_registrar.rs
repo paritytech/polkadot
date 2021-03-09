@@ -285,11 +285,13 @@ mod tests {
 			System: frame_system::{Module, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 			Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
+			Shared: shared::{Module, Call, Storage},
 			Inclusion: inclusion::{Module, Call, Storage, Event<T>},
 			Registrar: paras_registrar::{Module, Call, Storage},
 	 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 			Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 			Initializer: initializer::{Module, Call, Storage},
+			Hrmp: hrmp::{Module, Call, Storage, Event},
 		}
 	);
 
@@ -448,6 +450,7 @@ mod tests {
 	}
 
 	impl hrmp::Config for Test {
+		type Event = Event;
 		type Origin = Origin;
 		type Currency = pallet_balances::Module<Test>;
 	}
@@ -464,7 +467,7 @@ mod tests {
 		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 
 		mod app {
-			use super::super::Inclusion;
+			use super::super::Shared;
 			use sp_application_crypto::{app_crypto, sr25519};
 
 			app_crypto!(sr25519, super::KEY_TYPE);
@@ -474,7 +477,7 @@ mod tests {
 
 				fn into_account(self) -> Self::AccountId {
 					let id = self.0.clone().into();
-					Inclusion::validators().iter().position(|b| *b == id).unwrap() as u64
+					Shared::active_validator_keys().iter().position(|b| *b == id).unwrap() as u64
 				}
 			}
 		}
