@@ -573,6 +573,12 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
+	#[cfg(feature = "real-overseer")]
+	info!("real-overseer feature is ENABLED");
+
+	let telemetry_span = TelemetrySpan::new();
+	let _telemetry_span_entered = telemetry_span.enter();
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks =
@@ -607,6 +613,20 @@ pub fn new_full<RuntimeApi, Executor>(
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 	#[cfg(feature = "real-overseer")]
 	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
+
+	// Add a dummy collation set with the intent of printing an error if one tries to connect a
+	// collator to a node that isn't compiled with `--features real-overseer`.
+	#[cfg(not(feature = "real-overseer"))]
+	config.network.extra_sets.push(sc_network::config::NonDefaultSetConfig {
+		notifications_protocol: "/polkadot/collation/1".into(),
+		max_notification_size: 16,
+		set_config: sc_network::config::SetConfig {
+			in_peers: 25,
+			out_peers: 0,
+			reserved_nodes: Vec::new(),
+			non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+		},
+	});
 
 	// TODO: At the moment, the collator protocol uses notifications protocols to download
 	// collations. Because of DoS-protection measures, notifications protocols have a very limited
@@ -647,6 +667,28 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_announce_validator_builder: None,
 		})?;
 
+	// See above. We have added a dummy collation set with the intent of printing an error if one
+	// tries to connect a collator to a node that isn't compiled with `--features real-overseer`.
+	#[cfg(not(feature = "real-overseer"))]
+	task_manager.spawn_handle().spawn("dummy-collation-handler", {
+		let mut network_events = network.event_stream("dummy-collation-handler");
+		async move {
+			use futures::prelude::*;
+			while let Some(ev) = network_events.next().await {
+				if let sc_network::Event::NotificationStreamOpened { protocol, .. } = ev {
+					if protocol == "/polkadot/collation/1" {
+						tracing::warn!(
+							"Incoming collator on a node with parachains disabled. This warning \
+							is harmless and is here to warn developers that they might have \
+							accidentally compiled their node without the `real-overseer` feature \
+							enabled."
+						);
+					}
+				}
+			}
+		}
+	});
+
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
 			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
@@ -662,9 +704,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		slot_duration_millis: slot_duration,
 		cache_size: None, // default is fine.
 	};
-
-	let telemetry_span = TelemetrySpan::new();
-	let _telemetry_span_entered = telemetry_span.enter();
 
 	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		config,

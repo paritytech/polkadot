@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::request_response::{request::IncomingRequest,
 use polkadot_primitives::v1::{CandidateHash, ErasureChunk, ValidatorIndex};
 use polkadot_subsystem::{
 	messages::{AllMessages, AvailabilityStoreMessage},
-	SubsystemContext,
+	SubsystemContext, jaeger,
 };
 
 use crate::error::{Error, Result};
@@ -64,6 +64,12 @@ pub async fn answer_request<Context>(
 where
 	Context: SubsystemContext,
 {
+	let mut span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
+	span.add_stage(jaeger::Stage::AvailabilityDistribution);
+	let _child_span = span.child_builder("answer-chunk-request")
+		.with_chunk_index(req.payload.index.0)
+		.build();
+
 	let chunk = query_chunk(ctx, req.payload.candidate_hash, req.payload.index).await?;
 
 	let result = chunk.is_some();

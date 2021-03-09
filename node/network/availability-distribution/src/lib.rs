@@ -43,6 +43,9 @@ mod metrics;
 /// Prometheus `Metrics` for availability distribution.
 pub use metrics::Metrics;
 
+#[cfg(test)]
+mod tests;
+
 const LOG_TARGET: &'static str = "availability_distribution";
 
 /// The availability distribution subsystem.

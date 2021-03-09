@@ -74,6 +74,7 @@ impl Requester {
 	///
 	/// You must feed it with `ActiveLeavesUpdate` via `update_fetching_heads` and make it progress
 	/// by advancing the stream.
+	#[tracing::instrument(level = "trace", skip(keystore, metrics), fields(subsystem = LOG_TARGET))]
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		// All we do is forwarding messages, no need to make this big.
 		// Each sender will get one slot, see
@@ -90,6 +91,7 @@ impl Requester {
 	/// Update heads that need availability distribution.
 	///
 	/// For all active heads we will be fetching our chunks for availabilty distribution.
+	#[tracing::instrument(level = "trace", skip(self, ctx, update), fields(subsystem = LOG_TARGET))]
 	pub async fn update_fetching_heads<Context>(
 		&mut self,
 		ctx: &mut Context,
