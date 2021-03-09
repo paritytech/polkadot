@@ -66,7 +66,7 @@ pub enum Statement<Candidate, Digest> {
 	///
 	/// Broadcasting two different candidate messages per round is not allowed.
 	#[codec(index = 1)]
-	Candidate(Candidate),
+	Seconded(Candidate),
 	/// Broadcast by a authority to attest that the candidate with given digest is valid.
 	#[codec(index = 2)]
 	Valid(Digest),
@@ -115,10 +115,10 @@ impl<Candidate, Digest, Signature> ValidityDoubleVote<Candidate, Digest, Signatu
 	{
 		match self {
 			Self::IssuedAndValidity((c, s1), (d, s2)) => {
-				((Statement::Candidate(c), s1), (Statement::Valid(d), s2))
+				((Statement::Seconded(c), s1), (Statement::Valid(d), s2))
 			}
 			Self::IssuedAndInvalidity((c, s1), (d, s2)) => {
-				((Statement::Candidate(c), s1), (Statement::Invalid(d), s2))
+				((Statement::Seconded(c), s1), (Statement::Invalid(d), s2))
 			}
 			Self::ValidityAndInvalidity(c, s1, s2) => {
 				(
@@ -134,7 +134,7 @@ impl<Candidate, Digest, Signature> ValidityDoubleVote<Candidate, Digest, Signatu
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum DoubleSign<Candidate, Digest, Signature> {
 	/// On candidate.
-	Candidate(Candidate, Signature, Signature),
+	Seconded(Candidate, Signature, Signature),
 	/// On validity.
 	Validity(Digest, Signature, Signature),
 	/// On invalidity.
@@ -146,7 +146,7 @@ impl<Candidate, Digest, Signature> DoubleSign<Candidate, Digest, Signature> {
 	/// precisely where in the process the issue was detected.
 	pub fn deconstruct(self) -> (Statement<Candidate, Digest>, Signature, Signature) {
 		match self {
-			Self::Candidate(candidate, a, b) => (Statement::Candidate(candidate), a, b),
+			Self::Seconded(candidate, a, b) => (Statement::Seconded(candidate), a, b),
 			Self::Validity(digest, a, b) => (Statement::Valid(digest), a, b),
 			Self::Invalidity(digest, a, b) => (Statement::Invalid(digest), a, b),
 		}
@@ -365,7 +365,7 @@ impl<Ctx: Context> Table<Ctx> {
 		let SignedStatement { statement, signature, sender: signer } = statement;
 
 		let res = match statement {
-			Statement::Candidate(candidate) => self.import_candidate(
+			Statement::Seconded(candidate) => self.import_candidate(
 				context,
 				signer.clone(),
 				candidate,
@@ -429,7 +429,7 @@ impl<Ctx: Context> Table<Ctx> {
 			return Err(Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
 				statement: SignedStatement {
 					signature,
-					statement: Statement::Candidate(candidate),
+					statement: Statement::Seconded(candidate),
 					sender: authority,
 				},
 			}));
@@ -554,7 +554,7 @@ impl<Ctx: Context> Table<Ctx> {
 
 						// two signatures on same candidate
 						(ValidityVote::Issued(a), ValidityVote::Issued(b)) =>
-							make_ds(DoubleSign::Candidate(votes.candidate.clone(), a, b)),
+							make_ds(DoubleSign::Seconded(votes.candidate.clone(), a, b)),
 
 						// two signatures on same validity vote
 						(ValidityVote::Valid(a), ValidityVote::Valid(b)) =>
@@ -717,13 +717,13 @@ mod tests {
 
 		let mut table = create();
 		let statement_a = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
 
 		let statement_b = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 999)),
+			statement: Statement::Seconded(Candidate(2, 999)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -753,7 +753,7 @@ mod tests {
 
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -764,7 +764,7 @@ mod tests {
 			table.detected_misbehavior[&AuthorityId(1)][0],
 			Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
 				statement: SignedStatement {
-					statement: Statement::Candidate(Candidate(2, 100)),
+					statement: Statement::Seconded(Candidate(2, 100)),
 					signature: Signature(1),
 					sender: AuthorityId(1),
 				},
@@ -786,7 +786,7 @@ mod tests {
 		let mut table = create();
 
 		let candidate_a = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -829,7 +829,7 @@ mod tests {
 
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -878,7 +878,7 @@ mod tests {
 
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -887,7 +887,7 @@ mod tests {
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(1)));
 
 		let invalid_statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(999),
 			sender: AuthorityId(1),
 		};
@@ -910,7 +910,7 @@ mod tests {
 
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -973,7 +973,7 @@ mod tests {
 
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -1041,7 +1041,7 @@ mod tests {
 		// have 2/3 validity guarantors note validity.
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -1086,7 +1086,7 @@ mod tests {
 
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
@@ -1112,7 +1112,7 @@ mod tests {
 
 		let mut table = create();
 		let statement = SignedStatement {
-			statement: Statement::Candidate(Candidate(2, 100)),
+			statement: Statement::Seconded(Candidate(2, 100)),
 			signature: Signature(1),
 			sender: AuthorityId(1),
 		};
