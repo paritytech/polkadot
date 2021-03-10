@@ -29,6 +29,7 @@ use primitives::v1::Id as ParaId;
 use frame_system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use crate::traits::{Leaser, LeaseError, Auctioneer};
+use parity_scale_codec::Decode;
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -58,7 +59,7 @@ pub trait Config: frame_system::Config {
 	type EndingPeriod: Get<Self::BlockNumber>;
 
 	/// Something that provides randomness in the runtime.
-	type Randomness: Randomness<Self::BlockNumber, Self::BlockNumber>;
+	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
 	/// The origin which may initiate auctions.
 	type InitiateOrigin: EnsureOrigin<Self::Origin>;
@@ -455,7 +456,9 @@ impl<T: Config> Module<T> {
 
 				if late_end <= known_since {
 					// Our random seed was known only after the auction ended. Good to use.
-					let offset = raw_offset % ending_period;
+					let raw_offset_block_number = <T::BlockNumber>::decode(&mut raw_offset.as_ref())
+						.expect("secure hashes should always be bigger than the block number; qed");
+					let offset = raw_offset_block_number % ending_period;
 					let res = Winning::<T>::get(offset).unwrap_or_default();
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
