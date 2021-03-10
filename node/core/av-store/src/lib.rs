@@ -1059,9 +1059,9 @@ fn store_chunk(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Stored chunk index={} for candidate={}",
-		chunk.index.0,
-		candidate_hash,
+		?candidate_hash,
+		chunk_index = %chunk.index.0,
+		"Stored chunk index for candidate.",
 	);
 
 	db.write(tx)?;
