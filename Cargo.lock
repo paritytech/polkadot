@@ -6385,6 +6385,7 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
+ "pallet-mmr-primitives",
  "pallet-nicks",
  "pallet-offences",
  "pallet-randomness-collective-flip",
