@@ -262,7 +262,7 @@ mod tests {
 	};
 	use frame_system::limits;
 	use frame_support::{
-		traits::{Randomness, OnInitialize, OnFinalize},
+		traits::{OnInitialize, OnFinalize},
 		assert_ok, assert_noop, parameter_types,
 	};
 	use frame_support_test::TestRandomness;
