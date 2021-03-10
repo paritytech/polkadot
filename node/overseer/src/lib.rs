@@ -100,7 +100,7 @@ const CHANNEL_CAPACITY: usize = 1024;
 // A graceful `Overseer` teardown time delay.
 const STOP_DELAY: u64 = 1;
 // Target for logs.
-const LOG_TARGET: &'static str = "overseer";
+const LOG_TARGET: &'static str = "parachain::overseer";
 // Rate at which messages are timed.
 const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
 

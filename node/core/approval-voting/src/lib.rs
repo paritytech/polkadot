@@ -75,7 +75,7 @@ mod persisted_entries;
 mod tests;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
-const LOG_TARGET: &str = "approval_voting";
+const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
 pub struct Config {

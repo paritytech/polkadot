@@ -46,7 +46,7 @@ use futures_timer::Delay;
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
 
-const LOG_TARGET: &str = "provisioner";
+const LOG_TARGET: &str = "parachain::provisioner";
 
 enum InherentAfter {
 	Ready,

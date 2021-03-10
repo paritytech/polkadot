@@ -43,7 +43,7 @@ use cache::{RequestResult, RequestResultCache};
 
 mod cache;
 
-const LOG_TARGET: &str = "runtime_api";
+const LOG_TARGET: &str = "parachain::runtime-api";
 
 /// The number of maximum runtime api requests can be executed in parallel. Further requests will be buffered.
 const MAX_PARALLEL_REQUESTS: usize = 4;
