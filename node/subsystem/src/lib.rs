@@ -32,13 +32,13 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 use async_trait::async_trait;
 use smallvec::SmallVec;
 
-use crate::messages::AllMessages;
-
 pub mod errors;
 pub mod messages;
 
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
+
+use self::messages::AllMessages;
 
 /// How many slots are stack-reserved for active leaves updates
 ///

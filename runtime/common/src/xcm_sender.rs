@@ -1,0 +1,42 @@
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Xcm sender for relay chain.
+
+use parity_scale_codec::Encode;
+use sp_std::marker::PhantomData;
+use xcm::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
+use runtime_parachains::{configuration, dmp};
+
+/// Xcm sender for relay chain. It only sends downward message.
+pub struct RelayChainXcmSender<T>(PhantomData<T>);
+
+impl<T: configuration::Config + dmp::Config> SendXcm for RelayChainXcmSender<T> {
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
+		if let MultiLocation::X1(Junction::Parachain { id }) = dest {
+			// Downward message passing.
+			let config = <configuration::Module<T>>::config();
+			<dmp::Module<T>>::queue_downward_message(
+				&config,
+				id.into(),
+				VersionedXcm::from(msg).encode(),
+			).map_err(Into::<Error>::into)?;
+			Ok(())
+		} else {
+			Err(Error::CannotReachDestination)
+		}
+	}
+}

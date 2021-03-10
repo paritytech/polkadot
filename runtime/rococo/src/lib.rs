@@ -40,7 +40,7 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	parameter_types, construct_runtime, debug, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
+	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -63,7 +63,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::{EnsureRoot, EnsureOneOf, EnsureSigned};
-use runtime_common::{paras_sudo_wrapper, paras_registrar};
+use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender};
 use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use pallet_mmr_primitives as mmr;
 
@@ -113,6 +113,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
 };
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
+	babe_primitives::BabeEpochConfiguration {
+		c: PRIMARY_PROBABILITY,
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
@@ -201,7 +208,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Module, Call, Storage},
 		Dmp: parachains_dmp::{Module, Call, Storage},
 		Ump: parachains_ump::{Module, Call, Storage},
-		Hrmp: parachains_hrmp::{Module, Call, Storage},
+		Hrmp: parachains_hrmp::{Module, Call, Storage, Event},
 		SessionInfo: parachains_session_info::{Module, Call, Storage},
 
 		Registrar: paras_registrar::{Module, Call, Storage},
@@ -299,7 +306,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			debug::warn!("Unable to create signed payload: {:?}", e);
+			log::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
 		let signature = raw_payload.using_encoded(|payload| {
 			C::sign(payload, public)
@@ -563,7 +570,7 @@ type LocalOriginConverter = (
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = ();
+	type XcmSender = xcm_sender::RelayChainXcmSender<Runtime>;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
@@ -580,6 +587,7 @@ impl parachains_ump::Config for Runtime {
 impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
+	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
 }
@@ -695,7 +703,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn execute_block(block: Block) {
-			Executive::execute_block(block)
+			Executive::execute_block(block);
 		}
 
 		fn initialize_block(header: &<Block as BlockT>::Header) {
@@ -861,10 +869,10 @@ sp_api::impl_runtime_apis! {
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDurationInBlocks::get().into(),
-				c: PRIMARY_PROBABILITY,
+				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 
@@ -906,7 +914,7 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			AuthorityDiscovery::authorities()
+			runtime_api_impl::relevant_authority_ids::<Runtime>()
 		}
 	}
 

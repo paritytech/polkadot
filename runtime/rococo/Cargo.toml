@@ -1,6 +1,6 @@
 [package]
 name = "rococo-runtime"
-version = "0.8.28"
+version = "0.8.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -12,6 +12,7 @@ serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.6.1"
 hex-literal = "0.3.1"
 libsecp256k1 = { version = "0.3", default-features = false }
+log = { version = "0.4.14", default-features = false }
 
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
@@ -115,6 +116,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
+	"log/std",
 ]
 # When enabled, the runtime api will not be build.
 #

@@ -64,7 +64,7 @@ const BENEFIT_FRESH_POV: Rep = Rep::BenefitMinorFirst("Peer supplied us with an 
 const BENEFIT_LATE_POV: Rep = Rep::BenefitMinor("Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
-const LOG_TARGET: &str = "pov_distribution";
+const LOG_TARGET: &str = "parachain::pov-distribution";
 
 /// The PoV Distribution Subsystem.
 pub struct PoVDistribution {
@@ -378,7 +378,7 @@ async fn determine_validators_for_core(
 
 	let validators = connect_to_validators
 		.into_iter()
-		.map(|idx| validators[idx as usize].clone())
+		.map(|idx| validators[idx.0 as usize].clone())
 		.collect();
 
 	Ok(Some(validators))
@@ -684,7 +684,7 @@ async fn handle_network_update(
 				peer_state.awaited.retain(|relay_parent, _| view.contains(&relay_parent));
 
 				// introduce things from the new view.
-				for relay_parent in view.heads.iter() {
+				for relay_parent in view.iter() {
 					if let Entry::Vacant(entry) = peer_state.awaited.entry(*relay_parent) {
 						entry.insert(HashSet::new());
 

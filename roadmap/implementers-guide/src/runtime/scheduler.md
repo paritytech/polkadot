@@ -149,7 +149,7 @@ enum FreedReason {
 Storage layout:
 
 ```rust
-/// All the validator groups. One for each core.
+/// All the validator groups. One for each core. Indices are into the `ActiveValidators` storage.
 ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 /// A queue of upcoming claims and which core they should be mapped onto.
 ParathreadQueue: ParathreadQueue;
@@ -178,14 +178,15 @@ Actions:
 1. Set `SessionStartBlock` to current block number + 1, as session changes are applied at the end of the block.
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../types/runtime.md#host-configuration))
+1. Fetch `Shared::ActiveValidators` as AV.
 1. Determine the number of cores & validator groups as `n_cores`. This is the maximum of
    1. `Paras::parachains().len() + configuration.parathread_cores`
    1. `n_validators / max_validators_per_core` if `configuration.max_validators_per_core` is `Some` and non-zero.
 1. Resize `AvailabilityCores` to have length `n_cores` with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
-   - We obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
-   - Note that the total number of validators `V` in `SV` may not be evenly divided by `n_cores`.
-   - The groups are selected by partitioning `SV`. The first V % N groups will have (V / n_cores) + 1 members, while the remaining groups will have (V / N) members each.
+   - Note that the total number of validators `V` in AV may not be evenly divided by `n_cores`.
+   - The groups are selected by partitioning AV.  The first V % N groups will have (V / n_cores) + 1 members, while the remaining groups will have (V / N) members each.
+   - Instead of using the indices within AV, which point to the broader set, indices _into_ AV should be used. This implies that groups should have simply ascending validator indices.
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
    - Also prune all parathread claims corresponding to de-registered parathreads.
    - all pruned claims should have their entry removed from the parathread index.

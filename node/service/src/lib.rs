@@ -59,7 +59,7 @@ use telemetry::{TelemetryConnectionNotifier, TelemetrySpan};
 
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
-pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
+pub use consensus_common::{Proposal, SelectChain, BlockImport, block_validation::Chain};
 pub use polkadot_parachain::wasm_executor::IsolationStrategy;
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
@@ -430,12 +430,8 @@ where
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-
-	#[cfg(feature = "approval-checking")]
 	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-
-	#[cfg(not(feature = "approval-checking"))]
-	let _ = approval_voting_config; // silence.
+	use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
 
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
@@ -511,13 +507,12 @@ where
 		approval_distribution: ApprovalDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
-		#[cfg(feature = "approval-checking")]
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			keystore.clone(),
+			Metrics::register(registry)?,
 		)?,
-		#[cfg(not(feature = "approval-checking"))]
-		approval_voting: polkadot_subsystem::DummySubsystem,
+		gossip_support: GossipSupportSubsystem::new(),
 	};
 
 	Overseer::new(
@@ -591,6 +586,12 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
+	#[cfg(feature = "real-overseer")]
+	info!("real-overseer feature is ENABLED");
+
+	let telemetry_span = TelemetrySpan::new();
+	let _telemetry_span_entered = telemetry_span.enter();
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks =
@@ -627,6 +628,20 @@ pub fn new_full<RuntimeApi, Executor>(
 	#[cfg(feature = "real-overseer")]
 	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
 
+	// Add a dummy collation set with the intent of printing an error if one tries to connect a
+	// collator to a node that isn't compiled with `--features real-overseer`.
+	#[cfg(not(feature = "real-overseer"))]
+	config.network.extra_sets.push(sc_network::config::NonDefaultSetConfig {
+		notifications_protocol: "/polkadot/collation/1".into(),
+		max_notification_size: 16,
+		set_config: sc_network::config::SetConfig {
+			in_peers: 25,
+			out_peers: 0,
+			reserved_nodes: Vec::new(),
+			non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+		},
+	});
+
 	// TODO: At the moment, the collator protocol uses notifications protocols to download
 	// collations. Because of DoS-protection measures, notifications protocols have a very limited
 	// bandwidth capacity, resulting in the collation download taking a long time.
@@ -643,7 +658,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	adjust_yamux(&mut config.network);
 
 	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
-		&config, task_manager.spawn_handle(), backend.clone(),
+		&config, task_manager.spawn_handle(), backend.clone(), import_setup.1.shared_authority_set().clone(),
 	));
 	#[cfg(feature = "real-overseer")]
 	fn register_request_response(config: &mut sc_network::config::NetworkConfiguration) -> RequestMultiplexer {
@@ -666,6 +681,28 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_announce_validator_builder: None,
 		})?;
 
+	// See above. We have added a dummy collation set with the intent of printing an error if one
+	// tries to connect a collator to a node that isn't compiled with `--features real-overseer`.
+	#[cfg(not(feature = "real-overseer"))]
+	task_manager.spawn_handle().spawn("dummy-collation-handler", {
+		let mut network_events = network.event_stream("dummy-collation-handler");
+		async move {
+			use futures::prelude::*;
+			while let Some(ev) = network_events.next().await {
+				if let sc_network::Event::NotificationStreamOpened { protocol, .. } = ev {
+					if protocol == "/polkadot/collation/1" {
+						tracing::warn!(
+							"Incoming collator on a node with parachains disabled. This warning \
+							is harmless and is here to warn developers that they might have \
+							accidentally compiled their node without the `real-overseer` feature \
+							enabled."
+						);
+					}
+				}
+			}
+		}
+	});
+
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
 			&config, task_manager.spawn_handle(), client.clone(), network.clone(),
@@ -681,9 +718,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		slot_duration_millis: slot_duration,
 		cache_size: None, // default is fine.
 	};
-
-	let telemetry_span = TelemetrySpan::new();
-	let _telemetry_span_entered = telemetry_span.enter();
 
 	let (rpc_handlers, telemetry_connection_notifier) = service::spawn_tasks(service::SpawnTasksParams {
 		config,
@@ -825,6 +859,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			backoff_authoring_blocks,
 			babe_link,
 			can_author_with,
+			block_proposal_slot_portion: babe::SlotProportion::new(2f32 / 3f32),
 		};
 
 		let babe = babe::start_babe(babe_config)?;
@@ -876,7 +911,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		// given delay.
 		let builder = grandpa::VotingRulesBuilder::default();
 
-		#[cfg(feature = "approval-checking")]
+		#[cfg(feature = "real-overseer")]
 		let builder = if let Some(ref overseer) = overseer_handler {
 			builder.add(grandpa_support::ApprovalCheckingDiagnostic::new(
 				overseer.clone(),

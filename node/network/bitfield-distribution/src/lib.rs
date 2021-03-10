@@ -136,7 +136,7 @@ impl PerRelayParentData {
 	}
 }
 
-const LOG_TARGET: &str = "bitfield_distribution";
+const LOG_TARGET: &str = "parachain::bitfield-distribution";
 
 /// The bitfield distribution subsystem.
 pub struct BitfieldDistribution {
@@ -278,7 +278,7 @@ where
 		return;
 	}
 
-	let validator_index = signed_availability.validator_index() as usize;
+	let validator_index = signed_availability.validator_index().0 as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
@@ -420,7 +420,7 @@ where
 	// Use the (untrusted) validator index provided by the signed payload
 	// and see if that one actually signed the availability bitset.
 	let signing_context = job_data.signing_context.clone();
-	let validator_index = message.signed_availability.validator_index() as usize;
+	let validator_index = message.signed_availability.validator_index().0 as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
@@ -767,7 +767,7 @@ mod test {
 	use bitvec::bitvec;
 	use futures::executor;
 	use maplit::hashmap;
-	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
+	use polkadot_primitives::v1::{Signed, AvailabilityBitfield, ValidatorIndex};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
@@ -835,7 +835,7 @@ mod test {
 		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
 
-		state.per_relay_parent = view.heads.iter().map(|relay_parent| {(
+		state.per_relay_parent = view.iter().map(|relay_parent| {(
 				relay_parent.clone(),
 				PerRelayParentData {
 					signing_context: signing_context.clone(),
@@ -882,9 +882,9 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&malicious.into(),
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -947,9 +947,9 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			42,
+			ValidatorIndex(42),
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1004,9 +1004,9 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1119,9 +1119,9 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);
@@ -1215,9 +1215,9 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -1374,9 +1374,9 @@ mod test {
 			&keystore,
 			payload,
 			&signing_context,
-			0,
+			ValidatorIndex(0),
 			&validator,
-		)).expect("should be signed");
+		)).ok().flatten().expect("should be signed");
 
 		state.peer_views.insert(peer_b.clone(), view![hash]);
 		state.peer_views.insert(peer_a.clone(), view![hash]);

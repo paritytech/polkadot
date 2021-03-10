@@ -24,18 +24,54 @@ use super::request::IsRequest;
 use super::Protocol;
 
 /// Request an availability chunk.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Copy, Clone, Encode, Decode)]
 pub struct AvailabilityFetchingRequest {
-	candidate_hash: CandidateHash,
-	index: ValidatorIndex,
+	/// Hash of candidate we want a chunk for.
+	pub candidate_hash: CandidateHash,
+	/// The index of the chunk to fetch.
+	pub index: ValidatorIndex,
 }
 
 /// Receive a rqeuested erasure chunk.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum AvailabilityFetchingResponse {
-	/// The requested chunk.
+	/// The requested chunk data.
 	#[codec(index = 0)]
-	Chunk(ErasureChunk),
+	Chunk(ChunkResponse),
+	/// Node was not in possession of the requested chunk.
+	#[codec(index = 1)]
+	NoSuchChunk,
+}
+
+/// Skimmed down variant of `ErasureChunk`.
+///
+/// Instead of transmitting a full `ErasureChunk` we transmit `ChunkResponse` in
+/// `AvailabilityFetchingResponse`, which omits the chunk's index. The index is already known by
+/// the requester and by not transmitting it, we ensure the requester is going to use his index
+/// value for validating the response, thus making sure he got what he requested.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct ChunkResponse {
+	/// The erasure-encoded chunk of data belonging to the candidate block.
+	pub chunk: Vec<u8>,
+	/// Proof for this chunk's branch in the Merkle tree.
+	pub proof: Vec<Vec<u8>>,
+}
+
+impl From<ErasureChunk> for ChunkResponse {
+	fn from(ErasureChunk {chunk, index: _, proof}: ErasureChunk) -> Self {
+		ChunkResponse {chunk, proof}
+	}
+}
+
+impl ChunkResponse {
+	/// Re-build an `ErasureChunk` from response and request.
+	pub fn recombine_into_chunk(self, req: &AvailabilityFetchingRequest) -> ErasureChunk {
+		ErasureChunk {
+			chunk: self.chunk,
+			proof: self.proof,
+			index: req.index,
+		}
+	}
 }
 
 impl IsRequest for AvailabilityFetchingRequest {
