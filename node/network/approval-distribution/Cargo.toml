@@ -13,7 +13,6 @@ polkadot-primitives = { path = "../../../primitives" }
 
 futures = "0.3.8"
 tracing = "0.1.25"
-tracing-futures = "0.2.4"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }

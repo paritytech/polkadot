@@ -5225,7 +5225,6 @@ dependencies = [
  "sp-core",
  "sp-keystore",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5328,7 +5327,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5496,7 +5494,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5510,7 +5507,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
  "wasm-timer",
 ]
 
@@ -5527,7 +5523,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5546,7 +5541,6 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5562,7 +5556,6 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5602,7 +5595,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5821,7 +5813,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -6178,7 +6169,6 @@ dependencies = [
  "sp-keystore",
  "sp-staking",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
