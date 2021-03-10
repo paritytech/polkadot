@@ -39,6 +39,7 @@ use crate::{
 };
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
+const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
@@ -228,7 +229,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 						Ok(_) => (signed_bitfields, backed_candidates),
 						Err(err) => {
 							log::warn!(
-								target: "runtime_inclusion_inherent",
+								target: LOG_TARGET,
 								"dropping signed_bitfields and backed_candidates because they produced \
 								an invalid inclusion inherent: {:?}",
 								err,
