@@ -681,8 +681,8 @@ fn note_block_backed(
 
 	tracing::trace!(
 		target: LOG_TARGET,
-		"Candidate={} backed",
-		candidate_hash,
+		?candidate_hash,
+		"Candidate backed",
 	);
 
 	if load_meta(db, &candidate_hash)?.is_none() {
