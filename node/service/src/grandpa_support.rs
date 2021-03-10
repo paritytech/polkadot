@@ -158,7 +158,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 			}
 
 			tracing::debug!(
-				target: "approval_voting",
+				target: "parachain::approval-voting",
 				"GRANDPA: voting on {:?}. Approval-checking lag behind best is {}",
 				actual_vote_target,
 				approval_checking_subsystem_lag,
