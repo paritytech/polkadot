@@ -422,7 +422,9 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 	use std::{collections::{HashMap, BTreeMap}, sync::{Arc, Mutex}};
 	use futures::channel::oneshot;
-	use polkadot_node_primitives::BabeEpoch;
+	use polkadot_node_primitives::{
+		BabeEpoch, BabeEpochConfiguration, BabeAllowedSlots,
+	};
 
 	#[derive(Default, Clone)]
 	struct MockRuntimeApi {
@@ -1158,6 +1160,10 @@ mod tests {
 			duration: 10,
 			authorities: Vec::new(),
 			randomness: [1u8; 32],
+			config: BabeEpochConfiguration {
+				c: (1, 4),
+				allowed_slots: BabeAllowedSlots::PrimarySlots,
+			},
 		};
 		runtime_api.babe_epoch = Some(epoch.clone());
 		let runtime_api = Arc::new(runtime_api);
