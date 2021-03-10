@@ -426,7 +426,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#62a70f19f74a43ddfc7d2358015f3d96715f743c"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#1c5d52c08b4d1c5ab792904b37be950d3f9d251f"
 dependencies = [
  "beefy-primitives",
  "futures 0.3.12",
@@ -452,7 +452,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#62a70f19f74a43ddfc7d2358015f3d96715f743c"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#1c5d52c08b4d1c5ab792904b37be950d3f9d251f"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -473,7 +473,7 @@ dependencies = [
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#62a70f19f74a43ddfc7d2358015f3d96715f743c"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#1c5d52c08b4d1c5ab792904b37be950d3f9d251f"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -4298,7 +4298,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=td-mmr-custom#62a70f19f74a43ddfc7d2358015f3d96715f743c"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#1c5d52c08b4d1c5ab792904b37be950d3f9d251f"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -6915,7 +6915,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "nix",
- "rand 0.8.3",
+ "rand 0.3.23",
  "winapi 0.3.9",
 ]
 
@@ -8557,7 +8557,7 @@ dependencies = [
  "libc",
  "nix",
  "quick-error 2.0.0",
- "rand 0.8.3",
+ "rand 0.3.23",
  "winapi 0.3.9",
 ]
 
@@ -10269,7 +10269,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 dependencies = [
- "rand 0.7.3",
+ "rand 0.3.23",
 ]
 
 [[package]]

@@ -13,7 +13,7 @@ serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", default-features = false , branch = "td-mmr-custom" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", default-features = false , branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
@@ -28,7 +28,7 @@ frame-support = { git = "https://github.com/paritytech/substrate", default-featu
 frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", default-features = false , branch = "td-mmr-custom" }
+pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", default-features = false , branch = "master" }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
