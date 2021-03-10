@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.12"
 thiserror = "1.0.23"
-tracing = "0.1.22"
+tracing = "0.1.25"
 tracing-futures = "0.2.4"
 
 polkadot-primitives = { path = "../../../primitives" }

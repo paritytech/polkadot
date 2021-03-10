@@ -14,7 +14,7 @@ parking_lot = { version = "0.11.1", optional = true }
 pin-project = "1.0.4"
 streamunordered = "0.5.1"
 thiserror = "1.0.23"
-tracing = "0.1.22"
+tracing = "0.1.25"
 tracing-futures = "0.2.4"
 
 polkadot-node-primitives = { path = "../primitives" }
