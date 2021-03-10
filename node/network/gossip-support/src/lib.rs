@@ -36,7 +36,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_network_protocol::peer_set::PeerSet;
 
-const LOG_TARGET: &str = "gossip_support";
+const LOG_TARGET: &str = "parachain::gossip-support";
 
 /// The Gossip Support subsystem.
 pub struct GossipSupport {}

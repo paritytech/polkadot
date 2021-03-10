@@ -497,6 +497,7 @@ where
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			keystore.clone(),
+			Metrics::register(registry)?,
 		)?,
 		gossip_support: GossipSupportSubsystem::new(),
 	};
@@ -690,7 +691,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
-			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
+			&config, task_manager.spawn_handle(), client.clone(), network.clone(),
 		);
 	}
 
@@ -843,6 +844,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			backoff_authoring_blocks,
 			babe_link,
 			can_author_with,
+			block_proposal_slot_portion: babe::SlotProportion::new(2f32 / 3f32),
 		};
 
 		let babe = babe::start_babe(babe_config)?;
@@ -1007,7 +1009,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
 			&config,
-			backend.clone(),
 			task_manager.spawn_handle(),
 			client.clone(),
 			network.clone(),

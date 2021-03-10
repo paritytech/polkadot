@@ -17,7 +17,8 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use primitives::v1::{Id as ParaId, PersistedValidationData, Hash};
+use primitives::v1::{Id as ParaId, PersistedValidationData, Hash, ValidatorIndex};
+use sp_std::vec::Vec;
 
 use crate::{configuration, paras, hrmp};
 
@@ -38,4 +39,21 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 		relay_parent_storage_root,
 		max_pov_size: config.max_pov_size,
 	})
+}
+
+/// Take the active subset of a set containing all validators.
+pub fn take_active_subset<T: Clone>(active_validators: &[ValidatorIndex], set: &[T]) -> Vec<T> {
+	let subset: Vec<_> = active_validators.iter()
+		.filter_map(|i| set.get(i.0 as usize))
+		.cloned()
+		.collect();
+
+	if subset.len() != active_validators.len() {
+		log::warn!(
+			target: "runtime::parachains",
+			"Took active validators from set with wrong size",
+		);
+	}
+
+	subset
 }
