@@ -691,7 +691,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
-			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
+			&config, task_manager.spawn_handle(), client.clone(), network.clone(),
 		);
 	}
 
@@ -1009,7 +1009,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
 			&config,
-			backend.clone(),
 			task_manager.spawn_handle(),
 			client.clone(),
 			network.clone(),
