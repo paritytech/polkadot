@@ -284,11 +284,13 @@ decl_storage! {
 		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
-		/// TODO TODO
+		/// The number of reference on the validation code in `CodeByHash` storage.
 		CodeByHashRefs: map hasher(identity) Hash => u32;
-		/// TODO TODO
-		/// incremented when initialize or upgrade decremented when pruned or offboard (for future
-		/// code)
+		/// Validation code stored by its hash.
+		///
+		/// Validation code is stored when a new para is initialized, and when a para schedule a
+		/// code upgrade. Code is pruned when outdated after some blocks, see `PastCodePruning`,
+		/// and an offboarded para instantly remove its scheduled code.
 		CodeByHash get(fn code_by_hash): map hasher(identity) Hash => Option<ValidationCode>;
 	}
 	add_extra_genesis {
@@ -639,14 +641,13 @@ impl<T: Config> Module<T> {
 			} else {
 				*up = Some(expected_at);
 
-				let hash = Self::increase_code_ref(&new_code);
+				let (hash, reads, writes) = Self::increase_code_ref(&new_code);
 				let expected_at_u32 = expected_at.saturated_into();
 				let log = ConsensusLog::ParaScheduleUpgradeCode(id, hash, expected_at_u32);
 				<frame_system::Pallet<T>>::deposit_log(log.into());
 
 				FutureCode::insert(&id, new_code);
-				// TODO TODO: read writes for code ref.
-				T::DbWeight::get().reads_writes(1, 2)
+				T::DbWeight::get().reads_writes(1 + reads, 2 + writes)
 			}
 		})
 	}
@@ -787,16 +788,21 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Store the validation code if not already stored, and increase the number of reference.
-	fn increase_code_ref(validation_code: &ValidationCode) -> Hash {
+	///
+	/// Returns the hash, number of storage reads and number of storage writes.
+	fn increase_code_ref(validation_code: &ValidationCode) -> (Hash, u64, u64) {
 		// TODO TODO: we could also hash the validation_code encoding (like the Vec of bytes).
 		let hash = BlakeTwo256::hash(&validation_code.0[..]);
+		let reads = 1;
+		let mut writes = 1;
 		<Self as Store>::CodeByHashRefs::mutate(hash, |refs| {
 			if *refs == 0 {
+				writes += 1;
 				<Self as Store>::CodeByHash::insert(hash, &validation_code);
 			}
 			*refs += 1;
 		});
-		hash
+		(hash, reads, writes)
 	}
 
 	/// Decrease the number of reference ofthe validation code and remove it from storage if zero

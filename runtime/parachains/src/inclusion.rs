@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData, CandidateHash, Hash,
+	CandidateReceipt, HeadData, CandidateHash, Hash, BlakeTwo256,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, dispatch::DispatchResult, IterableStorageMap,
@@ -33,7 +33,7 @@ use frame_support::{
 };
 use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use sp_runtime::{DispatchError, traits::{One, Saturating}};
+use sp_runtime::{DispatchError, traits::{One, Saturating, Hash as _}};
 
 use crate::{configuration, paras, dmp, ump, hrmp, shared, scheduler::CoreAssignment};
 
@@ -188,6 +188,8 @@ decl_error! {
 		HrmpWatermarkMishandling,
 		/// The HRMP messages sent by the candidate is not valid.
 		InvalidOutboundHrmp,
+		/// The validtion code hash of the candidate is not valid.
+		InvalidValidationCodeHash,
 	}
 }
 
@@ -448,6 +450,18 @@ impl<T: Config> Module<T> {
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
 				);
+				// TODO TODO: is it supposed to be the current code ? what happens if parachain
+				// block is missed, and there is an upgrade, is upgrade only enacted by the
+				// first parachain block after the expected migration block number.
+				let validation_code = <paras::Module<T>>::validation_code_at(para_id, now, None)
+					.ok_or_else(|| Error::<T>::InternalError)?;
+				let validation_code_hash = BlakeTwo256::hash(&validation_code.0[..]);
+				ensure!(
+					// TODO TODO: this needs to be checked in client somewhere probably before
+					// attesting stuff etc..
+					candidate.descriptor().validation_code_hash == validation_code_hash,
+					Error::<T>::InvalidValidationCodeHash,
+				);
 
 				if let Err(err) = check_cx
 					.check_validation_outputs(
@@ -469,7 +483,6 @@ impl<T: Config> Module<T> {
 					);
 					Err(err.strip_into_dispatch_err::<T>())?;
 				};
-				// TODO TODO: check for validation_code_hash!
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -960,6 +973,7 @@ mod tests {
 			&candidate.descriptor.para_id,
 			&candidate.descriptor.persisted_validation_data_hash,
 			&candidate.descriptor.pov_hash,
+			&candidate.descriptor.validation_code_hash,
 		);
 
 		candidate.descriptor.signature = collator.sign(&payload[..]).into();

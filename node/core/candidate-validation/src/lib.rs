@@ -600,6 +600,7 @@ mod tests {
 			&descriptor.para_id,
 			&descriptor.persisted_validation_data_hash,
 			&descriptor.pov_hash,
+			&descriptor.validation_code_hash,
 		);
 
 		descriptor.signature = collator.sign(&payload[..]).into();
