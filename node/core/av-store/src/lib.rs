@@ -725,8 +725,8 @@ fn note_block_included(
 
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Candidate={} included",
-				candidate_hash,
+				?candidate_hash,
+				"Candidate included",
 			);
 
 			meta.state = match meta.state {
