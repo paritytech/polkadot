@@ -136,7 +136,7 @@ impl PerRelayParentData {
 	}
 }
 
-const LOG_TARGET: &str = "bitfield_distribution";
+const LOG_TARGET: &str = "parachain::bitfield-distribution";
 
 /// The bitfield distribution subsystem.
 pub struct BitfieldDistribution {

@@ -56,7 +56,7 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "availability_recovery";
+const LOG_TARGET: &str = "parachain::availability-recovery";
 
 const COST_MERKLE_PROOF_INVALID: Rep = Rep::CostMinor("Merkle proof was invalid");
 const COST_UNEXPECTED_CHUNK: Rep = Rep::CostMinor("Peer has sent an unexpected chunk");

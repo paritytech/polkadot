@@ -54,7 +54,7 @@ pub trait Config: frame_system::Config {
 	type LeasePeriod: Get<Self::BlockNumber>;
 
 	/// Something that provides randomness in the runtime.
-	type Randomness: Randomness<Self::Hash>;
+	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 }
 
 /// Parachain registration API.
@@ -582,7 +582,8 @@ impl<T: Config> Module<T> {
 			let ending_period = T::EndingPeriod::get();
 			if early_end + ending_period == now {
 				// Just ended!
-				let offset = T::BlockNumber::decode(&mut T::Randomness::random_seed().as_ref())
+				let (seed, _) = T::Randomness::random_seed();
+				let offset = T::BlockNumber::decode(&mut seed.as_ref())
 					.expect("secure hashes always bigger than block numbers; qed") % ending_period;
 				let res = <Winning<T>>::get(offset).unwrap_or_default();
 				let mut i = T::BlockNumber::zero();

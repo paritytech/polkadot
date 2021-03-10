@@ -22,7 +22,7 @@ use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
 use polkadot_primitives::v1::{ValidatorId, AccountId, AssignmentId};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
-use polkadot_test_runtime::constants::currency::DOTS;
+use polkadot_test_runtime::{constants::currency::DOTS, BABE_GENESIS_EPOCH_CONFIG};
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_core::sr25519;
 use sp_runtime::Perbill;
@@ -162,7 +162,10 @@ fn polkadot_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		pallet_babe: Default::default(),
+		pallet_babe: runtime::BabeConfig {
+			authorities: vec![],
+			epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		claims: runtime::ClaimsConfig {
