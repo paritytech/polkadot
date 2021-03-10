@@ -38,6 +38,7 @@ use runtime_parachains::{
 	ParaLifecycle,
 	paras, configuration, shared,
 };
+use frame_support_test::TestRandomness;
 use crate::{
 	auctions, crowdloan, slots, paras_registrar,
 	traits::{
@@ -158,18 +159,11 @@ parameter_types! {
 	pub const EndingPeriod: BlockNumber = 10;
 }
 
-pub struct TestPastRandomness;
-impl<Output: Default> auctions::PastRandomness<Output, BlockNumber> for TestPastRandomness {
-	fn last_random() -> (Output, u32) {
-		(Output::default(), frame_system::Module::<Test>::block_number())
-	}
-}
-
 impl auctions::Config for Test {
 	type Event = Event;
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
-	type Randomness = TestPastRandomness;
+	type Randomness = TestRandomness<Self>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::auctions::TestWeightInfo;
 }

@@ -46,31 +46,6 @@ impl WeightInfo for TestWeightInfo {
 	fn on_initialize() -> Weight { 0 }
 }
 
-/// Temporary trait to express some on-chain-derived random seed whose value was known since some time in the past.
-pub trait PastRandomness<Output, BlockNumber> {
-	/// Get the most recently determined random seed, along with the time in the past since when it was determinable.
-	///
-	/// NOTE: The returned seed should only be used to distinguish commitments made before the returned block number.
-	/// If the block number is too early (i.e. commitments were made afterwards), then ensure no further commitments
-	/// may be made and repeatedly call this on later blocks until the block number returned is later than the latest
-	/// commitment.
-	fn last_random() -> (Output, BlockNumber);
-}
-
-/// Adapt an existing `Randomness` impl into a `PastRandomness` impl by assuming that the seed is known only as of the
-/// current block.
-pub struct PastRandomnessAdapter<R, T>(sp_std::marker::PhantomData<(R, T)>);
-
-impl<
-	R: Randomness<Output>,
-	T: frame_system::Config,
-	Output,
-> PastRandomness<Output, T::BlockNumber> for PastRandomnessAdapter<R, T> {
-	fn last_random() -> (Output, T::BlockNumber) {
-		(R::random_seed(), frame_system::Module::<T>::block_number())
-	}
-}
-
 /// The module's configuration trait.
 pub trait Config: frame_system::Config {
 	/// The overarching event type.
@@ -83,7 +58,7 @@ pub trait Config: frame_system::Config {
 	type EndingPeriod: Get<Self::BlockNumber>;
 
 	/// Something that provides randomness in the runtime.
-	type Randomness: PastRandomness<Self::BlockNumber, Self::BlockNumber>;
+	type Randomness: Randomness<Self::BlockNumber, Self::BlockNumber>;
 
 	/// The origin which may initiate auctions.
 	type InitiateOrigin: EnsureOrigin<Self::Origin>;
@@ -476,7 +451,7 @@ impl<T: Config> Module<T> {
 			if is_ended {
 				// auction definitely ended.
 				// check to see if we can determine the actual ending point.
-				let (raw_offset, known_since) = T::Randomness::last_random();
+				let (raw_offset, known_since) = T::Randomness::random(&b"para_auction"[..]);
 
 				if late_end <= known_since {
 					// Our random seed was known only after the auction ended. Good to use.
@@ -748,8 +723,8 @@ mod tests {
 		LAST_RANDOM.with(|p| *p.borrow_mut() = Some((output, known_since)))
 	}
 	pub struct TestPastRandomness;
-	impl<Output: Decode + Default> PastRandomness<Output, BlockNumber> for TestPastRandomness {
-		fn last_random() -> (Output, u32) {
+	impl<Output: Decode + Default> Randomness<Output, BlockNumber> for TestPastRandomness {
+		fn random(_subject: &[u8]) -> (Output, u32) {
 			LAST_RANDOM.with(|p| {
 				if let Some((output, known_since)) = &*p.borrow() {
 					let output_value = Output::decode(&mut &output[..])
