@@ -665,10 +665,10 @@ async fn handle_approved_ancestor(
 
 		ctx.send_message(ChainApiMessage::BlockNumber(target, tx).into()).await;
 
-		match rx.await? {
-			Ok(Some(n)) => n,
-			Ok(None) => return Ok(None),
-			Err(_) => return Ok(None),
+		match rx.await {
+			Ok(Ok(Some(n))) => n,
+			Ok(Ok(None)) => return Ok(None),
+			Ok(Err(_)) | Err(_)  => return Ok(None),
 		}
 	};
 
@@ -689,9 +689,9 @@ async fn handle_approved_ancestor(
 			response_channel: tx,
 		}.into()).await;
 
-		match rx.await? {
-			Ok(a) => a,
-			Err(_) => return Ok(None),
+		match rx.await {
+			Ok(Ok(a)) => a,
+			Err(_) | Ok(Err(_)) => return Ok(None),
 		}
 	} else {
 		Vec::new()
@@ -1406,11 +1406,18 @@ async fn launch_approval(
 		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
 	).await;
 
-	let in_context_number = match context_num_rx.await?
-		.map_err(|e| SubsystemError::with_origin("chain-api", e))?
-	{
-		Some(n) => n,
-		None => return Ok(()),
+	let in_context_number = match context_num_rx.await {
+		Ok(Ok(Some(n))) => n,
+		Ok(Ok(None)) | Ok(Err(_)) | Err(_) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Could not launch approval work for candidate {:?}: Number of block {} unknown",
+				(candidate_hash, candidate.descriptor.para_id),
+				candidate.descriptor.relay_parent,
+			);
+
+			return Ok(());
+		}
 	};
 
 	ctx.send_message(
