@@ -677,27 +677,74 @@ pub struct ErasureChunk {
 	pub proof: Vec<Vec<u8>>,
 }
 
+const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
+
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
-	#[codec(index = 1)]
-	Candidate(CandidateHash),
+	Seconded(CandidateHash),
 	/// State that a parachain candidate is valid.
-	#[codec(index = 2)]
 	Valid(CandidateHash),
 	/// State that a parachain candidate is invalid.
+	Invalid(CandidateHash),
+}
+
+// Inner helper for codec on `CompactStatement`.
+#[derive(Encode, Decode)]
+enum CompactStatementInner {
+	#[codec(index = 1)]
+	Seconded(CandidateHash),
+	#[codec(index = 2)]
+	Valid(CandidateHash),
 	#[codec(index = 3)]
 	Invalid(CandidateHash),
+}
+
+impl From<CompactStatement> for CompactStatementInner {
+	fn from(s: CompactStatement) -> Self {
+		match s {
+			CompactStatement::Seconded(h) => CompactStatementInner::Seconded(h),
+			CompactStatement::Valid(h) => CompactStatementInner::Valid(h),
+			CompactStatement::Invalid(h) => CompactStatementInner::Invalid(h),
+		}
+	}
+}
+
+impl parity_scale_codec::Encode for CompactStatement {
+	fn size_hint(&self) -> usize {
+		// magic + discriminant + payload
+		4 + 1 + 32
+	}
+
+	fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+		dest.write(&BACKING_STATEMENT_MAGIC);
+		CompactStatementInner::from(self.clone()).encode_to(dest)
+	}
+}
+
+impl parity_scale_codec::Decode for CompactStatement {
+	fn decode<I: parity_scale_codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+		let maybe_magic = <[u8; 4]>::decode(input)?;
+		if maybe_magic != BACKING_STATEMENT_MAGIC {
+			return Err(parity_scale_codec::Error::from("invalid magic string"));
+		}
+
+		Ok(match CompactStatementInner::decode(input)? {
+			CompactStatementInner::Seconded(h) => CompactStatement::Seconded(h),
+			CompactStatementInner::Valid(h) => CompactStatement::Valid(h),
+			CompactStatementInner::Invalid(h) => CompactStatement::Invalid(h),
+		})
+	}
 }
 
 impl CompactStatement {
 	/// Get the underlying candidate hash this references.
 	pub fn candidate_hash(&self) -> &CandidateHash {
 		match *self {
-			CompactStatement::Candidate(ref h)
+			CompactStatement::Seconded(ref h)
 				| CompactStatement::Valid(ref h)
 				| CompactStatement::Invalid(ref h)
 				=> h
@@ -740,7 +787,7 @@ impl ValidityAttestation {
 	) -> Vec<u8> {
 		match *self {
 			ValidityAttestation::Implicit(_) => (
-				CompactStatement::Candidate(candidate_hash),
+				CompactStatement::Seconded(candidate_hash),
 				signing_context,
 			).encode(),
 			ValidityAttestation::Explicit(_) => (
