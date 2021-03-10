@@ -5407,6 +5407,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
  "rand_core 0.5.1",
