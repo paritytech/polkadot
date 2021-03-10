@@ -90,8 +90,8 @@ impl<T: Config> Module<T> {
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
 		let assignment_keys = AssignmentKeysUnsafe::get();
-
 		let active_set = <shared::Module<T>>::active_validator_indices();
+
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = n_parachains + config.parathread_cores;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
@@ -118,7 +118,7 @@ impl<T: Config> Module<T> {
 		}
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
-			validators: take_active_subset(&active_set, &validators),
+			validators, // these are from the notification and are thus already correct.
 			discovery_keys: take_active_subset(&active_set, &discovery_keys),
 			assignment_keys: take_active_subset(&active_set, &assignment_keys),
 			validator_groups,
@@ -175,7 +175,8 @@ mod tests {
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
 	use frame_support::traits::{OnFinalize, OnInitialize};
-	use primitives::v1::BlockNumber;
+	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
+	use keyring::Sr25519Keyring;
 
 	fn run_to_block(
 		to: BlockNumber,
@@ -317,6 +318,60 @@ mod tests {
 			run_to_block(3, new_session_every_block);
 			let session = Sessions::get(&3).unwrap();
 			assert_eq!(session.needed_approvals, 42);
+		})
+	}
+
+	#[test]
+	fn session_info_active_subsets() {
+		let unscrambled = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+		];
+
+		let active_set = vec![ValidatorIndex(4), ValidatorIndex(0), ValidatorIndex(2)];
+
+		let unscrambled_validators: Vec<ValidatorId>
+			= unscrambled.iter().map(|v| v.public().into()).collect();
+		let unscrambled_discovery: Vec<AuthorityDiscoveryId>
+			= unscrambled.iter().map(|v| v.public().into()).collect();
+		let unscrambled_assignment: Vec<AssignmentId>
+			= unscrambled.iter().map(|v| v.public().into()).collect();
+
+		let validators = take_active_subset(&active_set, &unscrambled_validators);
+
+		new_test_ext(genesis_config()).execute_with(|| {
+			Shared::set_active_validators_with_indices(
+				active_set.clone(),
+				validators.clone(),
+			);
+
+			assert_eq!(Shared::active_validator_indices(), active_set);
+
+			AssignmentKeysUnsafe::set(unscrambled_assignment.clone());
+			crate::mock::set_discovery_authorities(unscrambled_discovery.clone());
+			assert_eq!(<crate::mock::Test>::authorities(), unscrambled_discovery);
+
+			// invoke directly, because `run_to_block` will invoke `Shared`	and clobber our
+			// values.
+			SessionInfo::initializer_on_new_session(&SessionChangeNotification {
+				session_index: 1,
+				validators: validators.clone(),
+				..Default::default()
+			});
+			let session = Sessions::get(&1).unwrap();
+
+			assert_eq!(session.validators, validators);
+			assert_eq!(
+				session.discovery_keys,
+				take_active_subset(&active_set, &unscrambled_discovery),
+			);
+			assert_eq!(
+				session.assignment_keys,
+				take_active_subset(&active_set, &unscrambled_assignment),
+			);
 		})
 	}
 }
