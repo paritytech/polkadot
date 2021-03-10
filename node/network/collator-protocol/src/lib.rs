@@ -44,7 +44,6 @@ mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "collator_protocol";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Error)]
 enum Error {
@@ -94,7 +93,6 @@ impl CollatorProtocolSubsystem {
 		match self.protocol_side {
 			ProtocolSide::Validator(metrics) => validator_side::run(
 				ctx,
-				REQUEST_TIMEOUT,
 				metrics,
 			).await,
 			ProtocolSide::Collator(id, metrics) => collator_side::run(
@@ -129,7 +127,7 @@ where
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: SubsystemContext,
 {
 	tracing::trace!(
 		target: LOG_TARGET,

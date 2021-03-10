@@ -43,7 +43,7 @@ pub use sc_network::config::RequestResponseConfig;
 
 /// All requests that can be sent to the network bridge.
 pub mod request;
-pub use request::{IncomingRequest, OutgoingRequest, Requests};
+pub use request::{IncomingRequest, OutgoingRequest, Requests, Recipient, OutgoingResult};
 
 ///// Multiplexer for incoming requests.
 // pub mod multiplexer;
@@ -67,6 +67,10 @@ pub enum Protocol {
 /// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
 /// sets.
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3); 
+
+/// Request timeout where we can assume the connection is already open (e.g. we have peers in a
+/// peer set as well.
+const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
@@ -99,11 +103,11 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 1_000,
 				/// Collations are expected to be around 10Meg, probably much smaller with
-				/// compression. So 20Meg should be sufficient, we might be able to reduce this
+				/// compression. So 10Meg should be sufficient, we might be able to reduce this
 				/// further.
-				max_response_size: 20_000_000,
-				// Also just some relative conservative guess:
-				request_timeout: DEFAULT_REQUEST_TIMEOUT,
+				max_response_size: 10_000_000,
+				// Taken from initial implementation in collator protocol:
+				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 		};

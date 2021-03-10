@@ -198,22 +198,25 @@ pub enum CollatorProtocolMessage {
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
+	/// Incoming network request for a collation.
+	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>)
 }
 
-impl CollatorProtocolMessage {
+// impl CollatorProtocolMessage {
 	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::CollateOn(_) => None,
-			Self::DistributeCollation(receipt, _, _) => Some(receipt.descriptor().relay_parent),
-			Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
-			Self::ReportCollator(_) => None,
-			Self::NoteGoodCollation(_) => None,
-			Self::NetworkBridgeUpdateV1(_) => None,
-			Self::NotifyCollationSeconded(_, _) => None,
-		}
-	}
-}
+//     pub fn relay_parent(&self) -> Option<Hash> {
+//         match self {
+//             Self::CollateOn(_) => None,
+//             Self::DistributeCollation(receipt, _, _) => Some(receipt.descriptor().relay_parent),
+//             Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
+//             Self::ReportCollator(_) => None,
+//             Self::NoteGoodCollation(_) => None,
+//             Self::NetworkBridgeUpdateV1(_) => None,
+//             Self::CollationFetchingRequest(_) => None,
+//             Self::NotifyCollationSeconded(_, _) => None,
+//         }
+//     }
+// }
 
 /// Messages received by the network bridge subsystem.
 #[derive(Debug)]
@@ -748,5 +751,15 @@ pub enum AllMessages {
 impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::AvailabilityFetchingRequest>) -> Self {
 		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		From::<CollatorProtocolMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		Self::CollationFetchingRequest(req)
 	}
 }

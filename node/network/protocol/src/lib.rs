@@ -17,7 +17,7 @@
 //! Network protocol types for parachains.
 
 #![deny(unused_crate_dependencies)]
-#![warn(missing_docs)]
+#![warn(missing_docs, unused_imports)]
 
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
@@ -288,10 +288,7 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{
-		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex, AvailableData,
-	};
+	use polkadot_primitives::v1::{AvailableData, CandidateHash, CandidateIndex, CollatorId, CompressedPoV, ErasureChunk, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
 	use polkadot_node_primitives::{
 		SignedFullStatement,
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
@@ -367,12 +364,6 @@ pub mod v1 {
 		/// that they are a collator with given ID.
 		#[codec(index = 1)]
 		AdvertiseCollation(Hash, ParaId),
-		/// Request the advertised collation at that relay-parent.
-		#[codec(index = 2)]
-		RequestCollation(RequestId, Hash, ParaId),
-		/// A requested collation.
-		#[codec(index = 3)]
-		Collation(RequestId, CandidateReceipt, CompressedPoV),
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
 		CollationSeconded(SignedFullStatement),

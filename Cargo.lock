@@ -5570,8 +5570,6 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "strum",
- "thiserror",
- "zstd",
 ]
 
 [[package]]
@@ -5771,6 +5769,8 @@ dependencies = [
  "sp-std",
  "sp-trie",
  "sp-version",
+ "thiserror",
+ "zstd",
 ]
 
 [[package]]
