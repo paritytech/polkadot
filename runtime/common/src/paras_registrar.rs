@@ -265,6 +265,7 @@ mod tests {
 		traits::{Randomness, OnInitialize, OnFinalize},
 		assert_ok, assert_noop, parameter_types,
 	};
+	use frame_support_test::TestRandomness;
 	use keyring::Sr25519Keyring;
 	use runtime_parachains::{
 		initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp, shared,
@@ -510,16 +511,8 @@ mod tests {
 
 	impl session_info::Config for Test { }
 
-	pub struct TestRandomness;
-
-	impl Randomness<H256> for TestRandomness {
-		fn random(_subject: &[u8]) -> H256 {
-			Default::default()
-		}
-	}
-
 	impl initializer::Config for Test {
-		type Randomness = TestRandomness;
+		type Randomness = TestRandomness<Self>;
 	}
 
 	impl scheduler::Config for Test { }
