@@ -470,7 +470,7 @@ impl parachains_inclusion::Config for Runtime {
 impl parachains_inclusion_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = Babe;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 }
 
 impl parachains_session_info::Config for Runtime {}
@@ -617,7 +617,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed()
+			RandomnessCollectiveFlip::random_seed().0
 		}
 	}
 
