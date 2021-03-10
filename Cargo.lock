@@ -5388,7 +5388,6 @@ dependencies = [
  "sp-keyring",
  "strum",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5622,7 +5621,6 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
