@@ -463,7 +463,7 @@ impl parachains_inclusion::Config for Runtime {
 impl parachains_inclusion_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = Babe;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 }
 
 impl parachains_session_info::Config for Runtime {}
