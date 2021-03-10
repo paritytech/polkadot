@@ -23,6 +23,8 @@ use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
 use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
+const LOG_TARGET: &str = "runtime::ump-sink";
+
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
 ///
 /// The message is opaque from the perspective of UMP. The message size can range from 0 to
@@ -76,7 +78,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 			}
 		} else {
 			log::error!(
-				target: "runtime::ump-sink",
+				target: LOG_TARGET,
 				"Failed to decode versioned XCM from upward message.",
 			);
 		}

@@ -18,13 +18,13 @@
 
 mod location_conversion;
 pub use location_conversion::{
-	Account32Hash, ParentIsDefault, ChildParachainConvertsVia, SiblingParachainConvertsVia, AccountId32Aliases
+	Account32Hash, ParentIsDefault, ChildParachainConvertsVia, SiblingParachainConvertsVia, AccountId32Aliases, AccountKey20Aliases,
 };
 
 mod origin_conversion;
 pub use origin_conversion::{
 	SovereignSignedViaLocation, ParentAsSuperuser, ChildSystemParachainAsSuperuser, SiblingSystemParachainAsSuperuser,
-	ChildParachainAsNative, SiblingParachainAsNative, RelayChainAsNative, SignedAccountId32AsNative
+	ChildParachainAsNative, SiblingParachainAsNative, RelayChainAsNative, SignedAccountId32AsNative, SignedAccountKey20AsNative,
 };
 
 mod currency_adapter;
