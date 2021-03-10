@@ -587,13 +587,35 @@ pub(crate) async fn handle_new_head(
 	let mut imported_candidates = Vec::with_capacity(new_blocks.len());
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
-	for (block_hash, block_header) in new_blocks.into_iter().rev() {
-		let env = ImportedBlockInfoEnv {
-			session_window: &state.session_window,
-			assignment_criteria: &*state.assignment_criteria,
-			keystore: &state.keystore,
-		};
+	let imported_blocks_and_info = {
+		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
+		for (block_hash, block_header) in new_blocks.into_iter().rev() {
+			let env = ImportedBlockInfoEnv {
+				session_window: &state.session_window,
+				assignment_criteria: &*state.assignment_criteria,
+				keystore: &state.keystore,
+			};
 
+			match imported_block_info(ctx, env, block_hash, &block_header).await? {
+				Some(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
+				None => {
+					// Such errors are likely spurious, but this prevents us from getting gaps
+					// in the approval-db.
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Unable to gather info about imported block {:?}. Skipping chain.",
+						(block_hash, block_header.number),
+					);
+
+					return Ok(Vec::new());
+				},
+			};
+		}
+
+		imported_blocks_and_info
+	};
+
+	for (block_hash, block_header, imported_block_info) in imported_blocks_and_info {
 		let ImportedBlockInfo {
 			included_candidates,
 			session_index,
@@ -601,10 +623,7 @@ pub(crate) async fn handle_new_head(
 			n_validators,
 			relay_vrf_story,
 			slot,
-		} = match imported_block_info(ctx, env, block_hash, &block_header).await? {
-			Some(i) => i,
-			None => continue,
-		};
+		} = imported_block_info;
 
 		let session_info = state.session_window.session_info(session_index)
 			.expect("imported_block_info requires session to be available; qed");
