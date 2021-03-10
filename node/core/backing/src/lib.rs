@@ -197,7 +197,6 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 	let statement = match s.payload() {
 		Statement::Seconded(c) => TableStatement::Seconded(c.clone()),
 		Statement::Valid(h) => TableStatement::Valid(h.clone()),
-		Statement::Invalid(h) => TableStatement::Invalid(h.clone()),
 	};
 
 	TableSignedStatement {
@@ -555,14 +554,11 @@ impl CandidateBackingJob {
 			ValidatedCandidateCommand::Attest(res) => {
 				// sanity check.
 				if !self.issued_statements.contains(&candidate_hash) {
-					let statement = if res.is_ok() {
-						Statement::Valid(candidate_hash)
-					} else {
-						Statement::Invalid(candidate_hash)
-					};
-
+					if res.is_ok() {
+						let statement = Statement::Valid(candidate_hash);
+						self.sign_import_and_distribute_statement(statement, &parent_span).await?;
+					}
 					self.issued_statements.insert(candidate_hash);
-					self.sign_import_and_distribute_statement(statement, &parent_span).await?;
 				}
 			}
 		}
@@ -1241,7 +1237,6 @@ mod tests {
 		match statement {
 			TableStatement::Seconded(committed_candidate_receipt) => Statement::Seconded(committed_candidate_receipt),
 			TableStatement::Valid(candidate_hash) => Statement::Valid(candidate_hash),
-			TableStatement::Invalid(candidate_hash) => Statement::Invalid(candidate_hash),
 		}
 	}
 
@@ -1883,15 +1878,11 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-			let public0 = CryptoStore::sr25519_generate_new(
-				&*test_state.keystore,
-				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
-			).await.expect("Insert key into keystore");
 			let public2 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
-			let signed_a = SignedFullStatement::sign(
+			let seconded_2 = SignedFullStatement::sign(
 				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
@@ -1899,25 +1890,17 @@ mod tests {
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
-			let signed_b = SignedFullStatement::sign(
+			let valid_2 = SignedFullStatement::sign(
 				&test_state.keystore,
-				Statement::Invalid(candidate_a_hash),
+				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
-			let signed_c = SignedFullStatement::sign(
-				&test_state.keystore,
-				Statement::Invalid(candidate_a_hash),
-				&test_state.signing_context,
-				ValidatorIndex(0),
-				&public0.into(),
-			).await.ok().flatten().expect("should be signed");
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, seconded_2.clone());
 
-			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
-
-			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+			virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1976,51 +1959,10 @@ mod tests {
 				}
 			);
 
-			// This `Invalid` statement contradicts the `Candidate` statement
-			// sent at first.
-			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
+			// This `Valid` statement is redundant after the `Seconded` statement already sent.
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, valid_2.clone());
 
-			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::Provisioner(
-					ProvisionerMessage::ProvisionableData(
-						_,
-						ProvisionableData::MisbehaviorReport(
-							relay_parent,
-							validator_index,
-							Misbehavior::ValidityDoubleVote(vdv),
-						)
-					)
-				) if relay_parent == test_state.relay_parent => {
-					let ((t1, s1), (t2, s2)) = vdv.deconstruct::<TableContext>();
-					let t1 = table_statement_to_primitive(t1);
-					let t2 = table_statement_to_primitive(t2);
-
-					SignedFullStatement::new(
-						t1,
-						validator_index,
-						s1,
-						&test_state.signing_context,
-						&test_state.validator_public[validator_index.0 as usize],
-					).expect("signature must be valid");
-
-					SignedFullStatement::new(
-						t2,
-						validator_index,
-						s2,
-						&test_state.signing_context,
-						&test_state.validator_public[validator_index.0 as usize],
-					).expect("signature must be valid");
-				}
-			);
-
-			// This `Invalid` statement contradicts the `Valid` statement the subsystem
-			// should have issued behind the scenes.
-			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
-
-			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+			virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -2192,7 +2134,7 @@ mod tests {
 	// Test that if we have already issued a statement (in this case `Invalid`) about a
 	// candidate we will not be issuing a `Seconded` statement on it.
 	#[test]
-	fn backing_multiple_statements_work() {
+	fn backing_second_after_first_fails_works() {
 		let test_state = TestState::default();
 		test_harness(test_state.keystore.clone(), |test_harness| async move {
 			let TestHarness { mut virtual_overseer } = test_harness;
@@ -2212,8 +2154,6 @@ mod tests {
 				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
 			}.build();
-
-			let candidate_hash = candidate.hash();
 
 			let validator2 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
@@ -2259,24 +2199,6 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
-				}
-			);
-
-			// The invalid message is shared.
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::Share(
-						relay_parent,
-						signed_statement,
-					)
-				) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					signed_statement.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[0],
-					).unwrap();
-					assert_eq!(*signed_statement.payload(), Statement::Invalid(candidate_hash));
 				}
 			);
 
