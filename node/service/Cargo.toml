@@ -6,55 +6,56 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "td-mmr-custom" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "td-mmr-custom" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "td-mmr-custom" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
 
 # External Crates
 futures = "0.3.12"
