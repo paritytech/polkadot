@@ -820,7 +820,7 @@ parameter_types! {
 impl pallet_society::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type Randomness = RandomnessCollectiveFlip;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type CandidateDeposit = CandidateDeposit;
 	type WrongSideDeduction = WrongSideDeduction;
 	type MaxStrikes = MaxStrikes;
@@ -1142,7 +1142,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
@@ -1223,9 +1223,9 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
-		fn authorities() -> Vec<BeefyId> {
+		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
 			// dummy implementation due to lack of BEEFY pallet.
-			Vec::new()
+			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
 		}
 	}
 

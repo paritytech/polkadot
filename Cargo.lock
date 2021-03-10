@@ -1860,6 +1860,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "frame-support-test"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#b24c43af1a77168feed445136ea4569f1d132c3a"
+dependencies = [
+ "frame-metadata",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "pretty_assertions",
+ "rustversion",
+ "serde",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "trybuild",
+]
+
+[[package]]
 name = "frame-system"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#b24c43af1a77168feed445136ea4569f1d132c3a"
@@ -6103,6 +6124,7 @@ dependencies = [
  "bitvec",
  "frame-benchmarking",
  "frame-support",
+ "frame-support-test",
  "frame-system",
  "hex-literal",
  "libsecp256k1",
@@ -6154,6 +6176,7 @@ dependencies = [
  "derive_more",
  "frame-benchmarking",
  "frame-support",
+ "frame-support-test",
  "frame-system",
  "futures 0.3.12",
  "hex-literal",
@@ -7262,6 +7285,12 @@ dependencies = [
  "schannel",
  "security-framework",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb5d2a036dc6d2d8fd16fde3498b04306e29bd193bf306a57427019b823d5acd"
 
 [[package]]
 name = "rw-stream-sink"
@@ -10849,6 +10878,7 @@ dependencies = [
 name = "westend-runtime"
 version = "0.8.29"
 dependencies = [
+ "beefy-primitives",
  "bitvec",
  "frame-benchmarking",
  "frame-executive",

@@ -40,7 +40,9 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
+	construct_runtime, parameter_types,
+	traits::{EnsureOrigin, Filter, KeyOwnerProofSystem, Randomness},
+	weights::Weight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -597,7 +599,7 @@ impl parachains_inclusion_inherent::Config for Runtime {}
 impl parachains_scheduler::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = Babe;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
@@ -636,7 +638,7 @@ impl Convert<BeefyId, Vec<u8>> for UncompressBeefyKeys {
 		secp256k1::PublicKey::parse_slice(compressed_key, Some(secp256k1::PublicKeyFormat::Compressed))
 			.map(|pub_key| pub_key.serialize().to_vec())
 			.map_err(|_| {
-				frame_support::debug::error!("Invalid BEEFY PublicKey format!");
+				log::error!(target: "runtime::beefy", "Invalid BEEFY PublicKey format!");
 			})
 			.unwrap_or_default()
 	}
@@ -738,7 +740,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			Babe::randomness().into()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
@@ -931,8 +933,8 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
-		fn authorities() -> Vec<BeefyId> {
-			Beefy::authorities()
+		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+			Beefy::validator_set()
 		}
 	}
 

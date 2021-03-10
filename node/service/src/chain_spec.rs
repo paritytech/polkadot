@@ -846,7 +846,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
-		}),
+		},
 		pallet_beefy: Default::default(),
 		pallet_indices: rococo_runtime::IndicesConfig {
 			indices: vec![],
@@ -1392,7 +1392,7 @@ pub fn rococo_testnet_genesis(
 		frame_system: rococo_runtime::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
-		}),
+		},
 		pallet_beefy: Default::default(),
 		pallet_indices: rococo_runtime::IndicesConfig {
 			indices: vec![],

@@ -853,7 +853,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
@@ -935,9 +935,9 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
-		fn authorities() -> Vec<BeefyId> {
+		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
 			// dummy implementation due to lack of BEEFY pallet.
-			Vec::new()
+			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
 		}
 	}
 
