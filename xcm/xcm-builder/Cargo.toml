@@ -9,11 +9,11 @@ version = "0.8.22"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 # Polkadot dependencies
 polkadot-parachain = { path = "../../parachain", default-features = false }

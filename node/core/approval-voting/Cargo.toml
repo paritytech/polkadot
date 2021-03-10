@@ -22,20 +22,20 @@ polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 
-sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "td-mmr-custom" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "td-mmr-custom" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [dev-dependencies]
 parking_lot = "0.11.1"
 rand_core = "0.5.1" # should match schnorrkel
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "td-mmr-custom" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 maplit = "1.0.2"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
