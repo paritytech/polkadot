@@ -174,7 +174,7 @@ decl_module! {
 impl<T: Config> Module<T> {
 	fn apply_new_session(
 		session_index: SessionIndex,
-		validators: Vec<ValidatorId>,
+		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
 		let prev_config = <configuration::Module<T>>::config();
@@ -189,9 +189,16 @@ impl<T: Config> Module<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&validators, &queued, &session_index);
+		configuration::Module::<T>::initializer_on_new_session(&session_index);
 
 		let new_config = <configuration::Module<T>>::config();
+
+		let validators = shared::Module::<T>::initializer_on_new_session(
+			session_index,
+			random_seed.clone(),
+			&new_config,
+			all_validators,
+		);
 
 		let notification = SessionChangeNotification {
 			validators,
@@ -202,7 +209,6 @@ impl<T: Config> Module<T> {
 			session_index,
 		};
 
-		shared::Module::<T>::initializer_on_new_session(&notification);
 		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);

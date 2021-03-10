@@ -261,7 +261,10 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			phantom: Default::default(),
 		},
 		pallet_membership_Instance1: Default::default(),
-		pallet_babe: Default::default(),
+		pallet_babe: polkadot::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: polkadot::AuthorityDiscoveryConfig { keys: vec![] },
@@ -448,7 +451,10 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		pallet_babe: Default::default(),
+		pallet_babe: westend::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(westend::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
@@ -644,7 +650,10 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			phantom: Default::default(),
 		},
 		pallet_membership_Instance1: Default::default(),
-		pallet_babe: Default::default(),
+		pallet_babe: kusama::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: kusama::AuthorityDiscoveryConfig { keys: vec![] },
@@ -851,7 +860,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				),
 			)).collect::<Vec<_>>(),
 		},
-		pallet_babe: Default::default(),
+		pallet_babe: rococo_runtime::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
@@ -1131,7 +1143,10 @@ pub fn polkadot_testnet_genesis(
 			phantom: Default::default(),
 		},
 		pallet_membership_Instance1: Default::default(),
-		pallet_babe: Default::default(),
+		pallet_babe: polkadot::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: polkadot::AuthorityDiscoveryConfig { keys: vec![] },
@@ -1226,7 +1241,10 @@ pub fn kusama_testnet_genesis(
 			phantom: Default::default(),
 		},
 		pallet_membership_Instance1: Default::default(),
-		pallet_babe: Default::default(),
+		pallet_babe: kusama::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: kusama::AuthorityDiscoveryConfig { keys: vec![] },
@@ -1311,7 +1329,10 @@ pub fn westend_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		pallet_babe: Default::default(),
+		pallet_babe: westend::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(westend::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
@@ -1365,7 +1386,10 @@ pub fn rococo_testnet_genesis(
 				),
 			)).collect::<Vec<_>>(),
 		},
-		pallet_babe: Default::default(),
+		pallet_babe: rococo_runtime::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
+		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
