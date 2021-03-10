@@ -621,7 +621,6 @@ impl pallet_bounties::Config for Runtime {
 	type Event = Event;
 	type MaximumReasonLength = MaximumReasonLength;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
-
 }
 
 impl pallet_tips::Config for Runtime {
@@ -1007,7 +1006,7 @@ impl pallet_gilt::Config for Runtime {
 	type MinFreeze = MinFreeze;
 	type IntakePeriod = IntakePeriod;
 	type MaxIntakeBids = MaxIntakeBids;
-	type WeightInfo = ();//weights::pallet_gilt::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
 }
 
 pub struct CustomOnRuntimeUpgrade;
