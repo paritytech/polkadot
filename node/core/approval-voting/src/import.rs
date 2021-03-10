@@ -711,7 +711,9 @@ mod tests {
 	use polkadot_node_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
 	use sp_runtime::{Digest, DigestItem};
-	use sp_consensus_babe::Epoch as BabeEpoch;
+	use sp_consensus_babe::{
+		Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots,
+	};
 	use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
@@ -1358,6 +1360,10 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: BabeEpochConfiguration {
+							c: (1, 4),
+							allowed_slots: AllowedSlots::PrimarySlots,
+						},
 					}));
 				}
 			);
@@ -1463,6 +1469,10 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: BabeEpochConfiguration {
+							c: (1, 4),
+							allowed_slots: AllowedSlots::PrimarySlots,
+						},
 					}));
 				}
 			);
@@ -1714,6 +1724,10 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: BabeEpochConfiguration {
+							c: (1, 4),
+							allowed_slots: AllowedSlots::PrimarySlots,
+						},
 					}));
 				}
 			);
