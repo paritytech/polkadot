@@ -20,8 +20,14 @@ pub(crate) const SESSION_DELAY: SessionIndex = 2;
 ## Storage
 
 ```rust
-// The current session index within the Parachains Runtime system.
+/// The current session index within the Parachains Runtime system.
 CurrentSessionIndex: SessionIndex;
+/// All the validators actively participating in parachain consensus.
+/// Indices are into the broader validator set.
+ActiveValidatorIndices: Vec<ValidatorIndex>,
+/// The parachain attestation keys of the validators actively participating in parachain consensus.
+/// This should be the same length as `ActiveValidatorIndices`.
+ActiveValidatorKeys: Vec<ValidatorId>
 ```
 
 ## Initialization
@@ -35,8 +41,9 @@ them.
 
 ## Session Change
 
-During a session change, the Shared Module receives and stores the current Session Index for that
-block through the Session Change Notification.
+During a session change, the Shared Module receives and stores the current Session Index directly from the initializer module, along with the broader validator set, and it returns the new list of validators.
+
+The list of validators should be first shuffled according to the chain's random seed and then truncated. The indices of these validators should be set to `ActiveValidatorIndices` and then returned back to the initializer. `ActiveValidatorKeys` should be set accordingly.
 
 This information is used in the:
 
