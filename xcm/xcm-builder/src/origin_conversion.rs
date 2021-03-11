@@ -148,3 +148,24 @@ impl<
 		}
 	}
 }
+
+pub struct SignedAccountKey20AsNative<Network, Origin>(
+	PhantomData<(Network, Origin)>
+);
+impl<
+	Network: Get<NetworkId>,
+	Origin: OriginTrait
+> ConvertOrigin<Origin> for SignedAccountKey20AsNative<Network, Origin> where
+	Origin::AccountId: From<[u8; 20]>,
+{
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(OriginKind::Native, MultiLocation::X1(Junction::AccountKey20 { key, network }))
+				if matches!(network, NetworkId::Any) || network == Network::get() =>
+			{
+				Ok(Origin::signed(key.into()))
+			}
+			(_, origin) => Err(origin),
+		}
+	}
+}

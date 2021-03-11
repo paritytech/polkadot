@@ -43,7 +43,10 @@ mod metrics;
 /// Prometheus `Metrics` for availability distribution.
 pub use metrics::Metrics;
 
-const LOG_TARGET: &'static str = "availability_distribution";
+#[cfg(test)]
+mod tests;
+
+const LOG_TARGET: &'static str = "parachain::availability-distribution";
 
 /// The availability distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {

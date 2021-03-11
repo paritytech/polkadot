@@ -49,7 +49,7 @@ use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "availability";
+const LOG_TARGET: &str = "parachain::availability";
 
 mod columns {
 	pub const DATA: u32 = 0;

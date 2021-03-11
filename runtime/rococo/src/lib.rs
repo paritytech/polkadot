@@ -39,7 +39,9 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
+	construct_runtime, parameter_types,
+	traits::{EnsureOrigin, Filter, KeyOwnerProofSystem, Randomness},
+	weights::Weight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -109,6 +111,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
 };
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
+	babe_primitives::BabeEpochConfiguration {
+		c: PRIMARY_PROBABILITY,
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
@@ -580,7 +589,7 @@ impl parachains_inclusion_inherent::Config for Runtime {}
 impl parachains_scheduler::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = Babe;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
@@ -674,7 +683,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			Babe::randomness().into()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
@@ -805,10 +814,10 @@ sp_api::impl_runtime_apis! {
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDurationInBlocks::get().into(),
-				c: PRIMARY_PROBABILITY,
+				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
+				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 
