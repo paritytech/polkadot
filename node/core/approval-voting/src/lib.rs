@@ -105,6 +105,10 @@ struct MetricsInner {
 	imported_candidates_total: prometheus::Counter<prometheus::U64>,
 	assignments_produced_total: prometheus::Counter<prometheus::U64>,
 	approvals_produced_total: prometheus::Counter<prometheus::U64>,
+	no_shows_total: prometheus::Counter<prometheus::U64>,
+	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
+	candidate_approval_time_ticks: prometheus::Histogram,
+	block_approval_time_ticks: prometheus::Histogram,
 }
 
 /// Aproval Voting metrics.
@@ -127,6 +131,30 @@ impl Metrics {
 	fn on_approval_produced(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.approvals_produced_total.inc();
+		}
+	}
+
+	fn on_no_shows(&self, n: usize) {
+		if let Some(metrics) = &self.0 {
+			metrics.no_shows_total.inc_by(n as u64);
+		}
+	}
+
+	fn on_wakeup(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.wakeups_triggered_total.inc();
+		}
+	}
+
+	fn on_candidate_approved(&self, ticks: Tick) {
+		if let Some(metrics) = &self.0 {
+			metrics.candidate_approval_time_ticks.observe(ticks as f64);
+		}
+	}
+
+	fn on_block_approved(&self, ticks: Tick) {
+		if let Some(metrics) = &self.0 {
+			metrics.block_approval_time_ticks.observe(ticks as f64);
 		}
 	}
 }
@@ -157,7 +185,40 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			no_shows_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_approvals_no_shows_total",
+					"Number of assignments which became no-shows in the approval voting subsystem",
+				)?,
+				registry,
+			)?,
+			wakeups_triggered_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_approvals_wakeups_total",
+					"Number of times we woke up to process a candidate in the approval voting subsystem",
+				)?,
+				registry,
+			)?,
+			candidate_approval_time_ticks: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_approvals_candidate_approval_time_ticks",
+						"Number of ticks (500ms) to approve candidates.",
+					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
+				)?,
+				registry,
+			)?,
+			block_approval_time_ticks: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_approvals_blockapproval_time_ticks",
+						"Number of ticks (500ms) to approve blocks.",
+					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
+				)?,
+				registry,
+			)?,
 		};
+
 		Ok(Metrics(Some(metrics)))
 	}
 }
@@ -400,6 +461,7 @@ async fn run<C>(
 	loop {
 		let actions = futures::select! {
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
+				subsystem.metrics.on_wakeup();
 				process_wakeup(
 					&mut state,
 					woken_block,
@@ -589,12 +651,13 @@ async fn handle_from_overseer(
 		}
 		FromOverseer::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
-				let (check_outcome, actions) = check_and_import_assignment(state, a, claimed_core)?;
+				let (check_outcome, actions)
+					= check_and_import_assignment(state, metrics, a, claimed_core)?;
 				let _ = res.send(check_outcome);
 				actions
 			}
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
-				check_and_import_approval(state, a, |r| { let _ = res.send(r); })?.0
+				check_and_import_approval(state, metrics, a, |r| { let _ = res.send(r); })?.0
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
 				match handle_approved_ancestor(ctx, &state.db, target, lower_bound).await {
@@ -858,6 +921,7 @@ fn schedule_wakeup_action(
 
 fn check_and_import_assignment(
 	state: &State<impl DBReader>,
+	metrics: &Metrics,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
@@ -963,6 +1027,7 @@ fn check_and_import_assignment(
 	// It also produces actions to schedule wakeups for the candidate.
 	let actions = check_and_apply_full_approval(
 		state,
+		&metrics,
 		Some((assignment.block_hash, block_entry)),
 		assigned_candidate_hash,
 		candidate_entry,
@@ -974,6 +1039,7 @@ fn check_and_import_assignment(
 
 fn check_and_import_approval<T>(
 	state: &State<impl DBReader>,
+	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
 ) -> SubsystemResult<(Vec<Action>, T)> {
@@ -1050,6 +1116,7 @@ fn check_and_import_approval<T>(
 
 	let actions = import_checked_approval(
 		state,
+		&metrics,
 		Some((approval.block_hash, block_entry)),
 		approved_candidate_hash,
 		candidate_entry,
@@ -1061,6 +1128,7 @@ fn check_and_import_approval<T>(
 
 fn import_checked_approval(
 	state: &State<impl DBReader>,
+	metrics: &Metrics,
 	already_loaded: Option<(Hash, BlockEntry)>,
 	candidate_hash: CandidateHash,
 	mut candidate_entry: CandidateEntry,
@@ -1076,6 +1144,7 @@ fn import_checked_approval(
 	// This may include blocks beyond the already loaded block.
 	let actions = check_and_apply_full_approval(
 		state,
+		metrics,
 		already_loaded,
 		candidate_hash,
 		candidate_entry,
@@ -1092,6 +1161,7 @@ fn import_checked_approval(
 // the candidate under any blocks filtered.
 fn check_and_apply_full_approval(
 	state: &State<impl DBReader>,
+	metrics: &Metrics,
 	mut already_loaded: Option<(Hash, BlockEntry)>,
 	candidate_hash: CandidateHash,
 	mut candidate_entry: CandidateEntry,
@@ -1150,13 +1220,13 @@ fn check_and_apply_full_approval(
 			session_info.needed_approvals as _
 		);
 
-		let now_approved = approval_checking::check_approval(
+		let check = approval_checking::check_approval(
 			&candidate_entry,
 			approval_entry,
 			required_tranches.clone(),
 		);
 
-		if now_approved {
+		if let approval_checking::Check::Approved(no_shows) = check {
 			tracing::trace!(
 				target: LOG_TARGET,
 				"Candidate approved {} under block {}",
@@ -1164,8 +1234,21 @@ fn check_and_apply_full_approval(
 				block_hash,
 			);
 
+			let was_approved = block_entry.is_fully_approved();
+
 			newly_approved.push(*block_hash);
 			block_entry.mark_approved_by_hash(&candidate_hash);
+			let is_approved = block_entry.is_fully_approved();
+
+			if no_shows != 0 {
+				metrics.on_no_shows(no_shows);
+			}
+
+			metrics.on_candidate_approved(tranche_now as _);
+
+			if is_approved && !was_approved {
+				metrics.on_block_approved(tranche_now as _)
+			}
 
 			actions.push(Action::WriteBlockEntry(block_entry));
 		}
@@ -1204,7 +1287,7 @@ fn should_trigger_assignment(
 					&candidate_entry,
 					&approval_entry,
 					RequiredTranches::All,
-				),
+				).is_approved(),
 				RequiredTranches::Pending {
 					maximum_broadcast,
 					clock_drift,
@@ -1620,6 +1703,7 @@ async fn issue_approval(
 
 	let actions = import_checked_approval(
 		state,
+		metrics,
 		Some((block_hash, block_entry)),
 		candidate_hash,
 		candidate_entry,
