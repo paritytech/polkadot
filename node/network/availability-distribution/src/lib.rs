@@ -108,10 +108,10 @@ impl AvailabilityDistributionSubsystem {
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					// Update the relay chain heads we are fetching our pieces for:
-					if let Err(e) = requester
+					if let Some(e) = requester
 						.get_mut()
 						.update_fetching_heads(&mut ctx, update)
-						.await
+						.await?
 					{
 						tracing::debug!(target: LOG_TARGET, "Error processing ActiveLeavesUpdate: {}", e);
 					}
