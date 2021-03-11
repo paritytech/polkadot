@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 primitives = { package = "polkadot-primitives", path = "../primitives" }
 #novelpoly = { package = "rs-ec-perf", git = "https://github.com/drahnr/rs-ec-perf.git" }
-novelpoly = { package = "rs-ec-perf", path = "../../rsc-perf" }
+novelpoly = { package = "rs-ec-perf", path = "../../rsc-perf", branch = "bernhard-api-retrofit" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["std", "derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
