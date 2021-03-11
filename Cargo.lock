@@ -5183,7 +5183,6 @@ dependencies = [
  "schnorrkel",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5206,7 +5205,6 @@ dependencies = [
  "sp-core",
  "sp-keystore",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5237,7 +5235,6 @@ dependencies = [
  "sp-tracing",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5264,7 +5261,6 @@ dependencies = [
  "streamunordered",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5284,7 +5280,6 @@ dependencies = [
  "substrate-browser-utils",
  "substrate-build-script-utils",
  "thiserror",
- "tracing-futures",
  "try-runtime-cli",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -5309,7 +5304,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5346,7 +5340,6 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.3",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5369,7 +5362,6 @@ dependencies = [
  "sp-keyring",
  "strum",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5386,7 +5378,6 @@ dependencies = [
  "sp-core",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5425,7 +5416,6 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5454,7 +5444,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5478,7 +5467,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5492,7 +5480,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
  "wasm-timer",
 ]
 
@@ -5509,7 +5496,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5528,7 +5514,6 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5544,7 +5529,6 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5584,7 +5568,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5603,7 +5586,6 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5683,7 +5665,6 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5706,7 +5687,6 @@ dependencies = [
  "smallvec 1.6.1",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5737,7 +5717,6 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5758,7 +5737,6 @@ dependencies = [
  "sc-client-api",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5804,7 +5782,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -6134,7 +6111,6 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
- "tracing-futures",
  "westend-runtime",
 ]
 
@@ -6159,7 +6135,6 @@ dependencies = [
  "sp-keystore",
  "sp-staking",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -6308,7 +6283,6 @@ dependencies = [
  "tempfile",
  "tokio 0.2.21",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -9905,9 +9879,9 @@ checksum = "e987b6bf443f4b5b3b6f38704195592cca41c5bb7aedd3c3693c7081f8289860"
 
 [[package]]
 name = "tracing"
-version = "0.1.22"
+version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f47026cdc4080c07e49b37087de021820269d996f581aac150ef9e5583eefe3"
+checksum = "01ebdc2bb4498ab1ab5f5b73c5803825e60199229ccba0698170e3be0e7f959f"
 dependencies = [
  "cfg-if 1.0.0",
  "log",
@@ -9918,9 +9892,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.11"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80e0ccfc3378da0cce270c946b676a376943f5cd16aeba64568e7939806f4ada"
+checksum = "c42e6fa53307c8a17e4ccd4dc81cf5ec38db9209f59b222210375b54ee40d1e2"
 dependencies = [
  "proc-macro2",
  "quote",

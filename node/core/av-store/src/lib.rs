@@ -681,8 +681,8 @@ fn note_block_backed(
 
 	tracing::trace!(
 		target: LOG_TARGET,
-		"Candidate={} backed",
-		candidate_hash,
+		?candidate_hash,
+		"Candidate backed",
 	);
 
 	if load_meta(db, &candidate_hash)?.is_none() {
@@ -725,8 +725,8 @@ fn note_block_included(
 
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Candidate={} included",
-				candidate_hash,
+				?candidate_hash,
+				"Candidate included",
 			);
 
 			meta.state = match meta.state {
@@ -1059,9 +1059,9 @@ fn store_chunk(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Stored chunk index={} for candidate={}",
-		chunk.index.0,
-		candidate_hash,
+		?candidate_hash,
+		chunk_index = %chunk.index.0,
+		"Stored chunk index for candidate.",
 	);
 
 	db.write(tx)?;
