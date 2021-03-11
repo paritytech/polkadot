@@ -25,7 +25,6 @@
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
 use parity_scale_codec::{Encode, Decode};
-use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::v0::{self, Hash as H256, BlakeTwo256, HashT};
 use primitives::v1;
 use sp_core::Blake2Hasher;
@@ -33,10 +32,11 @@ use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB
 use thiserror::Error;
 
 use novelpoly::novel_poly_basis as novel_poly;
-use novelpoly::{CodeParams, WrappedShard};
+use novelpoly::WrappedShard;
+use novel_poly::CodeParams;
 
 // we are limited to the field order of GF(2^16), which is 65536
-const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
+const MAX_VALIDATORS: usize = novel_poly::FIELD_SIZE;
 
 /// Errors in erasure coding.
 #[derive(Debug, Clone, PartialEq, Error)]
@@ -74,6 +74,9 @@ pub enum Error {
 	/// Branch out of bounds.
 	#[error("Branch is out of bounds")]
 	BranchOutOfBounds,
+	/// Unknown error
+	#[error("An unknown error has appeared when reconstructing erasure code chunks")]
+	UnknownReconstruction
 }
 
 /// Returns the maximum number of allowed, faulty chunks
@@ -87,7 +90,13 @@ const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
 }
 
 fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
-	Ok(CodeParams::derive_from_validator_count(n_validators))
+	if n_validators < 2 {
+		Err(Error::NotEnoughValidators)
+	} else if n_validators > MAX_VALIDATORS {
+		Err(Error::TooManyValidators)
+	} else {
+		Ok(CodeParams::derive_from_validator_count(n_validators))
+	}
 }
 
 /// Obtain a threshold of chunks that should be enough to recover the data.
@@ -190,25 +199,38 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 			return Err(Error::NonUniformChunks);
 		}
 
-		shards[chunk_idx] = Some(WrappedShard::new(chunk_data.to_vec()));
+		received_shards[chunk_idx] = Some(WrappedShard::new(chunk_data.to_vec()));
 	}
 
-	if let Err(e) = params.make_encoder().reconstruct(&mut received_shards[..]) {
-		match e {
 
+	// TODO XXX takes twice the memory, the original approach is way better
+
+	let res = params.make_encoder().reconstruct(received_shards);
+
+	let payload_bytes= match res {
+		Err(e) => match e {
+			novelpoly::Error::NeedMoreShards { .. } => return Err(Error::NotEnoughChunks),
+			novelpoly::Error::ParamterMustBePowerOf2 { .. } => return Err(Error::UnevenLength),
+			novelpoly::Error::ValidatorCountTooHigh { .. } => return Err(Error::TooManyValidators),
+			novelpoly::Error::ValidatorCountTooLow { .. } => return Err(Error::NotEnoughValidators),
+			novelpoly::Error::PayloadSizeIsZero { .. } => return Err(Error::BadPayload),
+			_ => return Err(Error::UnknownReconstruction),
 		}
-	}
+		Ok(payload_bytes) => payload_bytes,
+	};
 
-	// lazily decode from the data shards.
-	Decode::decode(&mut ShardInput {
-		remaining_len: shard_len.map(|s| s * params.data_shards).unwrap_or(0),
-		cur_shard: None,
-		shards: shards.iter()
-			.map(|x| x.as_ref())
-			.take(params.data_shards)
-			.map(|x| x.expect("all data shards have been recovered; qed"))
-			.map(|x| x.as_ref()),
-	}).or_else(|_| Err(Error::BadPayload))
+	Decode::decode(&mut &payload_bytes[..]).or_else(|_e| Err(Error::BadPayload))
+
+	// // lazily decode from the data shards.
+	// Decode::decode(&mut ShardInput {
+	// 	remaining_len: shard_len.map(|s| s * params.data_shards).unwrap_or(0),
+	// 	cur_shard: None,
+	// 	shards: received_shards.iter()
+	// 		.map(|x| x.as_ref())
+	// 		.take(params.data_shards)
+	// 		.map(|x| x.expect("all data shards have been recovered; qed"))
+	// 		.map(|x| x.as_ref()),
+	// }).or_else(|_| Err(Error::BadPayload))
 }
 
 /// An iterator that yields merkle branches and chunk data for all chunks to
@@ -276,7 +298,7 @@ pub fn branches<'a, I: 'a>(chunks: &'a [I]) -> Branches<'a, I>
 	Branches {
 		trie_storage,
 		root,
-		chunks: chunks,
+		chunks,
 		current_pos: 0,
 	}
 }
