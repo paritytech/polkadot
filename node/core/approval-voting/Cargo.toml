@@ -8,8 +8,7 @@ edition = "2018"
 futures = "0.3.8"
 futures-timer = "3.0.2"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+tracing = "0.1.25"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 merlin = "2.0"
 schnorrkel = "0.9.1"

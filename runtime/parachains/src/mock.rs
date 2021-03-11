@@ -135,9 +135,21 @@ impl crate::inclusion_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 
+thread_local! {
+	pub static DISCOVERY_AUTHORITIES: RefCell<Vec<AuthorityDiscoveryId>> = RefCell::new(Vec::new());
+}
+
+pub fn discovery_authorities() -> Vec<AuthorityDiscoveryId> {
+	DISCOVERY_AUTHORITIES.with(|r| r.borrow().clone())
+}
+
+pub fn set_discovery_authorities(new: Vec<AuthorityDiscoveryId>) {
+	DISCOVERY_AUTHORITIES.with(|r| *r.borrow_mut() = new);
+}
+
 impl crate::session_info::AuthorityDiscoveryConfig for Test {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
-		Vec::new()
+		discovery_authorities()
 	}
 }
 

@@ -1213,7 +1213,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
@@ -1446,7 +1446,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
@@ -1611,7 +1611,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
@@ -2098,7 +2098,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
@@ -2295,7 +2295,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
@@ -2392,7 +2392,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			let validators_new = vec![
