@@ -322,7 +322,8 @@ decl_module! {
 			origin,
 			#[compact] index: FundIndex,
 			#[compact] value: BalanceOf<T>,
-			signature: Option<MultiSignature>
+			signature: Option<MultiSignature>,
+			_memo: [u8; 32],
 		) {
 			let who = ensure_signed(origin)?;
 
