@@ -47,7 +47,7 @@ Sessions: map SessionIndex => Option<SessionInfo>,
 ## Session Change
 
 1. Update `EarliestStoredSession` based on `config.dispute_period` and remove all entries from `Sessions` from the previous value up to the new value.
-1. Create a new entry in `Sessions` with information about the current session.
+1. Create a new entry in `Sessions` with information about the current session. Use `shared::ActiveValidators` to determine the indices into the broader validator sets (validation, assignment, discovery) which are actually used for parachain validation. Only these validators should appear in the `SessionInfo`.
 
 ## Routines
 
