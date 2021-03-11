@@ -23,15 +23,15 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
-sp-version = { git = "https://github.com/paritytech/substrate.git", branch = "substrate-test-runner" }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-version = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 
 #[dev-dependencies]
 futures = "0.3.7"

@@ -16,28 +16,24 @@
 
 //! End to end runtime tests
 
-use test_runner::{Node, ChainInfo, SignatureVerificationOverride, base_path};
+use test_runner::{Node, ChainInfo, SignatureVerificationOverride};
 use grandpa::GrandpaBlockImport;
-use sc_service::{
-    TFullBackend, TFullClient, Configuration, TaskManager, new_full_parts, TaskExecutor,
-    BasePath, Role, DatabaseConfig, KeepBlocks, TransactionStorageMode, ChainSpec,
-};
+use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, new_full_parts};
 use sp_runtime::generic::Era;
 use std::sync::Arc;
 use sp_inherents::InherentDataProviders;
 use sc_consensus_babe::BabeBlockImport;
 use sp_keystore::SyncCryptoStorePtr;
 use sp_keyring::sr25519::Keyring::Alice;
-use polkadot_service::chain_spec::polkadot_config;
 use polkadot_runtime_common::claims;
 use sp_consensus_babe::AuthorityId;
 use sc_consensus_manual_seal::{ConsensusDataProvider, consensus::babe::BabeConsensusDataProvider};
-use sp_keyring::Sr25519Keyring;
-use sc_service::config::{NetworkConfiguration, KeystoreConfig};
-use sc_executor::WasmExecutionMethod;
-use sc_network::{multiaddr, config::TransportConfig};
-use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_informant::OutputFormat;
+use sp_runtime::AccountId32;
+use frame_support::{weights::Weight, StorageValue};
+use pallet_democracy::{AccountVote, Conviction, Vote};
+use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, TechnicalCollective, CouncilCollective};
+use std::str::FromStr;
+use codec::Encode;
 
 type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
 
@@ -54,117 +50,27 @@ struct PolkadotChainInfo;
 impl ChainInfo for PolkadotChainInfo {
     type Block = polkadot_primitives::v1::Block;
     type Executor = Executor;
-    type Runtime = polkadot_runtime::Runtime;
-    type RuntimeApi = polkadot_runtime::RuntimeApi;
+    type Runtime = Runtime;
+    type RuntimeApi = RuntimeApi;
     type SelectChain = sc_consensus::LongestChain<TFullBackend<Self::Block>, Self::Block>;
     type BlockImport = BlockImport<
         Self::Block,
         TFullBackend<Self::Block>,
-        TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>,
+        TFullClient<Self::Block, RuntimeApi, Self::Executor>,
         Self::SelectChain,
     >;
     type SignedExtras = polkadot_runtime::SignedExtra;
 
-    fn configuration(task_executor: TaskExecutor) -> Configuration {
-        let mut chain_spec = polkadot_config().expect("failed to create chainspec");
-        let base_path = if let Some(base) = base_path() {
-            BasePath::new(base)
-        } else {
-            BasePath::new_temp_dir().expect("couldn't create a temp dir")
-        };
-        let root_path = base_path.path().to_path_buf().join("chains").join(chain_spec.id());
-
-        let key_seed = Sr25519Keyring::Alice.to_seed();
-        let storage = chain_spec
-            .as_storage_builder()
-            .build_storage()
-            .expect("could not build storage");
-
-        chain_spec.set_storage(storage);
-
-        let mut network_config = NetworkConfiguration::new(
-            format!("Test Node for: {}", key_seed),
-            "network/test/0.1",
-            Default::default(),
-            None,
-        );
-        let informant_output_format = OutputFormat { enable_color: false };
-
-        network_config.allow_non_globals_in_dht = true;
-
-        network_config
-            .listen_addresses
-            .push(multiaddr::Protocol::Memory(rand::random()).into());
-
-        network_config.transport = TransportConfig::MemoryOnly;
-
-        Configuration {
-            impl_name: "test-node".to_string(),
-            impl_version: "0.1".to_string(),
-            role: Role::Authority,
-            task_executor,
-            transaction_pool: Default::default(),
-            network: network_config,
-            keystore: KeystoreConfig::Path {
-                path: root_path.join("key"),
-                password: None,
-            },
-            database: DatabaseConfig::RocksDb {
-                path: root_path.join("db"),
-                cache_size: 128,
-            },
-            state_cache_size: 16777216,
-            state_cache_child_ratio: None,
-            chain_spec: Box::new(chain_spec),
-            wasm_method: WasmExecutionMethod::Interpreted,
-            // NOTE: we enforce the use of the wasm runtime to make use of the signature overrides
-            execution_strategies: ExecutionStrategies {
-                syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-                importing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-                block_construction: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-                offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-                other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-            },
-            rpc_http: None,
-            rpc_ws: None,
-            rpc_ipc: None,
-            rpc_ws_max_connections: None,
-            rpc_cors: None,
-            rpc_methods: Default::default(),
-            prometheus_config: None,
-            telemetry_endpoints: None,
-            telemetry_external_transport: None,
-            default_heap_pages: None,
-            offchain_worker: Default::default(),
-            force_authoring: false,
-            disable_grandpa: false,
-            dev_key_seed: Some(key_seed),
-            tracing_targets: None,
-            tracing_receiver: Default::default(),
-            max_runtime_instances: 8,
-            announce_block: true,
-            base_path: Some(base_path),
-            wasm_runtime_overrides: None,
-            informant_output_format,
-            disable_log_reloading: false,
-            keystore_remote: None,
-            keep_blocks: KeepBlocks::All,
-            state_pruning: Default::default(),
-            transaction_storage: TransactionStorageMode::BlockBody,
-            telemetry_handle: Default::default(),
-        }
-    }
-
-    fn signed_extras(from: <Self::Runtime as frame_system::Config>::AccountId) -> Self::SignedExtras {
+    fn signed_extras(from: <Runtime as frame_system::Config>::AccountId) -> Self::SignedExtras {
         (
-            frame_system::CheckSpecVersion::<Self::Runtime>::new(),
-            frame_system::CheckTxVersion::<Self::Runtime>::new(),
-            frame_system::CheckGenesis::<Self::Runtime>::new(),
-            frame_system::CheckMortality::<Self::Runtime>::from(Era::Immortal),
-            frame_system::CheckNonce::<Self::Runtime>::from(frame_system::Module::<Self::Runtime>::account_nonce(from)),
-            frame_system::CheckWeight::<Self::Runtime>::new(),
-            pallet_transaction_payment::ChargeTransactionPayment::<Self::Runtime>::from(0),
-            claims::PrevalidateAttests::<Self::Runtime>::new(),
+            frame_system::CheckSpecVersion::<Runtime>::new(),
+            frame_system::CheckTxVersion::<Runtime>::new(),
+            frame_system::CheckGenesis::<Runtime>::new(),
+            frame_system::CheckMortality::<Runtime>::from(Era::Immortal),
+            frame_system::CheckNonce::<Runtime>::from(frame_system::Module::<Runtime>::account_nonce(from)),
+            frame_system::CheckWeight::<Runtime>::new(),
+            pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+            claims::PrevalidateAttests::<Runtime>::new(),
         )
     }
 
@@ -172,7 +78,7 @@ impl ChainInfo for PolkadotChainInfo {
         config: &Configuration,
     ) -> Result<
         (
-            Arc<TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>>,
+            Arc<TFullClient<Self::Block, RuntimeApi, Self::Executor>>,
             Arc<TFullBackend<Self::Block>>,
             SyncCryptoStorePtr,
             TaskManager,
@@ -182,7 +88,7 @@ impl ChainInfo for PolkadotChainInfo {
                     dyn ConsensusDataProvider<
                         Self::Block,
                         Transaction = sp_api::TransactionFor<
-                            TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>,
+                            TFullClient<Self::Block, RuntimeApi, Self::Executor>,
                             Self::Block,
                         >,
                     >,
@@ -194,7 +100,7 @@ impl ChainInfo for PolkadotChainInfo {
         sc_service::Error,
     > {
         let (client, backend, keystore, task_manager) =
-            new_full_parts::<Self::Block, Self::RuntimeApi, Self::Executor>(config)?;
+            new_full_parts::<Self::Block, RuntimeApi, Self::Executor>(config)?;
         let client = Arc::new(client);
 
         let inherent_providers = InherentDataProviders::new();
@@ -230,19 +136,254 @@ impl ChainInfo for PolkadotChainInfo {
         ))
     }
 
-    fn dispatch_with_root(_call: <Self::Runtime as frame_system::Config>::Call, _node: &mut Node<Self>) {
-        todo!()
+    fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &mut Node<Self>) {
+        type DemocracyCall = pallet_democracy::Call<Runtime>;
+        type TechnicalCollectiveCall = pallet_collective::Call<Runtime, TechnicalCollective>;
+        type CouncilCollectiveCall = pallet_collective::Call<Runtime, CouncilCollective>;
+
+        // here lies a black mirror esque copy of on chain whales.
+        let whales = vec![
+            "1rvXMZpAj9nKLQkPFCymyH7Fg3ZyKJhJbrc7UtHbTVhJm1A",
+            "15j4dg5GzsL1bw2U2AWgeyAk6QTxq43V7ZPbXdAmbVLjvDCK",
+        ]
+            .into_iter()
+            .map(|account| AccountId32::from_str(account).unwrap())
+            .collect::<Vec<_>>();
+
+        // and these
+        let (technical_collective, council_collective) = node.with_state(|| (
+            pallet_collective::Members::<Runtime, TechnicalCollective>::get(),
+            pallet_collective::Members::<Runtime, CouncilCollective>::get()
+        ));
+
+        // note the call (pre-image?) of the call.
+        node.submit_extrinsic(DemocracyCall::note_preimage(call.encode()), whales[0].clone());
+        node.seal_blocks(1);
+
+        // fetch proposal hash from event emitted by the runtime
+        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let proposal_hash = events.into_iter()
+            .filter_map(|event| match event.event {
+                Event::pallet_democracy(
+                    pallet_democracy::RawEvent::PreimageNoted(proposal_hash, _, _)
+                ) => Some(proposal_hash),
+                _ => None
+            })
+            .next()
+            .unwrap();
+
+        // submit external_propose call through council
+        let external_propose = DemocracyCall::external_propose_majority(proposal_hash.clone().into());
+        let proposal_length = external_propose.using_encoded(|x| x.len()) as u32 + 1;
+        let proposal_weight = Weight::MAX / 100_000_000;
+        let proposal = CouncilCollectiveCall::propose(
+            council_collective.len() as u32,
+            Box::new(external_propose.clone().into()),
+            proposal_length
+        );
+
+        node.submit_extrinsic(proposal.clone(), council_collective[0].clone());
+        node.seal_blocks(1);
+
+        // fetch proposal index from event emitted by the runtime
+        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let (council_proposal_index, council_proposal_hash) = events.into_iter()
+            .filter_map(|event| {
+                match event.event {
+                    Event::pallet_collective_Instance1(
+                        pallet_collective::RawEvent::Proposed(_, index, proposal_hash, _)
+                    ) => Some((index, proposal_hash)),
+                    _ => None
+                }
+            })
+            .next()
+            .unwrap();
+
+        // vote
+        for member in &council_collective[1..] {
+            let call = CouncilCollectiveCall::vote(council_proposal_hash.clone(), council_proposal_index, true);
+            node.submit_extrinsic(call, member.clone());
+        }
+        node.seal_blocks(1);
+
+        // close vote
+        let call = CouncilCollectiveCall::close(council_proposal_hash, council_proposal_index, proposal_weight, proposal_length);
+        node.submit_extrinsic(call, council_collective[0].clone());
+        node.seal_blocks(1);
+
+        // assert that proposal has been passed on chain
+        let events = node.with_state(|| frame_system::Module::<Runtime>::events())
+            .into_iter()
+            .filter(|event| {
+                match event.event {
+                    Event::pallet_collective_Instance1(pallet_collective::RawEvent::Closed(_, _, _)) |
+                    Event::pallet_collective_Instance1(pallet_collective::RawEvent::Approved(_,)) |
+                    Event::pallet_collective_Instance1(pallet_collective::RawEvent::Executed(_, Ok(()))) => true,
+                    _ => false,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // make sure all 3 events are in state
+        assert_eq!(events.len(), 3);
+
+        // next technical collective must fast track the proposal.
+        let fast_track = DemocracyCall::fast_track(proposal_hash.into(), FastTrackVotingPeriod::get(), 0);
+        let proposal_weight = Weight::MAX / 100_000_000;
+        let fast_track_length = fast_track.using_encoded(|x| x.len()) as u32 + 1;
+        let proposal = TechnicalCollectiveCall::propose(
+            technical_collective.len() as u32,
+            Box::new(fast_track.into()),
+            fast_track_length
+        );
+
+        node.submit_extrinsic(proposal, technical_collective[0].clone());
+        node.seal_blocks(1);
+
+        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let (technical_proposal_index, technical_proposal_hash) = events.into_iter()
+            .filter_map(|event| {
+                match event.event {
+                    Event::pallet_collective_Instance2(
+                        pallet_collective::RawEvent::Proposed(_, index, hash, _)
+                    ) => Some((index, hash)),
+                    _ => None
+                }
+            })
+            .next()
+            .unwrap();
+
+        // vote
+        for member in &technical_collective[1..] {
+            let call = TechnicalCollectiveCall::vote(technical_proposal_hash.clone(), technical_proposal_index, true);
+            node.submit_extrinsic(call, member.clone());
+        }
+        node.seal_blocks(1);
+
+        // close vote
+        let call = TechnicalCollectiveCall::close(
+            technical_proposal_hash,
+            technical_proposal_index,
+            proposal_weight,
+            fast_track_length,
+        );
+        node.submit_extrinsic(call, technical_collective[0].clone());
+        node.seal_blocks(1);
+
+        // assert that fast-track proposal has been passed on chain
+        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let collective_events = events.iter()
+            .filter(|event| {
+                match event.event {
+                    Event::pallet_collective_Instance2(pallet_collective::RawEvent::Closed(_, _, _)) |
+                    Event::pallet_collective_Instance2(pallet_collective::RawEvent::Approved(_)) |
+                    Event::pallet_collective_Instance2(pallet_collective::RawEvent::Executed(_, Ok(()))) => true,
+                    _ => false,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // make sure all 3 events are in state
+        assert_eq!(collective_events.len(), 3);
+
+        // now runtime upgrade proposal is a fast-tracked referendum we can vote for.
+        let referendum_index = events.into_iter()
+            .filter_map(|event| match event.event {
+                Event::pallet_democracy(pallet_democracy::Event::<Runtime>::Started(index, _)) => Some(index),
+                _ => None,
+            })
+            .next()
+            .unwrap();
+        let call = DemocracyCall::vote(
+            referendum_index,
+            AccountVote::Standard {
+                vote: Vote { aye: true, conviction: Conviction::Locked1x },
+                // 10 DOTS
+                balance: 10_000_000_000_000
+            }
+        );
+        for whale in whales {
+            node.submit_extrinsic(call.clone(), whale);
+        }
+
+        // wait for fast track period.
+        node.seal_blocks(FastTrackVotingPeriod::get() as usize);
+
+        // assert that the runtime is upgraded by looking at events
+        let events = node.with_state(|| frame_system::Module::<Runtime>::events())
+            .into_iter()
+            .filter(|event| {
+                match event.event {
+                    Event::frame_system(frame_system::Event::CodeUpdated) |
+                    Event::pallet_democracy(pallet_democracy::RawEvent::Passed(_)) |
+                    Event::pallet_democracy(pallet_democracy::RawEvent::PreimageUsed(_, _, _)) |
+                    Event::pallet_democracy(pallet_democracy::RawEvent::Executed(_, true)) => true,
+                    _ => false,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // make sure event is in state
+        assert_eq!(events.len(), 4);
+
+        // trigger on_runtime_upgraded
+        node.seal_blocks(1);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_runner::Node;
+    use test_runner::NodeConfig;
+    use log::LevelFilter;
+    use frame_support::log::LevelFilter;
+    use sc_client_api::execution_extensions::ExecutionStrategies;
+    use polkadot_service::chain_spec::polkadot_config;
 
     #[test]
-    fn it_works() {
-        let mut node = Node::<PolkadotChainInfo>::new().unwrap();
-        node.seal_blocks(15_000);
+    fn test_runner() {
+        let config = NodeConfig {
+            execution_strategies: ExecutionStrategies {
+                syncing: sc_client_api::ExecutionStrategy::AlwaysWasm,
+                importing: sc_client_api::ExecutionStrategy::AlwaysWasm,
+                block_construction: sc_client_api::ExecutionStrategy::AlwaysWasm,
+                offchain_worker: sc_client_api::ExecutionStrategy::AlwaysWasm,
+                other: sc_client_api::ExecutionStrategy::AlwaysWasm,
+            },
+            chain_spec: Box::new(polkadot_config()),
+            log_targets: vec![
+                ("yamux", LevelFilter::Off),
+                ("multistream_select", LevelFilter::Off),
+                ("libp2p", LevelFilter::Off),
+                ("jsonrpc_client_transports", LevelFilter::Off),
+                ("sc_network", LevelFilter::Off),
+                ("tokio_reactor", LevelFilter::Off),
+                ("parity-db", LevelFilter::Off),
+                ("sub-libp2p", LevelFilter::Off),
+                ("sync", LevelFilter::Off),
+                ("peerset", LevelFilter::Off),
+                ("ws", LevelFilter::Off),
+                ("sc_network", LevelFilter::Off),
+                ("sc_service", LevelFilter::Off),
+                ("sc_basic_authorship", LevelFilter::Off),
+                ("telemetry-logger", LevelFilter::Off),
+                ("sc_peerset", LevelFilter::Off),
+                ("rpc", LevelFilter::Off),
+
+                ("runtime", LevelFilter::Trace),
+                ("babe", LevelFilter::Debug)
+            ],
+        };
+        let mut node = Node::<PolkadotChainInfo>::new(config).unwrap();
+        // seals blocks
+        node.seal_blocks(1);
+        // submit extrinsics
+        let alice = MultiSigner::from(Alice.public()).into_account();
+        node.submit_extrinsic(frame_system::Call::remark((b"hello world").to_vec()), alice);
+
+        // look ma, I can read state.
+        let _events = node.with_state(|| frame_system::Pallet::<node_runtime::Runtime>::events());
+        // get access to the underlying client.
+        let _client = node.client();
     }
 }

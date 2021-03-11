@@ -10,36 +10,37 @@ edition = "2018"
 
 test-runner = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { version = "0.8.28", path = "../../../primitives" }
 polkadot-cli = { path = "../../../cli", version = "0.8.0" }
 
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sc-informant = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-informant = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-service = { path = "../../../node/service", version = "0.8.3" }
 polkadot-runtime = { path = "../../../runtime/polkadot", version = "0.8.28" }
 polkadot-runtime-common = { path = "../../../runtime/common", version = "0.8.28" }
 
 rand = "0.7"
+codec = { package = "parity-scale-codec", version = "2.0.0" }
