@@ -7051,7 +7051,7 @@ dependencies = [
 [[package]]
 name = "rs-ec-perf"
 version = "0.1.0"
-source = "git+https://github.com/drahnr/rs-ec-perf.git?branch=bernhard-api-retrofit#796cd39e04a5622685a60e5362848f0b528da9bb"
+source = "git+https://github.com/drahnr/rs-ec-perf.git?branch=master#d52f89e04f5078acb81aa6e5dc560fe6aa9e80a8"
 dependencies = [
  "assert_matches",
  "fs-err",
