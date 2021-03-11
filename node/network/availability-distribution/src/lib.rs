@@ -113,7 +113,7 @@ impl AvailabilityDistributionSubsystem {
 						.update_fetching_heads(&mut ctx, update)
 						.await?
 					{
-						tracing::debug!(target: LOG_TARGET, "Error processing ActiveLeavesUpdate: {}", e);
+						tracing::debug!(target: LOG_TARGET, "Error processing ActiveLeavesUpdate: {:?}", e);
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
