@@ -76,7 +76,10 @@ pub enum Error {
 	BranchOutOfBounds,
 	/// Unknown error
 	#[error("An unknown error has appeared when reconstructing erasure code chunks")]
-	UnknownReconstruction
+	UnknownReconstruction,
+	/// Unknown error
+	#[error("An unknown error has appeared when deriving code parameters from validator count")]
+	UnknownCodeParam,
 }
 
 /// Returns the maximum number of allowed, faulty chunks
@@ -90,13 +93,14 @@ const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
 }
 
 fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
-	if n_validators < 2 {
-		Err(Error::NotEnoughValidators)
-	} else if n_validators > MAX_VALIDATORS {
-		Err(Error::TooManyValidators)
-	} else {
-		Ok(CodeParams::derive_from_validator_count(n_validators))
-	}
+	CodeParams::derive_from_validator_count(n_validators)
+		.map_err(|e| {
+			match e {
+				novelpoly::Error::ValidatorCountTooHigh{ .. } => Error::TooManyValidators,
+				novelpoly::Error::ValidatorCountTooLow{ .. } => Error::NotEnoughValidators,
+				_ => Error::UnknownCodeParam,
+			}
+		})
 }
 
 /// Obtain a threshold of chunks that should be enough to recover the data.
@@ -381,55 +385,6 @@ mod tests {
 	#[test]
 	fn field_order_is_right_size() {
 		assert_eq!(MAX_VALIDATORS, 65536);
-	}
-
-	#[test]
-	fn test_code_params() {
-		assert_eq!(code_params(0), Err(Error::NotEnoughValidators));
-
-		assert_eq!(code_params(1), Err(Error::NotEnoughValidators));
-
-		assert_eq!(code_params(2), Ok(CodeParams {
-			data_shards: 1,
-			parity_shards: 1,
-		}));
-
-		assert_eq!(code_params(3), Ok(CodeParams {
-			data_shards: 1,
-			parity_shards: 2,
-		}));
-
-		assert_eq!(code_params(4), Ok(CodeParams {
-			data_shards: 2,
-			parity_shards: 2,
-		}));
-
-		assert_eq!(code_params(100), Ok(CodeParams {
-			data_shards: 34,
-			parity_shards: 66,
-		}));
-	}
-
-	#[test]
-	fn shard_len_is_reasonable() {
-		let mut params = CodeParams {
-			data_shards: 5,
-			parity_shards: 0, // doesn't affect calculation.
-		};
-
-		assert_eq!(params.shard_len(100), 20);
-		assert_eq!(params.shard_len(99), 20);
-
-		// see if it rounds up to 2.
-		assert_eq!(params.shard_len(95), 20);
-		assert_eq!(params.shard_len(94), 20);
-
-		assert_eq!(params.shard_len(89), 18);
-
-		params.data_shards = 7;
-
-		// needs 3 bytes to fit, rounded up to next even number.
-		assert_eq!(params.shard_len(19), 4);
 	}
 
     #[test]
