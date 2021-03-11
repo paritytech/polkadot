@@ -149,6 +149,10 @@ decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
+		const ParaDeposit: BalanceOf<T> = T::ParaDeposit::get();
+		const MaxCodeSize: u32 = T::MaxCodeSize::get();
+		const MaxHeadSize: u32 = T::MaxHeadSize::get();
+
 		fn deposit_event() = default;
 
 		/// Register a Para Id on the relay chain.

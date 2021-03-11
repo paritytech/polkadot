@@ -174,6 +174,8 @@ decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
+		const EndingPeriod: T::BlockNumber = T::EndingPeriod::get();
+
 		fn deposit_event() = default;
 
 		fn on_initialize(n: T::BlockNumber) -> Weight {

@@ -289,6 +289,8 @@ decl_module! {
 		type Error = Error<T>;
 
 		const ModuleId: ModuleId = T::ModuleId::get();
+		const MinContribution: BalanceOf<T> = T::MinContribution::get();
+		const RemoveKeysLimit: u32 = T::RemoveKeysLimit::get();
 
 		fn deposit_event() = default;
 
