@@ -854,7 +854,7 @@ impl pallet_lottery::Config for Runtime {
 	type ModuleId = LotteryModuleId;
 	type Call = Call;
 	type Currency = Balances;
-	type Randomness = Babe;
+	type Randomness = pallet_babe::RandomnessFromTwoEpochsAgo<Runtime>;
 	type Event = Event;
 	type ManagerOrigin = MoreThanHalfCouncil;
 	type MaxCalls = MaxLottoCalls;
