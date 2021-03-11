@@ -341,6 +341,14 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
+/*
+static const AUCTIONED_SLOTS = 0;
+static const GILTS_PERCENT = 15;
+static const IDEAL_STAKE_PERCENT = 75 - AUCTIONED_SLOTS / 2 - 3 * GILTS_PERCENT / 4;
+static const MAX_INFLATION_PERCENT = 10;
+static const MAX_STAKING_REWARD_PERCENT = ...;
+*/
+
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
@@ -392,7 +400,7 @@ impl pallet_staking::Config for Runtime {
 	// A majority of the council or root can cancel the slash.
 	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
-	type RewardCurve = RewardCurve;
+	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;

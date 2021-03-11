@@ -372,7 +372,7 @@ impl pallet_staking::Config for Runtime {
 	// A majority of the council can cancel the slash.
 	type SlashCancelOrigin = EnsureRoot<AccountId>;
 	type SessionInterface = Self;
-	type RewardCurve = RewardCurve;
+	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
