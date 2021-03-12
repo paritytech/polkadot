@@ -383,7 +383,9 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 		use sp_arithmetic::{Perquintill, traits::Saturating};
 
 		const AUCTIONED_SLOTS: u64 = 0;
-		const MAX_ANNUAL_INFLATION_PERCENT: u64 = 10;
+		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
+		let min_annual_inflation = Perquintill::from_rational(25u64, 1000u64);
+		let delta_annual_inflation = MAX_ANNUAL_INFLATION.saturating_sub(min_annual_inflation);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
 		// 30% reserved for up to 60 slots.
@@ -397,13 +399,12 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 		let non_gilt_issuance = Gilt::issuance().non_gilt;
 		let staked_fraction = Perquintill::from_rational(total_staked, non_gilt_issuance);
 		let adjustment = curve_lookup(staked_fraction, ideal_stake_proportion);
-		let max_inflation = Perquintill::from_percent(MAX_ANNUAL_INFLATION_PERCENT);
-		let staking_inflation = max_inflation * adjustment;
+		let staking_inflation = min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
 
 		// Milliseconds per year for the Julian year (365.25 days).
 		let period_fraction = Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR);
 
-		let max_payout = period_fraction * max_inflation * non_gilt_issuance;
+		let max_payout = period_fraction * MAX_ANNUAL_INFLATION * non_gilt_issuance;
 		let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
 		let rest = max_payout.saturating_sub(staking_payout);
 
