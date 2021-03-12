@@ -30,6 +30,9 @@ jobs:
           toolchain: nightly
           target: wasm32-unknown-unknown
 
+      - name: Install honggfuzz deps
+        run: sudo apt-get install --no-install-recommends binutils-dev libunwind8-dev
+
       - name: Install honggfuzz
         uses: actions-rs/cargo@v1
         with:
