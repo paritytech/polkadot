@@ -809,7 +809,7 @@ mod tests {
 				alice(),
 				50,
 				50,
-				Permill::from_rational_approximation(77u32, 1000u32),
+				Permill::from_rational(77u32, 1000u32),
 			));
 			assert_eq!(
 				Accounts::<Test>::get(alice()),

@@ -40,7 +40,7 @@ use runtime_common::{
 use sp_runtime::{create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority}, curve::PiecewiseLinear, traits::{
 	BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
 	Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
-}, Perquintill};
+}};
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
 use sp_version::RuntimeVersion;
@@ -51,7 +51,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter, Imbalance},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -71,7 +71,6 @@ pub use pallet_balances::Call as BalancesCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
-use frame_support::traits::{OnUnbalanced, Currency};
 
 // Weights used in the runtime.
 mod weights;
@@ -312,7 +311,7 @@ parameter_types! {
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational_approximation(1u32, 10_000);
+	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
 	// miner configs
 	pub MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
@@ -343,6 +342,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
+		// 10% - this is baked in here.
 		max_inflation: 0_100_000,
 		// 3:2:1 staked : parachains : float.
 		// while there's no parachains, then this is 75% staked : 25% float.
@@ -353,6 +353,29 @@ pallet_staking_reward_curve::build! {
 	);
 }
 
+fn curve_lookup<Q>(x: Q, ideal_stake_proportion: Q) -> (Q, Q) where
+	Q: sp_arithmetic::PerThing + sp_std::ops::Div + sp_std::ops::Div<u64, Output=Q>,
+	Q::Inner: sp_arithmetic::traits::AtLeast32BitUnsigned,
+{
+	use sp_arithmetic::PerThing;
+	let new_x = if x < ideal_stake_proportion {
+		// too low.
+		(x / ideal_stake_proportion) / 2u64
+	} else {
+		// too high.
+		let amount_over = x.saturating_sub(ideal_stake_proportion);
+		let max_amount_over = ideal_stake_proportion.left_from_one();
+		let half_of_fraction_over = (amount_over / max_amount_over) / 2u64;
+		let half = Q::one() / 2u64;
+		half.saturating_add(half_of_fraction_over)
+	};
+	let p = new_x.deconstruct();
+	let q = Q::ACCURACY;
+	let r = REWARD_CURVE.calculate_for_fraction_times_denominator(p, q);
+	let d = Perbill::ACCURACY as u128;
+	(Q::from_parts(r), Q::from_rational(REWARD_CURVE.maximum.deconstruct() as u128, d))
+}
+
 pub struct ModifiedRewardCurve;
 impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 	fn era_payout(
@@ -360,50 +383,38 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 		_total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
-		use sp_arithmetic::Perquintill;
+		use sp_arithmetic::{Perquintill, traits::Saturating};
 
-		const AUCTIONED_SLOTS: u32 = 0;
-		const GILTS_PERCENT: u32 = 15;
-		const MAX_INFLATION_PERCENT: u32 = 10;
+		const AUCTIONED_SLOTS: u64 = 0;
 
 		// 30% reserved for up to 60 slots.
-		let auctions_in_use = Perquintill::from_rational_approximation(AUCTIONED_SLOTS.max(60), 60);
-		let auction_proportion = auctions_in_use * Perquintill::from_percent(30);
+		let auctions_in_use = Perquintill::from_rational(AUCTIONED_SLOTS.max(60), 60u64);
+		let auction_proportion = Perquintill::from_percent(30) * auctions_in_use;
 		// The gilt proportion is just the gilt target adjusted down by 25%.
-		let gilt_proportion: Perquintill = Gilt::target() * Perquintill::from_percent(75);
-
+		let gilt_proportion = Perquintill::from_percent(75) * Gilt::target();
 		let ideal_stake_proportion = Perquintill::from_percent(75)
 			.saturating_sub(auction_proportion)
 			.saturating_sub(gilt_proportion);
+		let non_gilt_issuance = Gilt::issuance().non_gilt;
+		let staked_fraction = Perquintill::from_rational(total_staked, non_gilt_issuance);
+		let (staking_inflation, max_inflation) = curve_lookup(staked_fraction, ideal_stake_proportion);
 
 		// Milliseconds per year for the Julian year (365.25 days).
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
-		let portion = Perquintill::from_rational_approximation(era_duration_millis, MILLISECONDS_PER_YEAR);
+		let period_fraction = Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR);
 
-		let non_gilt_issuance = Gilt::issuance().non_gilt;
-
-		let fraction = Perquintill::from_rational_approximation(total_staked, non_gilt_issuance);
-		let x = if fraction.inner() < ideal_stake_proportion.inner() {
-			// too low.
-			let fraction_under = fraction / ideal_stake_proportion;
-			fraction_under / 2
-		} else {
-			// too high.
-			let amount_over = Perquintill::from_parts(ideal_stake_proportion.inner() - fraction.inner());
-			let max_amount_over = ideal_stake_proportion.left_from_one();
-			let fraction_over = amount_over / max_amount_over;
-			Perquintill::one() / 2 + fraction_over / 2
-		};
-		let reward_fraction = REWARD_CURVE.calculate_for_fraction_times_denominator(x, Perquintill::ACCURACY);
-		let validator_payout = portion * reward_fraction;
-
-		let max_payout = portion * (REWARD_CURVE.maximum * non_gilt_issuance);
-		let rest = max_payout.saturating_sub(validator_payout);
+		let max_payout = period_fraction * max_inflation * non_gilt_issuance;
+		let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
+		let rest = max_payout.saturating_sub(staking_payout);
 
 		let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
-		let cap_rest = Perquintill::from_rational_approximation(other_issuance, total_staked) * validator_payout;
-
-		(validator_payout, rest.min(cap_rest))
+		let cap_rest = if total_staked > other_issuance {
+			Perquintill::from_rational(other_issuance, total_staked) * staking_payout
+		} else {
+			Perquintill::from_rational(total_staked, other_issuance)
+				.saturating_reciprocal_mul(staking_payout)
+		};
+		(staking_payout, rest.min(cap_rest))
 	}
 }
 
@@ -419,7 +430,7 @@ parameter_types! {
 	// quarter of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub MinSolutionScoreBump: Perbill = Perbill::from_rational(5u32, 10_000);
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -444,7 +455,6 @@ impl pallet_staking::Config for Runtime {
 	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
 	type EraPayout = ModifiedRewardCurve;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
