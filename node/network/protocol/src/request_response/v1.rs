@@ -83,8 +83,10 @@ impl IsRequest for AvailabilityFetchingRequest {
 /// Request the advertised collation at that relay-parent.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CollationFetchingRequest {
-	relay_parent: Hash,
-	para_id: ParaId,
+	/// Relay parent we want a collation for.
+	pub relay_parent: Hash,
+	/// The `ParaId` of the collation.
+	pub para_id: ParaId,
 }
 
 /// Responses as sent by collators.

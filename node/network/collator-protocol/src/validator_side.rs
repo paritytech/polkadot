@@ -17,7 +17,7 @@
 use std::{collections::{HashMap, HashSet}, task::Poll, sync::Arc, };
 
 use futures::{FutureExt, StreamExt, channel::oneshot,
-    future::{Fuse, FusedFuture, LocalBoxFuture}
+    future::{Fuse, FusedFuture, BoxFuture}
 };
 use always_assert::never;
 
@@ -122,7 +122,7 @@ impl metrics::Metrics for Metrics {
 
 struct PerRequest {
 	/// Responses from collator.
-	from_collator: Fuse<LocalBoxFuture<'static, req_res::OutgoingResult<CollationFetchingResponse>>>,
+	from_collator: Fuse<BoxFuture<'static, req_res::OutgoingResult<CollationFetchingResponse>>>,
     /// Sender to forward to initial requester.
     to_requester: oneshot::Sender<(CandidateReceipt, PoV)>,
 }
@@ -325,7 +325,7 @@ where
 	let requests = Requests::CollationFetching(full_request);
 
     let per_request = PerRequest {
-        from_collator: response_recv.boxed_local().fuse(),
+        from_collator: response_recv.boxed().fuse(),
         to_requester: result,
     };
 
@@ -416,7 +416,7 @@ async fn remove_relay_parent(
 	state: &mut State,
 	relay_parent: Hash,
 ) -> Result<()> {
-	state.requested_collations.retain(|k, v| {
+	state.requested_collations.retain(|k, _| {
 		k.0 != relay_parent
 	});
 	Ok(())
@@ -624,7 +624,7 @@ where
                     err = ?err,
                     "Collator provided response that could not be decoded"
                 );
-                modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE);
+                modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
             }
             Err(RequestError::NetworkError(err)) => {
                 tracing::warn!(
@@ -639,7 +639,7 @@ where
                 // sensbile. In theory this could be exploited, by DoSing this node,
                 // which would result in reduced reputation for proper nodes, but the
                 // same can happen for penalities on timeouts, which we also have.
-                modify_reputation(ctx, *peer_id, COST_NETWORK_ERROR);
+                modify_reputation(ctx, *peer_id, COST_NETWORK_ERROR).await;
             }
             Err(RequestError::Canceled(_)) => {
                 tracing::warn!(
@@ -653,7 +653,7 @@ where
                 // sensbile. In theory this could be exploited, by DoSing this node,
                 // which would result in reduced reputation for proper nodes, but the
                 // same can happen for penalities on timeouts, which we also have.
-                modify_reputation(ctx, *peer_id, COST_REQUEST_TIMED_OUT);
+                modify_reputation(ctx, *peer_id, COST_REQUEST_TIMED_OUT).await;
             }
             Ok(CollationFetchingResponse::Collation(receipt, compressed_pov)) => {
                 let pov = match compressed_pov.decompress() {
@@ -665,7 +665,15 @@ where
                             candidate_hash = ?receipt.hash(),
                             "Received collation",
                         );
-                        per_req.to_requester.send((receipt, pov));
+                        if let Err(err) = per_req.to_requester.send((receipt, pov)) {
+                            tracing::warn!(
+                                target: LOG_TARGET,
+                                hash = ?hash,
+                                para_id = ?para_id,
+                                peer_id = ?peer_id,
+                                "Sending response back to requester failed (receiving side closed)"
+                            );
+                        }
                     }
                     Err(error) => {
                         tracing::warn!(
@@ -676,7 +684,7 @@ where
                             ?error,
                             "Failed to extract PoV",
                         );
-                        modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE);
+                        modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
                     }
                 };
             }

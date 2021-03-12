@@ -456,10 +456,12 @@ impl PoV {
 
 /// SCALE and Zstd encoded [`PoV`].
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
+#[cfg(not(target_os = "unknown"))]
 pub struct CompressedPoV(Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[allow(missing_docs)]
+#[cfg(not(target_os = "unknown"))]
 pub enum CompressedPoVError {
 	#[error("Failed to compress a PoV")]
 	Compress,
@@ -471,6 +473,7 @@ pub enum CompressedPoVError {
 	NotSupported,
 }
 
+#[cfg(not(target_os = "unknown"))]
 impl CompressedPoV {
 	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
 	#[cfg(not(target_os = "unknown"))]
@@ -515,6 +518,7 @@ impl CompressedPoV {
 	}
 }
 
+#[cfg(not(target_os = "unknown"))]
 impl std::fmt::Debug for CompressedPoV {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "CompressedPoV({} bytes)", self.0.len())
@@ -726,7 +730,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
-    // NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
@@ -1078,6 +1082,7 @@ mod tests {
 	}
 
 
+	#[cfg(not(target_os = "unknown"))]
 	#[test]
 	fn decompress_huge_pov_block_fails() {
 		let pov = PoV { block_data: vec![0; 63 * 1024 * 1024].into() };
