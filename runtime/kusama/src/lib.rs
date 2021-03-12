@@ -643,8 +643,8 @@ impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type ValidatorSet = Historical;
+	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
-	type SessionDuration = SessionDuration;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 }
