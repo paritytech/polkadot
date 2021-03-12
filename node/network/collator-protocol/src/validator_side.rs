@@ -567,7 +567,7 @@ where
 	use OverseerSignal::*;
 
 	let mut state = State {
-		metrics: metrics.clone(),
+		metrics,
 		..Default::default()
 	};
 
@@ -588,7 +588,7 @@ where
 		let mut retained_requested = HashMap::new();
 		for ((hash, para_id, peer_id), per_req) in state.requested_collations.into_iter() {
 			// Despite the await, this won't block:
-			if let Some(retained) = poll_collation_response(&mut ctx, &metrics, &hash, &para_id, &peer_id, per_req).await {
+			if let Some(retained) = poll_collation_response(&mut ctx, &state, &hash, &para_id, &peer_id, per_req).await {
 				retained_requested.insert((hash, para_id, peer_id), retained);
 			}
 		}
@@ -604,7 +604,7 @@ where
 /// forwarding proper responses to the requester.
 async fn poll_collation_response<Context>(
 	ctx: &mut Context,
-	metrics: &Metrics,
+	state: &State,
 	hash: &Hash,
 	para_id: &ParaId,
 	peer_id: &PeerId,
@@ -621,8 +621,11 @@ where
 			);
 		return None
 	}
+
 	if let Poll::Ready(response) = futures::poll!(&mut per_req.from_collator) {
-		let _timer = metrics.time_handle_collation_request_result();
+		let _span = state.span_per_relay_parent.get(&hash)
+				.map(|s| s.child("received-collation"));
+		let _timer = state.metrics.time_handle_collation_request_result();
 
 		let mut metrics_result = Err(());
 
@@ -679,6 +682,7 @@ where
 							);
 
 						// Actual sending:
+						let _span = jaeger::pov_span(&pov, "received-collation");
 						let result = per_req.to_requester.send((receipt, pov));
 
 						if let Err(_) = result  {
@@ -708,7 +712,7 @@ where
 				};
 			}
 		};
-		metrics.on_request(metrics_result);
+		state.metrics.on_request(metrics_result);
 		None
 	} else {
 		Some(per_req)
