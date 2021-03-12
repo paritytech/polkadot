@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::{HashMap, HashSet}, task::Poll, sync::Arc, };
+use std::{collections::{HashMap, HashSet}, task::Poll, sync::Arc};
 
-use futures::{FutureExt, channel::oneshot,
-    future::{Fuse, FusedFuture, BoxFuture}
+use futures::{
+	FutureExt, channel::oneshot,
+	future::{Fuse, FusedFuture, BoxFuture}
 };
 use always_assert::never;
 
@@ -32,7 +33,10 @@ use polkadot_subsystem::{
 		NetworkBridgeEvent, IfDisconnected,
 	},
 };
-use polkadot_node_network_protocol::{OurView, PeerId, UnifiedReputationChange as Rep, View, request_response::{OutgoingRequest, Requests, request::{Recipient, RequestError}}, v1 as protocol_v1};
+use polkadot_node_network_protocol::{
+	OurView, PeerId, UnifiedReputationChange as Rep, View,
+	request_response::{OutgoingRequest, Requests, request::{Recipient, RequestError}}, v1 as protocol_v1
+};
 use polkadot_node_network_protocol::request_response::v1::{CollationFetchingRequest, CollationFetchingResponse};
 use polkadot_node_network_protocol::request_response as req_res;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
@@ -123,8 +127,8 @@ impl metrics::Metrics for Metrics {
 struct PerRequest {
 	/// Responses from collator.
 	from_collator: Fuse<BoxFuture<'static, req_res::OutgoingResult<CollationFetchingResponse>>>,
-    /// Sender to forward to initial requester.
-    to_requester: oneshot::Sender<(CandidateReceipt, PoV)>,
+	/// Sender to forward to initial requester.
+	to_requester: oneshot::Sender<(CandidateReceipt, PoV)>,
 }
 
 /// All state relevant for the validator side of the protocol lives here.
@@ -324,10 +328,10 @@ where
 		});
 	let requests = Requests::CollationFetching(full_request);
 
-    let per_request = PerRequest {
-        from_collator: response_recv.boxed().fuse(),
-        to_requester: result,
-    };
+	let per_request = PerRequest {
+		from_collator: response_recv.boxed().fuse(),
+		to_requester: result,
+	};
 
 	state.requested_collations.insert((relay_parent, para_id.clone(), peer_id.clone()), per_request);
 
@@ -338,7 +342,6 @@ where
 		?relay_parent,
 		"Requesting collation",
 	);
-
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError))
@@ -398,11 +401,11 @@ where
 			}
 		}
 		CollationSeconded(_) => {
-            tracing::warn!(
-                target: LOG_TARGET,
-                peer_id = ?origin,
-                "Unexpected `CollationSeconded` message, decreasing reputation",
-            );
+			tracing::warn!(
+				target: LOG_TARGET,
+				peer_id = ?origin,
+				"Unexpected `CollationSeconded` message, decreasing reputation",
+				);
 			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 	}
@@ -564,7 +567,7 @@ where
 	use OverseerSignal::*;
 
 	let mut state = State {
-		metrics,
+		metrics: metrics.clone(),
 		..Default::default()
 	};
 
@@ -582,14 +585,14 @@ where
 			continue;
 		}
 
-        let mut retained_requested = HashMap::new();
-        for ((hash, para_id, peer_id), per_req) in state.requested_collations.into_iter() {
-            // Despite the await, this won't block:
-            if let Some(retained) = poll_collation_response(&mut ctx, &hash, &para_id, &peer_id, per_req).await {
-                retained_requested.insert((hash, para_id, peer_id), retained);
-            }
-        }
-        state.requested_collations = retained_requested;
+		let mut retained_requested = HashMap::new();
+		for ((hash, para_id, peer_id), per_req) in state.requested_collations.into_iter() {
+			// Despite the await, this won't block:
+			if let Some(retained) = poll_collation_response(&mut ctx, &metrics, &hash, &para_id, &peer_id, per_req).await {
+				retained_requested.insert((hash, para_id, peer_id), retained);
+			}
+		}
+		state.requested_collations = retained_requested;
 		futures::pending!();
 	}
 	Ok(())
@@ -600,103 +603,116 @@ where
 /// Ready responses are handled, by logging and decreasing peer's reputation on error and by
 /// forwarding proper responses to the requester.
 async fn poll_collation_response<Context>(
-    ctx: &mut Context, hash: &Hash, para_id: &ParaId, peer_id: &PeerId, mut per_req: PerRequest
-) 
+	ctx: &mut Context,
+	metrics: &Metrics,
+	hash: &Hash,
+	para_id: &ParaId,
+	peer_id: &PeerId,
+	mut per_req: PerRequest
+)
 -> Option<PerRequest>
 where
 	Context: SubsystemContext
 {
-    if never!(per_req.from_collator.is_terminated()) {
-        tracing::error!(
-            target: LOG_TARGET,
-            "We remove pending responses once received, this should not happen."
-            );
-        return None
-    }
-    if let Poll::Ready(response) = futures::poll!(&mut per_req.from_collator) {
-        match response {
-            Err(RequestError::InvalidResponse(err)) => {
-                tracing::warn!(
-                    target: LOG_TARGET,
-                    hash = ?hash,
-                    para_id = ?para_id,
-                    peer_id = ?peer_id,
-                    err = ?err,
-                    "Collator provided response that could not be decoded"
-                );
-                modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
-            }
-            Err(RequestError::NetworkError(err)) => {
-                tracing::warn!(
-                    target: LOG_TARGET,
-                    hash = ?hash,
-                    para_id = ?para_id,
-                    peer_id = ?peer_id,
-                    err = ?err,
-                    "Fetching collation failed due to network error"
-                );
-                // A minor decrease in reputation for any network failure seems
-                // sensbile. In theory this could be exploited, by DoSing this node,
-                // which would result in reduced reputation for proper nodes, but the
-                // same can happen for penalities on timeouts, which we also have.
-                modify_reputation(ctx, *peer_id, COST_NETWORK_ERROR).await;
-            }
-            Err(RequestError::Canceled(_)) => {
-                tracing::warn!(
-                    target: LOG_TARGET,
-                    hash = ?hash,
-                    para_id = ?para_id,
-                    peer_id = ?peer_id,
-                    "Request timed out"
-                );
-                // A minor decrease in reputation for any network failure seems
-                // sensbile. In theory this could be exploited, by DoSing this node,
-                // which would result in reduced reputation for proper nodes, but the
-                // same can happen for penalities on timeouts, which we also have.
-                modify_reputation(ctx, *peer_id, COST_REQUEST_TIMED_OUT).await;
-            }
-            Ok(CollationFetchingResponse::Collation(receipt, compressed_pov)) => {
-                match compressed_pov.decompress() {
-                    Ok(pov) => {
-                        tracing::debug!(
-                            target: LOG_TARGET,
-                            para_id = ?para_id,
-                            hash = ?hash,
-                            candidate_hash = ?receipt.hash(),
-                            "Received collation",
-                        );
+	if never!(per_req.from_collator.is_terminated()) {
+		tracing::error!(
+			target: LOG_TARGET,
+			"We remove pending responses once received, this should not happen."
+			);
+		return None
+	}
+	if let Poll::Ready(response) = futures::poll!(&mut per_req.from_collator) {
+		let _timer = metrics.time_handle_collation_request_result();
 
-                        // Actual sending:
-                        let result = per_req.to_requester.send((receipt, pov));
+		let mut metrics_result = Err(());
 
-                        if let Err(_) = result  {
-                            tracing::warn!(
-                                target: LOG_TARGET,
-                                hash = ?hash,
-                                para_id = ?para_id,
-                                peer_id = ?peer_id,
-                                "Sending response back to requester failed (receiving side closed)"
-                            );
-                        }
-                    }
-                    Err(error) => {
-                        tracing::warn!(
-                            target: LOG_TARGET,
-                            hash = ?hash,
-                            para_id = ?para_id,
-                            peer_id = ?peer_id,
-                            ?error,
-                            "Failed to extract PoV",
-                        );
-                        modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
-                    }
-                };
-            }
-        };
-        None
-    } else {
-        Some(per_req)
-    }
+		match response {
+			Err(RequestError::InvalidResponse(err)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					hash = ?hash,
+					para_id = ?para_id,
+					peer_id = ?peer_id,
+					err = ?err,
+					"Collator provided response that could not be decoded"
+					);
+				modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
+			}
+			Err(RequestError::NetworkError(err)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					hash = ?hash,
+					para_id = ?para_id,
+					peer_id = ?peer_id,
+					err = ?err,
+					"Fetching collation failed due to network error"
+					);
+				// A minor decrease in reputation for any network failure seems
+				// sensbile. In theory this could be exploited, by DoSing this node,
+				// which would result in reduced reputation for proper nodes, but the
+				// same can happen for penalities on timeouts, which we also have.
+				modify_reputation(ctx, *peer_id, COST_NETWORK_ERROR).await;
+			}
+			Err(RequestError::Canceled(_)) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					hash = ?hash,
+					para_id = ?para_id,
+					peer_id = ?peer_id,
+					"Request timed out"
+					);
+				// A minor decrease in reputation for any network failure seems
+				// sensbile. In theory this could be exploited, by DoSing this node,
+				// which would result in reduced reputation for proper nodes, but the
+				// same can happen for penalities on timeouts, which we also have.
+				modify_reputation(ctx, *peer_id, COST_REQUEST_TIMED_OUT).await;
+			}
+			Ok(CollationFetchingResponse::Collation(receipt, compressed_pov)) => {
+				match compressed_pov.decompress() {
+					Ok(pov) => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							para_id = ?para_id,
+							hash = ?hash,
+							candidate_hash = ?receipt.hash(),
+							"Received collation",
+							);
+
+						// Actual sending:
+						let result = per_req.to_requester.send((receipt, pov));
+
+						if let Err(_) = result  {
+							tracing::warn!(
+								target: LOG_TARGET,
+								hash = ?hash,
+								para_id = ?para_id,
+								peer_id = ?peer_id,
+								"Sending response back to requester failed (receiving side closed)"
+								);
+						} else {
+							metrics_result = Ok(());
+						}
+
+					}
+					Err(error) => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							hash = ?hash,
+							para_id = ?para_id,
+							peer_id = ?peer_id,
+							?error,
+							"Failed to extract PoV",
+							);
+						modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
+					}
+				};
+			}
+		};
+		metrics.on_request(metrics_result);
+		None
+	} else {
+		Some(per_req)
+	}
 }
 
 #[cfg(test)]
