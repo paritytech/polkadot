@@ -14,7 +14,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 5
-          # submodules: recursive
 
       - name: Install minimal stable Rust
         uses: actions-rs/toolchain@v1
@@ -42,5 +41,5 @@ jobs:
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
         shell: bash
-        run: timeout 5h cargo hfuzz run round_trip
+        run: not timeout 5h cargo hfuzz run round_trip
 
