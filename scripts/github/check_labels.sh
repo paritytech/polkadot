@@ -29,6 +29,12 @@ priority_labels=(
   'C9-critical'
 )
 
+audit_labels=(
+  'D1-audited👍'
+  'D5-nicetohaveaudit⚠️ '
+  'D9-needsaudit👮'
+)
+
 echo "[+] Checking release notes (B) labels for $CI_COMMIT_BRANCH"
 if ensure_labels "${releasenotes_labels[@]}";  then
   echo "[+] Release notes label detected. All is well."
@@ -43,6 +49,16 @@ if ensure_labels "${priority_labels[@]}";  then
 else
   echo "[!] Release priority label not detected. Please add one of: ${priority_labels[*]}"
   exit 1
+fi
+
+if has_runtime_changes origin/master "${HEAD_SHA}"; then
+  echo "[+] Runtime changes detected. Checking audit (D) labels"
+  if ensure_labels "${audit_labels[@]}";  then
+    echo "[+] Release audit label detected. All is well."
+  else
+    echo "[!] Release audit label not detected. Please add one of: ${audit_labels[*]}"
+    exit 1
+  fi
 fi
 
 # If the priority is anything other than C1-low, we *must not* have a B0-silent
