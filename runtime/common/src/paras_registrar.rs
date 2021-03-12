@@ -205,21 +205,23 @@ decl_module! {
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
 		#[weight = T::WeightInfo::swap()]
-		fn swap(origin, other: ParaId) {
+		pub fn swap(origin, other: ParaId) {
 			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			if PendingSwap::get(other) == Some(id) {
 				if let Some(other_lifecycle) = paras::Module::<T>::lifecycle(other) {
 					if let Some(id_lifecycle) = paras::Module::<T>::lifecycle(id) {
 						// identify which is a parachain and which is a parathread
 						if id_lifecycle.is_parachain() && other_lifecycle.is_parathread() {
-							// TODO: FIX w/ check
+							// We check that both paras are in an appropriate lifecycle for a swap,
+							// so these should never fail.
 							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(id);
 							debug_assert!(res1.is_ok());
 							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(other);
 							debug_assert!(res2.is_ok());
 							T::OnSwap::on_swap(id, other);
 						} else if id_lifecycle.is_parathread() && other_lifecycle.is_parachain() {
-							// TODO: FIX w/ check
+							// We check that both paras are in an appropriate lifecycle for a swap,
+							// so these should never fail.
 							let res1 = runtime_parachains::schedule_parachain_downgrade::<T>(other);
 							debug_assert!(res1.is_ok());
 							let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(id);

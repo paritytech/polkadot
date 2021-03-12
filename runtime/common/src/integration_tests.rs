@@ -27,7 +27,7 @@ use sp_runtime::{
 	},
 };
 use sp_keystore::{KeystoreExt, testing::KeyStore};
-use primitives::v1::{BlockNumber, Header, Id as ParaId};
+use primitives::v1::{BlockNumber, Header, Id as ParaId, ValidationCode, HeadData};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop,
 	storage::StorageMap,
@@ -35,7 +35,7 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use runtime_parachains::{
-	ParaLifecycle,
+	ParaLifecycle, Origin as ParaOrigin,
 	paras, configuration, shared,
 };
 use frame_support_test::TestRandomness;
@@ -223,6 +223,24 @@ fn maybe_new_session(n: u32) {
 		);
 		Paras::test_on_new_session();
 	}
+}
+
+fn test_genesis_head(size: usize) -> HeadData {
+	HeadData(vec![0u8; size])
+}
+
+fn test_validation_code(size: usize) -> ValidationCode {
+	let mut validation_code = vec![0u8; size as usize];
+	// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
+	let _ = validation_code.splice(
+		..crate::WASM_MAGIC.len(),
+		crate::WASM_MAGIC.iter().cloned(),
+	).collect::<Vec<_>>();
+	ValidationCode(validation_code)
+}
+
+fn para_origin(id: u32) -> ParaOrigin {
+	ParaOrigin::Parachain(id.into())
 }
 
 fn run_to_block(n: u32) {
@@ -592,4 +610,66 @@ fn competing_bids() {
 			vec![None, None, None, Some((80, 7200)), Some((80, 7200))],
 		);
 	});
+}
+
+#[test]
+fn basic_swap_works() {
+	// This test will verify that competing bids, from different sources will resolve appropriately.
+	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one()); // So events are emitted
+		// User 1 and 2 will own paras
+		Balances::make_free_balance_be(&1, 1_000);
+		Balances::make_free_balance_be(&2, 1_000);
+		// First register 2 parathreads with different data
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(1),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+		assert_ok!(Registrar::register(
+			Origin::signed(2),
+			ParaId::from(2),
+			test_genesis_head(20),
+			test_validation_code(20),
+		));
+
+		// Deposit is appropriately taken
+		assert_eq!(Balances::reserved_balance(&1), 500 + 10 * 2 * 1);
+		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
+
+		// Paras should be onboarding
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Onboarding));
+
+		// 2 sessions later they are parathreads
+		run_to_session(2);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
+
+		// Make one a parachain
+		assert_ok!(Registrar::make_parachain(ParaId::from(1)));
+		// 2 sessions later it is a parachain
+		run_to_session(4);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
+
+		// Initiate a swap
+		assert_ok!(Registrar::swap(para_origin(1).into(), ParaId::from(2)));
+		assert_ok!(Registrar::swap(para_origin(2).into(), ParaId::from(1)));
+
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::DowngradingParachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::UpgradingParathread));
+
+		// 2 session later they have swapped
+		run_to_session(6);
+		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parachain));
+
+		// Deregister parathread
+		assert_ok!(Registrar::deregister(para_origin(1).into(), ParaId::from(1)));
+		// Correct deposit is unreserved
+		assert_eq!(Balances::reserved_balance(&1), 0);
+		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
+	})
 }
