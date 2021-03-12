@@ -583,7 +583,7 @@ async fn process_msg(
 							target: LOG_TARGET,
 							for_para_id = %incoming.payload.para_id,
 							our_para_id = %our_para_id,
-							"received a `RequestCollation` for unexpected para_id",
+							"received a `CollationFetchingRequest` for unexpected para_id",
 						);
 					}
 				}
