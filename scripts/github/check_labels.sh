@@ -63,8 +63,8 @@ fi
 
 # If the priority is anything other than C1-low, we *must not* have a B0-silent
 # label
-if has_label "$repo" "$CI_COMMIT_BRANCH" 'B0-silent' &&
-  ! has_label "$repo" "$CI_COMMIT_BRANCH" 'C1-low' ; then
+if has_label "$repo" "$GITHUB_PR" 'B0-silent' &&
+  ! has_label "$repo" "$GITHUB_PR" 'C1-low' ; then
   echo "[!] Changes with a priority higher than C1-low *MUST* have a B- label that is not B0-Silent"
   exit 1
 fi
