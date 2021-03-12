@@ -137,6 +137,9 @@ decl_event!(
 		/// but no parachain slot has been leased.
 		/// \[parachain_id, leaser, amount\]
 		ReserveConfiscated(ParaId, AccountId, Balance),
+		/// A new bid has been accepted as the current winner.
+		/// \[who, para_id, amount, first_slot, last_slot\]
+		BidAccepted(AccountId, ParaId, Balance, LeasePeriod, LeasePeriod),
 	}
 );
 
@@ -420,7 +423,7 @@ impl<T: Config> Module<T> {
 
 			// Return any funds reserved for the previous winner if they no longer have any active
 			// bids.
-			let mut outgoing_winner = Some((bidder, para, amount));
+			let mut outgoing_winner = Some((bidder.clone(), para, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, para, _amount)) = outgoing_winner {
 				if current_winning.iter()
@@ -439,6 +442,8 @@ impl<T: Config> Module<T> {
 			}
 			// Update the range winner.
 			Winning::<T>::insert(offset, &current_winning);
+
+			Self::deposit_event(RawEvent::BidAccepted(bidder, para, amount, first_slot, last_slot));
 		}
 		Ok(())
 	}
