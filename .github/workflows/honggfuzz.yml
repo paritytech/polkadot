@@ -32,8 +32,9 @@ jobs:
 
       - name: Install honggfuzz
         uses: actions-rs/cargo@v1
-        command: install
-        args: honggfuzz --version "0.5.54"
+        with:
+          command: install
+          args: honggfuzz --version "0.5.54"
 
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
