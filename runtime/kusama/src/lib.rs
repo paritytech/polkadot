@@ -341,9 +341,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-		min_inflation: 0_025_000,
-		// 10% - this is baked in here.
-		max_inflation: 0_100_000,
+		min_inflation: 1,	// zero is not allowed here for some reason.
+		max_inflation: 1_000_000,
 		// 3:2:1 staked : parachains : float.
 		// while there's no parachains, then this is 75% staked : 25% float.
 		ideal_stake: 0_500_000,
@@ -353,11 +352,10 @@ pallet_staking_reward_curve::build! {
 	);
 }
 
-fn curve_lookup<Q>(x: Q, ideal_stake_proportion: Q) -> (Q, Q) where
+fn curve_lookup<Q>(x: Q, ideal_stake_proportion: Q) -> Q where
 	Q: sp_arithmetic::PerThing + sp_std::ops::Div + sp_std::ops::Div<u64, Output=Q>,
 	Q::Inner: sp_arithmetic::traits::AtLeast32BitUnsigned,
 {
-	use sp_arithmetic::PerThing;
 	let new_x = if x < ideal_stake_proportion {
 		// too low.
 		(x / ideal_stake_proportion) / 2u64
@@ -372,8 +370,7 @@ fn curve_lookup<Q>(x: Q, ideal_stake_proportion: Q) -> (Q, Q) where
 	let p = new_x.deconstruct();
 	let q = Q::ACCURACY;
 	let r = REWARD_CURVE.calculate_for_fraction_times_denominator(p, q);
-	let d = Perbill::ACCURACY as u128;
-	(Q::from_parts(r), Q::from_rational(REWARD_CURVE.maximum.deconstruct() as u128, d))
+	Q::from_parts(r)
 }
 
 pub struct ModifiedRewardCurve;
@@ -386,6 +383,8 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 		use sp_arithmetic::{Perquintill, traits::Saturating};
 
 		const AUCTIONED_SLOTS: u64 = 0;
+		const MAX_ANNUAL_INFLATION_PERCENT: u64 = 10;
+		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
 		// 30% reserved for up to 60 slots.
 		let auctions_in_use = Perquintill::from_rational(AUCTIONED_SLOTS.max(60), 60u64);
@@ -397,10 +396,11 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 			.saturating_sub(gilt_proportion);
 		let non_gilt_issuance = Gilt::issuance().non_gilt;
 		let staked_fraction = Perquintill::from_rational(total_staked, non_gilt_issuance);
-		let (staking_inflation, max_inflation) = curve_lookup(staked_fraction, ideal_stake_proportion);
+		let adjustment = curve_lookup(staked_fraction, ideal_stake_proportion);
+		let max_inflation = Perquintill::from_percent(MAX_ANNUAL_INFLATION_PERCENT);
+		let staking_inflation = max_inflation * adjustment;
 
 		// Milliseconds per year for the Julian year (365.25 days).
-		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 		let period_fraction = Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR);
 
 		let max_payout = period_fraction * max_inflation * non_gilt_issuance;
