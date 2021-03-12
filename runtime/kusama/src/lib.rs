@@ -357,7 +357,7 @@ pub struct ModifiedRewardCurve;
 impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 	fn era_payout(
 		total_staked: Balance,
-		total_issuance: Balance,
+		_total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
 		use sp_arithmetic::Perquintill;
@@ -380,7 +380,9 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 		let portion = Perquintill::from_rational_approximation(era_duration_millis, MILLISECONDS_PER_YEAR);
 
-		let fraction = Perquintill::from_rational_approximation(total_staked, total_issuance);
+		let non_gilt_issuance = Gilt::issuance().non_gilt;
+
+		let fraction = Perquintill::from_rational_approximation(total_staked, non_gilt_issuance);
 		let x = if fraction.inner() < ideal_stake_proportion.inner() {
 			// too low.
 			let fraction_under = fraction / ideal_stake_proportion;
@@ -395,15 +397,13 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 		let reward_fraction = REWARD_CURVE.calculate_for_fraction_times_denominator(x, Perquintill::ACCURACY);
 		let validator_payout = portion * reward_fraction;
 
-//		let max_payout = portion * (REWARD_CURVE.maximum * total_issuance);
-//		let rest = max_payout.saturating_sub(validator_payout);
+		let max_payout = portion * (REWARD_CURVE.maximum * non_gilt_issuance);
+		let rest = max_payout.saturating_sub(validator_payout);
 
-		let (gilt_locked, _gilt_payout) = Gilt::issuance();
-		let non_gilt_issuance = total_issuance.saturating_sub(gilt_locked);
 		let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
-		let rest = validator_payout * Perquintill::from_rational_approximation(other_issuance, total_staked);
+		let cap_rest = Perquintill::from_rational_approximation(other_issuance, total_staked) * validator_payout;
 
-		(validator_payout, rest)
+		(validator_payout, rest.min(cap_rest))
 	}
 }
 
@@ -1044,6 +1044,7 @@ parameter_types! {
 impl pallet_gilt::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
 	type AdminOrigin = MoreThanHalfCouncil;
 	type Deficit = ();	// Mint
 	type Surplus = ();	// Burn
