@@ -470,6 +470,7 @@ impl<T: Config> Module<T> {
 						Winning::<T>::remove(i);
 						i += One::one();
 					}
+					WinningVec::<T>::kill();
 					AuctionInfo::<T>::kill();
 					return Some((res, lease_period_index))
 				}
