@@ -101,6 +101,9 @@ decl_storage! {
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
 		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
+
+		/// A vec with all winning bids for easier retrieval in the front-end.
+		pub WinningVec: Vec<WinningData<T>>;
 	}
 }
 
@@ -188,11 +191,11 @@ decl_module! {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				if !Winning::<T>::contains_key(&offset) {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
-					Winning::<T>::insert(offset,
-						offset.checked_sub(&One::one())
+					let winning_data = offset.checked_sub(&One::one())
 							.and_then(Winning::<T>::get)
-							.unwrap_or_default()
-					);
+							.unwrap_or_default();
+					Winning::<T>::insert(offset, winning_data.clone());
+					WinningVec::<T>::append(winning_data);
 				}
 			}
 
