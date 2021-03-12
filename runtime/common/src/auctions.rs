@@ -575,8 +575,6 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use std::{collections::BTreeMap, cell::RefCell};
-	use parity_scale_codec::{Encode, Decode};
-
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
@@ -722,21 +720,19 @@ mod tests {
 	>;
 
 	thread_local! {
-		pub static LAST_RANDOM: RefCell<Option<(Vec<u8>, u32)>> = RefCell::new(None);
+		pub static LAST_RANDOM: RefCell<Option<(H256, u32)>> = RefCell::new(None);
 	}
-	fn set_last_random(output: Vec<u8>, known_since: u32) {
+	fn set_last_random(output: H256, known_since: u32) {
 		LAST_RANDOM.with(|p| *p.borrow_mut() = Some((output, known_since)))
 	}
 	pub struct TestPastRandomness;
-	impl<Output: Decode + Default> Randomness<Output, BlockNumber> for TestPastRandomness {
-		fn random(_subject: &[u8]) -> (Output, u32) {
+	impl Randomness<H256, BlockNumber> for TestPastRandomness {
+		fn random(_subject: &[u8]) -> (H256, u32) {
 			LAST_RANDOM.with(|p| {
 				if let Some((output, known_since)) = &*p.borrow() {
-					let output_value = Output::decode(&mut &output[..])
-						.expect("test code always gives big enough `output` vec to decode Output value");
-					(output_value, *known_since)
+					(*output, *known_since)
 				} else {
-					(Output::default(), frame_system::Module::<Test>::block_number())
+					(H256::zero(), frame_system::Module::<Test>::block_number())
 				}
 			})
 		}
@@ -932,7 +928,7 @@ mod tests {
 			assert!(Auctions::is_in_progress());
 			// This will prevent the auction's winner from being decided in the next block, since the random
 			// seed was known before the final bids were made.
-			set_last_random(0u32.encode(), 8);
+			set_last_random(H256::zero(), 8);
 			// Auction definitely ended now, but we don't know exactly when in the last 3 blocks yet since
 			// no randomness available yet.
 			run_to_block(9);
@@ -943,7 +939,7 @@ mod tests {
 
 			// Random seed now updated to a value known at block 9, when the auction ended. This means
 			// that the winner can now be chosen.
-			set_last_random(0u32.encode(), 9);
+			set_last_random(H256::zero(), 9);
 			run_to_block(10);
 			// Auction ended and winner selected
 			assert!(!Auctions::is_in_progress());
