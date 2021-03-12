@@ -679,6 +679,12 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
+	tracing::trace!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		"Candidate backed",
+	);
+
 	if load_meta(db, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
 			state: State::Unavailable(now.into()),
@@ -716,6 +722,12 @@ fn note_block_included(
 		}
 		Some(mut meta) => {
 			let be_block = (BEBlockNumber(block.0), block.1);
+
+			tracing::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				"Candidate included",
+			);
 
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
@@ -1044,6 +1056,13 @@ fn store_chunk(
 		}
 		None => return Ok(false), // out of bounds.
 	}
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		chunk_index = %chunk.index.0,
+		"Stored chunk index for candidate.",
+	);
 
 	db.write(tx)?;
 	Ok(true)

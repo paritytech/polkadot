@@ -29,6 +29,7 @@ use polkadot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sc_telemetry::TelemetryHandle;
 use sp_core::traits::SpawnNamed;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
@@ -55,6 +56,7 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
 		prometheus: Option<&PrometheusRegistry>,
+		telemetry: Option<TelemetryHandle>,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
@@ -62,6 +64,7 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 				client,
 				transaction_pool,
 				prometheus,
+				telemetry,
 			),
 			overseer,
 		}
