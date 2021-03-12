@@ -39,5 +39,5 @@ jobs:
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
         shell: bash
-        run: ! timeout 5h cargo hfuzz run round_trip
+        run: timeout 5h cargo hfuzz run round_trip
 
