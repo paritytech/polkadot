@@ -74,6 +74,8 @@ frame_support::construct_runtime!(
 	}
 );
 
+use crate::crowdloan::Error as CrowdloanError;
+
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
@@ -147,7 +149,7 @@ parameter_types! {
 
 impl paras_registrar::Config for Test {
 	type Event = Event;
-	type OnSwap = ();
+	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
@@ -331,7 +333,7 @@ fn basic_end_to_end_works() {
 			910, // Amount
 		));
 
-		// User 20 will be a contribute to crowdfund for parachain 2
+		// User 2 will be a contribute to crowdfund for parachain 2
 		Balances::make_free_balance_be(&2, 1_000);
 		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(2), 920, None));
 
@@ -614,7 +616,7 @@ fn competing_bids() {
 
 #[test]
 fn basic_swap_works() {
-	// This test will verify that competing bids, from different sources will resolve appropriately.
+	// This test will test a swap between a parachain and parathread works successfully.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
 		// User 1 and 2 will own paras
@@ -634,23 +636,65 @@ fn basic_swap_works() {
 			test_validation_code(20),
 		));
 
-		// Deposit is appropriately taken
-		assert_eq!(Balances::reserved_balance(&1), 500 + 10 * 2 * 1);
-		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
-
 		// Paras should be onboarding
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Onboarding));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Onboarding));
+
+		// Start a new auction in the future
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
 		// 2 sessions later they are parathreads
 		run_to_session(2);
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
 
-		// Make one a parachain
-		assert_ok!(Registrar::make_parachain(ParaId::from(1)));
+		// Open a crowdloan for Para 1 for slots 0-3
+		assert_ok!(Crowdloan::create(
+			Origin::signed(1),
+			ParaId::from(1),
+			1_000_000, // Cap
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 3, // Last Slot
+			200, // Block End
+			None,
+		));
+		// TODO: Check why this is the same for all paras
+		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(1));
+
+		// Bunch of contributions
+		let mut total = 0;
+		for i in 10 .. 20 {
+			Balances::make_free_balance_be(&i, 1_000);
+			assert_ok!(Crowdloan::contribute(Origin::signed(i), ParaId::from(1), 900 - i, None));
+			total += 900 - i;
+		}
+		assert!(total > 0);
+		assert_eq!(Balances::free_balance(&crowdloan_account), total);
+
+		// Go to end of auction where everyone won their slots
+		run_to_block(200);
+
+		// Deposit is appropriately taken
+		// ----------------------------------------- para deposit --- crowdloan
+		assert_eq!(Balances::reserved_balance(&1), (500 + 10 * 2 * 1) + 100);
+		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
+		assert_eq!(Balances::reserved_balance(&crowdloan_account), total);
+		// Crowdloan is appropriately set
+		assert!(Crowdloan::funds(ParaId::from(1)).is_some());
+		assert!(Crowdloan::funds(ParaId::from(2)).is_none());
+
+		// New leases will start on block 400
+		let lease_start_block = 400;
+		run_to_block(lease_start_block);
+
+		// Slots are won by Para 1
+		assert!(!Slots::lease(ParaId::from(1)).is_empty());
+		assert!(Slots::lease(ParaId::from(2)).is_empty());
+
 		// 2 sessions later it is a parachain
-		run_to_session(4);
+		run_to_block(lease_start_block + 20);
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parachain));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
 
@@ -662,14 +706,43 @@ fn basic_swap_works() {
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::UpgradingParathread));
 
 		// 2 session later they have swapped
-		run_to_session(6);
+		run_to_block(lease_start_block + 40);
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::Parathread));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parachain));
 
 		// Deregister parathread
 		assert_ok!(Registrar::deregister(para_origin(1).into(), ParaId::from(1)));
 		// Correct deposit is unreserved
+		assert_eq!(Balances::reserved_balance(&1), 100); // crowdloan deposit left over
+		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
+		// Crowdloan ownership is swapped
+		assert!(Crowdloan::funds(ParaId::from(1)).is_none());
+		assert!(Crowdloan::funds(ParaId::from(2)).is_some());
+		// Slot is swapped
+		assert!(Slots::lease(ParaId::from(1)).is_empty());
+		assert!(!Slots::lease(ParaId::from(2)).is_empty());
+
+		// Cant dissolve
+		assert_noop!(Crowdloan::dissolve(Origin::signed(1), ParaId::from(1)), CrowdloanError::<Test>::InvalidParaId);
+		assert_noop!(Crowdloan::dissolve(Origin::signed(2), ParaId::from(2)), CrowdloanError::<Test>::NotReadyToDissolve);
+
+		// Go way in the future when the para is offboarded
+		run_to_block(lease_start_block + 1000);
+
+		// Withdraw of contributions works
+		assert_eq!(Balances::free_balance(&crowdloan_account), total);
+		for i in 10 .. 20 {
+			assert_ok!(Crowdloan::withdraw(Origin::signed(i), i, ParaId::from(2)));
+		}
+		assert_eq!(Balances::free_balance(&crowdloan_account), 0);
+
+		// Dissolve returns the balance of the person who put a deposit for crowdloan
+		assert_ok!(Crowdloan::dissolve(Origin::signed(2), ParaId::from(2)));
 		assert_eq!(Balances::reserved_balance(&1), 0);
 		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
+
+		// Final deregister sets everything back to the start
+		assert_ok!(Registrar::deregister(para_origin(2).into(), ParaId::from(2)));
+		assert_eq!(Balances::reserved_balance(&2), 0);
 	})
 }

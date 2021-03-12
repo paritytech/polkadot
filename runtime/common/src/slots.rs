@@ -82,7 +82,7 @@ decl_storage! {
 		/// deposit for the non-existent chain currently, but is held at some point in the future.
 		///
 		/// It is illegal for a `None` value to trail in the list.
-		pub Leases: map hasher(twox_64_concat) ParaId => Vec<Option<(T::AccountId, BalanceOf<T>)>>;
+		pub Leases get(fn lease): map hasher(twox_64_concat) ParaId => Vec<Option<(T::AccountId, BalanceOf<T>)>>;
 	}
 }
 

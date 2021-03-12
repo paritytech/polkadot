@@ -277,8 +277,8 @@ decl_error! {
 		NoContributions,
 		/// This crowdloan has an active parachain and cannot be dissolved.
 		HasActiveParachain,
-		/// The retirement period has not ended.
-		InRetirementPeriod,
+		/// The crowdloan is not ready to dissolve. Potentially still has a slot or in retirement period.
+		NotReadyToDissolve,
 		/// Invalid signature.
 		InvalidSignature,
 	}
@@ -470,7 +470,7 @@ decl_module! {
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let now = frame_system::Module::<T>::block_number();
 			let dissolution = fund.end.saturating_add(T::RetirementPeriod::get());
-			ensure!((fund.retiring && now >= dissolution) || fund.raised.is_zero(), Error::<T>::InRetirementPeriod);
+			ensure!((fund.retiring && now >= dissolution) || fund.raised.is_zero(), Error::<T>::NotReadyToDissolve);
 
 			// Try killing the crowdloan child trie
 			match Self::crowdloan_kill(fund.trie_index) {
@@ -1084,7 +1084,7 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
 			run_to_block(10);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::InRetirementPeriod);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
 
 			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
@@ -1107,7 +1107,7 @@ mod tests {
 			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
 
 			run_to_block(14);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::InRetirementPeriod);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
 
 			run_to_block(15);
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
@@ -1168,7 +1168,7 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
 			// during this time the funds get reserved and unreserved.
 			run_to_block(20);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::InRetirementPeriod);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
 
 			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
@@ -1190,7 +1190,7 @@ mod tests {
 			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
 
 			run_to_block(24);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::InRetirementPeriod);
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
 
 			run_to_block(25);
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));

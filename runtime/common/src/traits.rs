@@ -173,13 +173,10 @@ pub trait Auctioneer {
 }
 
 /// Runtime hook for when we swap a parachain and parathread.
+#[impl_trait_for_tuples::impl_for_tuples(30)]
 pub trait OnSwap {
 	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
 	/// code and `head_data` remain equivalent for all parachains/threads, however other properties
 	/// such as leases, deposits held and thread/chain nature are swapped.
 	fn on_swap(one: ParaId, other: ParaId);
-}
-
-impl OnSwap for () {
-	fn on_swap(_: ParaId, _: ParaId) {}
 }
