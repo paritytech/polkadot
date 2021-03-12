@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 
-test-runner = { git = "https://github.com/paritytech/substrate", branch = "substrate-test-runner" }
+test-runner = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
