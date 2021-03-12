@@ -1,0 +1,42 @@
+name: Run nightly fuzzer jobs
+
+on:
+  # TODO: remove
+  pull_request:
+  schedule:
+    - cron: '0 12 * * *'
+
+jobs:
+  erasure-coding:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources & submodules
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 5
+          # submodules: recursive
+
+      - name: Install minimal stable Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install minimal nightly Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: Install honggfuzz
+        uses: actions-rs/cargo@v1
+        command: install
+        args: honggfuzz --version "0.5.54"
+
+      - name: Run fuzzer
+        working-directory: ./erasure-coding/fuzzer
+        shell: bash
+        run: ! timeout 5h cargo hfuzz run round_trip
+
