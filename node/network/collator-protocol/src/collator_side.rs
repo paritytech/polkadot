@@ -20,13 +20,21 @@ use super::{LOG_TARGET,  Result};
 
 use futures::{select, FutureExt, channel::oneshot};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CollatorId, CompressedPoV, CoreIndex, CoreState, Hash, Id as ParaId, PoV, ValidatorId};
+use polkadot_primitives::v1::{
+	CandidateHash, CandidateReceipt, CollatorId, CompressedPoV, CoreIndex,
+	CoreState, Hash, Id as ParaId,
+	PoV, ValidatorId
+};
 use polkadot_subsystem::{
 	jaeger, PerLeafSpan,
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage, NetworkBridgeEvent},
 };
-use polkadot_node_network_protocol::{OurView, PeerId, View, peer_set::PeerSet, request_response::{IncomingRequest, v1::{CollationFetchingRequest, CollationFetchingResponse}}, v1 as protocol_v1};
+use polkadot_node_network_protocol::{
+	OurView, PeerId, View, peer_set::PeerSet,
+	request_response::{IncomingRequest, v1::{CollationFetchingRequest, CollationFetchingResponse}},
+	v1 as protocol_v1
+};
 use polkadot_node_subsystem_util::{
 	validator_discovery,
 	request_validators_ctx,
