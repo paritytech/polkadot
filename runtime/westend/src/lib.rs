@@ -755,6 +755,7 @@ impl parachains_paras::Config for Runtime {
 
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const DataDepositPerByte: Balance = deposit(0, 1);
 	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
@@ -765,6 +766,7 @@ impl paras_registrar::Config for Runtime {
 	type Currency = Balances;
 	type OnSwap = ();
 	type ParaDeposit = ParaDeposit;
+	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
 	type WeightInfo = paras_registrar::TestWeightInfo;

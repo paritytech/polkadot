@@ -140,6 +140,7 @@ impl paras::Config for Test {
 
 parameter_types! {
 	pub const ParaDeposit: Balance = 500;
+	pub const DataDepositPerByte: Balance = 1;
 	pub const MaxCodeSize: u32 = 200;
 	pub const MaxHeadSize: u32 = 100;
 }
@@ -148,6 +149,7 @@ impl paras_registrar::Config for Test {
 	type Event = Event;
 	type OnSwap = ();
 	type ParaDeposit = ParaDeposit;
+	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
 	type Currency = Balances;

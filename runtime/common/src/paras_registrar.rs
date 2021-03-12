@@ -40,7 +40,7 @@ use runtime_parachains::{
 
 use crate::traits::{Registrar, OnSwap};
 use parity_scale_codec::{Encode, Decode};
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{RuntimeDebug, traits::Saturating};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
@@ -84,6 +84,9 @@ pub trait Config: paras::Config {
 	/// The deposit to be paid to run a parathread.
 	/// This should include the cost for storing the genesis head and validation code.
 	type ParaDeposit: Get<BalanceOf<Self>>;
+
+	/// The deposit to be paid per byte stored on chain.
+	type DataDepositPerByte: Get<BalanceOf<Self>>;
 
 	/// The maximum size for the validation code.
 	type MaxCodeSize: Get<u32>;
@@ -150,6 +153,7 @@ decl_module! {
 		type Error = Error<T>;
 
 		const ParaDeposit: BalanceOf<T> = T::ParaDeposit::get();
+		const DataDepositPerByte: BalanceOf<T> = T::DataDepositPerByte::get();
 		const MaxCodeSize: u32 = T::MaxCodeSize::get();
 		const MaxHeadSize: u32 = T::MaxHeadSize::get();
 
@@ -328,16 +332,16 @@ impl<T: Config> Module<T> {
 	) -> DispatchResult {
 		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
 		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
-		let genesis = Self::validate_onboarding_data(
+		let (genesis, deposit) = Self::validate_onboarding_data(
 			genesis_head,
 			validation_code,
 			false
 		)?;
 
-		<T as Config>::Currency::reserve(&who, T::ParaDeposit::get())?;
+		<T as Config>::Currency::reserve(&who, deposit)?;
 		let info = ParaInfo {
 			manager: who.clone(),
-			deposit: T::ParaDeposit::get(),
+			deposit: deposit,
 		};
 
 		Paras::<T>::insert(id, info);
@@ -363,20 +367,30 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Verifies the onboarding data is valid for a para.
+	///
+	/// Returns `ParaGenesisArgs` and the deposit needed for the data.
 	fn validate_onboarding_data(
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
 		parachain: bool,
-	) -> Result<ParaGenesisArgs, sp_runtime::DispatchError> {
+	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		ensure!(validation_code.0.len() <= T::MaxCodeSize::get() as usize, Error::<T>::CodeTooLarge);
 		ensure!(genesis_head.0.len() <= T::MaxHeadSize::get() as usize, Error::<T>::HeadDataTooLarge);
 		ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
-		Ok(ParaGenesisArgs {
+		let per_byte_fee = T::DataDepositPerByte::get();
+		let deposit = T::ParaDeposit::get()
+			.saturating_add(
+				per_byte_fee.saturating_mul((genesis_head.0.len() as u32).into())
+			).saturating_add(
+				per_byte_fee.saturating_mul((validation_code.0.len() as u32).into())
+			);
+
+		Ok((ParaGenesisArgs {
 			genesis_head,
 			validation_code,
 			parachain,
-		})
+		}, deposit))
 	}
 }
 
@@ -476,6 +490,7 @@ mod tests {
 
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;
+		pub const DataDepositPerByte: Balance = 1;
 		pub const QueueSize: usize = 2;
 		pub const MaxRetries: u32 = 3;
 		pub const MaxCodeSize: u32 = 100;
@@ -488,6 +503,7 @@ mod tests {
 		type Currency = Balances;
 		type OnSwap = ();
 		type ParaDeposit = ParaDeposit;
+		type DataDepositPerByte = DataDepositPerByte;
 		type MaxCodeSize = MaxCodeSize;
 		type MaxHeadSize = MaxHeadSize;
 		type WeightInfo = TestWeightInfo;
@@ -611,7 +627,10 @@ mod tests {
 			));
 			run_to_session(2);
 			assert!(Parachains::is_parathread(32.into()));
-			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
+			assert_eq!(
+				Balances::reserved_balance(&1),
+				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
+			);
 		});
 	}
 
@@ -675,7 +694,10 @@ mod tests {
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
-			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
+			assert_eq!(
+				Balances::reserved_balance(&1),
+				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
+			);
 			run_to_session(2);
 			assert!(Parachains::is_parathread(32.into()));
 			assert_ok!(Registrar::deregister(
