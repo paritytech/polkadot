@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	SessionIndex,
 };
 use polkadot_subsystem::messages::{
-	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage,
+	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage, IfDisconnected,
 };
 use polkadot_subsystem::{SubsystemContext, jaeger};
 
@@ -335,7 +335,7 @@ impl RunningTask {
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests]),
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect)
 			)))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;

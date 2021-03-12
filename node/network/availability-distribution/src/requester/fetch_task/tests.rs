@@ -241,7 +241,7 @@ impl TestRun {
 	/// end.
 	async fn handle_message(&self, msg: AllMessages) -> bool {
 		match msg {
-			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs)) => {
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::TryConnect)) => {
 				let mut valid_responses = 0;
 				for req in reqs {
 					let req = match req {

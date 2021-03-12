@@ -24,6 +24,9 @@
 
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
+
+pub use sc_network::IfDisconnected;
+
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
 	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
@@ -237,7 +240,8 @@ pub enum NetworkBridgeMessage {
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Send requests via substrate request/response.
-	SendRequests(Vec<Requests>),
+	/// Second parameter, tells what to do if we are not yet connected to the peer.
+	SendRequests(Vec<Requests>, IfDisconnected),
 
 	/// Connect to peers who represent the given `validator_ids`.
 	///

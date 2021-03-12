@@ -16,7 +16,7 @@
 
 use std::{collections::{HashMap, HashSet}, task::Poll, sync::Arc, };
 
-use futures::{FutureExt, StreamExt, channel::oneshot,
+use futures::{FutureExt, channel::oneshot,
     future::{Fuse, FusedFuture, BoxFuture}
 };
 use always_assert::never;
@@ -29,7 +29,7 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
-		NetworkBridgeEvent,
+		NetworkBridgeEvent, IfDisconnected,
 	},
 };
 use polkadot_node_network_protocol::{OurView, PeerId, UnifiedReputationChange as Rep, View, request_response::{OutgoingRequest, Requests, request::{Recipient, RequestError}}, v1 as protocol_v1};
@@ -271,7 +271,7 @@ async fn handle_peer_view_change(
 	}
 
 	for removed in removed.into_iter() {
-		state.requested_collations.retain(|k, v| k.0 != removed);
+		state.requested_collations.retain(|k, _| k.0 != removed);
 	}
 
 	Ok(())
@@ -341,7 +341,7 @@ where
 
 
 	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::SendRequests(vec![requests]))
+		NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError))
 	).await;
 }
 
@@ -656,7 +656,7 @@ where
                 modify_reputation(ctx, *peer_id, COST_REQUEST_TIMED_OUT).await;
             }
             Ok(CollationFetchingResponse::Collation(receipt, compressed_pov)) => {
-                let pov = match compressed_pov.decompress() {
+                match compressed_pov.decompress() {
                     Ok(pov) => {
                         tracing::debug!(
                             target: LOG_TARGET,
@@ -665,7 +665,11 @@ where
                             candidate_hash = ?receipt.hash(),
                             "Received collation",
                         );
-                        if let Err(err) = per_req.to_requester.send((receipt, pov)) {
+
+                        // Actual sending:
+                        let result = per_req.to_requester.send((receipt, pov));
+
+                        if let Err(_) = result  {
                             tracing::warn!(
                                 target: LOG_TARGET,
                                 hash = ?hash,

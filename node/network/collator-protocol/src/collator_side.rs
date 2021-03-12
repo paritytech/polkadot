@@ -577,7 +577,7 @@ async fn process_msg(
 						};
 
 						let _span = _span.as_ref().map(|s| s.child("sending"));
-						send_collation(ctx, state, incoming, receipt, pov).await;
+						send_collation(state, incoming, receipt, pov).await;
 					} else {
 						tracing::warn!(
 							target: LOG_TARGET,
@@ -602,9 +602,8 @@ async fn process_msg(
 }
 
 /// Issue a response to a previously requested collation.
-#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(state, pov), fields(subsystem = LOG_TARGET))]
 async fn send_collation(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
 	request: IncomingRequest<CollationFetchingRequest>,
 	receipt: CandidateReceipt,
@@ -622,7 +621,7 @@ async fn send_collation(
 		}
 	};
 
-	if let Err(err) = request.send_response(CollationFetchingResponse::Collation(receipt, pov)) {
+	if let Err(_) = request.send_response(CollationFetchingResponse::Collation(receipt, pov)) {
 		tracing::warn!(
 			target: LOG_TARGET,
 			"Sending collation response failed",
@@ -632,9 +631,8 @@ async fn send_collation(
 }
 
 /// A networking messages switch.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_peer_message(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
 	origin: PeerId,
 	msg: protocol_v1::CollatorProtocolMessage,
@@ -745,7 +743,7 @@ async fn handle_network_msg(
 			handle_our_view_change(state, view).await?;
 		}
 		PeerMessage(remote, msg) => {
-			handle_incoming_peer_message(ctx, state, remote, msg).await?;
+			handle_incoming_peer_message(state, remote, msg).await?;
 		}
 	}
 

@@ -113,6 +113,7 @@ pub trait Network: Send + 'static {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
+		if_disconnected: IfDisconnected,
 	);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
@@ -202,6 +203,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
+		if_disconnected: IfDisconnected,
 	) {
 		let (
 			protocol,
@@ -248,7 +250,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			protocol.into_protocol_name(),
 			payload,
 			pending_response,
-			IfDisconnected::TryConnect,
+			if_disconnected,
 		);
 	}
 }
