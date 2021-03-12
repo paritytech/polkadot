@@ -33,16 +33,12 @@ bitfields: map ValidatorIndex => AvailabilityBitfield;
 PendingAvailability: map ParaId => CandidatePendingAvailability;
 /// The commitments of candidates pending availability, by ParaId.
 PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
-
-/// The current validators, by their parachain session keys.
-Validators: Vec<ValidatorId>;
 ```
 
 ## Session Change
 
 1. Clear out all candidates pending availability.
 1. Clear out all validator bitfields.
-1. Update `Validators` with the validators from the session change notification.
 
 ## Routines
 
