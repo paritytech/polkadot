@@ -315,7 +315,7 @@ impl Span {
 
 	/// Add the para-id to the span.
 	pub fn add_para_id(&mut self, para_id: ParaId) {
-		self.add_string_tag("para-id", &format!("{}", u32::from(para_id)));
+		self.add_int_tag("para-id", u32::from(para_id) as i64);
 	}
 
 	/// Add an additional tag to the span.
