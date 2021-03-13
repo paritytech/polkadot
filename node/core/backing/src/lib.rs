@@ -418,8 +418,9 @@ async fn validate_and_make_available(
 	let v = {
 		let _span = span.as_ref().map(|s| {
 			s.child_builder("request-validation")
-			.with_pov(&pov)
-			.build()
+				.with_pov(&pov)
+				.with_para_id(candidate.descriptor().para_id)
+				.build()
 		});
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
