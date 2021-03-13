@@ -262,9 +262,10 @@ mod tests {
 	};
 	use frame_system::limits;
 	use frame_support::{
-		traits::{Randomness, OnInitialize, OnFinalize},
+		traits::{OnInitialize, OnFinalize},
 		assert_ok, assert_noop, parameter_types,
 	};
+	use frame_support_test::TestRandomness;
 	use keyring::Sr25519Keyring;
 	use runtime_parachains::{
 		initializer, configuration, inclusion, session_info, scheduler, dmp, ump, hrmp, shared,
@@ -285,6 +286,7 @@ mod tests {
 			System: frame_system::{Module, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 			Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
+			Shared: shared::{Module, Call, Storage},
 			Inclusion: inclusion::{Module, Call, Storage, Event<T>},
 			Registrar: paras_registrar::{Module, Call, Storage},
 	 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>},
@@ -460,7 +462,7 @@ mod tests {
 		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 
 		mod app {
-			use super::super::Inclusion;
+			use super::super::Shared;
 			use sp_application_crypto::{app_crypto, sr25519};
 
 			app_crypto!(sr25519, super::KEY_TYPE);
@@ -470,7 +472,7 @@ mod tests {
 
 				fn into_account(self) -> Self::AccountId {
 					let id = self.0.clone().into();
-					Inclusion::validators().iter().position(|b| *b == id).unwrap() as u64
+					Shared::active_validator_keys().iter().position(|b| *b == id).unwrap() as u64
 				}
 			}
 		}
@@ -504,16 +506,8 @@ mod tests {
 
 	impl session_info::Config for Test { }
 
-	pub struct TestRandomness;
-
-	impl Randomness<H256> for TestRandomness {
-		fn random(_subject: &[u8]) -> H256 {
-			Default::default()
-		}
-	}
-
 	impl initializer::Config for Test {
-		type Randomness = TestRandomness;
+		type Randomness = TestRandomness<Self>;
 	}
 
 	impl scheduler::Config for Test { }

@@ -48,9 +48,6 @@ use frame_support::{
 use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::{One, Saturating};
 
-use rand::{SeedableRng, seq::SliceRandom};
-use rand_chacha::ChaCha20Rng;
-
 use crate::{configuration, paras, initializer::SessionChangeNotification};
 
 /// A queued parathread entry, pre-assigned to a core.
@@ -157,7 +154,9 @@ pub trait Config: frame_system::Config + configuration::Config + paras::Config {
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParaScheduler {
-		/// All the validator groups. One for each core.
+		/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
+		/// broader set of Polkadot validators, but instead just the subset used for parachains during
+		/// this session.
 		///
 		/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
 		/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
@@ -223,7 +222,6 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
 		let &SessionChangeNotification {
 			ref validators,
-			ref random_seed,
 			ref new_config,
 			..
 		} = notification;
@@ -259,27 +257,26 @@ impl<T: Config> Module<T> {
 		if n_cores == 0 || validators.is_empty() {
 			ValidatorGroups::set(Vec::new());
 		} else {
-			let mut rng: ChaCha20Rng = SeedableRng::from_seed(*random_seed);
+			let group_base_size = validators.len() / n_cores as usize;
+			let n_larger_groups = validators.len() % n_cores as usize;
 
-			let mut shuffled_indices: Vec<_> = (0..validators.len())
-				.enumerate()
-				.map(|(i, _)| ValidatorIndex(i as _))
-				.collect();
+			// Groups contain indices into the validators from the session change notification,
+			// which are already shuffled.
 
-			shuffled_indices.shuffle(&mut rng);
+			let mut groups: Vec<Vec<ValidatorIndex>> = Vec::new();
+			for i in 0..n_larger_groups {
+				let offset = (group_base_size + 1) * i;
+				groups.push(
+					(0..group_base_size + 1).map(|j| offset + j).map(|j| ValidatorIndex(j as _)).collect()
+				);
+			}
 
-			let group_base_size = shuffled_indices.len() / n_cores as usize;
-			let n_larger_groups = shuffled_indices.len() % n_cores as usize;
-
-			let groups: Vec<Vec<_>> = (0..n_cores).map(|core_id| {
-				let n_members = if (core_id as usize) < n_larger_groups {
-					group_base_size + 1
-				} else {
-					group_base_size
-				};
-
-				shuffled_indices.drain(shuffled_indices.len() - n_members ..).rev().collect()
-			}).collect();
+			for i in 0..(n_cores as usize - n_larger_groups) {
+				let offset = (n_larger_groups * (group_base_size + 1)) + (i * group_base_size);
+				groups.push(
+					(0..group_base_size).map(|j| offset + j).map(|j| ValidatorIndex(j as _)).collect()
+				);
+			}
 
 			ValidatorGroups::set(groups);
 		}
