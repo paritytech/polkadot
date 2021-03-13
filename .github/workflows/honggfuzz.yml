@@ -7,13 +7,13 @@ on:
     - cron: '0 12 * * *'
 
 jobs:
-  erasure-coding:
+  build-erasure-coding-fuzzers:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources & submodules
         uses: actions/checkout@v2
         with:
-          fetch-depth: 5
+          fetch-depth: 1
 
       - name: Install minimal stable Rust
         uses: actions-rs/toolchain@v1
@@ -42,6 +42,18 @@ jobs:
         working-directory: ./erasure-coding/fuzzer
         run: cargo hfuzz build
 
+  erasure-coding-round-trip:
+    runs-on: ubuntu-latest
+    needs: build-erasure-coding-fuzzer
+    steps:
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
         run: bash ${{ github.workspace }}/scripts/github/run_fuzzer.sh round_trip
+
+  erasure-coding-reconstruct:
+    runs-on: ubuntu-latest
+    needs: build-erasure-coding-fuzzer
+    steps:
+      - name: Run fuzzer
+        working-directory: ./erasure-coding/fuzzer
+        run: bash ${{ github.workspace }}/scripts/github/run_fuzzer.sh reconstruct
