@@ -44,7 +44,7 @@ jobs:
 
   erasure-coding-round-trip:
     runs-on: ubuntu-latest
-    needs: build-erasure-coding-fuzzer
+    needs: build-erasure-coding-fuzzers
     steps:
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
@@ -52,7 +52,7 @@ jobs:
 
   erasure-coding-reconstruct:
     runs-on: ubuntu-latest
-    needs: build-erasure-coding-fuzzer
+    needs: build-erasure-coding-fuzzers
     steps:
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
