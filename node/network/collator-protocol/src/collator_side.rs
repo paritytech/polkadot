@@ -853,7 +853,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures::{executor, future, Future, channel::mpsc};
 
-	use sp_core::crypto::Pair;
+	use sp_core::{crypto::Pair, Decode};
 	use sp_keyring::Sr25519Keyring;
 
 	use polkadot_primitives::v1::{
@@ -864,7 +864,11 @@ mod tests {
 	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
-	use polkadot_node_network_protocol::{view, our_view};
+	use polkadot_node_network_protocol::{
+		our_view,
+		view,
+		request_response::request::IncomingRequest,
+	};
 
 	#[derive(Default)]
 	struct TestCandidateBuilder {
@@ -1372,41 +1376,33 @@ mod tests {
 			// advertise it.
 			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer, test_state.relay_parent).await;
 
-			let request_id = 42;
-
 			// Request a collation.
+			let (tx, rx) = oneshot::channel();
 			overseer_send(
 				&mut virtual_overseer,
-				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer.clone(),
-						protocol_v1::CollatorProtocolMessage::RequestCollation(
-							request_id,
-							test_state.relay_parent,
-							test_state.para_id,
-						)
+				CollatorProtocolMessage::CollationFetchingRequest(
+					IncomingRequest::new(
+						peer,
+						CollationFetchingRequest {
+							relay_parent: test_state.relay_parent,
+							para_id: test_state.para_id,
+						},
+						tx,
 					)
 				)
 			).await;
 
-			// Wait for the reply.
 			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendCollationMessage(
-						to,
-						protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+				rx.await,
+				Ok(full_response) => {
+					let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
+						= CollationFetchingResponse::decode(
+							&mut full_response.result
+							.expect("We should have a proper answer").as_ref()
 					)
-				) => {
-					assert_eq!(to, vec![peer]);
-					assert_matches!(
-						wire_message,
-						protocol_v1::CollatorProtocolMessage::Collation(req_id, receipt, pov) => {
-							assert_eq!(req_id, request_id);
-							assert_eq!(receipt, candidate);
-							assert_eq!(pov.decompress().unwrap(), pov_block);
-						}
-					);
+					.expect("Decoding should work");
+					assert_eq!(receipt, candidate);
+					assert_eq!(pov.decompress().unwrap(), pov_block);
 				}
 			);
 
@@ -1416,16 +1412,17 @@ mod tests {
 			let peer = test_state.validator_peer_id[2].clone();
 
 			// Re-request a collation.
+			let (tx, rx) = oneshot::channel();
 			overseer_send(
 				&mut virtual_overseer,
-				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer.clone(),
-						protocol_v1::CollatorProtocolMessage::RequestCollation(
-							43,
-							old_relay_parent,
-							test_state.para_id,
-						)
+				CollatorProtocolMessage::CollationFetchingRequest(
+					IncomingRequest::new(
+						peer,
+						CollationFetchingRequest {
+							relay_parent: old_relay_parent,
+							para_id: test_state.para_id,
+						},
+						tx,
 					)
 				)
 			).await;
