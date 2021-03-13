@@ -44,15 +44,4 @@ jobs:
 
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
-        shell: bash
-        run: |
-          status="$(timeout --signal INT 20s cargo hfuzz run round_trip)"
-          if [ $status -eq 0 ]; then
-            echo "Found a panic!"
-            # TODO: provide Minimal Reproducible Input
-            exit 1
-          else
-            echo "Didn't find any problem in 5 hours of fuzzing"
-            exit 0
-          fi
-
+        run: bash ${{ github.workspace }}/scripts/github/run_fuzzer.sh round_trip
