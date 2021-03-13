@@ -48,7 +48,6 @@ jobs:
 
   erasure-coding-reconstruct:
     runs-on: ubuntu-latest
-    needs: build-erasure-coding-fuzzers
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
