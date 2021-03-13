@@ -1,8 +1,6 @@
 name: Run nightly fuzzer jobs
 
 on:
-  # TODO: remove
-  pull_request:
   schedule:
     - cron: '0 12 * * *'
 
