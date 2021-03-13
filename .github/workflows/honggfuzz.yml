@@ -38,11 +38,18 @@ jobs:
           command: install
           args: honggfuzz --version "0.5.54"
 
+      - name: Build fuzzer binaries
+        working-directory: ./erasure-coding/fuzzer
+        uses: actions-rs/cargo@v1
+        with:
+          command: hfuzz
+          args: build
+
       - name: Run fuzzer
         working-directory: ./erasure-coding/fuzzer
         shell: bash
         run: |
-          status="$(timeout 5h cargo hfuzz run round_trip)"
+          status="$(timeout --signal INT 20s cargo hfuzz run round_trip)"
           if [ $status -eq 0 ]; then
             echo "Found a panic!"
             # TODO: provide Minimal Reproducible Input
