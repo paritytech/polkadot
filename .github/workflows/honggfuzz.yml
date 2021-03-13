@@ -46,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: polkadot
-          path: ../polkadot/
+          path: $GITHUB_WORKSPACE
 
   erasure-coding-round-trip:
     runs-on: ubuntu-latest
@@ -59,7 +59,7 @@ jobs:
 
       - name: Run fuzzer
         working-directory: polkadot/erasure-coding/fuzzer
-        run: bash ../../scripts/github/run_fuzzer.sh round_trip
+        run: bash $GITHUB_WORKSPACE/polkadot/scripts/github/run_fuzzer.sh round_trip
 
   erasure-coding-reconstruct:
     runs-on: ubuntu-latest
@@ -72,4 +72,4 @@ jobs:
 
       - name: Run fuzzer
         working-directory: polkadot/erasure-coding/fuzzer
-        run: bash ../../scripts/github/run_fuzzer.sh reconstruct
+        run: bash $GITHUB_WORKSPACE/polkadot/scripts/github/run_fuzzer.sh reconstruct
