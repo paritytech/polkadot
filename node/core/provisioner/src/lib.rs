@@ -245,7 +245,7 @@ impl ProvisioningJob {
 				self.signed_bitfields.push(signed_bitfield)
 			}
 			ProvisionableData::BackedCandidate(backed_candidate) => {
-				let mut span = span.child("provisionable_backed");
+				let mut span = span.child("provisionable-backed");
 				span.add_para_id(backed_candidate.descriptor().para_id);
 				self.backed_candidates.push(backed_candidate)
 			}
