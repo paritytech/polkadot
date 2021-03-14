@@ -581,10 +581,7 @@ mod tests {
 	use super::*;
 	use std::{collections::BTreeMap, cell::RefCell};
 	use sp_core::H256;
-	use sp_runtime::{
-		KeyTypeId,
-		traits::{BlakeTwo256, IdentityLookup},
-	};
+	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
 		parameter_types, ord_parameter_types, assert_ok, assert_noop, assert_storage_noop,
 		traits::{OnInitialize, OnFinalize},

@@ -21,7 +21,6 @@ use sp_io::TestExternalities;
 use sp_core::{H256, crypto::KeyTypeId};
 use sp_runtime::{
 	ModuleId,
-	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, IdentityLookup, One,
 	},
