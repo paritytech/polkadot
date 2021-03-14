@@ -1141,7 +1141,7 @@ mod benchmarking {
 
 	const SEED: u32 = 0;
 
-	const MAX_CLAIMS: u32 = 10;
+	const MAX_CLAIMS: u32 = 10_000;
 	const VALUE: u32 = 1_000_000;
 
 	fn create_claim<T: Config>(input: u32) -> DispatchResult {
