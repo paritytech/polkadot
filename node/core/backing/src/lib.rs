@@ -616,6 +616,7 @@ impl CandidateBackingJob {
 	async fn validate_and_second(
 		&mut self,
 		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
@@ -628,11 +629,13 @@ impl CandidateBackingJob {
 		}
 
 		let candidate_hash = candidate.hash();
-		let span = self.get_unbacked_validation_child(
-			parent_span,
+		let mut span = self.get_unbacked_validation_child(
+			root_span,
 			candidate_hash,
 			candidate.descriptor().para_id,
 		);
+
+		span.as_mut().map(|s| s.add_follows_from(parent_span));
 
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -754,17 +757,17 @@ impl CandidateBackingJob {
 		Ok(summary)
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, span), fields(subsystem = LOG_TARGET))]
-	async fn process_msg(&mut self, span: &jaeger::Span, msg: CandidateBackingMessage) -> Result<(), Error> {
+	#[tracing::instrument(level = "trace", skip(self, root_span), fields(subsystem = LOG_TARGET))]
+	async fn process_msg(&mut self, root_span: &jaeger::Span, msg: CandidateBackingMessage) -> Result<(), Error> {
 		match msg {
-			CandidateBackingMessage::Second(_relay_parent, candidate, pov) => {
+			CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
 
-				let span = span.child_builder("second")
+				let span = root_span.child_builder("second")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_pov(&pov)
 					.with_candidate(&candidate.hash())
-					.with_relay_parent(&_relay_parent)
+					.with_relay_parent(&relay_parent)
 					.build();
 
 				// Sanity check that candidate is from our assignment.
@@ -781,20 +784,20 @@ impl CandidateBackingJob {
 
 					if !self.issued_statements.contains(&candidate_hash) {
 						let pov = Arc::new(pov);
-						self.validate_and_second(&span, &candidate, pov).await?;
+						self.validate_and_second(&span, &root_span, &candidate, pov).await?;
 					}
 				}
 			}
 			CandidateBackingMessage::Statement(_relay_parent, statement) => {
 				let _timer = self.metrics.time_process_statement();
-				let span = span.child_builder("statement")
+				let span = root_span.child_builder("statement")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_candidate(&statement.payload().candidate_hash())
 					.with_relay_parent(&_relay_parent)
 					.build();
 
 				self.check_statement_signature(&statement)?;
-				match self.maybe_validate_and_import(&span, statement).await {
+				match self.maybe_validate_and_import(&span, &root_span, statement).await {
 					Err(Error::ValidationFailed(_)) => return Ok(()),
 					Err(e) => return Err(e),
 					Ok(()) => (),
@@ -874,13 +877,14 @@ impl CandidateBackingJob {
 	async fn maybe_validate_and_import(
 		&mut self,
 		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
 			if let Statement::Seconded(_) = statement.payload() {
 				if Some(summary.group_id) == self.assignment {
 					let span = self.get_unbacked_validation_child(
-						parent_span,
+						root_span,
 						summary.candidate,
 						summary.group_id,
 					);
@@ -1085,8 +1089,7 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			drop(_span);
-			let _span = span.child("calc-validator-groups");
-
+			let mut assignments_span = span.child("compute-assignments");
 
 			let mut groups = HashMap::new();
 
@@ -1115,11 +1118,18 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			let (assignment, required_collator) = match assignment {
-				None => (None, None),
-				Some((assignment, required_collator)) => (Some(assignment), required_collator),
+				None => {
+					assignments_span.add_string_tag("assigned", "false");
+					(None, None)
+				}
+				Some((assignment, required_collator)) => {
+					assignments_span.add_string_tag("assigned", "true");
+					assignments_span.add_para_id(assignment);
+					(Some(assignment), required_collator)
+				}
 			};
 
-			drop(_span);
+			drop(assignments_span);
 			let _span = span.child("wait-for-job");
 
 			let (background_tx, background_rx) = mpsc::channel(16);

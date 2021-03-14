@@ -121,7 +121,7 @@ impl JobTrait for CandidateSelectionJob {
 			let cores = try_runtime_api!(cores);
 
 			drop(_span);
-			let _span = span.child_builder("find-assignment")
+			let _span = span.child_builder("validator-construction")
 				.with_relay_parent(&relay_parent)
 				.with_stage(jaeger::Stage::CandidateSelection)
 				.build();
@@ -133,6 +133,11 @@ impl JobTrait for CandidateSelectionJob {
 				Err(util::Error::NotAValidator) => return Ok(()),
 				Err(err) => return Err(Error::Util(err)),
 			};
+
+			let mut assignment_span = span.child_builder("find-assignment")
+				.with_relay_parent(&relay_parent)
+				.with_stage(jaeger::Stage::CandidateSelection)
+				.build();
 
 			let mut assignment = None;
 
@@ -151,11 +156,19 @@ impl JobTrait for CandidateSelectionJob {
 			}
 
 			let assignment = match assignment {
-				Some(assignment) => assignment,
-				None => return Ok(()),
+				Some(assignment) => {
+					assignment_span.add_string_tag("assigned", "true");
+					assignment_span.add_para_id(assignment);
+
+					assignment
+				}
+				None => {
+					assignment_span.add_string_tag("assigned", "false");
+					return Ok(())
+				}
 			};
 
-			drop(_span);
+			drop(assignment_span);
 
 			CandidateSelectionJob::new(assignment, metrics, sender, receiver).run_loop(&span).await
 		}.boxed()
