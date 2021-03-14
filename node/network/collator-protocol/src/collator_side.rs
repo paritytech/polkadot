@@ -1426,6 +1426,11 @@ mod tests {
 					)
 				)
 			).await;
+			// Re-requesting collation should fail:
+			assert_matches!(
+				rx.await,
+				Err(_) => {}
+			);
 
 			assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
 

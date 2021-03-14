@@ -14,12 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::{HashMap, HashSet}, task::Poll, sync::Arc};
+use std::{collections::{HashMap, HashSet}, sync::Arc, task::Poll};
 
-use futures::{
-	FutureExt, channel::oneshot,
-	future::{Fuse, FusedFuture, BoxFuture}
-};
+use futures::{FutureExt, channel::oneshot, future::{Fuse, FusedFuture, BoxFuture}};
 use always_assert::never;
 
 use polkadot_primitives::v1::{
@@ -585,15 +582,18 @@ where
 			continue;
 		}
 
-		let mut retained_requested = HashMap::new();
-		let requested_collations = std::mem::take(&mut state.requested_collations);
-		for ((hash, para_id, peer_id), per_req) in requested_collations.into_iter() {
+		let mut retained_requested = HashSet::new();
+		for ((hash, para_id, peer_id), per_req) in state.requested_collations.iter_mut() {
 			// Despite the await, this won't block:
-			if let Some(retained) = poll_collation_response(&mut ctx, &state, &hash, &para_id, &peer_id, per_req).await {
-				retained_requested.insert((hash, para_id, peer_id), retained);
+			let finished = poll_collation_response(
+				&mut ctx, &state.metrics, &state.span_per_relay_parent,
+				hash, para_id, peer_id, per_req
+			).await;
+			if !finished {
+				retained_requested.insert((*hash, *para_id, *peer_id));
 			}
 		}
-		state.requested_collations = retained_requested;
+		state.requested_collations.retain(|k, _| retained_requested.contains(k));
 		futures::pending!();
 	}
 	Ok(())
@@ -603,15 +603,18 @@ where
 ///
 /// Ready responses are handled, by logging and decreasing peer's reputation on error and by
 /// forwarding proper responses to the requester.
+///
+/// Returns: `true` if `from_collator` future was ready.
 async fn poll_collation_response<Context>(
 	ctx: &mut Context,
-	state: &State,
+	metrics: &Metrics,
+	spans: &HashMap<Hash, PerLeafSpan>,
 	hash: &Hash,
 	para_id: &ParaId,
 	peer_id: &PeerId,
-	mut per_req: PerRequest
+	per_req: &mut PerRequest
 )
--> Option<PerRequest>
+-> bool
 where
 	Context: SubsystemContext
 {
@@ -620,13 +623,13 @@ where
 			target: LOG_TARGET,
 			"We remove pending responses once received, this should not happen."
 			);
-		return None
+		return true
 	}
 
 	if let Poll::Ready(response) = futures::poll!(&mut per_req.from_collator) {
-		let _span = state.span_per_relay_parent.get(&hash)
+		let _span = spans.get(&hash)
 				.map(|s| s.child("received-collation"));
-		let _timer = state.metrics.time_handle_collation_request_result();
+		let _timer = metrics.time_handle_collation_request_result();
 
 		let mut metrics_result = Err(());
 
@@ -684,7 +687,9 @@ where
 
 						// Actual sending:
 						let _span = jaeger::pov_span(&pov, "received-collation");
-						let result = per_req.to_requester.send((receipt, pov));
+						let (mut tx, _) = oneshot::channel();
+						std::mem::swap(&mut tx, &mut (per_req.to_requester));
+						let result = tx.send((receipt, pov));
 
 						if let Err(_) = result  {
 							tracing::warn!(
@@ -713,10 +718,10 @@ where
 				};
 			}
 		};
-		state.metrics.on_request(metrics_result);
-		None
+		metrics.on_request(metrics_result);
+		true
 	} else {
-		Some(per_req)
+		false
 	}
 }
 
@@ -728,7 +733,6 @@ mod tests {
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use sp_core::{crypto::Pair, Encode};
 	use assert_matches::assert_matches;
-	use futures_timer::Delay;
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
