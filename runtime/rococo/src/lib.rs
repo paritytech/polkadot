@@ -208,7 +208,7 @@ construct_runtime! {
 		Hrmp: parachains_hrmp::{Module, Call, Storage, Event},
 		SessionInfo: parachains_session_info::{Module, Call, Storage},
 
-		Registrar: paras_registrar::{Module, Call, Storage},
+		Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 
 		// Sudo
@@ -257,8 +257,6 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
-	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
 	pub const ValidationUpgradeFrequency: BlockNumber = 2 * DAYS;
 	pub const ValidationUpgradeDelay: BlockNumber = 8 * HOURS;
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
@@ -367,7 +365,6 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub const ParathreadDeposit: Balance = 5 * DOLLARS;
 	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
@@ -594,10 +591,23 @@ impl parachains_initializer::Config for Runtime {
 
 impl paras_sudo_wrapper::Config for Runtime {}
 
+parameter_types! {
+	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const DataDepositPerByte: Balance = deposit(0, 1);
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
+}
+
 impl paras_registrar::Config for Runtime {
-	type Currency = Balances;
-	type ParathreadDeposit = ParathreadDeposit;
+	type Event = Event;
 	type Origin = Origin;
+	type Currency = Balances;
+	type OnSwap = ();
+	type ParaDeposit = ParaDeposit;
+	type DataDepositPerByte = DataDepositPerByte;
+	type MaxCodeSize = MaxCodeSize;
+	type MaxHeadSize = MaxHeadSize;
+	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
 impl pallet_sudo::Config for Runtime {
