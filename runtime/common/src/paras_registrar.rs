@@ -402,9 +402,10 @@ mod tests {
 		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
-	impl sp_election_providers::onchain::Config for Test {
+	impl frame_election_provider_support::onchain::Config for Test {
 		type AccountId = <Self as frame_system::Config>::AccountId;
 		type BlockNumber = <Self as frame_system::Config>::BlockNumber;
+		type BlockWeights = ();
 		type Accuracy = sp_runtime::Perbill;
 		type DataProvider = pallet_staking::Module<Test>;
 	}
@@ -431,7 +432,7 @@ mod tests {
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
 		type OffchainSolutionWeightLimit = ();
-		type ElectionProvider = sp_election_providers::onchain::OnChainSequentialPhragmen<Self>;
+		type ElectionProvider = frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 		type WeightInfo = ();
 	}
 
