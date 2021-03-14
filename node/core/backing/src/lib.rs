@@ -1081,8 +1081,7 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			drop(_span);
-			let _span = span.child("calc-validator-groups");
-
+			let mut assignments_span = span.child("compute-assignments");
 
 			let mut groups = HashMap::new();
 
@@ -1111,11 +1110,18 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			let (assignment, required_collator) = match assignment {
-				None => (None, None),
-				Some((assignment, required_collator)) => (Some(assignment), required_collator),
+				None => {
+					assignments_span.add_string_tag("assigned", "false");
+					(None, None)
+				}
+				Some((assignment, required_collator)) => {
+					assignments_span.add_string_tag("assigned", "true");
+					assignments_span.add_para_id(assignment);
+					(Some(assignment), required_collator)
+				}
 			};
 
-			drop(_span);
+			drop(assignments_span);
 			let _span = span.child("wait-for-job");
 
 			let (background_tx, background_rx) = mpsc::channel(16);
