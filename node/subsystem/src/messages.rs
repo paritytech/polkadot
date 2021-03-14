@@ -205,22 +205,6 @@ pub enum CollatorProtocolMessage {
 	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>)
 }
 
-// impl CollatorProtocolMessage {
-	/// If the current variant contains the relay parent hash, return it.
-//     pub fn relay_parent(&self) -> Option<Hash> {
-//         match self {
-//             Self::CollateOn(_) => None,
-//             Self::DistributeCollation(receipt, _, _) => Some(receipt.descriptor().relay_parent),
-//             Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
-//             Self::ReportCollator(_) => None,
-//             Self::NoteGoodCollation(_) => None,
-//             Self::NetworkBridgeUpdateV1(_) => None,
-//             Self::CollationFetchingRequest(_) => None,
-//             Self::NotifyCollationSeconded(_, _) => None,
-//         }
-//     }
-// }
-
 /// Messages received by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
