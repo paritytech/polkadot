@@ -753,6 +753,15 @@ impl<T: Config> Module<T> {
 	fn scheduled_session() -> SessionIndex {
 		shared::Module::<T>::scheduled_session()
 	}
+
+	/// Test function for triggering a new session in this pallet.
+	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+	pub fn test_on_new_session() {
+		Self::initializer_on_new_session(&SessionChangeNotification {
+			session_index: shared::Module::<T>::session_index(),
+			..Default::default()
+		});
+	}
 }
 
 #[cfg(test)]
