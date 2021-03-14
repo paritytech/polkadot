@@ -475,19 +475,19 @@ pub enum CompressedPoVError {
 #[cfg(feature = "std")]
 impl CompressedPoV {
 	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-	#[cfg(feature = "std")]
+	#[cfg(not(target_os = "unknown"))]
 	pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
 		zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
 	}
 
 	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-	#[cfg(not(feature = "std"))]
+	#[cfg(target_os = "unknown")]
 	pub fn compress(_: &PoV) -> Result<Self, CompressedPoVError> {
 		Err(CompressedPoVError::NotSupported)
 	}
 
 	/// Decompress `self` and returns the [`PoV`] on success.
-	#[cfg(feature = "std")]
+	#[cfg(not(target_os = "unknown"))]
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		use std::io::Read;
 		const MAX_POV_BLOCK_SIZE: usize = 32 * 1024 * 1024;
@@ -511,7 +511,7 @@ impl CompressedPoV {
 	}
 
 	/// Decompress `self` and returns the [`PoV`] on success.
-	#[cfg(not(feature = "std"))]
+	#[cfg(target_os = "unknown")]
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		Err(CompressedPoVError::NotSupported)
 	}
