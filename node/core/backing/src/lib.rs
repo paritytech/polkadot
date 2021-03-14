@@ -624,7 +624,11 @@ impl CandidateBackingJob {
 		}
 
 		let candidate_hash = candidate.hash();
-		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
+		let span = self.get_unbacked_validation_child(
+			parent_span,
+			candidate_hash,
+			candidate.descriptor().para_id,
+		);
 
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -871,7 +875,11 @@ impl CandidateBackingJob {
 		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
 			if let Statement::Seconded(_) = statement.payload() {
 				if Some(summary.group_id) == self.assignment {
-					let span = self.get_unbacked_validation_child(parent_span, summary.candidate);
+					let span = self.get_unbacked_validation_child(
+						parent_span,
+						summary.candidate,
+						summary.group_id,
+					);
 
 					self.kick_off_validation_work(summary, span).await?;
 				}
@@ -911,11 +919,23 @@ impl CandidateBackingJob {
 	}
 
 	/// Insert or get the unbacked-span for the given candidate hash.
-	fn insert_or_get_unbacked_span(&mut self, parent_span: &jaeger::Span, hash: CandidateHash) -> Option<&jaeger::Span> {
+	fn insert_or_get_unbacked_span(
+		&mut self,
+		parent_span: &jaeger::Span,
+		hash: CandidateHash,
+		para_id: Option<ParaId>
+	) -> Option<&jaeger::Span> {
 		if !self.backed.contains(&hash) {
 			// only add if we don't consider this backed.
 			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
-				parent_span.child_with_candidate("unbacked-candidate", &hash)
+				let s = parent_span.child_builder("unbacked-candidate").with_candidate(&hash);
+				let s = if let Some(para_id) = para_id {
+					s.with_para_id(para_id)
+				} else {
+					s
+				};
+
+				s.build()
 			});
 			Some(span)
 		} else {
@@ -923,8 +943,13 @@ impl CandidateBackingJob {
 		}
 	}
 
-	fn get_unbacked_validation_child(&mut self, parent_span: &jaeger::Span, hash: CandidateHash) -> Option<jaeger::Span> {
-		self.insert_or_get_unbacked_span(parent_span, hash)
+	fn get_unbacked_validation_child(
+		&mut self,
+		parent_span: &jaeger::Span,
+		hash: CandidateHash,
+		para_id: ParaId,
+	) -> Option<jaeger::Span> {
+		self.insert_or_get_unbacked_span(parent_span, hash, Some(para_id))
 			.map(|span| {
 				span.child_builder("validation")
 					.with_candidate(&hash)
@@ -939,7 +964,7 @@ impl CandidateBackingJob {
 		hash: CandidateHash,
 		validator: ValidatorIndex,
 	) -> Option<jaeger::Span> {
-		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| {
+		self.insert_or_get_unbacked_span(parent_span, hash, None).map(|span| {
 			span.child_builder("import-statement")
 				.with_candidate(&hash)
 				.with_validator_index(validator)
