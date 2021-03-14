@@ -309,7 +309,7 @@ decl_module! {
 
 			// TODO better verification of valid slots
 			ensure!(first_slot <= last_slot, Error::<T>::LastSlotBeforeFirstSlot);
-			ensure!(last_slot < first_slot + 4u32.into(), Error::<T>::LastSlotTooFarInFuture);
+			ensure!(last_slot < first_slot.saturating_add(4u32.into()), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
 			// There should not be an existing fund.
