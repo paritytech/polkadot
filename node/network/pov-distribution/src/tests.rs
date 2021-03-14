@@ -24,7 +24,7 @@ use tracing::trace;
 
 use sp_keyring::Sr25519Keyring;
 
-use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockData, CompressedPoVError, CoreState, GroupRotationInfo, Id as ParaId, ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId, ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex};
 use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
