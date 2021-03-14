@@ -291,6 +291,7 @@ decl_module! {
 		const ModuleId: ModuleId = T::ModuleId::get();
 		const MinContribution: BalanceOf<T> = T::MinContribution::get();
 		const RemoveKeysLimit: u32 = T::RemoveKeysLimit::get();
+		const RetirementPeriod: T::BlockNumber = T::RetirementPeriod::get();
 
 		fn deposit_event() = default;
 

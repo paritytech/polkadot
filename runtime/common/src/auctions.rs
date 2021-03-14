@@ -101,9 +101,6 @@ decl_storage! {
 		/// the current auction. The map's key is the 0-based index into the Ending Period. The
 		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
 		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
-
-		/// A vec with all winning bids for easier retrieval in the front-end.
-		pub WinningVec: Vec<WinningData<T>>;
 	}
 }
 
@@ -190,15 +187,14 @@ decl_module! {
 			// If the current auction was in its ending period last block, then ensure that the (sub-)range
 			// winner information is duplicated from the previous block in case no bids happened in the
 			// last block.
-			if let Some(offset) = n.checked_sub(&One::one()).and_then(|n| Self::is_ending(n)) {
+			if let Some(offset) = Self::is_ending(n) {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				if !Winning::<T>::contains_key(&offset) {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					let winning_data = offset.checked_sub(&One::one())
 							.and_then(Winning::<T>::get)
 							.unwrap_or_default();
-					Winning::<T>::insert(offset, winning_data.clone());
-					WinningVec::<T>::append(winning_data);
+					Winning::<T>::insert(offset, winning_data);
 				}
 			}
 
@@ -382,6 +378,7 @@ impl<T: Config> Module<T> {
 		let mut current_winning = Winning::<T>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
 			.unwrap_or_default();
+
 		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
 			// This must overlap with all existing ranges that we're winning on or it's invalid.
@@ -440,9 +437,9 @@ impl<T: Config> Module<T> {
 					}
 				}
 			}
+
 			// Update the range winner.
 			Winning::<T>::insert(offset, &current_winning);
-
 			Self::deposit_event(RawEvent::BidAccepted(bidder, para, amount, first_slot, last_slot));
 		}
 		Ok(())
@@ -475,7 +472,6 @@ impl<T: Config> Module<T> {
 						Winning::<T>::remove(i);
 						i += One::one();
 					}
-					WinningVec::<T>::kill();
 					AuctionInfo::<T>::kill();
 					return Some((res, lease_period_index))
 				}
@@ -1023,7 +1019,6 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 5));
 			assert_eq!(Balances::reserved_balance(1), 5);
-			println!("before {:?}", AuctionCounter::get());
 			run_to_block(10);
 
 			assert_eq!(leases(), vec![
@@ -1033,7 +1028,6 @@ mod tests {
 
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 2));
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 2, 2, 2, 6));
-			println!("after {:?}", AuctionCounter::get());
 			// Only 1 reserved since we have a deposit credit of 5.
 			assert_eq!(Balances::reserved_balance(1), 1);
 			run_to_block(20);
@@ -1237,6 +1231,84 @@ mod tests {
 			assert_eq!(ReservedAmounts::<Test>::get((1, para_1)), None);
 			assert_eq!(Balances::reserved_balance(2), 20);
 			assert_eq!(ReservedAmounts::<Test>::get((2, para_2)), Some(20));
+		});
+	}
+
+	#[test]
+	fn initialize_winners_in_ending_period_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 1));
+			let para_1 = ParaId::from(1);
+			let para_2 = ParaId::from(2);
+			let para_3 = ParaId::from(3);
+
+			// Make bids
+			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 1, 4, 10));
+			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 3, 4, 20));
+
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::winning(0), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((2, para_2, 20)),
+				None,
+			]));
+
+			run_to_block(9);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+
+			run_to_block(10);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
+			assert_eq!(Auctions::winning(0), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((2, para_2, 20)),
+				None,
+			]));
+
+			run_to_block(11);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
+			assert_eq!(Auctions::winning(1), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((2, para_2, 20)),
+				None,
+			]));
+			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 3, 4, 30));
+
+			run_to_block(12);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
+			assert_eq!(Auctions::winning(2), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((3, para_3, 30)),
+				None,
+			]));
 		});
 	}
 }
