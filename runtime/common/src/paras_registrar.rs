@@ -347,7 +347,7 @@ impl<T: Config> Module<T> {
 		};
 
 		Paras::<T>::insert(id, info);
-		// TODO: Fix w/ check
+		// We check above that para has no lifecycle, so this should not fail.
 		let res = runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 		debug_assert!(res.is_ok());
 		Self::deposit_event(RawEvent::Registered(id, who));

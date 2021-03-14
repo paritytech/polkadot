@@ -475,7 +475,6 @@ decl_module! {
 
 			// Try killing the crowdloan child trie
 			match Self::crowdloan_kill(fund.trie_index) {
-				// TODO use this value for refund
 				child::KillChildStorageResult::AllRemoved(num_removed) => {
 					CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 
@@ -490,7 +489,6 @@ decl_module! {
 
 					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
 				},
-				// TODO use this value for refund
 				child::KillChildStorageResult::SomeRemaining(num_removed) => {
 					Self::deposit_event(RawEvent::PartiallyDissolved(index));
 					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
