@@ -456,11 +456,10 @@ impl PoV {
 
 /// SCALE and Zstd encoded [`PoV`].
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CompressedPoV(Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[cfg(not(target_os = "unknown"))]
+#[cfg(feature = "std")]
 #[allow(missing_docs)]
 pub enum CompressedPoVError {
 	#[error("Failed to compress a PoV")]
@@ -473,22 +472,22 @@ pub enum CompressedPoVError {
 	NotSupported,
 }
 
-#[cfg(not(target_os = "unknown"))]
+#[cfg(feature = "std")]
 impl CompressedPoV {
 	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-	#[cfg(not(target_os = "unknown"))]
+	#[cfg(feature = "std")]
 	pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
 		zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
 	}
 
 	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-	#[cfg(target_os = "unknown")]
+	#[cfg(not(feature = "std"))]
 	pub fn compress(_: &PoV) -> Result<Self, CompressedPoVError> {
 		Err(CompressedPoVError::NotSupported)
 	}
 
 	/// Decompress `self` and returns the [`PoV`] on success.
-	#[cfg(not(target_os = "unknown"))]
+	#[cfg(feature = "std")]
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		use std::io::Read;
 		const MAX_POV_BLOCK_SIZE: usize = 32 * 1024 * 1024;
@@ -512,13 +511,13 @@ impl CompressedPoV {
 	}
 
 	/// Decompress `self` and returns the [`PoV`] on success.
-	#[cfg(target_os = "unknown")]
+	#[cfg(not(feature = "std"))]
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		Err(CompressedPoVError::NotSupported)
 	}
 }
 
-#[cfg(not(target_os = "unknown"))]
+#[cfg(feature = "std")]
 impl std::fmt::Debug for CompressedPoV {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "CompressedPoV({} bytes)", self.0.len())

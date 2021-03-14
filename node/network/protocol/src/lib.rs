@@ -17,7 +17,7 @@
 //! Network protocol types for parachains.
 
 #![deny(unused_crate_dependencies)]
-#![warn(missing_docs, unused_imports)]
+#![warn(missing_docs)]
 
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};

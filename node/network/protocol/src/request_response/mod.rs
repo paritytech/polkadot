@@ -91,11 +91,8 @@ impl Protocol {
 		let cfg = match self {
 			Protocol::AvailabilityFetching => RequestResponseConfig {
 				name: p_name,
-				// Arbitrary very conservative numbers:
-				// TODO: Get better numbers, see https://github.com/paritytech/polkadot/issues/2370
 				max_request_size: 1_000,
 				max_response_size: 100_000,
-				// Also just some relative conservative guess:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
