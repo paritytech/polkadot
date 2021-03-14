@@ -1123,7 +1123,7 @@ mod tests {
 						block_data: BlockData(vec![]),
 					}).unwrap(),
 				).encode()
-			));
+			)).expect("Sending response should succeed");
 
 			let response_channel = assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -1153,7 +1153,7 @@ mod tests {
 						block_data: BlockData(vec![1, 2, 3]),
 					}).unwrap(),
 				).encode()
-			));
+			)).expect("Sending response should succeed");
 
 			let collation_0 = rx_0.await.unwrap();
 			let collation_1 = rx_1.await.unwrap();
