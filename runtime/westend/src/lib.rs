@@ -283,8 +283,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
-		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
+		pub para_validator: Initializer,
+		pub para_assignment: ParachainsSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
