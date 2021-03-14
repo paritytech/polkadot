@@ -69,7 +69,7 @@ pub enum Protocol {
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3); 
 
 /// Request timeout where we can assume the connection is already open (e.g. we have peers in a
-/// peer set as well.
+/// peer set as well).
 const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
 
 impl Protocol {
