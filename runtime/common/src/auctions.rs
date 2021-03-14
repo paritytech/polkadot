@@ -310,7 +310,7 @@ impl<T: Config> Module<T> {
 	/// True if an auction is in progress.
 	pub fn is_in_progress() -> bool {
 		AuctionInfo::<T>::get().map_or(false, |(_, early_end)| {
-			let late_end = early_end + T::EndingPeriod::get();
+			let late_end = early_end.saturating_add(T::EndingPeriod::get());
 			// We need to check that the auction isn't in the period where it has definitely ended, but yeah we keep the
 			// info around because we haven't yet decided *exactly* when in the `EndingPeriod` that it ended.
 			let now = frame_system::Module::<T>::block_number();
@@ -361,7 +361,7 @@ impl<T: Config> Module<T> {
 		ensure!(auction_index == AuctionCounter::get(), Error::<T>::NotCurrentAuction);
 		// Assume it's actually an auction (this should never fail because of above).
 		let (first_lease_period, early_end) = AuctionInfo::<T>::get().ok_or(Error::<T>::NotAuction)?;
-		let late_end = early_end + T::EndingPeriod::get();
+		let late_end = early_end.saturating_add(T::EndingPeriod::get());
 
 		// We need to check that the auction isn't in the period where it has definitely ended, but yeah we keep the
 		// info around because we haven't yet decided *exactly* when in the `EndingPeriod` that it ended.
@@ -454,7 +454,7 @@ impl<T: Config> Module<T> {
 	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
 		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
 			let ending_period = T::EndingPeriod::get();
-			let late_end = early_end + ending_period;
+			let late_end = early_end.saturating_add(ending_period);
 			let is_ended = now >= late_end;
 			if is_ended {
 				// auction definitely ended.
@@ -581,7 +581,10 @@ mod tests {
 	use super::*;
 	use std::{collections::BTreeMap, cell::RefCell};
 	use sp_core::H256;
-	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+	use sp_runtime::{
+		KeyTypeId,
+		traits::{BlakeTwo256, IdentityLookup},
+	};
 	use frame_support::{
 		parameter_types, ord_parameter_types, assert_ok, assert_noop, assert_storage_noop,
 		traits::{OnInitialize, OnFinalize},
@@ -1320,7 +1323,7 @@ mod benchmarking {
 	use frame_support::traits::OnInitialize;
 	use sp_runtime::traits::Bounded;
 
-	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account, impl_benchmark_test_suite};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -1331,6 +1334,8 @@ mod benchmarking {
 	}
 
 	benchmarks! {
+		where_clause { where T: pallet_babe::Config }
+
 		new_auction {
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::max_value();
@@ -1372,13 +1377,11 @@ mod benchmarking {
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			let new_para = ParaId::from(1);
 			let bigger_amount = CurrencyOf::<T>::minimum_balance().saturating_mul(10u32.into());
+			assert_eq!(CurrencyOf::<T>::reserved_balance(&first_bidder), first_amount);
 		}: _(RawOrigin::Signed(caller.clone()), new_para, auction_index, first_slot, last_slot, bigger_amount)
 		verify {
 			// Confirms that we unreserved funds from a previous bidder, which is worst case scenario.
-			assert_last_event::<T>(RawEvent::Unreserved(
-				first_bidder,
-				first_amount,
-			).into());
+			assert_eq!(CurrencyOf::<T>::reserved_balance(&caller), bigger_amount);
 		}
 
 		// Worst case: 10 bidders taking all wining spots, and we need to calculate the winner for auction end.
@@ -1423,6 +1426,18 @@ mod benchmarking {
 			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
 				assert!(winner.is_some());
 			}
+
+			// Move ahead to the block we want to initialize
+			frame_system::Module::<T>::set_block_number(duration + now + T::EndingPeriod::get());
+
+			// Trigger epoch change for new random number value:
+			{
+				pallet_babe::Module::<T>::on_initialize(duration + now + T::EndingPeriod::get());
+				let authorities = pallet_babe::Module::<T>::authorities();
+				let next_authorities = authorities.clone();
+				pallet_babe::Module::<T>::enact_epoch_change(authorities, next_authorities);
+			}
+
 		}: {
 			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 		} verify {
@@ -1430,31 +1445,9 @@ mod benchmarking {
 		}
 	}
 
-	#[cfg(test)]
-	mod tests {
-		use super::*;
-		use crate::integration_tests::{new_test_ext, Test};
-		use frame_support::assert_ok;
-
-		#[test]
-		fn new_auction() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_new_auction::<Test>());
-			});
-		}
-
-		#[test]
-		fn bid() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_bid::<Test>());
-			});
-		}
-
-		#[test]
-		fn on_initialize() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_on_initialize::<Test>());
-			});
-		}
-	}
+	impl_benchmark_test_suite!(
+		Auctions,
+		crate::integration_tests::new_test_ext(),
+		crate::integration_tests::Test,
+	);
 }

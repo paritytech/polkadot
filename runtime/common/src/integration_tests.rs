@@ -18,7 +18,7 @@
 
 use sp_std::sync::Arc;
 use sp_io::TestExternalities;
-use sp_core::H256;
+use sp_core::{H256, crypto::KeyTypeId};
 use sp_runtime::{
 	ModuleId,
 	curve::PiecewiseLinear,
@@ -31,7 +31,7 @@ use primitives::v1::{BlockNumber, Header, Id as ParaId, ValidationCode, HeadData
 use frame_support::{
 	parameter_types, assert_ok, assert_noop,
 	storage::StorageMap,
-	traits::{Currency, OnInitialize, OnFinalize}
+	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
 };
 use frame_system::EnsureRoot;
 use runtime_parachains::{
@@ -51,6 +51,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 
 type AccountId = u32;
 type Balance = u32;
+type Moment = u32;
 
 frame_support::construct_runtime!(
 	pub enum Test where
@@ -107,15 +108,36 @@ impl frame_system::Config for Test {
 	type SS58Prefix = ();
 }
 
-pallet_staking_reward_curve::build! {
-	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-		min_inflation: 0_025_000,
-		max_inflation: 0_100_000,
-		ideal_stake: 0_500_000,
-		falloff: 0_050_000,
-		max_piece_count: 40,
-		test_precision: 0_005_000,
-	);
+parameter_types! {
+	pub const EpochDuration: u64 = 10;
+	pub const ExpectedBlockTime: Moment = 6_000;
+	pub const ReportLongevity: u64 = 10;
+}
+
+impl pallet_babe::Config for Test {
+	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = ExpectedBlockTime;
+	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+	type KeyOwnerProofSystem = ();
+	type KeyOwnerProof =
+		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		pallet_babe::AuthorityId,
+	)>>::IdentificationTuple;
+	type HandleEquivocation = ();
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const MinimumPeriod: Moment = 6_000 / 2;
+}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = Moment;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 
 parameter_types! {

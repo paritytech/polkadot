@@ -72,7 +72,7 @@ use frame_support::{
 	traits::{
 		Currency, ReservableCurrency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
 	},
-	pallet_prelude::Weight,
+	pallet_prelude::{Weight, DispatchResultWithPostInfo},
 };
 use frame_system::ensure_signed;
 use sp_runtime::{
@@ -99,7 +99,7 @@ pub trait WeightInfo {
 	fn create() -> Weight;
 	fn contribute() -> Weight;
 	fn withdraw() -> Weight;
-	fn dissolve() -> Weight;
+	fn dissolve(k: u32, ) -> Weight;
 	fn on_initialize(n: u32, ) -> Weight;
 }
 
@@ -108,7 +108,7 @@ impl WeightInfo for TestWeightInfo {
 	fn create() -> Weight { 0 }
 	fn contribute() -> Weight { 0 }
 	fn withdraw() -> Weight { 0 }
-	fn dissolve() -> Weight { 0 }
+	fn dissolve(_k: u32, ) -> Weight { 0 }
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
 }
 
@@ -464,8 +464,8 @@ decl_module! {
 		/// Remove a fund after the retirement period has ended.
 		///
 		/// This places any deposits that were not withdrawn into the treasury.
-		#[weight = T::WeightInfo::dissolve()]
-		pub fn dissolve(origin, #[compact] index: ParaId) {
+		#[weight = T::WeightInfo::dissolve(T::RemoveKeysLimit::get())]
+		pub fn dissolve(origin, #[compact] index: ParaId) -> DispatchResultWithPostInfo {
 			ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
@@ -476,7 +476,7 @@ decl_module! {
 			// Try killing the crowdloan child trie
 			match Self::crowdloan_kill(fund.trie_index) {
 				// TODO use this value for refund
-				child::KillChildStorageResult::AllRemoved(_) => {
+				child::KillChildStorageResult::AllRemoved(num_removed) => {
 					CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 
 					// Remove all other balance from the account into orphaned funds.
@@ -487,10 +487,13 @@ decl_module! {
 					Funds::<T>::remove(index);
 
 					Self::deposit_event(RawEvent::Dissolved(index));
+
+					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
 				},
 				// TODO use this value for refund
-				child::KillChildStorageResult::SomeRemaining(_) => {
+				child::KillChildStorageResult::SomeRemaining(num_removed) => {
 					Self::deposit_event(RawEvent::PartiallyDissolved(index));
+					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
 				}
 			}
 		}
@@ -1250,7 +1253,7 @@ mod benchmarking {
 	use sp_runtime::traits::{Bounded, CheckedSub};
 	use sp_std::prelude::*;
 
-	use frame_benchmarking::{benchmarks, whitelisted_caller, account};
+	use frame_benchmarking::{benchmarks, whitelisted_caller, account, impl_benchmark_test_suite};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Module::<T>::events();
@@ -1355,10 +1358,11 @@ mod benchmarking {
 
 		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
 		dissolve {
+			let k in 0 .. T::RemoveKeysLimit::get();
 			let fund_index = create_fund::<T>(1, 100u32.into());
 
 			// Dissolve will remove at most `RemoveKeysLimit` at once.
-			for i in 0 .. T::RemoveKeysLimit::get() {
+			for i in 0 .. k {
 				contribute_fund::<T>(&account("contributor", i, 0), fund_index);
 			}
 
@@ -1415,44 +1419,9 @@ mod benchmarking {
 		}
 	}
 
-	#[cfg(test)]
-	mod tests {
-		use super::*;
-		use crate::integration_tests::{new_test_ext, Test};
-
-		#[test]
-		fn create() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_create::<Test>());
-			});
-		}
-
-		#[test]
-		fn withdraw() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_withdraw::<Test>());
-			});
-		}
-
-		#[test]
-		fn contribute() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_contribute::<Test>());
-			});
-		}
-
-		#[test]
-		fn dissolve() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_dissolve::<Test>());
-			});
-		}
-
-		#[test]
-		fn on_initialize() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_on_initialize::<Test>());
-			});
-		}
-	}
+	impl_benchmark_test_suite!(
+		Crowdloan,
+		crate::integration_tests::new_test_ext(),
+		crate::integration_tests::Test,
+	);
 }
