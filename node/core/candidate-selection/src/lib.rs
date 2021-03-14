@@ -164,6 +164,18 @@ impl JobTrait for CandidateSelectionJob {
 				}
 				None => {
 					assignment_span.add_string_tag("assigned", "false");
+
+					let validator_index = validator.index();
+					let validator_id = validator.id();
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						?relay_parent,
+						?validator_index,
+						?validator_id,
+						"No assignment. Will not select candidate."
+					);
+
 					return Ok(())
 				}
 			};
