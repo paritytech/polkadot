@@ -243,6 +243,8 @@ decl_event! {
 
 decl_error! {
 	pub enum Error for Module<T: Config> {
+		/// The first slot needs to at least be less than 3 `max_value`.
+		FirstSlotTooFarInFuture,
 		/// Last slot must be greater than first slot.
 		LastSlotBeforeFirstSlot,
 		/// The last slot cannot be more then 3 slots after the first slot.
@@ -307,9 +309,9 @@ decl_module! {
 		) {
 			let depositor = ensure_signed(origin)?;
 
-			// TODO better verification of valid slots
 			ensure!(first_slot <= last_slot, Error::<T>::LastSlotBeforeFirstSlot);
-			ensure!(last_slot < first_slot.saturating_add(4u32.into()), Error::<T>::LastSlotTooFarInFuture);
+			let last_slot_limit = first_slot.checked_add(&3u32.into()).ok_or(Error::<T>::FirstSlotTooFarInFuture)?;
+			ensure!(last_slot <= last_slot_limit, Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
 			// There should not be an existing fund.
