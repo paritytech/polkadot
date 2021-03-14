@@ -456,12 +456,12 @@ impl PoV {
 
 /// SCALE and Zstd encoded [`PoV`].
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
-#[cfg(not(target_os = "unknown"))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CompressedPoV(Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[allow(missing_docs)]
 #[cfg(not(target_os = "unknown"))]
+#[allow(missing_docs)]
 pub enum CompressedPoVError {
 	#[error("Failed to compress a PoV")]
 	Compress,
