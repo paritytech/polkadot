@@ -604,7 +604,12 @@ impl pallet_bounties::Config for Runtime {
 	type MaximumReasonLength = MaximumReasonLength;
 	type MaxActiveSubBountyCount = MaxActiveSubBountyCount;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+}
 
+impl pallet_bounties::subbounty_migration::SubBountyMigration for Runtime {
+	type AccountId = AccountId;
+	type BlockNumber = BlockNumber;
+	type Balance = u128;
 }
 
 impl pallet_tips::Config for Runtime {
@@ -967,7 +972,7 @@ impl pallet_proxy::Config for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
+		pallet_bounties::subbounty_migration::apply::<Runtime>()
 	}
 }
 
