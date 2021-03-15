@@ -35,6 +35,7 @@ block-builder-api = { package = "sp-block-builder", git = "https://github.com/pa
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", default-features = false , branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -48,6 +49,7 @@ pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", default-features = false  , branch = "master" }
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false  , branch = "master" }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -127,6 +129,7 @@ std = [
 	"pallet-im-online/std",
 	"pallet-indices/std",
 	"pallet-membership/std",
+	"pallet-mmr/std",
 	"pallet-multisig/std",
 	"pallet-nicks/std",
 	"pallet-offences/std",
@@ -154,6 +157,7 @@ std = [
 	"sp-session/std",
 	"pallet-randomness-collective-flip/std",
 	"runtime-common/std",
+	"pallet-beefy/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -171,6 +175,7 @@ runtime-benchmarks = [
 	"pallet-identity/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
+	"pallet-mmr/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",

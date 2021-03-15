@@ -25,6 +25,40 @@ use pallet_mmr::primitives::LeafDataProvider;
 use parity_scale_codec::{Encode, Decode};
 use runtime_parachains::paras;
 
+/// A BEEFY consensus digest item with MMR root hash.
+pub struct DepositBeefyDigest<T>(sp_std::marker::PhantomData<T>);
+
+impl<T> pallet_mmr::primitives::OnNewRoot<beefy_primitives::MmrRootHash> for DepositBeefyDigest<T> where
+	T: pallet_mmr::Config<Hash = beefy_primitives::MmrRootHash>,
+	T: pallet_beefy::Config,
+{
+	fn on_new_root(root: &<T as pallet_mmr::Config>::Hash) {
+		let digest = sp_runtime::generic::DigestItem::Consensus(
+			beefy_primitives::BEEFY_ENGINE_ID,
+			parity_scale_codec::Encode::encode(
+				&beefy_primitives::ConsensusLog::<<T as pallet_beefy::Config>::AuthorityId>::MmrRoot(*root)
+			),
+		);
+		<frame_system::Module<T>>::deposit_log(digest);
+	}
+}
+
+/// Convert BEEFY secp256k1 public keys into uncompressed for
+pub struct UncompressBeefyEcdsaKeys;
+impl Convert<beefy_primitives::ecdsa::AuthorityId, Vec<u8>> for UncompressBeefyEcdsaKeys {
+	fn convert(a: beefy_primitives::ecdsa::AuthorityId) -> Vec<u8> {
+		use sp_core::crypto::Public;
+		let compressed_key = a.as_slice();
+		// TODO [ToDr] Temporary workaround until we have a better way to get uncompressed keys.
+		secp256k1::PublicKey::parse_slice(compressed_key, Some(secp256k1::PublicKeyFormat::Compressed))
+			.map(|pub_key| pub_key.serialize().to_vec())
+			.map_err(|_| {
+				log::error!(target: "runtime::beefy", "Invalid BEEFY PublicKey format!");
+			})
+			.unwrap_or_default()
+	}
+}
+
 /// A leaf that gets added every block to the MMR constructed by [pallet_mmr].
 #[derive(RuntimeDebug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct MmrLeaf<BlockNumber, Hash, MerkleRoot> {

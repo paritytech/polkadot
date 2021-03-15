@@ -31,6 +31,7 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
+	mmr as mmr_common,
 	paras_sudo_wrapper, paras_registrar, auctions, crowdloan, slots,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
@@ -41,7 +42,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear, ModuleId,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
-		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
+		Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
@@ -287,6 +288,7 @@ impl_opaque_keys! {
 		pub para_validator: Initializer,
 		pub para_assignment: ParachainsSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
+		pub beefy: Beefy,
 	}
 }
 
@@ -604,6 +606,23 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+impl pallet_beefy::Config for Runtime {
+	type AuthorityId = BeefyId;
+}
+
+impl pallet_mmr::Config for Runtime {
+	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	type Hashing = Keccak256;
+	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
+	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
+	type WeightInfo = ();
+	type LeafData = mmr_common::Module<Runtime>;
+}
+
+impl mmr_common::Config for Runtime {
+	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
+}
+
 parameter_types! {
 	// One storage item; key size 32, value size 8; .
 	pub const ProxyDepositBase: Balance = deposit(1, 8);
@@ -894,6 +913,12 @@ construct_runtime! {
 		Auctions: auctions::{Module, Call, Storage, Event<T>} = 41,
 		Crowdloan: crowdloan::{Module, Call, Storage, Event<T>} = 42,
 		Slots: slots::{Module, Call, Storage, Event<T>} = 43,
+
+		// Bridges support.
+		Mmr: pallet_mmr::{Module, Call, Storage} = 50,
+		Beefy: pallet_beefy::{Module, Config<T>, Storage} = 51,
+		MmrLeaf: mmr_common::{Module, Storage} = 52,
+
 	}
 }
 
@@ -1081,33 +1106,40 @@ sp_api::impl_runtime_apis! {
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
 		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
-			// dummy implementation due to lack of BEEFY pallet.
-			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+			Beefy::validator_set()
 		}
 	}
 
 	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
-		fn generate_proof(_leaf_index: u64)
+		fn generate_proof(leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::GenerateProof)
+			Mmr::generate_proof(leaf_index)
+				.map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
 		}
 
-		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+			pub type Leaf = <
+				<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider
+			>::LeafData;
+
+			let leaf: Leaf = leaf
+				.into_opaque_leaf()
+				.try_decode()
+				.ok_or(mmr::Error::Verify)?;
+			Mmr::verify_leaf(leaf, proof)
 		}
 
 		fn verify_proof_stateless(
-			_root: Hash,
-			_leaf: mmr::EncodableOpaqueLeaf,
-			_proof: mmr::Proof<Hash>
+			root: Hash,
+			leaf: mmr::EncodableOpaqueLeaf,
+			proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
+			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
+			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
 		}
 	}
 

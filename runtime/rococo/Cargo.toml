@@ -11,7 +11,6 @@ serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.6.1"
 hex-literal = "0.3.1"
-libsecp256k1 = { version = "0.3", default-features = false }
 log = { version = "0.4.14", default-features = false }
 
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }

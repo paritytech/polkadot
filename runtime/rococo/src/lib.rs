@@ -47,11 +47,10 @@ use frame_support::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Perbill,
-	generic::DigestItem,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
-		Extrinsic as ExtrinsicT, SaturatedConversion, Verify, Convert,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -633,43 +632,13 @@ impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
 	type Hash = <Keccak256 as traits::Hash>::Output;
-	type OnNewRoot = DepositLog;
+	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
 	type LeafData = mmr_common::Module<Runtime>;
 }
 
-/// Convert BEEFY secp256k1 public keys into uncompressed for
-pub struct UncompressBeefyKeys;
-impl Convert<BeefyId, Vec<u8>> for UncompressBeefyKeys {
-	fn convert(a: BeefyId) -> Vec<u8> {
-		use sp_core::crypto::Public;
-		let compressed_key = a.as_slice();
-		// TODO [ToDr] Temporary workaround until we have a better way to get uncompressed keys.
-		secp256k1::PublicKey::parse_slice(compressed_key, Some(secp256k1::PublicKeyFormat::Compressed))
-			.map(|pub_key| pub_key.serialize().to_vec())
-			.map_err(|_| {
-				log::error!(target: "runtime::beefy", "Invalid BEEFY PublicKey format!");
-			})
-			.unwrap_or_default()
-	}
-}
-
 impl mmr_common::Config for Runtime {
-	type BeefyAuthorityToMerkleLeaf = UncompressBeefyKeys;
-}
-
-/// A BEEFY consensus digest item with MMR root hash.
-pub struct DepositLog;
-impl pallet_mmr::primitives::OnNewRoot<
-	<Runtime as pallet_mmr::Config>::Hash
-> for DepositLog {
-	fn on_new_root(root: &Hash) {
-		let digest = DigestItem::Consensus(
-			beefy_primitives::BEEFY_ENGINE_ID,
-			parity_scale_codec::Encode::encode(&beefy_primitives::ConsensusLog::<BeefyId>::MmrRoot(*root)),
-		);
-		<frame_system::Module<Runtime>>::deposit_log(digest);
-	}
+	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
 }
 
 /// Priviledged origin used by propose parachain.
