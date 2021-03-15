@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 primitives = { package = "polkadot-primitives", path = "../primitives" }
-novelpoly = { package = "rs-ec-perf", git = "https://github.com/drahnr/rs-ec-perf.git", branch = "bernhard-split" }
-#novelpoly = { package = "reed-solomon-novelpoly", path = "../../rsc-perf/reed-solomon-novelpoly" }
+#novelpoly = { package = "rs-ec-perf", git = "https://github.com/drahnr/rs-ec-perf.git", branch = "master" }
+novelpoly = { package = "reed-solomon-novelpoly", path = "../../rsc-perf/reed-solomon-novelpoly" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["std", "derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
