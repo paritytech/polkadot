@@ -376,6 +376,7 @@ fn rejects_bad_assignment() {
 
 	let res = check_and_import_assignment(
 		&mut state,
+		&Metrics(None),
 		assignment_good.clone(),
 		candidate_index,
 	).unwrap();
@@ -396,6 +397,7 @@ fn rejects_bad_assignment() {
 
 	let res = check_and_import_assignment(
 		&mut state,
+		&Metrics(None),
 		assignment,
 		candidate_index,
 	).unwrap();
@@ -411,6 +413,7 @@ fn rejects_bad_assignment() {
 	// same assignment, but this time rejected
 	let res = check_and_import_assignment(
 		&mut state,
+		&Metrics(None),
 		assignment_good,
 		candidate_index,
 	).unwrap();
@@ -441,6 +444,7 @@ fn rejects_assignment_in_future() {
 
 	let res = check_and_import_assignment(
 		&mut state,
+		&Metrics(None),
 		assignment.clone(),
 		candidate_index,
 	).unwrap();
@@ -455,6 +459,7 @@ fn rejects_assignment_in_future() {
 
 	let res = check_and_import_assignment(
 		&mut state,
+		&Metrics(None),
 		assignment.clone(),
 		candidate_index,
 	).unwrap();
@@ -479,6 +484,7 @@ fn rejects_assignment_with_unknown_candidate() {
 
 	let res = check_and_import_assignment(
 		&mut state,
+		&Metrics(None),
 		assignment.clone(),
 		candidate_index,
 	).unwrap();
@@ -510,6 +516,7 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 
 	let (res, actions) = check_and_import_assignment(
 		&mut state,
+		&Metrics(None),
 		assignment.clone(),
 		candidate_index,
 	).unwrap();
@@ -560,6 +567,7 @@ fn rejects_approval_before_assignment() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -591,6 +599,7 @@ fn rejects_approval_if_no_candidate_entry() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -628,6 +637,7 @@ fn rejects_approval_if_no_block_entry() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -669,6 +679,7 @@ fn accepts_and_imports_approval_after_assignment() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -722,6 +733,7 @@ fn second_approval_import_is_no_op() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -767,6 +779,7 @@ fn check_and_apply_full_approval_sets_flag_and_bit() {
 
 	let actions = check_and_apply_full_approval(
 		&state,
+		&Metrics(None),
 		None,
 		candidate_hash,
 		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
@@ -830,6 +843,7 @@ fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 
 	let actions = check_and_apply_full_approval(
 		&state,
+		&Metrics(None),
 		Some((block_hash, block_entry)),
 		candidate_hash,
 		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
@@ -1329,6 +1343,7 @@ fn block_not_approved_until_all_candidates_approved() {
 
 	let actions = check_and_apply_full_approval(
 		&state,
+		&Metrics(None),
 		None,
 		candidate_hash_2,
 		state.db.candidate_entries.get(&candidate_hash_2).unwrap().clone(),
@@ -1423,6 +1438,7 @@ fn candidate_approval_applied_to_all_blocks() {
 
 	let actions = check_and_apply_full_approval(
 		&state,
+		&Metrics(None),
 		None,
 		candidate_hash,
 		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
