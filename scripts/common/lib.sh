@@ -117,3 +117,10 @@ skip_if_companion_pr() {
     echo "[+] PR is not a companion PR. Proceeding test"
   fi
 }
+
+# Fetches the tag name of the latest release from a repository
+# repo: 'organisation/repo'
+# Usage: latest_release 'paritytech/polkadot'
+latest_release() {
+  curl -s "$api_base/$1/releases/latest" | jq -r '.tag_name'
+}

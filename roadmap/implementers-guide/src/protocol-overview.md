@@ -41,10 +41,10 @@ The Approval Process, at a glance, looks like this:
 1. Parablocks that have been included by the Inclusion Pipeline are pending approval for a time-window known as the secondary checking window.
 1. During the secondary-checking window, validators randomly self-select to perform secondary checks on the parablock.
 1. These validators, known in this context as secondary checkers, acquire the parablock and its PoV, and re-run the validation function.
-1. The secondary checkers submit the result of their checks to the relay chain. Contradictory results lead to escalation, where all validators are required to check the block. The validators on the losing side of the dispute are slashed.
+1. The secondary checkers gossip the result of their checks. Contradictory results lead to escalation, where all validators are required to check the block. The validators on the losing side of the dispute are slashed.
 1. At the end of the Approval Process, the parablock is either Approved or it is rejected. More on the rejection process later.
 
-More information on the Approval Process can be found in the dedicated section on [Approval](protocol-approval.md).
+More information on the Approval Process can be found in the dedicated section on [Approval](protocol-approval.md). More information on Disputes can be found in the dedicated section on [Disputes](protocol-disputes.md).
 
 These two pipelines sum up the sequence of events necessary to extend and acquire full security on a Parablock. Note that the Inclusion Pipeline must conclude for a specific parachain before a new block can be accepted on that parachain. After inclusion, the Approval Process kicks off, and can be running for many parachain blocks at once.
 

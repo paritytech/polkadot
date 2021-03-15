@@ -17,18 +17,17 @@
 //! All peersets and protocols used for parachains.
 
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::{Index, IndexMut}};
 use strum::{EnumIter, IntoEnumIterator};
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
-#[repr(usize)]
 pub enum PeerSet {
 	/// The validation peer-set is responsible for all messages related to candidate validation and
 	/// communication among validators.
-	Validation = 0,
+	Validation,
 	/// The collation peer-set is used for validator<>collator communication.
-	Collation = 1,
+	Collation,
 }
 
 impl PeerSet {
@@ -87,6 +86,32 @@ impl PeerSet {
 			_ => None,
 		}
 	}
+}
+
+/// A small and nifty collection that allows to store data pertaining to each peer set.
+#[derive(Debug, Default)]
+pub struct PerPeerSet<T> {
+	validation: T,
+	collation: T,
+}
+
+impl<T> Index<PeerSet> for PerPeerSet<T> {
+	type Output = T;
+	fn index(&self, index: PeerSet) -> &T {
+		match index {
+			PeerSet::Validation => &self.validation,
+			PeerSet::Collation => &self.collation,
+		}
+	}
+}
+
+impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
+    fn index_mut(&mut self, index: PeerSet) -> &mut T {
+        match index {
+			PeerSet::Validation => &mut self.validation,
+			PeerSet::Collation => &mut self.collation,
+		}
+    }
 }
 
 /// Get `NonDefaultSetConfig`s for all available peer sets.

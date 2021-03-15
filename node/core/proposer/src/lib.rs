@@ -32,7 +32,7 @@ use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sp_core::traits::SpawnNamed;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
-use sp_consensus::{Proposal, RecordProof};
+use sp_consensus::{Proposal, DisableProofRecording};
 use sp_inherents::InherentData;
 use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
@@ -44,7 +44,7 @@ const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(
 
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {
-	inner: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client>,
+	inner: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client, DisableProofRecording>,
 	overseer: OverseerHandler,
 }
 
@@ -79,7 +79,7 @@ where
 		+ Send
 		+ Sync,
 	Client::Api:
-		BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+		BlockBuilderApi<Block> + ApiExt<Block>,
 	Backend:
 		'static + sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -116,7 +116,7 @@ where
 /// This proposer gets the ProvisionerInherentData and injects it into the wrapped
 /// proposer's inherent data, then delegates the actual proposal generation.
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
-	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
+	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool, DisableProofRecording>,
 	overseer: OverseerHandler,
 	parent_header: Header,
 	parent_header_hash: Hash,
@@ -133,7 +133,7 @@ where
 		+ Send
 		+ Sync,
 	Client::Api:
-		BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+		BlockBuilderApi<Block> + ApiExt<Block>,
 	Backend:
 		'static + sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -179,7 +179,7 @@ where
 		+ Send
 		+ Sync,
 	Client::Api:
-		BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+		BlockBuilderApi<Block> + ApiExt<Block>,
 	Backend:
 		'static + sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -187,16 +187,17 @@ where
 {
 	type Transaction = sc_client_api::TransactionFor<Backend, Block>;
 	type Proposal = Pin<Box<
-		dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error>> + Send,
+		dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>, ()>, Error>> + Send,
 	>>;
 	type Error = Error;
+	type ProofRecording = DisableProofRecording;
+	type Proof = ();
 
 	fn propose(
 		self,
 		mut inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: time::Duration,
-		record_proof: RecordProof,
 	) -> Self::Proposal {
 		async move {
 			let span = jaeger::hash_span(&self.parent_header_hash, "propose");
@@ -224,7 +225,7 @@ where
 
 			let _span = span.child("authorship-propose");
 			self.inner
-				.propose(inherent_data, inherent_digests, max_duration, record_proof)
+				.propose(inherent_data, inherent_digests, max_duration)
 				.await
 				.map_err(Into::into)
 		}

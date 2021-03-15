@@ -16,29 +16,44 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
-pub use sp_consensus_slots::Slot;
+pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof, Randomness};
+pub use sp_consensus_babe::Slot;
 
 use polkadot_primitives::v1::{
-	CandidateHash, Hash, ValidatorIndex, Signed, ValidatorSignature, CoreIndex,
-	BlockNumber, CandidateIndex,
+	CandidateHash, Hash, ValidatorIndex, ValidatorSignature, CoreIndex,
+	Header, BlockNumber, CandidateIndex,
 };
 use parity_scale_codec::{Encode, Decode};
+use sp_consensus_babe as babe_primitives;
+use sp_application_crypto::Public;
 
 /// Validators assigning to check a particular candidate are split up into tranches.
 /// Earlier tranches of validators check first, with later tranches serving as backup.
 pub type DelayTranche = u32;
 
+/// A static context used to compute the Relay VRF story based on the
+/// VRF output included in the header-chain.
+pub const RELAY_VRF_STORY_CONTEXT: &[u8] = b"A&V RC-VRF";
+
 /// A static context used for all relay-vrf-modulo VRFs.
 pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
 
-/// A static context used for all relay-vrf-delay VRFs.
-pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V TRANCHE";
+/// A static context used for all relay-vrf-modulo VRFs.
+pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V DELAY";
+
+/// A static context used for transcripts indicating assigned availability core.
+pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED";
+
+/// A static context associated with producing randomness for a core.
+pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE";
+
+/// A static context associated with producing randomness for a tranche.
+pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub struct RelayVRF(pub [u8; 32]);
+pub struct RelayVRFStory(pub [u8; 32]);
 
 /// Different kinds of input data or criteria that can prove a validator's assignment
 /// to check a particular parachain.
@@ -87,9 +102,6 @@ pub struct IndirectAssignmentCert {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct ApprovalVote(pub CandidateHash);
 
-/// An approval vote signed by some validator.
-pub type SignedApprovalVote = Signed<ApprovalVote>;
-
 /// A signed approval vote which references the candidate indirectly via the block.
 ///
 /// In practice, we have a look-up from block hash and candidate index to candidate hash,
@@ -120,4 +132,85 @@ pub struct BlockApprovalMeta {
 	pub candidates: Vec<CandidateHash>,
 	/// The consensus slot of the block.
 	pub slot: Slot,
+}
+
+/// Errors that can occur during the approvals protocol.
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum ApprovalError {
+	#[error("Schnorrkel signature error")]
+	SchnorrkelSignature(schnorrkel::errors::SignatureError),
+	#[error("Authority index {0} out of bounds")]
+	AuthorityOutOfBounds(usize),
+}
+
+/// An unsafe VRF output. Provide BABE Epoch info to create a `RelayVRFStory`.
+pub struct UnsafeVRFOutput {
+	vrf_output: VRFOutput,
+	slot: Slot,
+	authority_index: u32,
+}
+
+impl UnsafeVRFOutput {
+	/// Get the slot.
+	pub fn slot(&self) -> Slot {
+		self.slot
+	}
+
+	/// Compute the randomness associated with this VRF output.
+	pub fn compute_randomness(
+		self,
+		authorities: &[(babe_primitives::AuthorityId, babe_primitives::BabeAuthorityWeight)],
+		randomness: &babe_primitives::Randomness,
+		epoch_index: u64,
+	) -> Result<RelayVRFStory, ApprovalError> {
+		let author = match authorities.get(self.authority_index as usize) {
+			None => return Err(ApprovalError::AuthorityOutOfBounds(self.authority_index as _)),
+			Some(x) => &x.0,
+		};
+
+		let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
+			.map_err(ApprovalError::SchnorrkelSignature)?;
+
+		let transcript = babe_primitives::make_transcript(
+			randomness,
+			self.slot,
+			epoch_index,
+		);
+
+		let inout = self.vrf_output.0.attach_input_hash(&pubkey, transcript)
+			.map_err(ApprovalError::SchnorrkelSignature)?;
+		Ok(RelayVRFStory(inout.make_bytes(RELAY_VRF_STORY_CONTEXT)))
+	}
+}
+
+/// Extract the slot number and relay VRF from a header.
+///
+/// This fails if either there is no BABE `PreRuntime` digest or
+/// the digest has type `SecondaryPlain`, which Substrate nodes do
+/// not produce or accept anymore.
+pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
+	use babe_primitives::digests::{CompatibleDigestItem, PreDigest};
+
+	for digest in &header.digest.logs {
+		if let Some(pre) = digest.as_babe_pre_digest() {
+			let slot = pre.slot();
+			let authority_index = pre.authority_index();
+
+			// exhaustive match to defend against upstream variant changes.
+			let vrf_output = match pre {
+				PreDigest::Primary(primary) => primary.vrf_output,
+				PreDigest::SecondaryVRF(secondary) => secondary.vrf_output,
+				PreDigest::SecondaryPlain(_) => return None,
+			};
+
+			return Some(UnsafeVRFOutput {
+				vrf_output,
+				slot,
+				authority_index,
+			});
+		}
+	}
+
+	None
 }
