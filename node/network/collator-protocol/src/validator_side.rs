@@ -137,6 +137,9 @@ struct CollationRequest {
 
 	// The id of this request.
 	request_id: RequestId,
+
+	// A jaeger span corresponding to the lifetime of the request.
+	span: Option<jaeger::Span>,
 }
 
 impl CollationRequest {
@@ -147,11 +150,18 @@ impl CollationRequest {
 			received,
 			timeout,
 			request_id,
+			mut span,
 		} = self;
 
 		match received.timeout(timeout).await {
-			None => Timeout(request_id),
-			Some(_) => Received(request_id),
+			None => {
+				span.as_mut().map(|s| s.add_string_tag("success", "false"));
+				Timeout(request_id)
+			}
+			Some(_) => {
+				span.as_mut().map(|s| s.add_string_tag("success", "true"));
+				Received(request_id)
+			}
 		}
 	}
 }
@@ -466,6 +476,11 @@ where
 		received: rx,
 		timeout: state.request_timeout,
 		request_id,
+		span: state.span_per_relay_parent.get(&relay_parent).map(|s| {
+			s.child_builder("collation-request")
+				.with_para_id(para_id)
+				.build()
+		}),
 	};
 
 	state.requested_collations.insert((relay_parent, para_id.clone(), peer_id.clone()), request_id);

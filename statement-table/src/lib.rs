@@ -52,8 +52,7 @@ pub mod v1 {
 		fn from(s: &'a Statement) -> PrimitiveStatement {
 			match *s {
 				generic::Statement::Valid(s) => PrimitiveStatement::Valid(s),
-				generic::Statement::Invalid(s) => PrimitiveStatement::Invalid(s),
-				generic::Statement::Candidate(ref s) => PrimitiveStatement::Candidate(s.hash()),
+				generic::Statement::Seconded(ref s) => PrimitiveStatement::Seconded(s.hash()),
 			}
 		}
 	}

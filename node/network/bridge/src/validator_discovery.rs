@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
 
-const LOG_TARGET: &str = "validator_discovery";
+const LOG_TARGET: &str = "parachain::validator-discovery";
 
 /// An abstraction over networking for the purposes of validator discovery service.
 #[async_trait]

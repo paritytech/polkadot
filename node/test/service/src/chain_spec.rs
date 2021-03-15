@@ -22,7 +22,7 @@ use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
 use polkadot_primitives::v1::{ValidatorId, AccountId, AssignmentId};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
-use polkadot_test_runtime::constants::currency::DOTS;
+use polkadot_test_runtime::{constants::currency::DOTS, BABE_GENESIS_EPOCH_CONFIG};
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_core::sr25519;
 use sp_runtime::Perbill;
@@ -114,18 +114,18 @@ fn polkadot_testnet_genesis(
 	const STASH: u128 = 100 * DOTS;
 
 	runtime::GenesisConfig {
-		frame_system: Some(runtime::SystemConfig {
+		frame_system: runtime::SystemConfig {
 			code: runtime::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
 			..Default::default()
-		}),
-		pallet_indices: Some(runtime::IndicesConfig { indices: vec![] }),
-		pallet_balances: Some(runtime::BalancesConfig {
+		},
+		pallet_indices: runtime::IndicesConfig { indices: vec![] },
+		pallet_balances: runtime::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
 				.map(|k| (k.clone(), ENDOWMENT))
 				.collect(),
-		}),
-		pallet_session: Some(runtime::SessionConfig {
+		},
+		pallet_session: runtime::SessionConfig {
 			keys: initial_authorities
 				.iter()
 				.map(|x| {
@@ -142,8 +142,8 @@ fn polkadot_testnet_genesis(
 					)
 				})
 				.collect::<Vec<_>>(),
-		}),
-		pallet_staking: Some(runtime::StakingConfig {
+		},
+		pallet_staking: runtime::StakingConfig {
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities
@@ -161,17 +161,20 @@ fn polkadot_testnet_genesis(
 			force_era: Forcing::NotForcing,
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
-		}),
-		pallet_babe: Some(Default::default()),
-		pallet_grandpa: Some(Default::default()),
-		pallet_authority_discovery: Some(runtime::AuthorityDiscoveryConfig { keys: vec![] }),
-		claims: Some(runtime::ClaimsConfig {
+		},
+		pallet_babe: runtime::BabeConfig {
+			authorities: vec![],
+			epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+		},
+		pallet_grandpa: Default::default(),
+		pallet_authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
+		claims: runtime::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
-		}),
-		pallet_vesting: Some(runtime::VestingConfig { vesting: vec![] }),
-		pallet_sudo: Some(runtime::SudoConfig { key: root_key }),
-		parachains_configuration: Some(runtime::ParachainsConfigurationConfig {
+		},
+		pallet_vesting: runtime::VestingConfig { vesting: vec![] },
+		pallet_sudo: runtime::SudoConfig { key: root_key },
+		parachains_configuration: runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 10u32,
 				validation_upgrade_delay: 5,
@@ -185,7 +188,7 @@ fn polkadot_testnet_genesis(
 				no_show_slots: 10,
 				..Default::default()
 			},
-		}),
+		},
 	}
 }
 

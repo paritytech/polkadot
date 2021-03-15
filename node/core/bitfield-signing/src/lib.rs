@@ -39,7 +39,7 @@ use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
-const LOG_TARGET: &str = "bitfield_signing";
+const LOG_TARGET: &str = "parachain::bitfield-signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;

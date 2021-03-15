@@ -77,7 +77,7 @@ const MALFORMED_VIEW_COST: Rep = Rep::CostMajor("Malformed view");
 const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
 
 // network bridge log target
-const LOG_TARGET: &'static str = "network_bridge";
+const LOG_TARGET: &'static str = "parachain::network-bridge";
 
 /// Messages from and to the network.
 ///
@@ -1547,6 +1547,7 @@ mod tests {
 				AllMessages::CollationGeneration(_) => unreachable!("Not interested in network events"),
 				AllMessages::ApprovalVoting(_) => unreachable!("Not interested in network events"),
 				AllMessages::ApprovalDistribution(_) => { cnt += 1; }
+				AllMessages::GossipSupport(_) => unreachable!("Not interested in network events"),
 				// Add variants here as needed, `{ cnt += 1; }` for those that need to be
 				// notified, `unreachable!()` for those that should not.
 			}
