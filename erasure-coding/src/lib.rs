@@ -31,12 +31,11 @@ use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 use thiserror::Error;
 
-use novelpoly::novel_poly_basis as novel_poly;
 use novelpoly::WrappedShard;
-use novel_poly::CodeParams;
+use novelpoly::CodeParams;
 
 // we are limited to the field order of GF(2^16), which is 65536
-const MAX_VALIDATORS: usize = novel_poly::FIELD_SIZE;
+const MAX_VALIDATORS: usize = novelpoly::f2e16::FIELD_SIZE;
 
 /// Errors in erasure coding.
 #[derive(Debug, Clone, PartialEq, Error)]
@@ -82,32 +81,33 @@ pub enum Error {
 	UnknownCodeParam,
 }
 
-/// Returns the maximum number of allowed, faulty chunks
-/// which does not prevent recovery given all other pieces
-/// are correct.
-const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
+/// Obtain a threshold of chunks that should be enough to recover the data.
+pub const fn recovery_threshold(n_validators: usize) -> Result<usize, Error> {
 	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
 	if n_validators <= 1 { return Err(Error::NotEnoughValidators) }
 
-	Ok(n_validators.saturating_sub(1) / 3)
+	let needed = n_validators.saturating_sub(1) / 3;
+	Ok(needed + 1)
 }
 
 fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
-	CodeParams::derive_from_validator_count(n_validators)
+	// we need to be able to reconstruct from 1/3 - eps
+
+	let n_wanted = n_validators;
+	let k_wanted = recovery_threshold(n_wanted)?;
+
+	if n_wanted > MAX_VALIDATORS as usize {
+		return Err(Error::NotEnoughValidators);
+	}
+
+	CodeParams::derive_parameters(n_wanted, k_wanted)
 		.map_err(|e| {
 			match e {
-				novelpoly::Error::ValidatorCountTooHigh{ .. } => Error::TooManyValidators,
-				novelpoly::Error::ValidatorCountTooLow{ .. } => Error::NotEnoughValidators,
+				novelpoly::Error::WantedShardCountTooHigh(_) => Error::TooManyValidators,
+				novelpoly::Error::WantedShardCountTooLow(_) => Error::NotEnoughValidators,
 				_ => Error::UnknownCodeParam,
 			}
 		})
-}
-
-/// Obtain a threshold of chunks that should be enough to recover the data.
-pub fn recovery_threshold(n_validators: usize) -> Result<usize, Error> {
-	let n_faulty = n_faulty(n_validators)?;
-
-	Ok(n_faulty + 1)
 }
 
 /// Obtain erasure-coded chunks for v0 `AvailableData`, one for each validator.
@@ -141,10 +141,10 @@ fn obtain_chunks<T: Encode>(n_validators: usize, data: &T)
 		return Err(Error::BadPayload);
 	}
 
-	let shards = params.make_encoder().encode(&encoded[..])
+	let shards = params.make_encoder().encode::<WrappedShard>(&encoded[..])
 		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
-	Ok(shards.into_iter().map(|w| w.into_inner()).collect())
+	Ok(shards.into_iter().map(|w: WrappedShard| w.into_inner()).collect())
 }
 
 /// Reconstruct the v0 available data from a set of chunks.
@@ -215,8 +215,8 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 		Err(e) => match e {
 			novelpoly::Error::NeedMoreShards { .. } => return Err(Error::NotEnoughChunks),
 			novelpoly::Error::ParamterMustBePowerOf2 { .. } => return Err(Error::UnevenLength),
-			novelpoly::Error::ValidatorCountTooHigh { .. } => return Err(Error::TooManyValidators),
-			novelpoly::Error::ValidatorCountTooLow { .. } => return Err(Error::NotEnoughValidators),
+			novelpoly::Error::WantedShardCountTooHigh(_) => return Err(Error::TooManyValidators),
+			novelpoly::Error::WantedShardCountTooLow(_) => return Err(Error::NotEnoughValidators),
 			novelpoly::Error::PayloadSizeIsZero { .. } => return Err(Error::BadPayload),
 			_ => return Err(Error::UnknownReconstruction),
 		}
