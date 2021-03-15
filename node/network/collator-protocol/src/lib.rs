@@ -43,7 +43,7 @@ use polkadot_node_subsystem_util::{
 mod collator_side;
 mod validator_side;
 
-const LOG_TARGET: &'static str = "collator_protocol";
+const LOG_TARGET: &'static str = "parachain::collator-protocol";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Error)]
