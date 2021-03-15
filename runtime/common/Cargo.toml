@@ -5,6 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
+impl-trait-for-tuples = "0.2.0"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.13", optional = true }
@@ -33,7 +34,9 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features=false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
@@ -45,10 +48,10 @@ xcm = { path = "../../xcm", default-features = false }
 hex-literal = "0.3.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-election-providers = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -93,4 +96,6 @@ runtime-benchmarks = [
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"runtime-parachains/runtime-benchmarks",
+	"pallet-babe/runtime-benchmarks",
 ]
