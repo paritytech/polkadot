@@ -45,7 +45,7 @@
 //! ```
 
 use sp_core::traits::SpawnNamed;
-use polkadot_primitives::v1::{CandidateHash, Hash, PoV, ValidatorIndex, BlakeTwo256, HashT};
+use polkadot_primitives::v1::{CandidateHash, Hash, PoV, ValidatorIndex, BlakeTwo256, HashT, Id as ParaId};
 use parity_scale_codec::Encode;
 use sc_network::PeerId;
 
@@ -204,6 +204,14 @@ impl SpanBuilder {
 		self.span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
 		self
 	}
+
+	/// Attach a para-id to the span.
+	#[inline(always)]
+	pub fn with_para_id(mut self, para_id: ParaId) -> Self {
+		self.span.add_para_id(para_id);
+		self
+	}
+
 	/// Attach a candidate stage.
 	/// Should always come with a `CandidateHash`.
 	#[inline(always)]
@@ -305,10 +313,23 @@ impl Span {
 		}
 	}
 
+	/// Add the para-id to the span.
+	pub fn add_para_id(&mut self, para_id: ParaId) {
+		self.add_int_tag("para-id", u32::from(para_id) as i64);
+	}
+
 	/// Add an additional tag to the span.
 	pub fn add_string_tag(&mut self, tag: &str, value: &str) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, value),
+			Self::Disabled => {},
+		}
+	}
+
+	/// Add an additional int tag to the span.
+	pub fn add_int_tag(&mut self, tag: &str, value: i64) {
+		match self {
+			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
 			Self::Disabled => {},
 		}
 	}

@@ -57,8 +57,7 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.12"
 hex-literal = "0.3.1"
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+tracing = "0.1.25"
 serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.23"
 
@@ -83,6 +82,7 @@ polkadot-availability-bitfield-distribution = { path = "../network/bitfield-dist
 polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
 polkadot-availability-recovery = { path = "../network/availability-recovery", optional = true }
 polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
+polkadot-gossip-support = { path = "../network/gossip-support", optional = true }
 polkadot-network-bridge = { path = "../network/bridge", optional = true }
 polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
 polkadot-node-core-av-store = { path = "../core/av-store", optional = true }
@@ -128,6 +128,7 @@ real-overseer = [
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
 	"polkadot-collator-protocol",
+	"polkadot-gossip-support",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",
 	"polkadot-node-core-backing",
