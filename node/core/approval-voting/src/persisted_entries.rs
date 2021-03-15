@@ -323,6 +323,15 @@ impl BlockEntry {
 		self.approved_bitfield.all()
 	}
 
+	/// Iterate over all unapproved candidates.
+	pub fn unapproved_candidates(&self) -> impl Iterator<Item = CandidateHash> + '_ {
+		self.approved_bitfield.iter().enumerate().filter_map(move |(i, a)| if *a {
+			Some(self.candidates[i].1)
+		} else {
+			None
+		})
+	}
+
 	#[cfg(test)]
 	pub fn block_hash(&self) -> Hash {
 		self.block_hash

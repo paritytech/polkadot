@@ -21,13 +21,20 @@
 pub mod claims;
 pub mod slot_range;
 pub mod slots;
+pub mod auctions;
 pub mod crowdloan;
 pub mod purchase;
 pub mod impls;
 pub mod mmr;
-pub mod paras_registrar;
 pub mod paras_sudo_wrapper;
+pub mod paras_registrar;
+pub mod traits;
 pub mod xcm_sender;
+
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod integration_tests;
 
 use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};

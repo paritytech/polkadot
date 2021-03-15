@@ -54,11 +54,7 @@ type BalanceOf<T> = <T as pallet_balances::Config>::Balance;
 /// Configuration for the parachain proposer.
 pub trait Config: pallet_session::Config
 	+ pallet_balances::Config
-	+ pallet_balances::Config
 	+ runtime_parachains::paras::Config
-	+ runtime_parachains::dmp::Config
-	+ runtime_parachains::ump::Config
-	+ runtime_parachains::hrmp::Config
 {
 	/// The overreaching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
@@ -107,6 +103,8 @@ decl_event! {
 		ParachainRegistered(ParaId),
 		/// New validators were added to the set.
 		ValidatorsRegistered(Vec<ValidatorId>),
+		/// Validators were removed from the set.
+		ValidatorsDeregistered(Vec<ValidatorId>),
 	}
 }
 
@@ -296,6 +294,8 @@ decl_module! {
 		}
 
 		/// Add new validators to the set.
+		///
+		/// The new validators will be active from current session + 2.
 		#[weight = 100_000]
 		fn register_validators(
 			origin,
@@ -306,6 +306,21 @@ decl_module! {
 			validators.clone().into_iter().for_each(|v| ValidatorsToAdd::<T>::append(v));
 
 			Self::deposit_event(RawEvent::ValidatorsRegistered(validators));
+		}
+
+		/// Remove validators from the set.
+		///
+		/// The removed validators will be deactivated from current session + 2.
+		#[weight = 100_000]
+		fn deregister_validators(
+			origin,
+			validators: Vec<T::ValidatorId>,
+		) {
+			T::PriviledgedOrigin::ensure_origin(origin)?;
+
+			validators.clone().into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
+
+			Self::deposit_event(RawEvent::ValidatorsDeregistered(validators));
 		}
 	}
 }
