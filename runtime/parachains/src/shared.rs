@@ -106,12 +106,13 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Return the session index that should be used for any future scheduled changes.
-	pub (crate) fn scheduled_session() -> SessionIndex {
+	pub fn scheduled_session() -> SessionIndex {
 		Self::session_index().saturating_add(SESSION_DELAY)
 	}
 
-	#[cfg(test)]
-	pub(crate) fn set_session_index(index: SessionIndex) {
+	/// Test function for setting the current session index.
+	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+	pub fn set_session_index(index: SessionIndex) {
 		CurrentSessionIndex::set(index);
 	}
 

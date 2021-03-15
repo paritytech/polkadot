@@ -54,11 +54,7 @@ type BalanceOf<T> = <T as pallet_balances::Config>::Balance;
 /// Configuration for the parachain proposer.
 pub trait Config: pallet_session::Config
 	+ pallet_balances::Config
-	+ pallet_balances::Config
 	+ runtime_parachains::paras::Config
-	+ runtime_parachains::dmp::Config
-	+ runtime_parachains::ump::Config
-	+ runtime_parachains::hrmp::Config
 {
 	/// The overreaching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
