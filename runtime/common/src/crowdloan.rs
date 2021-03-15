@@ -112,6 +112,9 @@ impl WeightInfo for TestWeightInfo {
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
 }
 
+/// Maximum byte length of the memo attached to a contribution.
+const MAX_MEMO_LENGTH: usize = 64;
+
 pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
@@ -283,6 +286,8 @@ decl_error! {
 		NotReadyToDissolve,
 		/// Invalid signature.
 		InvalidSignature,
+		/// The memo attached to this contribution is too long.
+		MemoTooLong,
 	}
 }
 
@@ -354,11 +359,12 @@ decl_module! {
 			#[compact] index: ParaId,
 			#[compact] value: BalanceOf<T>,
 			signature: Option<MultiSignature>,
-			_memo: [u8; 32],
+			memo: Vec<u8>,
 		) {
 			let who = ensure_signed(origin)?;
 
 			ensure!(value >= T::MinContribution::get(), Error::<T>::ContributionTooSmall);
+			ensure!(memo.len() < MAX_MEMO_LENGTH, Error::<T>::MemoTooLong);
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			fund.raised  = fund.raised.checked_add(&value).ok_or(Error::<T>::Overflow)?;
 			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
