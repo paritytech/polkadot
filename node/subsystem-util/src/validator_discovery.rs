@@ -78,7 +78,7 @@ pub async fn connect_to_validators_in_session<Context: SubsystemContext>(
 	};
 
 	tracing::trace!(
-		target: "network_bridge",
+		target: "parachain::validator-discovery",
 		validators = ?validators,
 		discovery_keys = ?discovery_keys,
 		session_index,
