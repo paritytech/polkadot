@@ -655,7 +655,7 @@ impl pallet_bounties::Config for Runtime {
 impl pallet_bounties::subbounty_migration::SubBountyMigration for Runtime {
 	type AccountId = AccountId;
 	type BlockNumber = BlockNumber;
-	type Balance = u128;
+	type Balance = Balance;
 }
 
 impl pallet_tips::Config for Runtime {
