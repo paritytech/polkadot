@@ -228,15 +228,15 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn transaction(
+	fn indexed_transaction(
 		&self,
 		id: &<Block as BlockT>::Hash
 	) -> sp_blockchain::Result<Option<Vec<u8>>> {
 		match self {
-			Self::Polkadot(client) => client.transaction(id),
-			Self::Westend(client) => client.transaction(id),
-			Self::Kusama(client) => client.transaction(id),
-			Self::Rococo(client) => client.transaction(id),
+			Self::Polkadot(client) => client.indexed_transaction(id),
+			Self::Westend(client) => client.indexed_transaction(id),
+			Self::Kusama(client) => client.indexed_transaction(id),
+			Self::Rococo(client) => client.indexed_transaction(id),
 		}
 	}
 
