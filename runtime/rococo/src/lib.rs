@@ -157,9 +157,28 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllModules,
+	UpgradeSessionKeys,
+>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+// TODO [ToDr] Remove while BEEFY runtime upgrade is done.
+impl_opaque_keys! {
+	pub struct OldSessionKeys {
+		pub grandpa: Grandpa,
+		pub babe: Babe,
+		pub im_online: ImOnline,
+		pub para_validator: Initializer,
+		pub para_assignment: SessionInfo,
+		pub authority_discovery: AuthorityDiscovery,
+	}
+}
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
@@ -170,6 +189,34 @@ impl_opaque_keys! {
 		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 		pub beefy: Beefy,
+	}
+}
+
+fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
+	SessionKeys {
+		grandpa: old.grandpa,
+		babe: old.babe,
+		im_online: old.im_online,
+		para_validator: old.para_validator,
+		para_assignment: old.para_assignment,
+		authority_discovery: old.authority_discovery,
+		beefy: {
+			// We need to produce a dummy value that's unique for the validator.
+			let mut id = BeefyId::default();
+			let id_raw: &mut [u8] = id.as_mut();
+			id_raw.copy_from_slice(v.as_ref());
+			id_raw[0..4].copy_from_slice(b"beef");
+			id
+		},
+	}
+}
+
+// When this is removed, should also remove `OldSessionKeys`.
+pub struct UpgradeSessionKeys;
+impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		Session::upgrade_keys::<OldSessionKeys, _>(transform_session_keys);
+		Perbill::from_percent(50) * BlockWeights::get().max_block
 	}
 }
 
