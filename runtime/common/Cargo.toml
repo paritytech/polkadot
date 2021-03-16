@@ -49,7 +49,6 @@ hex-literal = "0.3.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-election-providers = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
