@@ -14,6 +14,7 @@ polkadot-primitives = { path = "../../../primitives" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }

@@ -5579,6 +5579,7 @@ dependencies = [
  "sc-basic-authorship",
  "sc-block-builder",
  "sc-client-api",
+ "sc-telemetry",
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
