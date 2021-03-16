@@ -410,7 +410,7 @@ where
 				target: LOG_TARGET,
 				peer_id = ?origin,
 				"Unexpected `CollationSeconded` message, decreasing reputation",
-				);
+			);
 			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
 	}
@@ -630,7 +630,7 @@ where
 		tracing::error!(
 			target: LOG_TARGET,
 			"We remove pending responses once received, this should not happen."
-			);
+		);
 		return true
 	}
 
@@ -651,7 +651,7 @@ where
 					peer_id = ?peer_id,
 					err = ?err,
 					"Collator provided response that could not be decoded"
-					);
+				);
 				modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
 			}
 			Err(RequestError::NetworkError(err)) => {
@@ -662,7 +662,7 @@ where
 					peer_id = ?peer_id,
 					err = ?err,
 					"Fetching collation failed due to network error"
-					);
+				);
 				// A minor decrease in reputation for any network failure seems
 				// sensbile. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
@@ -676,7 +676,7 @@ where
 					para_id = ?para_id,
 					peer_id = ?peer_id,
 					"Request timed out"
-					);
+				);
 				// A minor decrease in reputation for any network failure seems
 				// sensbile. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
@@ -692,7 +692,7 @@ where
 							hash = ?hash,
 							candidate_hash = ?receipt.hash(),
 							"Received collation",
-							);
+						);
 
 						// Actual sending:
 						let _span = jaeger::pov_span(&pov, "received-collation");
@@ -707,7 +707,7 @@ where
 								para_id = ?para_id,
 								peer_id = ?peer_id,
 								"Sending response back to requester failed (receiving side closed)"
-								);
+							);
 						} else {
 							metrics_result = Ok(());
 							success = "true";
@@ -722,7 +722,7 @@ where
 							peer_id = ?peer_id,
 							?error,
 							"Failed to extract PoV",
-							);
+						);
 						modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
 					}
 				};
