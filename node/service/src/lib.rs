@@ -910,17 +910,16 @@ pub fn new_full<RuntimeApi, Executor>(
 	}
 
 	// Start BEEFY
-	if role.is_authority() {
-		let sync_oracle = network.clone();
-		let beefy = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
+	task_manager.spawn_essential_handle().spawn_blocking(
+		"beefy-gadget",
+		beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
 			keystore_container.sync_keystore(),
 			network.clone(),
 			beefy_link,
-			sync_oracle,
-		);
-		task_manager.spawn_essential_handle().spawn_blocking("beefy", beefy);
-	}
+			network.clone()
+		),
+	);
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
