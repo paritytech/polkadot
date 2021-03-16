@@ -13,11 +13,19 @@ serde = { version = "1.0", optional = true }
 
 # Substrate Dependencies
 
+<<<<<<< HEAD
 frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-core = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
+=======
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+>>>>>>> origin/master
 
 [dev-dependencies]
 bp-test-utils = { path = "../test-utils" }

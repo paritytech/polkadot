@@ -40,9 +40,18 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
+<<<<<<< HEAD
 frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
 sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
 sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
+=======
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+>>>>>>> origin/master

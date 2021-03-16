@@ -57,15 +57,19 @@ impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
 /// different ways.
 pub trait TransactAsset {
 	/// Deposit the `what` asset into the account of `who`.
+	///
+	/// Implementations should return `XcmError::FailedToTransactAsset` if deposit failed.
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult;
 
 	/// Withdraw the given asset from the consensus system. Return the actual asset withdrawn. In
 	/// the case of `what` being a wildcard, this may be something more specific.
+	///
+	/// Implementations should return `XcmError::FailedToTransactAsset` if withdraw failed.
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError>;
 
 	/// Move an `asset` `from` one location in `to` another location.
 	///
-	/// Undefined if from account doesn't own this asset.
+	/// Returns `XcmError::FailedToTransactAsset` if transfer failed.
 	fn transfer_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<MultiAsset, XcmError> {
 		let withdrawn = Self::withdraw_asset(asset, from)?;
 		Self::deposit_asset(&withdrawn, to)?;

@@ -92,7 +92,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 29,
+	spec_version: 30,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -100,6 +100,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: version::create_apis_vec![[]],
 	transaction_version: 6,
 };
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
+	babe_primitives::BabeEpochConfiguration {
+		c: PRIMARY_PROBABILITY,
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
@@ -1031,6 +1038,21 @@ construct_runtime! {
 	}
 }
 
+impl pallet_babe::migrations::BabePalletPrefix for Runtime {
+	fn pallet_prefix() -> &'static str {
+		"Babe"
+	}
+}
+
+pub struct BabeEpochConfigMigrations;
+impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
+			BABE_GENESIS_EPOCH_CONFIG,
+		)
+	}
+}
+
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1063,7 +1085,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllModules,
-	()
+	BabeEpochConfigMigrations,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1111,7 +1133,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
@@ -1232,10 +1254,10 @@ sp_api::impl_runtime_apis! {
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: PRIMARY_PROBABILITY,
+				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
+				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 
