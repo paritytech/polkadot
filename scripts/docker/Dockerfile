@@ -27,8 +27,11 @@ RUN apt-get update && \
 	apt-get autoremove -y && \
 	apt-get clean && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete; \
-# add user
-	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot
+# add user and link ~/.local/share/polkadot to /data
+	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
+	mkdir -p /data /polkadot/.local/share && \
+	chown -R polkadot:polkadot /data && \
+	ln -s /data /polkadot/.local/share/polkadot
 
 # add polkadot binary to docker image
 COPY ./polkadot /usr/local/bin
