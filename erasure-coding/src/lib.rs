@@ -207,8 +207,6 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 	}
 
 
-	// TODO XXX takes twice the memory, the original approach is way better
-
 	let res = params.make_encoder().reconstruct(received_shards);
 
 	let payload_bytes= match res {
@@ -224,17 +222,6 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 	};
 
 	Decode::decode(&mut &payload_bytes[..]).or_else(|_e| Err(Error::BadPayload))
-
-	// // lazily decode from the data shards.
-	// Decode::decode(&mut ShardInput {
-	// 	remaining_len: shard_len.map(|s| s * params.data_shards).unwrap_or(0),
-	// 	cur_shard: None,
-	// 	shards: received_shards.iter()
-	// 		.map(|x| x.as_ref())
-	// 		.take(params.data_shards)
-	// 		.map(|x| x.expect("all data shards have been recovered; qed"))
-	// 		.map(|x| x.as_ref()),
-	// }).or_else(|_| Err(Error::BadPayload))
 }
 
 /// An iterator that yields merkle branches and chunk data for all chunks to
