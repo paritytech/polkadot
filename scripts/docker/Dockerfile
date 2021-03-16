@@ -29,8 +29,7 @@ RUN apt-get update && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete; \
 # add user and link ~/.local/share/polkadot to /data
 	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
-	mkdir -p /polkadot/.local/share && \
-	mkdir /data && \
+	mkdir -p /data /polkadot/.local/share && \
 	chown -R polkadot:polkadot /data && \
 	ln -s /data /polkadot/.local/share/polkadot
 
