@@ -132,7 +132,7 @@ has_runtime_changes() {
   to=$2
 
   if git diff --name-only "${from}...${to}" \
-    | grep -q -e '^runtime/polkadot' -e '^runtime/kusama' -e '^primitives/src/'
+    | grep -q -e '^runtime/polkadot' -e '^runtime/kusama' -e '^primitives/src/' -e '^runtime/common'
   then
     return 0
   else
