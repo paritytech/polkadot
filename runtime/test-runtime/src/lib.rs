@@ -309,7 +309,7 @@ parameter_types! {
 	pub storage ElectionLookahead: BlockNumber = 0;
 	pub storage StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub storage MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub MinSolutionScoreBump: Perbill = Perbill::from_rational(5u32, 10_000);
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
