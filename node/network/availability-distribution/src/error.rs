@@ -34,22 +34,6 @@ pub enum Error {
 	#[error("Receive channel closed")]
 	IncomingMessageChannel(#[source] SubsystemError),
 
-	/// Some request to utility functions failed.
-	#[error("Runtime request failed")]
-	UtilRequest(#[source] UtilError),
-
-	/// Some request to the runtime failed.
-	#[error("Runtime request failed")]
-	RuntimeRequestCanceled(#[source] oneshot::Canceled),
-
-	/// Some request to the runtime failed.
-	#[error("Runtime request failed")]
-	RuntimeRequest(#[source] RuntimeApiError),
-
-	/// We tried fetching a session which was not available.
-	#[error("No such session")]
-	NoSuchSession(SessionIndex),
-
 	/// Spawning a running task failed.
 	#[error("Spawning subsystem task failed")]
 	SpawnTask(#[source] SubsystemError),
@@ -57,7 +41,7 @@ pub enum Error {
 	/// We tried accessing a session that was not cached.
 	#[error("Session is not cached.")]
 	NoSuchCachedSession,
-	
+
 	/// We tried reporting bad validators, although we are not a validator ourselves.
 	#[error("Not a validator.")]
 	NotAValidator,
@@ -69,6 +53,24 @@ pub enum Error {
 	/// Sending response failed.
 	#[error("Sending a request's response failed.")]
 	SendResponse,
+}
+
+/// Error that we should handle gracefully by logging it.
+#[derive(Debug)]
+pub enum NonFatalError {
+	/// Some request to utility functions failed.
+	/// This can be either `RuntimeRequestCanceled` or `RuntimeApiError`.
+	UtilRequest(UtilError),
+
+	/// Runtime API subsystem is down, which means we're shutting down.
+	RuntimeRequestCanceled(oneshot::Canceled),
+
+	/// Some request to the runtime failed.
+	/// For example if we prune a block we're requesting info about.
+	RuntimeRequest(RuntimeApiError),
+
+	/// We tried fetching a session info which was not available.
+	NoSuchSession(SessionIndex),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -85,9 +87,9 @@ pub(crate) async fn recv_runtime<V>(
 		oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
 		UtilError,
 	>,
-) -> Result<V> {
-	r.map_err(Error::UtilRequest)?
+) -> std::result::Result<V, NonFatalError> {
+	r.map_err(NonFatalError::UtilRequest)?
 		.await
-		.map_err(Error::RuntimeRequestCanceled)?
-		.map_err(Error::RuntimeRequest)
+		.map_err(NonFatalError::RuntimeRequestCanceled)?
+		.map_err(NonFatalError::RuntimeRequest)
 }

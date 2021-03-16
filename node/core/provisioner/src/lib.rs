@@ -198,10 +198,10 @@ impl ProvisioningJob {
 						}
 					}
 					Some(ProvisionableData(_, data)) => {
-						let _span = span.child("provisionable-data");
+						let span = span.child("provisionable-data");
 						let _timer = self.metrics.time_provisionable_data();
 
-						self.note_provisionable_data(data);
+						self.note_provisionable_data(&span, data);
 					}
 					None => break,
 				},
@@ -239,12 +239,14 @@ impl ProvisioningJob {
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn note_provisionable_data(&mut self, provisionable_data: ProvisionableData) {
+	fn note_provisionable_data(&mut self, span: &jaeger::Span, provisionable_data: ProvisionableData) {
 		match provisionable_data {
 			ProvisionableData::Bitfield(_, signed_bitfield) => {
 				self.signed_bitfields.push(signed_bitfield)
 			}
 			ProvisionableData::BackedCandidate(backed_candidate) => {
+				let mut span = span.child("provisionable-backed");
+				span.add_para_id(backed_candidate.descriptor().para_id);
 				self.backed_candidates.push(backed_candidate)
 			}
 			_ => {}
