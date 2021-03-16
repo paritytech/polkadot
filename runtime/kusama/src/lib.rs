@@ -405,16 +405,14 @@ impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
 
 		let max_payout = period_fraction * MAX_ANNUAL_INFLATION * non_gilt_issuance;
 		let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
-		let rest = max_payout.saturating_sub(staking_payout);
+		let mut rest = max_payout.saturating_sub(staking_payout);
 
 		let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
-		let cap_rest = if total_staked > other_issuance {
-			Perquintill::from_rational(other_issuance, total_staked) * staking_payout
-		} else {
-			Perquintill::from_rational(total_staked, other_issuance)
-				.saturating_reciprocal_mul(staking_payout)
-		};
-		(staking_payout, rest.min(cap_rest))
+		if total_staked > other_issuance {
+			let cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
+			rest = rest.min(cap_rest);
+		}
+		(staking_payout, rest)
 	}
 }
 
