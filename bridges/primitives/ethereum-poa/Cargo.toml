@@ -24,17 +24,10 @@ triehash = { version = "0.8.2", default-features = false }
 
 # Substrate Dependencies
 
-<<<<<<< HEAD
 sp-api = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-io = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-=======
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
->>>>>>> origin/master
 
 [dev-dependencies]
 hex-literal = "0.2"

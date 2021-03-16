@@ -16,7 +16,6 @@ bp-runtime = { path = "../../primitives/runtime", default-features = false }
 
 # Substrate Dependencies
 
-<<<<<<< HEAD
 frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 frame-system = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-core = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
@@ -25,16 +24,6 @@ sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-feat
 
 [dev-dependencies]
 sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-=======
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-
-[dev-dependencies]
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
->>>>>>> origin/master
 serde = "1.0"
 
 [features]

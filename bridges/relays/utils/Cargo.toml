@@ -19,8 +19,4 @@ time = "0.2"
 
 # Substrate dependencies
 
-<<<<<<< HEAD
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-=======
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
->>>>>>> origin/master

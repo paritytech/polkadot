@@ -11,15 +11,9 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 
 # Substrate Dependencies
 
-<<<<<<< HEAD
 frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-api = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
 sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-=======
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
->>>>>>> origin/master
 
 [features]
 default = ["std"]

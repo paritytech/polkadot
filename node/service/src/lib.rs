@@ -246,10 +246,6 @@ fn new_partial<RuntimeApi, Executor>(
 	set_prometheus_registry(config)?;
 
 
-<<<<<<< HEAD
-=======
-	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 	let telemetry = config.telemetry_endpoints.clone()
 		.filter(|x| !x.is_empty())
 		.map(move |endpoints| -> Result<_, telemetry::Error> {
@@ -265,7 +261,6 @@ fn new_partial<RuntimeApi, Executor>(
 		})
 		.transpose()?;
 
->>>>>>> origin/master
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(
 			&config,
@@ -402,12 +397,7 @@ fn new_partial<RuntimeApi, Executor>(
 		select_chain,
 		import_queue,
 		transaction_pool,
-<<<<<<< HEAD
-		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration)
-=======
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, telemetry)
->>>>>>> origin/master
 	})
 }
 
@@ -658,14 +648,8 @@ pub fn new_full<RuntimeApi, Executor>(
 		select_chain,
 		import_queue,
 		transaction_pool,
-<<<<<<< HEAD
-		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration)
-	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent)?;
-=======
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent, telemetry_worker_handle)?;
->>>>>>> origin/master
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 

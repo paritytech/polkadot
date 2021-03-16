@@ -8,12 +8,6 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 [dependencies]
 finality-grandpa = { version = "0.14.0" }
 bp-header-chain = { path = "../header-chain" }
-<<<<<<< HEAD
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
 sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-=======
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
->>>>>>> origin/master
