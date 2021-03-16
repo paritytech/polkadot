@@ -240,7 +240,6 @@ parameter_types! {
 	pub storage UncleGenerations: u32 = 0;
 }
 
-// TODO: substrate#2986 implement this properly
 impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
@@ -307,9 +306,10 @@ parameter_types! {
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 }
 
-impl sp_election_providers::onchain::Config for Runtime {
+impl frame_election_provider_support::onchain::Config for Runtime {
 	type AccountId = <Self as frame_system::Config>::AccountId;
 	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
+	type BlockWeights = ();
 	type Accuracy = sp_runtime::Perbill;
 	type DataProvider = pallet_staking::Module<Self>;
 }
@@ -328,10 +328,10 @@ impl pallet_staking::Config for Runtime {
 	// A majority of the council can cancel the slash.
 	type SlashCancelOrigin = frame_system::EnsureNever<()>;
 	type SessionInterface = Self;
-	type RewardCurve = RewardCurve;
+	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionProvider = sp_election_providers::onchain::OnChainSequentialPhragmen<Self>;
+	type ElectionProvider = frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type WeightInfo = ();
 }
 

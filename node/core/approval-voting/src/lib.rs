@@ -715,6 +715,7 @@ async fn handle_approved_ancestor(
 	lower_bound: BlockNumber,
 ) -> SubsystemResult<Option<(Hash, BlockNumber)>> {
 	const MAX_TRACING_WINDOW: usize = 200;
+	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
 
 	use bitvec::{order::Lsb0, vec::BitVec};
 
@@ -789,8 +790,53 @@ async fn handle_approved_ancestor(
 				// ancestry is moving backwards.
 				all_approved_max = Some((block_hash, target_number - i as BlockNumber));
 			}
+		} else if bits.len() <= ABNORMAL_DEPTH_THRESHOLD {
+			all_approved_max = None;
 		} else {
 			all_approved_max = None;
+
+			let unapproved: Vec<_> = entry.unapproved_candidates().collect();
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Block {} is {} blocks deep and has {}/{} candidates approved",
+				block_hash,
+				bits.len() - 1,
+				unapproved.len(),
+				entry.candidates().len(),
+			);
+
+			for candidate_hash in unapproved {
+				match db.load_candidate_entry(&candidate_hash)? {
+					None => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							"Missing expected candidate in DB",
+						);
+
+						continue;
+					}
+					Some(c_entry) => {
+						match c_entry.approval_entry(&block_hash) {
+							None => {
+								tracing::warn!(
+									target: LOG_TARGET,
+									?candidate_hash,
+									?block_hash,
+									"Missing expected approval entry under candidate.",
+								);
+							}
+							Some(a_entry) => {
+								let our_assignment = a_entry.our_assignment();
+								tracing::debug!(
+									target: LOG_TARGET,
+									?our_assignment,
+								);
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -898,7 +944,7 @@ fn schedule_wakeup_action(
 	};
 
 	match maybe_action {
-		Some(Action::ScheduleWakeup { ref tick, .. }) => tracing::debug!(
+		Some(Action::ScheduleWakeup { ref tick, .. }) => tracing::trace!(
 			target: LOG_TARGET,
 			"Scheduling next wakeup at {} for candidate {} under block ({}, tick={})",
 			tick,
@@ -906,7 +952,7 @@ fn schedule_wakeup_action(
 			block_hash,
 			block_tick,
 		),
-		None => tracing::debug!(
+		None => tracing::trace!(
 			target: LOG_TARGET,
 			"No wakeup needed for candidate {} under block ({}, tick={})",
 			candidate_hash,
@@ -1354,7 +1400,7 @@ fn process_wakeup(
 
 	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
-	tracing::debug!(
+	tracing::trace!(
 		target: LOG_TARGET,
 		"Processing wakeup at tranche {} for candidate {} under block {}",
 		tranche_now,
@@ -1413,7 +1459,7 @@ fn process_wakeup(
 			.position(|(_, h)| &candidate_hash == h);
 
 		if let Some(i) = index_in_candidate {
-			tracing::debug!(
+			tracing::trace!(
 				target: LOG_TARGET,
 				"Launching approval work for candidate {:?} in block {}",
 				(&candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
@@ -1472,7 +1518,7 @@ async fn launch_approval(
 
 	let candidate_hash = candidate.hash();
 
-	tracing::debug!(
+	tracing::trace!(
 		target: LOG_TARGET,
 		"Recovering data for candidate {:?}",
 		(candidate_hash, candidate.descriptor.para_id),
@@ -1576,7 +1622,7 @@ async fn launch_approval(
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					"Candidate Valid {:?}",
 					(candidate_hash, para_id),
