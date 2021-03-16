@@ -324,7 +324,7 @@ parameter_types! {
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::OnChain;
 
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
+	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
 	pub MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
@@ -1081,7 +1081,6 @@ impl pallet_staking::migrations::v6::V6Config for Runtime {
 impl frame_support::traits::OnRuntimeUpgrade for KillOffchainPhragmenStorage {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		sp_std::if_std! { println!("Hello I am std"); }
 		pallet_staking::migrations::v6::pre_migration::<Runtime>()
 	}
 
