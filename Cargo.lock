@@ -6839,6 +6839,8 @@ dependencies = [
 [[package]]
 name = "reed-solomon-novelpoly"
 version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "886177a67de8d452f8955a5a1c70f9064e644bcf1862e8bcc3a68064014369be"
 dependencies = [
  "derive_more",
  "fs-err",
