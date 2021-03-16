@@ -126,6 +126,8 @@ struct PerRequest {
 	from_collator: Fuse<BoxFuture<'static, req_res::OutgoingResult<CollationFetchingResponse>>>,
 	/// Sender to forward to initial requester.
 	to_requester: oneshot::Sender<(CandidateReceipt, PoV)>,
+	/// A jaeger span corresponding to the lifetime of the request.
+	span: Option<jaeger::Span>,
 }
 
 /// All state relevant for the validator side of the protocol lives here.
@@ -328,6 +330,12 @@ where
 	let per_request = PerRequest {
 		from_collator: response_recv.boxed().fuse(),
 		to_requester: result,
+		span: state.span_per_relay_parent.get(&relay_parent).map(|s| {
+			s.child_builder("collation-request")
+				.with_para_id(para_id)
+				.build()
+		}),
+
 	};
 
 	state.requested_collations.insert((relay_parent, para_id.clone(), peer_id.clone()), per_request);
@@ -632,6 +640,7 @@ where
 		let _timer = metrics.time_handle_collation_request_result();
 
 		let mut metrics_result = Err(());
+		let mut success = "false";
 
 		match response {
 			Err(RequestError::InvalidResponse(err)) => {
@@ -701,6 +710,7 @@ where
 								);
 						} else {
 							metrics_result = Ok(());
+							success = "true";
 						}
 
 					}
@@ -719,6 +729,7 @@ where
 			}
 		};
 		metrics.on_request(metrics_result);
+		per_req.span.as_mut().map(|s| s.add_string_tag("success", success));
 		true
 	} else {
 		false
