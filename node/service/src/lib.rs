@@ -324,18 +324,11 @@ fn new_partial<RuntimeApi, Executor>(
 
 			let slot =
 				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-					timestamp.timestamp(),
+					timestamp.as_duration(),
 					slot_duration,
 				);
 
-			let current_timestamp = timestamp.timestamp();
-			let current_slot = slot.slot();
-
-			Ok(sc_consensus_slots::SlotsInherentDataProviders::new(
-				current_timestamp,
-				current_slot,
-				(timestamp, slot),
-			))
+			Ok((timestamp, slot))
 		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
@@ -630,12 +623,22 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
-	let backoff_authoring_blocks =
-		Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging {
+	let backoff_authoring_blocks = {
+		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging {
 			#[cfg(feature = "real-overseer")]
 			unfinalized_slack: 100,
 			..Default::default()
-		});
+		};
+
+		if config.chain_spec.is_rococo() {
+			// it's a testnet that's in flux, finality has stalled sometimes due
+			// to operational issues and it's annoying to slow down block
+			// production to 1 block per hour.
+			backoff.max_interval = 10;
+		}
+
+		Some(backoff)
+	};
 
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
@@ -902,18 +905,11 @@ pub fn new_full<RuntimeApi, Executor>(
 
 					let slot =
 						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-							timestamp.timestamp(),
+							timestamp.as_duration(),
 							slot_duration,
 						);
 
-					let current_timestamp = timestamp.timestamp();
-					let current_slot = slot.slot();
-
-					Ok(sc_consensus_slots::SlotsInherentDataProviders::new(
-						current_timestamp,
-						current_slot,
-						(uncles, timestamp, slot),
-					))
+					Ok((timestamp, slot, uncles))
 				}
 			},
 			force_authoring,
@@ -1089,18 +1085,11 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 
 			let slot =
 				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-					timestamp.timestamp(),
+					timestamp.as_duration(),
 					slot_duration,
 				);
 
-			let current_timestamp = timestamp.timestamp();
-			let current_slot = slot.slot();
-
-			Ok(sc_consensus_slots::SlotsInherentDataProviders::new(
-				current_timestamp,
-				current_slot,
-				(timestamp, slot),
-			))
+			Ok((timestamp, slot))
 		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),

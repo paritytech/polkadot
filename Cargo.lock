@@ -740,9 +740,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.58"
+version = "1.0.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9a06fb2e53271d7c279ec1efea6ab691c35a2ae67ec0d91d7acec0caf13b518"
+checksum = "e3c69b077ad434294d3ce9f1f6143a2a4b89a8a2d54ef813d85003a4fd1137fd"
 dependencies = [
  "jobserver",
 ]
@@ -1685,7 +1685,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking-cli"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate.git?branch=bkchr-inherent-something-future#5fe929aba2c2e5dd2c644e5de59711d77d7a2088"
+source = "git+https://github.com/paritytech/substrate.git?branch=bkchr-inherent-something-future#d3f06834451008cf2427aea6d91e8116ce281ca4"
 dependencies = [
  "Inflector",
  "chrono",
@@ -5203,7 +5203,6 @@ dependencies = [
  "schnorrkel",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5226,7 +5225,6 @@ dependencies = [
  "sp-core",
  "sp-keystore",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5257,7 +5255,6 @@ dependencies = [
  "sp-tracing",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5284,7 +5281,6 @@ dependencies = [
  "streamunordered",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5304,7 +5300,6 @@ dependencies = [
  "substrate-browser-utils",
  "substrate-build-script-utils",
  "thiserror",
- "tracing-futures",
  "try-runtime-cli",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -5329,7 +5324,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5366,7 +5360,6 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.3",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5389,7 +5382,6 @@ dependencies = [
  "sp-keyring",
  "strum",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5406,7 +5398,6 @@ dependencies = [
  "sp-core",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5445,7 +5436,6 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5474,7 +5464,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5498,7 +5487,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5512,7 +5500,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
  "wasm-timer",
 ]
 
@@ -5529,7 +5516,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5548,7 +5534,6 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5564,7 +5549,6 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5605,7 +5589,6 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5624,7 +5607,6 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5704,7 +5686,6 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5727,7 +5708,6 @@ dependencies = [
  "smallvec 1.6.1",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5758,7 +5738,6 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5779,7 +5758,6 @@ dependencies = [
  "sc-client-api",
  "sp-core",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5825,7 +5803,6 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -5985,6 +5962,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "hex-literal",
+ "impl-trait-for-tuples",
  "libsecp256k1",
  "log",
  "pallet-authorship",
@@ -6032,6 +6010,7 @@ dependencies = [
  "derive_more",
  "frame-benchmarking",
  "frame-support",
+ "frame-support-test",
  "frame-system",
  "futures 0.3.12",
  "hex-literal",
@@ -6158,7 +6137,6 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
- "tracing-futures",
  "westend-runtime",
 ]
 
@@ -6183,7 +6161,6 @@ dependencies = [
  "sp-keystore",
  "sp-staking",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -6332,7 +6309,6 @@ dependencies = [
  "tempfile",
  "tokio 0.2.21",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
@@ -6962,9 +6938,9 @@ checksum = "53552c6c49e1e13f1a203ef0080ab3bbef0beb570a528993e83df057a9d9bba1"
 
 [[package]]
 name = "ring"
-version = "0.16.15"
+version = "0.16.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "952cd6b98c85bbc30efa1ba5783b8abf12fec8b3287ffa52605b9432313e34e4"
+checksum = "3053cf52e236a3ed746dfc745aa9cacf1b791d846bdaf412f60a8d7d6e17c8fc"
 dependencies = [
  "cc",
  "libc",
@@ -9961,9 +9937,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.15"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c42e6fa53307c8a17e4ccd4dc81cf5ec38db9209f59b222210375b54ee40d1e2"
+checksum = "41768be5b9f3489491825f56f01f25290aa1d3e7cc97e182d4d34360493ba6fa"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -10775,6 +10751,7 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime-common",
+ "polkadot-runtime-parachains",
  "rustc-hex",
  "serde",
  "serde_derive",

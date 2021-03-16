@@ -25,7 +25,6 @@ service = { package = "polkadot-service", path = "../node/service", default-feat
 polkadot-parachain = { path = "../parachain", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-tracing-futures = "0.2.4"
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
 sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
