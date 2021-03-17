@@ -61,6 +61,7 @@ frame_support::construct_runtime!(
 		// System Stuff
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned},
 
 		// Parachains Runtime
 		Configuration: configuration::{Module, Call, Storage, Config<T>},
