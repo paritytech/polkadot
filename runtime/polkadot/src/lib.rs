@@ -1113,7 +1113,7 @@ impl frame_support::traits::OnRuntimeUpgrade for FixPolkadotCouncilVotersDeposit
 			correct,
 			skipped,
 		);
-		BlockWeights::get().max_block
+		BlockWeights::get().max_block;
 	}
 }
 
