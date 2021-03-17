@@ -964,8 +964,10 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						// FIXME
-						protocol_v1::CollatorProtocolMessage::Declare(pair.public(), Default::default()),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							pair.public(),
+							pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
 					)
 				)
 			).await;
@@ -978,8 +980,12 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							// FIXME
-							Default::default(),
+							pair.sign(
+								&protocol_v1::advertise_collation_signature_payload(
+									&test_state.relay_parent,
+									&test_state.chain_ids[0],
+								)
+							)
 						)
 					)
 				)
@@ -1026,8 +1032,7 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
-							// FIXME
-							Default::default(),
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
 						),
 					)
 				)
@@ -1041,8 +1046,12 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							// FIXME
-							Default::default(),
+							test_state.collators[0].sign(
+								&protocol_v1::advertise_collation_signature_payload(
+									&test_state.relay_parent,
+									&test_state.chain_ids[0],
+								)
+							)
 						)
 					)
 				)
@@ -1150,8 +1159,7 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
-							// FIXME
-							Default::default(),
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
 						),
 					)
 				)
@@ -1164,8 +1172,7 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
-							// FIXME
-							Default::default(),
+							test_state.collators[1].sign(&protocol_v1::declare_signature_payload(&peer_c)),
 						),
 					)
 				)
@@ -1238,8 +1245,7 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
-							// FIXME
-							Default::default(),
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
 						)
 					)
 				)
@@ -1252,8 +1258,7 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
-							// FIXME
-							Default::default(),
+							test_state.collators[1].sign(&protocol_v1::declare_signature_payload(&peer_c)),
 						)
 					)
 				)
@@ -1267,8 +1272,12 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							// FIXME
-							Default::default(),
+							test_state.collators[0].sign(
+								&protocol_v1::advertise_collation_signature_payload(
+									&test_state.relay_parent,
+									&test_state.chain_ids[0],
+								)
+							)
 						)
 					)
 				)
@@ -1295,8 +1304,12 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							// FIXME
-							Default::default(),
+							test_state.collators[1].sign(
+								&protocol_v1::advertise_collation_signature_payload(
+									&test_state.relay_parent,
+									&test_state.chain_ids[0],
+								)
+							)
 						)
 					)
 				)
