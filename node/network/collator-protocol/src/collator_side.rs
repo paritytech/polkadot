@@ -19,9 +19,11 @@ use std::collections::{HashMap, HashSet};
 use super::{LOG_TARGET,  Result};
 
 use futures::{select, FutureExt, channel::oneshot};
+use sp_core::Pair;
 
 use polkadot_primitives::v1::{
-	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId, CandidateHash,
+	CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, Hash, Id as ParaId, PoV,
+	ValidatorId,
 };
 use polkadot_subsystem::{
 	jaeger, PerLeafSpan,
@@ -205,10 +207,12 @@ struct Collation {
 	status: CollationStatus,
 }
 
-#[derive(Default)]
 struct State {
-	/// Our id.
-	our_id: CollatorId,
+	/// Our network peer id.
+	local_peer_id: PeerId,
+
+	/// Our collator pair.
+	collator_pair: CollatorPair,
 
 	/// The para this collator is collating on.
 	/// Starts as `None` and is updated with every `CollateOn` message.
@@ -246,6 +250,25 @@ struct State {
 }
 
 impl State {
+	/// Creates a new `State` instance with the given parameters and setting all remaining
+	/// state fields to their default values (i.e. empty).
+	fn new(local_peer_id: PeerId, collator_pair: CollatorPair, metrics: Metrics) -> State {
+		State {
+			local_peer_id,
+			collator_pair,
+			metrics,
+			collating_on: Default::default(),
+			peer_views: Default::default(),
+			view: Default::default(),
+			span_per_relay_parent: Default::default(),
+			collations: Default::default(),
+			collation_result_senders: Default::default(),
+			our_validators_groups: Default::default(),
+			declared_at: Default::default(),
+			connection_requests: Default::default(),
+		}
+	}
+
 	/// Returns `true` if the given `peer` is interested in the leaf that is represented by `relay_parent`.
 	fn peer_interested_in_leaf(&self, peer: &PeerId, relay_parent: &Hash) -> bool {
 		self.peer_views.get(peer).map(|v| v.contains(relay_parent)).unwrap_or(false)
@@ -392,7 +415,12 @@ async fn declare(
 	state: &mut State,
 	peer: PeerId,
 ) {
-	let wire_message = protocol_v1::CollatorProtocolMessage::Declare(state.our_id.clone());
+	let declare_signature_payload = protocol_v1::declare_signature_payload(state.local_peer_id);
+
+	let wire_message = protocol_v1::CollatorProtocolMessage::Declare(
+		state.collator_pair.public(),
+		state.collator_pair.sign(&declare_signature_payload),
+	);
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendCollationMessage(
@@ -467,7 +495,16 @@ async fn advertise_collation(
 		(Some(collation), true) => collation.status.advance_to_advertised(),
 	}
 
-	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent, collating_on);
+	let advertise_collation_signature_payload =
+		protocol_v1::advertise_collation_signature_payload(relay_parent, collating_on);
+
+	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+		relay_parent,
+		collating_on,
+		state
+			.collator_pair
+			.sign(&advertise_collation_signature_payload),
+	);
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendCollationMessage(
@@ -612,13 +649,13 @@ async fn handle_incoming_peer_message(
 	use protocol_v1::CollatorProtocolMessage::*;
 
 	match msg {
-		Declare(_) => {
+		Declare(_, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
-		AdvertiseCollation(_, _) => {
+		AdvertiseCollation(_, _, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
@@ -810,20 +847,17 @@ async fn handle_our_view_change(
 }
 
 /// The collator protocol collator side main loop.
-#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(skip(ctx, collator_pair, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run(
 	mut ctx: impl SubsystemContext<Message = CollatorProtocolMessage>,
-	our_id: CollatorId,
+	local_peer_id: PeerId,
+	collator_pair: CollatorPair,
 	metrics: Metrics,
 ) -> Result<()> {
 	use FromOverseer::*;
 	use OverseerSignal::*;
 
-	let mut state = State {
-		metrics,
-		our_id,
-		..Default::default()
-	};
+	let mut state = State::new(local_peer_id, collator_pair, metrics);
 
 	loop {
 		select! {

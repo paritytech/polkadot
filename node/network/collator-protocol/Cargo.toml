@@ -6,8 +6,11 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.12"
-tracing = "0.1.25"
 thiserror = "1.0.23"
+tracing = "0.1.25"
+
+sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }

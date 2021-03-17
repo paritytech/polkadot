@@ -5333,6 +5333,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "sp-keyring",
+ "sp-runtime",
  "thiserror",
  "tracing",
 ]
@@ -5646,6 +5647,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "sc-network",
+ "sp-runtime",
  "strum",
  "thiserror",
  "zstd",

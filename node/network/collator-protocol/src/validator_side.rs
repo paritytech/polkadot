@@ -17,35 +17,33 @@
 use std::{collections::{HashMap, HashSet}, time::Duration, task::Poll, sync::Arc};
 
 use futures::{
-	StreamExt,
-	FutureExt,
-	channel::oneshot,
-	future::BoxFuture,
-	stream::FuturesUnordered,
+	channel::oneshot, future::BoxFuture, stream::FuturesUnordered, FutureExt, StreamExt,
 };
 
-use polkadot_primitives::v1::{
-	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
-};
-use polkadot_subsystem::{
-	jaeger, PerLeafSpan,
-	FromOverseer, OverseerSignal, SubsystemContext,
-	messages::{
-		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
-		NetworkBridgeEvent,
-	},
-};
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, OurView, PeerId, RequestId, UnifiedReputationChange as Rep,
+	v1 as protocol_v1, OurView, PeerId, RequestId, UnifiedReputationChange as Rep, View,
 };
-use polkadot_node_subsystem_util::{TimeoutExt as _, metrics::{self, prometheus}};
-use polkadot_node_primitives::{Statement, SignedFullStatement};
+use polkadot_node_primitives::{SignedFullStatement, Statement};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	TimeoutExt as _,
+};
+use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use polkadot_subsystem::{
+	jaeger,
+	messages::{
+		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeEvent,
+		NetworkBridgeMessage,
+	},
+	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
+};
 
-use super::{modify_reputation, LOG_TARGET, Result};
+use super::{modify_reputation, Result, LOG_TARGET};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has timed out");
 const COST_REPORT_BAD: Rep = Rep::CostMajor("A collator was reported by another subsystem");
+const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Invalid network message signature");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
 #[derive(Clone, Default)]
@@ -544,17 +542,30 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	use protocol_v1::CollatorProtocolMessage::*;
+	use sp_runtime::traits::AppVerify;
 
 	match msg {
-		Declare(id) => {
+		Declare(id, signature) => {
+			if !signature.verify(&*protocol_v1::declare_signature_payload(origin), &id) {
+				modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
+				return;
+			}
 			state.known_collators.insert(origin.clone(), id);
 			state.peer_views.entry(origin).or_default();
 		}
-		AdvertiseCollation(relay_parent, para_id) => {
+		AdvertiseCollation(relay_parent, para_id, signature) => {
 			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
-			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
+				if !signature.verify(
+					&protocol_v1::advertise_collation_signature_payload(relay_parent, para_id)[..],
+					collator,
+				) {
+					modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
+					return;
+				}
+
+				state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
 			} else {
 				tracing::debug!(

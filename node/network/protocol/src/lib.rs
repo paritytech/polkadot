@@ -288,17 +288,21 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{
-		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex, AvailableData,
-	};
-	use polkadot_node_primitives::{
-		SignedFullStatement,
-		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
-	};
-	use parity_scale_codec::{Encode, Decode};
-	use super::RequestId;
 	use std::convert::TryFrom;
+
+	use parity_scale_codec::{Decode, Encode};
+	use sp_runtime::traits::{BlakeTwo256, Hash as _};
+
+	use super::RequestId;
+	use polkadot_node_primitives::{
+		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+		SignedFullStatement,
+	};
+	use polkadot_primitives::v1::{
+		AvailableData, CandidateHash, CandidateIndex, CandidateReceipt, CollatorId,
+		CollatorSignature, ErasureChunk, Hash, Id as ParaId, PoV, SignedAvailabilityBitfield,
+		ValidatorIndex,
+	};
 
 	/// Network messages used by the availability recovery subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -427,13 +431,15 @@ pub mod v1 {
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
-		/// Declare the intent to advertise collations under a collator ID.
+		/// Declare the intent to advertise collations under a collator ID, attaching a
+		/// signature of the `PeerId` of the node using the given collator ID key.
 		#[codec(index = 0)]
-		Declare(CollatorId),
-		/// Advertise a collation to a validator. Can only be sent once the peer has declared
-		/// that they are a collator with given ID.
+		Declare(CollatorId, CollatorSignature),
+		/// Advertise a collation to a validator. Can only be sent once the peer has
+		/// declared that they are a collator with given ID. Attached signature on
+		/// blake2-256 of components of this message: hash and para_id.
 		#[codec(index = 1)]
-		AdvertiseCollation(Hash, ParaId),
+		AdvertiseCollation(Hash, ParaId, CollatorSignature),
 		/// Request the advertised collation at that relay-parent.
 		#[codec(index = 2)]
 		RequestCollation(RequestId, Hash, ParaId),
@@ -480,6 +486,27 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
+
+	/// Get the payload that should be signed and included in a `Declare` message.
+	///
+	/// The payload is the local peer id of the node, which serves to prove that it
+	/// controls the collator key it is declaring an intention to collate under.
+	pub fn declare_signature_payload(peer_id: sc_network::PeerId) -> Vec<u8> {
+		peer_id.to_bytes()
+	}
+
+	/// Get the payload that should be signed and included in a `AdvertiseCollation` message.
+	///
+	/// The payload is the blake2-256 hash of the components of the `AdvertiseCollation`
+	/// message: hash and para_id.
+	pub fn advertise_collation_signature_payload<H: Encode>(
+		relay_parent: H,
+		para_id: ParaId,
+	) -> [u8; 32] {
+		(relay_parent, para_id)
+			.using_encoded(BlakeTwo256::hash)
+			.into()
+	}
 }
 
 #[cfg(test)]
