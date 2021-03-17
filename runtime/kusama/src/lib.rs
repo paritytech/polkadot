@@ -340,13 +340,13 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-		min_inflation: 1,	// zero is not allowed here for some reason.
+		min_inflation: 1_000,	// zero is not allowed here for some reason.
 		max_inflation: 1_000_000,
 		// 3:2:1 staked : parachains : float.
 		// while there's no parachains, then this is 75% staked : 25% float.
 		ideal_stake: 0_500_000,
 		falloff: 0_050_000,
-		max_piece_count: 40,
+		max_piece_count: 200,
 		test_precision: 0_005_000,
 	);
 }
