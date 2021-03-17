@@ -97,7 +97,7 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 	let k_wanted = recovery_threshold(n_wanted)?;
 
 	if n_wanted > MAX_VALIDATORS as usize {
-		return Err(Error::NotEnoughValidators);
+		return Err(Error::TooManyValidators);
 	}
 
 	CodeParams::derive_parameters(n_wanted, k_wanted)
