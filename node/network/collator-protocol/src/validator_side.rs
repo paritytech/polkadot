@@ -1210,6 +1210,84 @@ mod tests {
 		});
 	}
 
+	// Test that we verify the signatures on `Declare` and `AdvertiseCollation` messages.
+	#[test]
+	fn collator_authentication_verification_works() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer_b = PeerId::random();
+			let peer_c = PeerId::random();
+
+			// the peer sends a declare message but sign the wrong payload
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					protocol_v1::CollatorProtocolMessage::Declare(
+						test_state.collators[0].public(),
+						test_state.collators[0].sign(&[42]),
+					),
+				)),
+			)
+			.await;
+
+			// it should be reported for sending a message with an invalid signature
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep),
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_INVALID_SIGNATURE);
+				}
+			);
+
+			// we register a new peer correctly by declaring its intention to collate
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+					peer_c.clone(),
+					protocol_v1::CollatorProtocolMessage::Declare(
+						test_state.collators[0].public(),
+						test_state.collators[0]
+							.sign(&protocol_v1::declare_signature_payload(&peer_c)),
+					),
+				)),
+			)
+			.await;
+
+			// the peer sends a collation advertisement but a wrong payload is signed
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+					peer_c.clone(),
+					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+						test_state.relay_parent,
+						test_state.chain_ids[0],
+						test_state.collators[1].sign(&[42]),
+					),
+				)),
+			)
+			.await;
+
+			// it should be reported for sending a message with an invalid signature
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep),
+				) => {
+					assert_eq!(peer, peer_c);
+					assert_eq!(rep, COST_INVALID_SIGNATURE);
+				}
+			);
+		});
+	}
+
 	// A test scenario that takes the following steps
 	//  - Two collators connect, declare themselves and advertise a collation relevant to
 	//    our view.
