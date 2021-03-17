@@ -313,11 +313,9 @@ parameter_types! {
 	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::OnChain;
-
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
-	pub MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
 	pub const MinerMaxIterations: u32 = 10;
 }
 
@@ -329,7 +327,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
-	type MinerTxPriority = MultiPhaseUnsignedPriority;
+	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = pallet_staking::CompactAssignments;
@@ -619,7 +617,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub StakingUnsignedPriority: TransactionPriority =
+	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
@@ -1079,19 +1077,16 @@ parameter_types! {
 	pub const StakingPrefix: &'static str = "Staking";
 }
 
+/// This is only for testing. The main migration is inside staking's `on_runtime_upgrade`.
 pub struct KillOffchainPhragmenStorage;
-impl pallet_staking::migrations::v6::V6Config for Runtime {
-	type PalletPrefix = StakingPrefix;
-}
-
 impl frame_support::traits::OnRuntimeUpgrade for KillOffchainPhragmenStorage {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v6::pre_migration::<Runtime>()
+		pallet_staking::migrations::v6::pre_migrate::<Runtime>()
 	}
 
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_staking::migrations::v6::migrate::<Runtime>()
+		0
 	}
 }
 

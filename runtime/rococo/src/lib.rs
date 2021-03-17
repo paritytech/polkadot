@@ -328,7 +328,6 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
 
@@ -338,7 +337,7 @@ impl pallet_im_online::Config for Runtime {
 	type ValidatorSet = Historical;
 	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
-	type UnsignedPriority = StakingUnsignedPriority;
+	type UnsignedPriority = ImOnlineUnsignedPriority;
 	type WeightInfo = ();
 }
 
