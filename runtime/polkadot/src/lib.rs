@@ -1113,7 +1113,21 @@ impl frame_support::traits::OnRuntimeUpgrade for FixPolkadotCouncilVotersDeposit
 			correct,
 			skipped,
 		);
-		BlockWeights::get().max_block;
+		BlockWeights::get().max_block
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		use frame_support::IterableStorageMap;
+		log::info!("Checking FixPolkadotCouncilVotersDeposit post migration");
+		// no further vote with the wrong 5 CENT deposit shall exist.
+		assert!(
+			pallet_elections_phragmen::Voting::<Runtime>::iter().all(
+				|(_, vote)| vote.deposit != 5 * CENTS
+			)
+		);
+
+		Ok(())
 	}
 }
 
