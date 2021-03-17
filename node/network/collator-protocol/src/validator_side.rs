@@ -550,6 +550,7 @@ where
 				modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
 				return;
 			}
+
 			state.known_collators.insert(origin.clone(), id);
 			state.peer_views.entry(origin).or_default();
 		}
@@ -956,7 +957,6 @@ mod tests {
 				)
 			).await;
 
-
 			let peer_b = PeerId::random();
 
 			overseer_send(
@@ -964,7 +964,8 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						protocol_v1::CollatorProtocolMessage::Declare(pair.public()),
+						// FIXME
+						protocol_v1::CollatorProtocolMessage::Declare(pair.public(), Default::default()),
 					)
 				)
 			).await;
@@ -977,6 +978,8 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
+							// FIXME
+							Default::default(),
 						)
 					)
 				)
@@ -1023,6 +1026,8 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
+							// FIXME
+							Default::default(),
 						),
 					)
 				)
@@ -1036,6 +1041,8 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
+							// FIXME
+							Default::default(),
 						)
 					)
 				)
@@ -1143,6 +1150,8 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
+							// FIXME
+							Default::default(),
 						),
 					)
 				)
@@ -1155,6 +1164,8 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
+							// FIXME
+							Default::default(),
 						),
 					)
 				)
@@ -1227,6 +1238,8 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
+							// FIXME
+							Default::default(),
 						)
 					)
 				)
@@ -1239,6 +1252,8 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
+							// FIXME
+							Default::default(),
 						)
 					)
 				)
@@ -1252,6 +1267,8 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
+							// FIXME
+							Default::default(),
 						)
 					)
 				)
@@ -1278,6 +1295,8 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
+							// FIXME
+							Default::default(),
 						)
 					)
 				)

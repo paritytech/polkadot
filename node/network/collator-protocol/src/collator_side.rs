@@ -940,7 +940,8 @@ mod tests {
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		relay_parent: Hash,
 		availability_core: CoreState,
-		our_collator_pair: CollatorPair,
+		local_peer_id: PeerId,
+		collator_pair: CollatorPair,
 		session_index: SessionIndex,
 	}
 
@@ -987,7 +988,8 @@ mod tests {
 
 			let relay_parent = Hash::random();
 
-			let our_collator_pair = CollatorPair::generate().0;
+			let local_peer_id = PeerId::random();
+			let collator_pair = CollatorPair::generate().0;
 
 			Self {
 				para_id,
@@ -998,7 +1000,8 @@ mod tests {
 				validator_groups,
 				relay_parent,
 				availability_core,
-				our_collator_pair,
+				local_peer_id,
+				collator_pair,
 				session_index: 1,
 			}
 		}
@@ -1073,7 +1076,8 @@ mod tests {
 	}
 
 	fn test_harness<T: Future<Output = ()>>(
-		collator_id: CollatorId,
+		local_peer_id: PeerId,
+		collator_pair: CollatorPair,
 		test: impl FnOnce(TestHarness) -> T,
 	) {
 		let _ = env_logger::builder()
@@ -1092,7 +1096,7 @@ mod tests {
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = run(context, collator_id, Metrics::default());
+		let subsystem = run(context, local_peer_id, collator_pair, Metrics::default());
 
 		let test_fut = test(TestHarness { virtual_overseer });
 
@@ -1334,8 +1338,9 @@ mod tests {
 				assert_eq!(to[0], *peer);
 				assert_matches!(
 					wire_message,
-					protocol_v1::CollatorProtocolMessage::Declare(collator_id) => {
-						assert_eq!(collator_id, test_state.our_collator_pair.public());
+					// FIXME: verify signature?
+					protocol_v1::CollatorProtocolMessage::Declare(collator_id, _signature) => {
+						assert_eq!(collator_id, test_state.collator_pair.public());
 					}
 				);
 			}
@@ -1360,9 +1365,11 @@ mod tests {
 				assert_eq!(to[0], *peer);
 				assert_matches!(
 					wire_message,
+					// FIXME: verify signature?
 					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 						relay_parent,
 						collating_on,
+						_signature,
 					) => {
 						assert_eq!(relay_parent, expected_relay_parent);
 						assert_eq!(collating_on, test_state.para_id);
@@ -1385,8 +1392,10 @@ mod tests {
 	#[test]
 	fn advertise_and_send_collation() {
 		let mut test_state = TestState::default();
+		let local_peer_id = test_state.local_peer_id.clone();
+		let collator_pair = test_state.collator_pair.clone();
 
-		test_harness(test_state.our_collator_pair.public(), |test_harness| async move {
+		test_harness(local_peer_id, collator_pair, |test_harness| async move {
 			let mut virtual_overseer = test_harness.virtual_overseer;
 
 			setup_system(&mut virtual_overseer, &test_state).await;
@@ -1501,8 +1510,10 @@ mod tests {
 	#[test]
 	fn collators_are_registered_correctly_at_validators() {
 		let test_state = TestState::default();
+		let local_peer_id = test_state.local_peer_id.clone();
+		let collator_pair = test_state.collator_pair.clone();
 
-		test_harness(test_state.our_collator_pair.public(), |test_harness| async move {
+		test_harness(local_peer_id, collator_pair, |test_harness| async move {
 			let mut virtual_overseer = test_harness.virtual_overseer;
 
 			let peer = test_state.validator_peer_id[0].clone();
@@ -1523,8 +1534,10 @@ mod tests {
 	#[test]
 	fn collations_are_only_advertised_to_validators_with_correct_view() {
 		let test_state = TestState::default();
+		let local_peer_id = test_state.local_peer_id.clone();
+		let collator_pair = test_state.collator_pair.clone();
 
-		test_harness(test_state.our_collator_pair.public(), |test_harness| async move {
+		test_harness(local_peer_id, collator_pair, |test_harness| async move {
 			let mut virtual_overseer = test_harness.virtual_overseer;
 
 			let peer = test_state.current_group_validator_peer_ids()[0].clone();
@@ -1564,8 +1577,10 @@ mod tests {
 	#[test]
 	fn collate_on_two_different_relay_chain_blocks() {
 		let mut test_state = TestState::default();
+		let local_peer_id = test_state.local_peer_id.clone();
+		let collator_pair = test_state.collator_pair.clone();
 
-		test_harness(test_state.our_collator_pair.public(), |test_harness| async move {
+		test_harness(local_peer_id, collator_pair, |test_harness| async move {
 			let mut virtual_overseer = test_harness.virtual_overseer;
 
 			let peer = test_state.current_group_validator_peer_ids()[0].clone();
@@ -1609,8 +1624,10 @@ mod tests {
 	#[test]
 	fn validator_reconnect_does_not_advertise_a_second_time() {
 		let test_state = TestState::default();
+		let local_peer_id = test_state.local_peer_id.clone();
+		let collator_pair = test_state.collator_pair.clone();
 
-		test_harness(test_state.our_collator_pair.public(), |test_harness| async move {
+		test_harness(local_peer_id, collator_pair, |test_harness| async move {
 			let mut virtual_overseer = test_harness.virtual_overseer;
 
 			let peer = test_state.current_group_validator_peer_ids()[0].clone();
