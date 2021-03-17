@@ -324,7 +324,7 @@ fn new_partial<RuntimeApi, Executor>(
 
 			let slot =
 				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-					timestamp.as_duration(),
+					*timestamp,
 					slot_duration,
 				);
 
@@ -905,7 +905,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 					let slot =
 						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-							timestamp.as_duration(),
+							*timestamp,
 							slot_duration,
 						);
 
@@ -1085,7 +1085,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 
 			let slot =
 				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-					timestamp.as_duration(),
+					*timestamp,
 					slot_duration,
 				);
 
