@@ -961,13 +961,6 @@ impl pallet_proxy::Config for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-pub struct CustomOnRuntimeUpgrade;
-impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
-	}
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
