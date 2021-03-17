@@ -1050,13 +1050,6 @@ impl pallet_gilt::Config for Runtime {
 	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
 }
 
-pub struct CustomOnRuntimeUpgrade;
-impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
-	}
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
