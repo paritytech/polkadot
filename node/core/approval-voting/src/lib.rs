@@ -827,11 +827,27 @@ async fn handle_approved_ancestor(
 								);
 							}
 							Some(a_entry) => {
-								let our_assignment = a_entry.our_assignment();
-								tracing::debug!(
-									target: LOG_TARGET,
-									?our_assignment,
-								);
+								match a_entry.our_assignment() {
+									None => tracing::debug!(
+										target: LOG_TARGET,
+										?candidate_hash,
+										?block_hash,
+										"no assignment."
+									),
+									Some(a) => {
+										let tranche = a.tranche();
+										let triggered = a.triggered();
+
+										tracing::debug!(
+											target: LOG_TARGET,
+											?candidate_hash,
+											?block_hash,
+											tranche,
+											triggered,
+											"assigned"
+										);
+									}
+								}
 							}
 						}
 					}
