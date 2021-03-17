@@ -102,11 +102,13 @@ enum StatementDistributionV1Message {
 
 ```rust
 enum CollatorProtocolV1Message {
-	/// Declare the intent to advertise collations under a collator ID.
-	Declare(CollatorId),
-	/// Advertise a collation to a validator. Can only be sent once the peer has declared
-	/// that they are a collator with given ID.
-	AdvertiseCollation(Hash, ParaId),
+	/// Declare the intent to advertise collations under a collator ID, attaching a
+	/// signature of the `PeerId` of the node using the given collator ID key.
+	Declare(CollatorId, CollatorSignature),
+	/// Advertise a collation to a validator. Can only be sent once the peer has
+	/// declared that they are a collator with given ID. Attached signature on
+	/// blake2-256 of components of this message: hash and para_id.
+	AdvertiseCollation(Hash, ParaId, CollatorSignature),
 	/// Request the advertised collation at that relay-parent.
 	RequestCollation(RequestId, Hash, ParaId),
 	/// A requested collation.
