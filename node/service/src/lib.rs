@@ -40,12 +40,12 @@ use {
 	sc_keystore::LocalKeystore,
 	babe_primitives::BabeApi,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
+	sp_runtime::traits::Header as HeaderT,
 };
 #[cfg(feature = "real-overseer")]
 use polkadot_network_bridge::RequestMultiplexer;
 
 use sp_core::traits::SpawnNamed;
-
 
 use polkadot_subsystem::jaeger;
 
@@ -77,6 +77,9 @@ pub use kusama_runtime;
 pub use polkadot_runtime;
 pub use rococo_runtime;
 pub use westend_runtime;
+
+/// The maximum number of active leaves we forward to the [`Overseer`] on startup.
+const MAX_ACTIVE_LEAVES: usize = 4;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -591,6 +594,56 @@ impl IsCollator {
 	}
 }
 
+/// Returns the active leaves the overseer should start with.
+#[cfg(feature = "full-node")]
+fn active_leaves<RuntimeApi, Executor>(
+	select_chain: &sc_consensus::LongestChain<FullBackend, Block>,
+	client: &FullClient<RuntimeApi, Executor>,
+) -> Result<Vec<BlockInfo>, Error>
+where
+		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
+		RuntimeApi::RuntimeApi:
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		Executor: NativeExecutionDispatch + 'static,
+{
+	let best_block = select_chain.best_chain()?;
+
+	let mut leaves = select_chain
+		.leaves()
+		.unwrap_or_default()
+		.into_iter()
+		.filter_map(|hash| {
+			let number = client.number(hash).ok()??;
+
+			// Only consider leaves that are in maximum an uncle of the best block.
+			if number < best_block.number().saturating_sub(1) {
+				return None
+			} else if hash == best_block.hash() {
+				return None
+			};
+
+			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
+
+			Some(BlockInfo {
+				hash,
+				parent_hash,
+				number,
+			})
+		})
+		.collect::<Vec<_>>();
+
+	// Sort by block number and get the maximum number of leaves
+	leaves.sort_by_key(|b| b.number);
+
+	leaves.push(BlockInfo {
+		hash: best_block.hash(),
+		parent_hash: *best_block.parent_hash(),
+		number: *best_block.number(),
+	});
+
+	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
+}
+
 /// Create a new full node of arbitrary runtime and executor.
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
@@ -769,21 +822,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	let leaves: Vec<_> = select_chain.clone()
-		.leaves()
-		.unwrap_or_else(|_| vec![])
-		.into_iter()
-		.filter_map(|hash| {
-			let number = client.number(hash).ok()??;
-			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
-
-			Some(BlockInfo {
-				hash,
-				parent_hash,
-				number,
-			})
-		})
-		.collect();
+	let active_leaves = active_leaves(&select_chain, &*client)?;
 
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use sc_network::Event;
@@ -828,7 +867,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let overseer_handler = if let Some((authority_discovery_service, keystore)) = maybe_params {
 		let (overseer, overseer_handler) = real_overseer(
-			leaves,
+			active_leaves,
 			keystore,
 			overseer_client.clone(),
 			availability_config,
