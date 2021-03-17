@@ -491,7 +491,7 @@ pub mod v1 {
 	///
 	/// The payload is the local peer id of the node, which serves to prove that it
 	/// controls the collator key it is declaring an intention to collate under.
-	pub fn declare_signature_payload(peer_id: sc_network::PeerId) -> Vec<u8> {
+	pub fn declare_signature_payload(peer_id: &sc_network::PeerId) -> Vec<u8> {
 		peer_id.to_bytes()
 	}
 
@@ -500,8 +500,8 @@ pub mod v1 {
 	/// The payload is the blake2-256 hash of the components of the `AdvertiseCollation`
 	/// message: hash and para_id.
 	pub fn advertise_collation_signature_payload<H: Encode>(
-		relay_parent: H,
-		para_id: ParaId,
+		relay_parent: &H,
+		para_id: &ParaId,
 	) -> [u8; 32] {
 		(relay_parent, para_id)
 			.using_encoded(BlakeTwo256::hash)

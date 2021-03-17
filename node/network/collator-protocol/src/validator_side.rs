@@ -546,7 +546,7 @@ where
 
 	match msg {
 		Declare(id, signature) => {
-			if !signature.verify(&*protocol_v1::declare_signature_payload(origin), &id) {
+			if !signature.verify(&*protocol_v1::declare_signature_payload(&origin), &id) {
 				modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
 				return;
 			}
@@ -559,7 +559,7 @@ where
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				if !signature.verify(
-					&protocol_v1::advertise_collation_signature_payload(relay_parent, para_id)[..],
+					&protocol_v1::advertise_collation_signature_payload(&relay_parent, &para_id)[..],
 					collator,
 				) {
 					modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;

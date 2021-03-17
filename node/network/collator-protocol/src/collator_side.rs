@@ -415,7 +415,7 @@ async fn declare(
 	state: &mut State,
 	peer: PeerId,
 ) {
-	let declare_signature_payload = protocol_v1::declare_signature_payload(state.local_peer_id);
+	let declare_signature_payload = protocol_v1::declare_signature_payload(&state.local_peer_id);
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::Declare(
 		state.collator_pair.public(),
@@ -496,7 +496,7 @@ async fn advertise_collation(
 	}
 
 	let advertise_collation_signature_payload =
-		protocol_v1::advertise_collation_signature_payload(relay_parent, collating_on);
+		protocol_v1::advertise_collation_signature_payload(&relay_parent, &collating_on);
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 		relay_parent,
@@ -890,23 +890,27 @@ pub(crate) async fn run(
 mod tests {
 	use super::*;
 
-	use std::{time::Duration, sync::Arc};
+	use std::{sync::Arc, time::Duration};
 
 	use assert_matches::assert_matches;
-	use futures::{executor, future, Future, channel::mpsc};
+	use futures::{channel::mpsc, executor, future, Future};
 
 	use sp_core::crypto::Pair;
 	use sp_keyring::Sr25519Keyring;
+	use sp_runtime::traits::AppVerify;
 
-	use polkadot_primitives::v1::{
-		BlockData, CandidateDescriptor, CollatorPair, ScheduledCore,
-		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
-		SessionIndex, SessionInfo,
-	};
-	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger};
+	use polkadot_node_network_protocol::{our_view, view};
 	use polkadot_node_subsystem_util::TimeoutExt;
+	use polkadot_primitives::v1::{
+		AuthorityDiscoveryId, BlockData, CandidateDescriptor, CollatorPair, GroupRotationInfo,
+		ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex,
+	};
+	use polkadot_subsystem::{
+		jaeger,
+		messages::{RuntimeApiMessage, RuntimeApiRequest},
+		ActiveLeavesUpdate,
+	};
 	use polkadot_subsystem_testhelpers as test_helpers;
-	use polkadot_node_network_protocol::{view, our_view};
 
 	#[derive(Default)]
 	struct TestCandidateBuilder {
@@ -1338,8 +1342,11 @@ mod tests {
 				assert_eq!(to[0], *peer);
 				assert_matches!(
 					wire_message,
-					// FIXME: verify signature?
-					protocol_v1::CollatorProtocolMessage::Declare(collator_id, _signature) => {
+					protocol_v1::CollatorProtocolMessage::Declare(collator_id, signature) => {
+						assert!(signature.verify(
+							&*protocol_v1::declare_signature_payload(&test_state.local_peer_id),
+							&collator_id),
+						);
 						assert_eq!(collator_id, test_state.collator_pair.public());
 					}
 				);
@@ -1365,12 +1372,15 @@ mod tests {
 				assert_eq!(to[0], *peer);
 				assert_matches!(
 					wire_message,
-					// FIXME: verify signature?
 					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 						relay_parent,
 						collating_on,
-						_signature,
+						signature,
 					) => {
+						assert!(signature.verify(
+							&protocol_v1::advertise_collation_signature_payload(&relay_parent, &collating_on)[..],
+							&test_state.collator_pair.public(),
+						));
 						assert_eq!(relay_parent, expected_relay_parent);
 						assert_eq!(collating_on, test_state.para_id);
 					}
