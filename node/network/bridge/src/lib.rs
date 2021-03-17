@@ -1229,7 +1229,6 @@ mod tests {
 
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 				Sr25519Keyring::Alice.public().into(),
-				// FIXME
 				Default::default(),
 			);
 
@@ -1497,7 +1496,6 @@ mod tests {
 			{
 				let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 					Sr25519Keyring::Alice.public().into(),
-					// FIXME
 					Default::default(),
 				);
 
