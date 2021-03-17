@@ -36,6 +36,8 @@ struct HostConfiguration {
 	pub scheduling_lookahead: u32,
 	/// The maximum number of validators to have per core. `None` means no maximum.
 	pub max_validators_per_core: Option<u32>,
+	/// The maximum number of validators to use for parachains, in total. `None` means no maximum.
+	pub max_validators: Option<u32>,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 	/// The amount of consensus slots that must pass between submitting an assignment and

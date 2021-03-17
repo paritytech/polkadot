@@ -291,6 +291,7 @@ fn get_test_running_task() -> (RunningTask, mpsc::Receiver<FromFetchTask>) {
 			relay_parent: Hash::repeat_byte(71),
 			sender: tx,
 			metrics: Metrics::new_dummy(),
+			span: jaeger::Span::Disabled,
 		},
 		rx
 	)

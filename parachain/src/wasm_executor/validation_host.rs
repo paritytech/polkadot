@@ -28,7 +28,7 @@ const WORKER_ARG: &'static str = "validation-worker";
 /// CLI Argument to start in validation worker mode.
 pub const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
-const LOG_TARGET: &'static str = "validation-worker";
+const LOG_TARGET: &'static str = "parachain::validation-worker";
 
 mod workspace;
 

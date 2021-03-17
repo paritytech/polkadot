@@ -57,7 +57,7 @@ impl ApprovalCheckingDiagnostic {
 				Some(prometheus_endpoint::register(
 					prometheus_endpoint::Histogram::with_opts(
 						prometheus_endpoint::HistogramOpts::new(
-							"approval_checking_finality_lag",
+							"parachain_approval_checking_finality_lag",
 							"How far behind the head of the chain the Approval Checking protocol wants to vote",
 						).buckets(vec![1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0])
 					)?,
@@ -158,7 +158,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 			}
 
 			tracing::debug!(
-				target: "approval_voting",
+				target: "parachain::approval-voting",
 				"GRANDPA: voting on {:?}. Approval-checking lag behind best is {}",
 				actual_vote_target,
 				approval_checking_subsystem_lag,

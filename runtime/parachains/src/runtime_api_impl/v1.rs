@@ -32,7 +32,7 @@ use crate::{initializer, inclusion, scheduler, configuration, paras, session_inf
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
-	<inclusion::Module<T>>::validators()
+	<shared::Module<T>>::active_validator_keys()
 }
 
 /// Implementation for the `validator_groups` function of the runtime API.

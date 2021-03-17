@@ -64,7 +64,7 @@ const BENEFIT_FRESH_POV: Rep = Rep::BenefitMinorFirst("Peer supplied us with an 
 const BENEFIT_LATE_POV: Rep = Rep::BenefitMinor("Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
-const LOG_TARGET: &str = "pov_distribution";
+const LOG_TARGET: &str = "parachain::pov-distribution";
 
 /// The PoV Distribution Subsystem.
 pub struct PoVDistribution {

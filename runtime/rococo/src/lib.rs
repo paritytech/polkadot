@@ -39,7 +39,9 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Filter, EnsureOrigin}, weights::Weight,
+	construct_runtime, parameter_types,
+	traits::{EnsureOrigin, Filter, KeyOwnerProofSystem, Randomness},
+	weights::Weight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -101,7 +103,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1-1"),
 	authoring_version: 0,
-	spec_version: 210,
+	spec_version: 215,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -109,6 +111,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
 };
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
+	babe_primitives::BabeEpochConfiguration {
+		c: PRIMARY_PROBABILITY,
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
@@ -199,7 +208,7 @@ construct_runtime! {
 		Hrmp: parachains_hrmp::{Module, Call, Storage, Event},
 		SessionInfo: parachains_session_info::{Module, Call, Storage},
 
-		Registrar: paras_registrar::{Module, Call, Storage},
+		Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 
 		// Sudo
@@ -248,8 +257,6 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
-	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
 	pub const ValidationUpgradeFrequency: BlockNumber = 2 * DAYS;
 	pub const ValidationUpgradeDelay: BlockNumber = 8 * HOURS;
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
@@ -329,8 +336,8 @@ impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type ValidatorSet = Historical;
+	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
-	type SessionDuration = SessionDuration;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type WeightInfo = ();
 }
@@ -358,7 +365,6 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub const ParathreadDeposit: Balance = 5 * DOLLARS;
 	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
@@ -490,7 +496,6 @@ parameter_types! {
 	pub const UncleGenerations: u32 = 0;
 }
 
-// TODO: substrate#2986 implement this properly
 impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
@@ -580,15 +585,28 @@ impl parachains_inclusion_inherent::Config for Runtime {}
 impl parachains_scheduler::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = Babe;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
 
+parameter_types! {
+	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const DataDepositPerByte: Balance = deposit(0, 1);
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
+}
+
 impl paras_registrar::Config for Runtime {
-	type Currency = Balances;
-	type ParathreadDeposit = ParathreadDeposit;
+	type Event = Event;
 	type Origin = Origin;
+	type Currency = Balances;
+	type OnSwap = ();
+	type ParaDeposit = ParaDeposit;
+	type DataDepositPerByte = DataDepositPerByte;
+	type MaxCodeSize = MaxCodeSize;
+	type MaxHeadSize = MaxHeadSize;
+	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -674,7 +692,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			Babe::randomness().into()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
@@ -805,10 +823,10 @@ sp_api::impl_runtime_apis! {
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDurationInBlocks::get().into(),
-				c: PRIMARY_PROBABILITY,
+				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
+				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 
