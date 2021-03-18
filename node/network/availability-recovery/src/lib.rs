@@ -810,7 +810,6 @@ async fn handle_from_interaction(
 
 			let token = state.connecting_validators.push(rx);
 
-			println!("pushing full data request");
 			state.discovering_validators.entry(id).or_default().push(Awaited::FullData(AwaitedData {
 				validator_index,
 				candidate_hash,
@@ -848,11 +847,11 @@ async fn handle_network_update(
 
 					tracing::trace!(
 						target: LOG_TARGET,
-						"Responding({}) to chunk request req_id={} candidate={} index={}",
-						chunk.is_some(),
-						request_id,
-						candidate_hash,
-						validator_index.0,
+						data_set = %chunk.is_some(),
+						%request_id,
+						?candidate_hash,
+						validator_index = validator_index.0,
+						"Responding to chunk request",
 					);
 
 					// Whatever the result, issue an
@@ -878,11 +877,11 @@ async fn handle_network_update(
 						Some((peer_id, Awaited::Chunk(awaited_chunk))) if peer_id == peer => {
 							tracing::trace!(
 								target: LOG_TARGET,
-								"Received chunk response({}) req_id={} candidate={} index={}",
-								chunk.is_some(),
-								request_id,
-								awaited_chunk.candidate_hash,
-								awaited_chunk.validator_index.0,
+								data_set = %chunk.is_some(),
+								%request_id,
+								candidate_hash = ?awaited_chunk.candidate_hash,
+								validator_index = awaited_chunk.validator_index.0,
+								"Received chunk response",
 							);
 
 							// If there exists an entry under r_id, remove it.
@@ -917,10 +916,10 @@ async fn handle_network_update(
 
 					tracing::trace!(
 						target: LOG_TARGET,
-						"Responding({}) to full data request req_id={} candidate={}",
-						full_data.is_some(),
-						request_id,
-						candidate_hash,
+						data_set = full_data.is_some(),
+						%request_id,
+						?candidate_hash,
+						"Responding to full data request",
 					);
 
 					// Whatever the result, issue an
@@ -946,10 +945,10 @@ async fn handle_network_update(
 						Some((peer_id, Awaited::FullData(awaited))) if peer_id == peer => {
 							tracing::trace!(
 								target: LOG_TARGET,
-								"Received full data response({}) req_id={} candidate={}",
-								data.is_some(),
-								request_id,
-								awaited.candidate_hash,
+								%request_id,
+								candidate_hash = ?awaited.candidate_hash,
+								data_set = %data.is_some(),
+								"Received full data response",
 							);
 
 							// If there exists an entry under r_id, remove it.
@@ -999,11 +998,11 @@ async fn issue_request(
 		Awaited::Chunk(ref awaited_chunk) => {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Requesting chunk req_id={} peer_id={} candidate={} index={}",
-				request_id,
-				peer_id,
-				awaited_chunk.candidate_hash,
-				awaited_chunk.validator_index.0,
+				%request_id,
+				%peer_id,
+				candidate_hash = ?awaited_chunk.candidate_hash,
+				validator_index = %awaited_chunk.validator_index.0,
+				"Requesting chunk",
 			);
 
 			protocol_v1::AvailabilityRecoveryMessage::RequestChunk(
@@ -1015,11 +1014,11 @@ async fn issue_request(
 		Awaited::FullData(ref awaited_data) => {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Requesting full data req_id={} peer_id={} candidate={} index={}",
-				request_id,
-				peer_id,
-				awaited_data.candidate_hash,
-				awaited_data.validator_index.0,
+				%request_id,
+				%peer_id,
+				candidate_hash = ?awaited_data.candidate_hash,
+				validator_index = %awaited_data.validator_index.0,
+				"Requesting full data",
 			);
 
 			protocol_v1::AvailabilityRecoveryMessage::RequestFullData(
