@@ -5493,6 +5493,7 @@ dependencies = [
  "bitvec",
  "futures 0.3.12",
  "polkadot-erasure-coding",
+ "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -5655,6 +5656,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "strum",
+ "thiserror",
 ]
 
 [[package]]

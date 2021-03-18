@@ -34,15 +34,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{
 	Statement, SignedFullStatement, ValidationResult,
 };
-use polkadot_subsystem::{
-	PerLeafSpan, Stage,
-	jaeger,
-	messages::{
-		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
-		CandidateValidationMessage, PoVDistributionMessage, ProvisionableData,
-		ProvisionerMessage, StatementDistributionMessage, ValidationFailed, RuntimeApiRequest,
-	},
-};
+use polkadot_subsystem::{PerLeafSpan, Stage, errors::RuntimeApiError, jaeger, messages::{AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage, CandidateValidationMessage, IfDisconnected, NetworkBridgeMessage, PoVDistributionMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest, StatementDistributionMessage, ValidationFailed}};
 use polkadot_node_subsystem_util::{
 	self as util,
 	request_session_index_for_child,
@@ -54,6 +46,10 @@ use polkadot_node_subsystem_util::{
 	FromJobCommand,
 	metrics::{self, prometheus},
 };
+use polkadot_node_subsystem_util::Error as UtilError;
+use polkadot_node_network_protocol::request_response::{Recipient, Requests, request::{OutgoingRequest, RequestError}, v1::{
+		PoVFetchingRequest, PoVFetchingResponse
+	}};
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
 	Context as TableContextTrait,
@@ -65,6 +61,7 @@ use statement_table::{
 	},
 };
 use thiserror::Error;
+use util::request_session_info;
 
 const LOG_TARGET: &str = "parachain::candidate-backing";
 
@@ -76,8 +73,18 @@ enum Error {
 	InvalidSignature,
 	#[error("Failed to send candidates {0:?}")]
 	Send(Vec<BackedCandidate>),
+	#[error("FetchPoV request error")]
+	FetchPoV(#[source] RequestError),
 	#[error("FetchPoV channel closed before receipt")]
-	FetchPoV(#[source] oneshot::Canceled),
+	FetchPoVCanceled(#[source] oneshot::Canceled),
+	#[error("FetchPoV runtime request failed in utilities")]
+	FetchPoVUtil(#[source] UtilError),
+	#[error("FetchPoV runtime request failed")]
+	FetchPoVRuntime(#[source] RuntimeApiError),
+	#[error("FetchPoV could not find session")]
+	FetchPoVNoSuchSession,
+	#[error("FetchPoV could not find index of signing validator")]
+	FetchPoVInvalidValidatorIndex,
 	#[error("ValidateFromChainState channel closed before receipt")]
 	ValidateFromChainState(#[source] oneshot::Canceled),
 	#[error("StoreAvailableData channel closed before receipt")]
@@ -92,6 +99,14 @@ enum Error {
 	Mpsc(#[from] mpsc::SendError),
 	#[error(transparent)]
 	UtilError(#[from] util::Error),
+}
+
+/// PoV data to validate.
+enum PoVData {
+	/// Allready available (from candidate selection).
+	Ready(Arc<PoV>),
+	/// Needs to be fetched from validator (we are checking a signed statement).
+	FetchFromValidator(ValidatorIndex),
 }
 
 enum ValidatedCandidateCommand {
@@ -336,18 +351,46 @@ async fn make_pov_available(
 	Ok(Ok(()))
 }
 
-async fn request_pov_from_distribution(
+async fn request_pov(
 	tx_from: &mut mpsc::Sender<FromJobCommand>,
 	parent: Hash,
 	descriptor: CandidateDescriptor,
+	from_validator: ValidatorIndex,
 ) -> Result<Arc<PoV>, Error> {
-	let (tx, rx) = oneshot::channel();
+	let session_index = request_session_index_for_child(parent, &mut tx_from)
+		.await.map_err(Error::FetchPoVUtil)?
+		.await.map_err(Error::FetchPoVCanceled)?
+		.map_err(Error::FetchPoVRuntime)?;
+	let session_info = request_session_info(parent, session_index, &mut tx_from)
+		.await.map_err(Error::FetchPoVUtil)?
+		.await.map_err(Error::FetchPoVCanceled)?
+		.map_err(Error::FetchPoVRuntime)?
+		.ok_or(Error::FetchPoVNoSuchSession)?;
+	let authority_id = session_info.discovery_keys.get(from_validator.0 as _)
+		.ok_or(Error::FetchPoVInvalidValidatorIndex);
 
-	tx_from.send(AllMessages::PoVDistribution(
-		PoVDistributionMessage::FetchPoV(parent, descriptor, tx)
-	).into()).await?;
+	let (req, pending_response) = OutgoingRequest::new(
+		Recipient::Authority(authority_id),
+		PoVFetchingRequest {
+			relay_parent: parent,
+			descriptor,
+		},
+	);
+	let full_req = Requests::PoVFetching(req);
 
-	rx.await.map_err(Error::FetchPoV)
+	tx_from.send(FromJobCommand::SendMessage(AllMessages::NetworkBridge(
+		NetworkBridgeMessage::SendRequests(
+			vec![full_req],
+			IfDisconnected::ImmediateError
+		)
+	))).await?;
+
+	let response = pending_response.await.map_err(Error::FetchPoV)?;
+	match response {
+		PoVFetchingResponse::PoV(compressed) => {
+		}
+		PoVFetchingResponse::NoSuchPoV => {
+		}
 }
 
 async fn request_candidate_validation(
@@ -380,7 +423,7 @@ struct BackgroundValidationParams<F> {
 	tx_command: mpsc::Sender<ValidatedCandidateCommand>,
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
-	pov: Option<Arc<PoV>>,
+	pov: PoVData,
 	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
 	span: Option<jaeger::Span>,
@@ -403,13 +446,14 @@ async fn validate_and_make_available(
 	} = params;
 
 	let pov = match pov {
-		Some(pov) => pov,
-		None => {
+		PoVData::Ready(pov) => pov,
+		PoVData::FetchFromValidator(validator_index) => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			request_pov_from_distribution(
+			request_pov(
 				&mut tx_from,
 				relay_parent,
 				candidate.descriptor.clone(),
+				validator_index,
 			).await?
 		}
 	};
@@ -822,6 +866,7 @@ impl CandidateBackingJob {
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
+		statement: SignedFullStatement,
 		span: Option<jaeger::Span>,
 	) -> Result<(), Error> {
 		let candidate_hash = summary.candidate;
@@ -860,7 +905,7 @@ impl CandidateBackingJob {
 			tx_command: self.background_validation_tx.clone(),
 			candidate,
 			relay_parent: self.parent,
-			pov: None,
+			pov: PoVData::FetchFromValidator(statement.validator_index()),
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 			n_validators: self.table_context.validators.len(),
 			span,
@@ -885,7 +930,11 @@ impl CandidateBackingJob {
 						summary.group_id,
 					);
 
-					self.kick_off_validation_work(summary, span).await?;
+					self.kick_off_validation_work(
+						summary,
+						statement,
+						span,
+					).await?;
 				}
 			}
 		}
@@ -984,16 +1033,6 @@ impl CandidateBackingJob {
 		self.tx_from.send(AllMessages::from(msg).into()).await?;
 
 		Ok(())
-	}
-
-	async fn distribute_pov(
-		&mut self,
-		descriptor: CandidateDescriptor,
-		pov: Arc<PoV>,
-	) -> Result<(), Error> {
-		self.tx_from.send(AllMessages::from(
-			PoVDistributionMessage::DistributePoV(self.parent, descriptor, pov),
-		).into()).await.map_err(Into::into)
 	}
 
 	async fn distribute_signed_statement(&mut self, s: SignedFullStatement) -> Result<(), Error> {
