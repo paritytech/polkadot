@@ -55,7 +55,7 @@ pub use pallet_balances::Call as BalancesCall;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::ToAuthor;
 
-pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 /// The sequence of bytes a valid wasm module binary always starts with. Apart from that it's also a
 /// valid wasm module.
@@ -212,7 +212,7 @@ mod multiplier_tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>}
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>}
 		}
 	);
 

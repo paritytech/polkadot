@@ -59,19 +59,19 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		// System Stuff
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
 
 		// Parachains Runtime
-		Configuration: configuration::{Module, Call, Storage, Config<T>},
-		Paras: paras::{Module, Origin, Call, Storage, Config<T>},
+		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Config<T>},
 
 		// Para Onboarding Pallets
-		Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
-		Auctions: auctions::{Module, Call, Storage, Event<T>},
-		Crowdloan: crowdloan::{Module, Call, Storage, Event<T>},
-		Slots: slots::{Module, Call, Storage, Event<T>},
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
+		Slots: slots::{Pallet, Call, Storage, Event<T>},
 	}
 );
 
@@ -271,12 +271,12 @@ fn run_to_block(n: u32) {
 	assert!(System::block_number() < n);
 	while System::block_number() < n {
 		let block_number = System::block_number();
-		AllModules::on_finalize(block_number);
+		AllPallets::on_finalize(block_number);
 		System::on_finalize(block_number);
 		System::set_block_number(block_number + 1);
 		System::on_initialize(block_number + 1);
 		maybe_new_session(block_number + 1);
-		AllModules::on_initialize(block_number + 1);
+		AllPallets::on_initialize(block_number + 1);
 	}
 }
 
