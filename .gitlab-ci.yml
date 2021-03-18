@@ -270,7 +270,7 @@ publish-dockerhub:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       variables:
         # image to be tested with Simnet
-        IMAGE_NAME:                docker.io/paritypr/rococo
+        IMAGE_NAME:                docker.io/paritypr/synth-wave
         DOCKER_USER:               ${PARITYPR_USER}
         DOCKER_PASS:               ${PARITYPR_PASS}
     - if: $CI_PIPELINE_SOURCE == "schedule"
