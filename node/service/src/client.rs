@@ -20,7 +20,7 @@ use std::sync::Arc;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
-	Justification, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
+	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
 };
 use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
@@ -204,15 +204,15 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn justification(
+	fn justifications(
 		&self,
 		id: &BlockId<Block>
-	) -> sp_blockchain::Result<Option<Justification>> {
+	) -> sp_blockchain::Result<Option<Justifications>> {
 		match self {
-			Self::Polkadot(client) => client.justification(id),
-			Self::Westend(client) => client.justification(id),
-			Self::Kusama(client) => client.justification(id),
-			Self::Rococo(client) => client.justification(id),
+			Self::Polkadot(client) => client.justifications(id),
+			Self::Westend(client) => client.justifications(id),
+			Self::Kusama(client) => client.justifications(id),
+			Self::Rococo(client) => client.justifications(id),
 		}
 	}
 
