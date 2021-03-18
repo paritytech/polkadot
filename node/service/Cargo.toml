@@ -124,6 +124,7 @@ try-runtime = [
 	"polkadot-runtime/try-runtime",
 	"kusama-runtime/try-runtime",
 	"westend-runtime/try-runtime",
+	"rococo-runtime/try-runtime",
 ]
 
 real-overseer = [
