@@ -150,7 +150,7 @@ impl Collator {
 
 		let state = self.state.clone();
 		let seconded_collations = self.seconded_collations.clone();
-		let validation_code_hash = ValidationCode(self.validation_code()).hash();
+		let validation_code_hash = ValidationCode(self.validation_code().to_vec()).hash();
 
 		Box::new(move |relay_parent, validation_data| {
 			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
