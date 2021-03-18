@@ -930,7 +930,7 @@ mod tests {
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
 			validation_data.clone(),
-			vec![1, 2, 3].into(),
+			validation_code,
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -974,7 +974,7 @@ mod tests {
 				))
 			},
 			validation_data,
-			vec![1, 2, 3].into(),
+			validation_code,
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -1011,7 +1011,7 @@ mod tests {
 				))
 			},
 			validation_data,
-			vec![1, 2, 3].into(),
+			validation_code,
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -1020,4 +1020,42 @@ mod tests {
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 	}
+
+	#[test]
+	fn candidate_validation_code_mismatch_is_invalid() {
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+		let validation_code = ValidationCode(vec![2; 16]);
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		descriptor.validation_code_hash = ValidationCode(vec![1; 16]).hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		let check = perform_basic_checks(
+			&descriptor,
+			validation_data.max_pov_size,
+			&pov,
+			&validation_code,
+		);
+		assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg {
+				result: Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::BadReturn
+				))
+			},
+			validation_data,
+			validation_code,
+			descriptor,
+			Arc::new(pov),
+			TaskExecutor::new(),
+			&Default::default(),
+		).unwrap();
+
+		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
+	}
+
 }

@@ -550,9 +550,9 @@ mod tests {
 
 			fn validation_code_by_hash(
 				&self,
-				hash: Hash,
+				_hash: Hash,
 			) -> Option<ValidationCode> {
-				todo!();
+				unreachable!("not used in tests");
 			}
 		}
 

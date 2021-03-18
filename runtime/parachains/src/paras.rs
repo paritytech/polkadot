@@ -30,7 +30,8 @@ use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, ConsensusLog,
 };
-use sp_runtime::{traits::{One, Hash as _}, DispatchResult, SaturatedConversion};
+// TODO TODO: add test for changes here
+use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure,
 	traits::Get,
@@ -855,6 +856,16 @@ mod tests {
 		ReplacementTimes { expected_at, activated_at }
 	}
 
+	fn check_code_is_stored(validation_code: &ValidationCode) {
+		assert!(<Paras as Store>::CodeByHashRefs::get(validation_code.hash()) != 0);
+		assert!(<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+	}
+
+	fn check_code_is_not_stored(validation_code: &ValidationCode) {
+		assert!(!<Paras as Store>::CodeByHashRefs::contains_key(validation_code.hash()));
+		assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+	}
+
 	#[test]
 	fn para_past_code_meta_gives_right_code() {
 		let mut past_code = ParaPastCodeMeta::default();
@@ -958,8 +969,10 @@ mod tests {
 			let id = ParaId::from(0u32);
 			let at_block: BlockNumber = 10;
 			let included_block: BlockNumber = 12;
+			let validation_code = ValidationCode(vec![1, 2, 3]);
 
-			<Paras as Store>::PastCode::insert(&(id, at_block), &ValidationCode(vec![1, 2, 3]));
+			Paras::increase_code_ref(&validation_code);
+			<Paras as Store>::PastCode::insert(&(id, at_block), &validation_code);
 			<Paras as Store>::PastCodePruning::put(&vec![(id, included_block)]);
 
 			{
@@ -969,15 +982,18 @@ mod tests {
 			}
 
 			let pruned_at: BlockNumber = included_block + acceptance_period + 1;
-			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(vec![1, 2, 3].into()));
+			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(validation_code.clone()));
+			check_code_is_stored(&validation_code);
 
 			run_to_block(pruned_at - 1, None);
-			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(vec![1, 2, 3].into()));
+			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(validation_code.clone()));
 			assert_eq!(Paras::past_code_meta(&id).most_recent_change(), Some(at_block));
+			check_code_is_stored(&validation_code);
 
 			run_to_block(pruned_at, None);
 			assert!(<Paras as Store>::PastCode::get(&(id, at_block)).is_none());
 			assert!(Paras::past_code_meta(&id).most_recent_change().is_none());
+			check_code_is_not_stored(&validation_code);
 		});
 	}
 
@@ -1073,11 +1089,12 @@ mod tests {
 		let acceptance_period = 10;
 		let validation_upgrade_delay = 5;
 
+		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
 				parachain: true,
 				genesis_head: Default::default(),
-				validation_code: vec![1, 2, 3].into(),
+				validation_code: original_code.clone(),
 			}),
 		];
 
@@ -1095,11 +1112,13 @@ mod tests {
 		};
 
 		new_test_ext(genesis_config).execute_with(|| {
+			check_code_is_stored(&original_code);
+
 			let para_id = ParaId::from(0);
 			let new_code = ValidationCode(vec![4, 5, 6]);
 
 			run_to_block(2, None);
-			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
 				// this parablock is in the context of block 1.
@@ -1110,7 +1129,9 @@ mod tests {
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
-				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
+				check_code_is_stored(&original_code);
+				check_code_is_stored(&new_code);
 
 				expected_at
 			};
@@ -1125,7 +1146,9 @@ mod tests {
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
-				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
+				check_code_is_stored(&original_code);
+				check_code_is_stored(&new_code);
 			}
 
 			run_to_block(expected_at + 1, None);
@@ -1141,11 +1164,13 @@ mod tests {
 				);
 				assert_eq!(
 					<Paras as Store>::PastCode::get(&(para_id, expected_at)),
-					Some(vec![1, 2, 3,].into()),
+					Some(original_code.clone()),
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 				assert!(<Paras as Store>::FutureCode::get(&para_id).is_none());
-				assert_eq!(Paras::current_code(&para_id), Some(new_code));
+				assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
+				check_code_is_stored(&original_code);
+				check_code_is_stored(&new_code);
 			}
 		});
 	}
@@ -1253,10 +1278,12 @@ mod tests {
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 8);
 			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
 			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
+			check_code_is_stored(&new_code);
 
 			Paras::schedule_code_upgrade(para_id, newer_code.clone(), 10);
 			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
 			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
+			check_code_is_not_stored(&newer_code);
 		});
 	}
 
@@ -1264,11 +1291,12 @@ mod tests {
 	fn full_parachain_cleanup_storage() {
 		let acceptance_period = 10;
 
+		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
 				parachain: true,
 				genesis_head: Default::default(),
-				validation_code: vec![1, 2, 3].into(),
+				validation_code: original_code.clone(),
 			}),
 		];
 
@@ -1285,11 +1313,14 @@ mod tests {
 		};
 
 		new_test_ext(genesis_config).execute_with(|| {
+			check_code_is_stored(&original_code);
+
 			let para_id = ParaId::from(0);
 			let new_code = ValidationCode(vec![4, 5, 6]);
 
 			run_to_block(2, None);
-			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
+			check_code_is_stored(&original_code);
 
 			let expected_at = {
 				// this parablock is in the context of block 1.
@@ -1301,6 +1332,8 @@ mod tests {
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+				check_code_is_stored(&original_code);
+				check_code_is_stored(&new_code);
 
 				expected_at
 			};
@@ -1318,7 +1351,9 @@ mod tests {
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
-				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
+				check_code_is_stored(&original_code);
+				check_code_is_stored(&new_code);
 
 				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
 			}
@@ -1329,14 +1364,16 @@ mod tests {
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
 			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(3));
-			assert_eq!(<Paras as Store>::PastCode::get(&(para_id, 3)), Some(vec![1, 2, 3].into()));
+			assert_eq!(<Paras as Store>::PastCode::get(&(para_id, 3)), Some(original_code.clone()));
 			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 3)]);
+			check_code_is_stored(&original_code);
 
 			// any future upgrades haven't been used to validate yet, so those
 			// are cleaned up immediately.
 			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 			assert!(<Paras as Store>::FutureCode::get(&para_id).is_none());
 			assert!(Paras::current_code(&para_id).is_none());
+			check_code_is_not_stored(&new_code);
 
 			// run to do the final cleanup
 			let cleaned_up_at = 3 + acceptance_period + 1;
@@ -1346,6 +1383,7 @@ mod tests {
 			assert_eq!(Paras::past_code_meta(&para_id), Default::default());
 			assert!(<Paras as Store>::PastCode::get(&(para_id, 3)).is_none());
 			assert!(<Paras as Store>::PastCodePruning::get().is_empty());
+			check_code_is_not_stored(&original_code);
 		});
 	}
 
