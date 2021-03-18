@@ -28,10 +28,36 @@ use polkadot_subsystem::{
 use crate::error::{Error, Result};
 use crate::{LOG_TARGET, metrics::{Metrics, SUCCEEDED, FAILED, NOT_FOUND}};
 
-/// Variant of `answer_request` that does Prometheus metric and logging on errors.
+/// Variant of `answer_pov_request` that does Prometheus metric and logging on errors.
+///
+/// Any errors of `answer_pov_request` will simply be logged.
+pub async fn answer_pov_request_log<Context>(
+	ctx: &mut Context,
+	req: IncomingRequest<v1::PoVFetchingRequest>,
+	metrics: &Metrics,
+) -> ()
+where
+	Context: SubsystemContext,
+{
+	let res = answer_pov_request(ctx, req).await;
+	match res {
+		Ok(result) =>
+			metrics.on_served_pov(if result {SUCCEEDED} else {NOT_FOUND}),
+		Err(err) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				err= ?err,
+				"Serving PoV failed with error"
+			);
+			metrics.on_served(FAILED);
+		}
+	}
+}
+
+/// Variant of `answer_chunk_request` that does Prometheus metric and logging on errors.
 ///
 /// Any errors of `answer_request` will simply be logged.
-pub async fn answer_request_log<Context>(
+pub async fn answer_chunk_request_log<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::AvailabilityFetchingRequest>,
 	metrics: &Metrics,
@@ -39,10 +65,10 @@ pub async fn answer_request_log<Context>(
 where
 	Context: SubsystemContext,
 {
-	let res = answer_request(ctx, req).await;
+	let res = answer_chunk_request(ctx, req).await;
 	match res {
 		Ok(result) =>
-			metrics.on_served(if result {SUCCEEDED} else {NOT_FOUND}),
+			metrics.on_served_chunk(if result {SUCCEEDED} else {NOT_FOUND}),
 		Err(err) => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -54,10 +80,52 @@ where
 	}
 }
 
+/// Answer an incoming PoV fetch request by querying the av store.
+///
+/// Returns: Ok(true) if chunk was found and served.
+pub async fn answer_pov_request<Context>(
+	ctx: &mut Context,
+	req: IncomingRequest<v1::PoVFetchingRequest>,
+) -> Result<bool>
+where
+	Context: SubsystemContext,
+{
+	let mut span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
+	let _child_span = span.child_builder("answer-chunk-request")
+		.with_chunk_index(req.payload.index.0)
+		.build();
+
+	let av_data = query_available_data(ctx, req.payload.candidate_hash, req.payload.index).await?;
+
+	let result = av_data.is_some();
+
+	let response = match av_data {
+		None => v1::PoVFetchingResponse::NoSuchPoV,
+		Some(av_data) => {
+			let pov = match CompressedPoV::compress(&av_data.pov) {
+				Ok(pov) => pov,
+				Err(error) => {
+					tracing::error!(
+						target: LOG_TARGET,
+						error = ?error,
+						"Failed to create `CompressedPov`",
+					);
+					// this should really not happen, let this request time out:
+					return false
+				}
+			};
+			v1::PoVFetchingResponse::PoV(pov)
+		}
+	};
+
+	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	Ok(result)
+}
+
 /// Answer an incoming chunk request by querying the av store.
 ///
 /// Returns: Ok(true) if chunk was found and served.
-pub async fn answer_request<Context>(
+pub async fn answer_chunk_request<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::AvailabilityFetchingRequest>,
 ) -> Result<bool>
@@ -65,7 +133,6 @@ where
 	Context: SubsystemContext,
 {
 	let mut span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
-	span.add_stage(jaeger::Stage::AvailabilityDistribution);
 	let _child_span = span.child_builder("answer-chunk-request")
 		.with_chunk_index(req.payload.index.0)
 		.build();
@@ -100,4 +167,22 @@ where
 	.await;
 
 	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
+}
+
+/// Query PoV from the availability store.
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+async fn query_available_data<Context>(
+	ctx: &mut Context,
+	candidate_hash: CandidateHash,
+) -> Result<Option<AvailableData>>
+where
+	Context: SubsystemContext,
+{
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AllMessages::AvailabilityStore(
+		AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
+	))
+	.await;
+
+	rx.await.map_err(|e| Error::QueryAvailableDataResponseChannel(e))
 }

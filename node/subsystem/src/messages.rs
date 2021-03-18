@@ -260,10 +260,12 @@ impl NetworkBridgeMessage {
 }
 
 /// Availability Distribution Message.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
 	/// Incoming network request for an availability chunk.
-	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>)
+	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>),
+	/// Incoming network request for a seconded PoV.
+	PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
 }
 
 /// Availability Recovery Message.
@@ -281,14 +283,14 @@ pub enum AvailabilityRecoveryMessage {
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
 }
 
-impl AvailabilityDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::AvailabilityFetchingRequest(_) => None,
-		}
-	}
-}
+// impl AvailabilityDistributionMessage {
+//	/// If the current variant contains the relay parent hash, return it.
+//     pub fn relay_parent(&self) -> Option<Hash> {
+//         match self {
+//             Self::AvailabilityFetchingRequest(_) => None,
+//         }
+//     }
+// }
 
 /// Bitfield distribution message.
 #[derive(Debug, derive_more::From)]
@@ -736,9 +738,25 @@ pub enum AllMessages {
 	GossipSupport(GossipSupportMessage),
 }
 
+impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
+	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
+		Self::PoVFetchingRequest(req)
+	}
+}
+impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AvailabilityDistributionMessage {
+	fn from(req: IncomingRequest<req_res_v1::AvailabilityFetchingRequest>) -> Self {
+		Self::AvailabilityFetchingRequest(req)
+	}
+}
 impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::AvailabilityFetchingRequest>) -> Self {
 		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
+}
+
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		Self::CollationFetchingRequest(req)
 	}
 }
 impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages {
@@ -746,8 +764,9 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages
 		From::<CollatorProtocolMessage>::from(From::from(req))
 	}
 }
-impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
-	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
-		Self::CollationFetchingRequest(req)
+
+impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
+		From::<AvailabilityDistributionMessage>::from(From::from(req))
 	}
 }

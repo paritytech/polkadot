@@ -59,6 +59,8 @@ pub enum Protocol {
 	AvailabilityFetching,
 	/// Protocol for fetching collations from collators.
 	CollationFetching,
+	/// Protocol for fetching seconded PoVs from validators of the same group.
+	PoVFetching,
 }
 
 /// Default request timeout in seconds.
@@ -66,7 +68,7 @@ pub enum Protocol {
 /// When decreasing this value, take into account that the very first request might need to open a
 /// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
 /// sets.
-const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3); 
+const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Request timeout where we can assume the connection is already open (e.g. we have peers in a
 /// peer set as well).
@@ -107,6 +109,14 @@ impl Protocol {
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
+			Protocol::PoVFetching => RequestResponseConfig {
+				name: p_name,
+				max_request_size: 1_000,
+				/// Same consideration as for `CollationFetching.
+				max_response_size: 10_000_000,
+				request_timeout: DEFAULT_REQUEST_TIMEOUT,
+				inbound_queue: Some(tx),
+			},
 		};
 		(rx, cfg)
 	}
@@ -122,6 +132,8 @@ impl Protocol {
 			Protocol::AvailabilityFetching => 100,
 			// 10 seems reasonable, considering group sizes of max 10 validators.
 			Protocol::CollationFetching => 10,
+			// 10 seems reasonable, considering group sizes of max 10 validators.
+			Protocol::PoVFetching => 10,
 		}
 	}
 
@@ -135,6 +147,7 @@ impl Protocol {
 		match self {
 			Protocol::AvailabilityFetching => "/polkadot/req_availability/1",
 			Protocol::CollationFetching => "/polkadot/req_collation/1",
+			Protocol::PoVFetching => "/polkadot/req_pov/1",
 		}
 	}
 }

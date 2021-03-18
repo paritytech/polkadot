@@ -17,6 +17,7 @@
 use futures::channel::oneshot;
 use futures::prelude::Future;
 
+use thiserror::Error;
 use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 use sc_network as network;
 use sc_network::config as netconfig;
@@ -42,6 +43,8 @@ pub enum Requests {
 	AvailabilityFetching(OutgoingRequest<v1::AvailabilityFetchingRequest>),
 	/// Fetch a collation from a collator which previously announced it.
 	CollationFetching(OutgoingRequest<v1::CollationFetchingRequest>),
+	/// Fetch a PoV from a validator which previously sent out a seconded statement.
+	PoVFetching(OutgoingRequest<v1::PoVFetchingRequest>),
 }
 
 impl Requests {
@@ -50,6 +53,7 @@ impl Requests {
 		match self {
 			Self::AvailabilityFetching(_) => Protocol::AvailabilityFetching,
 			Self::CollationFetching(_) => Protocol::CollationFetching,
+			Self::PoVFetching(_) => Protocol::PoVFetching,
 		}
 	}
 
@@ -64,6 +68,7 @@ impl Requests {
 		match self {
 			Self::AvailabilityFetching(r) => r.encode_request(),
 			Self::CollationFetching(r) => r.encode_request(),
+			Self::PoVFetching(r) => r.encode_request(),
 		}
 	}
 }
@@ -92,15 +97,19 @@ pub struct OutgoingRequest<Req> {
 }
 
 /// Any error that can occur when sending a request.
+#[derive(Debug, Error)]
 pub enum RequestError {
 	/// Response could not be decoded.
-	InvalidResponse(DecodingError),
+	#[error("Response could not be decoded")]
+	InvalidResponse(#[source] DecodingError),
 
 	/// Some error in substrate/libp2p happened.
-	NetworkError(network::RequestFailure),
+	#[error("Some network error occurred")]
+	NetworkError(#[source] network::RequestFailure),
 
 	/// Response got canceled by networking.
-	Canceled(oneshot::Canceled),
+	#[error("Response channel got canceled")]
+	Canceled(#[source] oneshot::Canceled),
 }
 
 /// Responses received for an `OutgoingRequest`.

@@ -34,7 +34,7 @@ use requester::Requester;
 
 /// Responding to erasure chunk requests:
 mod responder;
-use responder::answer_request_log;
+use responder::{answer_chunk_request_log, answer_pov_request_log};
 
 /// Cache for session information.
 mod session_cache;
@@ -123,7 +123,12 @@ impl AvailabilityDistributionSubsystem {
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(req),
 				} => {
-					answer_request_log(&mut ctx, req, &self.metrics).await
+					answer_chunk_request_log(&mut ctx, req, &self.metrics).await
+				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::PoVFetchingRequest(req),
+				} => {
+					answer_pov_request_log(&mut ctx, req, &self.metrics).await
 				}
 			}
 		}

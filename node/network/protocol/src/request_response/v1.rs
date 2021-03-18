@@ -18,7 +18,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, ErasureChunk, ValidatorIndex, CompressedPoV, Hash};
+use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, ErasureChunk, ValidatorIndex, CompressedPoV, Hash, CandidateDescriptor};
 use polkadot_primitives::v1::Id as ParaId;
 
 use super::request::IsRequest;
@@ -101,3 +101,29 @@ impl IsRequest for CollationFetchingRequest {
 	type Response = CollationFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::CollationFetching;
 }
+
+/// Request the advertised collation at that relay-parent.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct PoVFetchingRequest {
+	/// Relay parent we want a collation for.
+	pub relay_parent: Hash,
+	/// Candidate descriptor.
+	pub descriptor: CandidateDescriptor,
+}
+
+/// Responses to `PoVFetchingRequest`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum PoVFetchingResponse {
+	/// Deliver requested PoV.
+	#[codec(index = 0)]
+	PoV(CompressedPoV),
+	/// PoV was not found in store.
+	#[codec(index = 1)]
+	NoSuchPoV,
+}
+
+impl IsRequest for PoVFetchingRequest {
+	type Response = PoVFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::PoVFetching;
+}
+
