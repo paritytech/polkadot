@@ -16,9 +16,6 @@
 
 //! Polkadot Jaeger configuration.
 
-
-
-
 /// Configuration for the jaeger tracing.
 #[derive(Clone)]
 pub struct JaegerConfig {

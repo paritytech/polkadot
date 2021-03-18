@@ -52,11 +52,12 @@ mod spans;
 mod config;
 
 pub use self::errors::JaegerError;
-pub use self::spans::{PerLeafSpan, Span, SpanBuilder, Stage, hash_span, candidate_hash_span, pov_span, descriptor_span};
+pub use self::spans::{PerLeafSpan, Span, SpanBuilder, Stage};
 pub use self::config::{JaegerConfig, JaegerConfigBuilder};
 
+use self::spans::TraceIdentifier;
+
 use sp_core::traits::SpawnNamed;
-use polkadot_primitives::v1::Hash;
 
 use parking_lot::RwLock;
 use std::{sync::Arc, result};
@@ -133,13 +134,11 @@ impl Jaeger {
 
 	pub(crate) fn span<F>(&self, lazy_hash: F, span_name: &'static str) -> Option<mick_jaeger::Span>
 	where
-		F: Fn() -> Hash,
+		F: Fn() -> TraceIdentifier,
 	{
 		if let Self::Launched { traces_in , .. } = self {
-			let hash = lazy_hash();
-			let mut buf = [0u8; 16];
-			buf.copy_from_slice(&hash.as_ref()[0..16]);
-			let trace_id = std::num::NonZeroU128::new(u128::from_be_bytes(buf))?;
+			let ident = lazy_hash();
+			let trace_id = std::num::NonZeroU128::new(ident)?;
 			Some(traces_in.span(trace_id, span_name))
 		} else {
 			None
