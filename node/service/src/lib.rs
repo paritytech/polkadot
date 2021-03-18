@@ -234,7 +234,7 @@ fn new_partial<RuntimeApi, Executor>(
 				babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
-			u64, // slot-duration
+			std::time::Duration, // slot-duration
 			Option<Telemetry>,
 		)
 	>,
@@ -798,7 +798,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		path: config.database.path()
 			.ok_or(Error::DatabasePathRequired)?
 			.join("parachains").join("approval-voting"),
-		slot_duration_millis: slot_duration,
+		slot_duration_millis: slot_duration.as_millis() as u64,
 		cache_size: None, // default is fine.
 	};
 
