@@ -80,7 +80,7 @@ std = [
 	"babe-primitives/std",
 	"beefy-primitives/std",
 	"pallet-balances/std",
-	"pallet-beefy/std"
+	"pallet-beefy/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
 	"pallet-mmr/std",
