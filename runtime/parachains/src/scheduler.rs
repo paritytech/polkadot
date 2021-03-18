@@ -576,54 +576,27 @@ impl<T: Config> Module<T> {
 		Some(GroupIndex(group_idx as u32))
 	}
 
-	/// Returns an optional predicate that should be used for timing out occupied cores.
+	/// Returns a predicate that should be used for timing out occupied cores.
 	///
-	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
+	/// The predicate accepts the index of the core, and the
 	/// block number since which it has been occupied, and the respective parachain and parathread
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`, unless there are no rotations.
-	///
-	/// This really should not be a box, but is working around a compiler limitation filed here:
-	/// https://github.com/rust-lang/rust/issues/73226
-	/// which prevents us from testing the code if using `impl Trait`.
-	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
-		let now = <frame_system::Module<T>>::block_number();
+	pub(crate) fn availability_timeout_predicate() -> impl Fn(CoreIndex, T::BlockNumber) -> bool {
+		let now = <frame_system::Pallet<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
-
-		let session_start = <SessionStartBlock<T>>::get();
-		let blocks_since_session_start = now.saturating_sub(session_start);
-		let blocks_since_last_rotation = blocks_since_session_start % config.group_rotation_frequency;
-
-		let absolute_cutoff = sp_std::cmp::max(
-			config.chain_availability_period,
-			config.thread_availability_period,
-		);
 
 		let availability_cores = AvailabilityCores::get();
 
-		if blocks_since_last_rotation >= absolute_cutoff {
-			None
-		} else {
-			Some(Box::new(move |core_index: CoreIndex, pending_since| {
-				match availability_cores.get(core_index.0 as usize) {
-					None => true, // out-of-bounds, doesn't really matter what is returned.
-					Some(None) => true, // core not occupied, still doesn't really matter.
-					Some(Some(CoreOccupied::Parachain)) => {
-						if blocks_since_last_rotation >= config.chain_availability_period {
-							false // no pruning except recently after rotation.
-						} else {
-							now.saturating_sub(pending_since) >= config.chain_availability_period
-						}
-					}
-					Some(Some(CoreOccupied::Parathread(_))) => {
-						if blocks_since_last_rotation >= config.thread_availability_period {
-							false // no pruning except recently after rotation.
-						} else {
-							now.saturating_sub(pending_since) >= config.thread_availability_period
-						}
-					}
-				}
-			}))
+		move |core_index: CoreIndex, pending_since| {
+			match availability_cores.get(core_index.0 as usize) {
+				None => true, // out-of-bounds, doesn't really matter what is returned.
+				Some(None) => true, // core not occupied, still doesn't really matter.
+				Some(Some(CoreOccupied::Parachain)) =>
+					now.saturating_sub(pending_since) >= config.chain_availability_period,
+				Some(Some(CoreOccupied::Parathread(_))) =>
+					now.saturating_sub(pending_since) >= config.thread_availability_period,
+			}
 		}
 	}
 
@@ -1670,14 +1643,10 @@ mod tests {
 				});
 			}
 
-			run_to_block(1 + thread_availability_period, |_| None);
-			assert!(Scheduler::availability_timeout_predicate().is_none());
-
 			run_to_block(1 + group_rotation_frequency, |_| None);
 
 			{
-				let pred = Scheduler::availability_timeout_predicate()
-					.expect("predicate exists recently after rotation");
+				let pred = Scheduler::availability_timeout_predicate();
 
 				let now = System::block_number();
 				let would_be_timed_out = now - thread_availability_period;
@@ -1703,18 +1672,16 @@ mod tests {
 			run_to_block(1 + group_rotation_frequency + chain_availability_period, |_| None);
 
 			{
-				let pred = Scheduler::availability_timeout_predicate()
-					.expect("predicate exists recently after rotation");
+				let pred = Scheduler::availability_timeout_predicate();
+
+				assert!(!pred(CoreIndex(0), System::block_number()));
+				assert!(!pred(CoreIndex(1), System::block_number()));
 
 				let would_be_timed_out = System::block_number() - thread_availability_period;
 
-				assert!(!pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
-				assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
+				assert!(pred(CoreIndex(0), would_be_timed_out));
+				assert!(pred(CoreIndex(1), would_be_timed_out));
 			}
-
-			run_to_block(1 + group_rotation_frequency + thread_availability_period, |_| None);
-
-			assert!(Scheduler::availability_timeout_predicate().is_none());
 		});
 	}
 
