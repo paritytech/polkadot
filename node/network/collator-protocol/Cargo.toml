@@ -6,8 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.12"
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+tracing = "0.1.25"
 thiserror = "1.0.23"
 
 polkadot-primitives = { path = "../../../primitives" }
@@ -15,12 +14,12 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+always-assert = "0.1.2"
 
 [dev-dependencies]
 log = "0.4.13"
 env_logger = "0.8.2"
 assert_matches = "1.4.0"
-futures-timer = "3.0.2"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -31,14 +31,14 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
+	paras_sudo_wrapper, paras_registrar, auctions, crowdloan, slots,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
-	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear, ModuleId,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
@@ -71,6 +71,19 @@ pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 
+use runtime_parachains::origin as parachains_origin;
+use runtime_parachains::configuration as parachains_configuration;
+use runtime_parachains::shared as parachains_shared;
+use runtime_parachains::inclusion as parachains_inclusion;
+use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use runtime_parachains::initializer as parachains_initializer;
+use runtime_parachains::session_info as parachains_session_info;
+use runtime_parachains::paras as parachains_paras;
+use runtime_parachains::dmp as parachains_dmp;
+use runtime_parachains::ump as parachains_ump;
+use runtime_parachains::hrmp as parachains_hrmp;
+use runtime_parachains::scheduler as parachains_scheduler;
+
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
@@ -95,6 +108,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: version::create_apis_vec![[]],
 	transaction_version: 4,
 };
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
+	babe_primitives::BabeEpochConfiguration {
+		c: PRIMARY_PROBABILITY,
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
@@ -244,7 +264,6 @@ parameter_types! {
 	pub const UncleGenerations: u32 = 0;
 }
 
-// TODO: substrate#2986 implement this properly
 impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
@@ -262,8 +281,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
-		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
+		pub para_validator: Initializer,
+		pub para_assignment: ParachainsSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -301,7 +320,7 @@ parameter_types! {
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational_approximation(1u32, 10_000);
+	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
 	// miner configs
 	pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
@@ -348,7 +367,7 @@ parameter_types! {
 	// quarter of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub MinSolutionScoreBump: Perbill = Perbill::from_rational(5u32, 10_000);
 }
 
 impl pallet_staking::Config for Runtime {
@@ -365,7 +384,7 @@ impl pallet_staking::Config for Runtime {
 	// A majority of the council can cancel the slash.
 	type SlashCancelOrigin = EnsureRoot<AccountId>;
 	type SessionInterface = Self;
-	type RewardCurve = RewardCurve;
+	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
@@ -416,8 +435,8 @@ impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type ValidatorSet = Historical;
+	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
-	type SessionDuration = SessionDuration;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 }
@@ -686,6 +705,118 @@ impl pallet_proxy::Config for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
+impl parachains_session_info::Config for Runtime {}
+
+impl parachains_ump::Config for Runtime {
+	type UmpSink = ();
+}
+
+impl parachains_dmp::Config for Runtime {}
+
+impl parachains_hrmp::Config for Runtime {
+	type Origin = Origin;
+	type Event = Event;
+	type Currency = Balances;
+}
+
+impl parachains_inclusion_inherent::Config for Runtime {}
+
+impl parachains_scheduler::Config for Runtime {}
+
+impl parachains_initializer::Config for Runtime {
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+}
+
+impl paras_sudo_wrapper::Config for Runtime {}
+
+impl parachains_origin::Config for Runtime {}
+
+impl parachains_configuration::Config for Runtime {}
+
+impl parachains_shared::Config for Runtime {}
+
+/// Special `RewardValidators` that does nothing ;)
+pub struct RewardValidators;
+impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
+	fn reward_backing(_: impl IntoIterator<Item=ValidatorIndex>) {}
+	fn reward_bitfields(_: impl IntoIterator<Item=ValidatorIndex>) {}
+}
+
+impl parachains_inclusion::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = RewardValidators;
+}
+
+impl parachains_paras::Config for Runtime {
+	type Origin = Origin;
+}
+
+parameter_types! {
+	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const DataDepositPerByte: Balance = deposit(0, 1);
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
+}
+
+impl paras_registrar::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
+	type OnSwap = (Crowdloan, Slots);
+	type ParaDeposit = ParaDeposit;
+	type DataDepositPerByte = DataDepositPerByte;
+	type MaxCodeSize = MaxCodeSize;
+	type MaxHeadSize = MaxHeadSize;
+	type WeightInfo = paras_registrar::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const EndingPeriod: BlockNumber = 1 * HOURS;
+}
+
+impl auctions::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type EndingPeriod = EndingPeriod;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type InitiateOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = auctions::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const LeasePeriod: BlockNumber = 365 * DAYS;
+}
+
+impl slots::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Registrar = Registrar;
+	type LeasePeriod = LeasePeriod;
+	type WeightInfo = slots::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
+	pub const SubmissionDeposit: Balance = 1_000 * DOLLARS;
+	pub const MinContribution: Balance = 100 * DOLLARS;
+	pub const RetirementPeriod: BlockNumber = 7 * DAYS;
+	pub const RemoveKeysLimit: u32 = 500;
+
+}
+
+impl crowdloan::Config for Runtime {
+	type Event = Event;
+	type ModuleId = CrowdloanId;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MinContribution = MinContribution;
+	type RetirementPeriod = RetirementPeriod;
+	type OrphanedFunds = ();
+	type RemoveKeysLimit = RemoveKeysLimit;
+	type Registrar = Registrar;
+	type Auctioneer = Auctions;
+	type WeightInfo = crowdloan::TestWeightInfo;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -693,53 +824,88 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Module, Call, Storage, Config, Event<T>} = 0,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage} = 25,
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 25,
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned} = 1,
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
 
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent} = 2,
-		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>} = 3,
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Module, Storage} = 26,
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
+		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 26,
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Module, Call, Storage} = 5,
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 6,
-		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
-		Historical: session_historical::{Module} = 27,
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
-		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
-		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 12,
+		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
+		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 6,
+		Offences: pallet_offences::{Pallet, Call, Storage, Event} = 7,
+		Historical: session_historical::{Pallet} = 27,
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
+		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config} = 12,
 
 		// Utility module.
-		Utility: pallet_utility::{Module, Call, Event} = 16,
+		Utility: pallet_utility::{Pallet, Call, Event} = 16,
 
 		// Less simple identity module.
-		Identity: pallet_identity::{Module, Call, Storage, Event<T>} = 17,
+		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 17,
 
 		// Social recovery module.
-		Recovery: pallet_recovery::{Module, Call, Storage, Event<T>} = 18,
+		Recovery: pallet_recovery::{Pallet, Call, Storage, Event<T>} = 18,
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
-		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>} = 19,
+		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 19,
 
 		// System scheduler.
-		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>} = 20,
+		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 20,
 
 		// Sudo.
-		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>} = 21,
+		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>} = 21,
 
 		// Proxy module. Late addition.
-		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>} = 22,
+		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 22,
 
 		// Multisig module. Late addition.
-		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 23,
+		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 23,
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 24,
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
+
+		// Parachains Runtime
+		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 28,
+		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 29,
+		Shared: parachains_shared::{Pallet, Call, Storage} = 30,
+		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 31,
+		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent} = 32,
+		ParachainsScheduler: parachains_scheduler::{Pallet, Call, Storage} = 33,
+		Paras: parachains_paras::{Pallet, Call, Storage} = 34,
+		Initializer: parachains_initializer::{Pallet, Call, Storage} = 35,
+		Dmp: parachains_dmp::{Pallet, Call, Storage} = 36,
+		Ump: parachains_ump::{Pallet, Call, Storage} = 37,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 38,
+		ParachainsSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 39,
+
+		// Parachain Onboarding Pallets
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 40,
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 41,
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 42,
+		Slots: slots::{Pallet, Call, Storage, Event<T>} = 43,
+	}
+}
+
+impl pallet_babe::migrations::BabePalletPrefix for Runtime {
+	fn pallet_prefix() -> &'static str {
+		"Babe"
+	}
+}
+
+pub struct BabeEpochConfigMigrations;
+impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
+			BABE_GENESIS_EPOCH_CONFIG,
+		)
 	}
 }
 
@@ -773,17 +939,11 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllModules,
+	AllPallets,
+	BabeEpochConfigMigrations,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-pub struct CustomOnRuntimeUpgrade;
-impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -828,7 +988,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed()
+			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
@@ -955,10 +1115,10 @@ sp_api::impl_runtime_apis! {
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: PRIMARY_PROBABILITY,
+				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
+				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 
@@ -1051,9 +1211,9 @@ sp_api::impl_runtime_apis! {
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
 			// To get around that, we separated the Session benchmarks into its own crate, which is why
 			// we need these two lines below.
-			use pallet_session_benchmarking::Module as SessionBench;
-			use pallet_offences_benchmarking::Module as OffencesBench;
-			use frame_system_benchmarking::Module as SystemBench;
+			use pallet_session_benchmarking::Pallet as SessionBench;
+			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use frame_system_benchmarking::Pallet as SystemBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
@@ -1092,6 +1252,12 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
+
+			// Polkadot Parachain Benchmarks
+			add_benchmark!(params, batches, auctions, Auctions);
+			add_benchmark!(params, batches, crowdloan, Crowdloan);
+			add_benchmark!(params, batches, paras_registrar, Registrar);
+			add_benchmark!(params, batches, slots, Slots);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

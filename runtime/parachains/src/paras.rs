@@ -376,7 +376,7 @@ impl<T: Config> Module<T> {
 	fn apply_actions_queue(session: SessionIndex) -> Vec<ParaId> {
 		let actions = ActionsQueue::take(session);
 		let mut parachains = <Self as Store>::Parachains::get();
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let mut outgoing = Vec::new();
 
 		for para in actions {
@@ -675,7 +675,7 @@ impl<T: Config> Module<T> {
 				<frame_system::Pallet<T>>::deposit_log(log.into());
 
 				// `now` is only used for registering pruning as part of `fn note_past_code`
-				let now = <frame_system::Module<T>>::block_number();
+				let now = <frame_system::Pallet<T>>::block_number();
 
 				let weight = Self::note_past_code(
 					id,
@@ -707,7 +707,7 @@ impl<T: Config> Module<T> {
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
 	) -> Option<ValidationCode> {
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
@@ -815,6 +815,15 @@ impl<T: Config> Module<T> {
 			<Self as Store>::CodeByHashRefs::insert(hash, refs - 1);
 		}
 	}
+
+	/// Test function for triggering a new session in this pallet.
+	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+	pub fn test_on_new_session() {
+		Self::initializer_on_new_session(&SessionChangeNotification {
+			session_index: shared::Module::<T>::session_index(),
+			..Default::default()
+		});
+	}
 }
 
 #[cfg(test)]
@@ -837,7 +846,12 @@ mod tests {
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
 				session_change_notification.session_index = Shared::session_index() + 1;
-				Shared::initializer_on_new_session(&session_change_notification);
+				Shared::initializer_on_new_session(
+					session_change_notification.session_index,
+					session_change_notification.random_seed,
+					&session_change_notification.new_config,
+					session_change_notification.validators.clone(),
+				);
 				Paras::initializer_on_new_session(&session_change_notification);
 			}
 			System::on_finalize(b);

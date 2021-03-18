@@ -66,7 +66,7 @@ use statement_table::{
 };
 use thiserror::Error;
 
-const LOG_TARGET: &str = "candidate_backing";
+const LOG_TARGET: &str = "parachain::candidate-backing";
 
 #[derive(Debug, Error)]
 enum Error {
@@ -195,9 +195,8 @@ struct InvalidErasureRoot;
 // the code. So this does the necessary conversion.
 fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
 	let statement = match s.payload() {
-		Statement::Seconded(c) => TableStatement::Candidate(c.clone()),
+		Statement::Seconded(c) => TableStatement::Seconded(c.clone()),
 		Statement::Valid(h) => TableStatement::Valid(h.clone()),
-		Statement::Invalid(h) => TableStatement::Invalid(h.clone()),
 	};
 
 	TableSignedStatement {
@@ -418,8 +417,9 @@ async fn validate_and_make_available(
 	let v = {
 		let _span = span.as_ref().map(|s| {
 			s.child_builder("request-validation")
-			.with_pov(&pov)
-			.build()
+				.with_pov(&pov)
+				.with_para_id(candidate.descriptor().para_id)
+				.build()
 		});
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
@@ -555,14 +555,11 @@ impl CandidateBackingJob {
 			ValidatedCandidateCommand::Attest(res) => {
 				// sanity check.
 				if !self.issued_statements.contains(&candidate_hash) {
-					let statement = if res.is_ok() {
-						Statement::Valid(candidate_hash)
-					} else {
-						Statement::Invalid(candidate_hash)
-					};
-
+					if res.is_ok() {
+						let statement = Statement::Valid(candidate_hash);
+						self.sign_import_and_distribute_statement(statement, &parent_span).await?;
+					}
 					self.issued_statements.insert(candidate_hash);
-					self.sign_import_and_distribute_statement(statement, &parent_span).await?;
 				}
 			}
 		}
@@ -615,6 +612,7 @@ impl CandidateBackingJob {
 	async fn validate_and_second(
 		&mut self,
 		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
@@ -627,7 +625,13 @@ impl CandidateBackingJob {
 		}
 
 		let candidate_hash = candidate.hash();
-		let span = self.get_unbacked_validation_child(parent_span, candidate_hash);
+		let mut span = self.get_unbacked_validation_child(
+			root_span,
+			candidate_hash,
+			candidate.descriptor().para_id,
+		);
+
+		span.as_mut().map(|s| s.add_follows_from(parent_span));
 
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -749,17 +753,17 @@ impl CandidateBackingJob {
 		Ok(summary)
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, span), fields(subsystem = LOG_TARGET))]
-	async fn process_msg(&mut self, span: &jaeger::Span, msg: CandidateBackingMessage) -> Result<(), Error> {
+	#[tracing::instrument(level = "trace", skip(self, root_span), fields(subsystem = LOG_TARGET))]
+	async fn process_msg(&mut self, root_span: &jaeger::Span, msg: CandidateBackingMessage) -> Result<(), Error> {
 		match msg {
-			CandidateBackingMessage::Second(_relay_parent, candidate, pov) => {
+			CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
 
-				let span = span.child_builder("second")
+				let span = root_span.child_builder("second")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_pov(&pov)
 					.with_candidate(&candidate.hash())
-					.with_relay_parent(&_relay_parent)
+					.with_relay_parent(&relay_parent)
 					.build();
 
 				// Sanity check that candidate is from our assignment.
@@ -773,23 +777,23 @@ impl CandidateBackingJob {
 				if self.seconded.is_none() {
 					// This job has not seconded a candidate yet.
 					let candidate_hash = candidate.hash();
-					let pov = Arc::new(pov);
 
 					if !self.issued_statements.contains(&candidate_hash) {
-						self.validate_and_second(&span, &candidate, pov.clone()).await?;
+						let pov = Arc::new(pov);
+						self.validate_and_second(&span, &root_span, &candidate, pov).await?;
 					}
 				}
 			}
 			CandidateBackingMessage::Statement(_relay_parent, statement) => {
 				let _timer = self.metrics.time_process_statement();
-				let span = span.child_builder("statement")
+				let span = root_span.child_builder("statement")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_candidate(&statement.payload().candidate_hash())
 					.with_relay_parent(&_relay_parent)
 					.build();
 
 				self.check_statement_signature(&statement)?;
-				match self.maybe_validate_and_import(&span, statement).await {
+				match self.maybe_validate_and_import(&span, &root_span, statement).await {
 					Err(Error::ValidationFailed(_)) => return Ok(()),
 					Err(e) => return Err(e),
 					Ok(()) => (),
@@ -869,12 +873,17 @@ impl CandidateBackingJob {
 	async fn maybe_validate_and_import(
 		&mut self,
 		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
 			if let Statement::Seconded(_) = statement.payload() {
 				if Some(summary.group_id) == self.assignment {
-					let span = self.get_unbacked_validation_child(parent_span, summary.candidate);
+					let span = self.get_unbacked_validation_child(
+						root_span,
+						summary.candidate,
+						summary.group_id,
+					);
 
 					self.kick_off_validation_work(summary, span).await?;
 				}
@@ -914,11 +923,23 @@ impl CandidateBackingJob {
 	}
 
 	/// Insert or get the unbacked-span for the given candidate hash.
-	fn insert_or_get_unbacked_span(&mut self, parent_span: &jaeger::Span, hash: CandidateHash) -> Option<&jaeger::Span> {
+	fn insert_or_get_unbacked_span(
+		&mut self,
+		parent_span: &jaeger::Span,
+		hash: CandidateHash,
+		para_id: Option<ParaId>
+	) -> Option<&jaeger::Span> {
 		if !self.backed.contains(&hash) {
 			// only add if we don't consider this backed.
 			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
-				parent_span.child_with_candidate("unbacked-candidate", &hash)
+				let s = parent_span.child_builder("unbacked-candidate").with_candidate(&hash);
+				let s = if let Some(para_id) = para_id {
+					s.with_para_id(para_id)
+				} else {
+					s
+				};
+
+				s.build()
 			});
 			Some(span)
 		} else {
@@ -926,8 +947,13 @@ impl CandidateBackingJob {
 		}
 	}
 
-	fn get_unbacked_validation_child(&mut self, parent_span: &jaeger::Span, hash: CandidateHash) -> Option<jaeger::Span> {
-		self.insert_or_get_unbacked_span(parent_span, hash)
+	fn get_unbacked_validation_child(
+		&mut self,
+		parent_span: &jaeger::Span,
+		hash: CandidateHash,
+		para_id: ParaId,
+	) -> Option<jaeger::Span> {
+		self.insert_or_get_unbacked_span(parent_span, hash, Some(para_id))
 			.map(|span| {
 				span.child_builder("validation")
 					.with_candidate(&hash)
@@ -942,7 +968,7 @@ impl CandidateBackingJob {
 		hash: CandidateHash,
 		validator: ValidatorIndex,
 	) -> Option<jaeger::Span> {
-		self.insert_or_get_unbacked_span(parent_span, hash).map(|span| {
+		self.insert_or_get_unbacked_span(parent_span, hash, None).map(|span| {
 			span.child_builder("import-statement")
 				.with_candidate(&hash)
 				.with_validator_index(validator)
@@ -1059,8 +1085,7 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			drop(_span);
-			let _span = span.child("calc-validator-groups");
-
+			let mut assignments_span = span.child("compute-assignments");
 
 			let mut groups = HashMap::new();
 
@@ -1089,11 +1114,18 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 
 			let (assignment, required_collator) = match assignment {
-				None => (None, None),
-				Some((assignment, required_collator)) => (Some(assignment), required_collator),
+				None => {
+					assignments_span.add_string_tag("assigned", "false");
+					(None, None)
+				}
+				Some((assignment, required_collator)) => {
+					assignments_span.add_string_tag("assigned", "true");
+					assignments_span.add_para_id(assignment);
+					(Some(assignment), required_collator)
+				}
 			};
 
-			drop(_span);
+			drop(assignments_span);
 			let _span = span.child("wait-for-job");
 
 			let (background_tx, background_rx) = mpsc::channel(16);
@@ -1239,9 +1271,8 @@ mod tests {
 		statement: TableStatement,
 	) -> Statement {
 		match statement {
-			TableStatement::Candidate(committed_candidate_receipt) => Statement::Seconded(committed_candidate_receipt),
+			TableStatement::Seconded(committed_candidate_receipt) => Statement::Seconded(committed_candidate_receipt),
 			TableStatement::Valid(candidate_hash) => Statement::Valid(candidate_hash),
-			TableStatement::Invalid(candidate_hash) => Statement::Invalid(candidate_hash),
 		}
 	}
 
@@ -1883,15 +1914,11 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-			let public0 = CryptoStore::sr25519_generate_new(
-				&*test_state.keystore,
-				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
-			).await.expect("Insert key into keystore");
 			let public2 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
-			let signed_a = SignedFullStatement::sign(
+			let seconded_2 = SignedFullStatement::sign(
 				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
@@ -1899,25 +1926,17 @@ mod tests {
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
-			let signed_b = SignedFullStatement::sign(
+			let valid_2 = SignedFullStatement::sign(
 				&test_state.keystore,
-				Statement::Invalid(candidate_a_hash),
+				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
 				ValidatorIndex(2),
 				&public2.into(),
 			).await.ok().flatten().expect("should be signed");
 
-			let signed_c = SignedFullStatement::sign(
-				&test_state.keystore,
-				Statement::Invalid(candidate_a_hash),
-				&test_state.signing_context,
-				ValidatorIndex(0),
-				&public0.into(),
-			).await.ok().flatten().expect("should be signed");
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, seconded_2.clone());
 
-			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
-
-			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+			virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1976,51 +1995,10 @@ mod tests {
 				}
 			);
 
-			// This `Invalid` statement contradicts the `Candidate` statement
-			// sent at first.
-			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
+			// This `Valid` statement is redundant after the `Seconded` statement already sent.
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, valid_2.clone());
 
-			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::Provisioner(
-					ProvisionerMessage::ProvisionableData(
-						_,
-						ProvisionableData::MisbehaviorReport(
-							relay_parent,
-							validator_index,
-							Misbehavior::ValidityDoubleVote(vdv),
-						)
-					)
-				) if relay_parent == test_state.relay_parent => {
-					let ((t1, s1), (t2, s2)) = vdv.deconstruct::<TableContext>();
-					let t1 = table_statement_to_primitive(t1);
-					let t2 = table_statement_to_primitive(t2);
-
-					SignedFullStatement::new(
-						t1,
-						validator_index,
-						s1,
-						&test_state.signing_context,
-						&test_state.validator_public[validator_index.0 as usize],
-					).expect("signature must be valid");
-
-					SignedFullStatement::new(
-						t2,
-						validator_index,
-						s2,
-						&test_state.signing_context,
-						&test_state.validator_public[validator_index.0 as usize],
-					).expect("signature must be valid");
-				}
-			);
-
-			// This `Invalid` statement contradicts the `Valid` statement the subsystem
-			// should have issued behind the scenes.
-			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
-
-			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+			virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -2192,7 +2170,7 @@ mod tests {
 	// Test that if we have already issued a statement (in this case `Invalid`) about a
 	// candidate we will not be issuing a `Seconded` statement on it.
 	#[test]
-	fn backing_multiple_statements_work() {
+	fn backing_second_after_first_fails_works() {
 		let test_state = TestState::default();
 		test_harness(test_state.keystore.clone(), |test_harness| async move {
 			let TestHarness { mut virtual_overseer } = test_harness;
@@ -2212,8 +2190,6 @@ mod tests {
 				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
 			}.build();
-
-			let candidate_hash = candidate.hash();
 
 			let validator2 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
@@ -2259,24 +2235,6 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
-				}
-			);
-
-			// The invalid message is shared.
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::Share(
-						relay_parent,
-						signed_statement,
-					)
-				) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					signed_statement.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[0],
-					).unwrap();
-					assert_eq!(*signed_statement.payload(), Statement::Invalid(candidate_hash));
 				}
 			);
 

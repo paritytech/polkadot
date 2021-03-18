@@ -51,7 +51,7 @@ use futures::prelude::*;
 
 use std::sync::Arc;
 
-const LOG_TARGET: &'static str = "candidate_validation";
+const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
 /// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem<S> {
