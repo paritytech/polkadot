@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData, CandidateHash, Hash, BlakeTwo256,
+	CandidateReceipt, HeadData, CandidateHash, Hash,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, dispatch::DispatchResult, IterableStorageMap,
@@ -450,15 +450,10 @@ impl<T: Config> Module<T> {
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
 				);
-				// TODO TODO: is it supposed to be the current code ? what happens if parachain
-				// block is missed, and there is an upgrade, is upgrade only enacted by the
-				// first parachain block after the expected migration block number.
 				let validation_code = <paras::Module<T>>::validation_code_at(para_id, now, None)
 					.ok_or_else(|| Error::<T>::InternalError)?;
-				let validation_code_hash = BlakeTwo256::hash(&validation_code.0[..]);
+				let validation_code_hash = validation_code.hash();
 				ensure!(
-					// TODO TODO: this needs to be checked in client somewhere probably before
-					// attesting stuff etc..
 					candidate.descriptor().validation_code_hash == validation_code_hash,
 					Error::<T>::InvalidValidationCodeHash,
 				);

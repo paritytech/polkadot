@@ -28,7 +28,7 @@ use sp_std::result;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlakeTwo256, ConsensusLog,
+	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, ConsensusLog,
 };
 use sp_runtime::{traits::{One, Hash as _}, DispatchResult, SaturatedConversion};
 use frame_support::{
@@ -671,7 +671,7 @@ impl<T: Config> Module<T> {
 				let prior_code = CurrentCode::get(&id).unwrap_or_default();
 				CurrentCode::insert(&id, &new_code);
 
-				let new_code_hash = BlakeTwo256::hash(&new_code.0);
+				let new_code_hash = new_code.hash();
 				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
 				<frame_system::Pallet<T>>::deposit_log(log.into());
 
@@ -791,8 +791,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Returns the hash, number of storage reads and number of storage writes.
 	fn increase_code_ref(validation_code: &ValidationCode) -> (Hash, u64, u64) {
-		// TODO TODO: we could also hash the validation_code encoding (like the Vec of bytes).
-		let hash = BlakeTwo256::hash(&validation_code.0[..]);
+		let hash = validation_code.hash();
 		let reads = 1;
 		let mut writes = 1;
 		<Self as Store>::CodeByHashRefs::mutate(hash, |refs| {
@@ -808,7 +807,7 @@ impl<T: Config> Module<T> {
 	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
 	/// is reached.
 	fn decrease_code_ref(validation_code: &ValidationCode) {
-		let hash = BlakeTwo256::hash(&validation_code.0[..]);
+		let hash = validation_code.hash();
 		let refs = <Self as Store>::CodeByHashRefs::get(hash);
 		if refs <= 1 {
 			<Self as Store>::CodeByHash::remove(hash);

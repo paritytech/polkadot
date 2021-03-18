@@ -121,6 +121,8 @@ pub enum InvalidCandidate {
 	BadSignature,
 	/// Para head hash does not match.
 	ParaHeadHashMismatch,
+	/// Validation code hash does not match.
+	CodeHashMismatch,
 }
 
 /// Result of the validation of the candidate.

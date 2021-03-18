@@ -424,7 +424,6 @@ impl<Ctx: Context> Table<Ctx> {
 		candidate: Ctx::Candidate,
 		signature: Ctx::Signature,
 	) -> ImportResult<Ctx> {
-		// TODO TODO: so here we don't check that the candidate has a valid validation_code_hash
 		let group = Ctx::candidate_group(&candidate);
 		if !context.is_member_of(&authority, &group) {
 			return Err(Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
@@ -503,7 +502,6 @@ impl<Ctx: Context> Table<Ctx> {
 		digest: Ctx::Digest,
 		vote: ValidityVote<Ctx::Signature>,
 	) -> ImportResult<Ctx> {
-		// TODO TODO: so here we don't check that the vote is for a correct candidate with a valid validation_code_hash
 		let votes = match self.candidate_votes.get_mut(&digest) {
 			None => return Ok(None),
 			Some(votes) => votes,
