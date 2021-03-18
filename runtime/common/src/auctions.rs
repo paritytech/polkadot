@@ -1429,10 +1429,10 @@ mod benchmarking {
 
 			// Trigger epoch change for new random number value:
 			{
-				pallet_babe::Module::<T>::on_initialize(duration + now + T::EndingPeriod::get());
-				let authorities = pallet_babe::Module::<T>::authorities();
+				pallet_babe::Pallet::<T>::on_initialize(duration + now + T::EndingPeriod::get());
+				let authorities = pallet_babe::Pallet::<T>::authorities();
 				let next_authorities = authorities.clone();
-				pallet_babe::Module::<T>::enact_epoch_change(authorities, next_authorities);
+				pallet_babe::Pallet::<T>::enact_epoch_change(authorities, next_authorities);
 			}
 
 		}: {
