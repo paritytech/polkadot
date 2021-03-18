@@ -4488,6 +4488,20 @@ name = "pallet-membership"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#a0161f3b224a0607b351ae23b41621b01126a893"
 dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-mmr"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#a0161f3b224a0607b351ae23b41621b01126a893"
+dependencies = [
  "ckb-merkle-mountain-range",
  "frame-benchmarking",
  "frame-support",
@@ -4504,7 +4518,7 @@ dependencies = [
 [[package]]
 name = "pallet-mmr-primitives"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#ea50800227ad293321b0ee6da8263c4da173085d"
+source = "git+https://github.com/paritytech/substrate?branch=master#a0161f3b224a0607b351ae23b41621b01126a893"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4520,7 +4534,7 @@ dependencies = [
 [[package]]
 name = "pallet-mmr-rpc"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#ea50800227ad293321b0ee6da8263c4da173085d"
+source = "git+https://github.com/paritytech/substrate?branch=master#a0161f3b224a0607b351ae23b41621b01126a893"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",

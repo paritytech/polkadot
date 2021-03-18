@@ -40,11 +40,8 @@ use {
 	sc_keystore::LocalKeystore,
 	babe_primitives::BabeApi,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
-<<<<<<< HEAD
 	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
-=======
 	sp_runtime::traits::Header as HeaderT,
->>>>>>> master
 };
 #[cfg(feature = "real-overseer")]
 use polkadot_network_bridge::RequestMultiplexer;
