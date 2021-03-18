@@ -998,10 +998,10 @@ pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
 #[derive(Decode, Encode, Clone, PartialEq, Eq)]
 pub enum ConsensusLog {
 	/// A parachain or parathread upgraded its code.
-	#[codec(index = 2)]
+	#[codec(index = 1)]
 	ParaUpgradeCode(Id, Hash),
 	/// A parachain or parathread scheduled a code ugprade.
-	#[codec(index = 3)]
+	#[codec(index = 2)]
 	ParaScheduleUpgradeCode(Id, Hash, BlockNumber),
 }
 
