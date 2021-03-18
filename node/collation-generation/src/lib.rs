@@ -339,7 +339,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				tracing::debug!(
 					target: LOG_TARGET,
-					candidate_hash = %ccr.hash(),
+					candidate_hash = ?ccr.hash(),
 					?pov_hash,
 					?relay_parent,
 					para_id = %scheduled_core.para_id,
