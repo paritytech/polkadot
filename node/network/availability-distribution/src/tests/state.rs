@@ -29,6 +29,7 @@ use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use sp_keyring::Sr25519Keyring;
 use sp_core::{traits::SpawnNamed, testing::TaskExecutor};
 use sc_network as network;
+use sc_network::IfDisconnected;
 use sc_network::config as netconfig;
 
 use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, messages::{AllMessages,
@@ -201,7 +202,7 @@ impl TestState {
 			tracing::trace!(target: LOG_TARGET, remaining_stores, "Stores left to go");
 			let msg = overseer_recv(&mut rx).await;
 			match msg {
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs)) => {
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::TryConnect)) => {
 					for req in reqs {
 						// Forward requests:
 						let in_req = to_incoming_req(&executor, req);
@@ -313,5 +314,6 @@ fn to_incoming_req(
 				tx
 			)
 		}
+		_ => panic!("Unexpected request!"),
 	}
 }

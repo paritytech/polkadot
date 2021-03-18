@@ -235,11 +235,11 @@ where
 				}
 			}
 
-			Action::SendRequests(reqs) => {
+			Action::SendRequests(reqs, if_disconnected) => {
 				for req in reqs {
 					bridge
 						.network_service
-						.start_request(&mut bridge.authority_discovery_service, req)
+						.start_request(&mut bridge.authority_discovery_service, req, if_disconnected)
 						.await;
 				}
 			},
@@ -604,7 +604,7 @@ mod tests {
 	use parking_lot::Mutex;
 	use assert_matches::assert_matches;
 
-	use sc_network::Event as NetworkEvent;
+	use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 	use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 	use polkadot_subsystem::messages::{
@@ -681,7 +681,7 @@ mod tests {
 			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
 		}
 
-		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests) {
+		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
 		}
 	}
 
