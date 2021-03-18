@@ -451,8 +451,8 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			CallDispatch: call_dispatch::{Module, Call, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			CallDispatch: call_dispatch::{Pallet, Call, Event<T>},
 		}
 	}
 

@@ -968,70 +968,70 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Module, Call, Storage, Config, Event<T>} = 0,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage} = 32,
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 32,
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned} = 1,
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
 
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent} = 2,
-		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>} = 3,
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Module, Storage} = 33,
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
+		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Module, Call, Storage} = 5,
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 6,
-		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
-		Historical: session_historical::{Module} = 34,
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
-		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
-		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 12,
+		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
+		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 6,
+		Offences: pallet_offences::{Pallet, Call, Storage, Event} = 7,
+		Historical: session_historical::{Pallet} = 34,
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
+		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config} = 12,
 
 		// Governance stuff; uncallable initially.
-		Democracy: pallet_democracy::{Module, Call, Storage, Config, Event<T>} = 13,
-		Council: pallet_collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
-		TechnicalCommittee: pallet_collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
-		ElectionsPhragmen: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>} = 16,
-		TechnicalMembership: pallet_membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>} = 17,
-		Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>} = 18,
+		Democracy: pallet_democracy::{Pallet, Call, Storage, Config, Event<T>} = 13,
+		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
+		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
+		ElectionsPhragmen: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
+		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
+		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
 
 		// Claims. Usable initially.
-		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
+		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
 
 		// Utility module.
-		Utility: pallet_utility::{Module, Call, Event} = 24,
+		Utility: pallet_utility::{Pallet, Call, Event} = 24,
 
 		// Less simple identity module.
-		Identity: pallet_identity::{Module, Call, Storage, Event<T>} = 25,
+		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 25,
 
 		// Society module.
-		Society: pallet_society::{Module, Call, Storage, Event<T>} = 26,
+		Society: pallet_society::{Pallet, Call, Storage, Event<T>} = 26,
 
 		// Social recovery module.
-		Recovery: pallet_recovery::{Module, Call, Storage, Event<T>} = 27,
+		Recovery: pallet_recovery::{Pallet, Call, Storage, Event<T>} = 27,
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
-		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>} = 28,
+		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 28,
 
 		// System scheduler.
-		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>} = 29,
+		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 29,
 
 		// Proxy module. Late addition.
-		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>} = 30,
+		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 30,
 
 		// Multisig module. Late addition.
-		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 31,
+		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 31,
 
 		// Bounties module.
-		Bounties: pallet_bounties::{Module, Call, Storage, Event<T>} = 35,
+		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 35,
 
 		// Tips module.
-		Tips: pallet_tips::{Module, Call, Storage, Event<T>} = 36,
+		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 36,
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 37,
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 37,
 	}
 }
 
@@ -1083,7 +1083,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllModules,
+	AllPallets,
 	BabeEpochConfigMigrations,
 >;
 /// The payload being signed in the transactions.
@@ -1350,9 +1350,9 @@ sp_api::impl_runtime_apis! {
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
 			// To get around that, we separated the Session benchmarks into its own crate, which is why
 			// we need these two lines below.
-			use pallet_session_benchmarking::Module as SessionBench;
-			use pallet_offences_benchmarking::Module as OffencesBench;
-			use frame_system_benchmarking::Module as SystemBench;
+			use pallet_session_benchmarking::Pallet as SessionBench;
+			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use frame_system_benchmarking::Pallet as SystemBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}

@@ -99,7 +99,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 	}
 
 	fn make_parachain(id: ParaId) -> DispatchResult {
-		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Module::<T>::block_number().saturated_into(), true)));
+		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Pallet::<T>::block_number().saturated_into(), true)));
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
@@ -119,7 +119,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 		Ok(())
 	}
 	fn make_parathread(id: ParaId) -> DispatchResult {
-		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Module::<T>::block_number().saturated_into(), false)));
+		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Pallet::<T>::block_number().saturated_into(), false)));
 		PARACHAINS.with(|x| {
 			let mut parachains = x.borrow_mut();
 			match parachains.binary_search(&id) {
