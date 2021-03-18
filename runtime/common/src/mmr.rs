@@ -43,7 +43,7 @@ impl<T> pallet_mmr::primitives::OnNewRoot<beefy_primitives::MmrRootHash> for Dep
 	}
 }
 
-/// Convert BEEFY secp256k1 public keys into uncompressed for
+/// Convert BEEFY secp256k1 public keys into uncompressed form
 pub struct UncompressBeefyEcdsaKeys;
 impl Convert<beefy_primitives::ecdsa::AuthorityId, Vec<u8>> for UncompressBeefyEcdsaKeys {
 	fn convert(a: beefy_primitives::ecdsa::AuthorityId) -> Vec<u8> {
@@ -178,8 +178,7 @@ impl<T: Config> Module<T> where
 			.map(T::BeefyAuthorityToMerkleLeaf::convert)
 			.collect::<Vec<_>>();
 		let len = beefy_public_keys.len() as u32;
-		let root: MerkleRootOf<T> = sp_io::trie
-			::keccak_256_ordered_root(beefy_public_keys).into();
+		let root: MerkleRootOf<T> = sp_io::trie::keccak_256_ordered_root(beefy_public_keys).into();
 		let next_set = BeefyNextAuthoritySet {
 			id,
 			len,
