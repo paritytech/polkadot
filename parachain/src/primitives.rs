@@ -58,7 +58,6 @@ pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub 
 impl ValidationCode {
 	/// Get the blake2-256 hash of the validation code bytes.
 	pub fn hash(&self) -> Hash {
-		// TODO TODO: we could also hash the validation_code encoding (like the Vec of bytes).
 		sp_runtime::traits::BlakeTwo256::hash(&self.0[..])
 	}
 }

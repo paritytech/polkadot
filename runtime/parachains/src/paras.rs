@@ -30,7 +30,6 @@ use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, ConsensusLog,
 };
-// TODO TODO: add test for changes here
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure,
@@ -547,7 +546,6 @@ impl<T: Config> Module<T> {
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
 
-		// TODO TODO: might be better to actually store in onboarding itself.
 		Self::increase_code_ref(&genesis.validation_code);
 
 		UpcomingParasGenesis::insert(&id, genesis);

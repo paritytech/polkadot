@@ -990,7 +990,6 @@ pub struct AbridgedHrmpChannel {
 	pub mqc_head: Option<Hash>,
 }
 
-// TODO TODO: move to parachain primitives ?
 /// Consensus engine id for polkadot v1 consensus engine.
 pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
 
