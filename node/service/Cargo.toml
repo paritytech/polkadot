@@ -93,7 +93,6 @@ polkadot-node-core-candidate-validation = { path = "../core/candidate-validation
 polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
-polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
 polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
@@ -139,7 +138,6 @@ real-overseer = [
 	"polkadot-node-core-chain-api",
 	"polkadot-node-core-provisioner",
 	"polkadot-node-core-runtime-api",
-	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
 ]

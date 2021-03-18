@@ -5804,25 +5804,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-pov-distribution"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "env_logger 0.8.2",
- "futures 0.3.12",
- "log",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "sp-keyring",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "polkadot-primitives"
 version = "0.8.29"
 dependencies = [
@@ -6107,7 +6088,6 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-parachain",
- "polkadot-pov-distribution",
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",
