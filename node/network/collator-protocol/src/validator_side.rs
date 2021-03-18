@@ -688,7 +688,7 @@ where
 					Ok(pov) => {
 						tracing::debug!(
 							target: LOG_TARGET,
-							para_id = ?para_id,
+							para_id = %para_id,
 							hash = ?hash,
 							candidate_hash = ?receipt.hash(),
 							"Received collation",

@@ -723,6 +723,8 @@ impl CandidateBackingJob {
 					tracing::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?candidate_hash,
+						relay_parent = ?self.parent,
+						para_id = %backed.candidate.descriptor.para_id,
 						"Candidate backed",
 					);
 
