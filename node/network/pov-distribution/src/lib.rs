@@ -22,9 +22,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{
-	Hash, PoV, CandidateDescriptor, ValidatorId, Id as ParaId, CoreIndex, CoreState,
-};
+use polkadot_primitives::v1::{CandidateDescriptor, CompressedPoV, CoreIndex, CoreState, Hash, Id as ParaId, PoV, ValidatorId};
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, SubsystemResult, SubsystemError, Subsystem,
 	FromOverseer, SpawnedSubsystem,
@@ -107,7 +105,7 @@ struct State {
 }
 
 struct BlockBasedState {
-	known: HashMap<Hash, (Arc<PoV>, protocol_v1::CompressedPoV)>,
+	known: HashMap<Hash, (Arc<PoV>, CompressedPoV)>,
 
 	/// All the PoVs we are or were fetching, coupled with channels expecting the data.
 	///
@@ -135,7 +133,7 @@ fn awaiting_message(relay_parent: Hash, awaiting: Vec<Hash>)
 fn send_pov_message(
 	relay_parent: Hash,
 	pov_hash: Hash,
-	pov: &protocol_v1::CompressedPoV,
+	pov: &CompressedPoV,
 ) -> protocol_v1::ValidationProtocol {
 	protocol_v1::ValidationProtocol::PoVDistribution(
 		protocol_v1::PoVDistributionMessage::SendPoV(relay_parent, pov_hash, pov.clone())
@@ -274,7 +272,7 @@ async fn distribute_to_awaiting(
 	metrics: &Metrics,
 	relay_parent: Hash,
 	pov_hash: Hash,
-	pov: &protocol_v1::CompressedPoV,
+	pov: &CompressedPoV,
 ) {
 	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
 	//
@@ -487,7 +485,7 @@ async fn handle_distribute(
 		}
 	}
 
-	let encoded_pov = match protocol_v1::CompressedPoV::compress(&*pov) {
+	let encoded_pov = match CompressedPoV::compress(&*pov) {
 		Ok(pov) => pov,
 		Err(error) => {
 			tracing::debug!(
@@ -583,7 +581,7 @@ async fn handle_incoming_pov(
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hash: Hash,
-	encoded_pov: protocol_v1::CompressedPoV,
+	encoded_pov: CompressedPoV,
 ) {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => {

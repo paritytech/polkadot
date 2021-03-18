@@ -43,7 +43,7 @@ pub use sc_network::config::RequestResponseConfig;
 
 /// All requests that can be sent to the network bridge.
 pub mod request;
-pub use request::{IncomingRequest, OutgoingRequest, Requests};
+pub use request::{IncomingRequest, OutgoingRequest, Requests, Recipient, OutgoingResult};
 
 ///// Multiplexer for incoming requests.
 // pub mod multiplexer;
@@ -57,6 +57,8 @@ pub mod v1;
 pub enum Protocol {
 	/// Protocol for availability fetching, used by availability distribution.
 	AvailabilityFetching,
+	/// Protocol for fetching collations from collators.
+	CollationFetching,
 }
 
 /// Default request timeout in seconds.
@@ -65,6 +67,10 @@ pub enum Protocol {
 /// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
 /// sets.
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3); 
+
+/// Request timeout where we can assume the connection is already open (e.g. we have peers in a
+/// peer set as well).
+const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
@@ -85,12 +91,20 @@ impl Protocol {
 		let cfg = match self {
 			Protocol::AvailabilityFetching => RequestResponseConfig {
 				name: p_name,
-				// Arbitrary very conservative numbers:
-				// TODO: Get better numbers, see https://github.com/paritytech/polkadot/issues/2370
-				max_request_size: 10_000,
-				max_response_size: 1_000_000,
-				// Also just some relative conservative guess:
+				max_request_size: 1_000,
+				max_response_size: 100_000,
 				request_timeout: DEFAULT_REQUEST_TIMEOUT,
+				inbound_queue: Some(tx),
+			},
+			Protocol::CollationFetching => RequestResponseConfig {
+				name: p_name,
+				max_request_size: 1_000,
+				/// Collations are expected to be around 10Meg, probably much smaller with
+				/// compression. So 10Meg should be sufficient, we might be able to reduce this
+				/// further.
+				max_response_size: 10_000_000,
+				// Taken from initial implementation in collator protocol:
+				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 		};
@@ -106,6 +120,8 @@ impl Protocol {
 			// assuming we can service requests relatively quickly, which would need to be measured
 			// as well.
 			Protocol::AvailabilityFetching => 100,
+			// 10 seems reasonable, considering group sizes of max 10 validators.
+			Protocol::CollationFetching => 10,
 		}
 	}
 
@@ -118,6 +134,7 @@ impl Protocol {
 	pub const fn get_protocol_name_static(self) -> &'static str {
 		match self {
 			Protocol::AvailabilityFetching => "/polkadot/req_availability/1",
+			Protocol::CollationFetching => "/polkadot/req_collation/1",
 		}
 	}
 }

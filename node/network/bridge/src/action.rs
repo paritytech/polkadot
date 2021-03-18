@@ -24,7 +24,7 @@ use polkadot_node_network_protocol::{
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockNumber};
 use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
-use sc_network::Event as NetworkEvent;
+use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 use polkadot_node_network_protocol::{request_response::Requests, ObservedRole};
 
@@ -45,7 +45,7 @@ pub(crate) enum Action {
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Ask network to send requests.
-	SendRequests(Vec<Requests>),
+	SendRequests(Vec<Requests>, IfDisconnected),
 
 	/// Ask network to connect to validators.
 	ConnectToValidators {
@@ -125,7 +125,7 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 				NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
 					Action::SendCollationMessages(vec![(peers, msg)])
 				}
-				NetworkBridgeMessage::SendRequests(reqs) => Action::SendRequests(reqs),
+				NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => Action::SendRequests(reqs, if_disconnected),
 				NetworkBridgeMessage::SendValidationMessages(msgs) => {
 					Action::SendValidationMessages(msgs)
 				}
