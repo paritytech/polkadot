@@ -1044,7 +1044,7 @@ dependencies = [
  "cranelift-codegen",
  "cranelift-entity",
  "cranelift-frontend",
- "itertools",
+ "itertools 0.9.0",
  "log",
  "serde",
  "smallvec 1.6.1",
@@ -1883,6 +1883,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-err"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcd1163ae48bda72a20ae26d66a04d3094135cadab911cff418ae5e33f253431"
+
+[[package]]
 name = "fs-swap"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2681,6 +2687,15 @@ name = "itertools"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
 dependencies = [
  "either",
 ]
@@ -5360,7 +5375,7 @@ version = "0.8.29"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "reed-solomon-erasure",
+ "reed-solomon-novelpoly",
  "sp-core",
  "sp-trie",
  "thiserror",
@@ -6510,7 +6525,7 @@ checksum = "32d3ebd75ac2679c2af3a92246639f9fcc8a442ee420719cc4fe195b98dd5fa3"
 dependencies = [
  "bytes 1.0.1",
  "heck",
- "itertools",
+ "itertools 0.9.0",
  "log",
  "multimap",
  "petgraph",
@@ -6527,7 +6542,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "169a15f3008ecb5160cba7d37bcd690a7601b6d30cfb87a117d45e59d52af5d4"
 dependencies = [
  "anyhow",
- "itertools",
+ "itertools 0.9.0",
  "proc-macro2",
  "quote",
  "syn",
@@ -6840,12 +6855,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "reed-solomon-erasure"
-version = "4.0.2"
+name = "reed-solomon-novelpoly"
+version = "0.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a415a013dd7c5d4221382329a5a3482566da675737494935cbbbcdec04662f9d"
+checksum = "886177a67de8d452f8955a5a1c70f9064e644bcf1862e8bcc3a68064014369be"
 dependencies = [
- "smallvec 1.6.1",
+ "derive_more",
+ "fs-err",
+ "itertools 0.10.0",
+ "thiserror",
 ]
 
 [[package]]
@@ -10977,6 +10995,6 @@ checksum = "a1e6e8778706838f43f771d80d37787cb2fe06dafe89dd3aebaf6721b9eaec81"
 dependencies = [
  "cc",
  "glob",
- "itertools",
+ "itertools 0.9.0",
  "libc",
 ]
