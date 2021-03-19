@@ -231,7 +231,7 @@ decl_module! {
 			let n = AuctionCounter::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
-			let ending = frame_system::Module::<T>::block_number().saturating_add(duration);
+			let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
 			AuctionInfo::<T>::put((lease_period_index, ending));
 
 			Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending))
@@ -313,7 +313,7 @@ impl<T: Config> Module<T> {
 			let late_end = early_end.saturating_add(T::EndingPeriod::get());
 			// We need to check that the auction isn't in the period where it has definitely ended, but yeah we keep the
 			// info around because we haven't yet decided *exactly* when in the `EndingPeriod` that it ended.
-			let now = frame_system::Module::<T>::block_number();
+			let now = frame_system::Pallet::<T>::block_number();
 			now < late_end
 		})
 	}
@@ -334,7 +334,7 @@ impl<T: Config> Module<T> {
 		let n = AuctionCounter::mutate(|n| { *n += 1; *n });
 
 		// Set the information.
-		let ending = frame_system::Module::<T>::block_number().saturating_add(duration);
+		let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
 		AuctionInfo::<T>::put((lease_period_index, ending));
 
 		Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending));
@@ -365,7 +365,7 @@ impl<T: Config> Module<T> {
 
 		// We need to check that the auction isn't in the period where it has definitely ended, but yeah we keep the
 		// info around because we haven't yet decided *exactly* when in the `EndingPeriod` that it ended.
-		let now = frame_system::Module::<T>::block_number();
+		let now = frame_system::Pallet::<T>::block_number();
 		ensure!(now < late_end, Error::<T>::AuctionEnded);
 
 		// Our range.
@@ -373,7 +373,7 @@ impl<T: Config> Module<T> {
 		// Range as an array index.
 		let range_index = range as u8 as usize;
 		// The offset into the auction ending set.
-		let offset = Self::is_ending(frame_system::Module::<T>::block_number()).unwrap_or_default();
+		let offset = Self::is_ending(frame_system::Pallet::<T>::block_number()).unwrap_or_default();
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
@@ -601,9 +601,9 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Auctions: auctions::{Module, Call, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Auctions: auctions::{Pallet, Call, Storage, Event<T>},
 		}
 	);
 
@@ -737,7 +737,7 @@ mod tests {
 				if let Some((output, known_since)) = &*p.borrow() {
 					(*output, *known_since)
 				} else {
-					(H256::zero(), frame_system::Module::<Test>::block_number())
+					(H256::zero(), frame_system::Pallet::<Test>::block_number())
 				}
 			})
 		}
@@ -1323,7 +1323,7 @@ mod benchmarking {
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, impl_benchmark_test_suite};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
-		let events = frame_system::Module::<T>::events();
+		let events = frame_system::Pallet::<T>::events();
 		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
@@ -1386,7 +1386,7 @@ mod benchmarking {
 			// Create a new auction
 			let duration: T::BlockNumber = 99u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
-			let now = frame_system::Module::<T>::block_number();
+			let now = frame_system::Pallet::<T>::block_number();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
 			let auction_index = AuctionCounter::get();
 
@@ -1425,14 +1425,14 @@ mod benchmarking {
 			}
 
 			// Move ahead to the block we want to initialize
-			frame_system::Module::<T>::set_block_number(duration + now + T::EndingPeriod::get());
+			frame_system::Pallet::<T>::set_block_number(duration + now + T::EndingPeriod::get());
 
 			// Trigger epoch change for new random number value:
 			{
-				pallet_babe::Module::<T>::on_initialize(duration + now + T::EndingPeriod::get());
-				let authorities = pallet_babe::Module::<T>::authorities();
+				pallet_babe::Pallet::<T>::on_initialize(duration + now + T::EndingPeriod::get());
+				let authorities = pallet_babe::Pallet::<T>::authorities();
 				let next_authorities = authorities.clone();
-				pallet_babe::Module::<T>::enact_epoch_change(authorities, next_authorities);
+				pallet_babe::Pallet::<T>::enact_epoch_change(authorities, next_authorities);
 			}
 
 		}: {

@@ -41,9 +41,9 @@ construct_runtime! {
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		Bridge: pallet_substrate_bridge::{Module},
-		FinalityVerifier: finality_verifier::{Module},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Bridge: pallet_substrate_bridge::{Pallet},
+		FinalityVerifier: finality_verifier::{Pallet},
 	}
 }
 

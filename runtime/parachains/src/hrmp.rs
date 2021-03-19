@@ -809,7 +809,7 @@ impl<T: Config> Module<T> {
 		out_hrmp_msgs: Vec<OutboundHrmpMessage<ParaId>>,
 	) -> Weight {
 		let mut weight = 0;
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 
 		for out_msg in out_hrmp_msgs {
 			let channel_id = HrmpChannelId {

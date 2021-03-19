@@ -260,7 +260,7 @@ impl<T: Config> Module<T> {
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
-				parent_hash: <frame_system::Module<T>>::parent_hash(),
+				parent_hash: <frame_system::Pallet<T>>::parent_hash(),
 				session_index,
 			};
 
@@ -296,7 +296,7 @@ impl<T: Config> Module<T> {
 			}
 		}
 
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		for signed_bitfield in signed_bitfields {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
@@ -390,11 +390,11 @@ impl<T: Config> Module<T> {
 		}
 
 		let validators = shared::Module::<T>::active_validator_keys();
-		let parent_hash = <frame_system::Module<T>>::parent_hash();
+		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
 		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
 		// before of the block where we include a candidate (i.e. this code path).
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now - One::one();
 		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
@@ -612,7 +612,7 @@ impl<T: Config> Module<T> {
 	) -> bool {
 		// This function is meant to be called from the runtime APIs against the relay-parent, hence
 		// `relay_parent_number` is equal to `now`.
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now;
 		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
@@ -1133,7 +1133,7 @@ mod tests {
 	}
 
 	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
-		let relay_parent_number = <frame_system::Module<Test>>::block_number() - 1;
+		let relay_parent_number = <frame_system::Pallet<Test>>::block_number() - 1;
 		let persisted_validation_data
 			= crate::util::make_persisted_validation_data::<Test>(
 				para_id,

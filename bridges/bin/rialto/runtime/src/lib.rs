@@ -276,7 +276,7 @@ impl bp_currency_exchange::DepositInto for DepositInto {
 	fn deposit_into(recipient: Self::Recipient, amount: Self::Amount) -> bp_currency_exchange::Result<()> {
 		// let balances module make all checks for us (it won't allow depositing lower than existential
 		// deposit, balance overflow, ...)
-		let deposited = <pallet_balances::Module<Runtime> as Currency<AccountId>>::deposit_creating(&recipient, amount);
+		let deposited = <pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(&recipient, amount);
 
 		// I'm dropping deposited here explicitly to illustrate the fact that it'll update `TotalIssuance`
 		// on drop
@@ -461,7 +461,7 @@ impl pallet_message_lane::Config for Runtime {
 	type LaneMessageVerifier = crate::millau_messages::ToMillauMessageVerifier;
 	type MessageDeliveryAndDispatchPayment = pallet_message_lane::instant_payments::InstantCurrencyPayments<
 		Runtime,
-		pallet_balances::Module<Runtime>,
+		pallet_balances::Pallet<Runtime>,
 		GetDeliveryConfirmationTransactionFee,
 		RootAccountForPayments,
 	>;
@@ -476,24 +476,24 @@ construct_runtime!(
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		BridgeRialtoPoA: pallet_bridge_eth_poa::<Instance1>::{Module, Call, Config, Storage, ValidateUnsigned},
-		BridgeKovan: pallet_bridge_eth_poa::<Instance2>::{Module, Call, Config, Storage, ValidateUnsigned},
-		BridgeRialtoCurrencyExchange: pallet_bridge_currency_exchange::<Instance1>::{Module, Call},
-		BridgeKovanCurrencyExchange: pallet_bridge_currency_exchange::<Instance2>::{Module, Call},
-		BridgeMillau: pallet_substrate_bridge::{Module, Call, Storage, Config<T>},
-		BridgeFinalityVerifier: pallet_finality_verifier::{Module, Call},
-		BridgeCallDispatch: pallet_bridge_call_dispatch::{Module, Event<T>},
-		BridgeMillauMessageLane: pallet_message_lane::{Module, Call, Storage, Event<T>},
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Aura: pallet_aura::{Module, Config<T>},
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Module, Storage},
-		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
-		ShiftSessionManager: pallet_shift_session_manager::{Module},
+		BridgeRialtoPoA: pallet_bridge_eth_poa::<Instance1>::{Pallet, Call, Config, Storage, ValidateUnsigned},
+		BridgeKovan: pallet_bridge_eth_poa::<Instance2>::{Pallet, Call, Config, Storage, ValidateUnsigned},
+		BridgeRialtoCurrencyExchange: pallet_bridge_currency_exchange::<Instance1>::{Pallet, Call},
+		BridgeKovanCurrencyExchange: pallet_bridge_currency_exchange::<Instance2>::{Pallet, Call},
+		BridgeMillau: pallet_substrate_bridge::{Pallet, Call, Storage, Config<T>},
+		BridgeFinalityVerifier: pallet_finality_verifier::{Pallet, Call},
+		BridgeCallDispatch: pallet_bridge_call_dispatch::{Pallet, Event<T>},
+		BridgeMillauMessageLane: pallet_message_lane::{Pallet, Call, Storage, Event<T>},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Aura: pallet_aura::{Pallet, Config<T>},
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
+		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+		ShiftSessionManager: pallet_shift_session_manager::{Pallet},
 	}
 );
 
@@ -525,7 +525,7 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive =
-	frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+	frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -854,11 +854,11 @@ impl_runtime_apis! {
 				}
 
 				fn account_balance(account: &Self::AccountId) -> Self::OutboundMessageFee {
-					pallet_balances::Module::<Runtime>::free_balance(account)
+					pallet_balances::Pallet::<Runtime>::free_balance(account)
 				}
 
 				fn endow_account(account: &Self::AccountId) {
-					pallet_balances::Module::<Runtime>::make_free_balance_be(
+					pallet_balances::Pallet::<Runtime>::make_free_balance_be(
 						account,
 						Balance::MAX / 100,
 					);
@@ -1037,7 +1037,7 @@ mod tests {
 		ext.execute_with(|| {
 			// initially issuance is zero
 			assert_eq!(
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::total_issuance(),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::total_issuance(),
 				0,
 			);
 
@@ -1045,14 +1045,14 @@ mod tests {
 			let account: AccountId = [1u8; 32].into();
 			let initial_amount = ExistentialDeposit::get();
 			let deposited =
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::deposit_creating(&account, initial_amount);
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(&account, initial_amount);
 			drop(deposited);
 			assert_eq!(
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::total_issuance(),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::total_issuance(),
 				initial_amount,
 			);
 			assert_eq!(
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::free_balance(&account),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&account),
 				initial_amount,
 			);
 
@@ -1061,7 +1061,7 @@ mod tests {
 
 			// check that total issuance has changed by `run_deposit_into_test`
 			assert_eq!(
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::total_issuance(),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::total_issuance(),
 				initial_amount + total_issuance_change,
 			);
 		});
@@ -1115,7 +1115,7 @@ mod tests {
 	fn deposit_into_existing_account_works() {
 		run_deposit_into_test(|existing_account| {
 			let initial_amount =
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::free_balance(&existing_account);
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&existing_account);
 			let additional_amount = 10_000;
 			<Runtime as pallet_bridge_currency_exchange::Config<KovanCurrencyExchange>>::DepositInto::deposit_into(
 				existing_account.clone(),
@@ -1123,7 +1123,7 @@ mod tests {
 			)
 			.unwrap();
 			assert_eq!(
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::free_balance(&existing_account),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&existing_account),
 				initial_amount + additional_amount,
 			);
 			additional_amount
@@ -1142,7 +1142,7 @@ mod tests {
 			)
 			.unwrap();
 			assert_eq!(
-				<pallet_balances::Module<Runtime> as Currency<AccountId>>::free_balance(&new_account),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&new_account),
 				initial_amount + additional_amount,
 			);
 			additional_amount
