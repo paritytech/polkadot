@@ -303,7 +303,7 @@ async fn make_pov_available(
 
 	{
 		let _span = span.as_ref().map(|s| {
-			s.child_with_candidate("erasure-coding", &candidate_hash)
+			s.child("erasure-coding").with_candidate(candidate_hash)
 		});
 
 		let chunks = erasure_coding::obtain_chunks_v1(
@@ -321,7 +321,7 @@ async fn make_pov_available(
 
 	{
 		let _span = span.as_ref().map(|s|
-			s.child_with_candidate("store-data", &candidate_hash)
+			s.child("store-data").with_candidate(candidate_hash)
 		);
 
 		store_available_data(
@@ -416,10 +416,9 @@ async fn validate_and_make_available(
 
 	let v = {
 		let _span = span.as_ref().map(|s| {
-			s.child_builder("request-validation")
+			s.child("request-validation")
 				.with_pov(&pov)
 				.with_para_id(candidate.descriptor().para_id)
-				.build()
 		});
 		request_candidate_validation(&mut tx_from, candidate.descriptor.clone(), pov.clone()).await?
 	};
@@ -631,7 +630,7 @@ impl CandidateBackingJob {
 			candidate.descriptor().para_id,
 		);
 
-		span.as_mut().map(|s| s.add_follows_from(parent_span));
+		span.as_mut().map(|span| span.add_follows_from(parent_span));
 
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -761,12 +760,11 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
 
-				let span = root_span.child_builder("second")
+				let span = root_span.child("second")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_pov(&pov)
-					.with_candidate(&candidate.hash())
-					.with_relay_parent(&relay_parent)
-					.build();
+					.with_candidate(candidate.hash())
+					.with_relay_parent(relay_parent);
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
@@ -788,11 +786,10 @@ impl CandidateBackingJob {
 			}
 			CandidateBackingMessage::Statement(_relay_parent, statement) => {
 				let _timer = self.metrics.time_process_statement();
-				let span = root_span.child_builder("statement")
+				let span = root_span.child("statement")
 					.with_stage(jaeger::Stage::CandidateBacking)
-					.with_candidate(&statement.payload().candidate_hash())
-					.with_relay_parent(&_relay_parent)
-					.build();
+					.with_candidate(statement.payload().candidate_hash())
+					.with_relay_parent(_relay_parent);
 
 				self.check_statement_signature(&statement)?;
 				match self.maybe_validate_and_import(&span, &root_span, statement).await {
@@ -934,14 +931,12 @@ impl CandidateBackingJob {
 		if !self.backed.contains(&hash) {
 			// only add if we don't consider this backed.
 			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
-				let s = parent_span.child_builder("unbacked-candidate").with_candidate(&hash);
-				let s = if let Some(para_id) = para_id {
+				let s = parent_span.child("unbacked-candidate").with_candidate(hash);
+				if let Some(para_id) = para_id {
 					s.with_para_id(para_id)
 				} else {
 					s
-				};
-
-				s.build()
+				}
 			});
 			Some(span)
 		} else {
@@ -957,10 +952,9 @@ impl CandidateBackingJob {
 	) -> Option<jaeger::Span> {
 		self.insert_or_get_unbacked_span(parent_span, hash, Some(para_id))
 			.map(|span| {
-				span.child_builder("validation")
-					.with_candidate(&hash)
+				span.child("validation")
+					.with_candidate(hash)
 					.with_stage(Stage::CandidateBacking)
-					.build()
 			})
 	}
 
@@ -971,10 +965,9 @@ impl CandidateBackingJob {
 		validator: ValidatorIndex,
 	) -> Option<jaeger::Span> {
 		self.insert_or_get_unbacked_span(parent_span, hash, None).map(|span| {
-			span.child_builder("import-statement")
-				.with_candidate(&hash)
+			span.child("import-statement")
+				.with_candidate(hash)
 				.with_validator_index(validator)
-				.build()
 		})
 	}
 
