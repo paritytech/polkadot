@@ -46,6 +46,42 @@
 //! 		// complete by design, no completion required
 //! # }
 //! ```
+//!
+//! In a few cases additional annotations might want to be added
+//! over the course of a function, for this purpose use the non-consuming
+//! `fn` variants, i.e.
+//! ```rust
+//! # use polkadot_primitives::v1::{CandidateHash, Hash};
+//! # fn main() {
+//! # use polkadot_node_jaeger as jaeger;
+//!
+//! # let relay_parent = Hash::default();
+//! # let candidate = CandidateHash::default();
+//!
+//! # #[derive(Debug, Default)]
+//! # struct Foo {
+//! # 	a: u8,
+//! # 	b: u16,
+//! # 	c: u32,
+//! # };
+//! #
+//! # let foo = Foo::default();
+//!
+//! let root_span =
+//! 	jaeger::Span::new(relay_parent, "root_of_aaall_spans");
+//!
+//! // the prefered way of adding additional delayed information:
+//! let span = root_span.child("inner");
+//!
+//! // ... more operations ...
+//!
+//! // but this is also possible:
+//!
+//! let mut root_span = root_span;
+//! root_span.add_string_fmt_debug_tag("foo_constructed", &foo);
+//! root_span.add_string_tag("bar", true);
+//! # }
+//! ```
 
 use parity_scale_codec::Encode;
 use polkadot_primitives::v1::{BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, PoV, ValidatorIndex};
