@@ -29,7 +29,7 @@ use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
 	AvailableData, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
-	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation, AuthorityDiscoveryId,
 };
 use polkadot_node_primitives::{
 	Statement, SignedFullStatement, ValidationResult,
@@ -85,6 +85,10 @@ enum Error {
 	FetchPoVNoSuchSession,
 	#[error("FetchPoV could not find index of signing validator")]
 	FetchPoVInvalidValidatorIndex,
+	#[error("Invalid response")]
+	FetchPoVInvalidResponse,
+	#[error("Backer did not have PoV")]
+	FetchPoVNoSuchPoV,
 	#[error("ValidateFromChainState channel closed before receipt")]
 	ValidateFromChainState(#[source] oneshot::Canceled),
 	#[error("StoreAvailableData channel closed before receipt")]
@@ -357,20 +361,21 @@ async fn request_pov(
 	descriptor: CandidateDescriptor,
 	from_validator: ValidatorIndex,
 ) -> Result<Arc<PoV>, Error> {
-	let session_index = request_session_index_for_child(parent, &mut tx_from)
+	let session_index = request_session_index_for_child(parent, tx_from)
 		.await.map_err(Error::FetchPoVUtil)?
 		.await.map_err(Error::FetchPoVCanceled)?
 		.map_err(Error::FetchPoVRuntime)?;
-	let session_info = request_session_info(parent, session_index, &mut tx_from)
+	let session_info = request_session_info(parent, session_index, tx_from)
 		.await.map_err(Error::FetchPoVUtil)?
 		.await.map_err(Error::FetchPoVCanceled)?
 		.map_err(Error::FetchPoVRuntime)?
 		.ok_or(Error::FetchPoVNoSuchSession)?;
-	let authority_id = session_info.discovery_keys.get(from_validator.0 as _)
-		.ok_or(Error::FetchPoVInvalidValidatorIndex);
+	let authority_id = session_info.discovery_keys
+		.get(from_validator.0 as usize)
+		.ok_or(Error::FetchPoVInvalidValidatorIndex)?;
 
 	let (req, pending_response) = OutgoingRequest::new(
-		Recipient::Authority(authority_id),
+		Recipient::Authority(authority_id.clone()),
 		PoVFetchingRequest {
 			relay_parent: parent,
 			descriptor,
@@ -386,11 +391,15 @@ async fn request_pov(
 	))).await?;
 
 	let response = pending_response.await.map_err(Error::FetchPoV)?;
-	match response {
+	let pov = match response {
 		PoVFetchingResponse::PoV(compressed) => {
+			compressed.decompress().map_err(|_| Error::FetchPoVInvalidResponse)?
 		}
 		PoVFetchingResponse::NoSuchPoV => {
+			return Err(Error::FetchPoVNoSuchPoV)
 		}
+	};
+	Ok(Arc::new(pov))
 }
 
 async fn request_candidate_validation(
@@ -588,7 +597,6 @@ impl CandidateBackingJob {
 							).await? {
 								self.issue_candidate_seconded_message(stmt).await?;
 							}
-							self.distribute_pov(candidate.descriptor, pov).await?;
 						}
 					}
 					Err(candidate) => {
@@ -689,7 +697,7 @@ impl CandidateBackingJob {
 			tx_command: self.background_validation_tx.clone(),
 			candidate: candidate.clone(),
 			relay_parent: self.parent,
-			pov: Some(pov),
+			pov: PoVData::Ready(pov),
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 			n_validators: self.table_context.validators.len(),
 			span,
