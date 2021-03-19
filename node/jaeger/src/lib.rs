@@ -25,7 +25,7 @@
 //! The easiest way to try Jaeger is:
 //!
 //! - Start a docker container with the all-in-one docker image (see below).
-//! - Open your browser and navigate to <https://localhost:16686> to acces the UI.
+//! - Open your browser and navigate to <https://localhost:16686> to access the UI.
 //!
 //! The all-in-one image can be started with:
 //!

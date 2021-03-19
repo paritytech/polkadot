@@ -116,7 +116,7 @@ struct RunningTask {
 
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
-	
+
 	/// Prometheues metrics for reporting results.
 	metrics: Metrics,
 
@@ -145,8 +145,8 @@ impl FetchTaskConfig {
 			};
 		}
 
-		let mut span = jaeger::candidate_hash_span(&core.candidate_hash, "availability-distribution");
-		span.add_stage(jaeger::Stage::AvailabilityDistribution);
+		let mut span = jaeger::candidate_Span::new(&core.candidate_hash, "availability-distribution");
+		span.with_stage(jaeger::Stage::AvailabilityDistribution);
 
 		let prepared_running = RunningTask {
 			session_index: session_info.session_index,
@@ -316,7 +316,7 @@ impl RunningTask {
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
 			label = SUCCEEDED;
-			_span.add_string_tag("success", "true");
+			_span.with_string_tag("success", "true");
 			break;
 		}
 		_span.add_int_tag("tries", count as _);

@@ -17,8 +17,36 @@
 //! Polkadot Jaeger span definitions.
 //!
 //! ```rust
-//! unimplemented!("How to use jaeger span definitions?");
+//! # use polkadot_primitives::v1::{CandidateHash, Hash};
+//! # fn main() {
+//! use polkadot_node_jaeger as jaeger;
+//!
+//! let relay_parent = Hash::default();
+//! let candidate = CandidateHash::default();
+//!
+//! #[derive(Debug, Default)]
+//! struct Foo {
+//! 	a: u8,
+//! 	b: u16,
+//! 	c: u32,
+//! };
+//!
+//! let foo = Foo::default();
+//!
+//! let span =
+//! 	jaeger::Span::new(relay_parent, "root_of_aaall_spans")
+//! 		// explicit well defined items
+//! 		.with_candidate(candidate)
+//! 		// anything that implements `trait std::fmt::Debug`
+//! 		.with_string_fmt_debug_tag("foo", foo)
+//! 		// anything that implements `trait std::str::ToString`
+//! 		.with_string_tag("again", 1337_u32)
+//! 		// add a `Stage` for [`dot-jaeger`](https://github.com/paritytech/dot-jaeger)
+//! 		.with_stage(jaeger::Stage::CandidateBacking);
+//! 		// complete by design, no completion required
+//! # }
 //! ```
+
 
 use polkadot_primitives::v1::{CandidateHash, Hash, PoV, ValidatorIndex, BlakeTwo256, HashT, Id as ParaId};
 use parity_scale_codec::Encode;
@@ -145,13 +173,23 @@ impl LazyIdent for PoV {
     }
 
     fn extra_tags(&self, span: &mut Span) {
-        span.add_pov(self)
+        span.add_pov(&self)
     }
 }
 
 impl LazyIdent for Hash {
     fn eval(&self) -> TraceIdentifier {
         hash_to_identifier(*self)
+    }
+
+    fn extra_tags(&self, span: &mut Span) {
+        span.add_string_fmt_debug_tag("relay-parent", self.0);
+    }
+}
+
+impl LazyIdent for &Hash {
+    fn eval(&self) -> TraceIdentifier {
+        hash_to_identifier(**self)
     }
 
     fn extra_tags(&self, span: &mut Span) {
@@ -168,7 +206,6 @@ impl LazyIdent for CandidateHash {
         span.add_string_fmt_debug_tag("candidate-hash", &self.0);
     }
 }
-
 
 impl Span {
     /// Creates a new span builder based on anything that can be lazily evaluated
@@ -202,77 +239,57 @@ impl Span {
 		}
 	}
 
-	/// Derive a child span from `self` but add a candidate annotation.
-	/// A shortcut for
-	///
-	/// ```rust,no_run
-	/// # use polkadot_primitives::v1::CandidateHash;
-	/// # use polkadot_node_jaeger::candidate_Span::new;
-	/// # let hash = CandidateHash::default();
-	/// # let span = candidate_Span::new(&hash, "foo");
-	/// let _span = span.child("name").with_candidate(&hash);
-	/// // equiv
-	/// let _span = span.child_with_candidate("name", &hash);
-	/// ```
 	#[inline(always)]
-	pub fn child_with_candidate(&self, name: &'static str, candidate_hash: &CandidateHash) -> Self {
-		self.child(name).with_candidate(candidate_hash)
+	pub fn with_string_tag<V: ToString>(mut self, tag: &'static str, val: V) -> Self {
+		self.add_string_tag::<V>(tag, val);
+		self
 	}
 
-
 	#[inline(always)]
-	pub fn with_peer_id(mut self, peer: &PeerId) -> Self {
-		self.add_string_tag("peer-id", &peer.to_base58());
-		self
+	pub fn with_peer_id(self, peer: &PeerId) -> Self {
+		self.with_string_tag("peer-id", &peer.to_base58())
 	}
 
 	/// Attach a candidate hash to the span.
 	#[inline(always)]
-	pub fn with_candidate(mut self, candidate_hash: &CandidateHash) -> Self  {
-		self.add_string_fmt_debug_tag("candidate-hash", &candidate_hash.0);
-		self
+	pub fn with_candidate(self, candidate_hash: CandidateHash) -> Self  {
+		self.with_string_fmt_debug_tag("candidate-hash", &candidate_hash.0)
 	}
 
 	/// Attach a para-id to the span.
 	#[inline(always)]
-	pub fn with_para_id(mut self, para_id: ParaId) -> Self {
-		self.add_int_tag("para-id", u32::from(para_id) as i64);
-		self
+	pub fn with_para_id(self, para_id: ParaId) -> Self {
+		self.with_int_tag("para-id", u32::from(para_id) as i64)
 	}
 
 	/// Attach a candidate stage.
 	/// Should always come with a `CandidateHash`.
 	#[inline(always)]
-	pub fn with_stage(mut self, stage: Stage) -> Self {
-		self.add_string_tag("candidate-stage", stage as u8);
-		self
+	pub fn with_stage(self, stage: Stage) -> Self {
+		self.with_string_tag("candidate-stage", stage as u8)
 	}
 
 	#[inline(always)]
-	pub fn with_validator_index(mut self, validator: ValidatorIndex) -> Self {
-		self.add_string_tag("validator-index", &validator.0);
-		self
+	pub fn with_validator_index(self, validator: ValidatorIndex) -> Self {
+		self.with_string_tag("validator-index", &validator.0)
 	}
 
 	#[inline(always)]
-	pub fn with_chunk_index(mut self, chunk_index: u32) -> Self {
-		self.add_string_tag("chunk-index", chunk_index);
-		self
+	pub fn with_chunk_index(self, chunk_index: u32) -> Self {
+		self.with_string_tag("chunk-index", chunk_index)
 	}
 
 	#[inline(always)]
-	pub fn with_relay_parent(mut self, relay_parent: &Hash) -> Self {
-		self.add_string_fmt_debug_tag("relay-parent", relay_parent);
-		self
+	pub fn with_relay_parent(self, relay_parent: Hash) -> Self {
+		self.with_string_fmt_debug_tag("relay-parent", relay_parent)
 	}
 
 	#[inline(always)]
-	pub fn with_claimed_validator_index(mut self, claimed_validator_index: ValidatorIndex) -> Self {
-		self.add_string_tag(
+	pub fn with_claimed_validator_index(self, claimed_validator_index: ValidatorIndex) -> Self {
+		self.with_string_tag(
 			"claimed-validator",
 			&claimed_validator_index.0,
-		);
-		self
+		)
 	}
 
 	#[inline(always)]
@@ -281,38 +298,24 @@ impl Span {
 		self
 	}
 
-    /// Add meta tag proof of validity hash.
-	pub(crate) fn add_pov(&mut self, pov: &PoV) {
-		if self.is_enabled() {
-			// avoid computing the pov hash if jaeger is not enabled
-			self.add_string_fmt_debug_tag("pov", pov.hash());
-		}
-	}
-
-    #[inline]
-    pub fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
-        match self {
-			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, val.to_string().as_str()),
-			Self::Disabled => {},
-		}
-    }
-
-    #[inline]
-    pub fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
-        self.add_string_tag(tag, format!("{:?}", val));
-    }
-
-	/// Add an additional int tag to the span.
+	/// Add an additional int tag to the span without consuming.
 	///
 	/// Should be used sparingly, introduction of new types is prefered.
-	pub fn add_int_tag(&mut self, tag: &'static str, value: i64) {
-		match self {
-			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
-			Self::Disabled => {},
-		}
+	#[inline(always)]
+	pub fn with_int_tag(mut self, tag: &'static str, i: i64) -> Self {
+		self.add_int_tag(tag, i);
+		self
 	}
 
+	#[inline(always)]
+    pub fn with_string_fmt_debug_tag<V: fmt::Debug>(mut self, tag: &'static str, val: V) -> Self {
+        self.add_string_tag(tag, format!("{:?}", val));
+		self
+    }
+
+
 	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
+	#[inline(always)]
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
 			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
@@ -320,7 +323,42 @@ impl Span {
 		}
 	}
 
-	/// Helper to check whether jaeger is enabled
+	// Helpers not exposed.
+
+    /// Add a pov hash meta tag with lazy hash eval, without consuming the span.
+	#[inline(always)]
+	fn add_pov(&mut self, pov: &PoV) {
+		if self.is_enabled() {
+			// avoid computing the pov hash if jaeger is not enabled
+			self.add_string_fmt_debug_tag("pov", pov.hash());
+		}
+	}
+
+	/// Add a string tag, without consuming the span.
+    fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
+        match self {
+			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, val.to_string().as_str()),
+			Self::Disabled => {},
+		}
+    }
+
+	/// Add a string tag, without consuming the span.
+    fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
+        match self {
+			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, format!("{:?}", val).as_str()),
+			Self::Disabled => {},
+		}
+    }
+
+	fn add_int_tag(&mut self, tag: &'static str, value: i64) {
+		match self {
+			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
+			Self::Disabled => {},
+		}
+	}
+
+
+	/// Check whether jaeger is enabled
 	/// in order to avoid computational overhead.
 	pub const fn is_enabled(&self) -> bool {
 		match self {

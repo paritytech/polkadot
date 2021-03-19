@@ -729,7 +729,7 @@ where
 			}
 		};
 		metrics.on_request(metrics_result);
-		per_req.span.as_mut().map(|s| s.add_string_tag("success", success));
+		per_req.span.as_mut().map(|s| s.with_string_tag("success", success));
 		true
 	} else {
 		false

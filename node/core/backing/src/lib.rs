@@ -303,7 +303,7 @@ async fn make_pov_available(
 
 	{
 		let _span = span.as_ref().map(|s| {
-			s.child_with_candidate("erasure-coding", &candidate_hash)
+			s.child("erasure-coding").with_candidate(candidate_hash)
 		});
 
 		let chunks = erasure_coding::obtain_chunks_v1(
@@ -321,7 +321,7 @@ async fn make_pov_available(
 
 	{
 		let _span = span.as_ref().map(|s|
-			s.child_with_candidate("store-data", &candidate_hash)
+			s.child("store-data").with_candidate(candidate_hash)
 		);
 
 		store_available_data(
@@ -631,7 +631,7 @@ impl CandidateBackingJob {
 			candidate.descriptor().para_id,
 		);
 
-		span.as_mut().map(|s| s.add_follows_from(parent_span));
+		span.as_mut().map(|span| span.add_follows_from(parent_span));
 
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -1115,11 +1115,11 @@ impl util::JobTrait for CandidateBackingJob {
 
 			let (assignment, required_collator) = match assignment {
 				None => {
-					assignments_span.add_string_tag("assigned", "false");
+					assignments_span.with_string_tag("assigned", "false");
 					(None, None)
 				}
 				Some((assignment, required_collator)) => {
-					assignments_span.add_string_tag("assigned", "true");
+					assignments_span.with_string_tag("assigned", "true");
 					assignments_span.add_para_id(assignment);
 					(Some(assignment), required_collator)
 				}

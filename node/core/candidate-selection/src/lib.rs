@@ -174,13 +174,13 @@ impl JobTrait for CandidateSelectionJob {
 
 			let assignment = match assignment {
 				AssignmentState::Scheduled(assignment) => {
-					assignment_span.add_string_tag("assigned", "true");
+					assignment_span.with_string_tag("assigned", "true");
 					assignment_span.add_para_id(assignment);
 
 					assignment
 				}
 				assignment => {
-					assignment_span.add_string_tag("assigned", "false");
+					assignment_span.with_string_tag("assigned", "false");
 
 					let validator_index = validator.index();
 					let validator_id = validator.id();
