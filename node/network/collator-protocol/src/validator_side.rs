@@ -554,18 +554,10 @@ where
 			state.known_collators.insert(origin.clone(), id);
 			state.peer_views.entry(origin).or_default();
 		}
-		AdvertiseCollation(relay_parent, para_id, signature) => {
+		AdvertiseCollation(relay_parent, para_id) => {
 			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
-				if !signature.verify(
-					&protocol_v1::advertise_collation_signature_payload(&relay_parent, &para_id)[..],
-					collator,
-				) {
-					modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
-					return;
-				}
-
 				state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
 			} else {
@@ -980,12 +972,6 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							pair.sign(
-								&protocol_v1::advertise_collation_signature_payload(
-									&test_state.relay_parent,
-									&test_state.chain_ids[0],
-								)
-							)
 						)
 					)
 				)
@@ -1046,12 +1032,6 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							test_state.collators[0].sign(
-								&protocol_v1::advertise_collation_signature_payload(
-									&test_state.relay_parent,
-									&test_state.chain_ids[0],
-								)
-							)
 						)
 					)
 				)
@@ -1221,7 +1201,6 @@ mod tests {
 			} = test_harness;
 
 			let peer_b = PeerId::random();
-			let peer_c = PeerId::random();
 
 			// the peer sends a declare message but sign the wrong payload
 			overseer_send(
@@ -1243,45 +1222,6 @@ mod tests {
 					NetworkBridgeMessage::ReportPeer(peer, rep),
 				) => {
 					assert_eq!(peer, peer_b);
-					assert_eq!(rep, COST_INVALID_SIGNATURE);
-				}
-			);
-
-			// we register a new peer correctly by declaring its intention to collate
-			overseer_send(
-				&mut virtual_overseer,
-				CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
-					peer_c.clone(),
-					protocol_v1::CollatorProtocolMessage::Declare(
-						test_state.collators[0].public(),
-						test_state.collators[0]
-							.sign(&protocol_v1::declare_signature_payload(&peer_c)),
-					),
-				)),
-			)
-			.await;
-
-			// the peer sends a collation advertisement but a wrong payload is signed
-			overseer_send(
-				&mut virtual_overseer,
-				CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
-					peer_c.clone(),
-					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
-						test_state.relay_parent,
-						test_state.chain_ids[0],
-						test_state.collators[1].sign(&[42]),
-					),
-				)),
-			)
-			.await;
-
-			// it should be reported for sending a message with an invalid signature
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(peer, rep),
-				) => {
-					assert_eq!(peer, peer_c);
 					assert_eq!(rep, COST_INVALID_SIGNATURE);
 				}
 			);
@@ -1350,12 +1290,6 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							test_state.collators[0].sign(
-								&protocol_v1::advertise_collation_signature_payload(
-									&test_state.relay_parent,
-									&test_state.chain_ids[0],
-								)
-							)
 						)
 					)
 				)
@@ -1382,12 +1316,6 @@ mod tests {
 						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 							test_state.relay_parent,
 							test_state.chain_ids[0],
-							test_state.collators[1].sign(
-								&protocol_v1::advertise_collation_signature_payload(
-									&test_state.relay_parent,
-									&test_state.chain_ids[0],
-								)
-							)
 						)
 					)
 				)

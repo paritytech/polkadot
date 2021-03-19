@@ -106,9 +106,8 @@ enum CollatorProtocolV1Message {
 	/// signature of the `PeerId` of the node using the given collator ID key.
 	Declare(CollatorId, CollatorSignature),
 	/// Advertise a collation to a validator. Can only be sent once the peer has
-	/// declared that they are a collator with given ID. Attached signature on
-	/// blake2-256 of components of this message: hash and para_id.
-	AdvertiseCollation(Hash, ParaId, CollatorSignature),
+	/// declared that they are a collator with given ID.
+	AdvertiseCollation(Hash, ParaId),
 	/// Request the advertised collation at that relay-parent.
 	RequestCollation(RequestId, Hash, ParaId),
 	/// A requested collation.

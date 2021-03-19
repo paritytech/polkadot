@@ -5647,7 +5647,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "sc-network",
- "sp-runtime",
  "strum",
  "thiserror",
  "zstd",

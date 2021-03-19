@@ -11,7 +11,6 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.20", features = ["derive"] }
 thiserror = "1.0.23"
 futures = "0.3.12"

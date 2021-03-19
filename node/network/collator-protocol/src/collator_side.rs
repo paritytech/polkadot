@@ -495,15 +495,9 @@ async fn advertise_collation(
 		(Some(collation), true) => collation.status.advance_to_advertised(),
 	}
 
-	let advertise_collation_signature_payload =
-		protocol_v1::advertise_collation_signature_payload(&relay_parent, &collating_on);
-
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 		relay_parent,
 		collating_on,
-		state
-			.collator_pair
-			.sign(&advertise_collation_signature_payload),
 	);
 
 	ctx.send_message(AllMessages::NetworkBridge(
@@ -655,7 +649,7 @@ async fn handle_incoming_peer_message(
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
-		AdvertiseCollation(_, _, _) => {
+		AdvertiseCollation(_, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
@@ -1375,12 +1369,7 @@ mod tests {
 					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 						relay_parent,
 						collating_on,
-						signature,
 					) => {
-						assert!(signature.verify(
-							&protocol_v1::advertise_collation_signature_payload(&relay_parent, &collating_on)[..],
-							&test_state.collator_pair.public(),
-						));
 						assert_eq!(relay_parent, expected_relay_parent);
 						assert_eq!(collating_on, test_state.para_id);
 					}
