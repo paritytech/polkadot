@@ -29,7 +29,7 @@ use sc_network::{IfDisconnected, NetworkService, OutboundFailure, RequestFailure
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
-	request_response::{OutgoingRequest, Requests},
+	request_response::{OutgoingRequest, Requests, Recipient},
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::{Block, Hash};
@@ -113,6 +113,7 @@ pub trait Network: Send + 'static {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
+		if_disconnected: IfDisconnected,
 	);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
@@ -202,6 +203,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
+		if_disconnected: IfDisconnected,
 	) {
 		let (
 			protocol,
@@ -212,14 +214,18 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			},
 		) = req.encode_request();
 
-		let peer_id = authority_discovery
-			.get_addresses_by_authority_id(peer)
-			.await
-			.and_then(|addrs| {
-				addrs
-					.into_iter()
-					.find_map(|addr| peer_id_from_multiaddr(&addr))
-			});
+		let peer_id = match peer {
+			Recipient::Peer(peer_id) =>  Some(peer_id),
+			Recipient::Authority(authority) =>
+				authority_discovery
+				.get_addresses_by_authority_id(authority)
+				.await
+				.and_then(|addrs| {
+					addrs
+						.into_iter()
+						.find_map(|addr| peer_id_from_multiaddr(&addr))
+				}),
+			};
 
 		let peer_id = match peer_id {
 			None => {
@@ -244,7 +250,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			protocol.into_protocol_name(),
 			payload,
 			pending_response,
-			IfDisconnected::TryConnect,
+			if_disconnected,
 		);
 	}
 }

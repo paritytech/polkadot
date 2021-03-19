@@ -20,7 +20,7 @@ Input:
 
 Output:
 
-- NetworkBridgeMessage::SendRequests(`[Requests]`)
+- NetworkBridgeMessage::SendRequests(`[Requests]`, IfDisconnected::TryConnect)
 - AvailabilityStore::QueryChunk(candidate_hash, index, response_channel)
 - AvailabilityStore::StoreChunk(candidate_hash, chunk)
 - RuntimeApiRequest::SessionIndexForChild

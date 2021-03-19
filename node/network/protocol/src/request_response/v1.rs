@@ -18,7 +18,8 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{CandidateHash, ErasureChunk, ValidatorIndex};
+use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, ErasureChunk, ValidatorIndex, CompressedPoV, Hash};
+use polkadot_primitives::v1::Id as ParaId;
 
 use super::request::IsRequest;
 use super::Protocol;
@@ -77,4 +78,26 @@ impl ChunkResponse {
 impl IsRequest for AvailabilityFetchingRequest {
 	type Response = AvailabilityFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::AvailabilityFetching;
+}
+
+/// Request the advertised collation at that relay-parent.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CollationFetchingRequest {
+	/// Relay parent we want a collation for.
+	pub relay_parent: Hash,
+	/// The `ParaId` of the collation.
+	pub para_id: ParaId,
+}
+
+/// Responses as sent by collators.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum CollationFetchingResponse {
+	/// Deliver requested collation.
+	#[codec(index = 0)]
+	Collation(CandidateReceipt, CompressedPoV),
+}
+
+impl IsRequest for CollationFetchingRequest {
+	type Response = CollationFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::CollationFetching;
 }

@@ -367,7 +367,7 @@ impl<T: Config> Module<T> {
 	fn apply_actions_queue(session: SessionIndex) -> Vec<ParaId> {
 		let actions = ActionsQueue::take(session);
 		let mut parachains = <Self as Store>::Parachains::get();
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let mut outgoing = Vec::new();
 
 		for para in actions {
@@ -643,7 +643,7 @@ impl<T: Config> Module<T> {
 				CurrentCode::insert(&id, &new_code);
 
 				// `now` is only used for registering pruning as part of `fn note_past_code`
-				let now = <frame_system::Module<T>>::block_number();
+				let now = <frame_system::Pallet<T>>::block_number();
 
 				let weight = Self::note_past_code(
 					id,
@@ -675,7 +675,7 @@ impl<T: Config> Module<T> {
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
 	) -> Option<ValidationCode> {
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {

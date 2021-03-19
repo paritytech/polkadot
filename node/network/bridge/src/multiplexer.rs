@@ -136,6 +136,11 @@ fn multiplex_single(
 			decode_with_peer::<v1::AvailabilityFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
+		Protocol::CollationFetching => From::from(IncomingRequest::new(
+			peer,
+			decode_with_peer::<v1::CollationFetchingRequest>(peer, payload)?,
+			pending_response,
+		)),
 	};
 	Ok(r)
 }

@@ -332,7 +332,7 @@ decl_module! {
 		#[weight = T::DbWeight::get().writes(1)]
 		fn set_unlock_block(origin, unlock_block: T::BlockNumber) {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
-			ensure!(unlock_block > frame_system::Module::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
+			ensure!(unlock_block > frame_system::Pallet::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
 			// Possibly this is worse than having the caller account be the payment account?
 			UnlockBlock::<T>::set(unlock_block);
 			Self::deposit_event(RawEvent::UnlockBlockUpdated(unlock_block));
@@ -414,10 +414,10 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Vesting: pallet_vesting::{Module, Call, Storage, Config<T>, Event<T>},
-			Purchase: purchase::{Module, Call, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Vesting: pallet_vesting::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Purchase: purchase::{Pallet, Call, Storage, Event<T>},
 		}
 	);
 
