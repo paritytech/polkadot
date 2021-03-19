@@ -1073,10 +1073,6 @@ pub type Executive = frame_executive::Executive<
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-parameter_types! {
-	pub const StakingPrefix: &'static str = "Staking";
-}
-
 /// This is only for testing. The main migration is inside staking's `on_runtime_upgrade`.
 pub struct KillOffchainPhragmenStorageTest;
 impl frame_support::traits::OnRuntimeUpgrade for KillOffchainPhragmenStorageTest {
