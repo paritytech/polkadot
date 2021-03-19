@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-timeout --signal INT 20s cargo hfuzz run $1
+timeout --signal INT 5h cargo hfuzz run $1
 status=$?
 
 if [ $status -ne 124 ]; then
