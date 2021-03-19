@@ -331,6 +331,7 @@ parameter_types! {
 	// miner configs
 	pub MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
 	pub const MinerMaxIterations: u32 = 10;
+	pub OffchainRepeat: BlockNumber = 5;
 }
 
 impl pallet_election_provider_multi_phase::Config for Runtime {
@@ -341,6 +342,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SolutionImprovementThreshold = MinSolutionScoreBump;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
+	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = MultiPhaseUnsignedPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
