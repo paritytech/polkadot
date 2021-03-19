@@ -44,7 +44,6 @@
 //!  docker.io/jaegertracing/all-in-one:1.21
 //! ```
 
-#![forbid(unused_crate_dependencies)]
 #![forbid(unused_imports)]
 
 mod config;
