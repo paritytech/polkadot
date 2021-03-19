@@ -67,7 +67,7 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				max_notification_size,
 				set_config: SetConfig {
-					// Collators don't need to accept incoming connections on this peer set:
+					// Non-authority nodes don't need to accept incoming connections on this peer set:
 					in_peers: if is_authority == IsAuthority::Yes { 25 } else { 0 },
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
