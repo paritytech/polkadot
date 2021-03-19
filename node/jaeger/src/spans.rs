@@ -47,9 +47,8 @@
 //! # }
 //! ```
 
-
-use polkadot_primitives::v1::{CandidateHash, Hash, PoV, ValidatorIndex, BlakeTwo256, HashT, Id as ParaId};
 use parity_scale_codec::Encode;
+use polkadot_primitives::v1::{BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, PoV, ValidatorIndex};
 use sc_network::PeerId;
 
 use std::fmt;
@@ -101,7 +100,6 @@ impl std::ops::Deref for PerLeafSpan {
 	}
 }
 
-
 /// A helper to annotate the stage with a numerical value
 /// to ease the life of the tooling team creating viable
 /// statistical metrics for which stage of the inclusion
@@ -126,7 +124,6 @@ pub enum Stage {
 	// see [issue](https://github.com/paritytech/polkadot/issues/2389)
 }
 
-
 /// A wrapper type for a span.
 ///
 /// Handles running with and without jaeger.
@@ -144,91 +141,90 @@ pub(crate) type TraceIdentifier = u128;
 /// needed for jaeger.
 #[inline]
 fn hash_to_identifier(hash: Hash) -> TraceIdentifier {
-    let mut buf = [0u8; 16];
-    buf.copy_from_slice(&hash.as_ref()[0..16]);
-    u128::from_be_bytes(buf) as TraceIdentifier
+	let mut buf = [0u8; 16];
+	buf.copy_from_slice(&hash.as_ref()[0..16]);
+	u128::from_be_bytes(buf) as TraceIdentifier
 }
 
 /// Helper to unify lazy proxy evaluation.
 pub trait LazyIdent {
-    /// Evaluate the type to a unique trace identifier.
+	/// Evaluate the type to a unique trace identifier.
 	/// Called lazily on demand.
-    fn eval(&self) -> TraceIdentifier;
+	fn eval(&self) -> TraceIdentifier;
 
-    /// Annotate a new root item with these additional spans
+	/// Annotate a new root item with these additional spans
 	/// at construction.
-    fn extra_tags(&self, _span: &mut Span) {
-    }
+	fn extra_tags(&self, _span: &mut Span) {}
 }
 
 impl<'a> LazyIdent for &'a [u8] {
-    fn eval(&self) -> TraceIdentifier {
-        hash_to_identifier(BlakeTwo256::hash_of(self))
-    }
+	fn eval(&self) -> TraceIdentifier {
+		hash_to_identifier(BlakeTwo256::hash_of(self))
+	}
 }
 
 impl LazyIdent for PoV {
-    fn eval(&self) -> TraceIdentifier {
-        hash_to_identifier(self.hash())
-    }
+	fn eval(&self) -> TraceIdentifier {
+		hash_to_identifier(self.hash())
+	}
 
-    fn extra_tags(&self, span: &mut Span) {
-        span.add_pov(&self)
-    }
+	fn extra_tags(&self, span: &mut Span) {
+		span.add_pov(&self)
+	}
 }
 
 impl LazyIdent for Hash {
-    fn eval(&self) -> TraceIdentifier {
-        hash_to_identifier(*self)
-    }
+	fn eval(&self) -> TraceIdentifier {
+		hash_to_identifier(*self)
+	}
 
-    fn extra_tags(&self, span: &mut Span) {
-        span.add_string_fmt_debug_tag("relay-parent", self.0);
-    }
+	fn extra_tags(&self, span: &mut Span) {
+		span.add_string_fmt_debug_tag("relay-parent", self.0);
+	}
 }
 
 impl LazyIdent for &Hash {
-    fn eval(&self) -> TraceIdentifier {
-        hash_to_identifier(**self)
-    }
+	fn eval(&self) -> TraceIdentifier {
+		hash_to_identifier(**self)
+	}
 
-    fn extra_tags(&self, span: &mut Span) {
-        span.add_string_fmt_debug_tag("relay-parent", self.0);
-    }
+	fn extra_tags(&self, span: &mut Span) {
+		span.add_string_fmt_debug_tag("relay-parent", self.0);
+	}
 }
 
 impl LazyIdent for CandidateHash {
-    fn eval(&self) -> TraceIdentifier {
-        hash_to_identifier(self.0)
-    }
+	fn eval(&self) -> TraceIdentifier {
+		hash_to_identifier(self.0)
+	}
 
-    fn extra_tags(&self, span: &mut Span) {
-        span.add_string_fmt_debug_tag("candidate-hash", &self.0);
-    }
+	fn extra_tags(&self, span: &mut Span) {
+		span.add_string_fmt_debug_tag("candidate-hash", &self.0);
+	}
 }
 
 impl Span {
-    /// Creates a new span builder based on anything that can be lazily evaluated
-    /// to and identifier.
-    pub fn new<I: LazyIdent>(identifier: I, span_name: &'static str) -> Span {
-		let mut span = INSTANCE.read_recursive().span(
-			|| { <I as LazyIdent>::eval(&identifier) },
-			span_name,
-		).into();
+	/// Creates a new span builder based on anything that can be lazily evaluated
+	/// to and identifier.
+	pub fn new<I: LazyIdent>(identifier: I, span_name: &'static str) -> Span {
+		let mut span = INSTANCE.read_recursive().span(|| <I as LazyIdent>::eval(&identifier), span_name).into();
 		<I as LazyIdent>::extra_tags(&identifier, &mut span);
 		span
-    }
+	}
 
-    /// Creates a new span builder based on an encodable type.
-    /// The encoded bytes are then used to derive the true trace identifier.
-    pub fn from_encodable<I: Encode>(identifier: I, span_name: &'static str) -> Span {
-		INSTANCE.read_recursive().span(
-			move || {
-				let bytes = identifier.encode();
-				LazyIdent::eval(&bytes.as_slice())
-			},
-			span_name,
-		).into()
+	/// Creates a new span builder based on an encodable type.
+	/// The encoded bytes are then used to derive the true trace identifier.
+	pub fn from_encodable<I: Encode>(identifier: I, span_name: &'static str) -> Span {
+		INSTANCE
+			.read_recursive()
+			.span(
+				move || {
+					let bytes = identifier.encode();
+					LazyIdent::eval(&bytes.as_slice())
+				},
+				span_name,
+			)
+			.into()
 	}
 
 	/// Derive a child span from `self`.
@@ -252,7 +248,7 @@ impl Span {
 
 	/// Attach a candidate hash to the span.
 	#[inline(always)]
-	pub fn with_candidate(self, candidate_hash: CandidateHash) -> Self  {
+	pub fn with_candidate(self, candidate_hash: CandidateHash) -> Self {
 		self.with_string_fmt_debug_tag("candidate-hash", &candidate_hash.0)
 	}
 
@@ -286,10 +282,7 @@ impl Span {
 
 	#[inline(always)]
 	pub fn with_claimed_validator_index(self, claimed_validator_index: ValidatorIndex) -> Self {
-		self.with_string_tag(
-			"claimed-validator",
-			&claimed_validator_index.0,
-		)
+		self.with_string_tag("claimed-validator", &claimed_validator_index.0)
 	}
 
 	#[inline(always)]
@@ -308,24 +301,23 @@ impl Span {
 	}
 
 	#[inline(always)]
-    pub fn with_string_fmt_debug_tag<V: fmt::Debug>(mut self, tag: &'static str, val: V) -> Self {
-        self.add_string_tag(tag, format!("{:?}", val));
+	pub fn with_string_fmt_debug_tag<V: fmt::Debug>(mut self, tag: &'static str, val: V) -> Self {
+		self.add_string_tag(tag, format!("{:?}", val));
 		self
-    }
-
+	}
 
 	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
 	#[inline(always)]
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
 			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
-			_ => {},
+			_ => {}
 		}
 	}
 
 	// Helpers not exposed.
 
-    /// Add a pov hash meta tag with lazy hash eval, without consuming the span.
+	/// Add a pov hash meta tag with lazy hash eval, without consuming the span.
 	#[inline(always)]
 	fn add_pov(&mut self, pov: &PoV) {
 		if self.is_enabled() {
@@ -335,28 +327,27 @@ impl Span {
 	}
 
 	/// Add a string tag, without consuming the span.
-    fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
-        match self {
+	fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
+		match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, val.to_string().as_str()),
-			Self::Disabled => {},
+			Self::Disabled => {}
 		}
-    }
+	}
 
 	/// Add a string tag, without consuming the span.
-    fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
-        match self {
+	fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
+		match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, format!("{:?}", val).as_str()),
-			Self::Disabled => {},
+			Self::Disabled => {}
 		}
-    }
+	}
 
 	fn add_int_tag(&mut self, tag: &'static str, value: i64) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
-			Self::Disabled => {},
+			Self::Disabled => {}
 		}
 	}
-
 
 	/// Check whether jaeger is enabled
 	/// in order to avoid computational overhead.
