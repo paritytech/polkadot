@@ -3,7 +3,7 @@
 timeout --signal INT 5h cargo hfuzz run $1
 status=$?
 
-if [ $status -eq 0 ]; then
+if [ $status -ne 124 ]; then
   echo "Found a panic!"
   # TODO: provide Minimal Reproducible Input
   # TODO: message on Matrix
