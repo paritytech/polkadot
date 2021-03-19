@@ -25,19 +25,17 @@
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
 use parity_scale_codec::{Encode, Decode};
-use reed_solomon::galois_16::{self, ReedSolomon};
 use primitives::v0::{self, Hash as H256, BlakeTwo256, HashT};
 use primitives::v1;
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 use thiserror::Error;
 
-use self::wrapped_shard::WrappedShard;
-
-mod wrapped_shard;
+use novelpoly::WrappedShard;
+use novelpoly::CodeParams;
 
 // we are limited to the field order of GF(2^16), which is 65536
-const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
+const MAX_VALIDATORS: usize = novelpoly::f2e16::FIELD_SIZE;
 
 /// Errors in erasure coding.
 #[derive(Debug, Clone, PartialEq, Error)]
@@ -75,76 +73,41 @@ pub enum Error {
 	/// Branch out of bounds.
 	#[error("Branch is out of bounds")]
 	BranchOutOfBounds,
-}
-
-#[derive(Debug, PartialEq)]
-struct CodeParams {
-	data_shards: usize,
-	parity_shards: usize,
-}
-
-impl CodeParams {
-	// the shard length needed for a payload with initial size `base_len`.
-	fn shard_len(&self, base_len: usize) -> usize {
-		// how many bytes we actually need.
-		let needed_shard_len = base_len / self.data_shards
-			+ (base_len % self.data_shards != 0) as usize;
-
-		// round up to next even number
-		// (no actual space overhead since we are working in GF(2^16)).
-		needed_shard_len + needed_shard_len % 2
-	}
-
-	fn make_shards_for(&self, payload: &[u8]) -> Vec<WrappedShard> {
-		let shard_len = self.shard_len(payload.len());
-		let mut shards = vec![
-			WrappedShard::new(vec![0; shard_len]);
-			self.data_shards + self.parity_shards
-		];
-
-		for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
-			// fill the empty shards with the corresponding piece of the payload,
-			// zero-padded to fit in the shards.
-			let len = std::cmp::min(shard_len, data_chunk.len());
-			let blank_shard: &mut [u8] = blank_shard.as_mut();
-			blank_shard[..len].copy_from_slice(&data_chunk[..len]);
-		}
-
-		shards
-	}
-
-	// make a reed-solomon instance.
-	fn make_encoder(&self) -> ReedSolomon {
-		ReedSolomon::new(self.data_shards, self.parity_shards)
-			.expect("this struct is not created with invalid shard number; qed")
-	}
-}
-
-/// Returns the maximum number of allowed, faulty chunks
-/// which does not prevent recovery given all other pieces
-/// are correct.
-const fn n_faulty(n_validators: usize) -> Result<usize, Error> {
-	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
-	if n_validators <= 1 { return Err(Error::NotEnoughValidators) }
-
-	Ok(n_validators.saturating_sub(1) / 3)
-}
-
-fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
-	let n_faulty = n_faulty(n_validators)?;
-	let n_good = n_validators - n_faulty;
-
-	Ok(CodeParams {
-		data_shards: n_faulty + 1,
-		parity_shards: n_good - 1,
-	})
+	/// Unknown error
+	#[error("An unknown error has appeared when reconstructing erasure code chunks")]
+	UnknownReconstruction,
+	/// Unknown error
+	#[error("An unknown error has appeared when deriving code parameters from validator count")]
+	UnknownCodeParam,
 }
 
 /// Obtain a threshold of chunks that should be enough to recover the data.
-pub fn recovery_threshold(n_validators: usize) -> Result<usize, Error> {
-	let n_faulty = n_faulty(n_validators)?;
+pub const fn recovery_threshold(n_validators: usize) -> Result<usize, Error> {
+	if n_validators > MAX_VALIDATORS { return Err(Error::TooManyValidators) }
+	if n_validators <= 1 { return Err(Error::NotEnoughValidators) }
 
-	Ok(n_faulty + 1)
+	let needed = n_validators.saturating_sub(1) / 3;
+	Ok(needed + 1)
+}
+
+fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
+	// we need to be able to reconstruct from 1/3 - eps
+
+	let n_wanted = n_validators;
+	let k_wanted = recovery_threshold(n_wanted)?;
+
+	if n_wanted > MAX_VALIDATORS as usize {
+		return Err(Error::TooManyValidators);
+	}
+
+	CodeParams::derive_parameters(n_wanted, k_wanted)
+		.map_err(|e| {
+			match e {
+				novelpoly::Error::WantedShardCountTooHigh(_) => Error::TooManyValidators,
+				novelpoly::Error::WantedShardCountTooLow(_) => Error::NotEnoughValidators,
+				_ => Error::UnknownCodeParam,
+			}
+		})
 }
 
 /// Obtain erasure-coded chunks for v0 `AvailableData`, one for each validator.
@@ -178,12 +141,10 @@ fn obtain_chunks<T: Encode>(n_validators: usize, data: &T)
 		return Err(Error::BadPayload);
 	}
 
-	let mut shards = params.make_shards_for(&encoded[..]);
-
-	params.make_encoder().encode(&mut shards[..])
+	let shards = params.make_encoder().encode::<WrappedShard>(&encoded[..])
 		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
-	Ok(shards.into_iter().map(|w| w.into_inner()).collect())
+	Ok(shards.into_iter().map(|w: WrappedShard| w.into_inner()).collect())
 }
 
 /// Reconstruct the v0 available data from a set of chunks.
@@ -225,7 +186,7 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	let params = code_params(n_validators)?;
-	let mut shards: Vec<Option<WrappedShard>> = vec![None; n_validators];
+	let mut received_shards: Vec<Option<WrappedShard>> = vec![None; n_validators];
 	let mut shard_len = None;
 	for (chunk_data, chunk_idx) in chunks.into_iter().take(n_validators) {
 		if chunk_idx >= n_validators {
@@ -242,30 +203,25 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 			return Err(Error::NonUniformChunks);
 		}
 
-		shards[chunk_idx] = Some(WrappedShard::new(chunk_data.to_vec()));
+		received_shards[chunk_idx] = Some(WrappedShard::new(chunk_data.to_vec()));
 	}
 
-	if let Err(e) = params.make_encoder().reconstruct(&mut shards[..]) {
-		match e {
-			reed_solomon::Error::TooFewShardsPresent => Err(Error::NotEnoughChunks)?,
-			reed_solomon::Error::InvalidShardFlags => Err(Error::WrongValidatorCount)?,
-			reed_solomon::Error::TooManyShards => Err(Error::TooManyChunks)?,
-			reed_solomon::Error::EmptyShard => panic!("chunks are all non-empty; this is checked above; qed"),
-			reed_solomon::Error::IncorrectShardSize => panic!("chunks are all same len; this is checked above; qed"),
-			_ => panic!("reed_solomon encoder returns no more variants for this function; qed"),
+
+	let res = params.make_encoder().reconstruct(received_shards);
+
+	let payload_bytes= match res {
+		Err(e) => match e {
+			novelpoly::Error::NeedMoreShards { .. } => return Err(Error::NotEnoughChunks),
+			novelpoly::Error::ParamterMustBePowerOf2 { .. } => return Err(Error::UnevenLength),
+			novelpoly::Error::WantedShardCountTooHigh(_) => return Err(Error::TooManyValidators),
+			novelpoly::Error::WantedShardCountTooLow(_) => return Err(Error::NotEnoughValidators),
+			novelpoly::Error::PayloadSizeIsZero { .. } => return Err(Error::BadPayload),
+			_ => return Err(Error::UnknownReconstruction),
 		}
-	}
+		Ok(payload_bytes) => payload_bytes,
+	};
 
-	// lazily decode from the data shards.
-	Decode::decode(&mut ShardInput {
-		remaining_len: shard_len.map(|s| s * params.data_shards).unwrap_or(0),
-		cur_shard: None,
-		shards: shards.iter()
-			.map(|x| x.as_ref())
-			.take(params.data_shards)
-			.map(|x| x.expect("all data shards have been recovered; qed"))
-			.map(|x| x.as_ref()),
-	}).or_else(|_| Err(Error::BadPayload))
+	Decode::decode(&mut &payload_bytes[..]).or_else(|_e| Err(Error::BadPayload))
 }
 
 /// An iterator that yields merkle branches and chunk data for all chunks to
@@ -333,7 +289,7 @@ pub fn branches<'a, I: 'a>(chunks: &'a [I]) -> Branches<'a, I>
 	Branches {
 		trie_storage,
 		root,
-		chunks: chunks,
+		chunks,
 		current_pos: 0,
 	}
 }
@@ -416,55 +372,6 @@ mod tests {
 	#[test]
 	fn field_order_is_right_size() {
 		assert_eq!(MAX_VALIDATORS, 65536);
-	}
-
-	#[test]
-	fn test_code_params() {
-		assert_eq!(code_params(0), Err(Error::NotEnoughValidators));
-
-		assert_eq!(code_params(1), Err(Error::NotEnoughValidators));
-
-		assert_eq!(code_params(2), Ok(CodeParams {
-			data_shards: 1,
-			parity_shards: 1,
-		}));
-
-		assert_eq!(code_params(3), Ok(CodeParams {
-			data_shards: 1,
-			parity_shards: 2,
-		}));
-
-		assert_eq!(code_params(4), Ok(CodeParams {
-			data_shards: 2,
-			parity_shards: 2,
-		}));
-
-		assert_eq!(code_params(100), Ok(CodeParams {
-			data_shards: 34,
-			parity_shards: 66,
-		}));
-	}
-
-	#[test]
-	fn shard_len_is_reasonable() {
-		let mut params = CodeParams {
-			data_shards: 5,
-			parity_shards: 0, // doesn't affect calculation.
-		};
-
-		assert_eq!(params.shard_len(100), 20);
-		assert_eq!(params.shard_len(99), 20);
-
-		// see if it rounds up to 2.
-		assert_eq!(params.shard_len(95), 20);
-		assert_eq!(params.shard_len(94), 20);
-
-		assert_eq!(params.shard_len(89), 18);
-
-		params.data_shards = 7;
-
-		// needs 3 bytes to fit, rounded up to next even number.
-		assert_eq!(params.shard_len(19), 4);
 	}
 
     #[test]
