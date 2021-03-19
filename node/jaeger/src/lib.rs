@@ -52,7 +52,7 @@ mod spans;
 mod config;
 
 pub use self::errors::JaegerError;
-pub use self::spans::{PerLeafSpan, Span, SpanBuilder, Stage};
+pub use self::spans::{PerLeafSpan, Span, Stage};
 pub use self::config::{JaegerConfig, JaegerConfigBuilder};
 
 use self::spans::TraceIdentifier;

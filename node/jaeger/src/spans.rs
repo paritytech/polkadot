@@ -98,81 +98,6 @@ pub enum Stage {
 	// see [issue](https://github.com/paritytech/polkadot/issues/2389)
 }
 
-/// Builder pattern for children and root spans to unify
-/// information annotations.
-pub struct SpanBuilder {
-	span: Span,
-}
-
-impl SpanBuilder {
-	/// Attach a peer id to the span.
-	#[inline(always)]
-	pub fn with_peer_id(mut self, peer: &PeerId) -> Self {
-		self.span.add_string_tag("peer-id", &peer.to_base58());
-		self
-	}
-	/// Attach a candidate hash to the span.
-	#[inline(always)]
-	pub fn with_candidate(mut self, candidate_hash: &CandidateHash) -> Self  {
-		self.span.add_string_tag("candidate-hash", &format!("{:?}", candidate_hash.0));
-		self
-	}
-
-	/// Attach a para-id to the span.
-	#[inline(always)]
-	pub fn with_para_id(mut self, para_id: ParaId) -> Self {
-		self.span.add_para_id(para_id);
-		self
-	}
-
-	/// Attach a candidate stage.
-	/// Should always come with a `CandidateHash`.
-	#[inline(always)]
-	pub fn with_stage(mut self, stage: Stage) -> Self {
-		self.span.add_stage(stage);
-		self
-	}
-
-	#[inline(always)]
-	pub fn with_validator_index(mut self, validator: ValidatorIndex) -> Self {
-		self.span.add_string_tag("validator-index", &validator.0.to_string());
-		self
-	}
-
-	#[inline(always)]
-	pub fn with_chunk_index(mut self, chunk_index: u32) -> Self {
-		self.span.add_string_tag("chunk-index", &format!("{}", chunk_index));
-		self
-	}
-
-	#[inline(always)]
-	pub fn with_relay_parent(mut self, relay_parent: &Hash) -> Self {
-		self.span.add_string_tag("relay-parent", &format!("{:?}", relay_parent));
-		self
-	}
-
-	#[inline(always)]
-	pub fn with_claimed_validator_index(mut self, claimed_validator_index: ValidatorIndex) -> Self {
-		self.span.add_string_tag(
-			"claimed-validator",
-			&claimed_validator_index.0.to_string(),
-		);
-		self
-	}
-
-	#[inline(always)]
-	pub fn with_pov(mut self, pov: &PoV) -> Self {
-		self.span.add_pov(pov);
-		self
-	}
-
-	/// Complete construction.
-	#[inline(always)]
-	pub fn build(self) -> Span {
-		self.span
-	}
-}
-
 
 /// A wrapper type for a span.
 ///
@@ -197,13 +122,14 @@ fn hash_to_identifier(hash: Hash) -> TraceIdentifier {
 }
 
 /// Helper to unify lazy proxy evaluation.
-trait LazyIdent {
+pub trait LazyIdent {
     /// Evaluate the type to a unique trace identifier.
+	/// Called lazily on demand.
     fn eval(&self) -> TraceIdentifier;
 
-    /// Annotate a new root item with these spans.
-    fn extra_tags(&self, span: &mut Span) {
-        span.add_string_fmt_dbg_tag("candidate-hash", self.0);
+    /// Annotate a new root item with these additional spans
+	/// at construction.
+    fn extra_tags(&self, _span: &mut Span) {
     }
 }
 
@@ -229,17 +155,17 @@ impl LazyIdent for Hash {
     }
 
     fn extra_tags(&self, span: &mut Span) {
-        span.add_string_fmt_dbg_tag("relay-parent", self.0);
+        span.add_string_fmt_debug_tag("relay-parent", self.0);
     }
 }
 
 impl LazyIdent for CandidateHash {
-    fn eval(self) -> TraceIdentifier {
-        hash_to_identifier(self as Hash)
+    fn eval(&self) -> TraceIdentifier {
+        hash_to_identifier(self.0)
     }
 
     fn extra_tags(&self, span: &mut Span) {
-        span.add_string_fmt_dbg_tag("candidate-hash", self.0);
+        span.add_string_fmt_debug_tag("candidate-hash", &self.0);
     }
 }
 
@@ -247,28 +173,26 @@ impl LazyIdent for CandidateHash {
 impl Span {
     /// Creates a new span builder based on anything that can be lazily evaluated
     /// to and identifier.
-    pub fn builder<I: LazyIdent>(identifier: I, span_name: &'static str) -> SpanBuilder {
-        SpanBuilder {
-                span: INSTANCE.read_recursive().span(
-                move || { <I as LazyIdent>::eval(identifier) },
-                span_name,
-            ).into()
-        }
+    pub fn new<I: LazyIdent>(identifier: I, span_name: &'static str) -> Span {
+		let mut span = INSTANCE.read_recursive().span(
+			|| { <I as LazyIdent>::eval(&identifier) },
+			span_name,
+		).into();
+		<I as LazyIdent>::extra_tags(&identifier, &mut span);
+		span
     }
 
     /// Creates a new span builder based on an encodable type.
     /// The encoded bytes are then used to derive the true trace identifier.
-    pub fn from_encodable<I: LazyIdent>(identifier: I, span_name: &'static str) -> SpanBuilder {
-        SpanBuilder {
-            span: INSTANCE.read_recursive().span(
-                move || {
-                    let bytes = identifier.encode();
-                    LazyIdent::<&[u8]>::eval(bytes.as_slice())
-                },
-                span_name,
-            ).into()
-        }
-    }
+    pub fn from_encodable<I: Encode>(identifier: I, span_name: &'static str) -> Span {
+		INSTANCE.read_recursive().span(
+			move || {
+				let bytes = identifier.encode();
+				LazyIdent::eval(&bytes.as_slice())
+			},
+			span_name,
+		).into()
+	}
 
 	/// Derive a child span from `self`.
 	pub fn child(&self, name: &'static str) -> Self {
@@ -278,49 +202,95 @@ impl Span {
 		}
 	}
 
-    // XXX SpanBuilder must die.
-	pub fn child_builder(&self, name: &'static str) -> SpanBuilder {
-		SpanBuilder {
-			span: self.child(name),
-		}
-	}
-
 	/// Derive a child span from `self` but add a candidate annotation.
 	/// A shortcut for
 	///
 	/// ```rust,no_run
 	/// # use polkadot_primitives::v1::CandidateHash;
-	/// # use polkadot_node_jaeger::candidate_hash_span;
+	/// # use polkadot_node_jaeger::candidate_Span::new;
 	/// # let hash = CandidateHash::default();
-	/// # let span = candidate_hash_span(&hash, "foo");
-	/// let _span = span.child_builder("name").with_candidate(&hash).build();
+	/// # let span = candidate_Span::new(&hash, "foo");
+	/// let _span = span.child("name").with_candidate(&hash);
+	/// // equiv
+	/// let _span = span.child_with_candidate("name", &hash);
 	/// ```
 	#[inline(always)]
-	pub(crate) fn child_with_candidate(&self, name: &'static str, candidate_hash: &CandidateHash) -> Self {
-		self.child_builder(name).with_candidate(candidate_hash).build()
+	pub fn child_with_candidate(&self, name: &'static str, candidate_hash: &CandidateHash) -> Self {
+		self.child(name).with_candidate(candidate_hash)
 	}
 
-	/// Add meta tag candidate stage annotation.
-	pub(crate) fn add_stage(&mut self, stage: Stage) {
+
+	#[inline(always)]
+	pub fn with_peer_id(mut self, peer: &PeerId) -> Self {
+		self.add_string_tag("peer-id", &peer.to_base58());
+		self
+	}
+
+	/// Attach a candidate hash to the span.
+	#[inline(always)]
+	pub fn with_candidate(mut self, candidate_hash: &CandidateHash) -> Self  {
+		self.add_string_fmt_debug_tag("candidate-hash", &candidate_hash.0);
+		self
+	}
+
+	/// Attach a para-id to the span.
+	#[inline(always)]
+	pub fn with_para_id(mut self, para_id: ParaId) -> Self {
+		self.add_int_tag("para-id", u32::from(para_id) as i64);
+		self
+	}
+
+	/// Attach a candidate stage.
+	/// Should always come with a `CandidateHash`.
+	#[inline(always)]
+	pub fn with_stage(mut self, stage: Stage) -> Self {
 		self.add_string_tag("candidate-stage", stage as u8);
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_validator_index(mut self, validator: ValidatorIndex) -> Self {
+		self.add_string_tag("validator-index", &validator.0);
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_chunk_index(mut self, chunk_index: u32) -> Self {
+		self.add_string_tag("chunk-index", chunk_index);
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_relay_parent(mut self, relay_parent: &Hash) -> Self {
+		self.add_string_fmt_debug_tag("relay-parent", relay_parent);
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_claimed_validator_index(mut self, claimed_validator_index: ValidatorIndex) -> Self {
+		self.add_string_tag(
+			"claimed-validator",
+			&claimed_validator_index.0,
+		);
+		self
+	}
+
+	#[inline(always)]
+	pub fn with_pov(mut self, pov: &PoV) -> Self {
+		self.add_pov(pov);
+		self
 	}
 
     /// Add meta tag proof of validity hash.
 	pub(crate) fn add_pov(&mut self, pov: &PoV) {
 		if self.is_enabled() {
 			// avoid computing the pov hash if jaeger is not enabled
-			self.add_string_debug_tag("pov", pov.hash());
+			self.add_string_fmt_debug_tag("pov", pov.hash());
 		}
 	}
 
-	/// Add meta tag containing the para chain or para thread identifier.
-	pub(crate) fn add_para_id(&mut self, para_id: ParaId) {
-		self.add_int_tag("para-id", u32::from(para_id) as i64);
-	}
-
-
     #[inline]
-    pub(crate) fn add_string_tag<T: fmt::Display>(&mut self, tag: &'static str, val: T) {
+    pub fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
         match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, val.to_string().as_str()),
 			Self::Disabled => {},
@@ -328,12 +298,14 @@ impl Span {
     }
 
     #[inline]
-    pub(crate) fn add_string_fmt_debug_tag<T: fmt::Debug>(&mut self, tag: &'static str, val: T) {
+    pub fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
         self.add_string_tag(tag, format!("{:?}", val));
     }
 
 	/// Add an additional int tag to the span.
-	pub(crate) fn add_int_tag(&mut self, tag: &'static str, value: i64) {
+	///
+	/// Should be used sparingly, introduction of new types is prefered.
+	pub fn add_int_tag(&mut self, tag: &'static str, value: i64) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
 			Self::Disabled => {},
@@ -341,7 +313,7 @@ impl Span {
 	}
 
 	/// Adds the `FollowsFrom` relationship to this span with respect to the given one.
-	pub(crate) fn add_follows_from(&mut self, other: &Self) {
+	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
 			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
 			_ => {},
