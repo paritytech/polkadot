@@ -79,10 +79,7 @@ impl PerLeafSpan {
 	pub fn new(leaf_span: Arc<Span>, name: &'static str) -> Self {
 		let span = leaf_span.child(name);
 
-		Self {
-			span,
-			leaf_span,
-		}
+		Self { span, leaf_span }
 	}
 
 	/// Returns the leaf span.
@@ -163,13 +160,13 @@ impl<'a> LazyIdent for &'a [u8] {
 	}
 }
 
-impl LazyIdent for PoV {
+impl LazyIdent for &PoV {
 	fn eval(&self) -> TraceIdentifier {
 		hash_to_identifier(self.hash())
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
-		span.add_pov(&self)
+		span.add_pov(self)
 	}
 }
 
@@ -301,6 +298,12 @@ impl Span {
 	}
 
 	#[inline(always)]
+	pub fn with_uint_tag(mut self, tag: &'static str, u: u64) -> Self {
+		self.add_uint_tag(tag, u);
+		self
+	}
+
+	#[inline(always)]
 	pub fn with_string_fmt_debug_tag<V: fmt::Debug>(mut self, tag: &'static str, val: V) -> Self {
 		self.add_string_tag(tag, format!("{:?}", val));
 		self
@@ -315,19 +318,22 @@ impl Span {
 		}
 	}
 
-	// Helpers not exposed.
-
 	/// Add a pov hash meta tag with lazy hash eval, without consuming the span.
 	#[inline(always)]
-	fn add_pov(&mut self, pov: &PoV) {
+	pub fn add_pov(&mut self, pov: &PoV) {
 		if self.is_enabled() {
 			// avoid computing the pov hash if jaeger is not enabled
 			self.add_string_fmt_debug_tag("pov", pov.hash());
 		}
 	}
 
+	#[inline(always)]
+	pub fn add_para_id(&mut self, para_id: ParaId) {
+		self.add_int_tag("para-id", u32::from(para_id) as i64);
+	}
+
 	/// Add a string tag, without consuming the span.
-	fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
+	pub fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, val.to_string().as_str()),
 			Self::Disabled => {}
@@ -335,16 +341,23 @@ impl Span {
 	}
 
 	/// Add a string tag, without consuming the span.
-	fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
+	pub fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, format!("{:?}", val).as_str()),
 			Self::Disabled => {}
 		}
 	}
 
-	fn add_int_tag(&mut self, tag: &'static str, value: i64) {
+	pub fn add_int_tag(&mut self, tag: &'static str, value: i64) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
+			Self::Disabled => {}
+		}
+	}
+
+	pub fn add_uint_tag(&mut self, tag: &'static str, value: u64) {
+		match self {
+			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value as i64),
 			Self::Disabled => {}
 		}
 	}

@@ -331,9 +331,8 @@ where
 		from_collator: response_recv.boxed().fuse(),
 		to_requester: result,
 		span: state.span_per_relay_parent.get(&relay_parent).map(|s| {
-			s.child_builder("collation-request")
+			s.child("collation-request")
 				.with_para_id(para_id)
-				.build()
 		}),
 
 	};
@@ -695,7 +694,7 @@ where
 						);
 
 						// Actual sending:
-						let _span = jaeger::pov_span(&pov, "received-collation");
+						let _span = jaeger::Span::new(&pov, "received-collation");
 						let (mut tx, _) = oneshot::channel();
 						std::mem::swap(&mut tx, &mut (per_req.to_requester));
 						let result = tx.send((receipt, pov));
@@ -729,7 +728,7 @@ where
 			}
 		};
 		metrics.on_request(metrics_result);
-		per_req.span.as_mut().map(|s| s.with_string_tag("success", success));
+		per_req.span.as_mut().map(|s| s.add_string_tag("success", success));
 		true
 	} else {
 		false
@@ -1116,7 +1115,7 @@ mod tests {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 			) => {
 				let req = reqs.into_iter().next()
-					.expect("There should be exactly one request");	
+					.expect("There should be exactly one request");
 				match req {
 					Requests::CollationFetching(req) => {
 						let payload = req.payload;
@@ -1145,7 +1144,7 @@ mod tests {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 			) => {
 				let req = reqs.into_iter().next()
-					.expect("There should be exactly one request");	
+					.expect("There should be exactly one request");
 				match req {
 					Requests::CollationFetching(req) => {
 						let payload = req.payload;

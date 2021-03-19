@@ -738,8 +738,8 @@ async fn handle_approved_ancestor(
 
 	if target_number <= lower_bound { return Ok(None) }
 
-	span.with_string_fmt_debug_tag("target-number", target_number);
-	span.with_string_fmt_debug_tag("target-hash", target);
+	span.add_string_fmt_debug_tag("target-number", target_number);
+	span.add_string_fmt_debug_tag("target-hash", target);
 
 	// request ancestors up to but not including the lower bound,
 	// as a vote on the lower bound is implied if we cannot find
@@ -884,11 +884,11 @@ async fn handle_approved_ancestor(
 
 	match all_approved_max {
 		Some((ref hash, ref number)) => {
-			span.with_string_tag("approved-number", &format!("{}", number));
-			span.with_string_tag("approved-hash", &format!("{:?}", hash));
+			span.add_uint_tag("approved-number", *number as u64);
+			span.add_string_fmt_debug_tag("approved-hash", hash);
 		}
 		None => {
-			span.with_string_tag("reached-lower-bound", "true");
+			span.add_string_tag("reached-lower-bound", "true");
 		}
 	}
 

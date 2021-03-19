@@ -154,9 +154,8 @@ async fn handle_signal(
 			let _timer = state.metrics.time_handle_signal();
 
 			for (relay_parent, span) in activated {
-				let _span = span.child_builder("pov-dist")
-					.with_stage(jaeger::Stage::PoVDistribution)
-					.build();
+				let _span = span.child("pov-dist")
+					.with_stage(jaeger::Stage::PoVDistribution);
 
 				match request_validators_ctx(relay_parent, ctx).await {
 					Ok(vals_rx) => {

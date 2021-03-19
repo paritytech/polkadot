@@ -145,8 +145,8 @@ impl FetchTaskConfig {
 			};
 		}
 
-		let mut span = jaeger::candidate_Span::new(&core.candidate_hash, "availability-distribution");
-		span.with_stage(jaeger::Stage::AvailabilityDistribution);
+		let span = jaeger::Span::new(core.candidate_hash, "availability-distribution")
+			.with_stage(jaeger::Stage::AvailabilityDistribution);
 
 		let prepared_running = RunningTask {
 			session_index: session_info.session_index,
@@ -263,10 +263,9 @@ impl RunningTask {
 		let mut bad_validators = Vec::new();
 		let mut label = FAILED;
 		let mut count: u32 = 0;
-		let mut _span = self.span.child_builder("fetch-task")
+		let mut _span = self.span.child("fetch-task")
 			.with_chunk_index(self.request.index.0)
-			.with_relay_parent(&self.relay_parent)
-			.build();
+			.with_relay_parent(self.relay_parent);
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
 			let _try_span = _span.child("try");
@@ -316,7 +315,7 @@ impl RunningTask {
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
 			label = SUCCEEDED;
-			_span.with_string_tag("success", "true");
+			_span.add_string_tag("success", "true");
 			break;
 		}
 		_span.add_int_tag("tries", count as _);

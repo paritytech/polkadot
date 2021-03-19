@@ -580,7 +580,7 @@ pub(crate) async fn handle_new_head(
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.await?;
 
-	span.with_string_tag("new-blocks", &format!("{}", new_blocks.len()));
+	span.add_uint_tag("new-blocks", new_blocks.len() as u64);
 
 	if new_blocks.is_empty() { return Ok(Vec::new()) }
 
