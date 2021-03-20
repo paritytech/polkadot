@@ -98,7 +98,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 6,
+	transaction_version: 7,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -318,18 +318,14 @@ impl pallet_session::historical::Config for Runtime {
 parameter_types! {
 	// no signed phase for now, just unsigned.
 	pub const SignedPhase: u32 = 0;
-	// NOTE: length of unsigned phase is, for now, different than `ElectionLookahead` to make sure
-	// that we won't run OCW threads at the same time with staking.
-	pub const UnsignedPhase: u32 = ElectionLookahead::get() / 2;
+	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
-	// fallback: no need to do on-chain phragmen while we re on a dry-run.
+	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
-		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
-
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
+		pallet_election_provider_multi_phase::FallbackStrategy::OnChain;
+	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
-	pub MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
 	pub const MinerMaxIterations: u32 = 10;
 }
 
@@ -338,10 +334,10 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Currency = Balances;
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
-	type SolutionImprovementThreshold = MinSolutionScoreBump;
+	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
-	type MinerTxPriority = MultiPhaseUnsignedPriority;
+	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = pallet_staking::CompactAssignments;
@@ -374,10 +370,6 @@ parameter_types! {
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 128;
-	// last 15 minutes of the last session will be for election.
-	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 16;
-	pub const MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational(5u32, 10_000);
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -403,14 +395,6 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type MinSolutionScoreBump = MinSolutionScoreBump;
-	// The unsigned solution weight targeted by the OCW. We set it to the maximum possible value of
-	// a single extrinsic.
-	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
@@ -679,7 +663,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub StakingUnsignedPriority: TransactionPriority =
+	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
@@ -987,7 +971,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 6,
-		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 7,
+		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 7,
 		Offences: pallet_offences::{Pallet, Call, Storage, Event} = 8,
 		Historical: session_historical::{Pallet} = 33,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 9,
@@ -1377,6 +1361,7 @@ sp_api::impl_runtime_apis! {
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
 		fn on_runtime_upgrade() -> Result<(Weight, Weight), sp_runtime::RuntimeString> {
+			log::info!("try-runtime::on_runtime_upgrade polkadot.");
 			let weight = Executive::try_runtime_upgrade()?;
 			Ok((weight, BlockWeights::get().max_block))
 		}
