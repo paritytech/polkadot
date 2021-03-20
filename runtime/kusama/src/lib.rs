@@ -413,7 +413,7 @@ fn era_payout_should_give_sensible_results() {
 		Perquintill::one(),
 		Perquintill::from_percent(0),
 		0,
-	), (5, 1));
+	), (6, 4));
 }
 
 
