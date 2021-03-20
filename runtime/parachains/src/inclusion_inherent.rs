@@ -116,7 +116,11 @@ decl_module! {
 
 			// Handle timeouts for any availability core work.
 			let availability_pred = <scheduler::Module<T>>::availability_timeout_predicate();
-			let freed_timeout = <inclusion::Module<T>>::collect_pending(availability_pred);
+			let freed_timeout = if let Some(pred) = availability_pred {
+				<inclusion::Module<T>>::collect_pending(pred)
+			} else {
+				Vec::new()
+			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
 			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
