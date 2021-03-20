@@ -37,10 +37,16 @@ use runtime_common::{
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength, OffchainSolutionWeightLimit,
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
-use sp_runtime::{create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority}, curve::PiecewiseLinear, traits::{
-	BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
-	Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
-}};
+use sp_arithmetic::Perquintill;
+use sp_runtime::{
+	create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult, KeyTypeId, Percent,
+	Permill, Perbill,
+	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
+	traits::{
+		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+	}
+};
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
 use sp_version::RuntimeVersion;
@@ -335,84 +341,106 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
-// TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
-// re-built in case input parameters have changed. The `ideal_stake` should be determined by the
-// amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
-pallet_staking_reward_curve::build! {
-	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-		min_inflation: 1_000,	// zero is not allowed here for some reason.
-		max_inflation: 1_000_000,
-		// 3:2:1 staked : parachains : float.
-		// while there's no parachains, then this is 75% staked : 25% float.
-		ideal_stake: 0_500_000,
-		falloff: 0_050_000,
-		max_piece_count: 200,
-		test_precision: 0_005_000,
-	);
+
+fn era_payout(
+	total_staked: Balance,
+	non_gilt_issuance: Balance,
+	max_annual_inflation: Perquintill,
+	period_fraction: Perquintill,
+	gilt_target: Perquintill,
+	auctioned_slots: u64,
+) -> (Balance, Balance) {
+	use sp_arithmetic::traits::Saturating;
+	use pallet_staking_reward_fn::compute_inflation;
+
+	let min_annual_inflation = Perquintill::from_rational(25u64, 1000u64);
+	let delta_annual_inflation = max_annual_inflation.saturating_sub(min_annual_inflation);
+
+	// 30% reserved for up to 60 slots.
+	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
+	// The gilt proportion is just the gilt target adjusted down by 25%.
+	let gilt_proportion = Perquintill::from_percent(75) * gilt_target;
+	let ideal_stake = Perquintill::from_percent(75)
+		.saturating_sub(auction_proportion)
+		.saturating_sub(gilt_proportion);
+
+	let stake = Perquintill::from_rational(total_staked, non_gilt_issuance);
+	let falloff = Perquintill::from_percent(5);
+	let adjustment = compute_inflation(stake, ideal_stake, falloff);
+	let staking_inflation = min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
+
+	let max_payout = period_fraction * max_annual_inflation * non_gilt_issuance;
+	let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
+	let mut rest = max_payout.saturating_sub(staking_payout);
+
+	let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
+	if total_staked > other_issuance {
+		let _cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
+		// We don't do anything with this, but if we wanted to, we could introduce a cap on the treasury amount
+		// with: `rest = rest.min(cap_rest);`
+	}
+	(staking_payout, rest)
 }
 
-fn curve_lookup<Q>(x: Q, ideal_stake_proportion: Q) -> Q where
-	Q: sp_arithmetic::PerThing + sp_std::ops::Div + sp_std::ops::Div<u64, Output=Q>,
-	Q::Inner: sp_arithmetic::traits::AtLeast32BitUnsigned,
-{
-	let new_x = if x < ideal_stake_proportion {
-		// too low.
-		(x / ideal_stake_proportion) / 2u64
-	} else {
-		// too high.
-		let amount_over = x.saturating_sub(ideal_stake_proportion);
-		let max_amount_over = ideal_stake_proportion.left_from_one();
-		let half_of_fraction_over = (amount_over / max_amount_over) / 2u64;
-		let half = Q::one() / 2u64;
-		half.saturating_add(half_of_fraction_over)
-	};
-	let p = new_x.deconstruct();
-	let q = Q::ACCURACY;
-	let r = REWARD_CURVE.calculate_for_fraction_times_denominator(p, q);
-	Q::from_parts(r)
+#[test]
+fn compute_inflation_should_give_sensible_results() {
+	assert_eq!(pallet_staking_reward_fn::compute_inflation(
+		Perquintill::from_percent(75),
+		Perquintill::from_percent(75),
+		Perquintill::from_percent(5),
+	), Perquintill::one());
+	assert_eq!(pallet_staking_reward_fn::compute_inflation(
+		Perquintill::from_percent(50),
+		Perquintill::from_percent(75),
+		Perquintill::from_percent(5),
+	), Perquintill::from_rational(2u64, 3u64));
+	assert_eq!(pallet_staking_reward_fn::compute_inflation(
+		Perquintill::from_percent(80),
+		Perquintill::from_percent(75),
+		Perquintill::from_percent(5),
+	), Perquintill::from_rational(1u64, 2u64));
 }
 
-pub struct ModifiedRewardCurve;
-impl pallet_staking::EraPayout<Balance> for ModifiedRewardCurve {
+#[test]
+fn era_payout_should_give_sensible_results() {
+	assert_eq!(era_payout(
+		75,
+		100,
+		Perquintill::from_percent(10),
+		Perquintill::one(),
+		Perquintill::zero(),
+		0,
+	), (10, 0));
+	assert_eq!(era_payout(
+		80,
+		100,
+		Perquintill::from_percent(10),
+		Perquintill::one(),
+		Perquintill::from_percent(0),
+		0,
+	), (5, 1));
+}
+
+
+pub struct EraPayout;
+impl pallet_staking::EraPayout<Balance> for EraPayout {
 	fn era_payout(
 		total_staked: Balance,
 		_total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
-		use sp_arithmetic::{Perquintill, traits::Saturating};
-
 		const AUCTIONED_SLOTS: u64 = 0;
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
-		let min_annual_inflation = Perquintill::from_rational(25u64, 1000u64);
-		let delta_annual_inflation = MAX_ANNUAL_INFLATION.saturating_sub(min_annual_inflation);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
-		// 30% reserved for up to 60 slots.
-		let auctions_in_use = Perquintill::from_rational(AUCTIONED_SLOTS.max(60), 60u64);
-		let auction_proportion = Perquintill::from_percent(30) * auctions_in_use;
-		// The gilt proportion is just the gilt target adjusted down by 25%.
-		let gilt_proportion = Perquintill::from_percent(75) * Gilt::target();
-		let ideal_stake_proportion = Perquintill::from_percent(75)
-			.saturating_sub(auction_proportion)
-			.saturating_sub(gilt_proportion);
-		let non_gilt_issuance = Gilt::issuance().non_gilt;
-		let staked_fraction = Perquintill::from_rational(total_staked, non_gilt_issuance);
-		let adjustment = curve_lookup(staked_fraction, ideal_stake_proportion);
-		let staking_inflation = min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
-
-		// Milliseconds per year for the Julian year (365.25 days).
-		let period_fraction = Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR);
-
-		let max_payout = period_fraction * MAX_ANNUAL_INFLATION * non_gilt_issuance;
-		let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
-		let mut rest = max_payout.saturating_sub(staking_payout);
-
-		let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
-		if total_staked > other_issuance {
-			let cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
-			rest = rest.min(cap_rest);
-		}
-		(staking_payout, rest)
+		era_payout(
+			total_staked,
+			Gilt::issuance().non_gilt,
+			MAX_ANNUAL_INFLATION,
+			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
+			Gilt::target(),
+			AUCTIONED_SLOTS,
+		)
 	}
 }
 
@@ -423,7 +451,6 @@ parameter_types! {
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
-	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 128;
 	// quarter of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
@@ -452,7 +479,7 @@ impl pallet_staking::Config for Runtime {
 	// A majority of the council or root can cancel the slash.
 	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = EraPayout;
 	type NextNewSession = Session;
 	type ElectionLookahead = ElectionLookahead;
 	type Call = Call;
