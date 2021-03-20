@@ -324,7 +324,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Currency = Balances;
 	type UnsignedPhase = UnsignedPhase;
 	type SignedPhase = SignedPhase;
-	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
@@ -367,7 +366,7 @@ fn era_payout(
 
 	let max_payout = period_fraction * max_annual_inflation * non_gilt_issuance;
 	let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
-	let mut rest = max_payout.saturating_sub(staking_payout);
+	let rest = max_payout.saturating_sub(staking_payout);
 
 	let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
 	if total_staked > other_issuance {
@@ -473,7 +472,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
-	type ElectionProvider = ElectionProviderMultiPhase;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
