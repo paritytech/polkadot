@@ -28,7 +28,7 @@ pub mod traits;
 mod assets;
 mod config;
 
-use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
+use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, ExecuteHrmp, InvertLocation};
 pub use assets::{Assets, AssetId};
 pub use config::Config;
 
@@ -94,6 +94,27 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				// Not much to do with the result as it is. It's up to the parachain to ensure that the
 				// message makes sense.
 				return Ok(());
+			}
+			(origin, Xcm::HrmpInitOpenChannel { recipient, max_message_size, max_capacity } ) => {
+				let sender = match origin {
+					MultiLocation::X1(Junction::Parachain { id }) => id,
+					_ => Err(XcmError::BadOrigin)?,
+				};
+				return Config::HrmpExecutor::hrmp_init_open_channel(sender, recipient, max_message_size, max_capacity)
+			}
+			(origin, Xcm::HrmpAcceptOpenChannel { sender } ) => {
+				let recipient = match origin {
+					MultiLocation::X1(Junction::Parachain { id }) => id,
+					_ => Err(XcmError::BadOrigin)?,
+				};
+				return Config::HrmpExecutor::hrmp_accept_open_channel(recipient, sender)
+			}
+			(origin, Xcm::HrmpCloseChannel { sender, recipient } ) => {
+				let initiator = match origin {
+					MultiLocation::X1(Junction::Parachain { id }) => id,
+					_ => Err(XcmError::BadOrigin)?,
+				};
+				return Config::HrmpExecutor::hrmp_close_channel(initiator, sender, recipient)
 			}
 			(origin, Xcm::RelayTo { dest: MultiLocation::X1(Junction::Parachain { id }), inner }) => {
 				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();

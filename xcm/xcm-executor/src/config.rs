@@ -16,7 +16,7 @@
 
 use xcm::v0::SendXcm;
 use frame_support::dispatch::{Dispatchable, Parameter};
-use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
+use crate::traits::{ExecuteHrmp, TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 
 /// The trait to parametrize the `XcmExecutor`.
 pub trait Config {
@@ -28,6 +28,9 @@ pub trait Config {
 
 	/// How to withdraw and deposit an asset.
 	type AssetTransactor: TransactAsset;
+
+	/// How to execute HRMP-related actions
+	type HrmpExecutor: ExecuteHrmp; 
 
 	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;

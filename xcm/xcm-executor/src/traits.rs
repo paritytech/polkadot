@@ -93,6 +93,13 @@ impl TransactAsset for Tuple {
 	}
 }
 
+/// Executor for HRMP-related actions
+pub trait ExecuteHrmp {
+	fn hrmp_init_open_channel(sender: u32, recipient: u32, max_message_size: u32, max_capacity: u32) -> XcmResult;
+	fn hrmp_accept_open_channel(recipient: u32, sender: u32) -> XcmResult;
+	fn hrmp_close_channel(initiator: u32, sender: u32, recipient: u32) -> XcmResult;
+}
+
 
 pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
