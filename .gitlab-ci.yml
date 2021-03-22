@@ -254,7 +254,7 @@ generate-impl-guide:
     reports:
       # this artifact is used in trigger-simnet job
       # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-      dotenv: build.env
+      dotenv: artifacts/build.env
 
 
 publish-dockerhub:
