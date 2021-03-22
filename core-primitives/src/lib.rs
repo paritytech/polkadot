@@ -20,8 +20,12 @@
 //!
 //! These core Polkadot types are used by the relay chain and the Parachains.
 
-use sp_runtime::{generic, MultiSignature, traits::{Verify, BlakeTwo256, IdentifyAccount}};
+use sp_runtime::{generic, MultiSignature, traits::{Verify, IdentifyAccount}};
 use parity_scale_codec::{Encode, Decode};
+#[cfg(feature = "std")]
+use parity_util_mem::MallocSizeOf;
+
+pub use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
 /// The block number type used by Polkadot.
 /// 32-bits will allow for 136 years of blocks assuming 1 block per second.
@@ -56,7 +60,8 @@ pub type Hash = sp_core::H256;
 /// This type is produced by [`CandidateReceipt::hash`].
 ///
 /// This type makes it easy to enforce that a hash is a candidate hash on the type level.
-#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Default)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateHash(pub Hash);
 
 #[cfg(feature="std")]
@@ -64,6 +69,12 @@ impl std::fmt::Display for CandidateHash {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.0.fmt(f)
 	}
+}
+
+impl sp_std::fmt::Debug for CandidateHash {
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
 }
 
 /// Index of a transaction in the relay chain. 32-bit should be plenty.
@@ -103,6 +114,7 @@ pub type DownwardMessage = sp_std::vec::Vec<u8>;
 /// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number when
 /// the message was sent.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 	/// The block number at which this messages was put into the downward message queue.
 	pub sent_at: BlockNumber,
@@ -112,6 +124,7 @@ pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 
 /// An HRMP message seen from the perspective of a recipient.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 	/// The block number at which this message was sent.
 	/// Specifically, it is the block number at which the candidate that sends this message was
@@ -123,6 +136,7 @@ pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 
 /// An HRMP message seen from the perspective of a sender.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct OutboundHrmpMessage<Id> {
 	/// The para that will get this message in its downward message queue.
 	pub recipient: Id,

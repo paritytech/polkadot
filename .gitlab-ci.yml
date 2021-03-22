@@ -6,7 +6,7 @@
 # setting DEPLOY_TAG will only deploy the tagged image
 #
 # please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
-# &rules-pr-only and &rules-build presets. And "kubernetes-env" with "docker-env" to set a runner
+# &rules-pr-only preset. And "kubernetes-env" with "docker-env" to set a runner
 # which executes the job.
 
 stages:
@@ -62,33 +62,17 @@ default:
     - cargo --version
     - sccache -s
 
-.rules-build:                      &rules-build
-  rules:
-    # Due to https://gitlab.com/gitlab-org/gitlab/-/issues/31264 there's no way to setup a manual
-    # build job so that publish-docker-rococo would "needs" build-linux-rococo job. This leads
-    # either to blocked or to forever running pipeline. It was decided to run these jobs from UI
-    # and on schedule.
-    #
-    # $PIPELINE should be passed in https://gitlab.parity.io/parity/polkadot/-/pipeline_schedules
-    # or other trigger to avoid running these jobs and run just those allowing this variable.
-    - if: $PIPELINE == "rococo"
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-
 .rules-test:                       &rules-test
   # these jobs run always*
   rules:
-    - if: $PIPELINE == "rococo"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
     - when: always
 
 .pr-only:                          &rules-pr-only
   # these jobs run only on PRs
   rules:
-    - if: $PIPELINE == "rococo"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
@@ -164,22 +148,6 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
-#### stage:                        build
-
-check-transaction-versions:
-  image:                           node:15
-  stage:                           build
-  <<:                              *rules-test
-  <<:                              *docker-env
-  needs:
-    - job:                         test-linux-stable
-      artifacts:                   false
-  before_script:
-    - npm install --ignore-scripts -g @polkadot/metadata-cmp
-    - git fetch origin release
-  script:
-    - scripts/gitlab/check_extrinsics_ordering.sh
-
 .pack-artifacts:                   &pack-artifacts
   - mkdir -p ./artifacts
   - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
@@ -198,51 +166,62 @@ check-transaction-versions:
   - cp -r scripts/docker/* ./artifacts
 
 build-linux-release:
-  stage:                           build
+  stage:                           test
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
+  variables:
+    EXTRA_FLAGS:                   ""
   rules:
-    # .rules-test with manual on PRs
-    - if: $PIPELINE == "rococo"
-      when: never
+    # extra features when building on `rococo-v1` branch and manual build on PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+      variables:
+        EXTRA_FLAGS:               "--features=real-overseer"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-      when: manual
-      allow_failure: true
-    - when: always
+      variables:
+        EXTRA_FLAGS:               "--features=real-overseer"
+    - when:                        always
   script:
-    - time cargo build --release --verbose
+    - time cargo build --release --verbose ${EXTRA_FLAGS}
     - sccache -s
     - *pack-artifacts
 
-build-linux-rococo:
+#### stage:                        build
+
+check-transaction-versions:
+  image:                           node:15
   stage:                           build
-  <<:                              *collect-artifacts
+  <<:                              *rules-test
   <<:                              *docker-env
-  <<:                              *compiler-info
-  rules:
-    - if: $PIPELINE == "rococo"
+  needs:
+    - job:                         test-linux-stable
+      artifacts:                   true
+  before_script:
+    - apt-get -y update; apt-get -y install jq lsof
+    - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    - git fetch origin release
   script:
-    - time cargo build --release --verbose --features=real-overseer
-    - sccache -s
-    - *pack-artifacts
+    - scripts/gitlab/check_extrinsics_ordering.sh
 
 generate-impl-guide:
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
   image:
-    name: michaelfbryan/mdbook-docker-image:latest
+    name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   script:
     - mdbook build roadmap/implementers-guide
 
-#### stage:                        publish
-
 .build-push-docker-image:          &build-push-docker-image
   <<:                              *kubernetes-env
-  <<:                              *collect-artifacts
   image:                           quay.io/buildah/stable
+  variables:
+    GIT_STRATEGY:                  none
+    # DOCKERFILE:                  scripts/docker/Dockerfile
+    IMAGE_NAME:                    docker.io/parity/polkadot
+    DOCKER_USER:                   ${Docker_Hub_User_Parity}
+    DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
   before_script:                   &check-versions
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
@@ -250,7 +229,7 @@ generate-impl-guide:
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
   script:
-    - test "$Docker_Hub_User_Parity" -a "$Docker_Hub_Pass_Parity" ||
+    - test "$DOCKER_USER" -a "$DOCKER_PASS" ||
         ( echo "no docker credentials provided"; exit 1 )
     - cd ./artifacts
     - buildah bud
@@ -260,51 +239,52 @@ generate-impl-guide:
         --tag "$IMAGE_NAME:$VERSION"
         --tag "$IMAGE_NAME:$EXTRATAG" .
     # The job will success only on the protected branch
-    - echo "$Docker_Hub_Pass_Parity" |
-        buildah login --username "$Docker_Hub_User_Parity" --password-stdin docker.io
+    - echo "$DOCKER_PASS" |
+        buildah login --username "$DOCKER_USER" --password-stdin docker.io
     - buildah info
     - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
+    # pass artifacts to the trigget-simnet job
+    # this twist is to match the similar logic in substrate
+    - echo "VERSION=${EXTRATAG}" > build.env
+    - echo "TRIGGERER=${CI_PROJECT_NAME}" >> build.env
   after_script:
     - buildah logout "$IMAGE_NAME"
-    # only VERSION information is needed for the deployment
-    - find ./artifacts/ -depth -not -name VERSION -not -name artifacts -delete
+  artifacts:
+    reports:
+      # this artifact is used in trigger-simnet job
+      # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
+      dotenv: build.env
 
-publish-docker-polkadot:
-  stage:                           publish
+
+publish-dockerhub:
+  stage:                           build
   <<:                              *build-push-docker-image
+  rules:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
-  rules:
-    - if: $PIPELINE == "rococo"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
       when: never
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+      variables:
+        IMAGE_NAME:                docker.io/parity/rococo
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      variables:
+        # image to be tested with Simnet
+        IMAGE_NAME:                docker.io/paritypr/synth-wave
+        DOCKER_USER:               ${PARITYPR_USER}
+        DOCKER_PASS:               ${PARITYPR_PASS}
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_REF_NAME == "master"
   needs:
     - job:                         build-linux-release
       artifacts:                   true
-  variables:
-    GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
-    IMAGE_NAME:                    docker.io/parity/polkadot
 
-publish-docker-rococo:
-  stage:                           publish
-  <<:                              *build-push-docker-image
-  rules:
-    - if: $PIPELINE == "rococo"
-  needs:
-    - job:                         build-linux-rococo
-      artifacts:                   true
-  variables:
-    GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
-    IMAGE_NAME:                    docker.io/parity/rococo
+#### stage:                        publish
 
 publish-s3-release:
   stage:                           publish
-  <<:                              *rules-build
   needs:
     - job:                         build-linux-release
       artifacts:                   true
@@ -314,6 +294,14 @@ publish-s3-release:
     GIT_STRATEGY:                  none
     BUCKET:                        "releases.parity.io"
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+      variables:
+        PREFIX:                    "rococo/${ARCH}-${DOCKER_OS}"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   before_script:
     - *check-versions
   script:
@@ -343,19 +331,29 @@ publish-s3-release:
 
 deploy-polkasync-kusama:
   stage:                           deploy
-  <<:                              *rules-build
+  rules:
+    # former .rules-build
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-#### stage:                        .post
-
-check-labels:
-  stage:                           .post
-  image:                           paritytech/tools:latest
-  <<:                              *rules-pr-only
-  <<:                              *kubernetes-env
-  script:
-    - ./scripts/gitlab/check_labels.sh
+trigger-simnet:
+  stage:                           deploy
+  <<:                              *rules-test
+  needs:
+    - job:                         publish-dockerhub
+  # build.env is passed with an exact VERSION (EXTRATAG here, i.e. 2643-0.8.29-5f689e0a-6b24dc54)
+  # Simnet uses an image published on PRs with this exact version for triggered runs on commits.
+  # And parity/rococo:rococo-v1 for runs not launched by this job.
+  trigger:
+    project:                       parity/simnet
+    branch:                        master
+    strategy:                      depend

@@ -69,7 +69,7 @@ pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExec
 pub use polkadot_service::FullBackend;
 
 /// Create a new full node.
-#[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
+#[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
@@ -83,6 +83,7 @@ pub fn new_full(
 		None,
 		None,
 		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
+		None,
 	)
 }
 
@@ -112,7 +113,7 @@ pub fn node_config(
 	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
 	let root = base_path.path();
 	let role = if is_validator {
-		Role::Authority { sentry_nodes: Vec::new() }
+		Role::Authority
 	} else {
 		Role::Full
 	};

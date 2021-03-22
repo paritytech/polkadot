@@ -1,0 +1,89 @@
+# Compose file for quickly spinning up a local instance of the Millau Substrate network.
+#
+# Note that the Millau network is only used for testing, so the configuration settings you see here
+# are *not* recommended for a production environment.
+#
+# For example, do *not* keep your `node-key` in version control, and unless you're _really_ sure you
+# want to provide public access to your nodes do *not* publicly expose RPC methods.
+version: '3.5'
+services:
+  millau-node-alice: &millau-bridge-node
+    image: paritytech/millau-bridge-node
+    entrypoint:
+      - /home/user/millau-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/millau-node-bob/tcp/30333/p2p/12D3KooWM5LFR5ne4yTQ4sBSXJ75M4bDo2MAhAW2GhL3i8fe5aRb
+      - --alice
+      - --node-key=0f900c89f4e626f4a217302ab8c7d213737d00627115f318ad6fb169717ac8e0
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    environment:
+      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,pallet_substrate_bridge=trace,pallet_bridge_call_dispatch=trace,pallet_message_lane=trace
+    ports:
+      - "19933:9933"
+      - "19944:9944"
+
+  millau-node-bob:
+    <<: *millau-bridge-node
+    entrypoint:
+      - /home/user/millau-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/millau-node-alice/tcp/30333/p2p/12D3KooWFqiV73ipQ1jpfVmCfLqBCp8G9PLH3zPkY9EhmdrSGA4H
+      - --bob
+      - --node-key=db383639ff2905d79f8e936fd5dc4416ef46b514b2f83823ec3c42753d7557bb
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    environment:
+      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,pallet_substrate_bridge=trace,pallet_bridge_call_dispatch=trace,pallet_message_lane=trace,jsonrpc_ws_server=trace,parity_ws=trace
+    ports:
+      - "20033:9933"
+      - "20044:9944"
+
+  millau-node-charlie:
+    <<: *millau-bridge-node
+    entrypoint:
+      - /home/user/millau-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/millau-node-alice/tcp/30333/p2p/12D3KooWFqiV73ipQ1jpfVmCfLqBCp8G9PLH3zPkY9EhmdrSGA4H
+      - --charlie
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    ports:
+      - "20133:9933"
+      - "20144:9944"
+
+  millau-node-dave:
+    <<: *millau-bridge-node
+    entrypoint:
+      - /home/user/millau-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/millau-node-alice/tcp/30333/p2p/12D3KooWFqiV73ipQ1jpfVmCfLqBCp8G9PLH3zPkY9EhmdrSGA4H
+      - --dave
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    ports:
+      - "20233:9933"
+      - "20244:9944"
+
+  millau-node-eve:
+    <<: *millau-bridge-node
+    entrypoint:
+      - /home/user/millau-bridge-node
+      - --execution=Native
+      - --chain=local
+      - --bootnodes=/dns4/millau-node-alice/tcp/30333/p2p/12D3KooWFqiV73ipQ1jpfVmCfLqBCp8G9PLH3zPkY9EhmdrSGA4H
+      - --eve
+      - --rpc-cors=all
+      - --unsafe-rpc-external
+      - --unsafe-ws-external
+    ports:
+      - "20333:9933"
+      - "20344:9944"

@@ -30,8 +30,8 @@ Indicates a change in active leaves. Activated leaves should have jobs, whereas 
 
 ```rust
 struct ActiveLeavesUpdate {
-	activated: [Hash], // in practice, these should probably be a SmallVec
-	deactivated: [Hash],
+    activated: [Hash], // in practice, these should probably be a SmallVec
+    deactivated: [Hash],
 }
 ```
 
@@ -41,46 +41,47 @@ Messages received by the approval voting subsystem.
 
 ```rust
 enum AssignmentCheckResult {
-	// The vote was accepted and should be propagated onwards.
-	Accepted,
-	// The vote was valid but duplicate and should not be propagated onwards.
-	AcceptedDuplicate,
-	// The vote was valid but too far in the future to accept right now.
-	TooFarInFuture,
-	// The vote was bad and should be ignored, reporting the peer who propagated it.
-	Bad,
+    // The vote was accepted and should be propagated onwards.
+    Accepted,
+    // The vote was valid but duplicate and should not be propagated onwards.
+    AcceptedDuplicate,
+    // The vote was valid but too far in the future to accept right now.
+    TooFarInFuture,
+    // The vote was bad and should be ignored, reporting the peer who propagated it.
+    Bad,
 }
 
 enum ApprovalCheckResult {
-	// The vote was accepted and should be propagated onwards.
-	Accepted,
-	// The vote was bad and should be ignored, reporting the peer who propagated it.
-	Bad,
+    // The vote was accepted and should be propagated onwards.
+    Accepted,
+    // The vote was bad and should be ignored, reporting the peer who propagated it.
+    Bad,
 }
 
 enum ApprovalVotingMessage {
-	/// Check if the assignment is valid and can be accepted by our view of the protocol.
-	/// Should not be sent unless the block hash is known.
-	CheckAndImportAssignment(
-		IndirectAssignmentCert,
-		ResponseChannel<AssignmentCheckResult>,
-	),
-	/// Check if the approval vote is valid and can be accepted by our view of the
-	/// protocol.
-	///
-	/// Should not be sent unless the block hash within the indirect vote is known.
-	CheckAndImportApproval(
-		IndirectSignedApprovalVote,
-		ResponseChannel<ApprovalCheckResult>,
-	),
-	/// Returns the highest possible ancestor hash of the provided block hash which is
-	/// acceptable to vote on finality for.
-	/// The `BlockNumber` provided is the number of the block's ancestor which is the
-	/// earliest possible vote.
-	///
-	/// It can also return the same block hash, if that is acceptable to vote upon.
-	/// Return `None` if the input hash is unrecognized.
-	ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
+    /// Check if the assignment is valid and can be accepted by our view of the protocol.
+    /// Should not be sent unless the block hash is known.
+    CheckAndImportAssignment(
+        IndirectAssignmentCert,
+        CandidateIndex, // The index of the candidate included in the block.
+        ResponseChannel<AssignmentCheckResult>,
+    ),
+    /// Check if the approval vote is valid and can be accepted by our view of the
+    /// protocol.
+    ///
+    /// Should not be sent unless the block hash within the indirect vote is known.
+    CheckAndImportApproval(
+        IndirectSignedApprovalVote,
+        ResponseChannel<ApprovalCheckResult>,
+    ),
+    /// Returns the highest possible ancestor hash of the provided block hash which is
+    /// acceptable to vote on finality for.
+    /// The `BlockNumber` provided is the number of the block's ancestor which is the
+    /// earliest possible vote.
+    ///
+    /// It can also return the same block hash, if that is acceptable to vote upon.
+    /// Return `None` if the input hash is unrecognized.
+    ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<(Hash, BlockNumber)>>),
 }
 ```
 
@@ -91,32 +92,35 @@ Messages received by the approval Distribution subsystem.
 ```rust
 /// Metadata about a block which is now live in the approval protocol.
 struct BlockApprovalMeta {
-	/// The hash of the block.
-	hash: Hash,
-	/// The number of the block.
-	number: BlockNumber,
-	/// The candidates included by the block. Note that these are not the same as the candidates that appear within the
-	/// block body.
-	candidates: Vec<CandidateHash>,
-	/// The consensus slot number of the block.
-	slot_number: SlotNumber,
+    /// The hash of the block.
+    hash: Hash,
+    /// The number of the block.
+    number: BlockNumber,
+    /// The candidates included by the block. Note that these are not the same as the candidates that appear within the
+    /// block body.
+    parent_hash: Hash,
+    /// The candidates included by the block. Note that these are not the same as the candidates that appear within the
+    /// block body.
+    candidates: Vec<CandidateHash>,
+    /// The consensus slot of the block.
+    slot: Slot,
 }
 
 enum ApprovalDistributionMessage {
-	/// Notify the `ApprovalDistribution` subsystem about new blocks and the candidates contained within
-	/// them.
-	NewBlocks(Vec<BlockApprovalMeta>),
-	/// Distribute an assignment cert from the local validator. The cert is assumed
-	/// to be valid, relevant, and for the given relay-parent and validator index.
-	///
-	/// The `u32` param is the candidate index in the fully-included list.
-	DistributeAssignment(IndirectAssignmentCert, u32),
-	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
-	/// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
-	/// the message.
-	DistributeApproval(IndirectSignedApprovalVote),
-	/// An update from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
+    /// Notify the `ApprovalDistribution` subsystem about new blocks and the candidates contained within
+    /// them.
+    NewBlocks(Vec<BlockApprovalMeta>),
+    /// Distribute an assignment cert from the local validator. The cert is assumed
+    /// to be valid, relevant, and for the given relay-parent and validator index.
+    ///
+    /// The `u32` param is the candidate index in the fully-included list.
+    DistributeAssignment(IndirectAssignmentCert, u32),
+    /// Distribute an approval vote for the local validator. The approval vote is assumed to be
+    /// valid, relevant, and the corresponding approval already issued. If not, the subsystem is free to drop
+    /// the message.
+    DistributeApproval(IndirectSignedApprovalVote),
+    /// An update from the network bridge.
+    NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
 }
 ```
 
@@ -132,13 +136,13 @@ This is a network protocol that receives messages of type [`AvailabilityDistribu
 
 ```rust
 enum AvailabilityDistributionMessage {
-	/// Distribute an availability chunk to other validators.
-	DistributeChunk(Hash, ErasureChunk),
-	/// Fetch an erasure chunk from network by candidate hash and chunk index.
-	FetchChunk(Hash, u32),
-	/// Event from the network.
-	/// An update on network state from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
+    /// Distribute an availability chunk to other validators.
+    DistributeChunk(Hash, ErasureChunk),
+    /// Fetch an erasure chunk from network by candidate hash and chunk index.
+    FetchChunk(Hash, u32),
+    /// Event from the network.
+    /// An update on network state from the network bridge.
+    NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
 }
 ```
 
@@ -148,16 +152,17 @@ Messages received by the availability recovery subsystem.
 
 ```rust
 enum RecoveryError {
-	Invalid,
-	Unavailable,
+    Invalid,
+    Unavailable,
 }
 enum AvailabilityRecoveryMessage {
-	/// Recover available data from validators on the network.
-	RecoverAvailableData(
-		CandidateReceipt,
-		SessionIndex,
-		ResponseChannel<Result<AvailableData, RecoveryError>>,
-	),
+    /// Recover available data from validators on the network.
+    RecoverAvailableData(
+        CandidateReceipt,
+        SessionIndex,
+        Option<GroupIndex>, // Backing validator group to request the data directly from.
+        ResponseChannel<Result<AvailableData, RecoveryError>>,
+    ),
 }
 ```
 
@@ -167,19 +172,19 @@ Messages to and from the availability store.
 
 ```rust
 enum AvailabilityStoreMessage {
-	/// Query the `AvailableData` of a candidate by hash.
-	QueryAvailableData(CandidateHash, ResponseChannel<Option<AvailableData>>),
-	/// Query whether an `AvailableData` exists within the AV Store.
-	QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
-	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
-	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<ErasureChunk>>),
-	/// Store a specific chunk of the candidate's erasure-coding, with an
-	/// accompanying proof.
-	StoreChunk(CandidateHash, ErasureChunk, ResponseChannel<Result<()>>),
-	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
-	/// `ErasureChunk`.
-	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
+    /// Query the `AvailableData` of a candidate by hash.
+    QueryAvailableData(CandidateHash, ResponseChannel<Option<AvailableData>>),
+    /// Query whether an `AvailableData` exists within the AV Store.
+    QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
+    /// Query a specific availability chunk of the candidate's erasure-coding by validator index.
+    /// Returns the chunk and its inclusion proof against the candidate's erasure-root.
+    QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
+    /// Store a specific chunk of the candidate's erasure-coding by validator index, with an
+    /// accompanying proof.
+    StoreChunk(CandidateHash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+    /// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
+    /// `AvailabilityChunkAndProof`.
+    StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
 
@@ -190,11 +195,11 @@ This is a network protocol that receives messages of type [`BitfieldDistribution
 
 ```rust
 enum BitfieldDistributionMessage {
-	/// Distribute a bitfield signed by a validator to other validators.
-	/// The bitfield distribution subsystem will assume this is indeed correctly signed.
-	DistributeBitfield(relay_parent, SignedAvailabilityBitfield),
-	/// Receive a network bridge update.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<BitfieldDistributionV1Message>),
+    /// Distribute a bitfield signed by a validator to other validators.
+    /// The bitfield distribution subsystem will assume this is indeed correctly signed.
+    DistributeBitfield(relay_parent, SignedAvailabilityBitfield),
+    /// Receive a network bridge update.
+    NetworkBridgeUpdateV1(NetworkBridgeEvent<BitfieldDistributionV1Message>),
 }
 ```
 
@@ -230,10 +235,12 @@ These messages are sent to the [Candidate Selection subsystem](../node/backing/c
 
 ```rust
 enum CandidateSelectionMessage {
-  /// A candidate collation can be fetched from a collator and should be considered for seconding.
-  Collation(RelayParent, ParaId, CollatorId),
-  /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-  Invalid(CandidateReceipt),
+    /// A candidate collation can be fetched from a collator and should be considered for seconding.
+    Collation(RelayParent, ParaId, CollatorId),
+    /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+    Invalid(RelayParent, CandidateReceipt),
+    /// The candidate we recommended to be seconded was validated successfully.
+    Seconded(RelayParent, SignedFullStatement),
 }
 ```
 
@@ -243,31 +250,31 @@ The Chain API subsystem is responsible for providing an interface to chain data.
 
 ```rust
 enum ChainApiMessage {
-	/// Get the block number by hash.
-	/// Returns `None` if a block with the given hash is not present in the db.
-	BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
-	/// Request the block header by hash.
-	/// Returns `None` if a block with the given hash is not present in the db.
-	BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
-	/// Get the finalized block hash by number.
-	/// Returns `None` if a block with the given number is not present in the db.
-	/// Note: the caller must ensure the block is finalized.
-	FinalizedBlockHash(BlockNumber, ResponseChannel<Result<Option<Hash>, Error>>),
-	/// Get the last finalized block number.
-	/// This request always succeeds.
-	FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
-	/// Request the `k` ancestors block hashes of a block with the given hash.
-	/// The response channel may return a `Vec` of size up to `k`
-	/// filled with ancestors hashes with the following order:
-	/// `parent`, `grandparent`, ...
-	Ancestors {
-		/// The hash of the block in question.
-		hash: Hash,
-		/// The number of ancestors to request.
-		k: usize,
-		/// The response channel.
-		response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
-	}
+    /// Get the block number by hash.
+    /// Returns `None` if a block with the given hash is not present in the db.
+    BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
+    /// Request the block header by hash.
+    /// Returns `None` if a block with the given hash is not present in the db.
+    BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
+    /// Get the finalized block hash by number.
+    /// Returns `None` if a block with the given number is not present in the db.
+    /// Note: the caller must ensure the block is finalized.
+    FinalizedBlockHash(BlockNumber, ResponseChannel<Result<Option<Hash>, Error>>),
+    /// Get the last finalized block number.
+    /// This request always succeeds.
+    FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
+    /// Request the `k` ancestors block hashes of a block with the given hash.
+    /// The response channel may return a `Vec` of size up to `k`
+    /// filled with ancestors hashes with the following order:
+    /// `parent`, `grandparent`, ...
+    Ancestors {
+        /// The hash of the block in question.
+        hash: Hash,
+        /// The number of ancestors to request.
+        k: usize,
+        /// The response channel.
+        response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
+    }
 }
 ```
 
@@ -279,22 +286,27 @@ This is a network protocol that receives messages of type [`CollatorProtocolV1Me
 
 ```rust
 enum CollatorProtocolMessage {
-	/// Signal to the collator protocol that it should connect to validators with the expectation
-	/// of collating on the given para. This is only expected to be called once, early on, if at all,
-	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
-	/// the previous signal.
-	///
-	/// This should be sent before any `DistributeCollation` message.
-	CollateOn(ParaId),
-	/// Provide a collation to distribute to validators.
-	DistributeCollation(CandidateReceipt, PoV),
-	/// Fetch a collation under the given relay-parent for the given ParaId.
-	FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
-	/// Report a collator as having provided an invalid collation. This should lead to disconnect
-	/// and blacklist of the collator.
-	ReportCollator(CollatorId),
-	/// Note a collator as having provided a good collation.
-	NoteGoodCollation(CollatorId),
+    /// Signal to the collator protocol that it should connect to validators with the expectation
+    /// of collating on the given para. This is only expected to be called once, early on, if at all,
+    /// and only by the Collation Generation subsystem. As such, it will overwrite the value of
+    /// the previous signal.
+    ///
+    /// This should be sent before any `DistributeCollation` message.
+    CollateOn(ParaId),
+    /// Provide a collation to distribute to validators with an optional result sender.
+    ///
+    /// The result sender should be informed when at least one parachain validator seconded the collation. It is also
+    /// completely okay to just drop the sender.
+    DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
+    /// Fetch a collation under the given relay-parent for the given ParaId.
+    FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
+    /// Report a collator as having provided an invalid collation. This should lead to disconnect
+    /// and blacklist of the collator.
+    ReportCollator(CollatorId),
+    /// Note a collator as having provided a good collation.
+    NoteGoodCollation(CollatorId, SignedFullStatement),
+    /// Notify a collator that its collation was seconded.
+    NotifyCollationSeconded(CollatorId, SignedFullStatement),
 }
 ```
 
@@ -306,62 +318,103 @@ to the low-level networking code.
 ```rust
 /// Peer-sets handled by the network bridge.
 enum PeerSet {
-	/// The collation peer-set is used to distribute collations from collators to validators.
-	Collation,
-	/// The validation peer-set is used to distribute information relevant to parachain
-	/// validation among validators. This may include nodes which are not validators,
-	/// as some protocols on this peer-set are expected to be gossip.
-	Validation,
+    /// The collation peer-set is used to distribute collations from collators to validators.
+    Collation,
+    /// The validation peer-set is used to distribute information relevant to parachain
+    /// validation among validators. This may include nodes which are not validators,
+    /// as some protocols on this peer-set are expected to be gossip.
+    Validation,
 }
 
 enum NetworkBridgeMessage {
-	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
-	ReportPeer(PeerSet, PeerId, cost_benefit: i32),
-	/// Send a message to one or more peers on the validation peerset.
-	SendValidationMessage([PeerId], ValidationProtocolV1),
-	/// Send a message to one or more peers on the collation peerset.
-	SendCollationMessage([PeerId], CollationProtocolV1),
-	/// Send multiple validation messages.
-	SendValidationMessages([([PeerId, ValidationProtocolV1])]),
-	/// Send multiple collation messages.
-	SendCollationMessages([([PeerId, ValidationProtocolV1])]),
-	/// Connect to peers who represent the given `validator_ids`.
-	///
-	/// Also ask the network to stay connected to these peers at least
-	/// until the request is revoked.
-	/// This can be done by dropping the receiver.
-	ConnectToValidators {
-		/// Ids of the validators to connect to.
-		validator_ids: Vec<AuthorityDiscoveryId>,
-		/// Response sender by which the issuer can learn the `PeerId`s of
-		/// the validators as they are connected.
-		/// The response is sent immediately for already connected peers.
-		connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
-	},
+    /// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
+    ReportPeer(PeerSet, PeerId, cost_benefit: i32),
+    /// Send a message to one or more peers on the validation peerset.
+    SendValidationMessage([PeerId], ValidationProtocolV1),
+    /// Send a message to one or more peers on the collation peerset.
+    SendCollationMessage([PeerId], ValidationProtocolV1),
+    /// Send multiple validation messages.
+    SendValidationMessages([([PeerId, ValidationProtocolV1])]),
+    /// Send multiple collation messages.
+    SendCollationMessages([([PeerId, ValidationProtocolV1])]),
+    /// Connect to peers who represent the given `validator_ids`.
+    ///
+    /// Also ask the network to stay connected to these peers at least
+    /// until the request is revoked.
+    /// This can be done by dropping the receiver.
+    ConnectToValidators {
+        /// Ids of the validators to connect to.
+        validator_ids: Vec<AuthorityDiscoveryId>,
+        /// The underlying protocol to use for this request.
+        peer_set: PeerSet,
+        /// Response sender by which the issuer can learn the `PeerId`s of
+        /// the validators as they are connected.
+        /// The response is sent immediately for already connected peers.
+        connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
+    },
 }
 ```
 
 ## Misbehavior Report
 
 ```rust
-enum MisbehaviorReport {
-  /// These validator nodes disagree on this candidate's validity, please figure it out
-  ///
-  /// Most likely, the list of statments all agree except for the final one. That's not
-  /// guaranteed, though; if somehow we become aware of lots of
-  /// statements disagreeing about the validity of a candidate before taking action,
-  /// this message should be dispatched with all of them, in arbitrary order.
-  ///
-  /// This variant is also used when our own validity checks disagree with others'.
-  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
-  /// I've noticed a peer contradicting itself about a particular candidate
-  SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
-  /// This peer has seconded more than one parachain candidate for this relay parent head
-  DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
+pub type Misbehavior = generic::Misbehavior<
+    CommittedCandidateReceipt,
+    CandidateHash,
+    ValidatorIndex,
+    ValidatorSignature,
+>;
+
+mod generic {
+    /// Misbehavior: voting more than one way on candidate validity.
+    ///
+    /// Since there are three possible ways to vote, a double vote is possible in
+    /// three possible combinations (unordered)
+    pub enum ValidityDoubleVote<Candidate, Digest, Signature> {
+        /// Implicit vote by issuing and explicitly voting validity.
+        IssuedAndValidity((Candidate, Signature), (Digest, Signature)),
+        /// Implicit vote by issuing and explicitly voting invalidity
+        IssuedAndInvalidity((Candidate, Signature), (Digest, Signature)),
+        /// Direct votes for validity and invalidity
+        ValidityAndInvalidity(Candidate, Signature, Signature),
+    }
+
+    /// Misbehavior: multiple signatures on same statement.
+    pub enum DoubleSign<Candidate, Digest, Signature> {
+        /// On candidate.
+        Candidate(Candidate, Signature, Signature),
+        /// On validity.
+        Validity(Digest, Signature, Signature),
+        /// On invalidity.
+        Invalidity(Digest, Signature, Signature),
+    }
+
+    /// Misbehavior: declaring multiple candidates.
+    pub struct MultipleCandidates<Candidate, Signature> {
+        /// The first candidate seen.
+        pub first: (Candidate, Signature),
+        /// The second candidate seen.
+        pub second: (Candidate, Signature),
+    }
+
+    /// Misbehavior: submitted statement for wrong group.
+    pub struct UnauthorizedStatement<Candidate, Digest, AuthorityId, Signature> {
+        /// A signed statement which was submitted without proper authority.
+        pub statement: SignedStatement<Candidate, Digest, AuthorityId, Signature>,
+    }
+
+    pub enum Misbehavior<Candidate, Digest, AuthorityId, Signature> {
+        /// Voted invalid and valid on validity.
+        ValidityDoubleVote(ValidityDoubleVote<Candidate, Digest, Signature>),
+        /// Submitted multiple candidates.
+        MultipleCandidates(MultipleCandidates<Candidate, Signature>),
+        /// Submitted a message that was unauthorized.
+        UnauthorizedStatement(UnauthorizedStatement<Candidate, Digest, AuthorityId, Signature>),
+        /// Submitted two valid signatures for the same message.
+        DoubleSign(DoubleSign<Candidate, Digest, Signature>),
+    }
 }
 ```
-
-If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
 
 ## PoV Distribution Message
 
@@ -369,16 +422,16 @@ This is a network protocol that receives messages of type [`PoVDistributionV1Mes
 
 ```rust
 enum PoVDistributionMessage {
-	/// Fetch a PoV from the network.
-	///
-	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
-	/// relay-parent hash.
-	FetchPoV(Hash, CandidateDescriptor, ResponseChannel<PoV>),
-	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
-	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
-	DistributePoV(Hash, CandidateDescriptor, PoV),
-	/// An update from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<PoVDistributionV1Message>),
+    /// Fetch a PoV from the network.
+    ///
+    /// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
+    /// relay-parent hash.
+    FetchPoV(Hash, CandidateDescriptor, ResponseChannel<PoV>),
+    /// Distribute a PoV for the given relay-parent and CandidateDescriptor.
+    /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
+    DistributePoV(Hash, CandidateDescriptor, PoV),
+    /// An update from the network bridge.
+    NetworkBridgeUpdateV1(NetworkBridgeEvent<PoVDistributionV1Message>),
 }
 ```
 
@@ -397,24 +450,18 @@ enum ProvisionableData {
   Dispute(Hash, Signature),
 }
 
-/// This data needs to make its way from the provisioner into the InherentData.
-///
-/// There, it is used to construct the InclusionInherent.
-type ProvisionerInherentData = (SignedAvailabilityBitfields, Vec<BackedCandidate>);
-
 /// Message to the Provisioner.
 ///
 /// In all cases, the Hash is that of the relay parent.
 enum ProvisionerMessage {
-  /// This message allows potential block authors to be kept updated with all new authorship data
-  /// as it becomes available.
-  RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
-  /// This message allows external subsystems to request the set of bitfields and backed candidates
-  /// associated with a particular potential block hash.
+  /// This message allows external subsystems to request current inherent data that could be used for
+  /// advancing the state of parachain consensus in a block building upon the given hash.
+  ///
+  /// If called at different points in time, this may give different results.
   ///
   /// This is expected to be used by a proposer, to inject that information into the InherentData
-  /// where it can be assembled into the InclusionInherent.
-  RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
+  /// where it can be assembled into the ParaInherent.
+  RequestInherentData(Hash, oneshot::Sender<ParaInherentData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),
 }
@@ -430,54 +477,50 @@ This is fueled by an auxiliary type encapsulating all request types defined in t
 
 ```rust
 enum RuntimeApiRequest {
-	/// Get the current validator set.
-	Validators(ResponseChannel<Vec<ValidatorId>>),
-	/// Get the validator groups and rotation info.
-	ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
-	/// Get information about all availability cores.
-	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
-	/// with the given occupied core assumption.
-	PersistedValidationData(
-		ParaId,
-		OccupiedCoreAssumption,
-		ResponseChannel<Option<PersistedValidationData>>,
-	),
-	/// Get the full validation data for a specific para, with the given occupied core assumption.
-	FullValidationData(
-		ParaId,
-		OccupiedCoreAssumption,
-		ResponseChannel<Option<ValidationData>>,
-	),
-	/// Sends back `true` if the commitments pass all acceptance criteria checks.
-	CheckValidationOutputs(
-		ParaId,
-		CandidateCommitments,
-		RuntimeApiSender<bool>,
-	),
-	/// Get the session index for children of the block. This can be used to construct a signing
-	/// context.
-	SessionIndexForChild(ResponseChannel<SessionIndex>),
-	/// Get the validation code for a specific para, using the given occupied core assumption.
-	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Fetch the historical validation code used by a para for candidates executed in
-	/// the context of a given block height in the current chain.
-	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
-	/// Get a committed candidate receipt for all candidates pending availability.
-	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
-	/// Get all events concerning candidates in the last block.
-	CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
-	/// Get the session info for the given session, if stored.
-	SessionInfo(SessionIndex, ResponseChannel<Option<SessionInfo>>),
-	/// Get all the pending inbound messages in the downward message queue for a para.
-	DmqContents(ParaId, ResponseChannel<Vec<InboundDownwardMessage<BlockNumber>>>),
-	/// Get the contents of all channels addressed to the given recipient. Channels that have no
-	/// messages in them are also included.
-	InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
+    /// Get the current validator set.
+    Validators(ResponseChannel<Vec<ValidatorId>>),
+    /// Get the validator groups and rotation info.
+    ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
+    /// Get information about all availability cores.
+    AvailabilityCores(ResponseChannel<Vec<CoreState>>),
+    /// with the given occupied core assumption.
+    PersistedValidationData(
+        ParaId,
+        OccupiedCoreAssumption,
+        ResponseChannel<Option<PersistedValidationData>>,
+    ),
+    /// Sends back `true` if the commitments pass all acceptance criteria checks.
+    CheckValidationOutputs(
+        ParaId,
+        CandidateCommitments,
+        RuntimeApiSender<bool>,
+    ),
+    /// Get the session index for children of the block. This can be used to construct a signing
+    /// context.
+    SessionIndexForChild(ResponseChannel<SessionIndex>),
+    /// Get the validation code for a specific para, using the given occupied core assumption.
+    ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
+    /// Fetch the historical validation code used by a para for candidates executed in
+    /// the context of a given block height in the current chain.
+    HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
+    /// Get a committed candidate receipt for all candidates pending availability.
+    CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
+    /// Get all events concerning candidates in the last block.
+    CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
+    /// Get the session info for the given session, if stored.
+    SessionInfo(SessionIndex, ResponseChannel<Option<SessionInfo>>),
+    /// Get all the pending inbound messages in the downward message queue for a para.
+    DmqContents(ParaId, ResponseChannel<Vec<InboundDownwardMessage<BlockNumber>>>),
+    /// Get the contents of all channels addressed to the given recipient. Channels that have no
+    /// messages in them are also included.
+    InboundHrmpChannelsContents(ParaId, ResponseChannel<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>),
+    /// Get information about the BABE epoch this block was produced in.
+    BabeEpoch(ResponseChannel<BabeEpoch>),
 }
 
 enum RuntimeApiMessage {
-	/// Make a request of the runtime API against the post-state of the given relay-parent.
-	Request(Hash, RuntimeApiRequest),
+    /// Make a request of the runtime API against the post-state of the given relay-parent.
+    Request(Hash, RuntimeApiRequest),
 }
 ```
 
@@ -490,16 +533,14 @@ This is a network protocol that receives messages of type [`StatementDistributio
 
 ```rust
 enum StatementDistributionMessage {
-	/// An update from the network bridge.
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<StatementDistributionV1Message>),
-	/// We have validated a candidate and want to share our judgment with our peers.
-	/// The hash is the relay parent.
-	///
-	/// The statement distribution subsystem assumes that the statement should be correctly
-	/// signed.
-	Share(Hash, SignedFullStatement),
-	/// Register a listener to be notified on any new statements.
-	RegisterStatementListener(ResponseChannel<SignedFullStatement>),
+    /// An update from the network bridge.
+    NetworkBridgeUpdateV1(NetworkBridgeEvent<StatementDistributionV1Message>),
+    /// We have validated a candidate and want to share our judgment with our peers.
+    /// The hash is the relay parent.
+    ///
+    /// The statement distribution subsystem assumes that the statement should be correctly
+    /// signed.
+    Share(Hash, SignedFullStatement),
 }
 ```
 
@@ -511,11 +552,11 @@ Various modules request that the [Candidate Validation subsystem](../node/utilit
 
 /// Result of the validation of the candidate.
 enum ValidationResult {
-	/// Candidate is valid, and here are the outputs and the validation data used to form inputs.
-	/// In practice, this should be a shared type so that validation caching can be done.
-	Valid(CandidateCommitments, PersistedValidationData),
-	/// Candidate is invalid.
-	Invalid,
+    /// Candidate is valid, and here are the outputs and the validation data used to form inputs.
+    /// In practice, this should be a shared type so that validation caching can be done.
+    Valid(CandidateCommitments, PersistedValidationData),
+    /// Candidate is invalid.
+    Invalid,
 }
 
 /// Messages received by the Validation subsystem.
@@ -527,37 +568,37 @@ enum ValidationResult {
 /// or `Ok(ValidationResult::Invalid)`.
 #[derive(Debug)]
 pub enum CandidateValidationMessage {
-	/// Validate a candidate with provided parameters using relay-chain state.
-	///
-	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
-	/// from the runtime API of the chain, based on the `relay_parent`
-	/// of the `CandidateDescriptor`.
-	///
-	/// This will also perform checking of validation outputs against the acceptance criteria.
-	///
-	/// If there is no state available which can provide this data or the core for
-	/// the para is not free at the relay-parent, an error is returned.
-	ValidateFromChainState(
-		CandidateDescriptor,
-		Arc<PoV>,
-		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-	),
-	/// Validate a candidate with provided, exhaustive parameters for validation.
-	///
-	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
-	/// validation without needing to access the state of the relay-chain.
-	///
-	/// This request doesn't involve acceptance criteria checking, therefore only useful for the
-	/// cases where the validity of the candidate is established. This is the case for the typical
-	/// use-case: secondary checkers would use this request relying on the full prior checks
-	/// performed by the relay-chain.
-	ValidateFromExhaustive(
-		PersistedValidationData,
-		ValidationCode,
-		CandidateDescriptor,
-		Arc<PoV>,
-		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-	),
+    /// Validate a candidate with provided parameters using relay-chain state.
+    ///
+    /// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
+    /// from the runtime API of the chain, based on the `relay_parent`
+    /// of the `CandidateDescriptor`.
+    ///
+    /// This will also perform checking of validation outputs against the acceptance criteria.
+    ///
+    /// If there is no state available which can provide this data or the core for
+    /// the para is not free at the relay-parent, an error is returned.
+    ValidateFromChainState(
+        CandidateDescriptor,
+        Arc<PoV>,
+        oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+    ),
+    /// Validate a candidate with provided, exhaustive parameters for validation.
+    ///
+    /// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
+    /// validation without needing to access the state of the relay-chain.
+    ///
+    /// This request doesn't involve acceptance criteria checking, therefore only useful for the
+    /// cases where the validity of the candidate is established. This is the case for the typical
+    /// use-case: secondary checkers would use this request relying on the full prior checks
+    /// performed by the relay-chain.
+    ValidateFromExhaustive(
+        PersistedValidationData,
+        ValidationCode,
+        CandidateDescriptor,
+        Arc<PoV>,
+        oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+    ),
 }
 ```
 

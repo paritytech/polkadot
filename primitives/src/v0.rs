@@ -26,6 +26,8 @@ use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
+#[cfg(feature = "std")]
+use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 
 #[cfg(feature = "std")]
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
@@ -60,12 +62,32 @@ mod collator_app {
 /// Identity that collators use.
 pub type CollatorId = collator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// A Parachain collator keypair.
 #[cfg(feature = "std")]
 pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
 pub type CollatorSignature = collator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// The key type ID for a parachain validator key.
 pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
@@ -81,8 +103,27 @@ mod validator_app {
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = validator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-pub type ValidatorIndex = u32;
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash, MallocSizeOf))]
+pub struct ValidatorIndex(pub u32);
+
+// We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
+impl From<u32> for ValidatorIndex {
+	fn from(n: u32) -> Self {
+		ValidatorIndex(n)
+	}
+}
 
 application_crypto::with_pair! {
 	/// A Parachain validator keypair.
@@ -94,6 +135,16 @@ application_crypto::with_pair! {
 /// For now we assert that parachain validator set is exactly equivalent to the authority set, and
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// Retriability for a given active para.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
@@ -615,41 +666,79 @@ pub struct AvailableData {
 }
 
 /// A chunk of erasure-encoded block data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash))]
 pub struct ErasureChunk {
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
 	/// The index of this erasure-encoded chunk of data.
-	pub index: u32,
+	pub index: ValidatorIndex,
 	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }
 
+const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
+
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
-	#[codec(index = "1")]
-	Candidate(CandidateHash),
+	Seconded(CandidateHash),
 	/// State that a parachain candidate is valid.
-	#[codec(index = "2")]
 	Valid(CandidateHash),
-	/// State that a parachain candidate is invalid.
-	#[codec(index = "3")]
-	Invalid(CandidateHash),
+}
+
+// Inner helper for codec on `CompactStatement`.
+#[derive(Encode, Decode)]
+enum CompactStatementInner {
+	#[codec(index = 1)]
+	Seconded(CandidateHash),
+	#[codec(index = 2)]
+	Valid(CandidateHash),
+}
+
+impl From<CompactStatement> for CompactStatementInner {
+	fn from(s: CompactStatement) -> Self {
+		match s {
+			CompactStatement::Seconded(h) => CompactStatementInner::Seconded(h),
+			CompactStatement::Valid(h) => CompactStatementInner::Valid(h),
+		}
+	}
+}
+
+impl parity_scale_codec::Encode for CompactStatement {
+	fn size_hint(&self) -> usize {
+		// magic + discriminant + payload
+		4 + 1 + 32
+	}
+
+	fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+		dest.write(&BACKING_STATEMENT_MAGIC);
+		CompactStatementInner::from(self.clone()).encode_to(dest)
+	}
+}
+
+impl parity_scale_codec::Decode for CompactStatement {
+	fn decode<I: parity_scale_codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+		let maybe_magic = <[u8; 4]>::decode(input)?;
+		if maybe_magic != BACKING_STATEMENT_MAGIC {
+			return Err(parity_scale_codec::Error::from("invalid magic string"));
+		}
+
+		Ok(match CompactStatementInner::decode(input)? {
+			CompactStatementInner::Seconded(h) => CompactStatement::Seconded(h),
+			CompactStatementInner::Valid(h) => CompactStatement::Valid(h),
+		})
+	}
 }
 
 impl CompactStatement {
 	/// Get the underlying candidate hash this references.
 	pub fn candidate_hash(&self) -> &CandidateHash {
 		match *self {
-			CompactStatement::Candidate(ref h)
-				| CompactStatement::Valid(ref h)
-				| CompactStatement::Invalid(ref h)
-				=> h
+			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
 		}
 	}
 }
@@ -663,11 +752,11 @@ pub type SignedStatement = Signed<CompactStatement>;
 pub enum ValidityAttestation {
 	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Implicit(ValidatorSignature),
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Explicit(ValidatorSignature),
 }
 
@@ -689,7 +778,7 @@ impl ValidityAttestation {
 	) -> Vec<u8> {
 		match *self {
 			ValidityAttestation::Implicit(_) => (
-				CompactStatement::Candidate(candidate_hash),
+				CompactStatement::Seconded(candidate_hash),
 				signing_context,
 			).encode(),
 			ValidityAttestation::Explicit(_) => (
@@ -873,20 +962,26 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
 		key: &ValidatorId,
-	) -> Result<Self, KeystoreError> {
+	) -> Result<Option<Self>, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
-		let signature: ValidatorSignature = CryptoStore::sign_with(
+		let signature = CryptoStore::sign_with(
 			&**keystore,
 			ValidatorId::ID,
 			&key.into(),
 			&data,
-		).await?.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?;
-		Ok(Self {
+		).await?;
+
+		let signature = match signature {
+			Some(sig) => sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
+			None => return Ok(None),
+		};
+
+		Ok(Some(Self {
 			payload,
 			validator_index,
 			signature,
 			real_payload: std::marker::PhantomData,
-		})
+		}))
 	}
 
 	/// Validate the payload given the context and public key.
@@ -920,6 +1015,16 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	#[inline]
 	pub fn into_payload(self) -> Payload {
 		self.payload
+	}
+
+	/// Convert `Payload` into `RealPayload`.
+	pub fn convert_payload(&self) -> Signed<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
+		Signed {
+			signature: self.signature.clone(),
+			validator_index: self.validator_index,
+			payload: self.payload().into(),
+			real_payload: sp_std::marker::PhantomData,
+		}
 	}
 }
 

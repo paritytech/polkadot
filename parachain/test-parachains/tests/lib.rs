@@ -24,7 +24,7 @@ use parachain::wasm_executor::run_worker;
 // It then passes "validation_worker" on CLI effectivly making rust test executor to run this single test.
 #[test]
 fn validation_worker() {
-	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_rs_")) {
-		run_worker(&id).unwrap()
+	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_")) {
+		run_worker(&id, None).unwrap()
 	}
 }

@@ -19,6 +19,9 @@ enum ObservedRole {
 	Full,
 	Light,
 }
+
+/// SCALE and zstd encoded `PoV`.
+struct CompressedPoV(Vec<u8>);
 ```
 
 ## V1 Network Subsystem Message Types
@@ -55,6 +58,12 @@ enum AvailabilityRecoveryV1Message {
 	/// Respond with chunk for a given candidate hash and validator index.
 	/// The response may be `None` if the requestee does not have the chunk.
 	Chunk(RequestId, Option<ErasureChunk>),
+	/// Request the full data for a given candidate hash.
+	RequestFullData(RequestId, CandidateHash),
+	/// Respond with data for a given candidate hash and validator index.
+	/// The response may be `None` if the requestee does not have the data.
+	FullData(RequestId, Option<AvailableData>),
+
 }
 ```
 
@@ -75,8 +84,8 @@ enum PoVDistributionV1Message {
 	/// specific relay-parent hash.
 	Awaiting(Hash, Vec<Hash>),
 	/// Notification of an awaited PoV, in a given relay-parent context.
-	/// (relay_parent, pov_hash, pov)
-	SendPoV(Hash, Hash, PoV),
+	/// (relay_parent, pov_hash, compressed_pov)
+	SendPoV(Hash, Hash, CompressedPoV),
 }
 ```
 
@@ -101,7 +110,9 @@ enum CollatorProtocolV1Message {
 	/// Request the advertised collation at that relay-parent.
 	RequestCollation(RequestId, Hash, ParaId),
 	/// A requested collation.
-	Collation(RequestId, CandidateReceipt, PoV),
+	Collation(RequestId, CandidateReceipt, CompressedPoV),
+	/// A collation sent to a validator was seconded.
+	CollationSeconded(SignedFullStatement),
 }
 ```
 

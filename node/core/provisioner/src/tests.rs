@@ -63,7 +63,7 @@ mod select_availability_bitfields {
 			&<SigningContext<Hash>>::default(),
 			validator_idx,
 			&public.into(),
-		).await.expect("Should be signed")
+		).await.ok().flatten().expect("Should be signed")
 	}
 
 	#[test]
@@ -78,9 +78,9 @@ mod select_availability_bitfields {
 		// we pass in three bitfields with two validators
 		// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 0)),
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 1)),
-			block_on(signed_bitfield(&keystore, bitvec, 1)),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
 		];
 
 		let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -116,9 +116,9 @@ mod select_availability_bitfields {
 		];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec0, 0)),
-			block_on(signed_bitfield(&keystore, bitvec1, 1)),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
+			block_on(signed_bitfield(&keystore, bitvec0, ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec1, ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -140,8 +140,8 @@ mod select_availability_bitfields {
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec, 1)),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -174,11 +174,11 @@ mod select_availability_bitfields {
 		// these are out of order but will be selected in order. The better
 		// bitfield for 3 will be selected.
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 3)),
-			block_on(signed_bitfield(&keystore, bitvec3.clone(), 3)),
-			block_on(signed_bitfield(&keystore, bitvec0.clone(), 0)),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(3))),
+			block_on(signed_bitfield(&keystore, bitvec3.clone(), ValidatorIndex(3))),
+			block_on(signed_bitfield(&keystore, bitvec0.clone(), ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -406,6 +406,65 @@ mod select_candidates {
 			.iter()
 			.map(|c| BackedCandidate {
 				candidate: CommittedCandidateReceipt { descriptor: c.descriptor.clone(), ..Default::default() },
+				validity_votes: Vec::new(),
+				validator_indices: default_bitvec(n_cores),
+			})
+			.collect();
+
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+			let result =
+				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
+					.await.unwrap();
+
+			result.into_iter()
+				.for_each(|c|
+					assert!(
+						expected_candidates.iter().any(|c2| c.candidate.corresponds_to(c2)),
+						"Failed to find candidate: {:?}",
+						c,
+					)
+				);
+		})
+	}
+
+	#[test]
+	fn selects_max_one_code_upgrade() {
+		let mock_cores = mock_availability_cores();
+		let n_cores = mock_cores.len();
+
+		let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
+
+		// why those particular indices? see the comments on mock_availability_cores()
+		// the first candidate with code is included out of [1, 4, 7, 8, 10].
+		let cores = [1, 7, 10];
+		let cores_with_code = [1, 4, 8];
+
+		let committed_receipts: Vec<_> = (0..mock_cores.len())
+			.map(|i| CommittedCandidateReceipt {
+				descriptor: CandidateDescriptor {
+					para_id: i.into(),
+					persisted_validation_data_hash: empty_hash,
+					..Default::default()
+				},
+				commitments: CandidateCommitments {
+					new_validation_code: if cores_with_code.contains(&i) { Some(vec![].into()) } else { None },
+					..Default::default()
+				},
+				..Default::default()
+			})
+			.collect();
+
+		let candidates: Vec<_> = committed_receipts.iter().map(|r| r.to_plain()).collect();
+
+		let expected_candidates: Vec<_> = cores
+			.iter()
+			.map(|&idx| candidates[idx].clone())
+			.collect();
+
+		let expected_backed: Vec<_> = cores
+			.iter()
+			.map(|&idx| BackedCandidate {
+				candidate: committed_receipts[idx].clone(),
 				validity_votes: Vec::new(),
 				validator_indices: default_bitvec(n_cores),
 			})

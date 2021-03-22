@@ -1,6 +1,6 @@
 [package]
 name = "test-parachain-adder"
-version = "0.8.27"
+version = "0.8.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test parachain which adds to a number as its state transition"
 edition = "2018"
@@ -8,7 +8,7 @@ build = "build.rs"
 
 [dependencies]
 parachain = { package = "polkadot-parachain", path = "../../", default-features = false, features = [ "wasm-api" ] }
-parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 dlmalloc = { version = "0.2.1", features = [ "global" ] }

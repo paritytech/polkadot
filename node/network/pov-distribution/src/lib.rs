@@ -22,14 +22,13 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{
-	Hash, PoV, CandidateDescriptor, ValidatorId, Id as ParaId, CoreIndex, CoreState,
-};
+use polkadot_primitives::v1::{CandidateDescriptor, CompressedPoV, CoreIndex, CoreState, Hash, Id as ParaId, PoV, ValidatorId};
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, SubsystemResult, SubsystemError, Subsystem,
 	FromOverseer, SpawnedSubsystem,
+	jaeger,
 	messages::{
-		PoVDistributionMessage, AllMessages, NetworkBridgeMessage,
+		PoVDistributionMessage, AllMessages, NetworkBridgeMessage, NetworkBridgeEvent,
 	},
 };
 use polkadot_node_subsystem_util::{
@@ -40,7 +39,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, OurView,
+	peer_set::PeerSet, v1 as protocol_v1, PeerId, OurView, UnifiedReputationChange as Rep,
 };
 
 use futures::prelude::*;
@@ -54,16 +53,16 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
-const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
+const COST_APPARENT_FLOOD: Rep = Rep::CostMajor("Peer appears to be flooding us with PoV requests");
+const COST_UNEXPECTED_POV: Rep = Rep::CostMajor("Peer sent us an unexpected PoV");
 const COST_AWAITED_NOT_IN_VIEW: Rep
-	= Rep::new(-100, "Peer claims to be awaiting something outside of its view");
+	= Rep::CostMinor("Peer claims to be awaiting something outside of its view");
 
-const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited PoV");
-const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
+const BENEFIT_FRESH_POV: Rep = Rep::BenefitMinorFirst("Peer supplied us with an awaited PoV");
+const BENEFIT_LATE_POV: Rep = Rep::BenefitMinor("Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
-const LOG_TARGET: &str = "pov_distribution";
+const LOG_TARGET: &str = "parachain::pov-distribution";
 
 /// The PoV Distribution Subsystem.
 pub struct PoVDistribution {
@@ -106,7 +105,7 @@ struct State {
 }
 
 struct BlockBasedState {
-	known: HashMap<Hash, Arc<PoV>>,
+	known: HashMap<Hash, (Arc<PoV>, CompressedPoV)>,
 
 	/// All the PoVs we are or were fetching, coupled with channels expecting the data.
 	///
@@ -131,11 +130,13 @@ fn awaiting_message(relay_parent: Hash, awaiting: Vec<Hash>)
 	)
 }
 
-fn send_pov_message(relay_parent: Hash, pov_hash: Hash, pov: PoV)
-	-> protocol_v1::ValidationProtocol
-{
+fn send_pov_message(
+	relay_parent: Hash,
+	pov_hash: Hash,
+	pov: &CompressedPoV,
+) -> protocol_v1::ValidationProtocol {
 	protocol_v1::ValidationProtocol::PoVDistribution(
-		protocol_v1::PoVDistributionMessage::SendPoV(relay_parent, pov_hash, pov)
+		protocol_v1::PoVDistributionMessage::SendPoV(relay_parent, pov_hash, pov.clone())
 	)
 }
 
@@ -152,7 +153,10 @@ async fn handle_signal(
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 			let _timer = state.metrics.time_handle_signal();
 
-			for (relay_parent, _span) in activated {
+			for (relay_parent, span) in activated {
+				let _span = span.child("pov-dist")
+					.with_stage(jaeger::Stage::PoVDistribution);
+
 				match request_validators_ctx(relay_parent, ctx).await {
 					Ok(vals_rx) => {
 						let n_validators = match vals_rx.await? {
@@ -191,7 +195,7 @@ async fn handle_signal(
 			}
 
 			for relay_parent in deactivated {
-				state.connection_requests.remove(&relay_parent);
+				state.connection_requests.remove_all(&relay_parent);
 				state.relay_parent_state.remove(&relay_parent);
 			}
 
@@ -267,7 +271,7 @@ async fn distribute_to_awaiting(
 	metrics: &Metrics,
 	relay_parent: Hash,
 	pov_hash: Hash,
-	pov: &PoV,
+	pov: &CompressedPoV,
 ) {
 	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
 	//
@@ -284,7 +288,7 @@ async fn distribute_to_awaiting(
 
 	if peers_to_send.is_empty() { return; }
 
-	let payload = send_pov_message(relay_parent, pov_hash, pov.clone());
+	let payload = send_pov_message(relay_parent, pov_hash, pov);
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
@@ -292,6 +296,43 @@ async fn distribute_to_awaiting(
 	))).await;
 
 	metrics.on_pov_distributed();
+}
+
+/// Connect to relevant validators in case we are not already.
+async fn connect_to_relevant_validators(
+	connection_requests: &mut validator_discovery::ConnectionRequests,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	relay_parent: Hash,
+	descriptor: &CandidateDescriptor,
+) {
+	let para_id = descriptor.para_id;
+	if let Ok(Some(relevant_validators)) =
+		determine_relevant_validators(ctx, relay_parent, para_id).await
+	{
+		// We only need one connection request per (relay_parent, para_id)
+		// so here we take this shortcut to avoid calling `connect_to_validators`
+		// more than once.
+		if !connection_requests.contains_request(&relay_parent, para_id) {
+			tracing::debug!(target: LOG_TARGET, validators=?relevant_validators, "connecting to validators");
+			match validator_discovery::connect_to_validators(
+				ctx,
+				relay_parent,
+				relevant_validators,
+				PeerSet::Validation,
+			).await {
+				Ok(new_connection_request) => {
+					connection_requests.put(relay_parent, para_id, new_connection_request);
+				}
+				Err(e) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Failed to create a validator connection request {:?}",
+						e,
+					);
+				}
+			}
+		}
+	}
 }
 
 /// Get the Id of the Core that is assigned to the para being collated on if any
@@ -334,7 +375,7 @@ async fn determine_validators_for_core(
 
 	let validators = connect_to_validators
 		.into_iter()
-		.map(|idx| validators[idx as usize].clone())
+		.map(|idx| validators[idx.0 as usize].clone())
 		.collect();
 
 	Ok(Some(validators))
@@ -379,7 +420,7 @@ async fn handle_fetch(
 		None => return,
 	};
 
-	if let Some(pov) = relay_parent_state.known.get(&descriptor.pov_hash) {
+	if let Some((pov, _)) = relay_parent_state.known.get(&descriptor.pov_hash) {
 		let _  = response_sender.send(pov.clone());
 		return;
 	}
@@ -392,35 +433,8 @@ async fn handle_fetch(
 				return;
 			}
 			Entry::Vacant(e) => {
-				if let Ok(Some(relevant_validators)) = determine_relevant_validators(
-					ctx,
-					relay_parent,
-					descriptor.para_id,
-				).await {
-					// We only need one connection request per (relay_parent, para_id)
-					// so here we take this shortcut to avoid calling `connect_to_validators`
-					// more than once.
-					if !state.connection_requests.contains_request(&relay_parent) {
-						match validator_discovery::connect_to_validators(
-							ctx,
-							relay_parent,
-							relevant_validators.clone(),
-						).await {
-							Ok(new_connection_request) => {
-								state.connection_requests.put(relay_parent, new_connection_request);
-							}
-							Err(e) => {
-								tracing::debug!(
-									target: LOG_TARGET,
-									"Failed to create a validator connection request {:?}",
-									e,
-								);
-							}
-						}
-					}
-
-					e.insert(vec![response_sender]);
-				}
+				connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await;
+				e.insert(vec![response_sender]);
 			}
 		}
 	}
@@ -458,6 +472,8 @@ async fn handle_distribute(
 		None => return,
 	};
 
+	connect_to_relevant_validators(&mut state.connection_requests, ctx, relay_parent, &descriptor).await;
+
 	if let Some(our_awaited) = relay_parent_state.fetching.get_mut(&descriptor.pov_hash) {
 		// Drain all the senders, but keep the entry in the map around intentionally.
 		//
@@ -468,7 +484,17 @@ async fn handle_distribute(
 		}
 	}
 
-	relay_parent_state.known.insert(descriptor.pov_hash, pov.clone());
+	let encoded_pov = match CompressedPoV::compress(&*pov) {
+		Ok(pov) => pov,
+		Err(error) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				error = ?error,
+				"Failed to create `CompressedPov`."
+			);
+			return
+		}
+	};
 
 	distribute_to_awaiting(
 		&mut state.peer_state,
@@ -476,8 +502,10 @@ async fn handle_distribute(
 		&state.metrics,
 		relay_parent,
 		descriptor.pov_hash,
-		&*pov,
-	).await
+		&encoded_pov,
+	).await;
+
+	relay_parent_state.known.insert(descriptor.pov_hash, (pov, encoded_pov));
 }
 
 /// Report a reputation change for a peer.
@@ -527,8 +555,9 @@ async fn handle_awaiting(
 		for pov_hash in pov_hashes {
 			// For all requested PoV hashes, if we have it, we complete the request immediately.
 			// Otherwise, we note that the peer is awaiting the PoV.
-			if let Some(pov) = relay_parent_state.known.get(&pov_hash) {
-				let payload = send_pov_message(relay_parent, pov_hash, (&**pov).clone());
+			if let Some((_, ref pov)) = relay_parent_state.known.get(&pov_hash) {
+				let payload = send_pov_message(relay_parent, pov_hash, pov);
+
 				ctx.send_message(AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
 				)).await;
@@ -544,21 +573,33 @@ async fn handle_awaiting(
 /// Handle an incoming PoV from our peer. Reports them if unexpected, rewards them if not.
 ///
 /// Completes any requests awaiting that PoV.
-#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state, encoded_pov), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_pov(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hash: Hash,
-	pov: PoV,
+	encoded_pov: CompressedPoV,
 ) {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
-		None =>	{
+		None => {
 			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
 			return;
 		},
 		Some(r) => r,
+	};
+
+	let pov = match encoded_pov.decompress() {
+		Ok(pov) => pov,
+		Err(error) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				error = ?error,
+				"Could not extract PoV",
+			);
+			return;
+		}
 	};
 
 	let pov = {
@@ -607,11 +648,13 @@ async fn handle_incoming_pov(
 		&state.metrics,
 		relay_parent,
 		pov_hash,
-		&*pov,
-	).await
+		&encoded_pov,
+	).await;
+
+	relay_parent_state.known.insert(pov_hash, (pov, encoded_pov));
 }
 
-/// Handles a newly connected validator in the context of some relay leaf.
+/// Handles a newly or already connected validator in the context of some relay leaf.
 fn handle_validator_connected(state: &mut State, peer_id: PeerId) {
 	state.peer_state.entry(peer_id).or_default();
 }
@@ -638,7 +681,7 @@ async fn handle_network_update(
 				peer_state.awaited.retain(|relay_parent, _| view.contains(&relay_parent));
 
 				// introduce things from the new view.
-				for relay_parent in view.heads.iter() {
+				for relay_parent in view.iter() {
 					if let Entry::Vacant(entry) = peer_state.awaited.entry(*relay_parent) {
 						entry.insert(HashSet::new());
 
@@ -690,9 +733,16 @@ impl PoVDistribution {
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run(
 		self,
-		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
+		ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
 	) -> SubsystemResult<()> {
-		let mut state = State::default();
+		self.run_with_state(ctx, State::default()).await
+	}
+
+	async fn run_with_state(
+		self,
+		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
+		mut state: State,
+	) -> SubsystemResult<()> {
 		state.metrics = self.metrics;
 
 		loop {

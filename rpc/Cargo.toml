@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-rpc"
-version = "0.8.27"
+version = "0.8.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -26,5 +26,5 @@ sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = 
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master"  }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-parity-scale-codec = { version = "1.3.6", default-features = false }
+parity-scale-codec = { version = "2.0.0", default-features = false }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }

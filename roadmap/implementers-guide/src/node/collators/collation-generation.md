@@ -32,8 +32,28 @@ pub struct Collation {
   pub proof_of_validity: PoV,
 }
 
-type CollatorFn = Box<
-  dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>>>>
+/// Result of the [`CollatorFn`] invocation.
+pub struct CollationResult {
+	/// The collation that was build.
+	collation: Collation,
+	/// An optional result sender that should be informed about a successfully seconded collation.
+	///
+	/// There is no guarantee that this sender is informed ever about any result, it is completly okay to just drop it.
+	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
+	/// collation.
+	result_sender: Option<oneshot::Sender<SignedFullStatement>>,
+}
+
+/// Collation function.
+///
+/// Will be called with the hash of the relay chain block the parachain block should be build on and the
+/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
+///
+/// Returns an optional [`CollationResult`].
+pub type CollatorFn = Box<
+	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
+		+ Send
+		+ Sync,
 >;
 
 struct CollationGenerationConfig {

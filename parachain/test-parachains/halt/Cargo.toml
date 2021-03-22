@@ -1,6 +1,6 @@
 [package]
 name = "test-parachain-halt"
-version = "0.8.27"
+version = "0.8.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test parachain which executes forever"
 edition = "2018"

@@ -30,7 +30,7 @@ struct AssignmentCert {
 
 > TODO: RelayEquivocation cert. Probably can only be broadcast to chains that have handled an equivocation report.
 
-## IndirectAssignmentCert 
+## IndirectAssignmentCert
 
 An assignment cert which refers to the candidate under which the assignment is relevant by block hash.
 
@@ -74,7 +74,7 @@ struct IndirectSignedApprovalVote {
     // A block hash where the candidate appears.
     block_hash: Hash,
     // The index of the candidate in the list of candidates fully included as-of the block.
-    candidate_index: u32,
+    candidate_index: CandidateIndex,
     validator: ValidatorIndex,
     signature: ValidatorSignature,
 }

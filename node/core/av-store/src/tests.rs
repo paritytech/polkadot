@@ -27,10 +27,11 @@ use futures::{
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateDescriptor, CandidateReceipt, HeadData,
 	PersistedValidationData, PoV, Id as ParaId, CandidateHash, Header, ValidatorId,
+	CoreIndex, GroupIndex,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, errors::RuntimeApiError, JaegerSpan, messages::AllMessages,
+	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, messages::AllMessages,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
@@ -103,11 +104,9 @@ impl Default for TestState {
 	fn default() -> Self {
 		let persisted_validation_data = PersistedValidationData {
 			parent_head: HeadData(vec![7, 8, 9]),
-			block_number: 5,
-			hrmp_mqc_heads: Vec::new(),
-			dmq_mqc_head: Default::default(),
+			relay_parent_number: 5,
 			max_pov_size: 1024,
-			relay_storage_root: Default::default(),
+			relay_parent_storage_root: Default::default(),
 		};
 
 		let pruning_config = PruningConfig {
@@ -221,6 +220,15 @@ fn with_tx(db: &Arc<impl KeyValueDB>, f: impl FnOnce(&mut DBTransaction)) {
 	db.write(tx).unwrap();
 }
 
+fn candidate_included(receipt: CandidateReceipt) -> CandidateEvent {
+	CandidateEvent::CandidateIncluded(
+		receipt,
+		HeadData::default(),
+		CoreIndex::default(),
+		GroupIndex::default(),
+	)
+}
+
 #[test]
 fn runtime_api_error_does_not_stop_the_subsystem() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
@@ -232,7 +240,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![(new_leaf, Arc::new(JaegerSpan::Disabled))].into(),
+				activated: vec![(new_leaf, Arc::new(jaeger::Span::Disabled))].into(),
 				deactivated: vec![].into(),
 			}),
 		).await;
@@ -252,7 +260,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 		// but that's fine, we're still alive
 		let (tx, rx) = oneshot::channel();
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
-		let validator_index = 5;
+		let validator_index = ValidatorIndex(5);
 		let query_chunk = AvailabilityStoreMessage::QueryChunk(
 			candidate_hash,
 			validator_index,
@@ -273,7 +281,7 @@ fn store_chunk_works() {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let relay_parent = Hash::repeat_byte(32);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
-		let validator_index = 5;
+		let validator_index = ValidatorIndex(5);
 		let n_validators = 10;
 
 		let chunk = ErasureChunk {
@@ -325,7 +333,7 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let relay_parent = Hash::repeat_byte(32);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
-		let validator_index = 5;
+		let validator_index = ValidatorIndex(5);
 
 		let chunk = ErasureChunk {
 			chunk: vec![1, 2, 3],
@@ -364,7 +372,7 @@ fn query_chunk_checks_meta() {
 	test_harness(TestState::default(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
-		let validator_index = 5;
+		let validator_index = ValidatorIndex(5);
 		let n_validators = 10;
 
 		// Ensure an entry already exists. In reality this would come from watching
@@ -374,7 +382,7 @@ fn query_chunk_checks_meta() {
 				data_available: false,
 				chunks_stored: {
 					let mut v = bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators];
-					v.set(validator_index as usize, true);
+					v.set(validator_index.0 as usize, true);
 					v
 				},
 				state: State::Unavailable(BETimestamp(0)),
@@ -394,7 +402,7 @@ fn query_chunk_checks_meta() {
 		let (tx, rx) = oneshot::channel();
 		let query_chunk = AvailabilityStoreMessage::QueryChunkAvailability(
 			candidate_hash,
-			validator_index + 1,
+			ValidatorIndex(validator_index.0 + 1),
 			tx,
 		);
 
@@ -410,7 +418,7 @@ fn store_block_works() {
 	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
-		let validator_index = 5;
+		let validator_index = ValidatorIndex(5);
 		let n_validators = 10;
 
 		let pov = PoV {
@@ -447,7 +455,7 @@ fn store_block_works() {
 		let branch = branches.nth(5).unwrap();
 		let expected_chunk = ErasureChunk {
 			chunk: branch.1.to_vec(),
-			index: 5,
+			index: ValidatorIndex(5),
 			proof: branch.0,
 		};
 
@@ -489,10 +497,10 @@ fn store_pov_and_query_chunk_works() {
 
 		assert_eq!(rx.await.unwrap(), Ok(()));
 
-		for validator_index in 0..n_validators {
-			let chunk = query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap();
+		for i in 0..n_validators {
+			let chunk = query_chunk(&mut virtual_overseer, candidate_hash, ValidatorIndex(i as _)).await.unwrap();
 
-			assert_eq!(chunk.chunk, chunks_expected[validator_index as usize]);
+			assert_eq!(chunk.chunk, chunks_expected[i as usize]);
 		}
 	});
 }
@@ -597,7 +605,7 @@ fn stored_data_kept_until_finalized() {
 			&mut virtual_overseer,
 			parent,
 			block_number,
-			vec![CandidateEvent::CandidateIncluded(candidate, HeadData::default())],
+			vec![candidate_included(candidate)],
 			(0..n_validators).map(|_| Sr25519Keyring::Alice.public().into()).collect(),
 		).await;
 
@@ -739,7 +747,7 @@ fn forkfullness_works() {
 			&mut virtual_overseer,
 			parent_1,
 			block_number_1,
-			vec![CandidateEvent::CandidateIncluded(candidate_1, HeadData::default())],
+			vec![candidate_included(candidate_1)],
 			validators.clone(),
 		).await;
 
@@ -747,7 +755,7 @@ fn forkfullness_works() {
 			&mut virtual_overseer,
 			parent_2,
 			block_number_2,
-			vec![CandidateEvent::CandidateIncluded(candidate_2, HeadData::default())],
+			vec![candidate_included(candidate_2)],
 			validators.clone(),
 		).await;
 
@@ -834,7 +842,7 @@ async fn query_available_data(
 async fn query_chunk(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 	candidate_hash: CandidateHash,
-	index: u32,
+	index: ValidatorIndex,
 ) -> Option<ErasureChunk> {
 	let (tx, rx) = oneshot::channel();
 
@@ -851,7 +859,7 @@ async fn query_all_chunks(
 	expect_present: bool,
 ) -> bool {
 	for i in 0..n_validators {
-		if query_chunk(virtual_overseer, candidate_hash, i).await.is_some() != expect_present {
+		if query_chunk(virtual_overseer, candidate_hash, ValidatorIndex(i)).await.is_some() != expect_present {
 			return false
 		}
 	}
@@ -877,7 +885,7 @@ async fn import_leaf(
 	overseer_signal(
 		virtual_overseer,
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![(new_leaf, Arc::new(JaegerSpan::Disabled))].into(),
+			activated: vec![(new_leaf, Arc::new(jaeger::Span::Disabled))].into(),
 			deactivated: vec![].into(),
 		}),
 	).await;

@@ -17,16 +17,17 @@
 //! Collator for the adder test parachain.
 
 use futures_timer::Delay;
-use polkadot_node_primitives::{Collation, CollatorFn};
+use polkadot_node_primitives::{Collation, CollatorFn, CollationResult, Statement, SignedFullStatement};
 use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
 use parity_scale_codec::{Encode, Decode};
-use sp_core::Pair;
+use sp_core::{Pair, traits::SpawnNamed};
 use std::{
 	collections::HashMap,
-	sync::{Arc, Mutex},
+	sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}},
 	time::Duration,
 };
 use test_parachain_adder::{execute, hash_state, BlockData, HeadData};
+use futures::channel::oneshot;
 
 /// The amount we add when producing a new block.
 ///
@@ -102,6 +103,7 @@ impl State {
 pub struct Collator {
 	state: Arc<Mutex<State>>,
 	key: CollatorPair,
+	seconded_collations: Arc<AtomicU32>,
 }
 
 impl Collator {
@@ -110,6 +112,7 @@ impl Collator {
 		Self {
 			state: Arc::new(Mutex::new(State::genesis())),
 			key: CollatorPair::generate().0,
+			seconded_collations: Arc::new(AtomicU32::new(0)),
 		}
 	}
 
@@ -142,13 +145,14 @@ impl Collator {
 	/// Create the collation function.
 	///
 	/// This collation function can be plugged into the overseer to generate collations for the adder parachain.
-	pub fn create_collation_function(&self) -> CollatorFn {
+	pub fn create_collation_function(&self, spawner: impl SpawnNamed + Clone + 'static) -> CollatorFn {
 		use futures::FutureExt as _;
 
 		let state = self.state.clone();
+		let seconded_collations = self.seconded_collations.clone();
 
 		Box::new(move |relay_parent, validation_data| {
-			let parent = HeadData::decode(&mut &validation_data.persisted.parent_head.0[..])
+			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
 				.expect("Decodes parent head");
 
 			let (block_data, head_data) = state.lock().unwrap().advance(parent);
@@ -159,19 +163,35 @@ impl Collator {
 				block_data,
 			);
 
+			let pov = PoV { block_data: block_data.encode().into() };
+
 			let collation = Collation {
 				upward_messages: Vec::new(),
 				horizontal_messages: Vec::new(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
-				proof_of_validity: PoV {
-					block_data: block_data.encode().into(),
-				},
+				proof_of_validity: pov.clone(),
 				processed_downward_messages: 0,
-				hrmp_watermark: validation_data.persisted.block_number,
+				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
-			async move { Some(collation) }.boxed()
+			let (result_sender, recv) = oneshot::channel::<SignedFullStatement>();
+			let seconded_collations = seconded_collations.clone();
+			spawner.spawn("adder-collator-seconded", async move {
+				if let Ok(res) = recv.await {
+					if !matches!(
+						res.payload(),
+						Statement::Seconded(s) if s.descriptor.pov_hash == pov.hash(),
+					) {
+						log::error!("Seconded statement should match our collation: {:?}", res.payload());
+						std::process::exit(-1);
+					}
+
+					seconded_collations.fetch_add(1, Ordering::Relaxed);
+				}
+			}.boxed());
+
+			async move { Some(CollationResult { collation, result_sender: Some(result_sender) }) }.boxed()
 		})
 	}
 
@@ -188,6 +208,21 @@ impl Collator {
 			}
 		}
 	}
+
+	/// Wait until `seconded` collations of this collator are seconded by a parachain validator.
+	///
+	/// The internal counter isn't de-duplicating the collations when counting the number of seconded collations. This
+	/// means when one collation is seconded by X validators, we record X seconded messages.
+	pub async fn wait_for_seconded_collations(&self, seconded: u32) {
+		let seconded_collations = self.seconded_collations.clone();
+		loop {
+			Delay::new(Duration::from_secs(1)).await;
+
+			if seconded <= seconded_collations.load(Ordering::Relaxed) {
+				return;
+			}
+		}
+	}
 }
 
 #[cfg(test)]
@@ -196,12 +231,13 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
-	use polkadot_primitives::v1::{PersistedValidationData, ValidationData};
+	use polkadot_primitives::v1::PersistedValidationData;
 
 	#[test]
 	fn collator_works() {
+		let spawner = sp_core::testing::TaskExecutor::new();
 		let collator = Collator::new();
-		let collation_function = collator.create_collation_function();
+		let collation_function = collator.create_collation_function(spawner);
 
 		for i in 0..5 {
 			let parent_head = collator
@@ -213,30 +249,29 @@ mod tests {
 				.unwrap()
 				.clone();
 
-			let validation_data = ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: parent_head.encode().into(),
-					..Default::default()
-				},
+			let validation_data = PersistedValidationData {
+				parent_head: parent_head.encode().into(),
 				..Default::default()
 			};
 
 			let collation =
 				block_on(collation_function(Default::default(), &validation_data)).unwrap();
-			validate_collation(&collator, (*parent_head).clone(), collation);
+			validate_collation(&collator, (*parent_head).clone(), collation.collation);
 		}
 	}
 
-	fn validate_collation(collator: &Collator, parent_head: HeadData, collation: Collation) {
+	fn validate_collation(
+		collator: &Collator,
+		parent_head: HeadData,
+		collation: Collation,
+	) {
 		let ret = polkadot_parachain::wasm_executor::validate_candidate(
 			collator.validation_code(),
 			ValidationParams {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,
-				relay_chain_height: 1,
-				relay_storage_root: Default::default(),
-				hrmp_mqc_heads: Vec::new(),
-				dmq_mqc_head: Default::default(),
+				relay_parent_number: 1,
+				relay_parent_storage_root: Default::default(),
 			},
 			&IsolationStrategy::InProcess,
 			sp_core::testing::TaskExecutor::new(),

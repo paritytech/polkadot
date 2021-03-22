@@ -24,11 +24,8 @@ use tracing::trace;
 
 use sp_keyring::Sr25519Keyring;
 
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId,
-	ScheduledCore, ValidatorIndex, SessionIndex, SessionInfo,
-};
-use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, JaegerSpan};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId, ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex};
+use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_node_network_protocol::{view, our_view};
@@ -60,6 +57,7 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
+	state: State,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let _ = env_logger::builder()
@@ -80,7 +78,7 @@ fn test_harness<T: Future<Output = ()>>(
 
 	let subsystem = super::PoVDistribution::new(Metrics::default());
 
-	let subsystem = subsystem.run(context);
+	let subsystem = subsystem.run_with_state(context, state);
 
 	let test_fut = test(TestHarness { virtual_overseer });
 
@@ -173,7 +171,8 @@ impl Default for TestState {
 			.take(validator_public.len())
 			.collect();
 
-		let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]];
+		let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]]
+			.into_iter().map(|g| g.into_iter().map(ValidatorIndex).collect()).collect();
 		let group_rotation_info = GroupRotationInfo {
 			session_start_block: 0,
 			group_rotation_frequency: 100,
@@ -237,11 +236,11 @@ async fn test_validator_discovery(
 			assert_eq!(index, session_index);
 
 			let validators = validator_group.iter()
-				.map(|idx| validator_ids[*idx as usize].clone())
+				.map(|idx| validator_ids[idx.0 as usize].clone())
 				.collect();
 
 			let discovery_keys = validator_group.iter()
-				.map(|idx| discovery_ids[*idx as usize].clone())
+				.map(|idx| discovery_ids[idx.0 as usize].clone())
 				.collect();
 
 			tx.send(Ok(Some(SessionInfo {
@@ -257,7 +256,7 @@ async fn test_validator_discovery(
 fn ask_validators_for_povs() {
 	let test_state = TestState::default();
 
-	test_harness(|test_harness| async move {
+	test_harness(State::default(), |test_harness| async move {
 		let mut virtual_overseer = test_harness.virtual_overseer;
 
 		let pov_block = PoV {
@@ -276,7 +275,7 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(test_state.relay_parent, Arc::new(JaegerSpan::Disabled))][..].into(),
+				activated: [(test_state.relay_parent, Arc::new(jaeger::Span::Disabled))][..].into(),
 				deactivated: [][..].into(),
 			}),
 		).await;
@@ -396,7 +395,11 @@ fn ask_validators_for_povs() {
 			PoVDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerMessage(
 					test_state.validator_peer_id[2].clone(),
-					protocol_v1::PoVDistributionMessage::SendPoV(current, pov_hash, pov_block.clone()),
+					protocol_v1::PoVDistributionMessage::SendPoV(
+						current,
+						pov_hash,
+						CompressedPoV::compress(&pov_block).unwrap(),
+					),
 				)
 			)
 		).await;
@@ -444,7 +447,7 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(next_leaf, Arc::new(JaegerSpan::Disabled))][..].into(),
+				activated: [(next_leaf, Arc::new(jaeger::Span::Disabled))][..].into(),
 				deactivated: [current.clone()][..].into(),
 			})
 		).await;
@@ -562,7 +565,7 @@ fn distributes_to_those_awaiting_and_completes_local() {
 	let pov = make_pov(vec![1, 2, 3]);
 	let pov_hash = pov.hash();
 
-	let mut state = State {
+	let state = State {
 		relay_parent_state: {
 			let mut s = HashMap::new();
 			let mut b = BlockBasedState {
@@ -603,35 +606,45 @@ fn distributes_to_those_awaiting_and_completes_local() {
 		connection_requests: Default::default(),
 	};
 
-	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let mut descriptor = CandidateDescriptor::default();
 	descriptor.pov_hash = pov_hash;
 
-	executor::block_on(async move {
-		handle_distribute(
-			&mut state,
-			&mut ctx,
-			hash_a,
-			descriptor,
-			Arc::new(pov.clone()),
+	test_harness(state, |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+
+		overseer_send(
+			&mut virtual_overseer,
+			PoVDistributionMessage::DistributePoV(
+				hash_a,
+				descriptor,
+				Arc::new(pov.clone())
+			)
 		).await;
 
-		assert!(!state.peer_state[&peer_a].awaited[&hash_a].contains(&pov_hash));
-		assert!(state.peer_state[&peer_c].awaited[&hash_b].contains(&pov_hash));
+		// Let's assume runtime call failed and we're already connected to the peers.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::AvailabilityCores(tx)
+			)) => {
+				assert_eq!(relay_parent, hash_a);
+				tx.send(Err("nope".to_string().into())).unwrap();
+			}
+		);
 
 		// our local sender also completed
 		assert_eq!(&*pov_recv.await.unwrap(), &pov);
 
 		assert_matches!(
-			handle.recv().await,
+			virtual_overseer.recv().await,
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(peers, message)
 			) => {
 				assert_eq!(peers, vec![peer_a.clone()]);
 				assert_eq!(
 					message,
-					send_pov_message(hash_a, pov_hash, pov.clone()),
+					send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 				);
 			}
 		)
@@ -722,7 +735,8 @@ fn we_inform_peers_with_same_view_we_are_awaiting() {
 		.take(validators.len())
 		.collect();
 
-	let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]];
+	let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]]
+		.into_iter().map(|g| g.into_iter().map(ValidatorIndex).collect()).collect();
 	let group_rotation_info = GroupRotationInfo {
 		session_start_block: 0,
 		group_rotation_frequency: 100,
@@ -943,7 +957,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -952,7 +966,7 @@ fn peer_complete_fetch_and_is_rewarded() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_b.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1033,7 +1047,7 @@ fn peer_punished_for_sending_bad_pov() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, bad_pov.clone()),
+				send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&bad_pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1098,7 +1112,7 @@ fn peer_punished_for_sending_unexpected_pov() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1161,7 +1175,7 @@ fn peer_punished_for_sending_pov_out_of_our_view() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_b, pov_hash, pov.clone()),
+				send_pov_message(hash_b, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1450,7 +1464,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 
@@ -1474,7 +1488,7 @@ fn peer_complete_fetch_leads_to_us_completing_others() {
 				assert_eq!(peers, vec![peer_b.clone()]);
 				assert_eq!(
 					message,
-					send_pov_message(hash_a, pov_hash, pov.clone()),
+					send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 				);
 			}
 		);
@@ -1534,7 +1548,7 @@ fn peer_completing_request_no_longer_awaiting() {
 			&mut ctx,
 			NetworkBridgeEvent::PeerMessage(
 				peer_a.clone(),
-				send_pov_message(hash_a, pov_hash, pov.clone()),
+				send_pov_message(hash_a, pov_hash, &CompressedPoV::compress(&pov).unwrap()),
 			).focus().unwrap(),
 		).await;
 

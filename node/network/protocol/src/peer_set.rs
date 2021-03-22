@@ -17,16 +17,28 @@
 //! All peersets and protocols used for parachains.
 
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::{Index, IndexMut}};
 use strum::{EnumIter, IntoEnumIterator};
 
 /// The peer-sets and thus the protocols which are used for the network.
-#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum PeerSet {
-	/// The validation peer-set is responsible for all messages related to candidate validation and communication among validators.
+	/// The validation peer-set is responsible for all messages related to candidate validation and
+	/// communication among validators.
 	Validation,
 	/// The collation peer-set is used for validator<>collator communication.
 	Collation,
+}
+
+/// Whether or not a node is an authority or not.
+///
+/// Peer set configuration gets adjusted accordingly.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum IsAuthority {
+	/// Node is authority.
+	Yes,
+	/// Node is not an authority.
+	No,
 }
 
 impl PeerSet {
@@ -34,11 +46,16 @@ impl PeerSet {
 	///
 	/// Those should be used in the network configuration to register the protocols with the
 	/// network service.
-	pub fn get_info(self) -> NonDefaultSetConfig {
+	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
 		let protocol = self.into_protocol_name();
+		// TODO: lower this limit after https://github.com/paritytech/polkadot/issues/2283 is
+		// done and collations use request-response protocols
+		let max_notification_size = 16 * 1024 * 1024;
+
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					in_peers: 25,
 					out_peers: 0,
@@ -48,11 +65,17 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				max_notification_size,
 				set_config: SetConfig {
-					in_peers: 25,
+					// Non-authority nodes don't need to accept incoming connections on this peer set:
+					in_peers: if is_authority == IsAuthority::Yes { 25 } else { 0 },
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
-					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+					non_reserved_mode: if is_authority == IsAuthority::Yes {
+						sc_network::config::NonReservedPeerMode::Accept
+					} else {
+						sc_network::config::NonReservedPeerMode::Deny
+					}
 				},
 			},
 		}
@@ -81,10 +104,36 @@ impl PeerSet {
 	}
 }
 
+/// A small and nifty collection that allows to store data pertaining to each peer set.
+#[derive(Debug, Default)]
+pub struct PerPeerSet<T> {
+	validation: T,
+	collation: T,
+}
+
+impl<T> Index<PeerSet> for PerPeerSet<T> {
+	type Output = T;
+	fn index(&self, index: PeerSet) -> &T {
+		match index {
+			PeerSet::Validation => &self.validation,
+			PeerSet::Collation => &self.collation,
+		}
+	}
+}
+
+impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
+    fn index_mut(&mut self, index: PeerSet) -> &mut T {
+        match index {
+			PeerSet::Validation => &mut self.validation,
+			PeerSet::Collation => &mut self.collation,
+		}
+    }
+}
+
 /// Get `NonDefaultSetConfig`s for all available peer sets.
 ///
 /// Should be used during network configuration (added to [`NetworkConfiguration::extra_sets`])
 /// or shortly after startup to register the protocols with the network service.
-pub fn peer_sets_info() -> Vec<sc_network::config::NonDefaultSetConfig> {
-	PeerSet::iter().map(PeerSet::get_info).collect()
+pub fn peer_sets_info(is_authority: IsAuthority) -> Vec<sc_network::config::NonDefaultSetConfig> {
+	PeerSet::iter().map(|s| s.get_info(is_authority)).collect()
 }

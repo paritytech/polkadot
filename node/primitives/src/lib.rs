@@ -25,21 +25,16 @@
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
-	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
-	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
-	HeadData, PoV, CollatorPair, Id as ParaId, OutboundHrmpMessage, CandidateCommitments, CandidateHash,
-};
-use polkadot_statement_table::{
-	generic::{
-		ValidityDoubleVote as TableValidityDoubleVote,
-		MultipleCandidates as TableMultipleCandidates,
-	},
-	v1::Misbehavior as TableMisbehavior,
+	CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement,
+	EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, PoV,
+	Signed, UpwardMessage, ValidationCode,
 };
 use std::pin::Pin;
 
 pub use sp_core::traits::SpawnNamed;
+pub use sp_consensus_babe::{
+	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
+};
 
 pub mod approval;
 
@@ -52,14 +47,11 @@ pub mod approval;
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
 	/// A statement that a validator seconds a candidate.
-	#[codec(index = "1")]
+	#[codec(index = 1)]
 	Seconded(CommittedCandidateReceipt),
 	/// A statement that a validator has deemed a candidate valid.
-	#[codec(index = "2")]
+	#[codec(index = 2)]
 	Valid(CandidateHash),
-	/// A statement that a validator has deemed a candidate invalid.
-	#[codec(index = "3")]
-	Invalid(CandidateHash),
 }
 
 impl Statement {
@@ -69,7 +61,7 @@ impl Statement {
 	/// for large candidates.
 	pub fn candidate_hash(&self) -> CandidateHash {
 		match *self {
-			Statement::Valid(ref h) | Statement::Invalid(ref h) => *h,
+			Statement::Valid(ref h) => *h,
 			Statement::Seconded(ref c) => c.hash(),
 		}
 	}
@@ -78,10 +70,15 @@ impl Statement {
 	/// of the candidate.
 	pub fn to_compact(&self) -> CompactStatement {
 		match *self {
-			Statement::Seconded(ref c) => CompactStatement::Candidate(c.hash()),
+			Statement::Seconded(ref c) => CompactStatement::Seconded(c.hash()),
 			Statement::Valid(hash) => CompactStatement::Valid(hash),
-			Statement::Invalid(hash) => CompactStatement::Invalid(hash),
 		}
+	}
+}
+
+impl From<&'_ Statement> for CompactStatement {
+	fn from(stmt: &Statement) -> Self {
+		stmt.to_compact()
 	}
 }
 
@@ -98,36 +95,6 @@ impl EncodeAs<CompactStatement> for Statement {
 /// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
-
-/// A misbehaviour report.
-#[derive(Debug, Clone)]
-pub enum MisbehaviorReport {
-	/// These validator nodes disagree on this candidate's validity, please figure it out
-	///
-	/// Most likely, the list of statments all agree except for the final one. That's not
-	/// guaranteed, though; if somehow we become aware of lots of
-	/// statements disagreeing about the validity of a candidate before taking action,
-	/// this message should be dispatched with all of them, in arbitrary order.
-	///
-	/// This variant is also used when our own validity checks disagree with others'.
-	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
-	/// I've noticed a peer contradicting itself about a particular candidate
-	SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
-	/// This peer has seconded more than one parachain candidate for this relay parent head
-	DoubleVote(SignedFullStatement, SignedFullStatement),
-}
-
-/// A utility struct used to convert `TableMisbehavior` to `MisbehaviorReport`s.
-pub struct FromTableMisbehavior {
-	/// Index of the validator.
-	pub id: ValidatorIndex,
-	/// The misbehavior reported by the table.
-	pub report: TableMisbehavior,
-	/// Signing context.
-	pub signing_context: SigningContext,
-	/// Misbehaving validator's public key.
-	pub key: ValidatorId,
-}
 
 /// Candidate invalidity details
 #[derive(Debug)]
@@ -150,6 +117,8 @@ pub enum InvalidCandidate {
 	HashMismatch,
 	/// Bad collator signature.
 	BadSignature,
+	/// Para head hash does not match.
+	ParaHeadHashMismatch,
 }
 
 /// Result of the validation of the candidate.
@@ -160,102 +129,6 @@ pub enum ValidationResult {
 	Valid(CandidateCommitments, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid(InvalidCandidate),
-}
-
-impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
-	type Error = ();
-
-	fn try_from(f: FromTableMisbehavior) -> Result<Self, Self::Error> {
-		match f.report {
-			TableMisbehavior::ValidityDoubleVote(
-				TableValidityDoubleVote::IssuedAndValidity((c, s1), (d, s2))
-			) => {
-				let receipt = c.clone();
-				let signed_1 = SignedFullStatement::new(
-					Statement::Seconded(c),
-					f.id,
-					s1,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-				let signed_2 = SignedFullStatement::new(
-					Statement::Valid(d),
-					f.id,
-					s2,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-
-				Ok(MisbehaviorReport::SelfContradiction(receipt.to_plain(), signed_1, signed_2))
-			}
-			TableMisbehavior::ValidityDoubleVote(
-				TableValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2))
-			) => {
-				let receipt = c.clone();
-				let signed_1 = SignedFullStatement::new(
-					Statement::Seconded(c),
-					f.id,
-					s1,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-				let signed_2 = SignedFullStatement::new(
-					Statement::Invalid(d),
-					f.id,
-					s2,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-
-				Ok(MisbehaviorReport::SelfContradiction(receipt.to_plain(), signed_1, signed_2))
-			}
-			TableMisbehavior::ValidityDoubleVote(
-				TableValidityDoubleVote::ValidityAndInvalidity(c, s1, s2)
-			) => {
-				let signed_1 = SignedFullStatement::new(
-					Statement::Valid(c.hash()),
-					f.id,
-					s1,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-				let signed_2 = SignedFullStatement::new(
-					Statement::Invalid(c.hash()),
-					f.id,
-					s2,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-
-				Ok(MisbehaviorReport::SelfContradiction(c.to_plain(), signed_1, signed_2))
-			}
-			TableMisbehavior::MultipleCandidates(
-				TableMultipleCandidates {
-					first,
-					second,
-				}
-			) => {
-				let signed_1 = SignedFullStatement::new(
-					Statement::Seconded(first.0),
-					f.id,
-					first.1,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-
-				let signed_2 = SignedFullStatement::new(
-					Statement::Seconded(second.0),
-					f.id,
-					second.1,
-					&f.signing_context,
-					&f.key,
-				).ok_or(())?;
-
-				Ok(MisbehaviorReport::DoubleVote(signed_1, signed_2))
-			}
-			_ => Err(()),
-		}
-	}
 }
 
 /// The output of a collator.
@@ -282,13 +155,33 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
+/// Result of the [`CollatorFn`] invocation.
+pub struct CollationResult {
+	/// The collation that was build.
+	pub collation: Collation,
+	/// An optional result sender that should be informed about a successfully seconded collation.
+	///
+	/// There is no guarantee that this sender is informed ever about any result, it is completly okay to just drop it.
+	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
+	/// collation.
+	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,
+}
+
+impl CollationResult {
+	/// Convert into the inner values.
+	pub fn into_inner(self) -> (Collation, Option<futures::channel::oneshot::Sender<SignedFullStatement>>) {
+		(self.collation, self.result_sender)
+	}
+}
+
 /// Collation function.
 ///
-/// Will be called with the hash of the relay chain block the parachain
-/// block should be build on and the [`ValidationData`] that provides
-/// information about the state of the parachain on the relay chain.
+/// Will be called with the hash of the relay chain block the parachain block should be build on and the
+/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
+///
+/// Returns an optional [`CollationResult`].
 pub type CollatorFn = Box<
-	dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
+	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
 		+ Send
 		+ Sync,
 >;

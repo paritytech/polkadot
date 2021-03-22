@@ -1,15 +1,16 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.8.27"
+version = "0.8.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "1.3.6", default-features = false, features = ["derive"] }
+impl-trait-for-tuples = "0.2.0"
+bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.13", optional = true }
 rustc-hex = { version = "2.1.0", default-features = false }
-serde = { version = "1.0.118", default-features = false }
+serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
@@ -33,7 +34,9 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features=false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
@@ -45,12 +48,14 @@ xcm = { path = "../../xcm", default-features = false }
 hex-literal = "0.3.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie-db = "0.22.2"
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+trie-db = "0.22.3"
 serde_json = "1.0.61"
 libsecp256k1 = "0.3.5"
 
@@ -73,15 +78,16 @@ std = [
 	"frame-support/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
-	"sp-runtime/std",
-	"sp-session/std",
-	"sp-staking/std",
 	"pallet-session/std",
 	"pallet-staking/std",
-	"frame-system/std",
 	"pallet-timestamp/std",
 	"pallet-vesting/std",
 	"pallet-transaction-payment/std",
+	"pallet-treasury/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-staking/std",
+	"frame-system/std",
 	"runtime-parachains/std",
 	"xcm/std",
 ]
@@ -90,4 +96,17 @@ runtime-benchmarks = [
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"runtime-parachains/runtime-benchmarks",
+	"pallet-babe/runtime-benchmarks",
+]
+try-runtime = [
+	"runtime-parachains/try-runtime",
+	"pallet-authorship/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-session/try-runtime",
+	"pallet-staking/try-runtime",
+	"pallet-timestamp/try-runtime",
+	"pallet-vesting/try-runtime",
+	"pallet-transaction-payment/try-runtime",
+	"pallet-treasury/try-runtime",
 ]
