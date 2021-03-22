@@ -19,7 +19,7 @@ assert_matches = "1.4.0"
 env_logger = "0.8.1"
 log = "0.4.13"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "refactor-handler" }
+sp-keyring = { git = "https://github.com/tomaka/polkadot", branch = "refactor-handler" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

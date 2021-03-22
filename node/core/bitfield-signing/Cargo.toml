@@ -10,6 +10,6 @@ tracing = "0.1.25"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/tomaka/polkadot", branch = "refactor-handler" }
 wasm-timer = "0.2.5"
 thiserror = "1.0.23"
