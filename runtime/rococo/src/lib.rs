@@ -45,7 +45,7 @@ use frame_support::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, ModuleId,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
@@ -63,7 +63,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::{EnsureRoot, EnsureOneOf, EnsureSigned};
-use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender};
+use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -208,8 +208,11 @@ construct_runtime! {
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 
+		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
-		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
+		Slots: slots::{Pallet, Call, Storage, Event<T>},
 
 		// Sudo
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
@@ -600,12 +603,59 @@ impl paras_registrar::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
-	type OnSwap = ();
+	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
 	type WeightInfo = paras_registrar::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const EndingPeriod: BlockNumber = 15 * MINUTES;
+}
+
+impl auctions::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type EndingPeriod = EndingPeriod;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type InitiateOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = auctions::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const LeasePeriod: BlockNumber = 1 * DAYS;
+}
+
+impl slots::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Registrar = Registrar;
+	type LeasePeriod = LeasePeriod;
+	type WeightInfo = slots::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
+	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
+	pub const MinContribution: Balance = 1 * DOLLARS;
+	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
+	pub const RemoveKeysLimit: u32 = 500;
+
+}
+
+impl crowdloan::Config for Runtime {
+	type Event = Event;
+	type ModuleId = CrowdloanId;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MinContribution = MinContribution;
+	type RetirementPeriod = RetirementPeriod;
+	type OrphanedFunds = ();
+	type RemoveKeysLimit = RemoveKeysLimit;
+	type Registrar = Registrar;
+	type Auctioneer = Auctions;
+	type WeightInfo = crowdloan::TestWeightInfo;
 }
 
 impl pallet_sudo::Config for Runtime {
