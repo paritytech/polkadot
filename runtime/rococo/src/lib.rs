@@ -212,6 +212,7 @@ construct_runtime! {
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
 		Slots: slots::{Pallet, Call, Storage, Event<T>},
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 
 		// Sudo
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
