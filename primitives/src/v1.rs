@@ -454,6 +454,76 @@ impl PoV {
 	}
 }
 
+/// SCALE and Zstd encoded [`PoV`].
+#[derive(Clone, Encode, Decode, PartialEq, Eq)]
+pub struct CompressedPoV(Vec<u8>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[cfg(feature = "std")]
+#[allow(missing_docs)]
+pub enum CompressedPoVError {
+	#[error("Failed to compress a PoV")]
+	Compress,
+	#[error("Failed to decompress a PoV")]
+	Decompress,
+	#[error("Failed to decode the uncompressed PoV")]
+	Decode,
+	#[error("Architecture is not supported")]
+	NotSupported,
+}
+
+#[cfg(feature = "std")]
+impl CompressedPoV {
+	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
+	#[cfg(not(target_os = "unknown"))]
+	pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
+		zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
+	}
+
+	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
+	#[cfg(target_os = "unknown")]
+	pub fn compress(_: &PoV) -> Result<Self, CompressedPoVError> {
+		Err(CompressedPoVError::NotSupported)
+	}
+
+	/// Decompress `self` and returns the [`PoV`] on success.
+	#[cfg(not(target_os = "unknown"))]
+	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
+		use std::io::Read;
+		const MAX_POV_BLOCK_SIZE: usize = 32 * 1024 * 1024;
+
+		struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>, usize);
+		impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
+			fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
+				self.1 = self.1.saturating_add(into.len());
+				if self.1 > MAX_POV_BLOCK_SIZE {
+					return Err("pov block too big".into())
+				}
+				self.0.read_exact(into).map_err(Into::into)
+			}
+			fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
+				Ok(None)
+			}
+		}
+
+		let mut decoder = zstd::Decoder::new(self.0.as_slice()).map_err(|_| CompressedPoVError::Decompress)?;
+		PoV::decode(&mut InputDecoder(&mut decoder, 0)).map_err(|_| CompressedPoVError::Decode)
+	}
+
+	/// Decompress `self` and returns the [`PoV`] on success.
+	#[cfg(target_os = "unknown")]
+	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
+		Err(CompressedPoVError::NotSupported)
+	}
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Debug for CompressedPoV {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "CompressedPoV({} bytes)", self.0.len())
+	}
+}
+
 /// A bitfield concerning availability of backed candidates.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
@@ -659,7 +729,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
-    // NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
@@ -982,6 +1052,7 @@ pub struct AbridgedHrmpChannel {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use super::{CompressedPoV, CompressedPoVError, PoV};
 
 	#[test]
 	fn group_rotation_info_calculations() {
@@ -1007,5 +1078,15 @@ mod tests {
 			&Hash::repeat_byte(2),
 			&Hash::repeat_byte(3),
 		);
+	}
+
+
+	#[cfg(not(target_os = "unknown"))]
+	#[test]
+	fn decompress_huge_pov_block_fails() {
+		let pov = PoV { block_data: vec![0; 63 * 1024 * 1024].into() };
+
+		let compressed = CompressedPoV::compress(&pov).unwrap();
+		assert_eq!(CompressedPoVError::Decode, compressed.decompress().unwrap_err());
 	}
 }

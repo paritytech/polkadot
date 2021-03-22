@@ -20,8 +20,6 @@
 #![deny(missing_docs, unused_crate_dependencies)]
 #![recursion_limit="256"]
 
-use std::time::Duration;
-
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use thiserror::Error;
 
@@ -38,7 +36,6 @@ mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Error)]
 enum Error {
@@ -88,7 +85,6 @@ impl CollatorProtocolSubsystem {
 		match self.protocol_side {
 			ProtocolSide::Validator(metrics) => validator_side::run(
 				ctx,
-				REQUEST_TIMEOUT,
 				metrics,
 			).await,
 			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) => collator_side::run(
@@ -124,7 +120,7 @@ where
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: SubsystemContext,
 {
 	tracing::trace!(
 		target: LOG_TARGET,
