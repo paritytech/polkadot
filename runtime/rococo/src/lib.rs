@@ -162,7 +162,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllModules,
+	AllPallets,
 	UpgradeSessionKeys,
 >;
 /// The payload being signed in transactions.
@@ -226,52 +226,52 @@ construct_runtime! {
 		NodeBlock = primitives::v1::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: frame_system::{Module, Call, Storage, Config, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
 
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Module, Storage},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Module, Call, Storage},
-		Offences: pallet_offences::{Module, Call, Storage, Event},
-		Historical: session_historical::{Module},
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
-		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
+		Authorship: pallet_authorship::{Pallet, Call, Storage},
+		Offences: pallet_offences::{Pallet, Call, Storage, Event},
+		Historical: session_historical::{Pallet},
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
+		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
 
 		// Parachains modules.
-		ParachainsOrigin: parachains_origin::{Module, Origin},
-		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
-		Shared: parachains_shared::{Module, Call, Storage},
-		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
-		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
-		Scheduler: parachains_scheduler::{Module, Call, Storage},
-		Paras: parachains_paras::{Module, Call, Storage},
-		Initializer: parachains_initializer::{Module, Call, Storage},
-		Dmp: parachains_dmp::{Module, Call, Storage},
-		Ump: parachains_ump::{Module, Call, Storage},
-		Hrmp: parachains_hrmp::{Module, Call, Storage, Event},
-		SessionInfo: parachains_session_info::{Module, Call, Storage},
+		ParachainsOrigin: parachains_origin::{Pallet, Origin},
+		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
+		Shared: parachains_shared::{Pallet, Call, Storage},
+		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
+		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
+		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
+		Paras: parachains_paras::{Pallet, Call, Storage},
+		Initializer: parachains_initializer::{Pallet, Call, Storage},
+		Dmp: parachains_dmp::{Pallet, Call, Storage},
+		Ump: parachains_ump::{Pallet, Call, Storage},
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
+		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 
-		Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
-		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 
 		// Sudo
-		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
+		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
 
 		// Propose parachain pallet.
-		ProposeParachain: propose_parachain::{Module, Call, Storage, Event<T>},
+		ProposeParachain: propose_parachain::{Pallet, Call, Storage, Event<T>},
 
 		// Bridges support.
-		Mmr: pallet_mmr::{Module, Call, Storage},
-		Beefy: pallet_beefy::{Module, Config<T>, Storage},
-		MmrLeaf: mmr_common::{Module, Storage},
+		Mmr: pallet_mmr::{Pallet, Call, Storage},
+		Beefy: pallet_beefy::{Pallet, Config<T>, Storage},
+		MmrLeaf: mmr_common::{Pallet, Storage},
 	}
 }
 
@@ -384,7 +384,6 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
 
@@ -394,7 +393,7 @@ impl pallet_im_online::Config for Runtime {
 	type ValidatorSet = Historical;
 	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
-	type UnsignedPriority = StakingUnsignedPriority;
+	type UnsignedPriority = ImOnlineUnsignedPriority;
 	type WeightInfo = ();
 }
 
@@ -680,7 +679,7 @@ impl pallet_mmr::Config for Runtime {
 	type Hash = <Keccak256 as traits::Hash>::Output;
 	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
-	type LeafData = mmr_common::Module<Runtime>;
+	type LeafData = mmr_common::Pallet<Runtime>;
 }
 
 impl mmr_common::Config for Runtime {

@@ -39,7 +39,7 @@ impl<T> pallet_mmr::primitives::OnNewRoot<beefy_primitives::MmrRootHash> for Dep
 				&beefy_primitives::ConsensusLog::<<T as pallet_beefy::Config>::AuthorityId>::MmrRoot(*root)
 			),
 		);
-		<frame_system::Module<T>>::deposit_log(digest);
+		<frame_system::Pallet<T>>::deposit_log(digest);
 	}
 }
 
@@ -106,7 +106,7 @@ pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config {
 }
 
 decl_storage! {
-	trait Store for Module<T: Config> as Beefy {
+	trait Store for Pallet<T: Config> as Beefy {
 		/// Details of next BEEFY authority set.
 		///
 		/// This storage entry is used as cache for calls to [`update_beefy_next_authority_set`].
@@ -115,11 +115,11 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
+	pub struct Pallet<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 	}
 }
 
-impl<T: Config> LeafDataProvider for Module<T> where
+impl<T: Config> LeafDataProvider for Pallet<T> where
 	MerkleRootOf<T>: From<H256>,
 {
 	type LeafData = MmrLeaf<
@@ -130,14 +130,14 @@ impl<T: Config> LeafDataProvider for Module<T> where
 
 	fn leaf_data() -> Self::LeafData {
 		MmrLeaf {
-			parent_number_and_hash: frame_system::Module::<T>::leaf_data(),
-			parachain_heads: Module::<T>::parachain_heads_merkle_root(),
-			beefy_next_authority_set: Module::<T>::update_beefy_next_authority_set(),
+			parent_number_and_hash: frame_system::Pallet::<T>::leaf_data(),
+			parachain_heads: Pallet::<T>::parachain_heads_merkle_root(),
+			beefy_next_authority_set: Pallet::<T>::update_beefy_next_authority_set(),
 		}
 	}
 }
 
-impl<T: Config> Module<T> where
+impl<T: Config> Pallet<T> where
 	MerkleRootOf<T>: From<H256>,
 	<T as pallet_beefy::Config>::AuthorityId:
 {
@@ -149,9 +149,9 @@ impl<T: Config> Module<T> where
 	/// the merkle tree every block. Instead we should update the merkle root in [Self::on_initialize]
 	/// call of this pallet and update the merkle tree efficiently (use on-chain storage to persist inner nodes).
 	fn parachain_heads_merkle_root() -> MerkleRootOf<T> {
-		let para_heads = paras::Module::<T>::parachains()
+		let para_heads = paras::Pallet::<T>::parachains()
 			.into_iter()
-			.map(paras::Module::<T>::para_head)
+			.map(paras::Pallet::<T>::para_head)
 			.map(|maybe_para_head| maybe_para_head.encode())
 			.collect::<Vec<_>>();
 
@@ -166,14 +166,14 @@ impl<T: Config> Module<T> where
 	/// This function will use a storage-cached entry in case the set didn't change, or compute and cache
 	/// new one in case it did.
 	fn update_beefy_next_authority_set() -> BeefyNextAuthoritySet<MerkleRootOf<T>> {
-		let id = pallet_beefy::Module::<T>::validator_set_id() + 1;
+		let id = pallet_beefy::Pallet::<T>::validator_set_id() + 1;
 		let current_next = Self::beefy_next_authorities();
 		// avoid computing the merkle tree if validator set id didn't change.
 		if id == current_next.id {
 			return current_next;
 		}
 
-		let beefy_public_keys = pallet_beefy::Module::<T>::next_authorities()
+		let beefy_public_keys = pallet_beefy::Pallet::<T>::next_authorities()
 			.into_iter()
 			.map(T::BeefyAuthorityToMerkleLeaf::convert)
 			.collect::<Vec<_>>();

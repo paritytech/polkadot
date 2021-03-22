@@ -110,8 +110,8 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Session: pallet_session::{Module},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Session: pallet_session::{Pallet},
 		}
 	}
 
@@ -193,7 +193,7 @@ mod tests {
 
 		BasicExternalities::execute_with_storage(&mut t, || {
 			for (ref k, ..) in &keys {
-				frame_system::Module::<TestRuntime>::inc_providers(k);
+				frame_system::Pallet::<TestRuntime>::inc_providers(k);
 			}
 		});
 

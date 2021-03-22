@@ -109,7 +109,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 4,
+	transaction_version: 5,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -356,18 +356,15 @@ impl pallet_session::historical::Config for Runtime {
 parameter_types! {
 	// no signed phase for now, just unsigned.
 	pub const SignedPhase: u32 = 0;
-	// NOTE: length of unsigned phase is, for now, different than `ElectionLookahead` to make sure
-	// that we won't run OCW threads at the same time with staking.
-	pub const UnsignedPhase: u32 = ElectionLookahead::get() / 2;
+	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
-	// fallback: no need to do on-chain phragmen while we re on a dry-run.
+	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
-		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
+		pallet_election_provider_multi_phase::FallbackStrategy::OnChain;
 
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
+	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
-	pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
 	pub const MinerMaxIterations: u32 = 10;
 }
 
@@ -376,10 +373,10 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Currency = Balances;
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
-	type SolutionImprovementThreshold = MinSolutionScoreBump;
+	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
-	type MinerTxPriority = MultiPhaseUnsignedPriority;
+	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = pallet_staking::CompactAssignments;
@@ -408,10 +405,6 @@ parameter_types! {
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
-	// quarter of the last session will be for election.
-	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
-	pub const MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational(5u32, 10_000);
 }
 
 impl pallet_staking::Config for Runtime {
@@ -431,12 +424,6 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
@@ -471,7 +458,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
+	pub const NposSolutionPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
 
@@ -481,7 +468,7 @@ impl pallet_im_online::Config for Runtime {
 	type ValidatorSet = Historical;
 	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
-	type UnsignedPriority = StakingUnsignedPriority;
+	type UnsignedPriority = ImOnlineUnsignedPriority;
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 }
 
@@ -655,7 +642,7 @@ impl pallet_mmr::Config for Runtime {
 	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
 	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
-	type LeafData = mmr_common::Module<Runtime>;
+	type LeafData = mmr_common::Pallet<Runtime>;
 }
 
 impl mmr_common::Config for Runtime {
@@ -885,79 +872,78 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Module, Call, Storage, Config, Event<T>} = 0,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage} = 25,
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 25,
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, ValidateUnsigned} = 1,
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
 
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent} = 2,
-		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>} = 3,
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Module, Storage} = 26,
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
+		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 26,
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Module, Call, Storage} = 5,
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 6,
-		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
-		Historical: session_historical::{Module} = 27,
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
-		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
-		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 12,
+		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
+		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
+		Offences: pallet_offences::{Pallet, Call, Storage, Event} = 7,
+		Historical: session_historical::{Pallet} = 27,
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
+		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config} = 12,
 
 		// Utility module.
-		Utility: pallet_utility::{Module, Call, Event} = 16,
+		Utility: pallet_utility::{Pallet, Call, Event} = 16,
 
 		// Less simple identity module.
-		Identity: pallet_identity::{Module, Call, Storage, Event<T>} = 17,
+		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 17,
 
 		// Social recovery module.
-		Recovery: pallet_recovery::{Module, Call, Storage, Event<T>} = 18,
+		Recovery: pallet_recovery::{Pallet, Call, Storage, Event<T>} = 18,
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
-		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>} = 19,
+		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 19,
 
 		// System scheduler.
-		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>} = 20,
+		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 20,
 
 		// Sudo.
-		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>} = 21,
+		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>} = 21,
 
 		// Proxy module. Late addition.
-		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>} = 22,
+		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 22,
 
 		// Multisig module. Late addition.
-		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 23,
+		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 23,
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Module, Call, Storage, Event<T>, ValidateUnsigned} = 24,
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
 
 		// Parachains Runtime
-		ParachainsOrigin: parachains_origin::{Module, Origin} = 28,
-		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>} = 29,
-		Shared: parachains_shared::{Module, Call, Storage} = 30,
-		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>} = 31,
-		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent} = 32,
-		ParachainsScheduler: parachains_scheduler::{Module, Call, Storage} = 33,
-		Paras: parachains_paras::{Module, Call, Storage} = 34,
-		Initializer: parachains_initializer::{Module, Call, Storage} = 35,
-		Dmp: parachains_dmp::{Module, Call, Storage} = 36,
-		Ump: parachains_ump::{Module, Call, Storage} = 37,
-		Hrmp: parachains_hrmp::{Module, Call, Storage, Event} = 38,
-		ParachainsSessionInfo: parachains_session_info::{Module, Call, Storage} = 39,
+		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 28,
+		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 29,
+		Shared: parachains_shared::{Pallet, Call, Storage} = 30,
+		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 31,
+		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent} = 32,
+		ParachainsScheduler: parachains_scheduler::{Pallet, Call, Storage} = 33,
+		Paras: parachains_paras::{Pallet, Call, Storage} = 34,
+		Initializer: parachains_initializer::{Pallet, Call, Storage} = 35,
+		Dmp: parachains_dmp::{Pallet, Call, Storage} = 36,
+		Ump: parachains_ump::{Pallet, Call, Storage} = 37,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 38,
+		ParachainsSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 39,
 
 		// Parachain Onboarding Pallets
-		Registrar: paras_registrar::{Module, Call, Storage, Event<T>} = 40,
-		Auctions: auctions::{Module, Call, Storage, Event<T>} = 41,
-		Crowdloan: crowdloan::{Module, Call, Storage, Event<T>} = 42,
-		Slots: slots::{Module, Call, Storage, Event<T>} = 43,
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 40,
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 41,
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 42,
+		Slots: slots::{Pallet, Call, Storage, Event<T>} = 43,
 
 		// Bridges support.
-		Mmr: pallet_mmr::{Module, Call, Storage} = 50,
-		Beefy: pallet_beefy::{Module, Config<T>, Storage} = 51,
-		MmrLeaf: mmr_common::{Module, Storage} = 52,
-
+		Mmr: pallet_mmr::{Pallet, Call, Storage} = 50,
+		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 51,
+		MmrLeaf: mmr_common::{Pallet, Storage} = 52,
 	}
 }
 
@@ -1006,7 +992,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllModules,
+	AllPallets,
 	(BabeEpochConfigMigrations, UpgradeSessionKeys),
 >;
 /// The payload being signed in transactions.
@@ -1299,6 +1285,7 @@ sp_api::impl_runtime_apis! {
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
 		fn on_runtime_upgrade() -> Result<(Weight, Weight), sp_runtime::RuntimeString> {
+			log::info!("try-runtime::on_runtime_upgrade westend.");
 			let weight = Executive::try_runtime_upgrade()?;
 			Ok((weight, BlockWeights::get().max_block))
 		}
@@ -1313,9 +1300,9 @@ sp_api::impl_runtime_apis! {
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
 			// To get around that, we separated the Session benchmarks into its own crate, which is why
 			// we need these two lines below.
-			use pallet_session_benchmarking::Module as SessionBench;
-			use pallet_offences_benchmarking::Module as OffencesBench;
-			use frame_system_benchmarking::Module as SystemBench;
+			use pallet_session_benchmarking::Pallet as SessionBench;
+			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use frame_system_benchmarking::Pallet as SystemBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}

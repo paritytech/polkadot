@@ -427,10 +427,10 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Parachains: paras::{Module, Origin, Call, Storage, Config<T>},
-			Registrar: paras_registrar::{Module, Call, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Parachains: paras::{Pallet, Origin, Call, Storage, Config<T>},
+			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
 		}
 	);
 
@@ -853,7 +853,7 @@ mod benchmarking {
 	use frame_benchmarking::{benchmarks, whitelisted_caller};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
-		let events = frame_system::Module::<T>::events();
+		let events = frame_system::Pallet::<T>::events();
 		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
