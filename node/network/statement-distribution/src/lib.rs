@@ -517,10 +517,9 @@ async fn circulate_statement_and_dependents(
 		None => return,
 	};
 
-	let _span = active_head.span.child_builder("circulate-statement")
-		.with_candidate(&statement.payload().candidate_hash())
-		.with_stage(jaeger::Stage::StatementDistribution)
-		.build();
+	let _span = active_head.span.child("circulate-statement")
+		.with_candidate(statement.payload().candidate_hash())
+		.with_stage(jaeger::Stage::StatementDistribution);
 
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
@@ -539,9 +538,8 @@ async fn circulate_statement_and_dependents(
 	if let Some((candidate_hash, peers_needing_dependents)) = outputs {
 		for peer in peers_needing_dependents {
 			if let Some(peer_data) = peers.get_mut(&peer) {
-				let _span_loop = _span.child_builder("to-peer")
-					.with_peer_id(&peer)
-					.build();
+				let _span_loop = _span.child("to-peer")
+					.with_peer_id(&peer);
 				// defensive: the peer data should always be some because the iterator
 				// of peers is derived from the set of peers.
 				send_statements_about(
@@ -702,10 +700,9 @@ async fn handle_incoming_message<'a>(
 	};
 
 	let candidate_hash = statement.payload().candidate_hash();
-	let handle_incoming_span = active_head.span.child_builder("handle-incoming")
-		.with_candidate(&candidate_hash)
-		.with_peer_id(&peer)
-		.build();
+	let handle_incoming_span = active_head.span.child("handle-incoming")
+		.with_candidate(candidate_hash)
+		.with_peer_id(&peer);
 
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
