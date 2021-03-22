@@ -1132,7 +1132,7 @@ construct_runtime! {
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 37,
 
-		// Gilts module.
+		// Gilts pallet.
 		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 	}
 }
