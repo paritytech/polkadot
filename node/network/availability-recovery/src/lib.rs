@@ -665,8 +665,8 @@ async fn handle_recover(
 ) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
-	let mut span = jaeger::candidate_hash_span(&candidate_hash, "availbility-recovery");
-	span.add_stage(jaeger::Stage::AvailabilityRecovery);
+	let span = jaeger::Span::new(candidate_hash, "availbility-recovery")
+		.with_stage(jaeger::Stage::AvailabilityRecovery);
 
 	if let Some(result) = state.availability_lru.get(&candidate_hash) {
 		if let Err(e) = response_sender.send(result.clone()) {
