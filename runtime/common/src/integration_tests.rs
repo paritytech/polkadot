@@ -76,6 +76,7 @@ frame_support::construct_runtime!(
 );
 
 use crate::crowdloan::Error as CrowdloanError;
+use crate::auctions::Error as AuctionsError;
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
@@ -188,6 +189,7 @@ parameter_types! {
 impl auctions::Config for Test {
 	type Event = Event;
 	type Leaser = Slots;
+	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type Randomness = TestRandomness<Self>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
@@ -490,13 +492,16 @@ fn competing_slots() {
 		}
 
 		// Start a new auction in the future
-		let duration = 99u32;
+		let duration = 149u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
+		// Paras should be onboarded
+		run_to_block(20); // session 2
+
 		for n in 1 ..= max_bids {
 			// Increment block number
-			run_to_block(n * 10);
+			run_to_block(System::block_number() + 10);
 
 			Balances::make_free_balance_be(&(n * 10), n * 1_000);
 
@@ -514,7 +519,7 @@ fn competing_slots() {
 				_ => panic!("test not meant for this"),
 			};
 
-			// User 10 will bid directly for parachain 1
+			// Users will bid directly for parachain
 			assert_ok!(Auctions::bid(
 				Origin::signed(n * 10),
 				ParaId::from(n),
@@ -527,11 +532,12 @@ fn competing_slots() {
 
 		// All winner slots are filled by bids
 		for winner in &auctions::Winning::<Test>::get(0).unwrap() {
+			println!("{:?}", winner);
 			assert!(winner.is_some());
 		}
 
-		// Auction should be done
-		run_to_block(110);
+		// Auction should be done after ending period
+		run_to_block(160);
 
 		// Appropriate Paras should have won slots
 		// 900 + 4500 + 2x 8100 = 21,600
@@ -880,4 +886,59 @@ fn crowdloan_ending_period_bid() {
 			]
 		));
 	})
+}
+
+#[test]
+fn auction_bid_requires_registered_para() {
+	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one()); // So events are emitted
+
+		// Start a new auction in the future
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		// Can't bid with non-registered paras
+		Balances::make_free_balance_be(&1, 1_000);
+		assert_noop!(Auctions::bid(
+			Origin::signed(1),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last slot
+			900, // Amount
+		), AuctionsError::<Test>::ParaNotRegistered);
+
+		// Now we register the para
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(1),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+
+		// Still can't bid until it is fully onboarded
+		assert_noop!(Auctions::bid(
+			Origin::signed(1),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last slot
+			900, // Amount
+		), AuctionsError::<Test>::ParaNotRegistered);
+
+		// Onboarded on Session 2
+		run_to_session(2);
+
+		// Success
+		Balances::make_free_balance_be(&1, 1_000);
+		assert_ok!(Auctions::bid(
+			Origin::signed(1),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last slot
+			900, // Amount
+		));
+	});
 }

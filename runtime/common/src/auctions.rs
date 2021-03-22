@@ -28,7 +28,7 @@ use frame_support::{
 use primitives::v1::Id as ParaId;
 use frame_system::ensure_signed;
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use crate::traits::{Leaser, LeaseError, Auctioneer};
+use crate::traits::{Leaser, LeaseError, Auctioneer, Registrar};
 use parity_scale_codec::Decode;
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
@@ -54,6 +54,9 @@ pub trait Config: frame_system::Config {
 
 	/// The number of blocks over which a single period lasts.
 	type Leaser: Leaser<AccountId=Self::AccountId, LeasePeriod=Self::BlockNumber>;
+
+	/// The parachain registrar type.
+	type Registrar: Registrar<AccountId=Self::AccountId>;
 
 	/// The number of blocks over which an auction may be retroactively ended.
 	type EndingPeriod: Get<Self::BlockNumber>;
@@ -148,6 +151,8 @@ decl_error! {
 		LeasePeriodInPast,
 		/// The origin for this call must be a parachain.
 		NotParaOrigin,
+		/// Para is not registered
+		ParaNotRegistered,
 		/// The parachain ID is not on-boarding.
 		ParaNotOnboarding,
 		/// The origin for this call must be the origin who registered the parachain.
@@ -357,6 +362,8 @@ impl<T: Config> Module<T> {
 		last_slot: LeasePeriodOf<T>,
 		amount: BalanceOf<T>,
 	) -> DispatchResult {
+		// Ensure para is registered before placing a bid on it
+		ensure!(T::Registrar::is_registered(para), Error::<T>::ParaNotRegistered);
 		// Bidding on latest auction.
 		ensure!(auction_index == AuctionCounter::get(), Error::<T>::NotCurrentAuction);
 		// Assume it's actually an auction (this should never fail because of above).
@@ -589,7 +596,7 @@ mod tests {
 	};
 	use frame_system::{EnsureSignedBy, EnsureOneOf, EnsureRoot};
 	use pallet_balances;
-	use crate::auctions;
+	use crate::{auctions, mock::TestRegistrar};
 	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -746,6 +753,7 @@ mod tests {
 	impl Config for Test {
 		type Event = Event;
 		type Leaser = TestLeaser;
+		type Registrar = TestRegistrar<Self>;
 		type EndingPeriod = EndingPeriod;
 		type Randomness = TestPastRandomness;
 		type InitiateOrigin = RootOrSix;
@@ -759,7 +767,15 @@ mod tests {
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 		}.assimilate_storage(&mut t).unwrap();
-		t.into()
+		let mut ext: sp_io::TestExternalities = t.into();
+		ext.execute_with(|| {
+			// Register para 0, 1, 2, and 3 for tests
+			assert_ok!(TestRegistrar::<Test>::register(1, 0.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 1.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 2.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 3.into(), Default::default(), Default::default()));
+		});
+		ext
 	}
 
 	fn run_to_block(n: BlockNumber) {
@@ -1309,6 +1325,17 @@ mod tests {
 				Some((3, para_3, 30)),
 				None,
 			]));
+		});
+	}
+
+	#[test]
+	fn handle_bid_requires_registered_para() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_noop!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1), Error::<Test>::ParaNotRegistered);
+			assert_ok!(TestRegistrar::<Test>::register(1, 1337.into(), Default::default(), Default::default()));
+			assert_ok!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1));
 		});
 	}
 }
