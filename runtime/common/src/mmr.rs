@@ -115,7 +115,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Pallet<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
+	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 	}
 }
 
