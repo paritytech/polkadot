@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v1::{
 	Hash, SessionIndex, SessionInfo, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber,
+	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber, ConsensusLog,
 };
 use polkadot_node_primitives::approval::{
 	self as approval_types, BlockApprovalMeta, RelayVRFStory,
@@ -345,6 +345,7 @@ struct ImportedBlockInfo {
 	n_validators: usize,
 	relay_vrf_story: RelayVRFStory,
 	slot: Slot,
+	force_approve: Option<BlockNumber>,
 }
 
 struct ImportedBlockInfoEnv<'a> {
@@ -494,6 +495,23 @@ async fn imported_block_info(
 		}
 	};
 
+	let force_approve =
+		block_header.digest.convert_first(|l| match ConsensusLog::from_digest_item_ref(l) {
+			Ok(Some(ConsensusLog::ForceApprove(num))) if num < block_header.number => Some(num),
+			Ok(Some(_)) => None,
+			Ok(None) => None,
+			Err(err) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					?err,
+					?block_hash,
+					"Malformed consensus digest in header",
+				);
+
+				None
+			}
+		});
+
 	Ok(Some(ImportedBlockInfo {
 		included_candidates,
 		session_index,
@@ -501,6 +519,7 @@ async fn imported_block_info(
 		n_validators: session_info.validators.len(),
 		relay_vrf_story,
 		slot,
+		force_approve,
 	}))
 }
 
@@ -624,6 +643,7 @@ pub(crate) async fn handle_new_head(
 			n_validators,
 			relay_vrf_story,
 			slot,
+			force_approve,
 		} = imported_block_info;
 
 		let session_info = state.session_window.session_info(session_index)
@@ -684,6 +704,10 @@ pub(crate) async fn handle_new_head(
 			approved_bitfield,
 			children: Vec::new(),
 		};
+
+		if let Some(force_approve) = force_approve {
+			unimplemented!()
+		}
 
 		let candidate_entries = approval_db::v1::add_block_entry(
 			db_writer,
