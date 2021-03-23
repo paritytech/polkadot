@@ -764,6 +764,7 @@ parameter_types! {
 impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
+	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
