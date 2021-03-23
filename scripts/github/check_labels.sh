@@ -22,6 +22,7 @@ releasenotes_labels=(
   'B7-runtimenoteworthy'
 )
 
+# Must be an ordered list of priorities, lowest first
 priority_labels=(
   'C1-low 📌'
   'C3-medium 📣'
@@ -62,10 +63,10 @@ if has_runtime_changes origin/master "${HEAD_SHA}"; then
   fi
 fi
 
-# If the priority is anything other than C1-low, we *must not* have a B0-silent
+# If the priority is anything other than the lowest, we *must not* have a B0-silent
 # label
 if has_label "$repo" "$GITHUB_PR" 'B0-silent' &&
-  ! has_label "$repo" "$GITHUB_PR" 'C1-low' ; then
+  ! has_label "$repo" "$GITHUB_PR" "${priority_labels[0]}"; then
   echo "[!] Changes with a priority higher than C1-low *MUST* have a B- label that is not B0-Silent"
   exit 1
 fi
