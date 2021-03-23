@@ -637,6 +637,7 @@ impl Randomness<Hash, BlockNumber> for CurrentBlockRandomness {
 impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
+	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type Randomness = CurrentBlockRandomness;
 	type InitiateOrigin = EnsureRoot<AccountId>;
