@@ -448,17 +448,40 @@ pub fn force_approve(
 	chain_head: Hash,
 	up_to: BlockNumber,
 ) -> Result<()> {
-	// iterate back to the `up_to` block.
-	let mut cur_hash = chain_head;
-	loop {
-		let entry = match load_block_entry(store, &cur_hash)? {
-			None => return Ok(()),
-			Some(e) => e,
-		};
+	enum State {
+		WalkTo,
+		Approving,
 	}
 
-	// iterate backwards, approving blocks as we go.
-	Ok(())
+	let mut cur_hash = chain_head;
+	let mut state = State::WalkTo;
+
+	let mut tx = Transaction::default();
+
+	// iterate back to the `up_to` block, and then iterate backwards until all blocks
+	// are updated.
+	loop {
+		let mut entry = match load_block_entry(store, &cur_hash)? {
+			None => break,
+			Some(e) => e,
+		};
+
+		if entry.block_number <= up_to {
+			state = State::Approving;
+		}
+
+		cur_hash = entry.parent_hash;
+
+		match state {
+			State::WalkTo => {},
+			State::Approving => {
+				entry.approved_bitfield.iter_mut().for_each(|mut b| *b = true);
+				tx.put_block_entry(entry);
+			}
+		}
+	}
+
+	tx.write(store)
 }
 
 // An atomic transaction of multiple candidate or block entries.

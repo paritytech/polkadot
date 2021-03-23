@@ -707,8 +707,9 @@ pub(crate) async fn handle_new_head(
 			children: Vec::new(),
 		};
 
-		if let Some(force_approve) = force_approve {
-			unimplemented!()
+		if let Some(up_to) = force_approve {
+			approval_db::v1::force_approve(db_writer, block_hash, up_to)
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 		}
 
 		let candidate_entries = approval_db::v1::add_block_entry(
