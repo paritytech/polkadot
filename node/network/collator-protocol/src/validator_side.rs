@@ -654,7 +654,6 @@ async fn wait_until_next_check(last_poll: Instant) -> Instant {
 	let next_poll = last_poll + ACTIVITY_POLL;
 
 	if next_poll > now {
-		println!("waiting {:?}", next_poll - now);
 		Delay::new(next_poll - now).await
 	}
 
@@ -712,7 +711,6 @@ pub(crate) async fn run<Context>(
 				continue
 			}
 			Some(Either::Right(())) => {
-				println!("disconnecting inactive of {}", state.peer_data.len());
 				disconnect_inactive_peers(&mut ctx, &state.peer_data).await;
 				continue
 			}
@@ -749,7 +747,6 @@ async fn disconnect_inactive_peers(
 	};
 
 	for (peer, peer_data) in peers {
-		println!("peer {:?} active at {:?} cutoff {:?}", peer, peer_data.last_active, cutoff);
 		if !peer_data.active_since(cutoff) {
 			ctx.send_message(
 				NetworkBridgeMessage::DisconnectPeer(peer.clone(), PeerSet::Collation).into()
