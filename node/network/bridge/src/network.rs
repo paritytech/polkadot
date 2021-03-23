@@ -90,6 +90,8 @@ where
 pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
 	ReputationChange(PeerId, Rep),
+	/// Disconnect a peer from the given peer-set.
+	DisconnectPeer(PeerId, PeerSet),
 	/// Write a notification to a given peer on the given peer-set.
 	WriteNotification(PeerId, PeerSet, Vec<u8>),
 }
@@ -125,6 +127,20 @@ pub trait Network: Send + 'static {
 		async move {
 			self.action_sink()
 				.send(NetworkAction::ReputationChange(who, cost_benefit))
+				.await
+		}
+		.boxed()
+	}
+
+	/// Disconnect a given peer from the peer set specified without harming reputation.
+	fn disconnect_peer(
+		&mut self,
+		who: PeerId,
+		peer_set: PeerSet,
+	) -> BoxFuture<SubsystemResult<()>> {
+		async move {
+			self.action_sink()
+				.send(NetworkAction::DisconnectPeer(who, peer_set))
 				.await
 		}
 		.boxed()
@@ -179,6 +195,9 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 						);
 						self.0.report_peer(peer, cost_benefit.into_base_rep())
 					}
+					NetworkAction::DisconnectPeer(peer, peer_set) => self
+						.0
+						.disconnect_peer(peer, peer_set.into_protocol_name()),
 					NetworkAction::WriteNotification(peer, peer_set, message) => self
 						.0
 						.write_notification(peer, peer_set.into_protocol_name(), message),
