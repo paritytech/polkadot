@@ -40,7 +40,7 @@ use runtime_parachains::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{EnsureOrigin, Filter, KeyOwnerProofSystem, Randomness},
+	traits::{Filter, KeyOwnerProofSystem, Randomness},
 	weights::Weight,
 };
 use sp_runtime::{
@@ -62,7 +62,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
-use frame_system::{EnsureRoot, EnsureOneOf, EnsureSigned};
+use frame_system::EnsureRoot;
 use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
 
 use runtime_parachains::origin as parachains_origin;
@@ -663,32 +663,9 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-/// Privileged origin used by validator manager.
-pub struct PrivilegedOrigin;
-
-impl EnsureOrigin<Origin> for PrivilegedOrigin {
-	type Success = ();
-
-	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
-		let allowed = [
-			hex_literal::hex!("b44c58e50328768ac06ed44b842bfa69d86ea10f60bc36156c9ffc5e00867220"),
-			hex_literal::hex!("762a6a38ba72b139cba285a39a6766e02046fb023f695f5ecf7f48b037c0dd6b")
-		];
-
-		let origin = o.clone();
-		match EnsureSigned::try_origin(o) {
-			Ok(who) if allowed.iter().any(|a| a == &who.as_ref()) => Ok(()),
-			_ => Err(origin),
-		}
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> Origin { Origin::root() }
-}
-
 impl validator_manager::Config for Runtime {
 	type Event = Event;
-	type PrivilegedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PrivilegedOrigin>;
+	type PrivilegedOrigin = EnsureRoot<AccountId>;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
