@@ -266,6 +266,21 @@ pub enum AvailabilityDistributionMessage {
 	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>),
 	/// Incoming network request for a seconded PoV.
 	PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
+	/// Instruct availability distribution to fetch a remote PoV.
+	///
+	/// NOTE: The result of this fetch is not yet locally validated and could be bogus.
+	FetchPoV{
+		/// The relay parent giving the necessary context.
+		relay_parent: Hash,
+		/// Validator to fetch the PoV from.
+		from_validator: ValidatorIndex,
+		/// Candidate hash to fetch the PoV for.
+		candidate_hash: CandidateHash,
+		/// Sender for getting back the result of this fetch.
+		///
+		/// The sender will be canceled if the fetching failed for some reason.
+		tx: oneshot::Sender<PoV>,
+	},
 }
 
 /// Availability Recovery Message.

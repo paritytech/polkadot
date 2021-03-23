@@ -143,6 +143,26 @@ impl AvailabilityDistributionSubsystem {
 				} => {
 					answer_pov_request_log(&mut ctx, req, &self.metrics).await
 				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::FetchPoV{
+                        relay_parent,
+                        from_validator,
+                        candidate_hash,
+                        tx,
+                    },
+				} => {
+                    log_error(
+                        pov_requester.fetch_pov(
+                            &mut ctx,
+                            &mut self.runtime,
+                            relay_parent,
+                            from_validator,
+                            candidate_hash,
+                            tx,
+                        ).await,
+                        "PoVRequester::fetch_pov"
+                    );
+                }
 			}
 		}
 	}

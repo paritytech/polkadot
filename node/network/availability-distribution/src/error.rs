@@ -17,6 +17,7 @@
 
 //! Error handling related code and Error/Result definitions.
 
+use polkadot_node_network_protocol::request_response::request::RequestError;
 use thiserror::Error;
 
 use futures::channel::oneshot;
@@ -80,6 +81,17 @@ pub enum Error {
 	/// Decompressing PoV failed.
 	#[error("PoV could not be decompressed")]
 	PoVDecompression(CompressedPoVError),
+
+	/// Fetching PoV failed with `RequestError`.
+	#[error("FetchPoV request error")]
+	FetchPoV(#[source] RequestError),
+
+	#[error("Remote responded with `NoSuchPoV`")]
+	NoSuchPoV,
+
+	/// No validator with the index could be found in current session.
+	#[error("Given validator index could not be found")]
+	InvalidValidatorIndex,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

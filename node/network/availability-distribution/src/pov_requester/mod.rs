@@ -16,14 +16,25 @@
 
 //! PoV requester takes care of requesting PoVs from validators of a backing group.
 
-use futures::channel::mpsc;
+use futures::{FutureExt, channel::{mpsc, oneshot}, future::BoxFuture};
 use lru::LruCache;
 
-use polkadot_node_network_protocol::{PeerId, peer_set::PeerSet};
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
-use polkadot_subsystem::{ActiveLeavesUpdate, SubsystemContext, messages::{AllMessages, NetworkBridgeMessage}};
+use polkadot_node_network_protocol::{
+	PeerId, peer_set::PeerSet,
+	request_response::{OutgoingRequest, Recipient, request::{RequestError, Requests},
+	v1::{PoVFetchingRequest, PoVFetchingResponse}}
+};
+use polkadot_primitives::v1::{
+	AuthorityDiscoveryId, CandidateHash, Hash, PoV, SessionIndex, ValidatorIndex
+};
+use polkadot_subsystem::{
+	ActiveLeavesUpdate, SubsystemContext, messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
+};
 
-use crate::runtime::Runtime;
+use crate::{
+	runtime::Runtime,
+	error::{Error, log_error},
+};
 
 /// Number of sessions we want to keep in the LRU.
 const NUM_SESSIONS: usize = 2;
@@ -73,8 +84,77 @@ impl PoVRequester {
 		Ok(())
 	}
 
+	/// Start background worker for taking care of fetching the requested `PoV` from the network.
+	pub async fn fetch_pov<Context>(
+		&self,
+		ctx: &mut Context,
+		runtime: &mut Runtime,
+		parent: Hash,
+		from_validator: ValidatorIndex,
+		candidate_hash: CandidateHash,
+		tx: oneshot::Sender<PoV>
+	) -> super::Result<()> 
+	where
+		Context: SubsystemContext,
+	{
+		let info = &runtime.get_session_info(ctx, parent).await?.session_info;
+		let authority_id = info.discovery_keys.get(from_validator.0 as usize)
+			.ok_or(Error::InvalidValidatorIndex)?
+			.clone();
+		let (req, pending_response) = OutgoingRequest::new(
+			Recipient::Authority(authority_id),
+			PoVFetchingRequest {
+				candidate_hash,
+			},
+		);
+		let full_req = Requests::PoVFetching(req);
+
+		ctx.send_message(
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendRequests(
+					vec![full_req],
+					// We are supposed to be connected to validators of our group:
+					IfDisconnected::ImmediateError
+				)
+		)).await;
+
+		ctx.spawn("pov-fetcher", fetch_pov_job(pending_response.boxed(), tx).boxed())
+			.await
+			.map_err(|e| Error::SpawnTask(e))
+	}
 }
 
+/// Future to be spawned for taking care of handling reception and sending of PoV.
+async fn fetch_pov_job(
+	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
+	tx: oneshot::Sender<PoV>,
+) {
+	log_error(
+		do_fetch_pov(pending_response, tx).await,
+		"fetch_pov_job",
+	)
+}
+
+/// Do the actual work of waiting for the response.
+async fn do_fetch_pov(
+	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
+	tx: oneshot::Sender<PoV>,
+) 
+	-> super::Result<()>
+{
+	let response = pending_response.await.map_err(Error::FetchPoV)?;
+	let pov = match response {
+		PoVFetchingResponse::PoV(compressed) => {
+			compressed.decompress().map_err(Error::PoVDecompression)?
+		}
+		PoVFetchingResponse::NoSuchPoV => {
+			return Err(Error::NoSuchPoV)
+		}
+	};
+	tx.send(pov).map_err(|_| Error::SendResponse)
+}
+
+/// Get the session indeces for the given relay chain parents.
 async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut Runtime, new_heads: impl Iterator<Item = &Hash>) 
 	-> super::Result<impl Iterator<Item = (Hash, SessionIndex)>>
 where
@@ -87,6 +167,7 @@ where
 	Ok(sessions.into_iter())
 }
 
+/// Connect to validators of our validator group.
 async fn connect_to_relevant_validators<Context>(
 	ctx: &mut Context,
 	runtime: &mut Runtime,
@@ -106,6 +187,7 @@ where
 	Ok(rx)
 }
 
+/// Get the validators in our validator group.
 async fn determine_relevant_validators<Context>(
 	ctx: &mut Context,
 	runtime: &mut Runtime,
@@ -121,7 +203,12 @@ where
 		let indeces = info.session_info.validator_groups.get(validator_info.our_group.0 as usize)
 			.expect("Our group got retrieved from that session info, it must exist. qed.")
 			.clone();
-		Ok(indeces.into_iter().map(|i| info.session_info.discovery_keys[i.0 as usize].clone()).collect())
+		Ok(
+			indeces.into_iter()
+			   .filter(|i| *i != validator_info.our_index)
+			   .map(|i| info.session_info.discovery_keys[i.0 as usize].clone())
+			   .collect()
+	   )
 	} else {
 		Ok(Vec::new())
 	}
