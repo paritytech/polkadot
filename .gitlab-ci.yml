@@ -246,7 +246,8 @@ generate-impl-guide:
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
     # pass artifacts to the trigget-simnet job
     # this twist is to match the similar logic in substrate
-    - echo "VERSION=${EXTRATAG}" > build.env
+    - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env 
+    - echo "VERSION=${EXTRATAG}" >> build.env
   after_script:
     - buildah logout "$IMAGE_NAME"
   artifacts:
@@ -359,5 +360,4 @@ trigger-simnet:
     strategy:                      depend
   variables:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
-    TRGR_BRANCH:                   ${CI_COMMIT_REF_NAME}
-    TRGR_PIPELINE_ID:              ${CI_PIPELINE_ID}
+    TRGR_REF:                      ${CI_COMMIT_REF_NAME}
