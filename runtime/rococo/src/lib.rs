@@ -620,7 +620,7 @@ impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
-	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type Randomness = pallet_babe::CurrentBlockRandomness<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;
 }
