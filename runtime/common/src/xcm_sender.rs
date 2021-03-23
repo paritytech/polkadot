@@ -18,7 +18,7 @@
 
 use parity_scale_codec::Encode;
 use sp_std::marker::PhantomData;
-use xcm::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
+use xcm::{VersionedXcm, v0::{SendXcm, MultiLocation, ChainRelativeLocation, Xcm, Result, Error}};
 use runtime_parachains::{configuration, dmp};
 
 /// Xcm sender for relay chain. It only sends downward message.
@@ -26,7 +26,7 @@ pub struct RelayChainXcmSender<T>(PhantomData<T>);
 
 impl<T: configuration::Config + dmp::Config> SendXcm for RelayChainXcmSender<T> {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
-		if let MultiLocation::X1(Junction::Parachain { id }) = dest {
+		if let Some(id) = dest.match_child_parachain() {
 			// Downward message passing.
 			let config = <configuration::Module<T>>::config();
 			<dmp::Module<T>>::queue_downward_message(

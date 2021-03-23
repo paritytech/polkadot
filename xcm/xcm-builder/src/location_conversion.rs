@@ -19,7 +19,7 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use frame_support::traits::Get;
 use parity_scale_codec::Encode;
-use xcm::v0::{MultiLocation, NetworkId, Junction};
+use xcm::v0::{MultiLocation, NetworkId, Junction, ChainRelativeLocation};
 use xcm_executor::traits::LocationConversion;
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
@@ -43,7 +43,7 @@ impl<
 	AccountId: Default + Eq,
 > LocationConversion<AccountId> for ParentIsDefault<AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let MultiLocation::X1(Junction::Parent) = location {
+		if location.is_parent() {
 			Some(AccountId::default())
 		} else {
 			None
@@ -52,7 +52,7 @@ impl<
 
 	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
 		if who == AccountId::default() {
-			Ok(Junction::Parent.into())
+			Ok(MultiLocation::parent())
 		} else {
 			Err(who)
 		}
@@ -66,8 +66,8 @@ impl<
 	AccountId,
 > LocationConversion<AccountId> for ChildParachainConvertsVia<ParaId, AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let MultiLocation::X1(Junction::Parachain { id }) = location {
-			Some(ParaId::from(*id).into_account())
+		if let Some(id) = location.match_child_parachain() {
+			Some(ParaId::from(id).into_account())
 		} else {
 			None
 		}
@@ -75,7 +75,7 @@ impl<
 
 	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
 		if let Some(id) = ParaId::try_from_account(&who) {
-			Ok(Junction::Parachain { id: id.into() }.into())
+			Ok(MultiLocation::child_parachain(id.into()))
 		} else {
 			Err(who)
 		}
@@ -89,8 +89,8 @@ impl<
 	AccountId,
 > LocationConversion<AccountId> for SiblingParachainConvertsVia<ParaId, AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let MultiLocation::X2(Junction::Parent, Junction::Parachain { id }) = location {
-			Some(ParaId::from(*id).into_account())
+		if let Some(id) = location.match_sibling_parachain() {
+			Some(ParaId::from(id).into_account())
 		} else {
 			None
 		}
@@ -98,7 +98,7 @@ impl<
 
 	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
 		if let Some(id) = ParaId::try_from_account(&who) {
-			Ok([Junction::Parent, Junction::Parachain { id: id.into() }].into())
+			Ok(MultiLocation::sibling_parachain(id.into()))
 		} else {
 			Err(who)
 		}

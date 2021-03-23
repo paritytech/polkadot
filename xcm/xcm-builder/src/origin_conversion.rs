@@ -16,7 +16,7 @@
 
 use sp_std::marker::PhantomData;
 use frame_support::traits::{Get, OriginTrait};
-use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction};
+use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction, ChainRelativeLocation};
 use xcm_executor::traits::{LocationConversion, ConvertOrigin};
 use polkadot_parachain::primitives::IsSystem;
 
@@ -44,10 +44,10 @@ impl<
 	Origin: OriginTrait,
 > ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X1(Junction::Parent)) =>
+		match (kind, origin.is_parent()) {
+			(OriginKind::Superuser, true) =>
 				Ok(Origin::root()),
-			(_, origin) => Err(origin),
+			(_, _) => Err(origin),
 		}
 	}
 }
@@ -58,11 +58,11 @@ impl<
 	Origin: OriginTrait,
 > ConvertOrigin<Origin> for ChildSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain { id }))
+		match (kind, origin.match_child_parachain()) {
+			(OriginKind::Superuser, Some(id))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
-			(_, origin) => Err(origin),
+			(_, _) => Err(origin),
 		}
 	}
 }
@@ -73,11 +73,11 @@ impl<
 	Origin: OriginTrait
 > ConvertOrigin<Origin> for SiblingSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+		match (kind, origin.match_sibling_parachain()) {
+			(OriginKind::Superuser, Some(id))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
-			(_, origin) => Err(origin),
+			(_, _) => Err(origin),
 		}
 	}
 }
@@ -90,10 +90,10 @@ impl<
 	Origin: From<ParachainOrigin>,
 > ConvertOrigin<Origin> for ChildParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::Parachain { id }))
+		match (kind, origin.match_child_parachain()) {
+			(OriginKind::Native, Some(id))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
-			(_, origin) => Err(origin),
+			(_, _) => Err(origin),
 		}
 	}
 }
@@ -106,10 +106,10 @@ impl<
 	Origin: From<ParachainOrigin>,
 > ConvertOrigin<Origin> for SiblingParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+		match (kind, origin.match_sibling_parachain()) {
+			(OriginKind::Native, Some(id))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
-			(_, origin) => Err(origin),
+			(_, _) => Err(origin),
 		}
 	}
 }
@@ -123,9 +123,9 @@ impl<
 	Origin,
 > ConvertOrigin<Origin> for RelayChainAsNative<RelayOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::Parent)) => Ok(RelayOrigin::get()),
-			(_, origin) => Err(origin),
+		match (kind, origin.is_parent()) {
+			(OriginKind::Native, true) => Ok(RelayOrigin::get()),
+			(_, _) => Err(origin),
 		}
 	}
 }
