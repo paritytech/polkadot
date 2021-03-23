@@ -288,10 +288,7 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{
-		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV, CandidateHash, ValidatorIndex, CandidateIndex, AvailableData,
-	};
+	use polkadot_primitives::v1::{AvailableData, CandidateHash, CandidateIndex, CollatorId, CompressedPoV, ErasureChunk, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
 	use polkadot_node_primitives::{
 		SignedFullStatement,
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
@@ -357,73 +354,6 @@ pub mod v1 {
 		Approvals(Vec<IndirectSignedApprovalVote>),
 	}
 
-	#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-	#[allow(missing_docs)]
-	pub enum CompressedPoVError {
-		#[error("Failed to compress a PoV")]
-		Compress,
-		#[error("Failed to decompress a PoV")]
-		Decompress,
-		#[error("Failed to decode the uncompressed PoV")]
-		Decode,
-		#[error("Architecture is not supported")]
-		NotSupported,
-	}
-
-	/// SCALE and Zstd encoded [`PoV`].
-	#[derive(Clone, Encode, Decode, PartialEq, Eq)]
-	pub struct CompressedPoV(Vec<u8>);
-
-	impl CompressedPoV {
-		/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-		#[cfg(not(target_os = "unknown"))]
-		pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
-			zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
-		}
-
-		/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-		#[cfg(target_os = "unknown")]
-		pub fn compress(_: &PoV) -> Result<Self, CompressedPoVError> {
-			Err(CompressedPoVError::NotSupported)
-		}
-
-		/// Decompress `self` and returns the [`PoV`] on success.
-		#[cfg(not(target_os = "unknown"))]
-		pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
-			use std::io::Read;
-			const MAX_POV_BLOCK_SIZE: usize = 32 * 1024 * 1024;
-
-			struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>, usize);
-			impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
-				fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
-					self.1 = self.1.saturating_add(into.len());
-					if self.1 > MAX_POV_BLOCK_SIZE {
-						return Err("pov block too big".into())
-					}
-					self.0.read_exact(into).map_err(Into::into)
-				}
-				fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
-					Ok(None)
-				}
-			}
-
-			let mut decoder = zstd::Decoder::new(self.0.as_slice()).map_err(|_| CompressedPoVError::Decompress)?;
-			PoV::decode(&mut InputDecoder(&mut decoder, 0)).map_err(|_| CompressedPoVError::Decode)
-		}
-
-		/// Decompress `self` and returns the [`PoV`] on success.
-		#[cfg(target_os = "unknown")]
-		pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
-			Err(CompressedPoVError::NotSupported)
-		}
-	}
-
-	impl std::fmt::Debug for CompressedPoV {
-		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-			write!(f, "CompressedPoV({} bytes)", self.0.len())
-		}
-	}
-
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
@@ -434,12 +364,6 @@ pub mod v1 {
 		/// that they are a collator with given ID.
 		#[codec(index = 1)]
 		AdvertiseCollation(Hash, ParaId),
-		/// Request the advertised collation at that relay-parent.
-		#[codec(index = 2)]
-		RequestCollation(RequestId, Hash, ParaId),
-		/// A requested collation.
-		#[codec(index = 3)]
-		Collation(RequestId, CandidateReceipt, CompressedPoV),
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
 		CollationSeconded(SignedFullStatement),
@@ -480,18 +404,4 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
-}
-
-#[cfg(test)]
-mod tests {
-	use polkadot_primitives::v1::PoV;
-	use super::v1::{CompressedPoV, CompressedPoVError};
-
-	#[test]
-	fn decompress_huge_pov_block_fails() {
-		let pov = PoV { block_data: vec![0; 63 * 1024 * 1024].into() };
-
-		let compressed = CompressedPoV::compress(&pov).unwrap();
-		assert_eq!(CompressedPoVError::Decode, compressed.decompress().unwrap_err());
-	}
 }

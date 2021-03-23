@@ -2011,7 +2011,7 @@ where
 			}
 		}
 
-		let mut span = jaeger::hash_span(hash, "leaf-activated");
+		let mut span = jaeger::Span::new(*hash, "leaf-activated");
 
 		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
 			span.add_follows_from(&*parent_span);

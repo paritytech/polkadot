@@ -56,7 +56,7 @@ pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainS
 	/// from a derived account.
 	///
 	/// The derived account represents the source Root account on the target chain. This is useful
-	/// if the target chain needs some way of knowing that a call came from a priviledged origin on
+	/// if the target chain needs some way of knowing that a call came from a privileged origin on
 	/// the source chain (maybe to allow a configuration change for example).
 	SourceRoot,
 
@@ -451,8 +451,8 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			CallDispatch: call_dispatch::{Module, Call, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			CallDispatch: call_dispatch::{Pallet, Call, Event<T>},
 		}
 	}
 
