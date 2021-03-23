@@ -26,7 +26,7 @@ use frame_support::{
 	weights::{DispatchClass, Weight},
 };
 use primitives::v1::Id as ParaId;
-use frame_system::ensure_signed;
+use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use crate::traits::{Leaser, LeaseError, Auctioneer};
 use parity_scale_codec::Decode;
@@ -263,6 +263,21 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 			Self::handle_bid(who, para, auction_index, first_slot, last_slot, amount)?;
+		}
+
+		/// Cancel an in-progress auction.
+		///
+		/// Can only be called by Root origin.
+		#[weight = 0]
+		pub fn cancel_auction(origin) {
+			ensure_root(origin);
+			// Unreserve all bids.
+			for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
+				ReservedAmounts::<T>::take((bidder.clone(), para));
+				CurrencyOf::<T>::unreserve(&bidder, amount);
+			}
+			AuctionInfo::<T>::kill();
+			Winning::<T>::remove_all();
 		}
 	}
 }
