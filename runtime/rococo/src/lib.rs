@@ -92,7 +92,7 @@ use constants::{time::*, currency::*, fee::*};
 
 /// Constant values used within the runtime.
 pub mod constants;
-mod propose_parachain;
+mod validator_manager;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -218,8 +218,8 @@ construct_runtime! {
 		// Sudo
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
 
-		// Propose parachain pallet.
-		ProposeParachain: propose_parachain::{Pallet, Call, Storage, Event<T>},
+		// Validator Manager pallet.
+		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
 	}
 }
 
@@ -422,7 +422,7 @@ impl pallet_session::Config for Runtime {
 	type ValidatorIdOf = ValidatorIdOf;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ProposeParachain>;
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ValidatorManager>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -664,10 +664,10 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-/// Priviledged origin used by propose parachain.
-pub struct PriviledgedOrigin;
+/// Privileged origin used by validator manager.
+pub struct PrivilegedOrigin;
 
-impl EnsureOrigin<Origin> for PriviledgedOrigin {
+impl EnsureOrigin<Origin> for PrivilegedOrigin {
 	type Success = ();
 
 	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
@@ -687,16 +687,9 @@ impl EnsureOrigin<Origin> for PriviledgedOrigin {
 	fn successful_origin() -> Origin { Origin::root() }
 }
 
-parameter_types! {
-	pub const ProposeDeposit: Balance = 1000 * DOLLARS;
-	pub const MaxNameLength: u32 = 20;
-}
-
-impl propose_parachain::Config for Runtime {
+impl validator_manager::Config for Runtime {
 	type Event = Event;
-	type MaxNameLength = MaxNameLength;
-	type ProposeDeposit = ProposeDeposit;
-	type PriviledgedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PriviledgedOrigin>;
+	type PrivilegedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PrivilegedOrigin>;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
