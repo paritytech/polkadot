@@ -66,7 +66,7 @@ impl<
 	AccountId,
 > LocationConversion<AccountId> for ChildParachainConvertsVia<ParaId, AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let Some(id) = location.match_child_parachain() {
+		if let Some(id) = location.as_child_parachain() {
 			Some(ParaId::from(id).into_account())
 		} else {
 			None
@@ -89,7 +89,7 @@ impl<
 	AccountId,
 > LocationConversion<AccountId> for SiblingParachainConvertsVia<ParaId, AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let Some(id) = location.match_sibling_parachain() {
+		if let Some(id) = location.as_sibling_parachain() {
 			Some(ParaId::from(id).into_account())
 		} else {
 			None

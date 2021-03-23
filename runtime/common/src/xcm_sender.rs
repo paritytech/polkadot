@@ -26,7 +26,7 @@ pub struct RelayChainXcmSender<T>(PhantomData<T>);
 
 impl<T: configuration::Config + dmp::Config> SendXcm for RelayChainXcmSender<T> {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
-		if let Some(id) = dest.match_child_parachain() {
+		if let Some(id) = dest.as_child_parachain() {
 			// Downward message passing.
 			let config = <configuration::Module<T>>::config();
 			<dmp::Module<T>>::queue_downward_message(
