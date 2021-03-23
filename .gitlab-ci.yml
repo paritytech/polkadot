@@ -247,7 +247,6 @@ generate-impl-guide:
     # pass artifacts to the trigget-simnet job
     # this twist is to match the similar logic in substrate
     - echo "VERSION=${EXTRATAG}" > build.env
-    - echo "TRIGGERER=${CI_PROJECT_NAME}" >> build.env
   after_script:
     - buildah logout "$IMAGE_NAME"
   artifacts:
@@ -350,10 +349,15 @@ trigger-simnet:
   <<:                              *rules-test
   needs:
     - job:                         publish-dockerhub
-  # build.env is passed with an exact VERSION (EXTRATAG here, i.e. 2643-0.8.29-5f689e0a-6b24dc54)
-  # Simnet uses an image published on PRs with this exact version for triggered runs on commits.
-  # And parity/rococo:rococo-v1 for runs not launched by this job.
+  # `build.env` is taken by the triggered job from `publish-dockerhub` job with an
+  # exact `$VERSION` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`)
+  # Simnet uses an image published on PRs with this exact version for triggered runs
+  # on commits. And parity/rococo:rococo-v1 for runs not launched by this job.
   trigger:
     project:                       parity/simnet
     branch:                        master
     strategy:                      depend
+  variables:
+    TRGR_PROJECT:                  ${CI_PROJECT_NAME}
+    TRGR_BRANCH:                   ${CI_COMMIT_REF_NAME}
+    TRGR_PIPELINE_ID:              ${CI_PIPELINE_ID}
