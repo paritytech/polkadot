@@ -183,12 +183,14 @@ impl paras_registrar::Config for Test {
 
 parameter_types! {
 	pub const EndingPeriod: BlockNumber = 10;
+	pub const SampleLength: BlockNumber = 1;
 }
 
 impl auctions::Config for Test {
 	type Event = Event;
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
 	type Randomness = TestRandomness<Self>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::auctions::TestWeightInfo;
