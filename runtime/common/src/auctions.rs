@@ -473,7 +473,6 @@ impl<T: Config> Module<T> {
 						.expect("secure hashes should always be bigger than the block number; qed");
 					let offset = (raw_offset_block_number % ending_period) / T::SampleLength::get();
 
-					println!("offset {:?} {:?}", raw_offset, offset);
 					let res = Winning::<T>::get(offset).unwrap_or_default();
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
@@ -506,8 +505,6 @@ impl<T: Config> Module<T> {
 		// Next, calculate the winning combination of slots and thus the final winners of the
 		// auction.
 		let winners = Self::calculate_winners(winning_ranges);
-
-		println!("winners {:?}", winners);
 
 		// Go through those winners and re-reserve their bid, updating our table of deposits
 		// accordingly.
@@ -1433,15 +1430,13 @@ mod tests {
 				Some((3, para_3, 30)),
 			]));
 
-			set_last_random(H256::from([12; 32]), 30);
+			set_last_random(H256::from([254; 32]), 40);
 			run_to_block(40);
 			// Auction ended and winner selected
 			assert!(!Auctions::is_in_progress());
 			assert_eq!(leases(), vec![
-				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
-				((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),
-				((0.into(), 3), LeaseData { leaser: 1, amount: 1 }),
-				((0.into(), 4), LeaseData { leaser: 1, amount: 1 }),
+				((3.into(), 13), LeaseData { leaser: 3, amount: 30 }),
+				((3.into(), 14), LeaseData { leaser: 3, amount: 30 }),
 			]);
 		});
 	}
