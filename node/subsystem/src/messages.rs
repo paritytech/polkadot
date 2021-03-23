@@ -252,6 +252,7 @@ impl NetworkBridgeMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::ReportPeer(_, _) => None,
+			Self::DisconnectPeer(_, _) => None,
 			Self::SendValidationMessage(_, _) => None,
 			Self::SendCollationMessage(_, _) => None,
 			Self::SendValidationMessages(_) => None,
