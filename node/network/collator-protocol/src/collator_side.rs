@@ -279,7 +279,7 @@ async fn distribute_collation(
 	if !state.view.contains(&relay_parent) {
 		tracing::warn!(
 			target: LOG_TARGET,
-			relay_parent = %relay_parent,
+			?relay_parent,
 			"distribute collation message parent is outside of our view",
 		);
 
@@ -299,7 +299,7 @@ async fn distribute_collation(
 			tracing::warn!(
 				target: LOG_TARGET,
 				para_id = %id,
-				relay_parent = %relay_parent,
+				?relay_parent,
 				"looks like no core is assigned to {} at {}", id, relay_parent,
 			);
 
@@ -453,7 +453,7 @@ async fn advertise_collation(
 		(None, _) => {
 			tracing::debug!(
 				target: LOG_TARGET,
-				relay_parent = ?relay_parent,
+				?relay_parent,
 				peer_id = %peer,
 				"No collation to advertise.",
 			);
@@ -462,7 +462,7 @@ async fn advertise_collation(
 		(_, false) => {
 			tracing::debug!(
 				target: LOG_TARGET,
-				relay_parent = ?relay_parent,
+				?relay_parent,
 				peer_id = %peer,
 				"Not advertising collation as we already advertised it to this validator.",
 			);
@@ -471,7 +471,7 @@ async fn advertise_collation(
 		(Some(collation), true) => {
 			tracing::debug!(
 				target: LOG_TARGET,
-				relay_parent = ?relay_parent,
+				?relay_parent,
 				peer_id = %peer,
 				"Advertising collation.",
 			);
