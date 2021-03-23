@@ -28,6 +28,7 @@ use sp_keyring::Sr25519Keyring;
 
 use polkadot_primitives::v1::{BlockData, CandidateHash, PoV, ValidatorIndex};
 use polkadot_node_network_protocol::request_response::v1;
+use polkadot_node_network_protocol::request_response::Recipient;
 use polkadot_subsystem::messages::AllMessages;
 
 use crate::metrics::Metrics;
@@ -56,7 +57,7 @@ fn task_does_not_accept_invalid_chunk() {
 		chunk_responses:  {
 			let mut m = HashMap::new();
 			m.insert(
-				Sr25519Keyring::Alice.public().into(),
+				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
 				AvailabilityFetchingResponse::Chunk(
 					v1::ChunkResponse {
 						chunk: vec![1,2,3],
@@ -88,7 +89,7 @@ fn task_stores_valid_chunk() {
 		chunk_responses:  {
 			let mut m = HashMap::new();
 			m.insert(
-				Sr25519Keyring::Alice.public().into(),
+				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
 				AvailabilityFetchingResponse::Chunk(
 					v1::ChunkResponse {
 						chunk: chunk.chunk.clone(),
@@ -124,7 +125,7 @@ fn task_does_not_accept_wrongly_indexed_chunk() {
 		chunk_responses:  {
 			let mut m = HashMap::new();
 			m.insert(
-				Sr25519Keyring::Alice.public().into(),
+				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
 				AvailabilityFetchingResponse::Chunk(
 					v1::ChunkResponse {
 						chunk: chunk.chunk.clone(),
@@ -163,7 +164,7 @@ fn task_stores_valid_chunk_if_there_is_one() {
 		chunk_responses:  {
 			let mut m = HashMap::new();
 			m.insert(
-				Sr25519Keyring::Alice.public().into(),
+				Recipient::Authority(Sr25519Keyring::Alice.public().into()),
 				AvailabilityFetchingResponse::Chunk(
 					v1::ChunkResponse {
 						chunk: chunk.chunk.clone(),
@@ -172,11 +173,11 @@ fn task_stores_valid_chunk_if_there_is_one() {
 				)
 			);
 			m.insert(
-				Sr25519Keyring::Bob.public().into(),
+				Recipient::Authority(Sr25519Keyring::Bob.public().into()),
 				AvailabilityFetchingResponse::NoSuchChunk
 			);
 			m.insert(
-				Sr25519Keyring::Charlie.public().into(),
+				Recipient::Authority(Sr25519Keyring::Charlie.public().into()),
 				AvailabilityFetchingResponse::Chunk(
 					v1::ChunkResponse {
 						chunk: vec![1,2,3],
@@ -199,7 +200,7 @@ fn task_stores_valid_chunk_if_there_is_one() {
 struct TestRun {
 	/// Response to deliver for a given validator index.
 	/// None means, answer with NetworkError.
-	chunk_responses: HashMap<AuthorityDiscoveryId, AvailabilityFetchingResponse>,
+	chunk_responses: HashMap<Recipient, AvailabilityFetchingResponse>,
 	/// Set of chunks that should be considered valid:
 	valid_chunks: HashSet<Vec<u8>>,
 }
@@ -240,11 +241,12 @@ impl TestRun {
 	/// end.
 	async fn handle_message(&self, msg: AllMessages) -> bool {
 		match msg {
-			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs)) => {
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::TryConnect)) => {
 				let mut valid_responses = 0;
 				for req in reqs {
 					let req = match req {
 						Requests::AvailabilityFetching(req) => req,
+						_ => panic!("Unexpected request"),
 					};
 					let response = self.chunk_responses.get(&req.peer)
 						.ok_or(network::RequestFailure::Refused);

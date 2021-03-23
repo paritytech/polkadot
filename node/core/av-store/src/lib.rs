@@ -49,7 +49,7 @@ use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &str = "availability";
+const LOG_TARGET: &str = "parachain::availability";
 
 mod columns {
 	pub const DATA: u32 = 0;
@@ -679,6 +679,12 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		"Candidate backed",
+	);
+
 	if load_meta(db, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
 			state: State::Unavailable(now.into()),
@@ -710,12 +716,18 @@ fn note_block_included(
 			// Warn and ignore.
 			tracing::warn!(
 				target: LOG_TARGET,
-				"Candidate {}, included without being backed?",
-				candidate_hash,
+				?candidate_hash,
+				"Candidate included without being backed?",
 			);
 		}
 		Some(mut meta) => {
 			let be_block = (BEBlockNumber(block.0), block.1);
+
+			tracing::debug!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				"Candidate included",
+			);
 
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
@@ -1045,6 +1057,13 @@ fn store_chunk(
 		None => return Ok(false), // out of bounds.
 	}
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		chunk_index = %chunk.index.0,
+		"Stored chunk index for candidate.",
+	);
+
 	db.write(tx)?;
 	Ok(true)
 }
@@ -1107,8 +1126,8 @@ fn store_available_data(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Stored data and chunks for candidate={}",
-		candidate_hash,
+		?candidate_hash,
+		"Stored data and chunks",
 	);
 
 	Ok(())

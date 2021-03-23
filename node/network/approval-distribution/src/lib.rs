@@ -45,7 +45,7 @@ use polkadot_node_network_protocol::{
 
 };
 
-const LOG_TARGET: &str = "approval_distribution";
+const LOG_TARGET: &str = "parachain::approval-distribution";
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("Peer sent an out-of-view assignment or approval");
 const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical messages");

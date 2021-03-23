@@ -41,6 +41,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::approval::{
 	self as approval_types, BlockApprovalMeta, RelayVRFStory,
 };
+use polkadot_node_jaeger as jaeger;
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
 use kvdb::KeyValueDB;
@@ -190,12 +191,16 @@ async fn determine_new_blocks(
 	Ok(ancestry)
 }
 
+// Sessions unavailable in state to cache.
+#[derive(Debug)]
+struct SessionsUnavailable;
+
 async fn load_all_sessions(
 	ctx: &mut impl SubsystemContext,
 	block_hash: Hash,
 	start: SessionIndex,
 	end_inclusive: SessionIndex,
-) -> SubsystemResult<Option<Vec<SessionInfo>>> {
+) -> Result<Vec<SessionInfo>, SessionsUnavailable> {
 	let mut v = Vec::new();
 	for i in start..=end_inclusive {
 		let (tx, rx)= oneshot::channel();
@@ -214,21 +219,16 @@ async fn load_all_sessions(
 					block_hash,
 				);
 
-				return Ok(None);
+				return Err(SessionsUnavailable);
 			}
-			Ok(Err(e)) => return Err(SubsystemError::with_origin("approval-voting", e)),
-			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
+			Ok(Err(_)) | Err(_) => return Err(SessionsUnavailable),
 		};
 
 		v.push(session_info);
 	}
 
-	Ok(Some(v))
+	Ok(v)
 }
-
-// Sessions unavailable in state to cache.
-#[derive(Debug)]
-struct SessionsUnavailable;
 
 // When inspecting a new import notification, updates the session info cache to match
 // the session of the imported block.
@@ -242,7 +242,7 @@ async fn cache_session_info_for_head(
 	session_window: &mut RollingSessionWindow,
 	block_hash: Hash,
 	block_header: &Header,
-) -> SubsystemResult<Result<(), SessionsUnavailable>> {
+) -> Result<(), SessionsUnavailable> {
 	let session_index = {
 		let (s_tx, s_rx) = oneshot::channel();
 
@@ -254,9 +254,9 @@ async fn cache_session_info_for_head(
 			RuntimeApiRequest::SessionIndexForChild(s_tx),
 		).into()).await;
 
-		match s_rx.await? {
-			Ok(s) => s,
-			Err(e) => return Err(SubsystemError::with_origin("approval-voting", e)),
+		match s_rx.await {
+			Ok(Ok(s)) => s,
+			Ok(Err(_)) | Err(_) => return Err(SessionsUnavailable),
 		}
 	};
 
@@ -271,17 +271,17 @@ async fn cache_session_info_for_head(
 				window_start, session_index,
 			);
 
-			match load_all_sessions(ctx, block_hash, window_start, session_index).await? {
-				None => {
+			match load_all_sessions(ctx, block_hash, window_start, session_index).await {
+				Err(SessionsUnavailable) => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						"Could not load sessions {}..={} from block {:?} in session {}",
 						window_start, session_index, block_hash, session_index,
 					);
 
-					return Ok(Err(SessionsUnavailable));
+					return Err(SessionsUnavailable);
 				},
-				Some(s) => {
+				Ok(s) => {
 					session_window.earliest_session = Some(window_start);
 					session_window.session_info = s;
 				}
@@ -291,7 +291,7 @@ async fn cache_session_info_for_head(
 			let latest = session_window.latest_session().expect("latest always exists if earliest does; qed");
 
 			// Either cached or ancient.
-			if session_index <= latest { return Ok(Ok(())) }
+			if session_index <= latest { return Ok(()) }
 
 			let old_window_end = latest;
 
@@ -311,17 +311,17 @@ async fn cache_session_info_for_head(
 				latest + 1
 			};
 
-			match load_all_sessions(ctx, block_hash, fresh_start, session_index).await? {
-				None => {
+			match load_all_sessions(ctx, block_hash, fresh_start, session_index).await {
+				Err(SessionsUnavailable) => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						"Could not load sessions {}..={} from block {:?} in session {}",
 						latest + 1, session_index, block_hash, session_index,
 					);
 
-					return Ok(Err(SessionsUnavailable));
+					return Err(SessionsUnavailable);
 				}
-				Some(s) => {
+				Ok(s) => {
 					let outdated = std::cmp::min(overlap_start as usize, session_window.session_info.len());
 					session_window.session_info.drain(..outdated);
 					session_window.session_info.extend(s);
@@ -335,7 +335,7 @@ async fn cache_session_info_for_head(
 		}
 	}
 
-	Ok(Ok(()))
+	Ok(())
 }
 
 struct ImportedBlockInfo {
@@ -531,7 +531,7 @@ pub(crate) async fn handle_new_head(
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	// Update session info based on most recent head.
 
-	let mut span = polkadot_node_jaeger::hash_span(&head, "approval-checking-import");
+	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
@@ -539,7 +539,13 @@ pub(crate) async fn handle_new_head(
 
 		match h_rx.await? {
 			Err(e) => {
-				return Err(SubsystemError::with_origin("approval-voting", e));
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Chain API subsystem temporarily unreachable {}",
+					e,
+				);
+
+				return Ok(Vec::new());
 			}
 			Ok(None) => {
 				tracing::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
@@ -555,7 +561,7 @@ pub(crate) async fn handle_new_head(
 			&mut state.session_window,
 			head,
 			&header,
-		).await?
+		).await
 	{
 		tracing::warn!(
 			target: LOG_TARGET,
@@ -574,7 +580,7 @@ pub(crate) async fn handle_new_head(
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.await?;
 
-	span.add_string_tag("new-blocks", &format!("{}", new_blocks.len()));
+	span.add_uint_tag("new-blocks", new_blocks.len() as u64);
 
 	if new_blocks.is_empty() { return Ok(Vec::new()) }
 
@@ -582,13 +588,35 @@ pub(crate) async fn handle_new_head(
 	let mut imported_candidates = Vec::with_capacity(new_blocks.len());
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
-	for (block_hash, block_header) in new_blocks.into_iter().rev() {
-		let env = ImportedBlockInfoEnv {
-			session_window: &state.session_window,
-			assignment_criteria: &*state.assignment_criteria,
-			keystore: &state.keystore,
-		};
+	let imported_blocks_and_info = {
+		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
+		for (block_hash, block_header) in new_blocks.into_iter().rev() {
+			let env = ImportedBlockInfoEnv {
+				session_window: &state.session_window,
+				assignment_criteria: &*state.assignment_criteria,
+				keystore: &state.keystore,
+			};
 
+			match imported_block_info(ctx, env, block_hash, &block_header).await? {
+				Some(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
+				None => {
+					// Such errors are likely spurious, but this prevents us from getting gaps
+					// in the approval-db.
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Unable to gather info about imported block {:?}. Skipping chain.",
+						(block_hash, block_header.number),
+					);
+
+					return Ok(Vec::new());
+				},
+			};
+		}
+
+		imported_blocks_and_info
+	};
+
+	for (block_hash, block_header, imported_block_info) in imported_blocks_and_info {
 		let ImportedBlockInfo {
 			included_candidates,
 			session_index,
@@ -596,10 +624,7 @@ pub(crate) async fn handle_new_head(
 			n_validators,
 			relay_vrf_story,
 			slot,
-		} = match imported_block_info(ctx, env, block_hash, &block_header).await? {
-			Some(i) => i,
-			None => continue,
-		};
+		} = imported_block_info;
 
 		let session_info = state.session_window.session_info(session_index)
 			.expect("imported_block_info requires session to be available; qed");
@@ -711,7 +736,9 @@ mod tests {
 	use polkadot_node_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
 	use sp_runtime::{Digest, DigestItem};
-	use sp_consensus_babe::Epoch as BabeEpoch;
+	use sp_consensus_babe::{
+		Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots,
+	};
 	use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
@@ -1358,6 +1385,10 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: BabeEpochConfiguration {
+							c: (1, 4),
+							allowed_slots: AllowedSlots::PrimarySlots,
+						},
 					}));
 				}
 			);
@@ -1463,6 +1494,10 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: BabeEpochConfiguration {
+							c: (1, 4),
+							allowed_slots: AllowedSlots::PrimarySlots,
+						},
 					}));
 				}
 			);
@@ -1714,6 +1749,10 @@ mod tests {
 						duration: 200,
 						authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
 						randomness: [0u8; 32],
+						config: BabeEpochConfiguration {
+							c: (1, 4),
+							allowed_slots: AllowedSlots::PrimarySlots,
+						},
 					}));
 				}
 			);
@@ -1758,7 +1797,7 @@ mod tests {
 					&mut window,
 					hash,
 					&header,
-				).await.unwrap().unwrap();
+				).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(expected_start_session));
 				assert_eq!(
@@ -1939,7 +1978,7 @@ mod tests {
 					&mut window,
 					hash,
 					&header,
-				).await.unwrap();
+				).await;
 
 				assert_matches!(res, Err(SessionsUnavailable));
 			})
@@ -2006,7 +2045,7 @@ mod tests {
 					&mut window,
 					hash,
 					&header,
-				).await.unwrap().unwrap();
+				).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(session));
 				assert_eq!(

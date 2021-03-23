@@ -46,7 +46,7 @@ pub use metrics::Metrics;
 #[cfg(test)]
 mod tests;
 
-const LOG_TARGET: &'static str = "availability_distribution";
+const LOG_TARGET: &'static str = "parachain::availability-distribution";
 
 /// The availability distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
@@ -108,10 +108,13 @@ impl AvailabilityDistributionSubsystem {
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					// Update the relay chain heads we are fetching our pieces for:
-					requester
+					if let Some(e) = requester
 						.get_mut()
 						.update_fetching_heads(&mut ctx, update)
-						.await?;
+						.await?
+					{
+						tracing::debug!(target: LOG_TARGET, "Error processing ActiveLeavesUpdate: {:?}", e);
+					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {

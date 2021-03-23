@@ -106,21 +106,32 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Return the session index that should be used for any future scheduled changes.
-	pub (crate) fn scheduled_session() -> SessionIndex {
+	pub fn scheduled_session() -> SessionIndex {
 		Self::session_index().saturating_add(SESSION_DELAY)
 	}
 
-	#[cfg(test)]
-	pub(crate) fn set_session_index(index: SessionIndex) {
+	/// Test function for setting the current session index.
+	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
+	pub fn set_session_index(index: SessionIndex) {
 		CurrentSessionIndex::set(index);
 	}
 
 	#[cfg(test)]
-	pub(crate) fn set_active_validators(active: Vec<ValidatorId>) {
+	pub(crate) fn set_active_validators_ascending(active: Vec<ValidatorId>) {
 		ActiveValidatorIndices::set(
 			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect()
 		);
 		ActiveValidatorKeys::set(active);
+	}
+
+	#[cfg(test)]
+	pub(crate) fn set_active_validators_with_indices(
+		indices: Vec<ValidatorIndex>,
+		keys: Vec<ValidatorId>,
+	) {
+		assert_eq!(indices.len(), keys.len());
+		ActiveValidatorIndices::set(indices);
+		ActiveValidatorKeys::set(keys);
 	}
 }
 
