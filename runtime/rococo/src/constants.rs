@@ -34,7 +34,7 @@ pub mod time {
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	frame_support::parameter_types! {
-		pub storage EpochDurationInBlocks: BlockNumber = 1 * HOURS;
+		pub storage EpochDurationInBlocks: BlockNumber = 30 * MINUTES;
 	}
 
 	// These time units are defined in number of blocks.
