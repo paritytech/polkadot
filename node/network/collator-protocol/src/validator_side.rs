@@ -47,12 +47,11 @@ const COST_CORRUPTED_MESSAGE: Rep = Rep::CostMinor("Message was corrupt");
 /// Network errors that originated at the remote host should have same cost as timeout.
 const COST_NETWORK_ERROR: Rep = Rep::CostMinor("Some network error");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has timed out");
-const COST_REPORT_BAD: Rep = Rep::CostMajor("A collator was reported by another subsystem");
+const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
-
 
 impl Metrics {
 	fn on_request(&self, succeeded: std::result::Result<(), ()>) {
