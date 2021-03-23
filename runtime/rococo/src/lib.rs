@@ -643,7 +643,6 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * DOLLARS;
 	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
 	pub const RemoveKeysLimit: u32 = 500;
-
 }
 
 impl crowdloan::Config for Runtime {
