@@ -74,7 +74,7 @@ use frame_support::{
 	},
 	pallet_prelude::{Weight, DispatchResultWithPostInfo},
 };
-use frame_system::ensure_signed;
+use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
@@ -238,6 +238,8 @@ decl_event! {
 		Onboarded(ParaId, ParaId),
 		/// The result of trying to submit a new bid to the Slots pallet.
 		HandleBidResult(ParaId, DispatchResult),
+		/// The configuration to a crowdloan has been edited. [fund_index]
+		Edited(ParaId),
 	}
 }
 
@@ -496,6 +498,39 @@ decl_module! {
 					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
 				}
 			}
+		}
+
+		/// Edit the configuration for an in-progress crowdloan.
+		///
+		/// Can only be called by Root origin.
+		#[weight = 0]
+		pub fn edit(origin,
+			#[compact] index: ParaId,
+			#[compact] cap: BalanceOf<T>,
+			#[compact] first_slot: LeasePeriodOf<T>,
+			#[compact] last_slot: LeasePeriodOf<T>,
+			#[compact] end: T::BlockNumber,
+			verifier: Option<MultiSigner>,
+		) {
+			ensure_root(origin)?;
+
+			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
+
+			Funds::<T>::insert(index, FundInfo {
+				retiring: fund.retiring,
+				depositor: fund.depositor,
+				verifier,
+				deposit: fund.deposit,
+				raised: fund.raised,
+				end,
+				cap,
+				last_contribution: fund.last_contribution,
+				first_slot,
+				last_slot,
+				trie_index: fund.trie_index,
+			});
+
+			Self::deposit_event(RawEvent::Edited(index));
 		}
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
