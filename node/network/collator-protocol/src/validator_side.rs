@@ -54,16 +54,9 @@ const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has time
 const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
-// After this long without activity, peers are disconnected.
-#[cfg(not(test))]
-const ACTIVITY_TIMEOUT: Duration = Duration::from_secs(5);
-
-#[cfg(test)]
-const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(50);
-
 // How often to check all peers with activity.
 #[cfg(not(test))]
-const ACTIVITY_POLL: Duration = Duration::from_millis(2500);
+const ACTIVITY_POLL: Duration = Duration::from_secs(1);
 
 #[cfg(test)]
 const ACTIVITY_POLL: Duration = Duration::from_millis(10);
@@ -664,6 +657,7 @@ async fn wait_until_next_check(last_poll: Instant) -> Instant {
 #[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
+	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> Result<()>
 	where Context: SubsystemContext<Message = CollatorProtocolMessage>
@@ -711,7 +705,7 @@ pub(crate) async fn run<Context>(
 				continue
 			}
 			Some(Either::Right(())) => {
-				disconnect_inactive_peers(&mut ctx, &state.peer_data).await;
+				disconnect_inactive_peers(&mut ctx, eviction_policy, &state.peer_data).await;
 				continue
 			}
 			None => {}
@@ -739,9 +733,10 @@ pub(crate) async fn run<Context>(
 // receipt of the `PeerDisconnected` event.
 async fn disconnect_inactive_peers(
 	ctx: &mut impl SubsystemContext,
+	eviction_policy: crate::CollatorEvictionPolicy,
 	peers: &HashMap<PeerId, PeerData>,
 ) {
-	let cutoff = match Instant::now().checked_sub(ACTIVITY_TIMEOUT) {
+	let cutoff = match Instant::now().checked_sub(eviction_policy.0) {
 		None => return,
 		Some(i) => i,
 	};
@@ -899,6 +894,8 @@ mod tests {
 		request_response::Requests
 	};
 
+	const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(50);
+
 	#[derive(Clone)]
 	struct TestState {
 		chain_ids: Vec<ParaId>,
@@ -947,7 +944,11 @@ mod tests {
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = run(context, Metrics::default());
+		let subsystem = run(
+			context,
+			crate::CollatorEvictionPolicy(ACTIVITY_TIMEOUT),
+			Metrics::default(),
+		);
 
 		let test_fut = test(TestHarness { virtual_overseer });
 
