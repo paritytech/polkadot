@@ -212,7 +212,7 @@ pub enum NetworkBridgeMessage {
 	ReportPeer(PeerId, UnifiedReputationChange),
 
 	/// Disconnect a peer from the given peer-set without affecting their reputation.
-	DisconnectPeer(PeerSet, PeerId),
+	DisconnectPeer(PeerId, PeerSet),
 
 	/// Send a message to one or more peers on the validation peer-set.
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
