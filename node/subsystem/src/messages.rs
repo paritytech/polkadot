@@ -283,15 +283,6 @@ pub enum AvailabilityRecoveryMessage {
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
 }
 
-// impl AvailabilityDistributionMessage {
-//	/// If the current variant contains the relay parent hash, return it.
-//     pub fn relay_parent(&self) -> Option<Hash> {
-//         match self {
-//             Self::AvailabilityFetchingRequest(_) => None,
-//         }
-//     }
-// }
-
 /// Bitfield distribution message.
 #[derive(Debug, derive_more::From)]
 pub enum BitfieldDistributionMessage {
