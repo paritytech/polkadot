@@ -48,21 +48,21 @@ use crate::VersionedMultiLocation;
 pub enum MultiLocation {
 	/// The interpreting consensus system.
 	Null,
-	/// A relative path comprising one junction.
+	/// A relative path comprising 1 junction.
 	X1(Junction),
-	/// A relative path comprising two junctions.
+	/// A relative path comprising 2 junctions.
 	X2(Junction, Junction),
-	/// A relative path comprising three junctions.
+	/// A relative path comprising 3 junctions.
 	X3(Junction, Junction, Junction),
-	/// A relative path comprising four junctions.
+	/// A relative path comprising 4 junctions.
 	X4(Junction, Junction, Junction, Junction),
-	/// A relative path comprising four junctions.
+	/// A relative path comprising 5 junctions.
 	X5(Junction, Junction, Junction, Junction, Junction),
-	/// A relative path comprising four junctions.
+	/// A relative path comprising 6 junctions.
 	X6(Junction, Junction, Junction, Junction, Junction, Junction),
-	/// A relative path comprising four junctions.
+	/// A relative path comprising 7 junctions.
 	X7(Junction, Junction, Junction, Junction, Junction, Junction, Junction),
-	/// A relative path comprising four junctions.
+	/// A relative path comprising 8 junctions.
 	X8(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
 }
 
