@@ -27,7 +27,7 @@ pallet-message-lane-rpc = { path = "../../../modules/message-lane/rpc" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", features = ["wasmtime"] }
+sc-cli = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "rococo-v1" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }

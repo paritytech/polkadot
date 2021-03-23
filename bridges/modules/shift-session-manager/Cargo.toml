@@ -11,11 +11,11 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }

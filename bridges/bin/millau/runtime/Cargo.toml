@@ -28,31 +28,31 @@ pallet-substrate-bridge = { path = "../../../modules/substrate", default-feature
 
 # Substrate Dependencies
 
-frame-executive = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-aura = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
+frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-offchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }

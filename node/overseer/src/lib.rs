@@ -100,7 +100,7 @@ const CHANNEL_CAPACITY: usize = 1024;
 // A graceful `Overseer` teardown time delay.
 const STOP_DELAY: u64 = 1;
 // Target for logs.
-const LOG_TARGET: &'static str = "overseer";
+const LOG_TARGET: &'static str = "parachain::overseer";
 // Rate at which messages are timed.
 const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
 
@@ -2011,7 +2011,7 @@ where
 			}
 		}
 
-		let mut span = jaeger::hash_span(hash, "leaf-activated");
+		let mut span = jaeger::Span::new(*hash, "leaf-activated");
 
 		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
 			span.add_follows_from(&*parent_span);

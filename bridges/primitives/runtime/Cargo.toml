@@ -12,11 +12,11 @@ num-traits = { version = "0.2", default-features = false }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
 [features]
 default = ["std"]

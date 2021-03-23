@@ -23,12 +23,12 @@ pallet-substrate-bridge = { path = "../../modules/substrate", default-features =
 
 # Substrate dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false, optional = true }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "rococo-v1" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
 [features]
 default = ["std"]

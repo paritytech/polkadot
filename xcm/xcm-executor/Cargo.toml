@@ -9,12 +9,12 @@ version = "0.8.22"
 impl-trait-for-tuples = "0.2.0"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 log = { version = "0.4.14", default-features = false }
 
 [features]

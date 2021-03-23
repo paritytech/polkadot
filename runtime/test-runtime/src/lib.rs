@@ -51,9 +51,7 @@ use runtime_common::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Perbill, KeyTypeId,
-	transaction_validity::{
-		TransactionValidity, TransactionSource, TransactionPriority,
-	},
+	transaction_validity::{TransactionValidity, TransactionSource},
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, StaticLookup, OpaqueKeys, ConvertInto,
@@ -99,6 +97,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
 };
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
+	babe_primitives::BabeEpochConfiguration {
+		c: PRIMARY_PROBABILITY,
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
@@ -235,7 +240,6 @@ parameter_types! {
 	pub storage UncleGenerations: u32 = 0;
 }
 
-// TODO: substrate#2986 implement this properly
 impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
@@ -300,15 +304,12 @@ parameter_types! {
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
-	pub storage ElectionLookahead: BlockNumber = 0;
-	pub storage StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
-	pub storage MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
-impl sp_election_providers::onchain::Config for Runtime {
+impl frame_election_provider_support::onchain::Config for Runtime {
 	type AccountId = <Self as frame_system::Config>::AccountId;
 	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
+	type BlockWeights = ();
 	type Accuracy = sp_runtime::Perbill;
 	type DataProvider = pallet_staking::Module<Self>;
 }
@@ -327,18 +328,11 @@ impl pallet_staking::Config for Runtime {
 	// A majority of the council can cancel the slash.
 	type SlashCancelOrigin = frame_system::EnsureNever<()>;
 	type SessionInterface = Self;
-	type RewardCurve = RewardCurve;
+	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = ();
-	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type ElectionProvider = sp_election_providers::onchain::OnChainSequentialPhragmen<Self>;
+	type ElectionProvider = frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type WeightInfo = ();
-
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -463,7 +457,7 @@ impl parachains_inclusion::Config for Runtime {
 impl parachains_inclusion_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
-	type Randomness = Babe;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 }
 
 impl parachains_session_info::Config for Runtime {}
@@ -495,44 +489,44 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Module, Call, Storage, Config, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage},
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config},
 
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Module, Storage},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Module, Call, Storage},
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
-		Offences: pallet_offences::{Module, Call, Storage, Event},
-		Historical: session_historical::{Module},
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event},
-		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
+		Authorship: pallet_authorship::{Pallet, Call, Storage},
+		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Offences: pallet_offences::{Pallet, Call, Storage, Event},
+		Historical: session_historical::{Pallet},
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
 
 		// Claims. Usable initially.
-		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
+		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
-		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
+		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>},
 
 		// Parachains runtime modules
-		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
-		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
-		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
-		Initializer: parachains_initializer::{Module, Call, Storage},
-		Paras: parachains_paras::{Module, Call, Storage, Origin},
-		Scheduler: parachains_scheduler::{Module, Call, Storage},
-		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
-		SessionInfo: parachains_session_info::{Module, Call, Storage},
-		Hrmp: parachains_hrmp::{Module, Call, Storage, Event},
+		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
+		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
+		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
+		Initializer: parachains_initializer::{Pallet, Call, Storage},
+		Paras: parachains_paras::{Pallet, Call, Storage, Origin},
+		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
 
-		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
+		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
 }
 
@@ -561,7 +555,7 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
@@ -610,7 +604,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed()
+			RandomnessCollectiveFlip::random_seed().0
 		}
 	}
 
@@ -737,10 +731,10 @@ sp_api::impl_runtime_apis! {
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: PRIMARY_PROBABILITY,
+				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
+				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 

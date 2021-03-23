@@ -14,6 +14,7 @@ polkadot-primitives = { path = "../../../primitives" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }

@@ -46,7 +46,7 @@ use std::sync::Arc;
 
 mod error;
 
-const LOG_TARGET: &'static str = "collation_generation";
+const LOG_TARGET: &'static str = "parachain::collation-generation";
 
 /// Collation Generation Subsystem
 pub struct CollationGenerationSubsystem {
@@ -339,7 +339,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				tracing::debug!(
 					target: LOG_TARGET,
-					candidate_hash = %ccr.hash(),
+					candidate_hash = ?ccr.hash(),
 					?pov_hash,
 					?relay_parent,
 					para_id = %scheduled_core.para_id,

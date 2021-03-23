@@ -33,7 +33,10 @@ RUN apt-get update && \
 # apt cleanup
 		apt-get autoremove -y && \
 		apt-get clean && \
-		rm -rf /var/lib/apt/lists/*
+		rm -rf /var/lib/apt/lists/* ; \
+		mkdir -p /data /polkadot/.local/share && \
+		chown -R polkadot:polkadot /data && \
+		ln -s /data /polkadot/.local/share/polkadot
 
 USER polkadot
 

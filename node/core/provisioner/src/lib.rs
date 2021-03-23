@@ -46,7 +46,7 @@ use futures_timer::Delay;
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
 
-const LOG_TARGET: &str = "provisioner";
+const LOG_TARGET: &str = "parachain::provisioner";
 
 enum InherentAfter {
 	Ready,
@@ -245,8 +245,8 @@ impl ProvisioningJob {
 				self.signed_bitfields.push(signed_bitfield)
 			}
 			ProvisionableData::BackedCandidate(backed_candidate) => {
-				let mut span = span.child("provisionable-backed");
-				span.add_para_id(backed_candidate.descriptor().para_id);
+				let _span = span.child("provisionable-backed")
+					.with_para_id(backed_candidate.descriptor().para_id);
 				self.backed_candidates.push(backed_candidate)
 			}
 			_ => {}

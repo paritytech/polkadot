@@ -23,7 +23,7 @@ use futures::{FutureExt, SinkExt};
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
-	request::{OutgoingRequest, RequestError, Requests},
+	request::{OutgoingRequest, RequestError, Requests, Recipient},
 	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
 };
 use polkadot_primitives::v1::{
@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	SessionIndex,
 };
 use polkadot_subsystem::messages::{
-	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage,
+	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage, IfDisconnected,
 };
 use polkadot_subsystem::{SubsystemContext, jaeger};
 
@@ -116,7 +116,7 @@ struct RunningTask {
 
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
-	
+
 	/// Prometheues metrics for reporting results.
 	metrics: Metrics,
 
@@ -145,8 +145,8 @@ impl FetchTaskConfig {
 			};
 		}
 
-		let mut span = jaeger::candidate_hash_span(&core.candidate_hash, "availability-distribution");
-		span.add_stage(jaeger::Stage::AvailabilityDistribution);
+		let span = jaeger::Span::new(core.candidate_hash, "availability-distribution")
+			.with_stage(jaeger::Stage::AvailabilityDistribution);
 
 		let prepared_running = RunningTask {
 			session_index: session_info.session_index,
@@ -263,10 +263,9 @@ impl RunningTask {
 		let mut bad_validators = Vec::new();
 		let mut label = FAILED;
 		let mut count: u32 = 0;
-		let mut _span = self.span.child_builder("fetch-task")
+		let mut _span = self.span.child("fetch-task")
 			.with_chunk_index(self.request.index.0)
-			.with_relay_parent(&self.relay_parent)
-			.build();
+			.with_relay_parent(self.relay_parent);
 		// Try validators in reverse order:
 		while let Some(validator) = self.group.pop() {
 			let _try_span = _span.child("try");
@@ -330,12 +329,12 @@ impl RunningTask {
 		validator: &AuthorityDiscoveryId,
 	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
-			OutgoingRequest::new(validator.clone(), self.request);
+			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
 		let requests = Requests::AvailabilityFetching(full_request);
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests]),
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect)
 			)))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;

@@ -12,9 +12,9 @@ async-trait = "0.1.42"
 clap = { version = "2.33.3", features = ["yaml"] }
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 env_logger = "0.8.3"
-ethabi = { git = "https://github.com/paritytech/ethabi.git", branch = "td-eth-types-11" }
-ethabi-contract = { git = "https://github.com/paritytech/ethabi.git", branch = "td-eth-types-11" }
-ethabi-derive = { git = "https://github.com/paritytech/ethabi.git", branch = "td-eth-types-11" }
+ethabi = { git = "https://github.com/paritytech/ethabi.git", branch = "rococo-v1" }
+ethabi-contract = { git = "https://github.com/paritytech/ethabi.git", branch = "rococo-v1" }
+ethabi-derive = { git = "https://github.com/paritytech/ethabi.git", branch = "rococo-v1" }
 futures = "0.3.12"
 hex = "0.4"
 hex-literal = "0.3"
