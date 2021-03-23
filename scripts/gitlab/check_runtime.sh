@@ -48,13 +48,8 @@ common_dirs=(
 # https://stackoverflow.com/questions/1527049/how-can-i-join-elements-of-an-array-in-bash
 function join_by { local d=$1; shift; echo -n "$1"; shift; printf "%s" "${@/#/$d}"; }
 
-# Construct a regex to search for any changes to runtime or common directories
-runtime_regex="^runtime/$(join_by '|^runtime/' "${runtimes[@]}" "${common_dirs[@]}")"
-
 boldprint "check if the wasm sources changed since ${LATEST_TAG}"
-if ! git diff --name-only "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" \
-  | grep -E -q -e "$runtime_regex"
-then
+if ! has_runtime_changes "${LATEST_TAG}" "${CI_COMMIT_SHA}"; then
   boldprint "no changes to any runtime source code detected"
   # continue checking if Cargo.lock was updated with a new substrate reference
   # and if that change includes a {spec|impl}_version update.

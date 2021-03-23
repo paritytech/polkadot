@@ -22,11 +22,19 @@ releasenotes_labels=(
   'B7-runtimenoteworthy'
 )
 
+# Must be an ordered list of priorities, lowest first
 priority_labels=(
   'C1-low 📌'
   'C3-medium 📣'
   'C7-high ❗️'
   'C9-critical ‼️'
+)
+
+audit_labels=(
+  'D1-trivial'
+  'D1-audited👍'
+  'D5-nicetohaveaudit⚠️ '
+  'D9-needsaudit👮'
 )
 
 echo "[+] Checking release notes (B) labels for $CI_COMMIT_BRANCH"
@@ -45,10 +53,20 @@ else
   exit 1
 fi
 
-# If the priority is anything other than C1-low, we *must not* have a B0-silent
+if has_runtime_changes origin/master "${HEAD_SHA}"; then
+  echo "[+] Runtime changes detected. Checking audit (D) labels"
+  if ensure_labels "${audit_labels[@]}";  then
+    echo "[+] Release audit label detected. All is well."
+  else
+    echo "[!] Release audit label not detected. Please add one of: ${audit_labels[*]}"
+    exit 1
+  fi
+fi
+
+# If the priority is anything other than the lowest, we *must not* have a B0-silent
 # label
-if has_label "$repo" "$CI_COMMIT_BRANCH" 'B0-silent' &&
-  ! has_label "$repo" "$CI_COMMIT_BRANCH" 'C1-low' ; then
+if has_label "$repo" "$GITHUB_PR" 'B0-silent' &&
+  ! has_label "$repo" "$GITHUB_PR" "${priority_labels[0]}"; then
   echo "[!] Changes with a priority higher than C1-low *MUST* have a B- label that is not B0-Silent"
   exit 1
 fi
