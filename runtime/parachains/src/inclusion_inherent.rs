@@ -100,7 +100,7 @@ decl_module! {
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
 
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
-			let parent_hash = <frame_system::Module<T>>::parent_hash();
+			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			ensure!(
 				parent_header.hash().as_ref() == parent_hash.as_ref(),
 				Error::<T>::InvalidParentHeader,
@@ -130,7 +130,7 @@ decl_module! {
 			<scheduler::Module<T>>::clear();
 			<scheduler::Module<T>>::schedule(
 				freed,
-				<frame_system::Module<T>>::block_number(),
+				<frame_system::Pallet<T>>::block_number(),
 			);
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
@@ -197,7 +197,7 @@ fn limit_backed_candidates<T: Config>(
 
 	// the weight of the inclusion inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
-	if frame_system::Module::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
+	if frame_system::Pallet::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
 		Vec::new()
 	} else {
 		backed_candidates

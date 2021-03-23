@@ -41,6 +41,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::approval::{
 	self as approval_types, BlockApprovalMeta, RelayVRFStory,
 };
+use polkadot_node_jaeger as jaeger;
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
 use kvdb::KeyValueDB;
@@ -530,7 +531,7 @@ pub(crate) async fn handle_new_head(
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	// Update session info based on most recent head.
 
-	let mut span = polkadot_node_jaeger::hash_span(&head, "approval-checking-import");
+	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
@@ -579,7 +580,7 @@ pub(crate) async fn handle_new_head(
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.await?;
 
-	span.add_string_tag("new-blocks", &format!("{}", new_blocks.len()));
+	span.add_uint_tag("new-blocks", new_blocks.len() as u64);
 
 	if new_blocks.is_empty() { return Ok(Vec::new()) }
 

@@ -326,8 +326,8 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Exchange: pallet_bridge_currency_exchange::{Module},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Exchange: pallet_bridge_currency_exchange::{Pallet},
 		}
 	}
 

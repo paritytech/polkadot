@@ -40,7 +40,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 	Vec<Vec<ValidatorIndex>>,
 	GroupRotationInfo<T::BlockNumber>,
 ) {
-	let now = <frame_system::Module<T>>::block_number() + One::one();
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 
 	let groups = <scheduler::Module<T>>::validator_groups();
 	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
@@ -54,7 +54,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
-	let now = <frame_system::Module<T>>::block_number() + One::one();
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	<scheduler::Module<T>>::clear();
 	<scheduler::Module<T>>::schedule(Vec::new(), now);
 
@@ -202,7 +202,7 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
 	use parity_scale_codec::Decode as _;
-	let relay_parent_number = <frame_system::Module<T>>::block_number();
+	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
 	let relay_parent_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
 		.expect("storage root must decode to the Hash type; qed");
 	with_assumption::<T, _, _>(para_id, assumption, || {
@@ -292,7 +292,7 @@ where
 {
 	use inclusion::Event as RawEvent;
 
-	<frame_system::Module<T>>::events().into_iter()
+	<frame_system::Pallet<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
 			RawEvent::<T>::CandidateBacked(c, h, core, group)
