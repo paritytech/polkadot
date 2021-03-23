@@ -1068,12 +1068,12 @@ pub enum ConsensusLog {
 }
 
 impl ConsensusLog {
-	/// Attempt to convert a generic digest item into a consensus log.
-	pub fn from_digest_item<H>(digest_item: runtime_primitives::DigestItem<H>)
+	/// Attempt to convert a reference to a generic digest item into a consensus log.
+	pub fn from_digest_item_ref<H>(digest_item: &runtime_primitives::DigestItem<H>)
 		-> Result<Option<Self>, parity_scale_codec::Error>
 	{
 		match digest_item {
-			runtime_primitives::DigestItem::Consensus(id, encoded) if id == POLKADOT_ENGINE_ID =>
+			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
 				Ok(Some(Self::decode(&mut &encoded[..])?)),
 			_ => Ok(None),
 		}
