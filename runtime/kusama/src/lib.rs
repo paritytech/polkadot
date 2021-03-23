@@ -360,7 +360,7 @@ parameter_types! {
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub const MaxNominatorRewardedPerValidator: u32 = 128;
+pub const MaxNominatorRewardedPerValidator: u32 = 256;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -1415,6 +1415,23 @@ mod test_fees {
 	use pallet_transaction_payment::Multiplier;
 	use separator::Separatable;
 
+	#[test]
+	fn payout_weight_portion() {
+		use pallet_staking::WeightInfo;
+		let payout_weight =
+			<Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
+				MaxNominatorRewardedPerValidator::get(),
+			) as f64;
+		let block_weight = BlockWeights::get().max_block as f64;
+
+		println!(
+			"a full payout takes {:.2} of the block weight [{} / {}]",
+			payout_weight / block_weight,
+			payout_weight,
+			block_weight
+		);
+		assert!(payout_weight * 2f64 < block_weight);
+	}
 
 	#[test]
 	#[ignore]
