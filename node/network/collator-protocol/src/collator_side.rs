@@ -451,7 +451,7 @@ async fn advertise_collation(
 
 	match (state.collations.get_mut(&relay_parent), should_advertise) {
 		(None, _) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				relay_parent = ?relay_parent,
 				peer_id = %peer,
@@ -460,7 +460,7 @@ async fn advertise_collation(
 			return
 		},
 		(_, false) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				relay_parent = ?relay_parent,
 				peer_id = %peer,
@@ -468,7 +468,15 @@ async fn advertise_collation(
 			);
 			return
 		}
-		(Some(collation), true) => collation.status.advance_to_advertised(),
+		(Some(collation), true) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				relay_parent = ?relay_parent,
+				peer_id = %peer,
+				"Advertising collation.",
+			);
+			collation.status.advance_to_advertised()
+		},
 	}
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent, collating_on);
