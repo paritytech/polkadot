@@ -59,14 +59,14 @@ const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by
 const ACTIVITY_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[cfg(test)]
-const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
+const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(50);
 
 // How often to check all peers with activity.
 #[cfg(not(test))]
 const ACTIVITY_POLL: Duration = Duration::from_millis(2500);
 
 #[cfg(test)]
-const ACTIVITY_POLL: Duration = Duration::from_millis(100);
+const ACTIVITY_POLL: Duration = Duration::from_millis(10);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -448,7 +448,32 @@ where
 		}
 		AdvertiseCollation(relay_parent, para_id) => {
 			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
-			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
+
+			if !state.view.contains(&relay_parent) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					%para_id,
+					?relay_parent,
+					"Advertise collation out of view",
+				);
+
+				modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
+				return;
+			}
+
+			if !state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent)) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					%para_id,
+					?relay_parent,
+					"Multiple collations for same relay-parent advertised",
+				);
+
+				modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
+				return;
+			}
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				tracing::debug!(
@@ -629,6 +654,7 @@ async fn wait_until_next_check(last_poll: Instant) -> Instant {
 	let next_poll = last_poll + ACTIVITY_POLL;
 
 	if next_poll > now {
+		println!("waiting {:?}", next_poll - now);
 		Delay::new(next_poll - now).await
 	}
 
@@ -686,6 +712,7 @@ pub(crate) async fn run<Context>(
 				continue
 			}
 			Some(Either::Right(())) => {
+				println!("disconnecting inactive of {}", state.peer_data.len());
 				disconnect_inactive_peers(&mut ctx, &state.peer_data).await;
 				continue
 			}
@@ -722,6 +749,7 @@ async fn disconnect_inactive_peers(
 	};
 
 	for (peer, peer_data) in peers {
+		println!("peer {:?} active at {:?} cutoff {:?}", peer, peer_data.last_active, cutoff);
 		if !peer_data.active_since(cutoff) {
 			ctx.send_message(
 				NetworkBridgeMessage::DisconnectPeer(peer.clone(), PeerSet::Collation).into()
@@ -870,7 +898,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
-	use polkadot_node_network_protocol::{our_view,
+	use polkadot_node_network_protocol::{our_view, ObservedRole,
 		request_response::Requests
 	};
 
@@ -932,7 +960,7 @@ mod tests {
 		executor::block_on(future::select(test_fut, subsystem));
 	}
 
-	const TIMEOUT: Duration = Duration::from_millis(100);
+	const TIMEOUT: Duration = Duration::from_millis(200);
 
 	async fn overseer_send(
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
@@ -1298,6 +1326,210 @@ mod tests {
 
 			assert_eq!(collation_0.0, candidate_a);
 			assert_eq!(collation_1.0, candidate_b);
+		});
+	}
+
+	#[test]
+	fn inactive_disconnected() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			let pair = CollatorPair::generate().0;
+			tracing::trace!("activating");
+
+			let hash_a = test_state.relay_parent;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::OurViewChange(our_view![hash_a])
+				)
+			).await;
+
+
+			let peer_b = PeerId::random();
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(pair.public()),
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							test_state.relay_parent,
+							test_state.chain_ids[0],
+						)
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateSelection(CandidateSelectionMessage::Collation(
+					relay_parent,
+					para_id,
+					collator,
+				)
+			) => {
+				assert_eq!(relay_parent, test_state.relay_parent);
+				assert_eq!(para_id, test_state.chain_ids[0]);
+				assert_eq!(collator, pair.public());
+			});
+
+			Delay::new(ACTIVITY_TIMEOUT * 2).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+					peer,
+					peer_set,
+				)) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(peer_set, PeerSet::Collation);
+				}
+			)
+		});
+	}
+
+	#[test]
+	fn activity_extends_life() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			let pair = CollatorPair::generate().0;
+			tracing::trace!("activating");
+
+			let hash_a = test_state.relay_parent;
+			let hash_b = Hash::repeat_byte(1);
+			let hash_c = Hash::repeat_byte(2);
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::OurViewChange(our_view![hash_a, hash_b, hash_c])
+				)
+			).await;
+
+
+			let peer_b = PeerId::random();
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+					)
+				)
+			).await;
+
+			Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(pair.public()),
+					)
+				)
+			).await;
+
+			Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							test_state.relay_parent,
+							test_state.chain_ids[0],
+						)
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateSelection(CandidateSelectionMessage::Collation(
+					relay_parent,
+					para_id,
+					collator,
+				)
+			) => {
+				assert_eq!(relay_parent, test_state.relay_parent);
+				assert_eq!(para_id, test_state.chain_ids[0]);
+				assert_eq!(collator, pair.public());
+			});
+
+			Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							hash_b,
+							test_state.chain_ids[1],
+						)
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateSelection(CandidateSelectionMessage::Collation(
+					relay_parent,
+					para_id,
+					collator,
+				)
+			) => {
+				assert_eq!(relay_parent, hash_b);
+				assert_eq!(para_id, test_state.chain_ids[1]);
+				assert_eq!(collator, pair.public());
+			});
+
+			Delay::new(ACTIVITY_TIMEOUT * 3 / 2).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+					peer,
+					peer_set,
+				)) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(peer_set, PeerSet::Collation);
+				}
+			)
 		});
 	}
 }
