@@ -19,17 +19,17 @@ docker run --rm -it parity/polkadot:latest --chain westend --name "PolkaDocker"
 Once you are done experimenting and picking the best node name :) you can start polkadot as daemon, exposes the polkadot ports and mount a volume that will keep your blockchain data locally:
 
 ```bash
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data parity/polkadot:latest --chain westend
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/polkadot parity/polkadot:latest --chain westend
 ```
 
 Additionally if you want to have custom node name you can add the `--name "YourName"` at the end
 
 ```bash
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data parity/polkadot:latest --chain westend --name "PolkaDocker"
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/polkadot parity/polkadot:latest --chain westend --name "PolkaDocker"
 ```
 
 ```bash
-docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/data parity/polkadot:latest --rpc-external --chain westend
+docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/polkadot parity/polkadot:latest --rpc-external --chain westend
 ```
 
 If you want to connect to rpc port 9933, then must add polkadot startup parameter: `--rpc-external`.
