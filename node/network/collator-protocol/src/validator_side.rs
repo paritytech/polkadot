@@ -15,8 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{collections::{HashMap, HashSet}, sync::Arc, task::Poll};
+use std::time::{Duration, Instant};
 
-use futures::{FutureExt, channel::oneshot, future::{Fuse, FusedFuture, BoxFuture}};
+use futures::{FutureExt, channel::oneshot, future::{Fuse, FusedFuture, BoxFuture, Either}};
+use futures::StreamExt;
+use futures_timer::Delay;
 use always_assert::never;
 
 use polkadot_primitives::v1::{
@@ -49,6 +52,11 @@ const COST_NETWORK_ERROR: Rep = Rep::CostMinor("Some network error");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has timed out");
 const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
+
+// After this long without activity, peers are disconnected.
+const ACTIVITY_TIMEOUT: Duration = Duration::from_secs(5);
+// How often to check all peers with activity.
+const ACTIVITY_POLL: Duration = Duration::from_millis(2500);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -129,14 +137,38 @@ struct PerRequest {
 	span: Option<jaeger::Span>,
 }
 
+struct PeerData {
+	view: View,
+	last_active: Instant,
+}
+
+impl PeerData {
+	fn new(view: View) -> Self {
+		PeerData {
+			view,
+			last_active: Instant::now(),
+		}
+	}
+
+	fn note_active(&mut self) {
+		self.last_active = Instant::now();
+	}
+}
+
+impl Default for PeerData {
+	fn default() -> Self {
+		PeerData::new(Default::default())
+	}
+}
+
 /// All state relevant for the validator side of the protocol lives here.
 #[derive(Default)]
 struct State {
 	/// Our own view.
 	view: OurView,
 
-	/// Track all active collators and their views.
-	peer_views: HashMap<PeerId, View>,
+	/// Track all active collators and their data.
+	peer_data: HashMap<PeerId, PeerData>,
 
 	/// Peers that have declared themselves as collators.
 	known_collators: HashMap<PeerId, CollatorId>,
@@ -262,18 +294,18 @@ async fn handle_peer_view_change(
 	peer_id: PeerId,
 	view: View,
 ) -> Result<()> {
-	let current = state.peer_views.entry(peer_id.clone()).or_default();
+	let current = state.peer_data.entry(peer_id.clone()).or_default();
 
-	let removed: Vec<_> = current.difference(&view).cloned().collect();
+	let removed: Vec<_> = current.view.difference(&view).cloned().collect();
 
-	*current = view;
+	current.view = view;
 
 	if let Some(advertisements) = state.advertisements.get_mut(&peer_id) {
 		advertisements.retain(|(_, relay_parent)| !removed.contains(relay_parent));
 	}
 
 	for removed in removed.into_iter() {
-		state.requested_collations.retain(|k, _| k.0 != removed);
+		state.requested_collations.retain(|k, _| k.0 != removed || k.2 != peer_id);
 	}
 
 	Ok(())
@@ -384,6 +416,10 @@ where
 {
 	use protocol_v1::CollatorProtocolMessage::*;
 
+	if let Some(d) = state.peer_data.get_mut(&origin) {
+		d.note_active();
+	}
+
 	match msg {
 		Declare(id) => {
 			tracing::debug!(
@@ -391,8 +427,10 @@ where
 				peer_id = ?origin,
 				"Declared as collator",
 			);
-			state.known_collators.insert(origin.clone(), id);
-			state.peer_views.entry(origin).or_default();
+
+			if state.known_collators.insert(origin.clone(), id).is_some() {
+				modify_reputation(ctx, origin.clone(), COST_UNEXPECTED_MESSAGE).await;
+			}
 		}
 		AdvertiseCollation(relay_parent, para_id) => {
 			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
@@ -487,13 +525,12 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(_id, _role) => {
-			// A peer has connected. Until it issues a `Declare` message we do not
-			// want to track it's view or take any other actions.
+		PeerConnected(peer_id, _role) => {
+			state.peer_data.entry(peer_id).or_default();
 		},
 		PeerDisconnected(peer_id) => {
 			state.known_collators.remove(&peer_id);
-			state.peer_views.remove(&peer_id);
+			state.peer_data.remove(&peer_id);
 		},
 		PeerViewChange(peer_id, view) => {
 			handle_peer_view_change(state, peer_id, view).await?;
@@ -572,14 +609,25 @@ where
 	}
 }
 
+// wait until next inactivity check. returns the instant for the following check.
+async fn wait_until_next_check(last_poll: Instant) -> Instant {
+	let now = Instant::now();
+	let next_poll = last_poll + ACTIVITY_POLL;
+
+	if next_poll > now {
+		Delay::new(next_poll - now).await
+	}
+
+	Instant::now()
+}
+
 /// The main run loop.
 #[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
-	) -> Result<()>
-where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
+) -> Result<()>
+	where Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	use FromOverseer::*;
 	use OverseerSignal::*;
@@ -589,23 +637,50 @@ where
 		..Default::default()
 	};
 
-	loop {
-		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
-			let msg = msg?;
-			tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
+	let next_inactivity_stream = futures::stream::unfold(
+		Instant::now() + ACTIVITY_POLL,
+		|next_check| async move { Some(((), wait_until_next_check(next_check).await)) }
+	);
 
-			match msg {
-				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
-				Signal(BlockFinalized(..)) => {}
-				Signal(ActiveLeaves(_)) => {}
-				Signal(Conclude) => { break }
+	futures::pin_mut!(next_inactivity_stream);
+
+	loop {
+		let res = {
+			let s = futures::future::select(ctx.recv().fuse(), next_inactivity_stream.next().fuse());
+
+			if let Poll::Ready(res) = futures::poll!(s) {
+				Some(match res {
+					Either::Left((msg, _)) => Either::Left(msg?),
+					Either::Right((_, _)) => Either::Right(()),
+				})
+			} else {
+				None
 			}
-			continue;
+		};
+
+		match res {
+			Some(Either::Left(msg)) => {
+				tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
+
+				match msg {
+					Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
+					Signal(BlockFinalized(..)) => {}
+					Signal(ActiveLeaves(_)) => {}
+					Signal(Conclude) => { break }
+				}
+
+				continue
+			}
+			Some(Either::Right(())) => {
+				disconnect_inactive_peers(&mut ctx, &state.peer_data).await;
+				continue
+			}
+			None => {}
 		}
 
 		let mut retained_requested = HashSet::new();
 		for ((hash, para_id, peer_id), per_req) in state.requested_collations.iter_mut() {
-			// Despite the await, this won't block:
+			// Despite the await, this won't block on the response itself.
 			let finished = poll_collation_response(
 				&mut ctx, &state.metrics, &state.span_per_relay_parent,
 				hash, para_id, peer_id, per_req
@@ -618,6 +693,16 @@ where
 		futures::pending!();
 	}
 	Ok(())
+}
+
+// This issues `NetworkBridge` notifications to disconnect from all inactive peers at the
+// earliest possible point. This does not yet clean up any metadata, as that will be done upon
+// receipt of the `PeerDisconnected` event.
+async fn disconnect_inactive_peers(
+	ctx: &mut impl SubsystemContext,
+	peers: &HashMap<PeerId, PeerData>,
+) {
+	unimplemented!()
 }
 
 /// Poll collation response, return immediately if there is none.
