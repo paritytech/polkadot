@@ -697,6 +697,7 @@ pub(crate) async fn handle_new_head(
 		let block_entry = approval_db::v1::BlockEntry {
 			block_hash,
 			parent_hash: block_header.parent_hash,
+			block_number: block_header.number,
 			session: session_index,
 			slot,
 			relay_vrf_story: relay_vrf_story.0,
@@ -712,8 +713,6 @@ pub(crate) async fn handle_new_head(
 
 		let candidate_entries = approval_db::v1::add_block_entry(
 			db_writer,
-			block_header.parent_hash,
-			block_header.number,
 			block_entry,
 			n_validators,
 			|candidate_hash| {
@@ -1052,6 +1051,7 @@ mod tests {
 			crate::approval_db::v1::BlockEntry {
 				block_hash: known_hash,
 				parent_hash: Default::default(),
+				block_number: known_number,
 				session: 1,
 				slot: Slot::from(100),
 				relay_vrf_story: Default::default(),
@@ -1128,6 +1128,7 @@ mod tests {
 			crate::approval_db::v1::BlockEntry {
 				block_hash: head_hash,
 				parent_hash: Default::default(),
+				block_number: 18,
 				session: 1,
 				slot: Slot::from(100),
 				relay_vrf_story: Default::default(),
@@ -1177,6 +1178,7 @@ mod tests {
 			crate::approval_db::v1::BlockEntry {
 				block_hash: parent_hash,
 				parent_hash: Default::default(),
+				block_number: 18,
 				session: 1,
 				slot: Slot::from(100),
 				relay_vrf_story: Default::default(),
@@ -1224,6 +1226,7 @@ mod tests {
 			crate::approval_db::v1::BlockEntry {
 				block_hash: parent_hash,
 				parent_hash: Default::default(),
+				block_number: 18,
 				session: 1,
 				slot: Slot::from(100),
 				relay_vrf_story: Default::default(),
@@ -1682,6 +1685,7 @@ mod tests {
 			crate::approval_db::v1::BlockEntry {
 				block_hash: parent_hash.clone(),
 				parent_hash: Default::default(),
+				block_number: 4,
 				session,
 				slot,
 				relay_vrf_story: Default::default(),

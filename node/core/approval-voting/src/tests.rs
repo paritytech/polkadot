@@ -315,6 +315,7 @@ fn add_block(
 		approval_db::v1::BlockEntry {
 			block_hash,
 			parent_hash: Default::default(),
+			block_number: 0,
 			session,
 			slot,
 			candidates: Vec::new(),
