@@ -100,6 +100,7 @@ pub trait WeightInfo {
 	fn contribute() -> Weight;
 	fn withdraw() -> Weight;
 	fn dissolve(k: u32, ) -> Weight;
+	fn edit() -> Weight;
 	fn on_initialize(n: u32, ) -> Weight;
 }
 
@@ -109,6 +110,7 @@ impl WeightInfo for TestWeightInfo {
 	fn contribute() -> Weight { 0 }
 	fn withdraw() -> Weight { 0 }
 	fn dissolve(_k: u32, ) -> Weight { 0 }
+	fn edit() -> Weight { 0 }
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
 }
 
@@ -503,7 +505,7 @@ decl_module! {
 		/// Edit the configuration for an in-progress crowdloan.
 		///
 		/// Can only be called by Root origin.
-		#[weight = 0]
+		#[weight = T::WeightInfo::edit()]
 		pub fn edit(origin,
 			#[compact] index: ParaId,
 			#[compact] cap: BalanceOf<T>,
@@ -1273,6 +1275,31 @@ mod tests {
 				Error::<Test>::FundNotEnded,
 			);
 
+		});
+	}
+
+	#[test]
+	fn edit_works() {
+		new_test_ext().execute_with(|| {
+			let para_1 = new_para();
+
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para_1, 100, None));
+			let old_crowdloan = Crowdloan::funds(para_1).unwrap();
+
+			assert_ok!(Crowdloan::edit(Origin::root(), para_1, 1234, 2, 3, 4, None));
+			let new_crowdloan = Crowdloan::funds(para_1).unwrap();
+
+			// Some things stay the same
+			assert_eq!(old_crowdloan.retiring, new_crowdloan.retiring);
+			assert_eq!(old_crowdloan.depositor, new_crowdloan.depositor);
+			assert_eq!(old_crowdloan.deposit, new_crowdloan.deposit);
+			assert_eq!(old_crowdloan.raised, new_crowdloan.raised);
+
+			// Some things change
+			assert!(old_crowdloan.cap != new_crowdloan.cap);
+			assert!(old_crowdloan.first_slot != new_crowdloan.first_slot);
+			assert!(old_crowdloan.last_slot != new_crowdloan.last_slot);
 		});
 	}
 }
