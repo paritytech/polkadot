@@ -465,3 +465,60 @@ fn canonicalize_works() {
 		(block_hash_d2, None),
 	]);
 }
+
+#[test]
+fn force_approve_works() {
+	let store = kvdb_memorydb::create(1);
+	let n_validators = 10;
+
+	let mut tx = DBTransaction::new();
+	write_stored_blocks(&mut tx, StoredBlockRange(1, 4));
+	store.write(tx).unwrap();
+
+	let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+	let single_candidate_vec = vec![(CoreIndex(0), candidate_hash)];
+	let candidate_info = {
+		let mut candidate_info = HashMap::new();
+		candidate_info.insert(candidate_hash, NewCandidateInfo {
+			candidate: make_candidate(1.into(), Default::default()),
+			backing_group: GroupIndex(1),
+			our_assignment: None,
+		});
+
+		candidate_info
+	};
+
+
+	let block_hash_a = Hash::repeat_byte(1); // 1
+	let block_hash_b = Hash::repeat_byte(2);
+	let block_hash_c = Hash::repeat_byte(3);
+	let block_hash_d = Hash::repeat_byte(4); // 4
+
+	let block_entry_a = make_block_entry(block_hash_a, Default::default(), 1, single_candidate_vec.clone());
+	let block_entry_b = make_block_entry(block_hash_b, block_hash_a, 2, single_candidate_vec.clone());
+	let block_entry_c = make_block_entry(block_hash_c, block_hash_b, 3, single_candidate_vec.clone());
+	let block_entry_d = make_block_entry(block_hash_d, block_hash_c, 4, single_candidate_vec.clone());
+
+	let blocks = vec![
+		block_entry_a.clone(),
+		block_entry_b.clone(),
+		block_entry_c.clone(),
+		block_entry_d.clone(),
+	];
+
+	for block_entry in blocks {
+		add_block_entry(
+			&store,
+			block_entry,
+			n_validators,
+			|h| candidate_info.get(h).map(|x| x.clone()),
+		).unwrap();
+	}
+
+	force_approve(&store, block_hash_d, 2).unwrap();
+
+	assert!(load_block_entry(&store, &block_hash_a).unwrap().unwrap().approved_bitfield.all());
+	assert!(load_block_entry(&store, &block_hash_b).unwrap().unwrap().approved_bitfield.all());
+	assert!(load_block_entry(&store, &block_hash_c).unwrap().unwrap().approved_bitfield.not_any());
+	assert!(load_block_entry(&store, &block_hash_d).unwrap().unwrap().approved_bitfield.not_any());
+}
