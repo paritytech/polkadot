@@ -62,7 +62,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
-use frame_system::{EnsureRoot, EnsureSigned};
+use frame_system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
 
 use runtime_parachains::origin as parachains_origin;
@@ -92,6 +92,7 @@ use constants::{time::*, currency::*, fee::*};
 
 /// Constant values used within the runtime.
 pub mod constants;
+mod propose_parachain;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -216,6 +217,9 @@ construct_runtime! {
 
 		// Sudo
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
+
+		// Propose parachain pallet.
+		ProposeParachain: propose_parachain::{Pallet, Call, Storage, Event<T>},
 	}
 }
 
@@ -418,7 +422,7 @@ impl pallet_session::Config for Runtime {
 	type ValidatorIdOf = ValidatorIdOf;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = ();
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ProposeParachain>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -681,6 +685,18 @@ impl EnsureOrigin<Origin> for PriviledgedOrigin {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> Origin { Origin::root() }
+}
+
+parameter_types! {
+	pub const ProposeDeposit: Balance = 1000 * DOLLARS;
+	pub const MaxNameLength: u32 = 20;
+}
+
+impl propose_parachain::Config for Runtime {
+	type Event = Event;
+	type MaxNameLength = MaxNameLength;
+	type ProposeDeposit = ProposeDeposit;
+	type PriviledgedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PriviledgedOrigin>;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
