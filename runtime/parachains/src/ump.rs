@@ -62,7 +62,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
 		use parity_scale_codec::Decode;
 		use xcm::VersionedXcm;
-		use xcm::v0::{Junction, MultiLocation, ChainRelativeLocation, ExecuteXcm};
+		use xcm::v0::{MultiLocation, ChainRelativeLocation, ExecuteXcm};
 		use xcm_executor::XcmExecutor;
 
 		let weight: Weight = 0;
