@@ -1416,6 +1416,33 @@ mod benchmarking {
 			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
 		}
 
+		edit {
+			let para_id = ParaId::from(1);
+			let cap = BalanceOf::<T>::max_value();
+			let first_slot = 0u32.into();
+			let last_slot = 3u32.into();
+			let end = T::BlockNumber::max_value();
+
+			let caller: T::AccountId = whitelisted_caller();
+			let head_data = T::Registrar::worst_head_data();
+			let validation_code = T::Registrar::worst_validation_code();
+
+			let verifier: MultiSigner = account("verifier", 0, 0);
+
+			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+
+			Crowdloan::<T>::create(
+				RawOrigin::Signed(caller).into(),
+				para_id, cap, first_slot, last_slot, end, Some(verifier.clone()),
+			)?;
+
+			// Doesn't matter what we edit to, so use the same values.
+		}: _(RawOrigin::Root, para_id, cap, first_slot, last_slot, end, Some(verifier))
+		verify {
+			assert_last_event::<T>(RawEvent::Edited(para_id).into())
+		}
+
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
 		// in the beginning of the ending period, and each fund outbids the next
 		// over the same slot.
