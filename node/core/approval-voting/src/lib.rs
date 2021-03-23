@@ -838,19 +838,18 @@ async fn handle_approved_ancestor(
 								let n_assignments = a_entry.n_assignments();
 								let n_approvals = c_entry.approvals().count_ones();
 
-								let status = format!("{}/{}/{}",
+								let status = || format!("{}/{}/{}",
 									n_assignments,
 									n_approvals,
 									a_entry.n_validators(),
 								);
-								let status = status.as_str();
 
 								match a_entry.our_assignment() {
 									None => tracing::debug!(
 										target: LOG_TARGET,
 										?candidate_hash,
 										?block_hash,
-										status,
+										status = %status(),
 										"no assignment."
 									),
 									Some(a) => {
@@ -868,7 +867,7 @@ async fn handle_approved_ancestor(
 											?block_hash,
 											tranche,
 											?next_wakeup,
-											status,
+											status = %status(),
 											triggered,
 											"assigned."
 										);
