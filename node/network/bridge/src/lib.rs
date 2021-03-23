@@ -44,6 +44,7 @@ pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::sync::Arc;
+use std::time::Instant;
 
 mod validator_discovery;
 
@@ -178,6 +179,9 @@ where
 			}
 		};
 
+		// Used for logging purposes.
+		let before_action_process = Instant::now();
+
 		match action {
 			Action::Nop => {}
 			Action::Abort(reason) => match reason {
@@ -214,6 +218,12 @@ where
 			}
 
 			Action::SendValidationMessages(msgs) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "SendValidationMessages",
+					num_messages = %msgs.len(),
+				);
+
 				for (peers, msg) in msgs {
 					send_message(
 							&mut bridge.network_service,
@@ -225,6 +235,12 @@ where
 			}
 
 			Action::SendCollationMessages(msgs) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "SendCollationMessages",
+					num_messages = %msgs.len(),
+				);
+
 				for (peers, msg) in msgs {
 					send_message(
 							&mut bridge.network_service,
@@ -236,6 +252,12 @@ where
 			}
 
 			Action::SendRequests(reqs, if_disconnected) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "SendRequests",
+					num_requests = %reqs.len(),
+				);
+
 				for req in reqs {
 					bridge
 						.network_service
@@ -251,6 +273,7 @@ where
 			} => {
 				tracing::debug!(
 					target: LOG_TARGET,
+					action = "ConnectToValidators",
 					peer_set = ?peer_set,
 					ids = ?validator_ids,
 					"Received a validator connection request",
@@ -267,10 +290,21 @@ where
 			},
 
 			Action::ReportPeer(peer, rep) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "ReportPeer"
+				);
 				bridge.network_service.report_peer(peer, rep).await?
 			}
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "ActiveLeaves",
+					num_activated = %activated.len(),
+					num_deactivated = %deactivated.len(),
+				);
+
 				live_heads.extend(activated);
 				live_heads.retain(|h| !deactivated.contains(&h.0));
 
@@ -286,6 +320,11 @@ where
 			}
 
 			Action::BlockFinalized(number) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "BlockFinalized"
+				);
+
 				debug_assert!(finalized_number < number);
 
 				// we don't send the view updates here, but delay them until the next `Action::ActiveLeaves`
@@ -296,6 +335,14 @@ where
 			},
 
 			Action::PeerConnected(peer_set, peer, role) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "PeerConnected",
+					peer_set = ?peer_set,
+					peer = ?peer,
+					role = ?role
+				);
+
 				let peer_map = match peer_set {
 					PeerSet::Validation => &mut validation_peers,
 					PeerSet::Collation => &mut collation_peers,
@@ -362,6 +409,13 @@ where
 				}
 			}
 			Action::PeerDisconnected(peer_set, peer) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "PeerDisconnected",
+					peer_set = ?peer_set,
+					peer = ?peer
+				);
+
 				let peer_map = match peer_set {
 					PeerSet::Validation => &mut validation_peers,
 					PeerSet::Collation => &mut collation_peers,
@@ -383,6 +437,14 @@ where
 				}
 			},
 			Action::PeerMessages(peer, v_messages, c_messages) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "PeerMessages",
+					peer = ?peer,
+					num_validation_messages = %v_messages.len(),
+					num_collation_messages = %c_messages.len()
+				);
+
 				if !v_messages.is_empty() {
 					let events = handle_peer_messages(
 						peer.clone(),
@@ -407,6 +469,12 @@ where
 			},
 			Action::SendMessage(msg) => ctx.send_message(msg).await,
 		}
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			elapsed = ?before_action_process.elapsed(),
+			"Processed action",
+		);
 	}
 }
 
