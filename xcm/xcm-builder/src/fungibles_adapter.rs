@@ -54,10 +54,14 @@ impl From<Error> for XcmError {
 pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
 	fn convert(value: A) -> result::Result<B, A> { Self::convert_ref(&value).map_err(|_| value) }
-	fn convert_ref(value: impl Borrow<A>) -> result::Result<B, ()> { Self::convert(value.borrow().clone()).map_err(|_| ()) }
+	fn convert_ref(value: impl Borrow<A>) -> result::Result<B, ()> {
+		Self::convert(value.borrow().clone()).map_err(|_| ())
+	}
 	/// Convert from `value` (of type `B`) into an equivalent value of type `A`, `Err` if not possible.
 	fn reverse(value: B) -> result::Result<A, B> { Self::reverse_ref(&value).map_err(|_| value) }
-	fn reverse_ref(value: impl Borrow<B>) -> result::Result<A, ()> { Self::reverse(value.borrow().clone()).map_err(|_| ()) }
+	fn reverse_ref(value: impl Borrow<B>) -> result::Result<A, ()> {
+		Self::reverse(value.borrow().clone()).map_err(|_| ())
+	}
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -112,8 +116,12 @@ impl<T: Clone> Convert<T, T> for Identity {
 /// Implementation of `Convert` trait using `TryFrom`.
 pub struct JustTry;
 impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Source, Dest> for JustTry {
-	fn convert(value: Source) -> result::Result<Dest, Source> { Dest::try_from(value.clone()).map_err(|_| value) }
-	fn reverse(value: Dest) -> result::Result<Source, Dest> { Source::try_from(value.clone()).map_err(|_| value) }
+	fn convert(value: Source) -> result::Result<Dest, Source> {
+		Dest::try_from(value.clone()).map_err(|_| value)
+	}
+	fn reverse(value: Dest) -> result::Result<Source, Dest> {
+		Source::try_from(value.clone()).map_err(|_| value)
+	}
 }
 
 use parity_scale_codec::{Encode, Decode};
@@ -147,7 +155,9 @@ impl<
 	fn convert_ref(id: impl Borrow<MultiLocation>) -> result::Result<AssetId, ()> {
 		let prefix = Prefix::get();
 		let id = id.borrow();
-		if !prefix.iter().enumerate().all(|(index, item)| id.at(index) == Some(item)) { return Err(()) }
+		if !prefix.iter().enumerate().all(|(index, item)| id.at(index) == Some(item)) {
+			return Err(())
+		}
 		match id.at(prefix.len()) {
 			Some(Junction::GeneralIndex { id }) => ConvertAssetId::convert_ref(id),
 			_ => Err(()),
