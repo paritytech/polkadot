@@ -673,7 +673,7 @@ pub(crate) async fn run<Context>(
 	let next_inactivity_stream = futures::stream::unfold(
 		Instant::now() + ACTIVITY_POLL,
 		|next_check| async move { Some(((), wait_until_next_check(next_check).await)) }
-	);
+	).fuse();
 
 	futures::pin_mut!(next_inactivity_stream);
 
