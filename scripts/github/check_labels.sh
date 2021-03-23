@@ -23,10 +23,10 @@ releasenotes_labels=(
 )
 
 priority_labels=(
-  'C1-low'
-  'C3-medium'
-  'C7-high'
-  'C9-critical'
+  'C1-low 📌'
+  'C3-medium 📣'
+  'C7-high ❗️'
+  'C9-critical ‼️'
 )
 
 echo "[+] Checking release notes (B) labels for $CI_COMMIT_BRANCH"

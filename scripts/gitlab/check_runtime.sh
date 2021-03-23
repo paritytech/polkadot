@@ -4,14 +4,11 @@
 # well as directories common to all runtimes (e.g., ^runtime/common). If there
 # are no changes, check if the Substrate git SHA in Cargo.lock has been
 # changed. If so, pull the repo and verify if {spec,impl}_versions have been
-# altered since the previous Substrate version used. Also, if any of the
-# Substrate changes between the previous and current version referenced by
-# Cargo.lock were labelled with 'D2-breaksapi', label this PR the same.
+# altered since the previous Substrate version used.
 #
 # If there were changes to any runtimes or common dirs, we iterate over each
 # runtime (defined in the $runtimes() array), and check if {spec,impl}_version
-# have been changed since the last release. Also, if there have been changes to
-# the runtime since the last commit to master, label the PR with 'D2-breaksapi'
+# have been changed since the last release.
 
 set -e # fail on any error
 
@@ -115,21 +112,6 @@ spec_version or or impl_version have changed in substrate after updating Cargo.l
 please make sure versions are bumped in polkadot accordingly
 EOT
 
-  # Now check if any of the substrate changes have been tagged D2-breaksapi
-  (
-    cd "${SUBSTRATE_CLONE_DIR}"
-    substrate_changes="$(sanitised_git_logs "${SUBSTRATE_PREV_REF}" "${SUBSTRATE_NEW_REF}")"
-    echo "$substrate_changes" | while read -r line; do
-      pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
-
-      if has_label 'paritytech/substrate' "$pr_id" 'D2-breaksapi'; then
-        boldprint "Substrate change labelled with D2-breaksapi. Labelling..."
-        github_label "D2-breaksapi"
-        exit 1
-      fi
-    done
-  )
-
 fi
 
 failed_runtime_checks=()
@@ -163,13 +145,6 @@ do
   # see if the version and the binary blob changed
   if [ "${add_spec_version}" != "${sub_spec_version}" ]
   then
-
-    if git diff --name-only "origin/master...${CI_COMMIT_SHA}" \
-      | grep -E -q -e "$regex"
-    then
-      # add label breaksapi only if this pr altered the runtime sources
-      github_label "D2-breaksapi"
-    fi
 
     boldcat <<EOT
 ## RUNTIME: ${RUNTIME} ##
