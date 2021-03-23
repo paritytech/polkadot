@@ -354,7 +354,7 @@ impl<T: Config> Leaser for Module<T> {
 	}
 
 	fn lease_period_index() -> Self::LeasePeriod {
-		<frame_system::Module<T>>::block_number() / T::LeasePeriod::get()
+		<frame_system::Pallet<T>>::block_number() / T::LeasePeriod::get()
 	}
 }
 
@@ -383,10 +383,10 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Slots: slots::{Module, Call, Storage, Event<T>},
-	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Slots: slots::{Pallet, Call, Storage, Event<T>},
+	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
 		}
 	);
 
@@ -667,7 +667,7 @@ mod benchmarking {
 	use crate::slots::Module as Slots;
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
-		let events = frame_system::Module::<T>::events();
+		let events = frame_system::Pallet::<T>::events();
 		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];

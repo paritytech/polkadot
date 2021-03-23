@@ -312,7 +312,7 @@ decl_module! {
 			ensure!(first_slot <= last_slot, Error::<T>::LastSlotBeforeFirstSlot);
 			let last_slot_limit = first_slot.checked_add(&3u32.into()).ok_or(Error::<T>::FirstSlotTooFarInFuture)?;
 			ensure!(last_slot <= last_slot_limit, Error::<T>::LastSlotTooFarInFuture);
-			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
+			ensure!(end > <frame_system::Pallet<T>>::block_number(), Error::<T>::CannotEndInPast);
 
 			// There should not be an existing fund.
 			ensure!(!Funds::<T>::contains_key(index), Error::<T>::FundNotEnded);
@@ -363,7 +363,7 @@ decl_module! {
 			ensure!(fund.raised <= fund.cap, Error::<T>::CapExceeded);
 
 			// Make sure crowdloan has not ended
-			let now = <frame_system::Module<T>>::block_number();
+			let now = <frame_system::Pallet<T>>::block_number();
 			ensure!(now < fund.end, Error::<T>::ContributionPeriodOver);
 
 			let old_balance = Self::contribution_get(fund.trie_index, &who);
@@ -437,7 +437,7 @@ decl_module! {
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 
 			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
-			let now = frame_system::Module::<T>::block_number();
+			let now = frame_system::Pallet::<T>::block_number();
 			let current_lease_period = T::Auctioneer::lease_period_index();
 			ensure!(now >= fund.end || current_lease_period > fund.last_slot, Error::<T>::FundNotEnded);
 
@@ -471,7 +471,7 @@ decl_module! {
 			ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
-			let now = frame_system::Module::<T>::block_number();
+			let now = frame_system::Pallet::<T>::block_number();
 			let dissolution = fund.end.saturating_add(T::RetirementPeriod::get());
 			ensure!((fund.retiring && now >= dissolution) || fund.raised.is_zero(), Error::<T>::NotReadyToDissolve);
 
@@ -626,9 +626,9 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Crowdloan: crowdloan::{Module, Call, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
 		}
 	);
 
@@ -1256,7 +1256,7 @@ mod benchmarking {
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, impl_benchmark_test_suite};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
-		let events = frame_system::Module::<T>::events();
+		let events = frame_system::Pallet::<T>::events();
 		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
@@ -1350,7 +1350,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
-			frame_system::Module::<T>::set_block_number(200u32.into());
+			frame_system::Pallet::<T>::set_block_number(200u32.into());
 		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
 			assert_last_event::<T>(RawEvent::Withdrew(contributor, fund_index, T::MinContribution::get()).into());
@@ -1370,7 +1370,7 @@ mod benchmarking {
 			contribute_fund::<T>(&account("last_contributor", 0, 0), fund_index);
 
 			let caller: T::AccountId = whitelisted_caller();
-			frame_system::Module::<T>::set_block_number(T::BlockNumber::max_value());
+			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 			Crowdloan::<T>::withdraw(
 				RawOrigin::Signed(caller.clone()).into(),
 				account("last_contributor", 0, 0),
@@ -1404,7 +1404,7 @@ mod benchmarking {
 
 			let lease_period_index = T::Auctioneer::lease_period_index();
 			let duration = end_block
-				.checked_sub(&frame_system::Module::<T>::block_number())
+				.checked_sub(&frame_system::Pallet::<T>::block_number())
 				.ok_or("duration of auction less than zero")?;
 			T::Auctioneer::new_auction(duration, lease_period_index)?;
 

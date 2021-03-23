@@ -215,7 +215,7 @@ decl_module! {
 				}
 			)?;
 
-			pallet_balances::Module::<T>::reserve(&who, T::ProposeDeposit::get())?;
+			pallet_balances::Pallet::<T>::reserve(&who, T::ProposeDeposit::get())?;
 
 			let proposal = Proposal {
 				name: name.clone(),
@@ -269,7 +269,7 @@ decl_module! {
 			Proposals::<T>::remove(&para_id);
 			ParachainValidationCode::remove(&para_id);
 
-			pallet_balances::Module::<T>::unreserve(&proposal.proposer, T::ProposeDeposit::get());
+			pallet_balances::Pallet::<T>::unreserve(&proposal.proposer, T::ProposeDeposit::get());
 		}
 
 		/// Deregister a parachain that was already successfully registered in the relay chain.
@@ -290,7 +290,7 @@ decl_module! {
 			ParachainInfo::<T>::remove(&para_id);
 			info.validators.into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
 
-			pallet_balances::Module::<T>::unreserve(&info.proposer, T::ProposeDeposit::get());
+			pallet_balances::Pallet::<T>::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
 
 		/// Add new validators to the set.
@@ -392,7 +392,7 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 			Self::deposit_event(RawEvent::ParachainRegistered(*id));
 
 			// Add some funds to the Parachain
-			let _ = pallet_balances::Module::<T>::deposit_creating(&id.into_account(), proposal.balance);
+			let _ = pallet_balances::Pallet::<T>::deposit_creating(&id.into_account(), proposal.balance);
 
 			let info = RegisteredParachainInfo {
 				proposer: proposal.proposer,

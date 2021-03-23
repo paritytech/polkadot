@@ -24,6 +24,9 @@
 
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
+
+pub use sc_network::IfDisconnected;
+
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
 	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
@@ -198,21 +201,8 @@ pub enum CollatorProtocolMessage {
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
-}
-
-impl CollatorProtocolMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::CollateOn(_) => None,
-			Self::DistributeCollation(receipt, _, _) => Some(receipt.descriptor().relay_parent),
-			Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
-			Self::ReportCollator(_) => None,
-			Self::NoteGoodCollation(_) => None,
-			Self::NetworkBridgeUpdateV1(_) => None,
-			Self::NotifyCollationSeconded(_, _) => None,
-		}
-	}
+	/// Incoming network request for a collation.
+	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>)
 }
 
 /// Messages received by the network bridge subsystem.
@@ -234,7 +224,8 @@ pub enum NetworkBridgeMessage {
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Send requests via substrate request/response.
-	SendRequests(Vec<Requests>),
+	/// Second parameter, tells what to do if we are not yet connected to the peer.
+	SendRequests(Vec<Requests>, IfDisconnected),
 
 	/// Connect to peers who represent the given `validator_ids`.
 	///
@@ -748,5 +739,15 @@ pub enum AllMessages {
 impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::AvailabilityFetchingRequest>) -> Self {
 		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		From::<CollatorProtocolMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		Self::CollationFetchingRequest(req)
 	}
 }

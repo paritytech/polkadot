@@ -14,12 +14,12 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+always-assert = "0.1.2"
 
 [dev-dependencies]
 log = "0.4.13"
 env_logger = "0.8.2"
 assert_matches = "1.4.0"
-futures-timer = "3.0.2"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

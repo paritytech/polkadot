@@ -199,21 +199,6 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(13 as Weight))
 			.saturating_add(T::DbWeight::get().writes((3 as Weight).saturating_mul(v as Weight)))
 	}
-	fn submit_solution_better(v: u32, n: u32, a: u32, w: u32, ) -> Weight {
-		(0 as Weight)
-			// Standard Error: 45_000
-			.saturating_add((1_019_000 as Weight).saturating_mul(v as Weight))
-			// Standard Error: 18_000
-			.saturating_add((532_000 as Weight).saturating_mul(n as Weight))
-			// Standard Error: 45_000
-			.saturating_add((73_781_000 as Weight).saturating_mul(a as Weight))
-			// Standard Error: 94_000
-			.saturating_add((6_944_000 as Weight).saturating_mul(w as Weight))
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().reads((4 as Weight).saturating_mul(a as Weight)))
-			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(w as Weight)))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
-	}
 	fn get_npos_voters(v: u32, n: u32, s: u32, ) -> Weight {
 		(0 as Weight)
 			// Standard Error: 104_000
