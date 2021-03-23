@@ -19,7 +19,7 @@
 use futures::channel::oneshot;
 
 use polkadot_node_network_protocol::request_response::{request::IncomingRequest, v1};
-use polkadot_primitives::v1::{CandidateHash, ErasureChunk, ValidatorIndex};
+use polkadot_primitives::v1::{AvailableData, CandidateHash, CompressedPoV, ErasureChunk, ValidatorIndex};
 use polkadot_subsystem::{
 	messages::{AllMessages, AvailabilityStoreMessage},
 	SubsystemContext, jaeger,
@@ -49,7 +49,7 @@ where
 				err= ?err,
 				"Serving PoV failed with error"
 			);
-			metrics.on_served(FAILED);
+			metrics.on_served_pov(FAILED);
 		}
 	}
 }
@@ -75,7 +75,7 @@ where
 				err= ?err,
 				"Serving chunk failed with error"
 			);
-			metrics.on_served(FAILED);
+			metrics.on_served_chunk(FAILED);
 		}
 	}
 }
@@ -90,12 +90,9 @@ pub async fn answer_pov_request<Context>(
 where
 	Context: SubsystemContext,
 {
-	let mut span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
-	let _child_span = span.child_builder("answer-chunk-request")
-		.with_chunk_index(req.payload.index.0)
-		.build();
+	let _span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-pov-request");
 
-	let av_data = query_available_data(ctx, req.payload.candidate_hash, req.payload.index).await?;
+	let av_data = query_available_data(ctx, req.payload.candidate_hash).await?;
 
 	let result = av_data.is_some();
 
@@ -111,7 +108,7 @@ where
 						"Failed to create `CompressedPov`",
 					);
 					// this should really not happen, let this request time out:
-					return false
+					return Err(Error::PoVDecompression(error))
 				}
 			};
 			v1::PoVFetchingResponse::PoV(pov)
@@ -132,7 +129,7 @@ pub async fn answer_chunk_request<Context>(
 where
 	Context: SubsystemContext,
 {
-	let mut span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
+	let span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
 	let _child_span = span.child_builder("answer-chunk-request")
 		.with_chunk_index(req.payload.index.0)
 		.build();
