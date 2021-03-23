@@ -270,10 +270,9 @@ decl_module! {
 		/// Can only be called by Root origin.
 		#[weight = 0]
 		pub fn cancel_auction(origin) {
-			ensure_root(origin);
+			ensure_root(origin)?;
 			// Unreserve all bids.
-			for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
-				ReservedAmounts::<T>::take((bidder.clone(), para));
+			for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
 				CurrencyOf::<T>::unreserve(&bidder, amount);
 			}
 			AuctionInfo::<T>::kill();
@@ -505,8 +504,7 @@ impl<T: Config> Module<T> {
 		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
-		for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
-			ReservedAmounts::<T>::take((bidder.clone(), para));
+		for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
 			CurrencyOf::<T>::unreserve(&bidder, amount);
 		}
 
