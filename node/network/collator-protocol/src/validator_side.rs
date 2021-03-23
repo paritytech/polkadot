@@ -35,6 +35,7 @@ use polkadot_subsystem::{
 };
 use polkadot_node_network_protocol::{
 	OurView, PeerId, UnifiedReputationChange as Rep, View,
+	peer_set::PeerSet,
 	request_response::{OutgoingRequest, Requests, request::{Recipient, RequestError}}, v1 as protocol_v1
 };
 use polkadot_node_network_protocol::request_response::v1::{CollationFetchingRequest, CollationFetchingResponse};
@@ -54,9 +55,18 @@ const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another 
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
 // After this long without activity, peers are disconnected.
+#[cfg(not(test))]
 const ACTIVITY_TIMEOUT: Duration = Duration::from_secs(5);
+
+#[cfg(test)]
+const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
+
 // How often to check all peers with activity.
+#[cfg(not(test))]
 const ACTIVITY_POLL: Duration = Duration::from_millis(2500);
+
+#[cfg(test)]
+const ACTIVITY_POLL: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -152,6 +162,10 @@ impl PeerData {
 
 	fn note_active(&mut self) {
 		self.last_active = Instant::now();
+	}
+
+	fn active_since(&self, instant: Instant) -> bool {
+		self.last_active >= instant
 	}
 }
 
@@ -702,7 +716,18 @@ async fn disconnect_inactive_peers(
 	ctx: &mut impl SubsystemContext,
 	peers: &HashMap<PeerId, PeerData>,
 ) {
-	unimplemented!()
+	let cutoff = match Instant::now().checked_sub(ACTIVITY_TIMEOUT) {
+		None => return,
+		Some(i) => i,
+	};
+
+	for (peer, peer_data) in peers {
+		if !peer_data.active_since(cutoff) {
+			ctx.send_message(
+				NetworkBridgeMessage::DisconnectPeer(peer.clone(), PeerSet::Collation).into()
+			).await;
+		}
+	}
 }
 
 /// Poll collation response, return immediately if there is none.
