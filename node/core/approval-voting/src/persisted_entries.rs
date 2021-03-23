@@ -302,6 +302,7 @@ impl From<CandidateEntry> for crate::approval_db::v1::CandidateEntry {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockEntry {
 	block_hash: Hash,
+	parent_hash: Hash,
 	session: SessionIndex,
 	slot: Slot,
 	relay_vrf_story: RelayVRFStory,
@@ -401,6 +402,7 @@ impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
 	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
 		BlockEntry {
 			block_hash: entry.block_hash,
+			parent_hash: entry.parent_hash,
 			session: entry.session,
 			slot: entry.slot,
 			relay_vrf_story: RelayVRFStory(entry.relay_vrf_story),
@@ -415,6 +417,7 @@ impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
 	fn from(entry: BlockEntry) -> Self {
 		Self {
 			block_hash: entry.block_hash,
+			parent_hash: entry.parent_hash,
 			session: entry.session,
 			slot: entry.slot,
 			relay_vrf_story: entry.relay_vrf_story.0,

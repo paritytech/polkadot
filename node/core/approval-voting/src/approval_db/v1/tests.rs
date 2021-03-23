@@ -57,10 +57,12 @@ fn make_bitvec(len: usize) -> BitVec<BitOrderLsb0, u8> {
 
 fn make_block_entry(
 	block_hash: Hash,
+	parent_hash: Hash,
 	candidates: Vec<(CoreIndex, CandidateHash)>,
 ) -> BlockEntry {
 	BlockEntry {
 		block_hash,
+		parent_hash,
 		session: 1,
 		slot: Slot::from(1),
 		relay_vrf_story: [0u8; 32],
@@ -92,6 +94,7 @@ fn read_write() {
 
 	let block_entry = make_block_entry(
 		hash_a,
+		Default::default(),
 		vec![(CoreIndex(0), candidate_hash)],
 	);
 
@@ -157,11 +160,13 @@ fn add_block_entry_works() {
 
 	let block_entry_a = make_block_entry(
 		block_hash_a,
+		parent_hash,
 		vec![(CoreIndex(0), candidate_hash_a)],
 	);
 
 	let block_entry_b = make_block_entry(
 		block_hash_b,
+		parent_hash,
 		vec![(CoreIndex(0), candidate_hash_a), (CoreIndex(1), candidate_hash_b)],
 	);
 
@@ -219,11 +224,13 @@ fn add_block_entry_adds_child() {
 
 	let mut block_entry_a = make_block_entry(
 		block_hash_a,
+		parent_hash,
 		Vec::new(),
 	);
 
 	let block_entry_b = make_block_entry(
 		block_hash_b,
+		parent_hash,
 		Vec::new(),
 	);
 
@@ -292,19 +299,29 @@ fn canonicalize_works() {
 	let cand_hash_4 = CandidateHash(Hash::repeat_byte(13));
 	let cand_hash_5 = CandidateHash(Hash::repeat_byte(15));
 
-	let block_entry_a = make_block_entry(block_hash_a, Vec::new());
-	let block_entry_b1 = make_block_entry(block_hash_b1, Vec::new());
-	let block_entry_b2 = make_block_entry(block_hash_b2, vec![(CoreIndex(0), cand_hash_1)]);
-	let block_entry_c1 = make_block_entry(block_hash_c1, Vec::new());
+	let block_entry_a = make_block_entry(block_hash_a, genesis, Vec::new());
+	let block_entry_b1 = make_block_entry(block_hash_b1, block_hash_a, Vec::new());
+	let block_entry_b2 = make_block_entry(
+		block_hash_b2,
+		block_hash_a,
+		vec![(CoreIndex(0), cand_hash_1)],
+	);
+	let block_entry_c1 = make_block_entry(block_hash_c1, block_hash_b1, Vec::new());
 	let block_entry_c2 = make_block_entry(
 		block_hash_c2,
+		block_hash_b2,
 		vec![(CoreIndex(0), cand_hash_2), (CoreIndex(1), cand_hash_3)],
 	);
 	let block_entry_d1 = make_block_entry(
 		block_hash_d1,
+		block_hash_c1,
 		vec![(CoreIndex(0), cand_hash_3), (CoreIndex(1), cand_hash_4)],
 	);
-	let block_entry_d2 = make_block_entry(block_hash_d2, vec![(CoreIndex(0), cand_hash_5)]);
+	let block_entry_d2 = make_block_entry(
+		block_hash_d2,
+		block_hash_c2,
+		vec![(CoreIndex(0), cand_hash_5)],
+	);
 
 
 	let candidate_info = {

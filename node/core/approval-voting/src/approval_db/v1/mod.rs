@@ -92,6 +92,7 @@ pub struct CandidateEntry {
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
 pub struct BlockEntry {
 	pub block_hash: Hash,
+	pub parent_hash: Hash,
 	pub session: SessionIndex,
 	pub slot: Slot,
 	/// Random bytes derived from the VRF submitted within the block by the block
