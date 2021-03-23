@@ -180,6 +180,11 @@ impl ApprovalEntry {
 		self.assignments.len()
 	}
 
+	/// Get the number of assignments by validators, including the local validator.
+	pub fn n_assignments(&self) -> usize {
+		self.assignments.count_ones()
+	}
+
 	/// Get the backing group index of the approval entry.
 	pub fn backing_group(&self) -> GroupIndex {
 		self.backing_group
