@@ -299,7 +299,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	if !state.view.contains(&relay_parent) {
-		tracing::trace!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			peer_id = %peer_id,
 			para_id = %para_id,
@@ -387,6 +387,11 @@ where
 
 	match msg {
 		Declare(id) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				peer_id = ?origin,
+				"Declared as collator",
+			);
 			state.known_collators.insert(origin.clone(), id);
 			state.peer_views.entry(origin).or_default();
 		}
@@ -395,12 +400,22 @@ where
 			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					%para_id,
+					?relay_parent,
+					"Received advertise collation",
+				);
+
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
 			} else {
 				tracing::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
-					"advertise collation received from an unknown collator",
+					%para_id,
+					?relay_parent,
+					"Advertise collation received from an unknown collator",
 				);
 			}
 		}
