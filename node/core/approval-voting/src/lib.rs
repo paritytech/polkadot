@@ -322,6 +322,11 @@ impl Wakeups {
 		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
 	}
 
+	// Get the wakeup for a particular block/candidate combo, if any.
+	fn wakeup_for(&self, block_hash: Hash, candidate_hash: CandidateHash) -> Option<Tick> {
+		self.reverse_wakeups.get(&(block_hash, candidate_hash)).map(|t| *t)
+	}
+
 	// Returns the next wakeup. this future never returns if there are no wakeups.
 	async fn next(&mut self, clock: &(dyn Clock + Sync)) -> (Tick, Hash, CandidateHash) {
 		match self.first() {
@@ -477,6 +482,7 @@ async fn run<C>(
 					db_writer,
 					next_msg?,
 					&mut last_finalized_height,
+					&wakeups,
 				).await?
 			}
 			background_request = background_rx.next().fuse() => {
@@ -578,6 +584,7 @@ async fn handle_from_overseer(
 	db_writer: &dyn KeyValueDB,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
+	wakeups: &Wakeups,
 ) -> SubsystemResult<Vec<Action>> {
 
 	let actions = match x {
@@ -660,7 +667,7 @@ async fn handle_from_overseer(
 				check_and_import_approval(state, metrics, a, |r| { let _ = res.send(r); })?.0
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
-				match handle_approved_ancestor(ctx, &state.db, target, lower_bound).await {
+				match handle_approved_ancestor(ctx, &state.db, target, lower_bound, wakeups).await {
 					Ok(v) => {
 						let _ = res.send(v);
 					}
@@ -713,6 +720,7 @@ async fn handle_approved_ancestor(
 	db: &impl DBReader,
 	target: Hash,
 	lower_bound: BlockNumber,
+	wakeups: &Wakeups,
 ) -> SubsystemResult<Option<(Hash, BlockNumber)>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
@@ -798,7 +806,7 @@ async fn handle_approved_ancestor(
 			let unapproved: Vec<_> = entry.unapproved_candidates().collect();
 			tracing::debug!(
 				target: LOG_TARGET,
-				"Block {} is {} blocks deep and has {}/{} candidates approved",
+				"Block {} is {} blocks deep and has {}/{} candidates unapproved",
 				block_hash,
 				bits.len() - 1,
 				unapproved.len(),
@@ -827,24 +835,41 @@ async fn handle_approved_ancestor(
 								);
 							}
 							Some(a_entry) => {
+								let n_assignments = a_entry.n_assignments();
+								let n_approvals = c_entry.approvals().count_ones();
+
+								let status = || format!("{}/{}/{}",
+									n_assignments,
+									n_approvals,
+									a_entry.n_validators(),
+								);
+
 								match a_entry.our_assignment() {
 									None => tracing::debug!(
 										target: LOG_TARGET,
 										?candidate_hash,
 										?block_hash,
+										status = %status(),
 										"no assignment."
 									),
 									Some(a) => {
 										let tranche = a.tranche();
 										let triggered = a.triggered();
 
+										let next_wakeup = wakeups.wakeup_for(
+											block_hash,
+											candidate_hash,
+										);
+
 										tracing::debug!(
 											target: LOG_TARGET,
 											?candidate_hash,
 											?block_hash,
 											tranche,
+											?next_wakeup,
+											status = %status(),
 											triggered,
-											"assigned"
+											"assigned."
 										);
 									}
 								}

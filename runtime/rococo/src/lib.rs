@@ -41,12 +41,12 @@ use runtime_parachains::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{EnsureOrigin, Filter, KeyOwnerProofSystem, Randomness},
+	traits::{Filter, KeyOwnerProofSystem, Randomness},
 	weights::Weight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, ModuleId,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
@@ -67,6 +67,8 @@ use frame_system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender};
 use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use pallet_mmr_primitives as mmr;
+use frame_system::EnsureRoot;
+use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -95,7 +97,7 @@ use constants::{time::*, currency::*, fee::*};
 
 /// Constant values used within the runtime.
 pub mod constants;
-mod propose_parachain;
+mod validator_manager;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -259,7 +261,11 @@ construct_runtime! {
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 
+		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
+		Slots: slots::{Pallet, Call, Storage, Event<T>},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 
 		// Sudo
@@ -272,6 +278,8 @@ construct_runtime! {
 		Mmr: pallet_mmr::{Pallet, Call, Storage},
 		Beefy: pallet_beefy::{Pallet, Config<T>, Storage},
 		MmrLeaf: mmr_common::{Pallet, Storage},
+		// Validator Manager pallet.
+		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
 	}
 }
 
@@ -474,7 +482,7 @@ impl pallet_session::Config for Runtime {
 	type ValidatorIdOf = ValidatorIdOf;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ProposeParachain>;
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ValidatorManager>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -656,7 +664,7 @@ impl paras_registrar::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
-	type OnSwap = ();
+	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
@@ -664,9 +672,8 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
-impl pallet_sudo::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
+parameter_types! {
+	pub const EndingPeriod: BlockNumber = 15 * MINUTES;
 }
 
 impl pallet_beefy::Config for Runtime {
@@ -688,37 +695,74 @@ impl mmr_common::Config for Runtime {
 
 /// Priviledged origin used by propose parachain.
 pub struct PriviledgedOrigin;
+// A wrapper around `babe::CurrentBlockRandomness` that does not return `Option<Random>`.
+pub struct CurrentBlockRandomness;
 
-impl EnsureOrigin<Origin> for PriviledgedOrigin {
-	type Success = ();
+impl Randomness<Hash, BlockNumber> for CurrentBlockRandomness {
+	fn random(subject: &[u8]) -> (Hash, BlockNumber) {
+		let (randomness, block_number) =
+			pallet_babe::CurrentBlockRandomness::<Runtime>::random(subject);
 
-	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
-		let allowed = [
-			hex_literal::hex!("b44c58e50328768ac06ed44b842bfa69d86ea10f60bc36156c9ffc5e00867220"),
-			hex_literal::hex!("762a6a38ba72b139cba285a39a6766e02046fb023f695f5ecf7f48b037c0dd6b")
-		];
+		let randomness = randomness.expect(
+			"only returns None when secondary VRF slots are not enabled; \
+			 secondary VRF slots are enbaled for rococo runtime; \
+			 qed.",
+		);
 
-		let origin = o.clone();
-		match EnsureSigned::try_origin(o) {
-			Ok(who) if allowed.iter().any(|a| a == &who.as_ref()) => Ok(()),
-			_ => Err(origin),
-		}
+		(randomness, block_number)
 	}
+}
 
-	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> Origin { Origin::root() }
+impl auctions::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type EndingPeriod = EndingPeriod;
+	type Randomness = CurrentBlockRandomness;
+	type InitiateOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = auctions::TestWeightInfo;
 }
 
 parameter_types! {
-	pub const ProposeDeposit: Balance = 1000 * DOLLARS;
-	pub const MaxNameLength: u32 = 20;
+	pub const LeasePeriod: BlockNumber = 1 * DAYS;
 }
 
-impl propose_parachain::Config for Runtime {
+impl slots::Config for Runtime {
 	type Event = Event;
-	type MaxNameLength = MaxNameLength;
-	type ProposeDeposit = ProposeDeposit;
-	type PriviledgedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PriviledgedOrigin>;
+	type Currency = Balances;
+	type Registrar = Registrar;
+	type LeasePeriod = LeasePeriod;
+	type WeightInfo = slots::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
+	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
+	pub const MinContribution: Balance = 1 * DOLLARS;
+	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
+	pub const RemoveKeysLimit: u32 = 500;
+}
+
+impl crowdloan::Config for Runtime {
+	type Event = Event;
+	type ModuleId = CrowdloanId;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MinContribution = MinContribution;
+	type RetirementPeriod = RetirementPeriod;
+	type OrphanedFunds = ();
+	type RemoveKeysLimit = RemoveKeysLimit;
+	type Registrar = Registrar;
+	type Auctioneer = Auctions;
+	type WeightInfo = crowdloan::TestWeightInfo;
+}
+
+impl pallet_sudo::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+}
+
+impl validator_manager::Config for Runtime {
+	type Event = Event;
+	type PrivilegedOrigin = EnsureRoot<AccountId>;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
