@@ -169,7 +169,11 @@ impl BitfieldDistribution {
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
 				} => {
-					tracing::trace!(target: LOG_TARGET, "Processing DistributeBitfield");
+					tracing::trace!(
+						target: LOG_TARGET,
+						?hash,
+						"Processing DistributeBitfield"
+					);
 					handle_bitfield_distribution(
 						&mut ctx,
 						&mut state,
@@ -235,7 +239,7 @@ async fn modify_reputation<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "reputation change");
+	tracing::trace!(target: LOG_TARGET, ?rep, peer_id = %peer, "reputation change");
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
@@ -410,6 +414,7 @@ where
 		tracing::trace!(
 			target: LOG_TARGET,
 			relay_parent = %message.relay_parent,
+			?origin,
 			"Validator set is empty",
 		);
 		modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
@@ -438,6 +443,12 @@ where
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
 	} else {
+		tracing::trace!(
+			target: LOG_TARGET,
+			validator_index,
+			?origin,
+			"Duplicate message",
+		);
 		modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
 		return;
 	};
@@ -485,24 +496,51 @@ where
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peerid, _role) => {
+		NetworkBridgeEvent::PeerConnected(peerid, role) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peerid,
+				?role,
+				"Peer connected",
+			);
 			// insert if none already present
 			state.peer_views.entry(peerid).or_default();
 		}
 		NetworkBridgeEvent::PeerDisconnected(peerid) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peerid,
+				"Peer disconnected",
+			);
 			// get rid of superfluous data
 			state.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peerid,
+				?view,
+				"Peer view change",
+			);
 			handle_peer_view_change(ctx, state, peerid, view).await;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?view,
+				"Our view change",
+			);
 			handle_our_view_change(state, view);
 		}
 		NetworkBridgeEvent::PeerMessage(remote, message) => {
 			match message {
 				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
-					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "received bitfield gossip from peer");
+					tracing::trace!(
+						target: LOG_TARGET,
+						peer_id = %remote,
+						?relay_parent,
+						"received bitfield gossip from peer"
+					);
 					let gossiped_bitfield = BitfieldGossipMessage {
 						relay_parent,
 						signed_availability: bitfield,
@@ -601,6 +639,13 @@ where
 	};
 
 	let _span = job_data.span.child("gossip");
+	tracing::trace!(
+		target: LOG_TARGET,
+		?dest,
+		?validator,
+		relay_parent = ?message.relay_parent,
+		"Sending gossip message"
+	);
 
 	job_data.message_sent_to_peer
 		.entry(dest.clone())

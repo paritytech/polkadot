@@ -336,9 +336,9 @@ mod tests {
     use super::*;
     use test_runner::NodeConfig;
     use log::LevelFilter;
-    use frame_support::log::LevelFilter;
     use sc_client_api::execution_extensions::ExecutionStrategies;
     use polkadot_service::chain_spec::polkadot_config;
+    use sp_runtime::{MultiSigner, traits::IdentifyAccount};
 
     #[test]
     fn test_runner() {
@@ -350,7 +350,7 @@ mod tests {
                 offchain_worker: sc_client_api::ExecutionStrategy::AlwaysWasm,
                 other: sc_client_api::ExecutionStrategy::AlwaysWasm,
             },
-            chain_spec: Box::new(polkadot_config()),
+            chain_spec: Box::new(polkadot_config().unwrap()),
             log_targets: vec![
                 ("yamux", LevelFilter::Off),
                 ("multistream_select", LevelFilter::Off),
@@ -364,7 +364,7 @@ mod tests {
                 ("peerset", LevelFilter::Off),
                 ("ws", LevelFilter::Off),
                 ("sc_network", LevelFilter::Off),
-                ("sc_service", LevelFilter::Off),node/test/runtime/src/lib.rs:70:55
+                ("sc_service", LevelFilter::Off),
                 ("sc_basic_authorship", LevelFilter::Off),
                 ("telemetry-logger", LevelFilter::Off),
                 ("sc_peerset", LevelFilter::Off),
@@ -382,7 +382,7 @@ mod tests {
         node.submit_extrinsic(frame_system::Call::remark((b"hello world").to_vec()), alice);
 
         // look ma, I can read state.
-        let _events = node.with_state(|| frame_system::Pallet::<node_runtime::Runtime>::events());
+        let _events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
         // get access to the underlying client.
         let _client = node.client();
     }

@@ -212,7 +212,7 @@ impl LazyIdent for Hash {
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
-		span.add_string_fmt_debug_tag("relay-parent", self.0);
+		span.add_string_fmt_debug_tag("relay-parent", self);
 	}
 }
 
@@ -222,7 +222,7 @@ impl LazyIdent for &Hash {
 	}
 
 	fn extra_tags(&self, span: &mut Span) {
-		span.add_string_fmt_debug_tag("relay-parent", self.0);
+		span.add_string_fmt_debug_tag("relay-parent", self);
 	}
 }
 
