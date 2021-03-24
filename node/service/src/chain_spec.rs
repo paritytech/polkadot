@@ -25,7 +25,7 @@ use kusama_runtime as kusama;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
 use polkadot::constants::currency::DOTS;
-use polkadot_primitives::v1::{AccountId, AccountPublic, ValidatorId, AssignmentId};
+use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, MAX_POV_SIZE, ValidatorId};
 use polkadot_runtime as polkadot;
 use rococo_runtime as rococo;
 use rococo_runtime::constants::currency::DOTS as ROC;
@@ -993,7 +993,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				validation_upgrade_delay: 300,
 				acceptance_period: 1200,
 				max_code_size: 5 * 1024 * 1024,
-				max_pov_size: 50 * 1024 * 1024,
+				max_pov_size: MAX_POV_SIZE,
 				max_head_data_size: 32 * 1024,
 				group_rotation_frequency: 20,
 				chain_availability_period: 4,

@@ -36,6 +36,7 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use futures::channel::mpsc;
+use polkadot_primitives::v1::MAX_COMPRESSED_POV_SIZE;
 use strum::EnumIter;
 
 pub use sc_network::config as network;
@@ -99,10 +100,7 @@ impl Protocol {
 			Protocol::CollationFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 10_000,
-				/// Collations are expected to be around 10Meg, probably much smaller with
-				/// compression. So 30Meg should be well sufficient, we might be able to reduce
-				/// this further, if needed.
-				max_response_size: 30_000_000,
+				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
 				// Taken from initial implementation in collator protocol:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
