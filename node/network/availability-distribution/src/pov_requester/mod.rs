@@ -76,10 +76,9 @@ impl PoVRequester {
 			if self.connected_validators.contains(&session_index) {
 				continue
 			}
-			self.connected_validators.put(
-				session_index,
-				connect_to_relevant_validators(ctx, runtime, parent, session_index).await?
-			);
+			if let Some(rx) = connect_to_relevant_validators(ctx, runtime, parent, session_index).await? {
+				self.connected_validators.put(session_index, rx);
+			}
 		}
 		Ok(())
 	}
@@ -174,27 +173,32 @@ async fn connect_to_relevant_validators<Context>(
 	parent: Hash,
 	session: SessionIndex
 ) 
-	-> super::Result<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>
+	-> super::Result<Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>
 where
 	Context: SubsystemContext,
 {
-	let validator_ids = determine_relevant_validators(ctx, runtime, parent, session).await?;
-	// We don't actually care about `PeerId`s, just keeping receiver so we stay connected:
-	let (tx, rx) = mpsc::channel(0);
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-		validator_ids, peer_set: PeerSet::Validation, connected: tx
-	})).await;
-	Ok(rx)
+	if let Some(validator_ids) = determine_relevant_validators(ctx, runtime, parent, session).await? {
+		// We don't actually care about `PeerId`s, just keeping receiver so we stay connected:
+		let (tx, rx) = mpsc::channel(0);
+		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
+			validator_ids, peer_set: PeerSet::Validation, connected: tx
+		})).await;
+		Ok(Some(rx))
+	} else {
+		Ok(None)
+	}
 }
 
 /// Get the validators in our validator group.
+///
+/// Return: `None` if not a validator.
 async fn determine_relevant_validators<Context>(
 	ctx: &mut Context,
 	runtime: &mut Runtime,
 	parent: Hash,
 	session: SessionIndex,
 ) 
-	-> super::Result<Vec<AuthorityDiscoveryId>>
+	-> super::Result<Option<Vec<AuthorityDiscoveryId>>>
 where
 	Context: SubsystemContext,
 {
@@ -203,13 +207,13 @@ where
 		let indeces = info.session_info.validator_groups.get(validator_info.our_group.0 as usize)
 			.expect("Our group got retrieved from that session info, it must exist. qed.")
 			.clone();
-		Ok(
+		Ok(Some(
 			indeces.into_iter()
 			   .filter(|i| *i != validator_info.our_index)
 			   .map(|i| info.session_info.discovery_keys[i.0 as usize].clone())
 			   .collect()
-	   )
+	   ))
 	} else {
-		Ok(Vec::new())
+		Ok(None)
 	}
 }
