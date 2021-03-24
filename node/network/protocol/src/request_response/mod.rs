@@ -91,18 +91,18 @@ impl Protocol {
 		let cfg = match self {
 			Protocol::AvailabilityFetching => RequestResponseConfig {
 				name: p_name,
-				max_request_size: 1_000,
-				max_response_size: 100_000,
+				max_request_size: 10_000,
+				max_response_size: 10_000_000,
 				request_timeout: DEFAULT_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
 			Protocol::CollationFetching => RequestResponseConfig {
 				name: p_name,
-				max_request_size: 1_000,
+				max_request_size: 10_000,
 				/// Collations are expected to be around 10Meg, probably much smaller with
-				/// compression. So 10Meg should be sufficient, we might be able to reduce this
-				/// further.
-				max_response_size: 10_000_000,
+				/// compression. So 30Meg should be well sufficient, we might be able to reduce
+				/// this further, if needed.
+				max_response_size: 30_000_000,
 				// Taken from initial implementation in collator protocol:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
