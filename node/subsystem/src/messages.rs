@@ -280,9 +280,6 @@ pub enum AvailabilityRecoveryMessage {
 		Option<GroupIndex>, // Optional backing group to request from first.
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
-	/// Event from the network bridge.
-	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityRecoveryMessage>),
 	/// Incoming network request for available data.
 	#[from]
 	AvailableDataFetchingRequest(IncomingRequest<req_res_v1::AvailableDataFetchingRequest>),
@@ -710,6 +707,7 @@ pub enum AllMessages {
 	#[skip]
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the availability recovery subsystem.
+	#[skip]
 	AvailabilityRecovery(AvailabilityRecoveryMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
