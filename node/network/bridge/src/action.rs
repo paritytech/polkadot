@@ -57,6 +57,9 @@ pub(crate) enum Action {
 	/// Report a peer to the network implementation (decreasing/increasing its reputation).
 	ReportPeer(PeerId, UnifiedReputationChange),
 
+	/// Disconnect a peer from the given peer-set without affecting their reputation.
+	DisconnectPeer(PeerId, PeerSet),
+
 	/// A subsystem updates us on the relay chain leaves we consider active.
 	///
 	/// Implementation will send `WireMessage::ViewUpdate` message to peers as appropriate to the
@@ -119,6 +122,9 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 			}
 			Ok(FromOverseer::Communication { msg }) => match msg {
 				NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
+				NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
+					Action::DisconnectPeer(peer, peer_set)
+				}
 				NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
 					Action::SendValidationMessages(vec![(peers, msg)])
 				}
