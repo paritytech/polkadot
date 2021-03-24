@@ -160,12 +160,12 @@ check-runtime-benchmarks:
         sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
       EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
     fi
-  - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+  - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
   - echo -n ${VERSION} > ./artifacts/VERSION
   - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
   - cp -r scripts/docker/* ./artifacts
 
-build-linux-release:
+build-linux-release:               &build-binary
   stage:                           test
   <<:                              *collect-artifacts
   <<:                              *docker-env
@@ -173,7 +173,7 @@ build-linux-release:
   variables:
     EXTRA_FLAGS:                   ""
   rules:
-    # extra features when building on `rococo-v1` branch and manual build on PRs
+    # extra features when building on `rococo-v1` and PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         EXTRA_FLAGS:               "--features=real-overseer -Cdebug-assertions=y"
@@ -185,6 +185,28 @@ build-linux-release:
     - time cargo build --release --verbose ${EXTRA_FLAGS}
     - sccache -s
     - *pack-artifacts
+
+build-adder-collator:
+  stage:                           test
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  script:
+    - time cargo build --release --verbose --features=real-overseer -p test-parachain-adder-collator
+    - sccache -s
+    # pack-artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/adder-collator ./artifacts/.
+    - echo -n "${CI_COMMIT_SHORT_SHA}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r scripts/docker/* ./artifacts
 
 #### stage:                        build
 
