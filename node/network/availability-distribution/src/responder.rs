@@ -78,6 +78,7 @@ where
 		target: LOG_TARGET,
 		hash = ?req.payload.candidate_hash,
 		index = ?req.payload.index,
+		peer = ?req.peer,
 		has_data = ?chunk.is_some(),
 		"Serving chunk",
 	);
