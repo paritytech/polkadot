@@ -605,9 +605,9 @@ async fn handle_from_overseer(
 						for block_batch in block_imported_candidates {
 							tracing::debug!(
 								target: LOG_TARGET,
-								"Imported new block {} with {} included candidates",
-								block_batch.block_hash,
-								block_batch.imported_candidates.len(),
+								block_hash = ?block_batch.block_hash,
+								num_candidates = block_batch.imported_candidates.len(),
+								"Imported new block.",
 							);
 
 							for (c_hash, c_entry) in block_batch.imported_candidates {
@@ -1788,8 +1788,8 @@ async fn issue_approval(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Issuing approval vote for candidate {:?}",
-		candidate_hash,
+		?candidate_hash,
+		"Issuing approval vote",
 	);
 
 	let actions = import_checked_approval(
