@@ -468,12 +468,15 @@ decl_module! {
 		/// This places any deposits that were not withdrawn into the treasury.
 		#[weight = T::WeightInfo::dissolve(T::RemoveKeysLimit::get())]
 		pub fn dissolve(origin, #[compact] index: ParaId) -> DispatchResultWithPostInfo {
-			ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let now = frame_system::Pallet::<T>::block_number();
 			let dissolution = fund.end.saturating_add(T::RetirementPeriod::get());
-			ensure!((fund.retiring && now >= dissolution) || fund.raised.is_zero(), Error::<T>::NotReadyToDissolve);
+
+			let can_dissolve = (fund.retiring && now >= dissolution) ||
+				(fund.raised.is_zero() && who == fund.depositor);
+			ensure!(can_dissolve, Error::<T>::NotReadyToDissolve);
 
 			// Try killing the crowdloan child trie
 			match Self::crowdloan_kill(fund.trie_index) {
@@ -1166,7 +1169,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
 
-			// Set up two crowdloans
+			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
 			// Fund crowdloans.
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
@@ -1175,6 +1178,8 @@ mod tests {
 			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
 
 			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
+			// Only crowdloan creator can dissolve when raised is zero.
+			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
 			assert_eq!(Balances::free_balance(1), 1000);
 		});
