@@ -78,6 +78,12 @@ where
 		None => v1::AvailabilityFetchingResponse::NoSuchChunk,
 		Some(chunk) => v1::AvailabilityFetchingResponse::Chunk(chunk.into()),
 	};
+	tracing::trace!(
+		target: LOG_TARGET,
+		hash = ?req.payload.candidate_hash,
+		index = ?req.payload.index,
+		"Serving chunk",
+	);
 
 	req.send_response(response).map_err(|_| Error::SendResponse)?;
 	Ok(result)
