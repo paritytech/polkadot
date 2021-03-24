@@ -458,6 +458,17 @@ impl PoV {
 #[derive(Clone, Encode, Decode, PartialEq, Eq)]
 pub struct CompressedPoV(Vec<u8>);
 
+/// Maximum PoV size we support right now.
+pub const MAX_POV_SIZE: u32 = 50 * 1024 * 1024;
+
+/// Very conservative (compression ratio of 1).
+///
+/// Experiments showed that we have a typical compression ratio of 3.4.
+/// https://github.com/ordian/bench-compression-algorithms/
+///
+/// So this could be reduced if deemed necessary.
+pub const MAX_COMPRESSED_POV_SIZE: u32 = MAX_POV_SIZE;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[cfg(feature = "std")]
 #[allow(missing_docs)]
@@ -490,13 +501,12 @@ impl CompressedPoV {
 	#[cfg(not(target_os = "unknown"))]
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		use std::io::Read;
-		const MAX_POV_BLOCK_SIZE: usize = 32 * 1024 * 1024;
 
 		struct InputDecoder<'a, T: std::io::BufRead>(&'a mut zstd::Decoder<T>, usize);
 		impl<'a, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, T> {
 			fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
 				self.1 = self.1.saturating_add(into.len());
-				if self.1 > MAX_POV_BLOCK_SIZE {
+				if self.1 > MAX_POV_SIZE as usize {
 					return Err("pov block too big".into())
 				}
 				self.0.read_exact(into).map_err(Into::into)
@@ -514,6 +524,11 @@ impl CompressedPoV {
 	#[cfg(target_os = "unknown")]
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		Err(CompressedPoVError::NotSupported)
+	}
+
+	/// Get compressed data size.
+	pub fn len(&self) -> usize {
+		self.0.len()
 	}
 }
 

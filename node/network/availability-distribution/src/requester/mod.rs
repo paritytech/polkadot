@@ -101,6 +101,11 @@ impl Requester {
 	where
 		Context: SubsystemContext,
 	{
+		tracing::trace!(
+			target: LOG_TARGET,
+			?update,
+			"Update fetching heads"
+		);
 		let ActiveLeavesUpdate {
 			activated,
 			deactivated,
@@ -126,6 +131,11 @@ impl Requester {
 				Err(err) => return Ok(Some(err)),
 				Ok(cores) => cores,
 			};
+			tracing::trace!(
+				target: LOG_TARGET,
+				occupied_cores = ?cores,
+				"Query occupied core"
+			);
 			if let Some(err) = self.add_cores(ctx, leaf, cores).await? {
 				return Ok(Some(err));
 			}
