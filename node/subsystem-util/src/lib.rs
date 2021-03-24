@@ -583,7 +583,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 
 		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
 
-		self.outgoing_msgs.push(from_job_rx);
+		self.outgoing_msgs.insert(from_job_rx);
 
 		let handle = JobHandle {
 			_abort_handle: AbortOnDrop(abort_handle),
