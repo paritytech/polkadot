@@ -102,7 +102,7 @@ impl Protocol {
 				/// Collations are expected to be around 10Meg, probably much smaller with
 				/// compression. So 10Meg should be sufficient, we might be able to reduce this
 				/// further.
-				max_response_size: 100_000_000,
+				max_response_size: 20_000_000,
 				// Taken from initial implementation in collator protocol:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
