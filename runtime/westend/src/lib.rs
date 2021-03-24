@@ -410,10 +410,6 @@ impl pallet_offences::Config for Runtime {
 impl pallet_authority_discovery::Config for Runtime {}
 
 parameter_types! {
-	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
-}
-
-parameter_types! {
 	pub const NposSolutionPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }

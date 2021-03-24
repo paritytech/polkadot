@@ -26,7 +26,7 @@ use frame_support::{
 	weights::{DispatchClass, Weight},
 };
 use primitives::v1::Id as ParaId;
-use frame_system::ensure_signed;
+use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use crate::traits::{Leaser, LeaseError, Auctioneer};
 use parity_scale_codec::Decode;
@@ -37,6 +37,7 @@ type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T 
 pub trait WeightInfo {
 	fn new_auction() -> Weight;
 	fn bid() -> Weight;
+	fn cancel_auction() -> Weight;
 	fn on_initialize() -> Weight;
 }
 
@@ -44,6 +45,7 @@ pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn new_auction() -> Weight { 0 }
 	fn bid() -> Weight { 0 }
+	fn cancel_auction() -> Weight { 0 }
 	fn on_initialize() -> Weight { 0 }
 }
 
@@ -263,6 +265,20 @@ decl_module! {
 		) {
 			let who = ensure_signed(origin)?;
 			Self::handle_bid(who, para, auction_index, first_slot, last_slot, amount)?;
+		}
+
+		/// Cancel an in-progress auction.
+		///
+		/// Can only be called by Root origin.
+		#[weight = T::WeightInfo::cancel_auction()]
+		pub fn cancel_auction(origin) {
+			ensure_root(origin)?;
+			// Unreserve all bids.
+			for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
+				CurrencyOf::<T>::unreserve(&bidder, amount);
+			}
+			Winning::<T>::remove_all();
+			AuctionInfo::<T>::kill();
 		}
 	}
 }
@@ -490,8 +506,7 @@ impl<T: Config> Module<T> {
 		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
-		for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
-			ReservedAmounts::<T>::take((bidder.clone(), para));
+		for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
 			CurrencyOf::<T>::unreserve(&bidder, amount);
 		}
 
@@ -1311,6 +1326,25 @@ mod tests {
 			]));
 		});
 	}
+
+	#[test]
+	fn can_cancel_auction() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 1));
+			assert_eq!(Balances::reserved_balance(1), 1);
+			assert_eq!(Balances::free_balance(1), 9);
+
+			assert_noop!(Auctions::cancel_auction(Origin::signed(6)), BadOrigin);
+			assert_ok!(Auctions::cancel_auction(Origin::root()));
+
+			assert!(AuctionInfo::<Test>::get().is_none());
+			assert_eq!(Balances::reserved_balance(1), 0);
+			assert_eq!(ReservedAmounts::<Test>::iter().count(), 0);
+			assert_eq!(Winning::<Test>::iter().count(), 0);
+		});
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1318,7 +1352,7 @@ mod benchmarking {
 	use super::{*, Module as Auctions};
 	use frame_system::RawOrigin;
 	use frame_support::traits::OnInitialize;
-	use sp_runtime::traits::Bounded;
+	use sp_runtime::{traits::Bounded, SaturatedConversion};
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, impl_benchmark_test_suite};
 
@@ -1328,6 +1362,39 @@ mod benchmarking {
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
+	}
+
+	fn fill_winners<T: Config>(lease_period_index: LeasePeriodOf<T>) {
+		let auction_index = AuctionCounter::get();
+		let minimum_balance = CurrencyOf::<T>::minimum_balance();
+
+		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+			let bidder = account("bidder", n, 0);
+			CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
+
+			let (start, end) = match n {
+				1  => (0u32, 0u32),
+				2  => (0, 1),
+				3  => (0, 2),
+				4  => (0, 3),
+				5  => (1, 1),
+				6  => (1, 2),
+				7  => (1, 3),
+				8  => (2, 2),
+				9  => (2, 3),
+				10 => (3, 3),
+				_ => panic!("test not meant for this"),
+			};
+
+			assert!(Auctions::<T>::bid(
+				RawOrigin::Signed(bidder).into(),
+				ParaId::from(n),
+				auction_index,
+				lease_period_index + start.into(), // First Slot
+				lease_period_index + end.into(), // Last slot
+				minimum_balance.saturating_mul(n.into()), // Amount
+			).is_ok());
+		}
 	}
 
 	benchmarks! {
@@ -1388,37 +1455,8 @@ mod benchmarking {
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
-			let auction_index = AuctionCounter::get();
 
-			let minimum_balance = CurrencyOf::<T>::minimum_balance();
-
-			for n in 1 ..= SLOT_RANGE_COUNT as u32 {
-				let bidder = account("bidder", n, 0);
-				CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
-
-				let (start, end) = match n {
-					1  => (0u32, 0u32),
-					2  => (0, 1),
-					3  => (0, 2),
-					4  => (0, 3),
-					5  => (1, 1),
-					6  => (1, 2),
-					7  => (1, 3),
-					8  => (2, 2),
-					9  => (2, 3),
-					10 => (3, 3),
-					_ => panic!("test not meant for this"),
-				};
-
-				Auctions::<T>::bid(
-					RawOrigin::Signed(bidder).into(),
-					ParaId::from(n),
-					auction_index,
-					lease_period_index + start.into(), // First Slot
-					lease_period_index + end.into(), // Last slot
-					minimum_balance.saturating_mul(n.into()), // Amount
-				)?;
-			}
+			fill_winners::<T>(lease_period_index);
 
 			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
 				assert!(winner.is_some());
@@ -1438,7 +1476,33 @@ mod benchmarking {
 		}: {
 			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 		} verify {
+			let auction_index = AuctionCounter::get();
 			assert_last_event::<T>(RawEvent::AuctionClosed(auction_index).into());
+		}
+
+		// Worst case: 10 bidders taking all wining spots, and winning data is full.
+		cancel_auction {
+			// Create a new auction
+			let duration: T::BlockNumber = 99u32.into();
+			let lease_period_index = LeasePeriodOf::<T>::zero();
+			let now = frame_system::Pallet::<T>::block_number();
+			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+
+			fill_winners::<T>(lease_period_index);
+
+			let winning_data = Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap();
+			for winner in winning_data.iter() {
+				assert!(winner.is_some());
+			}
+
+			// Make winning map full
+			for i in 0u32 .. T::EndingPeriod::get().saturated_into() {
+				Winning::<T>::insert(T::BlockNumber::from(i), winning_data.clone());
+			}
+			assert!(AuctionInfo::<T>::get().is_some());
+		}: _(RawOrigin::Root)
+		verify {
+			assert!(AuctionInfo::<T>::get().is_none());
 		}
 	}
 
