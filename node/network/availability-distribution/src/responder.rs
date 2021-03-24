@@ -105,5 +105,14 @@ where
 	))
 	.await;
 
-	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
+	rx.await.map_err(|e| {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?validator_index,
+			?candidate_hash,
+			error = ?e,
+			"Error retrieveing chunk",
+		);
+		Error::QueryChunkResponseChannel(e)
+	})
 }
