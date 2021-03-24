@@ -101,3 +101,10 @@ impl IsRequest for CollationFetchingRequest {
 	type Response = CollationFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::CollationFetching;
 }
+
+/// Request the entire available data for a candidate.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct AvailableDataFetchingRequest {
+	/// The candidate hash to get the available data for.
+	pub candidate_hash: CandidateHash,
+}
