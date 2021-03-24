@@ -60,6 +60,11 @@ pub trait Config: frame_system::Config {
 	/// The number of blocks over which an auction may be retroactively ended.
 	type EndingPeriod: Get<Self::BlockNumber>;
 
+	/// The length of each sample to take during the ending period.
+	///
+	/// EndingPeriod / SampleLength = Total # of Samples
+	type SampleLength: Get<Self::BlockNumber>;
+
 	/// Something that provides randomness in the runtime.
 	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
@@ -99,9 +104,9 @@ decl_storage! {
 		pub ReservedAmounts get(fn reserved_amounts):
 			map hasher(twox_64_concat) (T::AccountId, ParaId) => Option<BalanceOf<T>>;
 
-		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
-		/// the current auction. The map's key is the 0-based index into the Ending Period. The
-		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
+		/// The winning bids for each of the 10 ranges at each sample in the final Ending Period of
+		/// the current auction. The map's key is the 0-based index into the Sample Size. The
+		/// first sample of the ending period is 0; the last is `Sample Size - 1`.
 		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
 	}
 }
@@ -296,11 +301,12 @@ impl<T: Config> Auctioneer for Module<T> {
 		Self::do_new_auction(duration, lease_period_index)
 	}
 
+	// Returns whether the auction is ending, and which sample number we are on.
 	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber> {
 		if let Some((_, early_end)) = AuctionInfo::<T>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
 				if after_early_end < T::EndingPeriod::get() {
-					return Some(after_early_end)
+					return Some(after_early_end / T::SampleLength::get())
 				}
 			}
 		}
@@ -388,7 +394,7 @@ impl<T: Config> Module<T> {
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
 		// Range as an array index.
 		let range_index = range as u8 as usize;
-		// The offset into the auction ending set.
+		// The offset into the ending samples of the auction.
 		let offset = Self::is_ending(frame_system::Pallet::<T>::block_number()).unwrap_or_default();
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
@@ -481,7 +487,8 @@ impl<T: Config> Module<T> {
 					// Our random seed was known only after the auction ended. Good to use.
 					let raw_offset_block_number = <T::BlockNumber>::decode(&mut raw_offset.as_ref())
 						.expect("secure hashes should always be bigger than the block number; qed");
-					let offset = raw_offset_block_number % ending_period;
+					let offset = (raw_offset_block_number % ending_period) / T::SampleLength::get();
+
 					let res = Winning::<T>::get(offset).unwrap_or_default();
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
@@ -725,10 +732,6 @@ mod tests {
 		}
 	}
 
-	parameter_types!{
-		pub const EndingPeriod: BlockNumber = 3;
-	}
-
 	ord_parameter_types!{
 		pub const Six: u64 = 6;
 	}
@@ -758,10 +761,16 @@ mod tests {
 		}
 	}
 
+	parameter_types!{
+		pub static EndingPeriod: BlockNumber = 3;
+		pub static SampleLength: BlockNumber = 1;
+	}
+
 	impl Config for Test {
 		type Event = Event;
 		type Leaser = TestLeaser;
 		type EndingPeriod = EndingPeriod;
+		type SampleLength = SampleLength;
 		type Randomness = TestPastRandomness;
 		type InitiateOrigin = RootOrSix;
 		type WeightInfo = crate::auctions::TestWeightInfo;
@@ -1324,6 +1333,126 @@ mod tests {
 				Some((3, para_3, 30)),
 				None,
 			]));
+		});
+	}
+
+	// Here we will test that taking only 10 samples during the ending period works as expected.
+	#[test]
+	fn less_winning_samples_work() {
+		new_test_ext().execute_with(|| {
+			EndingPeriod::set(30);
+			SampleLength::set(10);
+
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 11));
+			let para_1 = ParaId::from(1);
+			let para_2 = ParaId::from(2);
+			let para_3 = ParaId::from(3);
+
+			// Make bids
+			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 11, 14, 10));
+			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 13, 14, 20));
+
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+			assert_eq!(Auctions::winning(0), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((2, para_2, 20)),
+				None,
+			]));
+
+			run_to_block(9);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+
+			run_to_block(10);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
+			assert_eq!(Auctions::winning(0), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((2, para_2, 20)),
+				None,
+			]));
+
+			// New bids update the current winning
+			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 14, 14, 30));
+			assert_eq!(Auctions::winning(0), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((2, para_2, 20)),
+				Some((3, para_3, 30)),
+			]));
+
+			run_to_block(20);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
+			assert_eq!(Auctions::winning(1), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((2, para_2, 20)),
+				Some((3, para_3, 30)),
+			]));
+			run_to_block(25);
+			// Overbid mid sample
+			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 13, 14, 30));
+			assert_eq!(Auctions::winning(1), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((3, para_3, 30)),
+				Some((3, para_3, 30)),
+			]));
+
+			run_to_block(30);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
+			assert_eq!(Auctions::winning(2), Some([
+				None,
+				None,
+				None,
+				Some((1, para_1, 10)),
+				None,
+				None,
+				None,
+				None,
+				Some((3, para_3, 30)),
+				Some((3, para_3, 30)),
+			]));
+
+			set_last_random(H256::from([254; 32]), 40);
+			run_to_block(40);
+			// Auction ended and winner selected
+			assert!(!Auctions::is_in_progress());
+			assert_eq!(leases(), vec![
+				((3.into(), 13), LeaseData { leaser: 3, amount: 30 }),
+				((3.into(), 14), LeaseData { leaser: 3, amount: 30 }),
+			]);
 		});
 	}
 

@@ -755,12 +755,14 @@ impl paras_registrar::Config for Runtime {
 
 parameter_types! {
 	pub const EndingPeriod: BlockNumber = 1 * HOURS;
+	pub const SampleLength: BlockNumber = 1 * MINUTES;
 }
 
 impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;

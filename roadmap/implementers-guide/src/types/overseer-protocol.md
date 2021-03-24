@@ -328,7 +328,9 @@ enum PeerSet {
 
 enum NetworkBridgeMessage {
     /// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
-    ReportPeer(PeerSet, PeerId, cost_benefit: i32),
+    ReportPeer(PeerId, cost_benefit: i32),
+    /// Disconnect a peer from the given peer-set without affecting their reputation.
+    DisconnectPeer(PeerId, PeerSet),
     /// Send a message to one or more peers on the validation peerset.
     SendValidationMessage([PeerId], ValidationProtocolV1),
     /// Send a message to one or more peers on the collation peerset.

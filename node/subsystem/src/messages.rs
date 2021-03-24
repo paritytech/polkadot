@@ -211,6 +211,9 @@ pub enum NetworkBridgeMessage {
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, UnifiedReputationChange),
 
+	/// Disconnect a peer from the given peer-set without affecting their reputation.
+	DisconnectPeer(PeerId, PeerSet),
+
 	/// Send a message to one or more peers on the validation peer-set.
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
 
@@ -249,6 +252,7 @@ impl NetworkBridgeMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::ReportPeer(_, _) => None,
+			Self::DisconnectPeer(_, _) => None,
 			Self::SendValidationMessage(_, _) => None,
 			Self::SendCollationMessage(_, _) => None,
 			Self::SendValidationMessages(_) => None,
