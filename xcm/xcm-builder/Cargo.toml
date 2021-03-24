@@ -3,7 +3,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 name = "xcm-builder"
 description = "Tools & types for building with XCM and its executor."
-version = "0.8.22"
+version = "0.8.30"
 
 [dependencies]
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
