@@ -150,11 +150,22 @@ impl State {
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, _role) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role) => {
 				// insert a blank view if none already present
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					?role,
+					"Peer connected",
+				);
 				self.peer_views.entry(peer_id).or_default();
 			}
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					"Peer disconnected",
+				);
 				self.peer_views.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
@@ -164,6 +175,11 @@ impl State {
 				self.handle_peer_view_change(ctx, peer_id, view).await;
 			}
 			NetworkBridgeEvent::OurViewChange(view) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?view,
+					"Own view change",
+				);
 				for head in view.iter() {
 					if !self.blocks.contains_key(head) {
 						self.pending_known.entry(*head).or_default();
@@ -329,6 +345,11 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?view,
+			"Peer view change",
+		);
 		Self::unify_with_peer(&mut self.blocks, ctx, peer_id.clone(), view.clone()).await;
 		let finalized_number = view.finalized_number;
 		let old_view = self.peer_views.insert(peer_id.clone(), view);
@@ -469,7 +490,7 @@ impl State {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
-						peer = ?peer_id,
+						?peer_id,
 						"Got a bad assignment from peer",
 					);
 					return;
@@ -635,7 +656,7 @@ impl State {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
-						peer = ?peer_id,
+						?peer_id,
 						"Got a bad approval from peer",
 					);
 					return;
@@ -705,7 +726,7 @@ impl State {
 		if !peers.is_empty() {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Sending approval (block={}, index={})to {} peers",
+				"Sending approval (block={}, index={}) to {} peers",
 				block_hash,
 				candidate_index,
 				peers.len(),
@@ -881,7 +902,6 @@ impl ApprovalDistribution {
 				FromOverseer::Communication {
 					msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
-					tracing::debug!(target: LOG_TARGET, "Processing network message");
 					state.handle_network_msg(&mut ctx, &self.metrics, event).await;
 				}
 				FromOverseer::Communication {

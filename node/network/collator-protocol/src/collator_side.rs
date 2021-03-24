@@ -320,6 +320,17 @@ async fn distribute_collation(
 		return Ok(());
 	}
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		para_id = %id,
+		relay_parent = %relay_parent,
+		candidate_hash = ?receipt.hash(),
+		pov_hash = ?pov.hash(),
+		core = ?our_core,
+		?current_validators,
+		?next_validators,
+		"Accepted collation, connecting to validators."
+	);
 	// Issue a discovery request for the validators of the current group and the next group.
 	connect_to_validators(
 		ctx,
@@ -626,11 +637,20 @@ async fn send_collation(
 	pov: PoV,
 ) {
 	let pov = match CompressedPoV::compress(&pov) {
-		Ok(pov) => pov,
+		Ok(compressed) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				size = %pov.block_data.0.len(),
+				compressed = %compressed.len(),
+				peer_id = ?request.peer,
+				"Sending collation."
+			);
+			compressed
+		},
 		Err(error) => {
 			tracing::error!(
 				target: LOG_TARGET,
-				error = ?error,
+				?error,
 				"Failed to create `CompressedPov`",
 			);
 			return
@@ -659,12 +679,14 @@ async fn handle_incoming_peer_message(
 		Declare(_) => {
 			tracing::warn!(
 				target: LOG_TARGET,
+				?origin,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
 		AdvertiseCollation(_, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
+				?origin,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 		}
@@ -672,10 +694,17 @@ async fn handle_incoming_peer_message(
 			if !matches!(statement.payload(), Statement::Seconded(_)) {
 				tracing::warn!(
 					target: LOG_TARGET,
-					statement = ?statement,
+					?statement,
+					?origin,
 					"Collation seconded message received with none-seconded statement.",
 				);
 			} else if let Some(sender) = state.collation_result_senders.remove(&statement.payload().candidate_hash()) {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?statement,
+					?origin,
+					"received a `CollationSeconded`",
+				);
 				let _ = sender.send(statement);
 			}
 		}
@@ -744,18 +773,40 @@ async fn handle_network_msg(
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(_peer_id, _observed_role) => {
+		PeerConnected(peer_id, observed_role) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				?observed_role,
+				"Peer connected",
+			);
 		}
 		PeerViewChange(peer_id, view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				?view,
+				"Peer view change",
+			);
 			handle_peer_view_change(ctx, state, peer_id, view).await;
 		}
 		PeerDisconnected(peer_id) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				"Peer disconnected",
+			);
 			state.peer_views.remove(&peer_id);
 			state.declared_at.remove(&peer_id);
 		}
 		OurViewChange(view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?view,
+				"Own view change",
+			);
 			handle_our_view_change(state, view).await?;
 		}
 		PeerMessage(remote, msg) => {
@@ -1078,7 +1129,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		tracing::trace!(msg = ?msg, "sending message");
+		tracing::trace!(?msg, "sending message");
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -1093,7 +1144,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is more than enough to receive messages", TIMEOUT));
 
-		tracing::trace!(msg = ?msg, "received message");
+		tracing::trace!(?msg, "received message");
 
 		msg
 	}
