@@ -459,7 +459,7 @@ impl PoV {
 pub struct CompressedPoV(Vec<u8>);
 
 /// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: usize = 52_428_800;
+pub const MAX_POV_SIZE: usize = 50 * 1024 * 1024;
 
 /// Very conservative (compression ratio of 1).
 ///
