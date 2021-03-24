@@ -460,11 +460,7 @@ pub fn force_approve(
 
 	// iterate back to the `up_to` block, and then iterate backwards until all blocks
 	// are updated.
-	loop {
-		let mut entry = match load_block_entry(store, &cur_hash)? {
-			None => break,
-			Some(e) => e,
-		};
+	while let Some(mut entry) = load_block_entry(store, &cur_hash)? {
 
 		if entry.block_number <= up_to {
 			state = State::Approving;
