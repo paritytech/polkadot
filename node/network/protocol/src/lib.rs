@@ -297,21 +297,6 @@ pub mod v1 {
 	use super::RequestId;
 	use std::convert::TryFrom;
 
-	/// Network messages used by the availability recovery subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum AvailabilityRecoveryMessage {
-		/// Request a chunk for a given candidate hash and validator index.
-		RequestChunk(RequestId, CandidateHash, ValidatorIndex),
-		/// Respond with chunk for a given candidate hash and validator index.
-		/// The response may be `None` if the requestee does not have the chunk.
-		Chunk(RequestId, Option<ErasureChunk>),
-		/// Request full data for a given candidate hash.
-		RequestFullData(RequestId, CandidateHash),
-		/// Respond with full data for a given candidate hash.
-		/// The response may be `None` if the requestee does not have the data.
-		FullData(RequestId, Option<AvailableData>),
-	}
-
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
@@ -393,7 +378,6 @@ pub mod v1 {
 	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
 	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
-	impl_try_from!(ValidationProtocol, AvailabilityRecovery, AvailabilityRecoveryMessage);
 
 	/// All network messages on the collation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
