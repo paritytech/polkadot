@@ -11,7 +11,7 @@ their local availability store.
 ## Protocol
 
 This subsystem has no associated peer set right now, but instead relies on
-a request/response protocol, defined by `Protocol::AvailabilityFetching`.
+a request/response protocol, defined by `Protocol::ChunkFetching`.
 
 Input:
 

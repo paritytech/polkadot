@@ -296,7 +296,7 @@ fn to_incoming_req(
 	outgoing: Requests
 ) -> IncomingRequest<v1::ChunkFetchingRequest> {
 	match outgoing {
-		Requests::AvailabilityFetching(OutgoingRequest { payload, pending_response, .. }) => {
+		Requests::ChunkFetching(OutgoingRequest { payload, pending_response, .. }) => {
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>)
 			   = oneshot::channel();
 			executor.spawn("Message forwarding", async {

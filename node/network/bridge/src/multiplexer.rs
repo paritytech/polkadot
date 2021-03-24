@@ -131,7 +131,7 @@ fn multiplex_single(
 	}: network::IncomingRequest,
 ) -> Result<AllMessages, RequestMultiplexError> {
 	let r = match p {
-		Protocol::AvailabilityFetching => From::from(IncomingRequest::new(
+		Protocol::ChunkFetching => From::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::ChunkFetchingRequest>(peer, payload)?,
 			pending_response,

@@ -245,7 +245,7 @@ impl TestRun {
 				let mut valid_responses = 0;
 				for req in reqs {
 					let req = match req {
-						Requests::AvailabilityFetching(req) => req,
+						Requests::ChunkFetching(req) => req,
 						_ => panic!("Unexpected request"),
 					};
 					let response = self.chunk_responses.get(&req.peer)

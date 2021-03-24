@@ -18,7 +18,10 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, ErasureChunk, ValidatorIndex, CompressedPoV, Hash};
+use polkadot_primitives::v1::{
+	AvailableData, CandidateHash, CandidateReceipt, ErasureChunk, ValidatorIndex,
+	CompressedPoV, Hash,
+};
 use polkadot_primitives::v1::Id as ParaId;
 
 use super::request::IsRequest;
@@ -33,7 +36,7 @@ pub struct ChunkFetchingRequest {
 	pub index: ValidatorIndex,
 }
 
-/// Receive a rqeuested erasure chunk.
+/// Receive a requested erasure chunk.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ChunkFetchingResponse {
 	/// The requested chunk data.
@@ -77,7 +80,7 @@ impl ChunkResponse {
 
 impl IsRequest for ChunkFetchingRequest {
 	type Response = ChunkFetchingResponse;
-	const PROTOCOL: Protocol = Protocol::AvailabilityFetching;
+	const PROTOCOL: Protocol = Protocol::ChunkFetching;
 }
 
 /// Request the advertised collation at that relay-parent.
@@ -107,4 +110,20 @@ impl IsRequest for CollationFetchingRequest {
 pub struct AvailableDataFetchingRequest {
 	/// The candidate hash to get the available data for.
 	pub candidate_hash: CandidateHash,
+}
+
+/// Receive a requested available data.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum AvailableDataFetchingResponse {
+	/// The requested data.
+	#[codec(index = 0)]
+	AvailableData(AvailableData),
+	/// Node was not in possession of the requested data.
+	#[codec(index = 1)]
+	NoSuchData,
+}
+
+impl IsRequest for AvailableDataFetchingRequest {
+	type Response = AvailableDataFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::AvailableDataFetching;
 }
