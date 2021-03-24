@@ -20,7 +20,7 @@ use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
 use frame_support::{ensure, dispatch::Dispatchable};
 use parity_scale_codec::Decode;
 use xcm::v0::{
-	Xcm, Order, ExecuteXcm, SendXcm, Error as XcmError, Result as XcmResult,
+	Xcm, Order, ExecuteXcm, ExecuteHrmp, SendXcm, Error as XcmError, Result as XcmResult,
 	MultiLocation, MultiAsset, Junction,
 };
 
@@ -28,7 +28,7 @@ pub mod traits;
 mod assets;
 mod config;
 
-use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, ExecuteHrmp, InvertLocation};
+use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 pub use assets::{Assets, AssetId};
 pub use config::Config;
 

@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::SendXcm;
+use xcm::v0::{SendXcm, ExecuteHrmp};
 use frame_support::dispatch::{Dispatchable, Parameter};
-use crate::traits::{ExecuteHrmp, TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
+use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 
 /// The trait to parametrize the `XcmExecutor`.
 pub trait Config {

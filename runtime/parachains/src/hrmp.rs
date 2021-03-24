@@ -412,8 +412,7 @@ decl_module! {
 	}
 }
 
-use xcm_executor::traits::ExecuteHrmp;
-use xcm::v0::{Result as XcmResult};
+use xcm::v0::{Result as XcmResult, ExecuteHrmp};
 impl<T: Config> ExecuteHrmp for Module<T> {
 	fn hrmp_init_open_channel(sender: u32, recipient: u32, max_message_size: u32, max_capacity: u32) -> XcmResult {
 		Self::init_open_channel(sender.into(), recipient.into(), max_capacity, max_message_size).map_err(|_| ().into())
