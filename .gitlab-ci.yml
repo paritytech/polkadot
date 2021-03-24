@@ -301,6 +301,42 @@ publish-polkadot-image:
       artifacts:                   true
 
 publish-real-overseer-image:
+  stage:                           build
+  <<:                              *build-push-image
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+      variables:
+        IMAGE_NAME:                docker.io/parity/rococo
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      variables:
+        # image to be tested with Simnet
+        IMAGE_NAME:                docker.io/paritypr/synth-wave
+        DOCKER_USER:               ${PARITYPR_USER}
+        DOCKER_PASS:               ${PARITYPR_PASS}
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  needs:
+    - job:                         build-real-overseer
+      artifacts:                   true
+
+publish-adder-collator-image:
+  stage:                           build
+  <<:                              *build-push-image
+  variables:
+    # service image for Simnet
+    IMAGE_NAME:                    docker.io/paritypr/colander
+    DOCKER_USER:                   ${PARITYPR_USER}
+    DOCKER_PASS:                   ${PARITYPR_PASS}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  needs:
+    - job:                         build-adder-collator
+      artifacts:                   true
+
+publish-real-overseer-image:
   # image to be tested with Simnet
   stage:                           build
   <<:                              *build-push-image
