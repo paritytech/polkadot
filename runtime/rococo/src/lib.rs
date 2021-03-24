@@ -612,10 +612,6 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
-parameter_types! {
-	pub const EndingPeriod: BlockNumber = 15 * MINUTES;
-}
-
 // A wrapper around `babe::CurrentBlockRandomness` that does not return `Option<Random>`.
 pub struct CurrentBlockRandomness;
 
@@ -634,11 +630,17 @@ impl Randomness<Hash, BlockNumber> for CurrentBlockRandomness {
 	}
 }
 
+parameter_types! {
+	pub const EndingPeriod: BlockNumber = 15 * MINUTES;
+	pub const SampleLength: BlockNumber = 1;
+}
+
 impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
 	type Randomness = CurrentBlockRandomness;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;

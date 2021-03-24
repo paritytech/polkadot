@@ -410,10 +410,6 @@ impl pallet_offences::Config for Runtime {
 impl pallet_authority_discovery::Config for Runtime {}
 
 parameter_types! {
-	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
-}
-
-parameter_types! {
 	pub const NposSolutionPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
@@ -759,6 +755,7 @@ impl paras_registrar::Config for Runtime {
 
 parameter_types! {
 	pub const EndingPeriod: BlockNumber = 1 * HOURS;
+	pub const SampleLength: BlockNumber = 1 * MINUTES;
 }
 
 impl auctions::Config for Runtime {
@@ -766,6 +763,7 @@ impl auctions::Config for Runtime {
 	type Leaser = Slots;
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;
