@@ -67,7 +67,7 @@ impl ChainInfo for PolkadotChainInfo {
             frame_system::CheckTxVersion::<Runtime>::new(),
             frame_system::CheckGenesis::<Runtime>::new(),
             frame_system::CheckMortality::<Runtime>::from(Era::Immortal),
-            frame_system::CheckNonce::<Runtime>::from(frame_system::Module::<Runtime>::account_nonce(from)),
+            frame_system::CheckNonce::<Runtime>::from(frame_system::Pallet::<Runtime>::account_nonce(from)),
             frame_system::CheckWeight::<Runtime>::new(),
             pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
             claims::PrevalidateAttests::<Runtime>::new(),
@@ -100,14 +100,14 @@ impl ChainInfo for PolkadotChainInfo {
         sc_service::Error,
     > {
         let (client, backend, keystore, task_manager) =
-            new_full_parts::<Self::Block, RuntimeApi, Self::Executor>(config)?;
+            new_full_parts::<Self::Block, RuntimeApi, Self::Executor>(config, None)?;
         let client = Arc::new(client);
 
         let inherent_providers = InherentDataProviders::new();
         let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
         let (grandpa_block_import, ..) =
-            grandpa::block_import(client.clone(), &(client.clone() as Arc<_>), select_chain.clone())?;
+            grandpa::block_import(client.clone(), &(client.clone() as Arc<_>), select_chain.clone(), None)?;
 
         let (block_import, babe_link) = sc_consensus_babe::block_import(
             sc_consensus_babe::Config::get_or_compute(&*client)?,
@@ -161,7 +161,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // fetch proposal hash from event emitted by the runtime
-        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
         let proposal_hash = events.into_iter()
             .filter_map(|event| match event.event {
                 Event::pallet_democracy(
@@ -186,7 +186,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // fetch proposal index from event emitted by the runtime
-        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
         let (council_proposal_index, council_proposal_hash) = events.into_iter()
             .filter_map(|event| {
                 match event.event {
@@ -212,7 +212,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // assert that proposal has been passed on chain
-        let events = node.with_state(|| frame_system::Module::<Runtime>::events())
+        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events())
             .into_iter()
             .filter(|event| {
                 match event.event {
@@ -240,7 +240,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.submit_extrinsic(proposal, technical_collective[0].clone());
         node.seal_blocks(1);
 
-        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
         let (technical_proposal_index, technical_proposal_hash) = events.into_iter()
             .filter_map(|event| {
                 match event.event {
@@ -271,7 +271,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // assert that fast-track proposal has been passed on chain
-        let events = node.with_state(|| frame_system::Module::<Runtime>::events());
+        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
         let collective_events = events.iter()
             .filter(|event| {
                 match event.event {
@@ -310,7 +310,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(FastTrackVotingPeriod::get() as usize);
 
         // assert that the runtime is upgraded by looking at events
-        let events = node.with_state(|| frame_system::Module::<Runtime>::events())
+        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events())
             .into_iter()
             .filter(|event| {
                 match event.event {
@@ -364,7 +364,7 @@ mod tests {
                 ("peerset", LevelFilter::Off),
                 ("ws", LevelFilter::Off),
                 ("sc_network", LevelFilter::Off),
-                ("sc_service", LevelFilter::Off),
+                ("sc_service", LevelFilter::Off),node/test/runtime/src/lib.rs:70:55
                 ("sc_basic_authorship", LevelFilter::Off),
                 ("telemetry-logger", LevelFilter::Off),
                 ("sc_peerset", LevelFilter::Off),
