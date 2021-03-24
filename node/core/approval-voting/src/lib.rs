@@ -1316,7 +1316,8 @@ fn check_and_apply_full_approval(
 			required_tranches.clone(),
 		);
 
-		if let approval_checking::Check::Approved(no_shows) = check {
+		let no_shows = check.known_no_shows();
+		if check.is_approved() {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?candidate_hash,
