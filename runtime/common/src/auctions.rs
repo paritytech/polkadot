@@ -1525,6 +1525,22 @@ mod benchmarking {
 		let minimum_balance = CurrencyOf::<T>::minimum_balance();
 
 		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+			let owner = account("owner", n, 0);
+			let worst_validation_code = T::Registrar::worst_validation_code();
+			let worst_head_data = T::Registrar::worst_head_data();
+			CurrencyOf::<T>::make_free_balance_be(&owner, BalanceOf::<T>::max_value());
+
+			assert!(T::Registrar::register(
+				owner,
+				ParaId::from(n),
+				worst_head_data,
+				worst_validation_code
+			).is_ok());
+		}
+
+		T::Registrar::execute_pending_transitions();
+
+		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
 			let bidder = account("bidder", n, 0);
 			CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
 
@@ -1576,8 +1592,19 @@ mod benchmarking {
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
 
-			// Make an existing bid
 			let para = ParaId::from(0);
+			let new_para = ParaId::from(1);
+
+			// Register the paras
+			let owner = account("owner", 0, 0);
+			CurrencyOf::<T>::make_free_balance_be(&owner, BalanceOf::<T>::max_value());
+			let worst_head_data = T::Registrar::worst_head_data();
+			let worst_validation_code = T::Registrar::worst_validation_code();
+			T::Registrar::register(owner.clone(), para, worst_head_data.clone(), worst_validation_code.clone())?;
+			T::Registrar::register(owner, new_para, worst_head_data, worst_validation_code)?;
+			T::Registrar::execute_pending_transitions();
+
+			// Make an existing bid
 			let auction_index = AuctionCounter::get();
 			let first_slot = AuctionInfo::<T>::get().unwrap().0;
 			let last_slot = first_slot + 3u32.into();
@@ -1595,7 +1622,6 @@ mod benchmarking {
 
 			let caller: T::AccountId = whitelisted_caller();
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			let new_para = ParaId::from(1);
 			let bigger_amount = CurrencyOf::<T>::minimum_balance().saturating_mul(10u32.into());
 			assert_eq!(CurrencyOf::<T>::reserved_balance(&first_bidder), first_amount);
 		}: _(RawOrigin::Signed(caller.clone()), new_para, auction_index, first_slot, last_slot, bigger_amount)
