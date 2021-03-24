@@ -100,8 +100,8 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 10_000,
 				/// Collations are expected to be around 10Meg, probably much smaller with
-				/// compression. So 10Meg should be sufficient, we might be able to reduce this
-				/// further.
+				/// compression. So 20Meg should be well sufficient, we might be able to reduce
+				/// this further, if needed.
 				max_response_size: 20_000_000,
 				// Taken from initial implementation in collator protocol:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
