@@ -515,6 +515,11 @@ impl CompressedPoV {
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		Err(CompressedPoVError::NotSupported)
 	}
+
+	/// Get compressed data size.
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
 }
 
 #[cfg(feature = "std")]
