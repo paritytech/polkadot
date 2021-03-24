@@ -902,13 +902,7 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 		.unwrap()
 		.import_assignment(0, ValidatorIndex(0), 0);
 
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(1), 0);
-
 	candidate_entry.mark_approval(ValidatorIndex(0));
-	candidate_entry.mark_approval(ValidatorIndex(1));
 
 	let tranche_now = 1;
 	assert!(should_trigger_assignment(
