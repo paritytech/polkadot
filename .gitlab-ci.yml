@@ -242,7 +242,7 @@ generate-impl-guide:
   script:
     - mdbook build roadmap/implementers-guide
 
-.build-push-docker-image:          &build-push-docker-image
+.build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
   image:                           quay.io/buildah/stable
   variables:
@@ -286,14 +286,24 @@ generate-impl-guide:
       dotenv: ./artifacts/build.env
 
 
-publish-dockerhub:
+publish-polkadot-image:
   stage:                           build
-  <<:                              *build-push-docker-image
+  <<:                              *build-push-image
   rules:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
       when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  needs:
+    - job:                         build-linux-release
+      artifacts:                   true
+
+publish-real-overseer-image:
+  stage:                           build
+  <<:                              *build-push-image
+  rules:
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         IMAGE_NAME:                docker.io/parity/rococo
@@ -306,7 +316,24 @@ publish-dockerhub:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
   needs:
-    - job:                         build-linux-release
+    - job:                         build-real-overseer
+      artifacts:                   true
+
+publish-adder-collator-image:
+  stage:                           build
+  <<:                              *build-push-image
+  variables:
+    # service image for Simnet
+    IMAGE_NAME:                    docker.io/paritypr/colander
+    DOCKER_USER:                   ${PARITYPR_USER}
+    DOCKER_PASS:                   ${PARITYPR_PASS}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  needs:
+    - job:                         build-adder-collator
       artifacts:                   true
 
 #### stage:                        publish
@@ -374,9 +401,9 @@ trigger-simnet:
   stage:                           deploy
   <<:                              *rules-test
   needs:
-    - job:                         publish-dockerhub
-  # `build.env` is taken by the triggered job from `publish-dockerhub` job with an
-  # exact `$VERSION` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`)
+    - job:                         publish-polkadot-image
+  # `build.env` is taken by the triggered job from `publish-polkadot-image` job with
+  # an exact `$VERSION` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`)
   # Simnet uses an image published on PRs with this exact version for triggered runs
   # on commits. And parity/rococo:rococo-v1 for runs not launched by this job.
   trigger:
