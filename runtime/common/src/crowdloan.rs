@@ -74,7 +74,7 @@ use frame_support::{
 	},
 	pallet_prelude::{Weight, DispatchResultWithPostInfo},
 };
-use frame_system::ensure_signed;
+use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
@@ -100,6 +100,7 @@ pub trait WeightInfo {
 	fn contribute() -> Weight;
 	fn withdraw() -> Weight;
 	fn dissolve(k: u32, ) -> Weight;
+	fn edit() -> Weight;
 	fn on_initialize(n: u32, ) -> Weight;
 }
 
@@ -109,6 +110,7 @@ impl WeightInfo for TestWeightInfo {
 	fn contribute() -> Weight { 0 }
 	fn withdraw() -> Weight { 0 }
 	fn dissolve(_k: u32, ) -> Weight { 0 }
+	fn edit() -> Weight { 0 }
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
 }
 
@@ -238,6 +240,8 @@ decl_event! {
 		Onboarded(ParaId, ParaId),
 		/// The result of trying to submit a new bid to the Slots pallet.
 		HandleBidResult(ParaId, DispatchResult),
+		/// The configuration to a crowdloan has been edited. [fund_index]
+		Edited(ParaId),
 	}
 }
 
@@ -499,6 +503,39 @@ decl_module! {
 					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
 				}
 			}
+		}
+
+		/// Edit the configuration for an in-progress crowdloan.
+		///
+		/// Can only be called by Root origin.
+		#[weight = T::WeightInfo::edit()]
+		pub fn edit(origin,
+			#[compact] index: ParaId,
+			#[compact] cap: BalanceOf<T>,
+			#[compact] first_slot: LeasePeriodOf<T>,
+			#[compact] last_slot: LeasePeriodOf<T>,
+			#[compact] end: T::BlockNumber,
+			verifier: Option<MultiSigner>,
+		) {
+			ensure_root(origin)?;
+
+			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
+
+			Funds::<T>::insert(index, FundInfo {
+				retiring: fund.retiring,
+				depositor: fund.depositor,
+				verifier,
+				deposit: fund.deposit,
+				raised: fund.raised,
+				end,
+				cap,
+				last_contribution: fund.last_contribution,
+				first_slot,
+				last_slot,
+				trie_index: fund.trie_index,
+			});
+
+			Self::deposit_event(RawEvent::Edited(index));
 		}
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
@@ -1245,6 +1282,31 @@ mod tests {
 
 		});
 	}
+
+	#[test]
+	fn edit_works() {
+		new_test_ext().execute_with(|| {
+			let para_1 = new_para();
+
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para_1, 100, None));
+			let old_crowdloan = Crowdloan::funds(para_1).unwrap();
+
+			assert_ok!(Crowdloan::edit(Origin::root(), para_1, 1234, 2, 3, 4, None));
+			let new_crowdloan = Crowdloan::funds(para_1).unwrap();
+
+			// Some things stay the same
+			assert_eq!(old_crowdloan.retiring, new_crowdloan.retiring);
+			assert_eq!(old_crowdloan.depositor, new_crowdloan.depositor);
+			assert_eq!(old_crowdloan.deposit, new_crowdloan.deposit);
+			assert_eq!(old_crowdloan.raised, new_crowdloan.raised);
+
+			// Some things change
+			assert!(old_crowdloan.cap != new_crowdloan.cap);
+			assert!(old_crowdloan.first_slot != new_crowdloan.first_slot);
+			assert!(old_crowdloan.last_slot != new_crowdloan.last_slot);
+		});
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1384,6 +1446,33 @@ mod benchmarking {
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
+		}
+
+		edit {
+			let para_id = ParaId::from(1);
+			let cap = BalanceOf::<T>::max_value();
+			let first_slot = 0u32.into();
+			let last_slot = 3u32.into();
+			let end = T::BlockNumber::max_value();
+
+			let caller: T::AccountId = whitelisted_caller();
+			let head_data = T::Registrar::worst_head_data();
+			let validation_code = T::Registrar::worst_validation_code();
+
+			let verifier: MultiSigner = account("verifier", 0, 0);
+
+			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+
+			Crowdloan::<T>::create(
+				RawOrigin::Signed(caller).into(),
+				para_id, cap, first_slot, last_slot, end, Some(verifier.clone()),
+			)?;
+
+			// Doesn't matter what we edit to, so use the same values.
+		}: _(RawOrigin::Root, para_id, cap, first_slot, last_slot, end, Some(verifier))
+		verify {
+			assert_last_event::<T>(RawEvent::Edited(para_id).into())
 		}
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
