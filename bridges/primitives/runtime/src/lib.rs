@@ -62,9 +62,9 @@ pub type InstanceId = [u8; 4];
 
 /// Type of accounts on the source chain.
 pub enum SourceAccount<T> {
-	/// An account that belongs to Root (priviledged origin).
+	/// An account that belongs to Root (privileged origin).
 	Root,
-	/// A non-priviledged account.
+	/// A non-privileged account.
 	///
 	/// The embedded account ID may or may not have a private key depending on the "owner" of the
 	/// account (private key, pallet, proxy, etc.).

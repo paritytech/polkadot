@@ -507,7 +507,7 @@ where
 					collator_pair,
 					Metrics::register(registry)?,
 				),
-				IsCollator::No => ProtocolSide::Validator(Metrics::register(registry)?),
+				IsCollator::No => ProtocolSide::Validator(Default::default(),Metrics::register(registry)?),
 			};
 			CollatorProtocolSubsystem::new(
 				side,

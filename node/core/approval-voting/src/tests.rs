@@ -132,7 +132,7 @@ where
 		_keystore: &LocalKeystore,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_config: &criteria::Config,
-		_leaving_cores: Vec<(polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+		_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
 	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 		self.0()
 	}
@@ -1523,7 +1523,8 @@ fn approved_ancestor_all_approved() {
 
 	let test_fut = Box::pin(async move {
 		assert_eq!(
-			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0, &Default::default())
+				.await.unwrap(),
 			Some((block_hash_4, 4)),
 		)
 	});
@@ -1605,7 +1606,8 @@ fn approved_ancestor_missing_approval() {
 
 	let test_fut = Box::pin(async move {
 		assert_eq!(
-			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0, &Default::default())
+				.await.unwrap(),
 			Some((block_hash_2, 2)),
 		)
 	});
