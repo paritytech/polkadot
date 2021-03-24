@@ -74,16 +74,18 @@ where
 
 	let result = chunk.is_some();
 
-	let response = match chunk {
-		None => v1::AvailabilityFetchingResponse::NoSuchChunk,
-		Some(chunk) => v1::AvailabilityFetchingResponse::Chunk(chunk.into()),
-	};
 	tracing::trace!(
 		target: LOG_TARGET,
 		hash = ?req.payload.candidate_hash,
 		index = ?req.payload.index,
+		has_data = ?chunk.is_some(),
 		"Serving chunk",
 	);
+
+	let response = match chunk {
+		None => v1::AvailabilityFetchingResponse::NoSuchChunk,
+		Some(chunk) => v1::AvailabilityFetchingResponse::Chunk(chunk.into()),
+	};
 
 	req.send_response(response).map_err(|_| Error::SendResponse)?;
 	Ok(result)
