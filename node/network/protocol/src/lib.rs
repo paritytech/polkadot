@@ -38,9 +38,6 @@ pub mod peer_set;
 /// Request/response protocols used in Polkadot.
 pub mod request_response;
 
-/// A unique identifier of a request.
-pub type RequestId = u64;
-
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
 
@@ -288,13 +285,14 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{AvailableData, CandidateHash, CandidateIndex, CollatorId, CompressedPoV, ErasureChunk, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
+	use polkadot_primitives::v1::{
+		CandidateIndex, CollatorId, CompressedPoV, Hash, Id as ParaId, SignedAvailabilityBitfield,
+	};
 	use polkadot_node_primitives::{
 		SignedFullStatement,
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 	};
 	use parity_scale_codec::{Encode, Decode};
-	use super::RequestId;
 	use std::convert::TryFrom;
 
 	/// Network messages used by the bitfield distribution subsystem.
@@ -366,11 +364,8 @@ pub mod v1 {
 		/// Statement distribution messages
 		#[codec(index = 3)]
 		StatementDistribution(StatementDistributionMessage),
-		/// Availability recovery messages
-		#[codec(index = 4)]
-		AvailabilityRecovery(AvailabilityRecoveryMessage),
 		/// Approval distribution messages
-		#[codec(index = 5)]
+		#[codec(index = 4)]
 		ApprovalDistribution(ApprovalDistributionMessage),
 	}
 
