@@ -280,6 +280,8 @@ pub enum AvailabilityDistributionMessage {
 		from_validator: ValidatorIndex,
 		/// Candidate hash to fetch the PoV for.
 		candidate_hash: CandidateHash,
+		/// Expected hash of the PoV, a PoV not matching this hash will be rejected.
+		pov_hash: Hash,
 		/// Sender for getting back the result of this fetch.
 		///
 		/// The sender will be canceled if the fetching failed for some reason.

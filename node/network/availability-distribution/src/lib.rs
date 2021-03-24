@@ -60,8 +60,8 @@ const LOG_TARGET: &'static str = "parachain::availability-distribution";
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
 	keystore: SyncCryptoStorePtr,
-    /// Easy and efficient runtime access for this subsystem.
-    runtime: Runtime,
+	/// Easy and efficient runtime access for this subsystem.
+	runtime: Runtime,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
@@ -87,7 +87,7 @@ impl AvailabilityDistributionSubsystem {
 
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-        let runtime = Runtime::new(keystore.clone());
+		let runtime = Runtime::new(keystore.clone());
 		Self { keystore, runtime,  metrics }
 	}
 
@@ -97,7 +97,7 @@ impl AvailabilityDistributionSubsystem {
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
 		let mut requester = Requester::new(self.keystore.clone(), self.metrics.clone()).fuse();
-        let mut pov_requester = PoVRequester::new();
+		let mut pov_requester = PoVRequester::new();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
@@ -120,14 +120,14 @@ impl AvailabilityDistributionSubsystem {
 			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-                    log_error(
-                        pov_requester.update_connected_validators(&mut ctx, &mut self.runtime, &update).await,
-                        "PoVRequester::update_connected_validators"
-                    );
-                    log_error(
-                        requester.get_mut().update_fetching_heads(&mut ctx, update).await,
-                        "Error in Requester::update_fetching_heads"
-                    );
+					log_error(
+						pov_requester.update_connected_validators(&mut ctx, &mut self.runtime, &update).await,
+						"PoVRequester::update_connected_validators"
+					);
+					log_error(
+						requester.get_mut().update_fetching_heads(&mut ctx, update).await,
+						"Error in Requester::update_fetching_heads"
+					);
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
@@ -145,24 +145,26 @@ impl AvailabilityDistributionSubsystem {
 				}
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::FetchPoV{
-                        relay_parent,
-                        from_validator,
-                        candidate_hash,
-                        tx,
-                    },
+						relay_parent,
+						from_validator,
+						candidate_hash,
+						pov_hash,
+						tx,
+					},
 				} => {
-                    log_error(
-                        pov_requester.fetch_pov(
-                            &mut ctx,
-                            &mut self.runtime,
-                            relay_parent,
-                            from_validator,
-                            candidate_hash,
-                            tx,
-                        ).await,
-                        "PoVRequester::fetch_pov"
-                    );
-                }
+					log_error(
+						pov_requester.fetch_pov(
+							&mut ctx,
+							&mut self.runtime,
+							relay_parent,
+							from_validator,
+							candidate_hash,
+							pov_hash,
+							tx,
+						).await,
+						"PoVRequester::fetch_pov"
+					);
+				}
 			}
 		}
 	}

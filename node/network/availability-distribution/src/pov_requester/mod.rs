@@ -90,8 +90,9 @@ impl PoVRequester {
 		parent: Hash,
 		from_validator: ValidatorIndex,
 		candidate_hash: CandidateHash,
+		pov_hash: Hash,
 		tx: oneshot::Sender<PoV>
-	) -> super::Result<()> 
+	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
@@ -118,7 +119,7 @@ impl PoVRequester {
 				)
 		)).await;
 
-		ctx.spawn("pov-fetcher", fetch_pov_job(pending_response.boxed(), tx).boxed())
+		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), tx).boxed())
 			.await
 			.map_err(|e| Error::SpawnTask(e))
 	}
@@ -126,20 +127,22 @@ impl PoVRequester {
 
 /// Future to be spawned for taking care of handling reception and sending of PoV.
 async fn fetch_pov_job(
+	pov_hash: Hash,
 	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
 	tx: oneshot::Sender<PoV>,
 ) {
 	log_error(
-		do_fetch_pov(pending_response, tx).await,
+		do_fetch_pov(pov_hash, pending_response, tx).await,
 		"fetch_pov_job",
 	)
 }
 
 /// Do the actual work of waiting for the response.
 async fn do_fetch_pov(
+	pov_hash: Hash,
 	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
 	tx: oneshot::Sender<PoV>,
-) 
+)
 	-> super::Result<()>
 {
 	let response = pending_response.await.map_err(Error::FetchPoV)?;
@@ -151,11 +154,15 @@ async fn do_fetch_pov(
 			return Err(Error::NoSuchPoV)
 		}
 	};
-	tx.send(pov).map_err(|_| Error::SendResponse)
+	if pov.hash() == pov_hash {
+		tx.send(pov).map_err(|_| Error::SendResponse)
+	} else {
+		Err(Error::UnexpectedPoV)
+	}
 }
 
 /// Get the session indeces for the given relay chain parents.
-async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut Runtime, new_heads: impl Iterator<Item = &Hash>) 
+async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut Runtime, new_heads: impl Iterator<Item = &Hash>)
 	-> super::Result<impl Iterator<Item = (Hash, SessionIndex)>>
 where
 	Context: SubsystemContext,
@@ -173,7 +180,7 @@ async fn connect_to_relevant_validators<Context>(
 	runtime: &mut Runtime,
 	parent: Hash,
 	session: SessionIndex
-) 
+)
 	-> super::Result<Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>
 where
 	Context: SubsystemContext,
@@ -198,7 +205,7 @@ async fn determine_relevant_validators<Context>(
 	runtime: &mut Runtime,
 	parent: Hash,
 	session: SessionIndex,
-) 
+)
 	-> super::Result<Option<Vec<AuthorityDiscoveryId>>>
 where
 	Context: SubsystemContext,

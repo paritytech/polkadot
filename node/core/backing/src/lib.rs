@@ -99,7 +99,11 @@ enum PoVData {
 	/// Allready available (from candidate selection).
 	Ready(Arc<PoV>),
 	/// Needs to be fetched from validator (we are checking a signed statement).
-	FetchFromValidator(ValidatorIndex, CandidateHash),
+	FetchFromValidator {
+		from_validator: ValidatorIndex,
+		candidate_hash: CandidateHash,
+		pov_hash:Hash,
+	},
 }
 
 enum ValidatedCandidateCommand {
@@ -349,14 +353,16 @@ async fn request_pov(
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
 	candidate_hash: CandidateHash,
+	pov_hash: Hash,
 ) -> Result<Arc<PoV>, Error> {
 
 	let (tx, rx) = oneshot::channel();
 	tx_from.send(FromJobCommand::SendMessage(AllMessages::AvailabilityDistribution(
 		AvailabilityDistributionMessage::FetchPoV {
 			relay_parent,
-			candidate_hash,
 			from_validator,
+			candidate_hash,
+			pov_hash,
             tx,
 		}
 	))).await?;
@@ -419,13 +425,18 @@ async fn validate_and_make_available(
 
 	let pov = match pov {
 		PoVData::Ready(pov) => pov,
-		PoVData::FetchFromValidator(validator_index, candidate_hash) => {
+		PoVData::FetchFromValidator {
+			from_validator,
+			candidate_hash,
+			pov_hash,
+		} => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
 			request_pov(
 				&mut tx_from,
 				relay_parent,
-				validator_index,
+				from_validator,
 				candidate_hash,
+				pov_hash,
 			).await?
 		}
 	};
@@ -832,11 +843,11 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off validation work and distribute the result as a signed statement.
-	#[tracing::instrument(level = "trace", skip(self, span), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, pov, span), fields(subsystem = LOG_TARGET))]
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
-		statement: SignedFullStatement,
+		pov: PoVData,
 		span: Option<jaeger::Span>,
 	) -> Result<(), Error> {
 		let candidate_hash = summary.candidate;
@@ -875,7 +886,7 @@ impl CandidateBackingJob {
 			tx_command: self.background_validation_tx.clone(),
 			candidate,
 			relay_parent: self.parent,
-			pov: PoVData::FetchFromValidator(statement.validator_index(), candidate_hash),
+			pov,  
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 			n_validators: self.table_context.validators.len(),
 			span,
@@ -892,17 +903,24 @@ impl CandidateBackingJob {
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
-			if let Statement::Seconded(_) = statement.payload() {
+			if let Statement::Seconded(receipt) = statement.payload() {
 				if Some(summary.group_id) == self.assignment {
 					let span = self.get_unbacked_validation_child(
 						root_span,
 						summary.candidate,
 						summary.group_id,
 					);
+					let pov_hash = receipt.descriptor.pov_hash;
+					let candidate_hash = summary.candidate;
+					let pov_data = PoVData::FetchFromValidator {
+						from_validator: statement.validator_index(),
+						candidate_hash,
+						pov_hash
+					};
 
 					self.kick_off_validation_work(
 						summary,
-						statement,
+						pov_data,
 						span,
 					).await?;
 				}

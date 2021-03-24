@@ -86,6 +86,10 @@ pub enum Error {
 	#[error("FetchPoV request error")]
 	FetchPoV(#[source] RequestError),
 
+	/// Fetching PoV failed as the received PoV did not match the expected hash.
+	#[error("Fetched PoV does not match expected hash")]
+	UnexpectedPoV,
+
 	#[error("Remote responded with `NoSuchPoV`")]
 	NoSuchPoV,
 
