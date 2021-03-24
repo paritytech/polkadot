@@ -1197,10 +1197,10 @@ fn check_and_import_approval<T>(
 
 	tracing::trace!(
 		target: LOG_TARGET,
-		validator_index = approval.validator,
+		validator_index = approval.validator.0,
 		validator = ?pubkey,
 		candidate_hash = ?approved_candidate_hash,
-		para_id = candidate_entry.candidate_receipt().descriptor.para_id),
+		para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
 		"Importing approval vote",
 	);
 
@@ -1504,7 +1504,7 @@ fn process_wakeup(
 			tracing::trace!(
 				target: LOG_TARGET,
 				?candidate_hash,
-				para_id = candidate_entry.candidate_receipt().descriptor.para_id,
+				para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
 				block_hash = ?relay_block,
 				"Launching approval work.",
 			);
@@ -1564,7 +1564,7 @@ async fn launch_approval(
 	tracing::trace!(
 		target: LOG_TARGET,
 		?candidate_hash,
-		para_id = candidate.descriptor.para_id,
+		para_id = ?candidate.descriptor.para_id,
 		"Recovering data.",
 	);
 
@@ -1669,9 +1669,8 @@ async fn launch_approval(
 				tracing::trace!(
 					target: LOG_TARGET,
 					?candidate_hash,
-					para_id,
+					?para_id,
 					"Candidate Valid",
-					(candidate_hash, para_id),
 				);
 
 				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
