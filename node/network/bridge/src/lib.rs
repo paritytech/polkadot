@@ -297,6 +297,16 @@ where
 				bridge.network_service.report_peer(peer, rep).await?
 			}
 
+			Action::DisconnectPeer(peer, peer_set) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					action = "DisconnectPeer",
+					?peer,
+					peer_set = ?peer_set,
+				);
+				bridge.network_service.disconnect_peer(peer, peer_set);
+			}
+
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				tracing::debug!(
 					target: LOG_TARGET,
