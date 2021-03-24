@@ -165,7 +165,7 @@ check-runtime-benchmarks:
   - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
   - cp -r scripts/docker/* ./artifacts
 
-build-linux-release:               &build-binary
+build-linux-release:
   stage:                           test
   <<:                              *collect-artifacts
   <<:                              *docker-env
@@ -201,9 +201,8 @@ build-adder-collator:
   <<:                              *compiler-info
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
     - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
     - time cargo build --release --verbose --features=real-overseer -p test-parachain-adder-collator
