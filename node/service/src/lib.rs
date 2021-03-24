@@ -502,7 +502,7 @@ where
 		collator_protocol: {
 			let side = match is_collator {
 				IsCollator::Yes(id) => ProtocolSide::Collator(id, Metrics::register(registry)?),
-				IsCollator::No => ProtocolSide::Validator(Metrics::register(registry)?),
+				IsCollator::No => ProtocolSide::Validator(Default::default(),Metrics::register(registry)?),
 			};
 			CollatorProtocolSubsystem::new(
 				side,

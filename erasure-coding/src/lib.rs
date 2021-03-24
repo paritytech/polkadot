@@ -216,6 +216,7 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 			novelpoly::Error::WantedShardCountTooHigh(_) => return Err(Error::TooManyValidators),
 			novelpoly::Error::WantedShardCountTooLow(_) => return Err(Error::NotEnoughValidators),
 			novelpoly::Error::PayloadSizeIsZero { .. } => return Err(Error::BadPayload),
+			novelpoly::Error::InconsistentShardLengths { .. } => return Err(Error::NonUniformChunks),
 			_ => return Err(Error::UnknownReconstruction),
 		}
 		Ok(payload_bytes) => payload_bytes,

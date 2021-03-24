@@ -203,7 +203,7 @@ where
 		max_duration: time::Duration,
 	) -> Self::Proposal {
 		async move {
-			let span = jaeger::hash_span(&self.parent_header_hash, "propose");
+			let span = jaeger::Span::new(self.parent_header_hash, "propose");
 			let _span = span.child("get-provisioner");
 
 			let provisioner_data = match self.get_provisioner_data().await {

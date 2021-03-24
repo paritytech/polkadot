@@ -90,7 +90,7 @@ pub async fn answer_pov_request<Context>(
 where
 	Context: SubsystemContext,
 {
-	let _span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-pov-request");
+	let _span = jaeger::Span::new(req.payload.candidate_hash, "answer-pov-request");
 
 	let av_data = query_available_data(ctx, req.payload.candidate_hash).await?;
 
@@ -129,14 +129,23 @@ pub async fn answer_chunk_request<Context>(
 where
 	Context: SubsystemContext,
 {
-	let span = jaeger::candidate_hash_span(&req.payload.candidate_hash, "answer-request");
-	let _child_span = span.child_builder("answer-chunk-request")
-		.with_chunk_index(req.payload.index.0)
-		.build();
+	let span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
+
+	let _child_span = span.child("answer-chunk-request")
+		.with_chunk_index(req.payload.index.0);
 
 	let chunk = query_chunk(ctx, req.payload.candidate_hash, req.payload.index).await?;
 
 	let result = chunk.is_some();
+
+	tracing::trace!(
+		target: LOG_TARGET,
+		hash = ?req.payload.candidate_hash,
+		index = ?req.payload.index,
+		peer = ?req.peer,
+		has_data = ?chunk.is_some(),
+		"Serving chunk",
+	);
 
 	let response = match chunk {
 		None => v1::AvailabilityFetchingResponse::NoSuchChunk,
@@ -163,7 +172,16 @@ where
 	))
 	.await;
 
-	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
+	rx.await.map_err(|e| {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?validator_index,
+			?candidate_hash,
+			error = ?e,
+			"Error retrieving chunk",
+		);
+		Error::QueryChunkResponseChannel(e)
+	})
 }
 
 /// Query PoV from the availability store.

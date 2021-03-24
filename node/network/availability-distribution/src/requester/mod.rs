@@ -101,6 +101,11 @@ impl Requester {
 	where
 		Context: SubsystemContext,
 	{
+		tracing::trace!(
+			target: LOG_TARGET,
+			?update,
+			"Update fetching heads"
+		);
 		let ActiveLeavesUpdate {
 			activated,
 			deactivated,
