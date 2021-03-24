@@ -1316,7 +1316,6 @@ fn check_and_apply_full_approval(
 			required_tranches.clone(),
 		);
 
-		let no_shows = check.known_no_shows();
 		if check.is_approved() {
 			tracing::trace!(
 				target: LOG_TARGET,
@@ -1324,6 +1323,8 @@ fn check_and_apply_full_approval(
 				?block_hash,
 				"Candidate approved under block.",
 			);
+
+			let no_shows = check.known_no_shows();
 
 			let was_approved = block_entry.is_fully_approved();
 

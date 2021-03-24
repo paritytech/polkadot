@@ -131,7 +131,6 @@ pub fn check_approval(
 			if n_approved + tolerated_missing >= n_assigned {
 				Check::Approved(tolerated_missing)
 			} else {
-				println!("{} + {} < {}", n_approved, tolerated_missing, n_assigned);
 				Check::Unapproved
 			}
 		}
