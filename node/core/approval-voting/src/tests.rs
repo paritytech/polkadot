@@ -869,7 +869,7 @@ fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 }
 
 #[test]
-fn assignment_triggered_by_all_with_less_than_supermajority() {
+fn assignment_triggered_by_all_with_less_than_threshold() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let mut candidate_entry: CandidateEntry = {
@@ -896,7 +896,7 @@ fn assignment_triggered_by_all_with_less_than_supermajority() {
 		}.into()
 	};
 
-	// 2-of-4
+	// 1-of-4
 	candidate_entry
 		.approval_entry_mut(&block_hash)
 		.unwrap()
