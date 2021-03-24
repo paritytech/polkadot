@@ -528,7 +528,7 @@ where
 			tracing::trace!(
 				target: LOG_TARGET,
 				?view,
-				"Peer view change",
+				"Our view change",
 			);
 			handle_our_view_change(state, view);
 		}
