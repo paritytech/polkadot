@@ -38,7 +38,7 @@ default:
     when:                          on_success
     expire_in:                     28 days
     paths:
-      - artifacts/
+      - ./artifacts/
 
 .kubernetes-env:                   &kubernetes-env
   tags:
@@ -165,24 +165,32 @@ check-runtime-benchmarks:
   - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
   - cp -r scripts/docker/* ./artifacts
 
-build-linux-release:               &build-binary
+build-linux-release:
   stage:                           test
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  variables:
-    EXTRA_FLAGS:                   ""
   rules:
-    # extra features when building on `rococo-v1` and PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      variables:
-        EXTRA_FLAGS:               "--features=real-overseer -Cdebug-assertions=y"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-      variables:
-        EXTRA_FLAGS:               "--features=real-overseer"
-    - when:                        always
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   script:
-    - time cargo build --release --verbose ${EXTRA_FLAGS}
+    - time cargo build --release --verbose
+    - sccache -s
+    - *pack-artifacts
+
+build-real-overseer:
+  stage:                           test
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  script:
+    - time cargo build --release --verbose --features=real-overseer
     - sccache -s
     - *pack-artifacts
 
@@ -193,14 +201,13 @@ build-adder-collator:
   <<:                              *compiler-info
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
     - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
     - time cargo build --release --verbose --features=real-overseer -p test-parachain-adder-collator
     - sccache -s
-    # pack-artifacts
+    # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/release/adder-collator ./artifacts/.
     - echo -n "${CI_COMMIT_SHORT_SHA}" > ./artifacts/VERSION
@@ -276,7 +283,7 @@ generate-impl-guide:
     reports:
       # this artifact is used in trigger-simnet job
       # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-      dotenv: artifacts/build.env
+      dotenv: ./artifacts/build.env
 
 
 publish-dockerhub:
@@ -297,7 +304,6 @@ publish-dockerhub:
         DOCKER_USER:               ${PARITYPR_USER}
         DOCKER_PASS:               ${PARITYPR_PASS}
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_REF_NAME == "master"
   needs:
     - job:                         build-linux-release
@@ -320,7 +326,6 @@ publish-s3-release:
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         PREFIX:                    "rococo/${ARCH}-${DOCKER_OS}"
-    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
@@ -357,7 +362,6 @@ deploy-polkasync-kusama:
     # former .rules-build
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
-    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
   variables:
