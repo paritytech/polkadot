@@ -5461,6 +5461,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "sp-keyring",
+ "sp-runtime",
  "thiserror",
  "tracing",
 ]
