@@ -914,7 +914,7 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 }
 
 #[test]
-fn assignment_not_triggered_by_all_with_supermajority() {
+fn assignment_not_triggered_by_all_with_threshold() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let mut candidate_entry: CandidateEntry = {
@@ -941,7 +941,7 @@ fn assignment_not_triggered_by_all_with_supermajority() {
 		}.into()
 	};
 
-	// 3-of-4
+	// 2-of-4
 	candidate_entry
 		.approval_entry_mut(&block_hash)
 		.unwrap()
@@ -952,14 +952,8 @@ fn assignment_not_triggered_by_all_with_supermajority() {
 		.unwrap()
 		.import_assignment(0, ValidatorIndex(1), 0);
 
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(2), 0);
-
 	candidate_entry.mark_approval(ValidatorIndex(0));
 	candidate_entry.mark_approval(ValidatorIndex(1));
-	candidate_entry.mark_approval(ValidatorIndex(2));
 
 	let tranche_now = 1;
 	assert!(!should_trigger_assignment(
