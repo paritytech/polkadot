@@ -29,12 +29,20 @@ use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
 	AvailableData, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
-	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation, AuthorityDiscoveryId,
+	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_node_primitives::{
 	Statement, SignedFullStatement, ValidationResult,
 };
-use polkadot_subsystem::{PerLeafSpan, Stage, errors::RuntimeApiError, jaeger, messages::{AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage, CandidateValidationMessage, IfDisconnected, NetworkBridgeMessage, PoVDistributionMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest, StatementDistributionMessage, ValidationFailed}};
+use polkadot_subsystem::{
+	PerLeafSpan, Stage, jaeger,
+	messages::{
+		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
+		CandidateBackingMessage, CandidateSelectionMessage, CandidateValidationMessage,
+		ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
+		StatementDistributionMessage, ValidationFailed
+	}
+};
 use polkadot_node_subsystem_util::{
 	self as util,
 	request_session_index_for_child,
@@ -46,10 +54,6 @@ use polkadot_node_subsystem_util::{
 	FromJobCommand,
 	metrics::{self, prometheus},
 };
-use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_node_network_protocol::request_response::{Recipient, Requests, request::{OutgoingRequest, RequestError}, v1::{
-		PoVFetchingRequest, PoVFetchingResponse
-	}};
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
 	Context as TableContextTrait,
@@ -61,7 +65,6 @@ use statement_table::{
 	},
 };
 use thiserror::Error;
-use util::request_session_info;
 
 const LOG_TARGET: &str = "parachain::candidate-backing";
 
@@ -73,22 +76,8 @@ enum Error {
 	InvalidSignature,
 	#[error("Failed to send candidates {0:?}")]
 	Send(Vec<BackedCandidate>),
-	#[error("FetchPoV request error")]
-	FetchPoV(#[source] RequestError),
-	#[error("FetchPoV channel closed before receipt")]
-	FetchPoVCanceled(#[source] oneshot::Canceled),
-	#[error("FetchPoV runtime request failed in utilities")]
-	FetchPoVUtil(#[source] UtilError),
-	#[error("FetchPoV runtime request failed")]
-	FetchPoVRuntime(#[source] RuntimeApiError),
-	#[error("FetchPoV could not find session")]
-	FetchPoVNoSuchSession,
-	#[error("FetchPoV could not find index of signing validator")]
-	FetchPoVInvalidValidatorIndex,
-	#[error("Invalid response")]
-	FetchPoVInvalidResponse,
-	#[error("Backer did not have PoV")]
-	FetchPoVNoSuchPoV,
+	#[error("FetchPoV failed")]
+	FetchPoV,
 	#[error("ValidateFromChainState channel closed before receipt")]
 	ValidateFromChainState(#[source] oneshot::Canceled),
 	#[error("StoreAvailableData channel closed before receipt")]
@@ -110,11 +99,11 @@ enum PoVData {
 	/// Allready available (from candidate selection).
 	Ready(Arc<PoV>),
 	/// Needs to be fetched from validator (we are checking a signed statement).
-	FetchFromValidator(ValidatorIndex),
+	FetchFromValidator(ValidatorIndex, CandidateHash),
 }
 
 enum ValidatedCandidateCommand {
-	// We were instructed to second the candidate.
+	// We were instructed to second the candidate that has been already validated.
 	Second(BackgroundValidationResult),
 	// We were instructed to validate the candidate.
 	Attest(BackgroundValidationResult),
@@ -357,48 +346,22 @@ async fn make_pov_available(
 
 async fn request_pov(
 	tx_from: &mut mpsc::Sender<FromJobCommand>,
-	parent: Hash,
-	descriptor: CandidateDescriptor,
+	relay_parent: Hash,
 	from_validator: ValidatorIndex,
+	candidate_hash: CandidateHash,
 ) -> Result<Arc<PoV>, Error> {
-	let session_index = request_session_index_for_child(parent, tx_from)
-		.await.map_err(Error::FetchPoVUtil)?
-		.await.map_err(Error::FetchPoVCanceled)?
-		.map_err(Error::FetchPoVRuntime)?;
-	let session_info = request_session_info(parent, session_index, tx_from)
-		.await.map_err(Error::FetchPoVUtil)?
-		.await.map_err(Error::FetchPoVCanceled)?
-		.map_err(Error::FetchPoVRuntime)?
-		.ok_or(Error::FetchPoVNoSuchSession)?;
-	let authority_id = session_info.discovery_keys
-		.get(from_validator.0 as usize)
-		.ok_or(Error::FetchPoVInvalidValidatorIndex)?;
 
-	let (req, pending_response) = OutgoingRequest::new(
-		Recipient::Authority(authority_id.clone()),
-		PoVFetchingRequest {
-			relay_parent: parent,
-			descriptor,
-		},
-	);
-	let full_req = Requests::PoVFetching(req);
-
-	tx_from.send(FromJobCommand::SendMessage(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::SendRequests(
-			vec![full_req],
-			IfDisconnected::ImmediateError
-		)
+	let (tx, rx) = oneshot::channel();
+	tx_from.send(FromJobCommand::SendMessage(AllMessages::AvailabilityDistribution(
+		AvailabilityDistributionMessage::FetchPoV {
+			relay_parent,
+			candidate_hash,
+			from_validator,
+            tx,
+		}
 	))).await?;
 
-	let response = pending_response.await.map_err(Error::FetchPoV)?;
-	let pov = match response {
-		PoVFetchingResponse::PoV(compressed) => {
-			compressed.decompress().map_err(|_| Error::FetchPoVInvalidResponse)?
-		}
-		PoVFetchingResponse::NoSuchPoV => {
-			return Err(Error::FetchPoVNoSuchPoV)
-		}
-	};
+	let pov = rx.await.map_err(|_| Error::FetchPoV)?;
 	Ok(Arc::new(pov))
 }
 
@@ -456,13 +419,13 @@ async fn validate_and_make_available(
 
 	let pov = match pov {
 		PoVData::Ready(pov) => pov,
-		PoVData::FetchFromValidator(validator_index) => {
+		PoVData::FetchFromValidator(validator_index, candidate_hash) => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
 			request_pov(
 				&mut tx_from,
 				relay_parent,
-				candidate.descriptor.clone(),
 				validator_index,
+				candidate_hash,
 			).await?
 		}
 	};
@@ -580,7 +543,7 @@ impl CandidateBackingJob {
 		match command {
 			ValidatedCandidateCommand::Second(res) => {
 				match res {
-					Ok((candidate, commitments, pov)) => {
+					Ok((candidate, commitments, _)) => {
 						// sanity check.
 						if self.seconded.is_none() && !self.issued_statements.contains(&candidate_hash) {
 							self.seconded = Some(candidate_hash);
@@ -915,7 +878,7 @@ impl CandidateBackingJob {
 			tx_command: self.background_validation_tx.clone(),
 			candidate,
 			relay_parent: self.parent,
-			pov: PoVData::FetchFromValidator(statement.validator_index()),
+			pov: PoVData::FetchFromValidator(statement.validator_index(), candidate_hash),
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 			n_validators: self.table_context.validators.len(),
 			span,

@@ -40,7 +40,6 @@ use crate::{
 const NUM_SESSIONS: usize = 2;
 
 pub struct PoVRequester {
-
 	/// We only ever care about being connected to validators of at most two sessions.
 	///
 	/// So we keep an LRU for managing connection requests of size 2.
@@ -112,8 +111,10 @@ impl PoVRequester {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendRequests(
 					vec![full_req],
-					// We are supposed to be connected to validators of our group:
-					IfDisconnected::ImmediateError
+					// We are supposed to be connected to validators of our group via `PeerSet`,
+					// but at session boundaries that is kind of racy, in case a connection takes
+					// longer to get established, so we try to connect in any case.
+					IfDisconnected::TryConnect
 				)
 		)).await;
 

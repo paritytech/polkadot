@@ -572,33 +572,6 @@ impl BoundToRelayParent for ProvisionerMessage {
 	}
 }
 
-/// Message to the PoV Distribution subsystem.
-#[derive(Debug, derive_more::From)]
-pub enum PoVDistributionMessage {
-	/// Fetch a PoV from the network.
-	///
-	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
-	/// relay-parent hash.
-	FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoV>>),
-	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
-	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
-	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
-	/// An update from the network bridge.
-	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>),
-}
-
-impl PoVDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::FetchPoV(hash, _, _) => Some(*hash),
-			Self::DistributePoV(hash, _, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
-		}
-	}
-}
-
 /// Message to the Collation Generation subsystem.
 #[derive(Debug)]
 pub enum CollationGenerationMessage {
@@ -720,8 +693,6 @@ pub enum AllMessages {
 	/// Message for the Provisioner subsystem.
 	#[skip]
 	Provisioner(ProvisionerMessage),
-	/// Message for the PoV Distribution subsystem.
-	PoVDistribution(PoVDistributionMessage),
 	/// Message for the Runtime API subsystem.
 	#[skip]
 	RuntimeApi(RuntimeApiMessage),
