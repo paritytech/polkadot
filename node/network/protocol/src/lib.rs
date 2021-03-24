@@ -23,7 +23,7 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::{fmt, collections::HashMap};
 
-pub use sc_network::PeerId;
+pub use sc_network::{PeerId, IfDisconnected};
 #[doc(hidden)]
 pub use polkadot_node_jaeger as jaeger;
 #[doc(hidden)]

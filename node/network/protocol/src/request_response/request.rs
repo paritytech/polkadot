@@ -96,6 +96,7 @@ pub struct OutgoingRequest<Req> {
 }
 
 /// Any error that can occur when sending a request.
+#[derive(Debug)]
 pub enum RequestError {
 	/// Response could not be decoded.
 	InvalidResponse(DecodingError),

@@ -123,6 +123,15 @@ pub enum AvailableDataFetchingResponse {
 	NoSuchData,
 }
 
+impl From<Option<AvailableData>> for AvailableDataFetchingResponse {
+	fn from(x: Option<AvailableData>) -> Self {
+		match x {
+			Some(data) => AvailableDataFetchingResponse::AvailableData(data),
+			None => AvailableDataFetchingResponse::NoSuchData,
+		}
+	}
+}
+
 impl IsRequest for AvailableDataFetchingRequest {
 	type Response = AvailableDataFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::AvailableDataFetching;

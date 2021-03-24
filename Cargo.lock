@@ -5330,7 +5330,6 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "sp-keyring",
- "streamunordered",
  "thiserror",
  "tracing",
 ]
