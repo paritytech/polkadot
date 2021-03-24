@@ -263,7 +263,7 @@ impl NetworkBridgeMessage {
 #[derive(Debug, derive_more::From)]
 pub enum AvailabilityDistributionMessage {
 	/// Incoming network request for an availability chunk.
-	AvailabilityFetchingRequest(IncomingRequest<req_res_v1::AvailabilityFetchingRequest>)
+	ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>)
 }
 
 /// Availability Recovery Message.
@@ -285,7 +285,7 @@ impl AvailabilityDistributionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::AvailabilityFetchingRequest(_) => None,
+			Self::ChunkFetchingRequest(_) => None,
 		}
 	}
 }
@@ -736,8 +736,8 @@ pub enum AllMessages {
 	GossipSupport(GossipSupportMessage),
 }
 
-impl From<IncomingRequest<req_res_v1::AvailabilityFetchingRequest>> for AllMessages {
-	fn from(req: IncomingRequest<req_res_v1::AvailabilityFetchingRequest>) -> Self {
+impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
 		From::<AvailabilityDistributionMessage>::from(From::from(req))
 	}
 }

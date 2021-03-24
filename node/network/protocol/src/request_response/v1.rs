@@ -26,7 +26,7 @@ use super::Protocol;
 
 /// Request an availability chunk.
 #[derive(Debug, Copy, Clone, Encode, Decode)]
-pub struct AvailabilityFetchingRequest {
+pub struct ChunkFetchingRequest {
 	/// Hash of candidate we want a chunk for.
 	pub candidate_hash: CandidateHash,
 	/// The index of the chunk to fetch.
@@ -66,7 +66,7 @@ impl From<ErasureChunk> for ChunkResponse {
 
 impl ChunkResponse {
 	/// Re-build an `ErasureChunk` from response and request.
-	pub fn recombine_into_chunk(self, req: &AvailabilityFetchingRequest) -> ErasureChunk {
+	pub fn recombine_into_chunk(self, req: &ChunkFetchingRequest) -> ErasureChunk {
 		ErasureChunk {
 			chunk: self.chunk,
 			proof: self.proof,
@@ -75,7 +75,7 @@ impl ChunkResponse {
 	}
 }
 
-impl IsRequest for AvailabilityFetchingRequest {
+impl IsRequest for ChunkFetchingRequest {
 	type Response = AvailabilityFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::AvailabilityFetching;
 }

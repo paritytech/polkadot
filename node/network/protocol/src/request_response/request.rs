@@ -39,7 +39,7 @@ pub trait IsRequest {
 #[derive(Debug)]
 pub enum Requests {
 	/// Request an availability chunk from a node.
-	AvailabilityFetching(OutgoingRequest<v1::AvailabilityFetchingRequest>),
+	AvailabilityFetching(OutgoingRequest<v1::ChunkFetchingRequest>),
 	/// Fetch a collation from a collator which previously announced it.
 	CollationFetching(OutgoingRequest<v1::CollationFetchingRequest>),
 }

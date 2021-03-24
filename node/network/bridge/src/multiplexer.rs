@@ -133,7 +133,7 @@ fn multiplex_single(
 	let r = match p {
 		Protocol::AvailabilityFetching => From::from(IncomingRequest::new(
 			peer,
-			decode_with_peer::<v1::AvailabilityFetchingRequest>(peer, payload)?,
+			decode_with_peer::<v1::ChunkFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
 		Protocol::CollationFetching => From::from(IncomingRequest::new(

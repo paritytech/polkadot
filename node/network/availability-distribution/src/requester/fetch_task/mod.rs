@@ -24,7 +24,7 @@ use futures::{FutureExt, SinkExt};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
 	request::{OutgoingRequest, RequestError, Requests, Recipient},
-	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
+	v1::{ChunkFetchingRequest, AvailabilityFetchingResponse},
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlakeTwo256, ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore,
@@ -106,7 +106,7 @@ struct RunningTask {
 	group: Vec<AuthorityDiscoveryId>,
 
 	/// The request to send.
-	request: AvailabilityFetchingRequest,
+	request: ChunkFetchingRequest,
 
 	/// Root hash, for verifying the chunks validity.
 	erasure_root: Hash,
@@ -154,7 +154,7 @@ impl FetchTaskConfig {
 			group: session_info.validator_groups.get(core.group_responsible.0 as usize)
 				.expect("The responsible group of a candidate should be available in the corresponding session. qed.")
 				.clone(),
-			request: AvailabilityFetchingRequest {
+			request: ChunkFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
 			},

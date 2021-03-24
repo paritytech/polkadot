@@ -227,7 +227,7 @@ impl TestRun {
 				);
 				match msg {
 					FromFetchTask::Concluded(_) => break,
-					FromFetchTask::Message(msg) => 
+					FromFetchTask::Message(msg) =>
 						end_ok = self.handle_message(msg).await,
 				}
 			}
@@ -285,7 +285,7 @@ fn get_test_running_task() -> (RunningTask, mpsc::Receiver<FromFetchTask>) {
 			session_index: 0,
 			group_index: GroupIndex(0),
 			group: Vec::new(),
-			request: AvailabilityFetchingRequest {
+			request: ChunkFetchingRequest {
 				candidate_hash: CandidateHash([43u8;32].into()),
 				index: ValidatorIndex(0),
 			},

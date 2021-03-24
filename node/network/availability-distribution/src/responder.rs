@@ -33,7 +33,7 @@ use crate::{LOG_TARGET, metrics::{Metrics, SUCCEEDED, FAILED, NOT_FOUND}};
 /// Any errors of `answer_request` will simply be logged.
 pub async fn answer_request_log<Context>(
 	ctx: &mut Context,
-	req: IncomingRequest<v1::AvailabilityFetchingRequest>,
+	req: IncomingRequest<v1::ChunkFetchingRequest>,
 	metrics: &Metrics,
 ) -> ()
 where
@@ -59,7 +59,7 @@ where
 /// Returns: Ok(true) if chunk was found and served.
 pub async fn answer_request<Context>(
 	ctx: &mut Context,
-	req: IncomingRequest<v1::AvailabilityFetchingRequest>,
+	req: IncomingRequest<v1::ChunkFetchingRequest>,
 ) -> Result<bool>
 where
 	Context: SubsystemContext,
