@@ -1069,7 +1069,7 @@ pub enum ConsensusLog {
 
 impl ConsensusLog {
 	/// Attempt to convert a reference to a generic digest item into a consensus log.
-	pub fn from_digest_item_ref<H>(digest_item: &runtime_primitives::DigestItem<H>)
+	pub fn from_digest_item<H>(digest_item: &runtime_primitives::DigestItem<H>)
 		-> Result<Option<Self>, parity_scale_codec::Error>
 	{
 		match digest_item {

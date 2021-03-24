@@ -496,7 +496,7 @@ async fn imported_block_info(
 	};
 
 	let force_approve =
-		block_header.digest.convert_first(|l| match ConsensusLog::from_digest_item_ref(l) {
+		block_header.digest.convert_first(|l| match ConsensusLog::from_digest_item(l) {
 			Ok(Some(ConsensusLog::ForceApprove(num))) if num < block_header.number => Some(num),
 			Ok(Some(_)) => None,
 			Ok(None) => None,
