@@ -111,7 +111,7 @@ where
 			?validator_index,
 			?candidate_hash,
 			error = ?e,
-			"Error retrieveing chunk",
+			"Error retrieving chunk",
 		);
 		Error::QueryChunkResponseChannel(e)
 	})
