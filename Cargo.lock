@@ -5365,6 +5365,7 @@ dependencies = [
  "assert_matches",
  "env_logger 0.8.2",
  "futures 0.3.12",
+ "futures-timer 3.0.2",
  "log",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",

@@ -20,6 +20,8 @@
 #![deny(missing_docs, unused_crate_dependencies)]
 #![recursion_limit="256"]
 
+use std::time::Duration;
+
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use thiserror::Error;
 
@@ -60,10 +62,20 @@ enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// A collator eviction policy - how fast to evict collators which are inactive.
+#[derive(Debug, Clone, Copy)]
+pub struct CollatorEvictionPolicy(pub Duration);
+
+impl Default for CollatorEvictionPolicy {
+	fn default() -> Self {
+		CollatorEvictionPolicy(Duration::from_secs(24))
+	}
+}
+
 /// What side of the collator protocol is being engaged
 pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
-	Validator(validator_side::Metrics),
+	Validator(CollatorEvictionPolicy, validator_side::Metrics),
 	/// Collators operate on a parachain.
 	Collator(CollatorId, collator_side::Metrics),
 }
@@ -90,8 +102,9 @@ impl CollatorProtocolSubsystem {
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-			ProtocolSide::Validator(metrics) => validator_side::run(
+			ProtocolSide::Validator(policy, metrics) => validator_side::run(
 				ctx,
+				policy,
 				metrics,
 			).await,
 			ProtocolSide::Collator(id, metrics) => collator_side::run(
