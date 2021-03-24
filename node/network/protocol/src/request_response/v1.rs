@@ -35,7 +35,7 @@ pub struct ChunkFetchingRequest {
 
 /// Receive a rqeuested erasure chunk.
 #[derive(Debug, Clone, Encode, Decode)]
-pub enum AvailabilityFetchingResponse {
+pub enum ChunkFetchingResponse {
 	/// The requested chunk data.
 	#[codec(index = 0)]
 	Chunk(ChunkResponse),
@@ -47,7 +47,7 @@ pub enum AvailabilityFetchingResponse {
 /// Skimmed down variant of `ErasureChunk`.
 ///
 /// Instead of transmitting a full `ErasureChunk` we transmit `ChunkResponse` in
-/// `AvailabilityFetchingResponse`, which omits the chunk's index. The index is already known by
+/// `ChunkFetchingResponse`, which omits the chunk's index. The index is already known by
 /// the requester and by not transmitting it, we ensure the requester is going to use his index
 /// value for validating the response, thus making sure he got what he requested.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -76,7 +76,7 @@ impl ChunkResponse {
 }
 
 impl IsRequest for ChunkFetchingRequest {
-	type Response = AvailabilityFetchingResponse;
+	type Response = ChunkFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::AvailabilityFetching;
 }
 

@@ -24,7 +24,7 @@ use futures::{FutureExt, SinkExt};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
 	request::{OutgoingRequest, RequestError, Requests, Recipient},
-	v1::{ChunkFetchingRequest, AvailabilityFetchingResponse},
+	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlakeTwo256, ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore,
@@ -292,10 +292,10 @@ impl RunningTask {
 				}
 			};
 			let chunk = match resp {
-				AvailabilityFetchingResponse::Chunk(resp) => {
+				ChunkFetchingResponse::Chunk(resp) => {
 					resp.recombine_into_chunk(&self.request)
 				}
-				AvailabilityFetchingResponse::NoSuchChunk => {
+				ChunkFetchingResponse::NoSuchChunk => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						validator = ?validator,
@@ -327,7 +327,7 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
-	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
+	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
 		let requests = Requests::AvailabilityFetching(full_request);

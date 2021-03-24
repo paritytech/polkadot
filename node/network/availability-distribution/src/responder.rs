@@ -75,8 +75,8 @@ where
 	let result = chunk.is_some();
 
 	let response = match chunk {
-		None => v1::AvailabilityFetchingResponse::NoSuchChunk,
-		Some(chunk) => v1::AvailabilityFetchingResponse::Chunk(chunk.into()),
+		None => v1::ChunkFetchingResponse::NoSuchChunk,
+		Some(chunk) => v1::ChunkFetchingResponse::Chunk(chunk.into()),
 	};
 
 	req.send_response(response).map_err(|_| Error::SendResponse)?;
