@@ -570,7 +570,7 @@ impl pallet_treasury::Config for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
-	type BurnDestination = Society;
+	type BurnDestination = ();
 	type SpendFunds = Bounties;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
@@ -787,7 +787,7 @@ parameter_types! {
 	pub const CandidateDeposit: Balance = 10 * DOLLARS;
 	pub const WrongSideDeduction: Balance = 2 * DOLLARS;
 	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 80 * HOURS;
+	pub const RotationPeriod: BlockNumber = 168 * HOURS;
 	pub const PeriodSpend: Balance = 500 * DOLLARS;
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
