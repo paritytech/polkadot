@@ -417,6 +417,8 @@ pub mod v1 {
 	/// The payload is the local peer id of the node, which serves to prove that it
 	/// controls the collator key it is declaring an intention to collate under.
 	pub fn declare_signature_payload(peer_id: &sc_network::PeerId) -> Vec<u8> {
-		peer_id.to_bytes()
+		let mut payload = peer_id.to_bytes();
+		payload.extend_from_slice(b"COLL");
+		payload
 	}
 }
