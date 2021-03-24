@@ -16,34 +16,35 @@
 
 use std::{collections::{HashMap, HashSet}, sync::Arc, task::Poll};
 use std::time::{Duration, Instant};
-
-use futures::{FutureExt, channel::oneshot, future::{Fuse, FusedFuture, BoxFuture, Either}};
-use futures::StreamExt;
-use futures_timer::Delay;
 use always_assert::never;
+use futures::{
+	channel::oneshot, future::{BoxFuture, Either, Fuse, FusedFuture}, FutureExt, StreamExt,
+};
+use futures_timer::Delay;
 
-use polkadot_primitives::v1::{
-	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
-};
-use polkadot_subsystem::{
-	jaeger, PerLeafSpan,
-	FromOverseer, OverseerSignal, SubsystemContext,
-	messages::{
-		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
-		NetworkBridgeEvent, IfDisconnected,
-	},
-};
 use polkadot_node_network_protocol::{
-	OurView, PeerId, UnifiedReputationChange as Rep, View,
+	request_response as req_res, v1 as protocol_v1,
 	peer_set::PeerSet,
-	request_response::{OutgoingRequest, Requests, request::{Recipient, RequestError}}, v1 as protocol_v1
+	request_response::{
+		request::{Recipient, RequestError},
+		v1::{CollationFetchingRequest, CollationFetchingResponse},
+		OutgoingRequest, Requests,
+	},
+	OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
-use polkadot_node_network_protocol::request_response::v1::{CollationFetchingRequest, CollationFetchingResponse};
-use polkadot_node_network_protocol::request_response as req_res;
+use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_node_primitives::{Statement, SignedFullStatement};
+use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use polkadot_subsystem::{
+	jaeger,
+	messages::{
+		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, IfDisconnected,
+		NetworkBridgeEvent, NetworkBridgeMessage,
+	},
+	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
+};
 
-use super::{modify_reputation, LOG_TARGET, Result};
+use super::{modify_reputation, Result, LOG_TARGET};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 /// Message could not be decoded properly.
@@ -51,6 +52,7 @@ const COST_CORRUPTED_MESSAGE: Rep = Rep::CostMinor("Message was corrupt");
 /// Network errors that originated at the remote host should have same cost as timeout.
 const COST_NETWORK_ERROR: Rep = Rep::CostMinor("Some network error");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has timed out");
+const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Invalid network message signature");
 const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
@@ -422,13 +424,19 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	use protocol_v1::CollatorProtocolMessage::*;
+	use sp_runtime::traits::AppVerify;
 
 	if let Some(d) = state.peer_data.get_mut(&origin) {
 		d.note_active();
 	}
 
 	match msg {
-		Declare(id) => {
+		Declare(id, signature) => {
+			if !signature.verify(&*protocol_v1::declare_signature_payload(&origin), &id) {
+				modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
+				return;
+			}
+
 			tracing::debug!(
 				target: LOG_TARGET,
 				peer_id = ?origin,
@@ -1015,7 +1023,6 @@ mod tests {
 				)
 			).await;
 
-
 			let peer_b = PeerId::random();
 
 			overseer_send(
@@ -1023,7 +1030,10 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						protocol_v1::CollatorProtocolMessage::Declare(pair.public()),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							pair.public(),
+							pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
 					)
 				)
 			).await;
@@ -1083,6 +1093,7 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
 						),
 					)
 				)
@@ -1095,6 +1106,7 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
+							test_state.collators[1].sign(&protocol_v1::declare_signature_payload(&peer_c)),
 						),
 					)
 				)
@@ -1127,6 +1139,44 @@ mod tests {
 				) => {
 					assert_eq!(peer, peer_c);
 					assert_eq!(rep, BENEFIT_NOTIFY_GOOD);
+				}
+			);
+		});
+	}
+
+	// Test that we verify the signatures on `Declare` and `AdvertiseCollation` messages.
+	#[test]
+	fn collator_authentication_verification_works() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer_b = PeerId::random();
+
+			// the peer sends a declare message but sign the wrong payload
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					protocol_v1::CollatorProtocolMessage::Declare(
+						test_state.collators[0].public(),
+						test_state.collators[0].sign(&[42]),
+					),
+				)),
+			)
+			.await;
+
+			// it should be reported for sending a message with an invalid signature
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep),
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_INVALID_SIGNATURE);
 				}
 			);
 		});
@@ -1167,6 +1217,7 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
 						)
 					)
 				)
@@ -1179,6 +1230,7 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
+							test_state.collators[1].sign(&protocol_v1::declare_signature_payload(&peer_c)),
 						)
 					)
 				)
@@ -1366,7 +1418,10 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						protocol_v1::CollatorProtocolMessage::Declare(pair.public()),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							pair.public(),
+							pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
 					)
 				)
 			).await;
@@ -1455,7 +1510,10 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						protocol_v1::CollatorProtocolMessage::Declare(pair.public()),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							pair.public(),
+							pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
 					)
 				)
 			).await;
