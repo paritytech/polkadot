@@ -44,7 +44,8 @@ pub struct PoVRequester {
 	/// We only ever care about being connected to validators of at most two sessions.
 	///
 	/// So we keep an LRU for managing connection requests of size 2.
-	connected_validators: LruCache<SessionIndex, mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>,
+	/// Cache will contain `None` if we are not a validator in that session.
+	connected_validators: LruCache<SessionIndex, Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>,
 }
 
 impl PoVRequester {
@@ -76,9 +77,8 @@ impl PoVRequester {
 			if self.connected_validators.contains(&session_index) {
 				continue
 			}
-			if let Some(rx) = connect_to_relevant_validators(ctx, runtime, parent, session_index).await? {
-				self.connected_validators.put(session_index, rx);
-			}
+			let rx = connect_to_relevant_validators(ctx, runtime, parent, session_index).await?;
+			self.connected_validators.put(session_index, rx);
 		}
 		Ok(())
 	}
