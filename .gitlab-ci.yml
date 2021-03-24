@@ -246,7 +246,7 @@ generate-impl-guide:
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
     # pass artifacts to the trigget-simnet job
     # this twist is to match the similar logic in substrate
-    - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env 
+    - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env
     - echo "VERSION=${EXTRATAG}" >> build.env
   after_script:
     - buildah logout "$IMAGE_NAME"
@@ -338,10 +338,9 @@ deploy-polkasync-kusama:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
-    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
+    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
