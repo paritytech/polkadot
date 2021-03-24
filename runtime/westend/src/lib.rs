@@ -31,14 +31,14 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	paras_sudo_wrapper, paras_registrar, auctions, crowdloan, slots,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
+	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear, ModuleId,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
@@ -70,19 +70,6 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
-
-use runtime_parachains::origin as parachains_origin;
-use runtime_parachains::configuration as parachains_configuration;
-use runtime_parachains::shared as parachains_shared;
-use runtime_parachains::inclusion as parachains_inclusion;
-use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
-use runtime_parachains::initializer as parachains_initializer;
-use runtime_parachains::session_info as parachains_session_info;
-use runtime_parachains::paras as parachains_paras;
-use runtime_parachains::dmp as parachains_dmp;
-use runtime_parachains::ump as parachains_ump;
-use runtime_parachains::hrmp as parachains_hrmp;
-use runtime_parachains::scheduler as parachains_scheduler;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -281,8 +268,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: Initializer,
-		pub para_assignment: ParachainsSessionInfo,
+		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
+		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -688,120 +675,6 @@ impl pallet_proxy::Config for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-impl parachains_session_info::Config for Runtime {}
-
-impl parachains_ump::Config for Runtime {
-	type UmpSink = ();
-}
-
-impl parachains_dmp::Config for Runtime {}
-
-impl parachains_hrmp::Config for Runtime {
-	type Origin = Origin;
-	type Event = Event;
-	type Currency = Balances;
-}
-
-impl parachains_inclusion_inherent::Config for Runtime {}
-
-impl parachains_scheduler::Config for Runtime {}
-
-impl parachains_initializer::Config for Runtime {
-	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-}
-
-impl paras_sudo_wrapper::Config for Runtime {}
-
-impl parachains_origin::Config for Runtime {}
-
-impl parachains_configuration::Config for Runtime {}
-
-impl parachains_shared::Config for Runtime {}
-
-/// Special `RewardValidators` that does nothing ;)
-pub struct RewardValidators;
-impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
-	fn reward_backing(_: impl IntoIterator<Item=ValidatorIndex>) {}
-	fn reward_bitfields(_: impl IntoIterator<Item=ValidatorIndex>) {}
-}
-
-impl parachains_inclusion::Config for Runtime {
-	type Event = Event;
-	type RewardValidators = RewardValidators;
-}
-
-impl parachains_paras::Config for Runtime {
-	type Origin = Origin;
-}
-
-parameter_types! {
-	pub const ParaDeposit: Balance = 5 * DOLLARS;
-	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
-	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
-}
-
-impl paras_registrar::Config for Runtime {
-	type Event = Event;
-	type Origin = Origin;
-	type Currency = Balances;
-	type OnSwap = (Crowdloan, Slots);
-	type ParaDeposit = ParaDeposit;
-	type DataDepositPerByte = DataDepositPerByte;
-	type MaxCodeSize = MaxCodeSize;
-	type MaxHeadSize = MaxHeadSize;
-	type WeightInfo = paras_registrar::TestWeightInfo;
-}
-
-parameter_types! {
-	pub const EndingPeriod: BlockNumber = 1 * HOURS;
-	pub const SampleLength: BlockNumber = 1 * MINUTES;
-}
-
-impl auctions::Config for Runtime {
-	type Event = Event;
-	type Leaser = Slots;
-	type EndingPeriod = EndingPeriod;
-	type SampleLength = SampleLength;
-	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = auctions::TestWeightInfo;
-}
-
-parameter_types! {
-	pub const LeasePeriod: BlockNumber = 365 * DAYS;
-}
-
-impl slots::Config for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Registrar = Registrar;
-	type LeasePeriod = LeasePeriod;
-	type WeightInfo = slots::TestWeightInfo;
-}
-
-parameter_types! {
-	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 1_000 * DOLLARS;
-	pub const MinContribution: Balance = 100 * DOLLARS;
-	pub const RetirementPeriod: BlockNumber = 7 * DAYS;
-	pub const RemoveKeysLimit: u32 = 500;
-
-}
-
-impl crowdloan::Config for Runtime {
-	type Event = Event;
-	type ModuleId = CrowdloanId;
-	type SubmissionDeposit = SubmissionDeposit;
-	type MinContribution = MinContribution;
-	type RetirementPeriod = RetirementPeriod;
-	type OrphanedFunds = ();
-	type RemoveKeysLimit = RemoveKeysLimit;
-	type Registrar = Registrar;
-	type Auctioneer = Auctions;
-	type WeightInfo = crowdloan::TestWeightInfo;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -856,26 +729,6 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
-
-		// Parachains Runtime
-		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 28,
-		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 29,
-		Shared: parachains_shared::{Pallet, Call, Storage} = 30,
-		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 31,
-		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent} = 32,
-		ParachainsScheduler: parachains_scheduler::{Pallet, Call, Storage} = 33,
-		Paras: parachains_paras::{Pallet, Call, Storage} = 34,
-		Initializer: parachains_initializer::{Pallet, Call, Storage} = 35,
-		Dmp: parachains_dmp::{Pallet, Call, Storage} = 36,
-		Ump: parachains_ump::{Pallet, Call, Storage} = 37,
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 38,
-		ParachainsSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 39,
-
-		// Parachain Onboarding Pallets
-		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 40,
-		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 41,
-		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 42,
-		Slots: slots::{Pallet, Call, Storage, Event<T>} = 43,
 	}
 }
 
@@ -1234,12 +1087,6 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
-
-			// Polkadot Parachain Benchmarks
-			add_benchmark!(params, batches, auctions, Auctions);
-			add_benchmark!(params, batches, crowdloan, Crowdloan);
-			add_benchmark!(params, batches, paras_registrar, Registrar);
-			add_benchmark!(params, batches, slots, Slots);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

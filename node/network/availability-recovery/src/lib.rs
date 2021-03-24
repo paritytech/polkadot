@@ -334,7 +334,7 @@ impl RequestChunksPhase {
 			if is_unavailable(
 				self.received_chunks.len(),
 				self.requesting_chunks.len(),
-				self.shuffling.len(),
+				params.validators.len(),
 				params.threshold,
 			) {
 				tracing::debug!(
@@ -343,7 +343,7 @@ impl RequestChunksPhase {
 					erasure_root = ?params.erasure_root,
 					received = %self.received_chunks.len(),
 					requesting = %self.requesting_chunks.len(),
-					n_validators = %self.shuffling.len(),
+					n_validators = %params.validators.len(),
 					"Data recovery is not possible",
 				);
 				to_state.send(FromInteraction::Concluded(

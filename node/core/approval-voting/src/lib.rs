@@ -605,9 +605,9 @@ async fn handle_from_overseer(
 						for block_batch in block_imported_candidates {
 							tracing::debug!(
 								target: LOG_TARGET,
-								"Imported new block {} with {} included candidates",
-								block_batch.block_hash,
-								block_batch.imported_candidates.len(),
+								block_hash = ?block_batch.block_hash,
+								num_candidates = block_batch.imported_candidates.len(),
+								"Imported new block.",
 							);
 
 							for (c_hash, c_entry) in block_batch.imported_candidates {
@@ -621,11 +621,11 @@ async fn handle_from_overseer(
 									let tick = our_tranche as Tick + block_batch.block_tick;
 									tracing::trace!(
 										target: LOG_TARGET,
-										"Scheduling first wakeup at tranche {} for candidate {} in block ({}, tick={})",
-										our_tranche,
-										c_hash,
-										block_batch.block_hash,
-										block_batch.block_tick,
+										tranche = our_tranche,
+										candidate_hash = ?c_hash,
+										block_hash = ?block_batch.block_hash,
+										block_tick = block_batch.block_tick,
+										"Scheduling first wakeup.",
 									);
 
 									// Our first wakeup will just be the tranche of our assignment,
@@ -987,18 +987,18 @@ fn schedule_wakeup_action(
 	match maybe_action {
 		Some(Action::ScheduleWakeup { ref tick, .. }) => tracing::trace!(
 			target: LOG_TARGET,
-			"Scheduling next wakeup at {} for candidate {} under block ({}, tick={})",
 			tick,
-			candidate_hash,
-			block_hash,
+			?candidate_hash,
+			?block_hash,
 			block_tick,
+			"Scheduling next wakeup.",
 		),
 		None => tracing::trace!(
 			target: LOG_TARGET,
-			"No wakeup needed for candidate {} under block ({}, tick={})",
-			candidate_hash,
-			block_hash,
+			?candidate_hash,
+			?block_hash,
 			block_tick,
+			"No wakeup needed.",
 		),
 		Some(_) => {} // unreachable
 	}
@@ -1093,9 +1093,10 @@ fn check_and_import_assignment(
 		} else {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Imported assignment from validator {} on candidate {:?}",
-				assignment.validator.0,
-				(assigned_candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
+				validator = assignment.validator.0,
+				candidate_hash = ?assigned_candidate_hash,
+				para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
+				"Imported assignment.",
 			);
 
 			AssignmentCheckResult::Accepted
@@ -1196,9 +1197,11 @@ fn check_and_import_approval<T>(
 
 	tracing::trace!(
 		target: LOG_TARGET,
-		"Importing approval vote from validator {:?} on candidate {:?}",
-		(approval.validator, &pubkey),
-		(approved_candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
+		validator_index = approval.validator.0,
+		validator = ?pubkey,
+		candidate_hash = ?approved_candidate_hash,
+		para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
+		"Importing approval vote",
 	);
 
 	let actions = import_checked_approval(
@@ -1316,9 +1319,9 @@ fn check_and_apply_full_approval(
 		if let approval_checking::Check::Approved(no_shows) = check {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Candidate approved {} under block {}",
-				candidate_hash,
-				block_hash,
+				?candidate_hash,
+				?block_hash,
+				"Candidate approved under block.",
 			);
 
 			let was_approved = block_entry.is_fully_approved();
@@ -1441,10 +1444,10 @@ fn process_wakeup(
 
 	tracing::trace!(
 		target: LOG_TARGET,
-		"Processing wakeup at tranche {} for candidate {} under block {}",
-		tranche_now,
-		candidate_hash,
-		relay_block,
+		tranche = tranche_now,
+		?candidate_hash,
+		block_hash = ?relay_block,
+		"Processing wakeup",
 	);
 
 	let (should_trigger, backing_group) = {
@@ -1500,9 +1503,10 @@ fn process_wakeup(
 		if let Some(i) = index_in_candidate {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Launching approval work for candidate {:?} in block {}",
-				(&candidate_hash, candidate_entry.candidate_receipt().descriptor.para_id),
-				relay_block,
+				?candidate_hash,
+				para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
+				block_hash = ?relay_block,
+				"Launching approval work.",
 			);
 
 			// sanity: should always be present.
@@ -1559,8 +1563,9 @@ async fn launch_approval(
 
 	tracing::trace!(
 		target: LOG_TARGET,
-		"Recovering data for candidate {:?}",
-		(candidate_hash, candidate.descriptor.para_id),
+		?candidate_hash,
+		para_id = ?candidate.descriptor.para_id,
+		"Recovering data.",
 	);
 
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
@@ -1663,8 +1668,9 @@ async fn launch_approval(
 
 				tracing::trace!(
 					target: LOG_TARGET,
-					"Candidate Valid {:?}",
-					(candidate_hash, para_id),
+					?candidate_hash,
+					?para_id,
+					"Candidate Valid",
 				);
 
 				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
@@ -1782,8 +1788,8 @@ async fn issue_approval(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Issuing approval vote for candidate {:?}",
-		candidate_hash,
+		?candidate_hash,
+		"Issuing approval vote",
 	);
 
 	let actions = import_checked_approval(
