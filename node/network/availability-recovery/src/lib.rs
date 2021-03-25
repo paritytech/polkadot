@@ -226,7 +226,6 @@ impl RequestChunksPhase {
 		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
 		while self.requesting_chunks.len() < max_requests {
 			if let Some(validator_index) = self.shuffling.pop() {
-				println!("requesting from {:?}", validator_index);
 				let validator = params.validator_authority_keys[validator_index.0 as usize].clone();
 				tracing::trace!(
 					target: LOG_TARGET,
