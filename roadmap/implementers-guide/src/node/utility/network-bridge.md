@@ -86,6 +86,10 @@ Map the message onto the corresponding [Event Handler](#event-handlers) based on
 
 - Adjust peer reputation according to cost or benefit provided
 
+### DisconnectPeer
+
+- Disconnect the peer from the peer-set requested, if connected.
+
 ### SendValidationMessage / SendValidationMessages
 
 - Issue a corresponding `ProtocolMessage` to each listed peer on the validation peer-set.

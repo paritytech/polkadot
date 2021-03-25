@@ -132,7 +132,7 @@ where
 		_keystore: &LocalKeystore,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_config: &criteria::Config,
-		_leaving_cores: Vec<(polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+		_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
 	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 		self.0()
 	}
@@ -869,7 +869,52 @@ fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
 }
 
 #[test]
-fn assignment_triggered_by_all_with_less_than_supermajority() {
+fn assignment_triggered_by_all_with_less_than_threshold() {
+	let block_hash = Hash::repeat_byte(0x01);
+
+	let mut candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 1,
+				validator_index: ValidatorIndex(4),
+				triggered: false,
+			}),
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	// 1-of-4
+	candidate_entry
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, ValidatorIndex(0), 0);
+
+	candidate_entry.mark_approval(ValidatorIndex(0));
+
+	let tranche_now = 1;
+	assert!(should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::All,
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_not_triggered_by_all_with_threshold() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let mut candidate_entry: CandidateEntry = {
@@ -909,63 +954,6 @@ fn assignment_triggered_by_all_with_less_than_supermajority() {
 
 	candidate_entry.mark_approval(ValidatorIndex(0));
 	candidate_entry.mark_approval(ValidatorIndex(1));
-
-	let tranche_now = 1;
-	assert!(should_trigger_assignment(
-		candidate_entry.approval_entry(&block_hash).unwrap(),
-		&candidate_entry,
-		RequiredTranches::All,
-		tranche_now,
-	));
-}
-
-#[test]
-fn assignment_not_triggered_by_all_with_supermajority() {
-	let block_hash = Hash::repeat_byte(0x01);
-
-	let mut candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
-			tranches: Vec::new(),
-			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
-				tranche: 1,
-				validator_index: ValidatorIndex(4),
-				triggered: false,
-			}),
-			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-			approved: false,
-		};
-
-		approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
-			session: 1,
-			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
-			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
-	};
-
-	// 3-of-4
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(0), 0);
-
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(1), 0);
-
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(2), 0);
-
-	candidate_entry.mark_approval(ValidatorIndex(0));
-	candidate_entry.mark_approval(ValidatorIndex(1));
-	candidate_entry.mark_approval(ValidatorIndex(2));
 
 	let tranche_now = 1;
 	assert!(!should_trigger_assignment(
