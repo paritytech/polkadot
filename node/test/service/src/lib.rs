@@ -82,7 +82,6 @@ pub fn new_full(
 		is_collator,
 		None,
 		None,
-		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
 		None,
 	)
 }

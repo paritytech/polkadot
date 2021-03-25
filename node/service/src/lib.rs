@@ -30,6 +30,7 @@ use {
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
+	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
@@ -59,7 +60,6 @@ use telemetry::{Telemetry, TelemetryWorker, TelemetryWorkerHandle};
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, block_validation::Chain};
-pub use polkadot_parachain::wasm_executor::IsolationStrategy;
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
@@ -401,8 +401,8 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,
-	_: IsolationStrategy,
 	_: ApprovalVotingConfig,
+	_: CandidateValidationConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -429,8 +429,8 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	is_collator: IsCollator,
-	isolation_strategy: IsolationStrategy,
 	approval_voting_config: ApprovalVotingConfig,
+	candidate_validation_config: CandidateValidationConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -488,10 +488,9 @@ where
 			keystore.clone(),
 			Metrics::register(registry)?,
 		),
-		candidate_validation: CandidateValidationSubsystem::new(
-			spawner.clone(),
+		candidate_validation: CandidateValidationSubsystem::with_config(
+			candidate_validation_config,
 			Metrics::register(registry)?,
-			isolation_strategy,
 		),
 		chain_api: ChainApiSubsystem::new(
 			runtime_client.clone(),
@@ -654,7 +653,6 @@ pub fn new_full<RuntimeApi, Executor>(
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 	jaeger_agent: Option<std::net::SocketAddr>,
-	isolation_strategy: IsolationStrategy,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
@@ -810,6 +808,14 @@ pub fn new_full<RuntimeApi, Executor>(
 		cache_size: None, // default is fine.
 	};
 
+	let candidate_validation_config = CandidateValidationConfig {
+		artifacts_cache_path: config.database
+			.path()
+			.ok_or(Error::DatabasePathRequired)?
+			.join("pvf-artifacts"),
+		program_path: std::env::current_exe()?,
+	};
+
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -885,8 +891,8 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.as_ref(),
 			spawner,
 			is_collator,
-			isolation_strategy,
 			approval_voting_config,
+			candidate_validation_config,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
@@ -1217,26 +1223,12 @@ pub fn build_full(
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 ) -> Result<NewFull<Client>, Error> {
-	let isolation_strategy = {
-		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		{
-			let cache_base_path = config.database.path();
-			IsolationStrategy::external_process_with_caching(cache_base_path)
-		}
-
-		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		{
-			IsolationStrategy::InProcess
-		}
-	};
-
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			isolation_strategy,
 			telemetry_worker_handle,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
@@ -1245,7 +1237,6 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			isolation_strategy,
 			telemetry_worker_handle,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
@@ -1254,7 +1245,6 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			isolation_strategy,
 			telemetry_worker_handle,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
@@ -1263,7 +1253,6 @@ pub fn build_full(
 			is_collator,
 			grandpa_pause,
 			jaeger_agent,
-			isolation_strategy,
 			telemetry_worker_handle,
 		).map(|full| full.with_client(Client::Polkadot))
 	}

@@ -108,6 +108,7 @@ db = ["service/db"]
 full-node = [
 	"polkadot-node-core-av-store",
 	"polkadot-node-core-approval-voting",
+	"polkadot-node-core-candidate-validation",
 	"sc-finality-grandpa-warp-sync"
 ]
 
