@@ -25,9 +25,6 @@ pub enum Error {
 	#[error(transparent)]
 	Subsystem(#[from] polkadot_subsystem::SubsystemError),
 
-	#[error("failed to query a chunk from store")]
-	CanceledQueryChunk(#[source] oneshot::Canceled),
-
 	#[error("failed to query full data from store")]
 	CanceledQueryFullData(#[source] oneshot::Canceled),
 

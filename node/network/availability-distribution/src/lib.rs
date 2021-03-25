@@ -134,7 +134,7 @@ impl AvailabilityDistributionSubsystem {
 					return Ok(());
 				}
 				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(req),
+					msg: AvailabilityDistributionMessage::ChunkFetchingRequest(req),
 				} => {
 					answer_chunk_request_log(&mut ctx, req, &self.metrics).await
 				}
