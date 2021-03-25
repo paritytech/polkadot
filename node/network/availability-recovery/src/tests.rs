@@ -233,7 +233,6 @@ impl TestState {
 					assert_matches!(
 						requests.pop().unwrap(),
 						Requests::ChunkFetching(req) => {
-							println!("responding to chunk request {:?}", req.payload);
 							assert_eq!(req.payload.candidate_hash, candidate_hash);
 
 							let validator_index = req.payload.index.0 as usize;
