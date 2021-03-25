@@ -39,17 +39,20 @@ pub trait IsRequest {
 #[derive(Debug)]
 pub enum Requests {
 	/// Request an availability chunk from a node.
-	AvailabilityFetching(OutgoingRequest<v1::AvailabilityFetchingRequest>),
+	ChunkFetching(OutgoingRequest<v1::ChunkFetchingRequest>),
 	/// Fetch a collation from a collator which previously announced it.
 	CollationFetching(OutgoingRequest<v1::CollationFetchingRequest>),
+	/// Request full available data from a node.
+	AvailableDataFetching(OutgoingRequest<v1::AvailableDataFetchingRequest>),
 }
 
 impl Requests {
 	/// Get the protocol this request conforms to.
 	pub fn get_protocol(&self) -> Protocol {
 		match self {
-			Self::AvailabilityFetching(_) => Protocol::AvailabilityFetching,
+			Self::ChunkFetching(_) => Protocol::ChunkFetching,
 			Self::CollationFetching(_) => Protocol::CollationFetching,
+			Self::AvailableDataFetching(_) => Protocol::AvailableDataFetching,
 		}
 	}
 
@@ -62,8 +65,9 @@ impl Requests {
 	/// contained in the enum.
 	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
 		match self {
-			Self::AvailabilityFetching(r) => r.encode_request(),
+			Self::ChunkFetching(r) => r.encode_request(),
 			Self::CollationFetching(r) => r.encode_request(),
+			Self::AvailableDataFetching(r) => r.encode_request(),
 		}
 	}
 }
@@ -92,6 +96,7 @@ pub struct OutgoingRequest<Req> {
 }
 
 /// Any error that can occur when sending a request.
+#[derive(Debug)]
 pub enum RequestError {
 	/// Response could not be decoded.
 	InvalidResponse(DecodingError),

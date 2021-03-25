@@ -11,12 +11,12 @@ their local availability store.
 ## Protocol
 
 This subsystem has no associated peer set right now, but instead relies on
-a request/response protocol, defined by `Protocol::AvailabilityFetching`.
+a request/response protocol, defined by `Protocol::ChunkFetching`.
 
 Input:
 
 - OverseerSignal::ActiveLeaves(`[ActiveLeavesUpdate]`)
-- AvailabilityDistributionMessage{msg: AvailabilityFetchingRequest}
+- AvailabilityDistributionMessage{msg: ChunkFetchingRequest}
 
 Output:
 
@@ -33,7 +33,7 @@ Output:
 
 This subsystems monitors currently occupied cores for all active leaves. For
 each occupied core it will spawn a task fetching the erasure chunk which has the
-`ValidatorIndex` of the node. For this an `AvailabilityFetchingRequest` is
+`ValidatorIndex` of the node. For this an `ChunkFetchingRequest` is
 issued, via substrate's generic request/response protocol.
 
 The spawned task will start trying to fetch the chunk from validators in
@@ -60,5 +60,5 @@ as we would like as many validators as possible to have their chunk. See this
 ### Serving
 
 On the other side the subsystem will listen for incoming
-`AvailabilityFetchingRequest`s from the network bridge and will respond to
+`ChunkFetchingRequest`s from the network bridge and will respond to
 queries, by looking the requested chunk up in the availability store.
