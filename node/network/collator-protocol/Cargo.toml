@@ -5,17 +5,20 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
+always-assert = "0.1.2"
 futures = "0.3.12"
-tracing = "0.1.25"
-thiserror = "1.0.23"
 futures-timer = "3"
+thiserror = "1.0.23"
+tracing = "0.1.25"
+
+sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
-always-assert = "0.1.2"
 
 [dev-dependencies]
 log = "0.4.13"
