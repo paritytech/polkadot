@@ -128,6 +128,11 @@ impl Requester {
 	{
 		for (leaf, _) in new_heads {
 			let cores = query_occupied_cores(ctx, leaf).await?;
+			tracing::trace!(
+				target: LOG_TARGET,
+				occupied_cores = ?cores,
+				"Query occupied core"
+			);
 			self.add_cores(ctx, leaf, cores).await?;
 		}
 		Ok(())
