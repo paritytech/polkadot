@@ -236,7 +236,7 @@ generate-impl-guide:
   <<:                              *rules-test
   <<:                              *docker-env
   image:
-    name: michaelfbryan/mdbook-docker-image:v0.4.7
+    name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   script:
     - mdbook build roadmap/implementers-guide
@@ -246,7 +246,7 @@ generate-impl-guide:
   image:                           quay.io/buildah/stable
   variables:
     GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
+    DOCKERFILE:                    scripts/docker/Dockerfile
     IMAGE_NAME:                    docker.io/parity/polkadot
     DOCKER_USER:                   ${Docker_Hub_User_Parity}
     DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
@@ -266,7 +266,8 @@ generate-impl-guide:
         --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         --build-arg IMAGE_NAME="${IMAGE_NAME}"
         --tag "$IMAGE_NAME:$VERSION"
-        --tag "$IMAGE_NAME:$EXTRATAG" .
+        --tag "$IMAGE_NAME:$EXTRATAG"
+        --file ${DOCKERFILE} .
     # The job will success only on the protected branch
     - echo "$DOCKER_PASS" |
         buildah login --username "$DOCKER_USER" --password-stdin docker.io
@@ -324,6 +325,7 @@ publish-adder-collator-image:
   <<:                              *build-push-image
   variables:
     # service image for Simnet
+    DOCKERFILE:                    scripts/docker/collator.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
@@ -385,7 +387,7 @@ publish-s3-adder-collator:
   variables:
     PREFIX:                        "rococo/${ARCH}-${DOCKER_OS}"
   needs:
-    - job:                         build-linux-release
+    - job:                         build-adder-collator
       artifacts:                   true
 
 #### stage:                        deploy
