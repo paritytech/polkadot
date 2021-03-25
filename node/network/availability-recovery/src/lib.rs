@@ -411,7 +411,7 @@ impl RequestChunksPhase {
 	}
 }
 
-fn is_unavailable(
+const fn is_unavailable(
 	received_chunks: usize,
 	requesting_chunks: usize,
 	unrequested_validators: usize,
