@@ -78,6 +78,26 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Upgrade a parathread to a parachain
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn sudo_schedule_parathread_upgrade(origin, id: ParaId) -> DispatchResult {
+			ensure_root(origin)?;
+			// Para backend should think this is a parathread...
+			ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
+			runtime_parachains::schedule_parathread_upgrade::<T>(id).map_err(|_| Error::<T>::CannotUpgrade)?;
+			Ok(())
+		}
+
+		/// Downgrade a parachain to a parathread
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn sudo_schedule_parachain_downgrade(origin, id: ParaId) -> DispatchResult {
+			ensure_root(origin)?;
+			// Para backend should think this is a parachain...
+			ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain), Error::<T>::NotParachain);
+			runtime_parachains::schedule_parachain_downgrade::<T>(id).map_err(|_| Error::<T>::CannotDowngrade)?;
+			Ok(())
+		}
+
 		/// Send a downward XCM to the given para.
 		///
 		/// The given parachain should exist and the payload should not exceed the preconfigured size

@@ -168,7 +168,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = 0] // TODO: Benchmarks
 		fn clear_lease(origin,
 			para: ParaId,
 		) -> DispatchResult {
