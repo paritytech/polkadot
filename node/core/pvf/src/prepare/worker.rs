@@ -34,7 +34,7 @@ use std::{sync::Arc, time::Duration};
 const NICENESS_BACKGROUND: i32 = 10;
 const NICENESS_FOREGROUND: i32 = 0;
 
-const COMPILATION_TIMEOUT: Duration = Duration::from_secs(5);
+const COMPILATION_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub async fn spawn(
 	program_path: &Path,
