@@ -46,16 +46,26 @@ use self::messages::AllMessages;
 /// If there are greater than this number of slots, then we fall back to a heap vector.
 const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
+/// Activated leaf.
+pub struct ActivatedLeaf {
+	/// The block hash.
+	pub hash: Hash,
+	/// The block number.
+	pub number: BlockNumber,
+	/// An associated [`jaeger::Span`].
+	///
+	/// NOTE: Each span should only be kept active as long as the leaf is considered active and should be dropped
+	/// when the leaf is deactivated.
+	pub span: Arc<jaeger::Span>,
+}
+
 /// Changes in the set of active leaves: the parachain heads which we care to work on.
 ///
 /// Note that the activated and deactivated fields indicate deltas, not complete sets.
 #[derive(Clone, Default)]
 pub struct ActiveLeavesUpdate {
-	/// New relay chain block hashes of interest and their associated [`jaeger::Span`].
-	///
-	/// NOTE: Each span should only be kept active as long as the leaf is considered active and should be dropped
-	/// when the leaf is deactivated.
-	pub activated: SmallVec<[(Hash, Arc<jaeger::Span>); ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+	/// New relay chain blocks of interest.
+	pub activated: SmallVec<[ActivatedLeaf; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 	/// Relay chain block hashes no longer of interest.
 	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 }
