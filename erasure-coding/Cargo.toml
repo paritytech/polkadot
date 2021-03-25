@@ -8,6 +8,6 @@ edition = "2018"
 primitives = { package = "polkadot-primitives", path = "../primitives" }
 novelpoly = { package = "reed-solomon-novelpoly", version = "=0.0.3" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["std", "derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "a-sync-fix" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "a-sync-fix" }
 thiserror = "1.0.23"
