@@ -384,7 +384,7 @@ impl<T: Config> Module<T> {
 		last_slot: LeasePeriodOf<T>,
 		amount: BalanceOf<T>,
 	) -> DispatchResult {
-		// Ensure para is registered before placing a bid on it
+		// Ensure para is registered before placing a bid on it.
 		ensure!(T::Registrar::is_registered(para), Error::<T>::ParaNotRegistered);
 		// Bidding on latest auction.
 		ensure!(auction_index == AuctionCounter::get(), Error::<T>::NotCurrentAuction);
