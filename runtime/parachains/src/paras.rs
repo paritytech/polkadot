@@ -27,6 +27,7 @@ use sp_std::prelude::*;
 use sp_std::result;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
+use sp_std::collections::btree_set::BTreeSet;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex,
 };
@@ -281,7 +282,7 @@ decl_storage! {
 		/// The actual future code of a para.
 		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// The actions to perform during the start of a specific session index.
-		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
+		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => BTreeSet<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 	}
@@ -527,11 +528,7 @@ impl<T: Config> Module<T> {
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
 		UpcomingParasGenesis::insert(&id, genesis);
-		ActionsQueue::mutate(scheduled_session, |v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
+		ActionsQueue::mutate(scheduled_session, |v| { v.insert(id); });
 
 		Ok(())
 	}
@@ -553,11 +550,7 @@ impl<T: Config> Module<T> {
 			_ => return Err(Error::<T>::CannotOffboard)?,
 		}
 
-		ActionsQueue::mutate(scheduled_session, |v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
+		ActionsQueue::mutate(scheduled_session, |v| { v.insert(id); });
 
 		Ok(())
 	}
@@ -573,11 +566,7 @@ impl<T: Config> Module<T> {
 		ensure!(lifecycle == ParaLifecycle::Parathread, Error::<T>::CannotUpgrade);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::UpgradingParathread);
-		ActionsQueue::mutate(scheduled_session, |v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
+		ActionsQueue::mutate(scheduled_session, |v| { v.insert(id); });
 
 		Ok(())
 	}
@@ -593,11 +582,7 @@ impl<T: Config> Module<T> {
 		ensure!(lifecycle == ParaLifecycle::Parachain, Error::<T>::CannotDowngrade);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::DowngradingParachain);
-		ActionsQueue::mutate(scheduled_session, |v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
+		ActionsQueue::mutate(scheduled_session, |v| { v.insert(id); });
 
 		Ok(())
 	}
@@ -1261,7 +1246,7 @@ mod tests {
 			// Just scheduling cleanup shouldn't change anything.
 			{
 				assert_eq!(
-					<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
+					<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()).into_iter().collect::<Vec<ParaId>>(),
 					vec![para_id],
 				);
 				assert_eq!(Paras::parachains(), vec![para_id]);
@@ -1337,7 +1322,7 @@ mod tests {
 			));
 
 			assert_eq!(
-				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
+				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()).into_iter().collect::<Vec<ParaId>>(),
 				vec![c, b, a],
 			);
 
@@ -1351,7 +1336,7 @@ mod tests {
 
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(
-				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
+				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()).into_iter().collect::<Vec<ParaId>>(),
 				vec![c, b, a],
 			);
 
@@ -1365,7 +1350,7 @@ mod tests {
 			run_to_block(4, Some(vec![3,4]));
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
-			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), Vec::new());
+			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), BTreeSet::new());
 
 			// Lifecycle is tracked correctly
 			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
