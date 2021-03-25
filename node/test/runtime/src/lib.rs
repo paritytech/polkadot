@@ -272,7 +272,7 @@ impl ChainInfo for PolkadotChainInfo {
 
         // assert that fast-track proposal has been passed on chain
         let collective_events = node.events()
-            .iter()
+            .into_iter()
             .filter(|event| {
                 match event.event {
                     Event::pallet_collective_Instance2(pallet_collective::RawEvent::Closed(_, _, _)) |
