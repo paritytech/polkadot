@@ -937,7 +937,7 @@ impl CandidateBackingJob {
 			tx_command: self.background_validation_tx.clone(),
 			candidate: attesting.candidate,
 			relay_parent: self.parent,
-			pov,  
+			pov,
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 			n_validators: self.table_context.validators.len(),
 			span,
