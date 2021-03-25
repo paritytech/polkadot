@@ -19,6 +19,7 @@
 use futures::{FutureExt, channel::{mpsc, oneshot}, future::BoxFuture};
 use lru::LruCache;
 
+use polkadot_subsystem::jaeger;
 use polkadot_node_network_protocol::{
 	PeerId, peer_set::PeerSet,
 	request_response::{OutgoingRequest, Recipient, request::{RequestError, Requests},
@@ -119,7 +120,9 @@ impl PoVRequester {
 				)
 		)).await;
 
-		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), tx).boxed())
+		let span = jaeger::Span::new(candidate_hash, "fetch-pov")
+			.with_validator_index(from_validator);
+		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 			.await
 			.map_err(|e| Error::SpawnTask(e))
 	}
@@ -129,10 +132,11 @@ impl PoVRequester {
 async fn fetch_pov_job(
 	pov_hash: Hash,
 	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
+	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 ) {
 	log_error(
-		do_fetch_pov(pov_hash, pending_response, tx).await,
+		do_fetch_pov(pov_hash, pending_response, span, tx).await,
 		"fetch_pov_job",
 	)
 }
@@ -141,6 +145,7 @@ async fn fetch_pov_job(
 async fn do_fetch_pov(
 	pov_hash: Hash,
 	pending_response: BoxFuture<'static, Result<PoVFetchingResponse, RequestError>>,
+	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 )
 	-> super::Result<()>
