@@ -154,6 +154,8 @@ decl_module! {
 
 		/// Just a hotwire into the `lease_out` call, in case Root wants to force some lease to happen
 		/// independently of any other on-chain mechanism to use it.
+		///
+		/// Can only be called by the Root origin.
 		#[weight = T::WeightInfo::force_lease()]
 		fn force_lease(origin,
 			para: ParaId,
@@ -168,8 +170,11 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Clear all leases for a Para Id, refunding any deposits back to the original owners.
+		///
+		/// Can only be called by the Root origin.
 		#[weight = 0] // TODO: Benchmarks
-		fn clear_lease(origin,
+		fn clear_all_leases(origin,
 			para: ParaId,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -267,6 +272,9 @@ impl<T: Config> Module<T> {
 		)
 	}
 
+	// Return a vector of (user, balance) for all deposits for a parachain.
+	// Useful when trying to clean up a parachain leases, as this would tell
+	// you all the balances you need to unreserve.
 	fn all_deposits_held(para: ParaId) -> Vec<(T::AccountId, BalanceOf<T>)> {
 		let mut tracker = sp_std::collections::btree_map::BTreeMap::new();
 		Leases::<T>::get(para)
@@ -697,7 +705,7 @@ mod tests {
 	}
 
 	#[test]
-	fn clear_lease_works() {
+	fn clear_all_leases_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
@@ -713,7 +721,7 @@ mod tests {
 				assert_eq!(Balances::reserved_balance(j), j * 10);
 			}
 
-			assert_ok!(Slots::clear_lease(Origin::root(), 1.into()));
+			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
 
 			// Balances cleaned up correctly
 			for i in 1u32 ..= max_num {
