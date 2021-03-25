@@ -273,7 +273,7 @@ pub enum AvailabilityDistributionMessage {
 	/// Instruct availability distribution to fetch a remote PoV.
 	///
 	/// NOTE: The result of this fetch is not yet locally validated and could be bogus.
-	FetchPoV{
+	FetchPoV {
 		/// The relay parent giving the necessary context.
 		relay_parent: Hash,
 		/// Validator to fetch the PoV from.

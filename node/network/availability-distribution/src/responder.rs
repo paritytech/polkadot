@@ -35,7 +35,7 @@ pub async fn answer_pov_request_log<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::PoVFetchingRequest>,
 	metrics: &Metrics,
-) -> ()
+)
 where
 	Context: SubsystemContext,
 {

@@ -144,7 +144,7 @@ impl AvailabilityDistributionSubsystem {
 					answer_pov_request_log(&mut ctx, req, &self.metrics).await
 				}
 				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::FetchPoV{
+					msg: AvailabilityDistributionMessage::FetchPoV {
 						relay_parent,
 						from_validator,
 						candidate_hash,

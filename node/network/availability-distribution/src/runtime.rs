@@ -186,7 +186,7 @@ impl Runtime {
 	/// Get our `ValidatorIndex`.
 	///
 	/// Returns: None if we are not a validator.
-	async fn get_our_index(&self, validators: &Vec<ValidatorId>) -> Option<ValidatorIndex> {
+	async fn get_our_index(&self, validators: &[ValidatorId]) -> Option<ValidatorIndex> {
 		for (i, v) in validators.iter().enumerate() {
 			if CryptoStore::has_keys(&*self.keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
 				.await
