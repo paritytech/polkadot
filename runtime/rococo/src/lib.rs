@@ -634,6 +634,7 @@ parameter_types! {
 impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
+	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = ParentHashRandomness;
