@@ -75,6 +75,9 @@ pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 
+use runtime_parachains::initializer as parachains_initializer;
+use runtime_parachains::session_info as parachains_session_info;
+
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
@@ -800,9 +803,9 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
 
 		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Call, Storage} = 27,
-		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 28,
-		MmrLeaf: mmr_common::{Pallet, Storage} = 29,
+		Mmr: pallet_mmr::{Pallet, Call, Storage} = 28,
+		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 29,
+		MmrLeaf: mmr_common::{Pallet, Storage} = 30,
 	}
 }
 
