@@ -66,23 +66,23 @@ runtime_changes = Changelog.changes_with_label(all_changes, 'B7-runtimenoteworth
 
 # Add the audit status for runtime changes
 runtime_changes.each do |c|
-  if c.labels.any? { |l| l[:name] == 'D1-audited 👍' }
+  if c[:labels].any? { |l| l[:name] == 'D1-audited 👍' }
     c[:pretty_title] = "✅ `audited` #{c[:pretty_title]}"
     next
   end
-  if c.labels.any? { |l| l[:name] == 'D2-notlive 💤' }
+  if c[:labels].any? { |l| l[:name] == 'D2-notlive 💤' }
     c[:pretty_title] = "✅ `not live` #{c[:pretty_title]}"
     next
   end
-  if c.labels.any? { |l| l[:name] == 'D3-trivial 🧸' }
+  if c[:labels].any? { |l| l[:name] == 'D3-trivial 🧸' }
     c[:pretty_title] = "✅ `trivial` #{c[:pretty_title]}"
     next
   end
-  if c.labels.any? { |l| l[:name] == 'D5-nicetohaveaudit ⚠️' }
+  if c[:labels].any? { |l| l[:name] == 'D5-nicetohaveaudit ⚠️' }
     c[:pretty_title] = "⏳ `pending non-critical audit` #{c[:pretty_title]}"
     next
   end
-  if c.labels.any? { |l| l[:name] == 'D9-needsaudit 👮' }
+  if c[:labels].any? { |l| l[:name] == 'D9-needsaudit 👮' }
     c[:pretty_title] = "❌ `AWAITING AUDIT` #{c[:pretty_title]}"
     next
   end
