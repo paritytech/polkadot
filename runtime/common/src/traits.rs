@@ -47,7 +47,8 @@ pub trait Registrar {
 		Self::is_parathread(id) || Self::is_parachain(id)
 	}
 
-	// Register a Para ID under control of `who`.
+	/// Register a Para ID under control of `who`. Registration may be be
+	/// delayed by session rotation.
 	fn register(
 		who: Self::AccountId,
 		id: ParaId,
@@ -55,7 +56,7 @@ pub trait Registrar {
 		validation_code: ValidationCode,
 	) -> DispatchResult;
 
-	// Deregister a Para ID, free any data, and return any deposits.
+	/// Deregister a Para ID, free any data, and return any deposits.
 	fn deregister(id: ParaId) -> DispatchResult;
 
 	/// Elevate a para to parachain status.
@@ -70,6 +71,8 @@ pub trait Registrar {
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn worst_validation_code() -> ValidationCode;
 
+	/// Execute any pending state transitions for paras.
+	/// For example onboarding to parathread, or parathread to parachain.
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn execute_pending_transitions();
 }
