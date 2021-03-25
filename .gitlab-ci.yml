@@ -210,7 +210,7 @@ build-adder-collator:
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/release/adder-collator ./artifacts/.
-    - echo -n "${CI_COMMIT_SHORT_SHA}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION # `master` may be used as `latest`
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/docker/* ./artifacts
@@ -265,6 +265,7 @@ generate-impl-guide:
         --format=docker
         --build-arg VCS_REF="${CI_COMMIT_SHA}"
         --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        --build-arg IMAGE_NAME="${IMAGE_NAME}"
         --tag "$IMAGE_NAME:$VERSION"
         --tag "$IMAGE_NAME:$EXTRATAG" .
     # The job will success only on the protected branch

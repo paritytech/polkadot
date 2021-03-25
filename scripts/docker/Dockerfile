@@ -3,10 +3,11 @@ FROM debian:buster-slim
 # metadata
 ARG VCS_REF
 ARG BUILD_DATE
+ARG IMAGE_NAME
 
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
-	io.parity.image.title="parity/polkadot" \
+	io.parity.image.title="${IMAGE_NAME}" \
 	io.parity.image.description="polkadot: a platform for web3" \
 	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/Dockerfile" \
 	io.parity.image.revision="${VCS_REF}" \
