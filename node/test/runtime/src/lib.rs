@@ -161,7 +161,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // fetch proposal hash from event emitted by the runtime
-        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
+        let events = node.events();
         let proposal_hash = events.into_iter()
             .filter_map(|event| match event.event {
                 Event::pallet_democracy(
@@ -186,7 +186,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // fetch proposal index from event emitted by the runtime
-        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
+        let events = node.events();
         let (council_proposal_index, council_proposal_hash) = events.into_iter()
             .filter_map(|event| {
                 match event.event {
@@ -212,7 +212,7 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // assert that proposal has been passed on chain
-        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events())
+        let events = node.events()
             .into_iter()
             .filter(|event| {
                 match event.event {
@@ -240,8 +240,8 @@ impl ChainInfo for PolkadotChainInfo {
         node.submit_extrinsic(proposal, technical_collective[0].clone());
         node.seal_blocks(1);
 
-        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
-        let (technical_proposal_index, technical_proposal_hash) = events.into_iter()
+        let (technical_proposal_index, technical_proposal_hash) = node.events()
+            .into_iter()
             .filter_map(|event| {
                 match event.event {
                     Event::pallet_collective_Instance2(
@@ -271,8 +271,8 @@ impl ChainInfo for PolkadotChainInfo {
         node.seal_blocks(1);
 
         // assert that fast-track proposal has been passed on chain
-        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
-        let collective_events = events.iter()
+        let collective_events = node.events()
+            .iter()
             .filter(|event| {
                 match event.event {
                     Event::pallet_collective_Instance2(pallet_collective::RawEvent::Closed(_, _, _)) |
@@ -309,12 +309,11 @@ impl ChainInfo for PolkadotChainInfo {
         // wait for fast track period.
         node.seal_blocks(FastTrackVotingPeriod::get() as usize);
 
-        // assert that the runtime is upgraded by looking at events
-        let events = node.with_state(|| frame_system::Pallet::<Runtime>::events())
+        // assert that the proposal is passed by looking at events
+        let events = node.events()
             .into_iter()
             .filter(|event| {
                 match event.event {
-                    Event::frame_system(frame_system::Event::CodeUpdated) |
                     Event::pallet_democracy(pallet_democracy::RawEvent::Passed(_)) |
                     Event::pallet_democracy(pallet_democracy::RawEvent::PreimageUsed(_, _, _)) |
                     Event::pallet_democracy(pallet_democracy::RawEvent::Executed(_, true)) => true,
@@ -323,11 +322,8 @@ impl ChainInfo for PolkadotChainInfo {
             })
             .collect::<Vec<_>>();
 
-        // make sure event is in state
-        assert_eq!(events.len(), 4);
-
-        // trigger on_runtime_upgraded
-        node.seal_blocks(1);
+        // make sure all events were emitted
+        assert_eq!(events.len(), 3);
     }
 }
 
