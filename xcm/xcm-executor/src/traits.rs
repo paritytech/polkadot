@@ -93,6 +93,7 @@ impl TransactAsset for Tuple {
 	}
 }
 
+
 pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
 }
