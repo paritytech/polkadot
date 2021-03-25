@@ -25,7 +25,9 @@ use frame_support::{
 };
 use frame_system::ensure_root;
 use runtime_parachains::{
-	configuration, dmp, ump, hrmp, paras::{self, ParaGenesisArgs},
+	configuration, dmp, ump, hrmp,
+	ParaLifecycle,
+	paras::{self, ParaGenesisArgs},
 };
 use primitives::v1::Id as ParaId;
 use parity_scale_codec::Encode;
@@ -49,6 +51,14 @@ decl_error! {
 		DefinitelyNotWasm,
 		/// Could not schedule para cleanup.
 		CouldntCleanup,
+		/// Not a parathread.
+		NotParathread,
+		/// Not a parachain.
+		NotParachain,
+		/// Cannot upgrade parathread.
+		CannotUpgrade,
+		/// Cannot downgrade parachain.
+		CannotDowngrade,
 	}
 }
 
