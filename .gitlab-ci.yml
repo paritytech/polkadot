@@ -184,6 +184,8 @@ build-real-overseer:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
+  variables:
+    RUSTFLAGS:                     "-Cdebug-assertions=y"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"

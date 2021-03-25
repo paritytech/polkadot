@@ -1346,6 +1346,7 @@ mod benchmarking {
 		let head_data = T::Registrar::worst_head_data();
 		let validation_code = T::Registrar::worst_validation_code();
 		assert_ok!(T::Registrar::register(caller.clone(), para_id, head_data, validation_code));
+		T::Registrar::execute_pending_transitions();
 
 		assert_ok!(Crowdloan::<T>::create(
 			RawOrigin::Signed(caller).into(),
