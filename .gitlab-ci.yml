@@ -246,7 +246,8 @@ generate-impl-guide:
   image:                           quay.io/buildah/stable
   variables:
     GIT_STRATEGY:                  none
-    DOCKERFILE:                    scripts/docker/Dockerfile
+    # scripts/docker/Dockerfile
+    DOCKERFILE:                    Dockerfile
     IMAGE_NAME:                    docker.io/parity/polkadot
     DOCKER_USER:                   ${Docker_Hub_User_Parity}
     DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
@@ -321,11 +322,12 @@ publish-real-overseer-image:
       artifacts:                   true
 
 publish-adder-collator-image:
+    # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
   variables:
-    # service image for Simnet
-    DOCKERFILE:                    scripts/docker/collator.Dockerfile
+    # scripts/docker/collator.Dockerfile
+    DOCKERFILE:                    collator.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
