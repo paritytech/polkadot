@@ -157,6 +157,7 @@ async fn construct_availability_bitfield(
 
 	tracing::debug!(
 		target: LOG_TARGET,
+		?relay_parent,
 		"Signing Bitfield for {} cores: {:?}",
 		availability_cores.len(),
 		results,

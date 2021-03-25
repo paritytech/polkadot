@@ -279,7 +279,7 @@ async fn distribute_collation(
 	if !state.view.contains(&relay_parent) {
 		tracing::warn!(
 			target: LOG_TARGET,
-			relay_parent = %relay_parent,
+			?relay_parent,
 			"distribute collation message parent is outside of our view",
 		);
 
@@ -299,7 +299,7 @@ async fn distribute_collation(
 			tracing::warn!(
 				target: LOG_TARGET,
 				para_id = %id,
-				relay_parent = %relay_parent,
+				?relay_parent,
 				"looks like no core is assigned to {} at {}", id, relay_parent,
 			);
 
@@ -451,24 +451,32 @@ async fn advertise_collation(
 
 	match (state.collations.get_mut(&relay_parent), should_advertise) {
 		(None, _) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				relay_parent = ?relay_parent,
+				?relay_parent,
 				peer_id = %peer,
 				"No collation to advertise.",
 			);
 			return
 		},
 		(_, false) => {
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				relay_parent = ?relay_parent,
+				?relay_parent,
 				peer_id = %peer,
 				"Not advertising collation as we already advertised it to this validator.",
 			);
 			return
 		}
-		(Some(collation), true) => collation.status.advance_to_advertised(),
+		(Some(collation), true) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				peer_id = %peer,
+				"Advertising collation.",
+			);
+			collation.status.advance_to_advertised()
+		},
 	}
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent, collating_on);
@@ -505,7 +513,7 @@ async fn process_msg(
 		DistributeCollation(receipt, pov, result_sender) => {
 			let _span1 = state.span_per_relay_parent
 				.get(&receipt.descriptor.relay_parent).map(|s| s.child("distributing-collation"));
-			let _span2 = jaeger::pov_span(&pov, "distributing-collation");
+			let _span2 = jaeger::Span::new(&pov, "distributing-collation");
 			match state.collating_on {
 				Some(id) if receipt.descriptor.para_id != id => {
 					// If the ParaId of a collation requested to be distributed does not match

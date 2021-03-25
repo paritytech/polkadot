@@ -679,7 +679,7 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	tracing::trace!(
+	tracing::debug!(
 		target: LOG_TARGET,
 		?candidate_hash,
 		"Candidate backed",
@@ -716,14 +716,14 @@ fn note_block_included(
 			// Warn and ignore.
 			tracing::warn!(
 				target: LOG_TARGET,
-				"Candidate {}, included without being backed?",
-				candidate_hash,
+				?candidate_hash,
+				"Candidate included without being backed?",
 			);
 		}
 		Some(mut meta) => {
 			let be_block = (BEBlockNumber(block.0), block.1);
 
-			tracing::trace!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				?candidate_hash,
 				"Candidate included",
@@ -1126,8 +1126,8 @@ fn store_available_data(
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"Stored data and chunks for candidate={}",
-		candidate_hash,
+		?candidate_hash,
+		"Stored data and chunks",
 	);
 
 	Ok(())

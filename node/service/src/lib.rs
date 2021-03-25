@@ -709,7 +709,15 @@ pub fn new_full<RuntimeApi, Executor>(
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 	#[cfg(feature = "real-overseer")]
-	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
+	{
+		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
+		let is_authority = if role.is_authority() {
+			IsAuthority::Yes
+		} else {
+			IsAuthority::No
+		};
+		config.network.extra_sets.extend(peer_sets_info(is_authority));
+	}
 
 	// Add a dummy collation set with the intent of printing an error if one tries to connect a
 	// collator to a node that isn't compiled with `--features real-overseer`.

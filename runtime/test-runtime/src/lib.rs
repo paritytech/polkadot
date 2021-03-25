@@ -51,9 +51,7 @@ use runtime_common::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, Perbill, KeyTypeId,
-	transaction_validity::{
-		TransactionValidity, TransactionSource, TransactionPriority,
-	},
+	transaction_validity::{TransactionValidity, TransactionSource},
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, StaticLookup, OpaqueKeys, ConvertInto,
@@ -306,10 +304,6 @@ parameter_types! {
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
-	pub storage ElectionLookahead: BlockNumber = 0;
-	pub storage StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
-	pub storage MaxIterations: u32 = 10;
-	pub MinSolutionScoreBump: Perbill = Perbill::from_rational(5u32, 10_000);
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -337,15 +331,8 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = ();
-	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type ElectionProvider = frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type WeightInfo = ();
-
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -515,7 +502,7 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Pallet, Call, Storage},
-		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
+		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Offences: pallet_offences::{Pallet, Call, Storage, Event},
 		Historical: session_historical::{Pallet},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},

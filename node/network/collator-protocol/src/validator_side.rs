@@ -299,7 +299,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	if !state.view.contains(&relay_parent) {
-		tracing::trace!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			peer_id = %peer_id,
 			para_id = %para_id,
@@ -331,9 +331,8 @@ where
 		from_collator: response_recv.boxed().fuse(),
 		to_requester: result,
 		span: state.span_per_relay_parent.get(&relay_parent).map(|s| {
-			s.child_builder("collation-request")
+			s.child("collation-request")
 				.with_para_id(para_id)
-				.build()
 		}),
 
 	};
@@ -388,6 +387,11 @@ where
 
 	match msg {
 		Declare(id) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				peer_id = ?origin,
+				"Declared as collator",
+			);
 			state.known_collators.insert(origin.clone(), id);
 			state.peer_views.entry(origin).or_default();
 		}
@@ -396,12 +400,22 @@ where
 			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					%para_id,
+					?relay_parent,
+					"Received advertise collation",
+				);
+
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
 			} else {
 				tracing::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
-					"advertise collation received from an unknown collator",
+					%para_id,
+					?relay_parent,
+					"Advertise collation received from an unknown collator",
 				);
 			}
 		}
@@ -688,14 +702,14 @@ where
 					Ok(pov) => {
 						tracing::debug!(
 							target: LOG_TARGET,
-							para_id = ?para_id,
+							para_id = %para_id,
 							hash = ?hash,
 							candidate_hash = ?receipt.hash(),
 							"Received collation",
 						);
 
 						// Actual sending:
-						let _span = jaeger::pov_span(&pov, "received-collation");
+						let _span = jaeger::Span::new(&pov, "received-collation");
 						let (mut tx, _) = oneshot::channel();
 						std::mem::swap(&mut tx, &mut (per_req.to_requester));
 						let result = tx.send((receipt, pov));
@@ -1116,7 +1130,7 @@ mod tests {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 			) => {
 				let req = reqs.into_iter().next()
-					.expect("There should be exactly one request");	
+					.expect("There should be exactly one request");
 				match req {
 					Requests::CollationFetching(req) => {
 						let payload = req.payload;
@@ -1145,7 +1159,7 @@ mod tests {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 			) => {
 				let req = reqs.into_iter().next()
-					.expect("There should be exactly one request");	
+					.expect("There should be exactly one request");
 				match req {
 					Requests::CollationFetching(req) => {
 						let payload = req.payload;
