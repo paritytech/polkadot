@@ -30,7 +30,7 @@ The other parachains modules are initialized in this order:
 1. UMP
 1. HRMP
 
-The [Configuration Module](configuration.md) is first, since all other modules need to operate under the same configuration as each other. Then the [Shared][shared.md] module is invoked, which determines the set of active validators. It would lead to inconsistency if, for example, the scheduler ran first and then the configuration was updated before the Inclusion module.
+The [Configuration Module](configuration.md) is first, since all other modules need to operate under the same configuration as each other. Then the [Shared](shared.md) module is invoked, which determines the set of active validators. It would lead to inconsistency if, for example, the scheduler ran first and then the configuration was updated before the Inclusion module.
 
 Set `HasInitialized` to true.
 
