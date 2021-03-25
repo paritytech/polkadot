@@ -12,6 +12,8 @@ test-runner = { git = "https://github.com/paritytech/substrate", branch = "maste
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }

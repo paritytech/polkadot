@@ -329,6 +329,12 @@ parameter_types! {
 	pub const MinerMaxIterations: u32 = 10;
 }
 
+sp_npos_elections::generate_solution_type!(
+	#[compact]
+	pub struct NposCompactSolution16::<u32, u16, sp_runtime::PerU16>(16)
+	// -------------------- ^^ <NominatorIndex, ValidatorIndex, Accuracy>
+);
+
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -340,7 +346,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
-	type CompactSolution = pallet_staking::CompactAssignments;
+	type CompactSolution = NposCompactSolution16;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = ();
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
@@ -379,6 +385,7 @@ type SlashCancelOrigin = EnsureOneOf<
 >;
 
 impl pallet_staking::Config for Runtime {
+	const MAX_NOMINATIONS: u32 = <NposCompactSolution16 as sp_npos_elections::CompactSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
