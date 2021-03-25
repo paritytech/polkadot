@@ -297,7 +297,7 @@ impl RequestChunksPhase {
 								"Merkle proof mismatch",
 							);
 						} else {
-							tracing::debug!(
+							tracing::trace!(
 								target: LOG_TARGET,
 								?validator_index,
 								"Received valid chunk.",

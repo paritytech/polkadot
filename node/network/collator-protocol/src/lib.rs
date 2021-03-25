@@ -25,20 +25,13 @@ use std::time::Duration;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use thiserror::Error;
 
+use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
+use polkadot_node_subsystem_util::{self as util, metrics::prometheus};
+use polkadot_primitives::v1::CollatorPair;
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
 	errors::RuntimeApiError,
-	messages::{
-		AllMessages, CollatorProtocolMessage, NetworkBridgeMessage,
-	},
-};
-use polkadot_node_network_protocol::{
-	PeerId, UnifiedReputationChange as Rep,
-};
-use polkadot_primitives::v1::CollatorId;
-use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::prometheus,
+	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
+	SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 
 mod collator_side;
@@ -77,7 +70,7 @@ pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
 	Validator(CollatorEvictionPolicy, validator_side::Metrics),
 	/// Collators operate on a parachain.
-	Collator(CollatorId, collator_side::Metrics),
+	Collator(PeerId, CollatorPair, collator_side::Metrics),
 }
 
 /// The collator protocol subsystem.
@@ -107,9 +100,10 @@ impl CollatorProtocolSubsystem {
 				policy,
 				metrics,
 			).await,
-			ProtocolSide::Collator(id, metrics) => collator_side::run(
+			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) => collator_side::run(
 				ctx,
-				id,
+				local_peer_id,
+				collator_pair,
 				metrics,
 			).await,
 		}.map_err(|e| {
