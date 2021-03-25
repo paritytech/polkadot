@@ -609,6 +609,8 @@ impl CandidateBackingJob {
 				}
 			}
 			ValidatedCandidateCommand::Attest(res) => {
+				// We are done - avoid new validation spawns:
+				self.fallbacks.remove(&candidate_hash);
 				// sanity check.
 				if !self.issued_statements.contains(&candidate_hash) {
 					if res.is_ok() {
