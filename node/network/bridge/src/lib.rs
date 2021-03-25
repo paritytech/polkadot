@@ -491,7 +491,7 @@ where
 fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_number: BlockNumber) -> View {
 	View::new(
 		live_heads.rev().take(MAX_VIEW_HEADS),
-		finalized_number
+		finalized_number,
 	)
 }
 
@@ -527,7 +527,7 @@ async fn update_our_view(
 		WireMessage::ViewUpdate(new_view),
 	).await?;
 
-	let our_view = OurView::new(live_heads.iter().cloned(), finalized_number);
+	let our_view = OurView::new(new_view.iter().cloned(), finalized_number);
 
 	dispatch_validation_event_to_all(NetworkBridgeEvent::OurViewChange(our_view.clone()), ctx).await;
 
