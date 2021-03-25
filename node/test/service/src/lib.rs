@@ -24,7 +24,7 @@ pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
-	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
+	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair,
 };
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
@@ -250,12 +250,19 @@ pub fn run_collator_node(
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-	collator_id: CollatorId,
+	collator_pair: CollatorPair,
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		new_full(config, IsCollator::Yes(collator_id)).expect("could not create Polkadot test service");
+	let NewFull {
+		task_manager,
+		client,
+		network,
+		rpc_handlers,
+		overseer_handler,
+		..
+	} = new_full(config, IsCollator::Yes(collator_pair))
+		.expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();

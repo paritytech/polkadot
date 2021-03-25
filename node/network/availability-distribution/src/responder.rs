@@ -74,6 +74,15 @@ where
 
 	let result = chunk.is_some();
 
+	tracing::trace!(
+		target: LOG_TARGET,
+		hash = ?req.payload.candidate_hash,
+		index = ?req.payload.index,
+		peer = ?req.peer,
+		has_data = ?chunk.is_some(),
+		"Serving chunk",
+	);
+
 	let response = match chunk {
 		None => v1::AvailabilityFetchingResponse::NoSuchChunk,
 		Some(chunk) => v1::AvailabilityFetchingResponse::Chunk(chunk.into()),
@@ -99,5 +108,14 @@ where
 	))
 	.await;
 
-	rx.await.map_err(|e| Error::QueryChunkResponseChannel(e))
+	rx.await.map_err(|e| {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?validator_index,
+			?candidate_hash,
+			error = ?e,
+			"Error retrieving chunk",
+		);
+		Error::QueryChunkResponseChannel(e)
+	})
 }

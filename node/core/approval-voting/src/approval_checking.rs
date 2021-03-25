@@ -66,6 +66,8 @@ pub enum Check {
 	Unapproved,
 	/// The candidate is approved, with the given amount of no-shows.
 	Approved(usize),
+	/// The candidate is approved by one third of all validators.
+	ApprovedOneThird,
 }
 
 impl Check {
@@ -74,6 +76,15 @@ impl Check {
 		match *self {
 			Check::Unapproved => false,
 			Check::Approved(_) => true,
+			Check::ApprovedOneThird => true,
+		}
+	}
+
+	/// The number of known no-shows in this computation.
+	pub fn known_no_shows(&self) -> usize {
+		match *self {
+			Check::Approved(n) => n,
+			_ => 0,
 		}
 	}
 }
@@ -84,16 +95,17 @@ pub fn check_approval(
 	approval: &ApprovalEntry,
 	required: RequiredTranches,
 ) -> Check {
+
+	// any set of size f+1 contains at least one honest node. If at least one
+	// honest node approves, the candidate should be approved.
+	let approvals = candidate.approvals();
+	if 3 * approvals.count_ones() > approvals.len() {
+		return Check::ApprovedOneThird;
+	}
+
 	match required {
 		RequiredTranches::Pending { .. } => Check::Unapproved,
-		RequiredTranches::All => {
-			let approvals = candidate.approvals();
-			if 3 * approvals.count_ones() > 2 * approvals.len() {
-				Check::Approved(0)
-			} else {
-				Check::Unapproved
-			}
-		}
+		RequiredTranches::All => Check::Unapproved,
 		RequiredTranches::Exact { needed, tolerated_missing, .. } => {
 			// whether all assigned validators up to `needed` less no_shows have approved.
 			// e.g. if we had 5 tranches and 1 no-show, we would accept all validators in
@@ -411,33 +423,6 @@ mod tests {
 	}
 
 	#[test]
-	fn all_requires_supermajority() {
-		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
-			session: 0,
-			block_assignments: Default::default(),
-			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
-		}.into();
-
-		for i in 0..6 {
-			candidate.mark_approval(ValidatorIndex(i));
-		}
-
-		let approval_entry = approval_db::v1::ApprovalEntry {
-			tranches: Vec::new(),
-			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
-			our_assignment: None,
-			backing_group: GroupIndex(0),
-			approved: false,
-		}.into();
-
-		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::All).is_approved());
-
-		candidate.mark_approval(ValidatorIndex(6));
-		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::All).is_approved());
-	}
-
-	#[test]
 	fn exact_takes_only_assignments_up_to() {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
 			candidate: Default::default(),
@@ -446,7 +431,70 @@ mod tests {
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
 		}.into();
 
-		for i in 0..6 {
+		for i in 0..3 {
+			candidate.mark_approval(ValidatorIndex(i));
+		}
+
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: vec![
+				approval_db::v1::TrancheEntry {
+					tranche: 0,
+					assignments: (0..2).map(|i| (ValidatorIndex(i), 0.into())).collect(),
+				},
+				approval_db::v1::TrancheEntry {
+					tranche: 1,
+					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
+				},
+				approval_db::v1::TrancheEntry {
+					tranche: 2,
+					assignments: (5..10).map(|i| (ValidatorIndex(i), 0.into())).collect(),
+				},
+			],
+			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
+			our_assignment: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		assert!(check_approval(
+			&candidate,
+			&approval_entry,
+			RequiredTranches::Exact {
+				needed: 0,
+				tolerated_missing: 0,
+				next_no_show: None,
+			},
+		).is_approved());
+		assert!(!check_approval(
+			&candidate,
+			&approval_entry,
+			RequiredTranches::Exact {
+				needed: 1,
+				tolerated_missing: 0,
+				next_no_show: None,
+			},
+		).is_approved());
+		assert!(check_approval(
+			&candidate,
+			&approval_entry,
+			RequiredTranches::Exact {
+				needed: 1,
+				tolerated_missing: 2,
+				next_no_show: None,
+			},
+		).is_approved());
+	}
+
+	#[test]
+	fn one_honest_node_always_approves() {
+		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 0,
+			block_assignments: Default::default(),
+			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
+		}.into();
+
+		for i in 0..3 {
 			candidate.mark_approval(ValidatorIndex(i));
 		}
 
@@ -471,32 +519,56 @@ mod tests {
 			approved: false,
 		}.into();
 
-		assert!(check_approval(
-			&candidate,
-			&approval_entry,
-			RequiredTranches::Exact {
-				needed: 1,
-				tolerated_missing: 0,
-				next_no_show: None,
-			},
-		).is_approved());
+		let exact_all = RequiredTranches::Exact {
+			needed: 10,
+			tolerated_missing: 0,
+			next_no_show: None,
+		};
+
+		let pending_all = RequiredTranches::Pending {
+			considered: 5,
+			next_no_show: None,
+			maximum_broadcast: 8,
+			clock_drift: 12,
+		};
+
 		assert!(!check_approval(
 			&candidate,
 			&approval_entry,
-			RequiredTranches::Exact {
-				needed: 2,
-				tolerated_missing: 0,
-				next_no_show: None,
-			},
+			RequiredTranches::All,
 		).is_approved());
+
+		assert!(!check_approval(
+			&candidate,
+			&approval_entry,
+			exact_all.clone(),
+		).is_approved());
+
+		assert!(!check_approval(
+			&candidate,
+			&approval_entry,
+			pending_all.clone(),
+		).is_approved());
+
+		// This creates a set of 4/10 approvals, which is always an approval.
+		candidate.mark_approval(ValidatorIndex(3));
+
 		assert!(check_approval(
 			&candidate,
 			&approval_entry,
-			RequiredTranches::Exact {
-				needed: 2,
-				tolerated_missing: 4,
-				next_no_show: None,
-			},
+			RequiredTranches::All,
+		).is_approved());
+
+		assert!(check_approval(
+			&candidate,
+			&approval_entry,
+			exact_all,
+		).is_approved());
+
+		assert!(check_approval(
+			&candidate,
+			&approval_entry,
+			pending_all,
 		).is_approved());
 	}
 

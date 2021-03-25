@@ -473,7 +473,7 @@ async fn imported_block_info(
 							relay_vrf.clone(),
 							&crate::criteria::Config::from(session_info),
 							included_candidates.iter()
-								.map(|(_, _, core, group)| (*core, *group))
+								.map(|(c_hash, _, core, group)| (*c_hash, *core, *group))
 								.collect(),
 						);
 
@@ -895,7 +895,7 @@ mod tests {
 			_keystore: &LocalKeystore,
 			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 			_config: &criteria::Config,
-			_leaving_cores: Vec<(polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+			_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
 		) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 			HashMap::new()
 		}

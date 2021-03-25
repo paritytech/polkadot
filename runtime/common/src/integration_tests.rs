@@ -183,12 +183,14 @@ impl paras_registrar::Config for Test {
 
 parameter_types! {
 	pub const EndingPeriod: BlockNumber = 10;
+	pub const SampleLength: BlockNumber = 1;
 }
 
 impl auctions::Config for Test {
 	type Event = Event;
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
 	type Randomness = TestRandomness<Self>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::auctions::TestWeightInfo;
@@ -759,7 +761,7 @@ fn basic_swap_works() {
 		assert_eq!(Balances::free_balance(&crowdloan_account), 0);
 
 		// Dissolve returns the balance of the person who put a deposit for crowdloan
-		assert_ok!(Crowdloan::dissolve(Origin::signed(2), ParaId::from(2)));
+		assert_ok!(Crowdloan::dissolve(Origin::signed(1), ParaId::from(2)));
 		assert_eq!(Balances::reserved_balance(&1), 0);
 		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
 
