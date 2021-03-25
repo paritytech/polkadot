@@ -15,31 +15,36 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{collections::{HashMap, HashSet}, sync::Arc, task::Poll};
-
-use futures::{FutureExt, channel::oneshot, future::{Fuse, FusedFuture, BoxFuture}};
+use std::time::{Duration, Instant};
 use always_assert::never;
+use futures::{
+	channel::oneshot, future::{BoxFuture, Either, Fuse, FusedFuture}, FutureExt, StreamExt,
+};
+use futures_timer::Delay;
 
-use polkadot_primitives::v1::{
-	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
-};
-use polkadot_subsystem::{
-	jaeger, PerLeafSpan,
-	FromOverseer, OverseerSignal, SubsystemContext,
-	messages::{
-		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
-		NetworkBridgeEvent, IfDisconnected,
-	},
-};
 use polkadot_node_network_protocol::{
+	request_response as req_res, v1 as protocol_v1,
+	peer_set::PeerSet,
+	request_response::{
+		request::{Recipient, RequestError},
+		v1::{CollationFetchingRequest, CollationFetchingResponse},
+		OutgoingRequest, Requests,
+	},
 	OurView, PeerId, UnifiedReputationChange as Rep, View,
-	request_response::{OutgoingRequest, Requests, request::{Recipient, RequestError}}, v1 as protocol_v1
 };
-use polkadot_node_network_protocol::request_response::v1::{CollationFetchingRequest, CollationFetchingResponse};
-use polkadot_node_network_protocol::request_response as req_res;
+use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_node_primitives::{Statement, SignedFullStatement};
+use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use polkadot_subsystem::{
+	jaeger,
+	messages::{
+		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, IfDisconnected,
+		NetworkBridgeEvent, NetworkBridgeMessage,
+	},
+	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
+};
 
-use super::{modify_reputation, LOG_TARGET, Result};
+use super::{modify_reputation, Result, LOG_TARGET};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 /// Message could not be decoded properly.
@@ -47,12 +52,19 @@ const COST_CORRUPTED_MESSAGE: Rep = Rep::CostMinor("Message was corrupt");
 /// Network errors that originated at the remote host should have same cost as timeout.
 const COST_NETWORK_ERROR: Rep = Rep::CostMinor("Some network error");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has timed out");
-const COST_REPORT_BAD: Rep = Rep::CostMajor("A collator was reported by another subsystem");
+const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Invalid network message signature");
+const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
+
+// How often to check all peers with activity.
+#[cfg(not(test))]
+const ACTIVITY_POLL: Duration = Duration::from_secs(1);
+
+#[cfg(test)]
+const ACTIVITY_POLL: Duration = Duration::from_millis(10);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
-
 
 impl Metrics {
 	fn on_request(&self, succeeded: std::result::Result<(), ()>) {
@@ -130,14 +142,42 @@ struct PerRequest {
 	span: Option<jaeger::Span>,
 }
 
+struct PeerData {
+	view: View,
+	last_active: Instant,
+}
+
+impl PeerData {
+	fn new(view: View) -> Self {
+		PeerData {
+			view,
+			last_active: Instant::now(),
+		}
+	}
+
+	fn note_active(&mut self) {
+		self.last_active = Instant::now();
+	}
+
+	fn active_since(&self, instant: Instant) -> bool {
+		self.last_active >= instant
+	}
+}
+
+impl Default for PeerData {
+	fn default() -> Self {
+		PeerData::new(Default::default())
+	}
+}
+
 /// All state relevant for the validator side of the protocol lives here.
 #[derive(Default)]
 struct State {
 	/// Our own view.
 	view: OurView,
 
-	/// Track all active collators and their views.
-	peer_views: HashMap<PeerId, View>,
+	/// Track all active collators and their data.
+	peer_data: HashMap<PeerId, PeerData>,
 
 	/// Peers that have declared themselves as collators.
 	known_collators: HashMap<PeerId, CollatorId>,
@@ -263,18 +303,18 @@ async fn handle_peer_view_change(
 	peer_id: PeerId,
 	view: View,
 ) -> Result<()> {
-	let current = state.peer_views.entry(peer_id.clone()).or_default();
+	let current = state.peer_data.entry(peer_id.clone()).or_default();
 
-	let removed: Vec<_> = current.difference(&view).cloned().collect();
+	let removed: Vec<_> = current.view.difference(&view).cloned().collect();
 
-	*current = view;
+	current.view = view;
 
 	if let Some(advertisements) = state.advertisements.get_mut(&peer_id) {
 		advertisements.retain(|(_, relay_parent)| !removed.contains(relay_parent));
 	}
 
 	for removed in removed.into_iter() {
-		state.requested_collations.retain(|k, _| k.0 != removed);
+		state.requested_collations.retain(|k, _| k.0 != removed || k.2 != peer_id);
 	}
 
 	Ok(())
@@ -384,20 +424,57 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	use protocol_v1::CollatorProtocolMessage::*;
+	use sp_runtime::traits::AppVerify;
+
+	if let Some(d) = state.peer_data.get_mut(&origin) {
+		d.note_active();
+	}
 
 	match msg {
-		Declare(id) => {
+		Declare(id, signature) => {
+			if !signature.verify(&*protocol_v1::declare_signature_payload(&origin), &id) {
+				modify_reputation(ctx, origin, COST_INVALID_SIGNATURE).await;
+				return;
+			}
+
 			tracing::debug!(
 				target: LOG_TARGET,
 				peer_id = ?origin,
 				"Declared as collator",
 			);
-			state.known_collators.insert(origin.clone(), id);
-			state.peer_views.entry(origin).or_default();
+
+			if state.known_collators.insert(origin.clone(), id).is_some() {
+				modify_reputation(ctx, origin.clone(), COST_UNEXPECTED_MESSAGE).await;
+			}
 		}
 		AdvertiseCollation(relay_parent, para_id) => {
 			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
-			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
+
+			if !state.view.contains(&relay_parent) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					%para_id,
+					?relay_parent,
+					"Advertise collation out of view",
+				);
+
+				modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
+				return;
+			}
+
+			if !state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent)) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					%para_id,
+					?relay_parent,
+					"Multiple collations for same relay-parent advertised",
+				);
+
+				modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
+				return;
+			}
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				tracing::debug!(
@@ -488,13 +565,12 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(_id, _role) => {
-			// A peer has connected. Until it issues a `Declare` message we do not
-			// want to track it's view or take any other actions.
+		PeerConnected(peer_id, _role) => {
+			state.peer_data.entry(peer_id).or_default();
 		},
 		PeerDisconnected(peer_id) => {
 			state.known_collators.remove(&peer_id);
-			state.peer_views.remove(&peer_id);
+			state.peer_data.remove(&peer_id);
 		},
 		PeerViewChange(peer_id, view) => {
 			handle_peer_view_change(state, peer_id, view).await?;
@@ -573,14 +649,26 @@ where
 	}
 }
 
+// wait until next inactivity check. returns the instant for the following check.
+async fn wait_until_next_check(last_poll: Instant) -> Instant {
+	let now = Instant::now();
+	let next_poll = last_poll + ACTIVITY_POLL;
+
+	if next_poll > now {
+		Delay::new(next_poll - now).await
+	}
+
+	Instant::now()
+}
+
 /// The main run loop.
 #[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
+	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
-	) -> Result<()>
-where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
+) -> Result<()>
+	where Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	use FromOverseer::*;
 	use OverseerSignal::*;
@@ -590,23 +678,50 @@ where
 		..Default::default()
 	};
 
-	loop {
-		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
-			let msg = msg?;
-			tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
+	let next_inactivity_stream = futures::stream::unfold(
+		Instant::now() + ACTIVITY_POLL,
+		|next_check| async move { Some(((), wait_until_next_check(next_check).await)) }
+	).fuse();
 
-			match msg {
-				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
-				Signal(BlockFinalized(..)) => {}
-				Signal(ActiveLeaves(_)) => {}
-				Signal(Conclude) => { break }
+	futures::pin_mut!(next_inactivity_stream);
+
+	loop {
+		let res = {
+			let s = futures::future::select(ctx.recv().fuse(), next_inactivity_stream.next().fuse());
+
+			if let Poll::Ready(res) = futures::poll!(s) {
+				Some(match res {
+					Either::Left((msg, _)) => Either::Left(msg?),
+					Either::Right((_, _)) => Either::Right(()),
+				})
+			} else {
+				None
 			}
-			continue;
+		};
+
+		match res {
+			Some(Either::Left(msg)) => {
+				tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
+
+				match msg {
+					Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
+					Signal(BlockFinalized(..)) => {}
+					Signal(ActiveLeaves(_)) => {}
+					Signal(Conclude) => { break }
+				}
+
+				continue
+			}
+			Some(Either::Right(())) => {
+				disconnect_inactive_peers(&mut ctx, eviction_policy, &state.peer_data).await;
+				continue
+			}
+			None => {}
 		}
 
 		let mut retained_requested = HashSet::new();
 		for ((hash, para_id, peer_id), per_req) in state.requested_collations.iter_mut() {
-			// Despite the await, this won't block:
+			// Despite the await, this won't block on the response itself.
 			let finished = poll_collation_response(
 				&mut ctx, &state.metrics, &state.span_per_relay_parent,
 				hash, para_id, peer_id, per_req
@@ -619,6 +734,28 @@ where
 		futures::pending!();
 	}
 	Ok(())
+}
+
+// This issues `NetworkBridge` notifications to disconnect from all inactive peers at the
+// earliest possible point. This does not yet clean up any metadata, as that will be done upon
+// receipt of the `PeerDisconnected` event.
+async fn disconnect_inactive_peers(
+	ctx: &mut impl SubsystemContext,
+	eviction_policy: crate::CollatorEvictionPolicy,
+	peers: &HashMap<PeerId, PeerData>,
+) {
+	let cutoff = match Instant::now().checked_sub(eviction_policy.0) {
+		None => return,
+		Some(i) => i,
+	};
+
+	for (peer, peer_data) in peers {
+		if !peer_data.active_since(cutoff) {
+			ctx.send_message(
+				NetworkBridgeMessage::DisconnectPeer(peer.clone(), PeerSet::Collation).into()
+			).await;
+		}
+	}
 }
 
 /// Poll collation response, return immediately if there is none.
@@ -761,9 +898,11 @@ mod tests {
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
-	use polkadot_node_network_protocol::{our_view,
+	use polkadot_node_network_protocol::{our_view, ObservedRole,
 		request_response::Requests
 	};
+
+	const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(50);
 
 	#[derive(Clone)]
 	struct TestState {
@@ -813,7 +952,11 @@ mod tests {
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = run(context, Metrics::default());
+		let subsystem = run(
+			context,
+			crate::CollatorEvictionPolicy(ACTIVITY_TIMEOUT),
+			Metrics::default(),
+		);
 
 		let test_fut = test(TestHarness { virtual_overseer });
 
@@ -823,7 +966,7 @@ mod tests {
 		executor::block_on(future::select(test_fut, subsystem));
 	}
 
-	const TIMEOUT: Duration = Duration::from_millis(100);
+	const TIMEOUT: Duration = Duration::from_millis(200);
 
 	async fn overseer_send(
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
@@ -880,7 +1023,6 @@ mod tests {
 				)
 			).await;
 
-
 			let peer_b = PeerId::random();
 
 			overseer_send(
@@ -888,7 +1030,10 @@ mod tests {
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
-						protocol_v1::CollatorProtocolMessage::Declare(pair.public()),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							pair.public(),
+							pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
 					)
 				)
 			).await;
@@ -948,6 +1093,7 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
 						),
 					)
 				)
@@ -960,6 +1106,7 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
+							test_state.collators[1].sign(&protocol_v1::declare_signature_payload(&peer_c)),
 						),
 					)
 				)
@@ -992,6 +1139,44 @@ mod tests {
 				) => {
 					assert_eq!(peer, peer_c);
 					assert_eq!(rep, BENEFIT_NOTIFY_GOOD);
+				}
+			);
+		});
+	}
+
+	// Test that we verify the signatures on `Declare` and `AdvertiseCollation` messages.
+	#[test]
+	fn collator_authentication_verification_works() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer_b = PeerId::random();
+
+			// the peer sends a declare message but sign the wrong payload
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					protocol_v1::CollatorProtocolMessage::Declare(
+						test_state.collators[0].public(),
+						test_state.collators[0].sign(&[42]),
+					),
+				)),
+			)
+			.await;
+
+			// it should be reported for sending a message with an invalid signature
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep),
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_INVALID_SIGNATURE);
 				}
 			);
 		});
@@ -1032,6 +1217,7 @@ mod tests {
 						peer_b.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[0].public(),
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
 						)
 					)
 				)
@@ -1044,6 +1230,7 @@ mod tests {
 						peer_c.clone(),
 						protocol_v1::CollatorProtocolMessage::Declare(
 							test_state.collators[1].public(),
+							test_state.collators[1].sign(&protocol_v1::declare_signature_payload(&peer_c)),
 						)
 					)
 				)
@@ -1189,6 +1376,216 @@ mod tests {
 
 			assert_eq!(collation_0.0, candidate_a);
 			assert_eq!(collation_1.0, candidate_b);
+		});
+	}
+
+	#[test]
+	fn inactive_disconnected() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			let pair = CollatorPair::generate().0;
+			tracing::trace!("activating");
+
+			let hash_a = test_state.relay_parent;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::OurViewChange(our_view![hash_a])
+				)
+			).await;
+
+
+			let peer_b = PeerId::random();
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							pair.public(),
+							pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							test_state.relay_parent,
+							test_state.chain_ids[0],
+						)
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateSelection(CandidateSelectionMessage::Collation(
+					relay_parent,
+					para_id,
+					collator,
+				)
+			) => {
+				assert_eq!(relay_parent, test_state.relay_parent);
+				assert_eq!(para_id, test_state.chain_ids[0]);
+				assert_eq!(collator, pair.public());
+			});
+
+			Delay::new(ACTIVITY_TIMEOUT * 2).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+					peer,
+					peer_set,
+				)) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(peer_set, PeerSet::Collation);
+				}
+			)
+		});
+	}
+
+	#[test]
+	fn activity_extends_life() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			let pair = CollatorPair::generate().0;
+			tracing::trace!("activating");
+
+			let hash_a = test_state.relay_parent;
+			let hash_b = Hash::repeat_byte(1);
+			let hash_c = Hash::repeat_byte(2);
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::OurViewChange(our_view![hash_a, hash_b, hash_c])
+				)
+			).await;
+
+
+			let peer_b = PeerId::random();
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+					)
+				)
+			).await;
+
+			Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							pair.public(),
+							pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
+					)
+				)
+			).await;
+
+			Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							test_state.relay_parent,
+							test_state.chain_ids[0],
+						)
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateSelection(CandidateSelectionMessage::Collation(
+					relay_parent,
+					para_id,
+					collator,
+				)
+			) => {
+				assert_eq!(relay_parent, test_state.relay_parent);
+				assert_eq!(para_id, test_state.chain_ids[0]);
+				assert_eq!(collator, pair.public());
+			});
+
+			Delay::new(ACTIVITY_TIMEOUT * 2 / 3).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							hash_b,
+							test_state.chain_ids[1],
+						)
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateSelection(CandidateSelectionMessage::Collation(
+					relay_parent,
+					para_id,
+					collator,
+				)
+			) => {
+				assert_eq!(relay_parent, hash_b);
+				assert_eq!(para_id, test_state.chain_ids[1]);
+				assert_eq!(collator, pair.public());
+			});
+
+			Delay::new(ACTIVITY_TIMEOUT * 3 / 2).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+					peer,
+					peer_set,
+				)) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(peer_set, PeerSet::Collation);
+				}
+			)
 		});
 	}
 }

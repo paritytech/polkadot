@@ -230,6 +230,13 @@ async fn notify_all_we_are_awaiting(
 
 	let payload = awaiting_message(relay_parent, vec![pov_hash]);
 
+	tracing::trace!(
+		target: LOG_TARGET,
+		peers = ?peers_to_send,
+		?relay_parent,
+		?pov_hash,
+		"Sending awaiting message",
+	);
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
 		payload,
@@ -255,6 +262,13 @@ async fn notify_one_we_are_awaiting_many(
 		return;
 	}
 
+	tracing::trace!(
+		target: LOG_TARGET,
+		?peer,
+		?relay_parent,
+		?awaiting_hashes,
+		"Sending awaiting message",
+	);
 	let payload = awaiting_message(relay_parent, awaiting_hashes);
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
@@ -286,6 +300,13 @@ async fn distribute_to_awaiting(
 		}))
 		.collect();
 
+	tracing::trace!(
+		target: LOG_TARGET,
+		peers = ?peers_to_send,
+		?relay_parent,
+		?pov_hash,
+		"Sending PoV message",
+	);
 	if peers_to_send.is_empty() { return; }
 
 	let payload = send_pov_message(relay_parent, pov_hash, pov);
@@ -313,7 +334,12 @@ async fn connect_to_relevant_validators(
 		// so here we take this shortcut to avoid calling `connect_to_validators`
 		// more than once.
 		if !connection_requests.contains_request(&relay_parent, para_id) {
-			tracing::debug!(target: LOG_TARGET, validators=?relevant_validators, "connecting to validators");
+			tracing::debug!(
+				target: LOG_TARGET,
+				validators=?relevant_validators,
+				?relay_parent,
+				"connecting to validators"
+			);
 			match validator_discovery::connect_to_validators(
 				ctx,
 				relay_parent,
@@ -441,6 +467,7 @@ async fn handle_fetch(
 
 	if relay_parent_state.fetching.len() > 2 * relay_parent_state.n_validators {
 		tracing::warn!(
+			target = LOG_TARGET,
 			relay_parent_state.fetching.len = relay_parent_state.fetching.len(),
 			"other subsystems have requested PoV distribution to fetch more PoVs than reasonably expected",
 		);
@@ -528,13 +555,32 @@ async fn handle_awaiting(
 	pov_hashes: Vec<Hash>,
 ) {
 	if !state.our_view.contains(&relay_parent) {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?peer,
+			?relay_parent,
+			?pov_hashes,
+			"Received awaiting message for unknown block",
+		);
 		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await;
 		return;
 	}
+	tracing::trace!(
+		target: LOG_TARGET,
+		?peer,
+		?relay_parent,
+		?pov_hashes,
+		"Received awaiting message",
+	);
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => {
-			tracing::warn!("PoV Distribution relay parent state out-of-sync with our view");
+			tracing::warn!(
+				target: LOG_TARGET,
+				?peer,
+				?relay_parent,
+				"PoV Distribution relay parent state out-of-sync with our view"
+			);
 			return;
 		}
 		Some(s) => s,
@@ -556,6 +602,13 @@ async fn handle_awaiting(
 			// For all requested PoV hashes, if we have it, we complete the request immediately.
 			// Otherwise, we note that the peer is awaiting the PoV.
 			if let Some((_, ref pov)) = relay_parent_state.known.get(&pov_hash) {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer,
+					?relay_parent,
+					?pov_hash,
+					"Sending awaited PoV message",
+				);
 				let payload = send_pov_message(relay_parent, pov_hash, pov);
 
 				ctx.send_message(AllMessages::NetworkBridge(
@@ -566,6 +619,12 @@ async fn handle_awaiting(
 			}
 		}
 	} else {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?peer,
+			?relay_parent,
+			"Too many PoV requests",
+		);
 		report_peer(ctx, peer, COST_APPARENT_FLOOD).await;
 	}
 }
@@ -584,6 +643,13 @@ async fn handle_incoming_pov(
 ) {
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?relay_parent,
+				?pov_hash,
+				"Unexpected PoV",
+			);
 			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
 			return;
 		},
@@ -606,6 +672,13 @@ async fn handle_incoming_pov(
 		// Do validity checks and complete all senders awaiting this PoV.
 		let fetching = match relay_parent_state.fetching.get_mut(&pov_hash) {
 			None => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?peer,
+					?relay_parent,
+					?pov_hash,
+					"Unexpected PoV",
+				);
 				report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
 				return;
 			}
@@ -614,6 +687,14 @@ async fn handle_incoming_pov(
 
 		let hash = pov.hash();
 		if hash != pov_hash {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?relay_parent,
+				?pov_hash,
+				?hash,
+				"Mismatched PoV",
+			);
 			report_peer(ctx, peer, COST_UNEXPECTED_POV).await;
 			return;
 		}
@@ -636,6 +717,13 @@ async fn handle_incoming_pov(
 		pov
 	};
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		?peer,
+		?relay_parent,
+		?pov_hash,
+		"Received PoV",
+	);
 	// make sure we don't consider this peer as awaiting that PoV anymore.
 	if let Some(peer_state) = state.peer_state.get_mut(&peer) {
 		peer_state.awaited.remove(&pov_hash);
@@ -669,13 +757,30 @@ async fn handle_network_update(
 	let _timer = state.metrics.time_handle_network_update();
 
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
+		NetworkBridgeEvent::PeerConnected(peer, role) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?role,
+				"Peer connected",
+			);
 			handle_validator_connected(state, peer);
 		}
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				"Peer disconnected",
+			);
 			state.peer_state.remove(&peer);
 		}
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				?view,
+				"Peer view change",
+			);
 			if let Some(peer_state) = state.peer_state.get_mut(&peer_id) {
 				// prune anything not in the new view.
 				peer_state.awaited.retain(|relay_parent, _| view.contains(&relay_parent));
@@ -719,6 +824,10 @@ async fn handle_network_update(
 			}
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Own view change",
+			);
 			state.our_view = view;
 		}
 	}
