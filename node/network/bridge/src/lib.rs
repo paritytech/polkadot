@@ -1306,7 +1306,8 @@ mod tests {
 			// peer A gets reported for sending a collation message.
 
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
-				Sr25519Keyring::Alice.public().into()
+				Sr25519Keyring::Alice.public().into(),
+				Default::default(),
 			);
 
 			let message = protocol_v1::CollationProtocol::CollatorProtocol(
@@ -1572,7 +1573,8 @@ mod tests {
 
 			{
 				let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
-					Sr25519Keyring::Alice.public().into()
+					Sr25519Keyring::Alice.public().into(),
+					Default::default(),
 				);
 
 				let message = protocol_v1::CollationProtocol::CollatorProtocol(

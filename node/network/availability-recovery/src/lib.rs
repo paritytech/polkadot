@@ -395,7 +395,7 @@ impl RequestChunksPhase {
 								COST_MERKLE_PROOF_INVALID,
 							)).await?;
 						} else {
-							tracing::debug!(
+							tracing::trace!(
 								target: LOG_TARGET,
 								validator = ?peer_id,
 								?validator_index,

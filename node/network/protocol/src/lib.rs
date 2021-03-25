@@ -288,14 +288,20 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{AvailableData, CandidateHash, CandidateIndex, CollatorId, CompressedPoV, ErasureChunk, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
-	use polkadot_node_primitives::{
-		SignedFullStatement,
-		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
-	};
-	use parity_scale_codec::{Encode, Decode};
-	use super::RequestId;
 	use std::convert::TryFrom;
+
+	use parity_scale_codec::{Decode, Encode};
+
+	use super::RequestId;
+	use polkadot_node_primitives::{
+		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+		SignedFullStatement,
+	};
+	use polkadot_primitives::v1::{
+		AvailableData, CandidateHash, CandidateIndex, CollatorId, CompressedPoV,
+		CollatorSignature, ErasureChunk, Hash, Id as ParaId, SignedAvailabilityBitfield,
+		ValidatorIndex,
+	};
 
 	/// Network messages used by the availability recovery subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -357,11 +363,12 @@ pub mod v1 {
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
-		/// Declare the intent to advertise collations under a collator ID.
+		/// Declare the intent to advertise collations under a collator ID, attaching a
+		/// signature of the `PeerId` of the node using the given collator ID key.
 		#[codec(index = 0)]
-		Declare(CollatorId),
-		/// Advertise a collation to a validator. Can only be sent once the peer has declared
-		/// that they are a collator with given ID.
+		Declare(CollatorId, CollatorSignature),
+		/// Advertise a collation to a validator. Can only be sent once the peer has
+		/// declared that they are a collator with given ID.
 		#[codec(index = 1)]
 		AdvertiseCollation(Hash, ParaId),
 		/// A collation sent to a validator was seconded.
@@ -404,4 +411,14 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
+
+	/// Get the payload that should be signed and included in a `Declare` message.
+	///
+	/// The payload is the local peer id of the node, which serves to prove that it
+	/// controls the collator key it is declaring an intention to collate under.
+	pub fn declare_signature_payload(peer_id: &sc_network::PeerId) -> Vec<u8> {
+		let mut payload = peer_id.to_bytes();
+		payload.extend_from_slice(b"COLL");
+		payload
+	}
 }

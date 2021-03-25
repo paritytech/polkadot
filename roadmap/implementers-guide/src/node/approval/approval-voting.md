@@ -360,8 +360,9 @@ Likewise, when considering how many tranches to take, the no-show depth should b
 #### Check Approval
   * Check whether a candidate is approved under a particular block.
   * Requires `(block_entry, candidate_entry, approval_entry, n_tranches)`
+  * If we have `3 * n_approvals > n_validators`, return true. This is because any set with f+1 validators must have at least one honest validator, who has approved the candidate.
   * If `n_tranches` is `RequiredTranches::Pending`, return false
-  * If `n_tranches` is `RequiredTranches::All`,  then we return `3 * n_approvals > 2 * n_validators`.
+  * If `n_tranches` is `RequiredTranches::All`, return false.
   * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved. e.g. if we had 5 tranches and 1 tolerated missing, we would accept only if all but 1 of assigned validators in tranches 0..=5 have approved. In that example, we also accept all validators in tranches 0..=5 having approved, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. `tolerated_missing` actually represents covered no-shows. If there are more missing approvals than there are tolerated missing, that indicates that there are some assignments which are not yet no-shows, but may become no-shows, and we should wait for the validators to either approve or become no-shows.
 
 ### Time
