@@ -337,7 +337,7 @@ mod tests {
     use test_runner::NodeConfig;
     use log::LevelFilter;
     use sc_client_api::execution_extensions::ExecutionStrategies;
-    use polkadot_service::chain_spec::polkadot_config;
+    use polkadot_service::chain_spec::polkadot_development_config;
     use sp_runtime::{MultiSigner, traits::IdentifyAccount};
 
     #[test]
@@ -350,7 +350,9 @@ mod tests {
                 offchain_worker: sc_client_api::ExecutionStrategy::AlwaysWasm,
                 other: sc_client_api::ExecutionStrategy::AlwaysWasm,
             },
-            chain_spec: Box::new(polkadot_config().unwrap()),
+            // NOTE: when we have the polkadot db on CI we can change this to the
+            // actual polkadot chain spec
+            chain_spec: Box::new(polkadot_development_config().unwrap()),
             log_targets: vec![
                 ("yamux", LevelFilter::Off),
                 ("multistream_select", LevelFilter::Off),
