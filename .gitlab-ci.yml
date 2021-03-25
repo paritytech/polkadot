@@ -209,7 +209,7 @@ build-adder-collator:
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/release/adder-collator ./artifacts/.
-    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION # `master` may be used as `latest`
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/docker/* ./artifacts
@@ -236,7 +236,7 @@ generate-impl-guide:
   <<:                              *rules-test
   <<:                              *docker-env
   image:
-    name: michaelfbryan/mdbook-docker-image:v0.4.4
+    name: michaelfbryan/mdbook-docker-image:v0.4.7
     entrypoint: [""]
   script:
     - mdbook build roadmap/implementers-guide
@@ -274,10 +274,10 @@ generate-impl-guide:
     - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
   after_script:
+    - buildah logout "$IMAGE_NAME"
     # pass artifacts to the trigger-simnet job
     - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env
     - echo "IMAGE_TAG=${EXTRATAG}" >> build.env
-    - buildah logout "$IMAGE_NAME"
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
@@ -333,7 +333,7 @@ publish-adder-collator-image:
       artifacts:                   true
   after_script:
     - buildah logout "$IMAGE_NAME"
-    - echo "COLLATOR_IMAGE_TAG=${EXTRATAG}" >> collator.env
+    - echo "COLLATOR_IMAGE_TAG=${EXTRATAG}" > collator.env
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
@@ -416,7 +416,9 @@ trigger-simnet:
     - job:                         publish-real-overseer-image
     - job:                         publish-adder-collator-image
   # `build.env` is taken by the triggered job from `publish-polkadot-image` job with
-  # an exact `$VERSION` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`)
+  # an exact `$IMAGE_TAG` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
+  # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
+  # can be called by `master` tag.
   # Simnet uses an image published on PRs with this exact version for triggered runs
   # on commits. And parity/rococo:rococo-v1 for runs not launched by this job.
   trigger:
