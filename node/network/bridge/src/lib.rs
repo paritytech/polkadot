@@ -692,7 +692,7 @@ mod tests {
 
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 
-	use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
+	use polkadot_subsystem::{jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 	use polkadot_subsystem::messages::{
 		ApprovalDistributionMessage,
 		BitfieldDistributionMessage,
@@ -1653,5 +1653,53 @@ mod tests {
 			}
 		}
 		assert_eq!(cnt, EXPECTED_COUNT);
+	}
+
+	#[test]
+	fn our_view_updates_decreasing_order_and_limited_to_max() {
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+				..
+			} = test_harness;
+
+
+			// to show that we're still connected on the collation protocol, send a view update.
+
+			let hashes = (0..MAX_VIEW_HEADS * 3).map(|i| Hash::repeat_byte(i as u8));
+
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					// These are in reverse order, so the subsystem must sort internally to
+					// get the correct view.
+					ActiveLeavesUpdate {
+						activated: hashes.enumerate().map(|(i, h)| ActivatedLeaf {
+							hash: h,
+							number: i as _,
+							span: Arc::new(jaeger::Span::Disabled),
+						}).rev().collect(),
+						deactivated: Default::default(),
+					}
+				))
+			).await;
+
+			let view_heads = (MAX_VIEW_HEADS * 3 - MAX_VIEW_HEADS .. MAX_VIEW_HEADS * 3).rev()
+				.map(|i| (Hash::repeat_byte(i as u8), Arc::new(jaeger::Span::Disabled)) );
+
+			let our_view = OurView::new(
+				view_heads,
+				0,
+			);
+
+			assert_sends_validation_event_to_all(
+				NetworkBridgeEvent::OurViewChange(our_view.clone()),
+				&mut virtual_overseer,
+			).await;
+
+			assert_sends_collation_event_to_all(
+				NetworkBridgeEvent::OurViewChange(our_view),
+				&mut virtual_overseer,
+			).await;
+		});
 	}
 }
