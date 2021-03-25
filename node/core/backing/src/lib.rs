@@ -102,7 +102,7 @@ enum PoVData {
 	FetchFromValidator {
 		from_validator: ValidatorIndex,
 		candidate_hash: CandidateHash,
-		pov_hash:Hash,
+		pov_hash: Hash,
 	},
 }
 
@@ -111,6 +111,8 @@ enum ValidatedCandidateCommand {
 	Second(BackgroundValidationResult),
 	// We were instructed to validate the candidate.
 	Attest(BackgroundValidationResult),
+	// We were not able to `Attest` because backing validator did not send us the PoV.
+	AttestNoPoV(CandidateHash),
 }
 
 impl std::fmt::Debug for ValidatedCandidateCommand {
@@ -120,6 +122,8 @@ impl std::fmt::Debug for ValidatedCandidateCommand {
 			ValidatedCandidateCommand::Second(_) =>
 				write!(f, "Second({})", candidate_hash),
 			ValidatedCandidateCommand::Attest(_) =>
+				write!(f, "Attest({})", candidate_hash),
+			ValidatedCandidateCommand::AttestNoPoV(_) =>
 				write!(f, "Attest({})", candidate_hash),
 		}
 	}
@@ -132,6 +136,7 @@ impl ValidatedCandidateCommand {
 			ValidatedCandidateCommand::Second(Err(ref candidate)) => candidate.hash(),
 			ValidatedCandidateCommand::Attest(Ok((ref candidate, _, _))) => candidate.hash(),
 			ValidatedCandidateCommand::Attest(Err(ref candidate)) => candidate.hash(),
+			ValidatedCandidateCommand::AttestNoPoV(candidate_hash) => candidate_hash,
 		}
 	}
 }
@@ -152,6 +157,8 @@ struct CandidateBackingJob {
 	issued_statements: HashSet<CandidateHash>,
 	/// These candidates are undergoing validation in the background.
 	awaiting_validation: HashSet<CandidateHash>,
+	/// Data needed for retrying in case of `ValidatedCandidateCommand::AttestNoPoV`.
+	fallbacks: HashMap<CandidateHash, (AttestingData, Option<jaeger::Span>)>,
 	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h` hash.
 	seconded: Option<CandidateHash>,
 	/// The candidates that are includable, by hash. Each entry here indicates
@@ -163,6 +170,23 @@ struct CandidateBackingJob {
 	background_validation: mpsc::Receiver<ValidatedCandidateCommand>,
 	background_validation_tx: mpsc::Sender<ValidatedCandidateCommand>,
 	metrics: Metrics,
+}
+
+/// In case a backing validator does not provide a PoV, we need to retry with other backing
+/// validators.
+///
+/// This is the data needed to accomplish this. Basically all the data needed for spawning a
+/// validation job and a list of backing validators, we can try.
+#[derive(Clone)]
+struct AttestingData {
+	/// The candidate to attest.
+	candidate: CandidateReceipt,
+	/// Hash of the PoV we need to fetch.
+	pov_hash: Hash,
+	/// Validator we are currently trying to get the PoV from.
+	from_validator: ValidatorIndex,
+	/// Other backing validators we can try in case `from_validator` failed.
+	backing: Vec<ValidatorIndex>,
 }
 
 const fn group_quorum(n_validators: usize) -> usize {
@@ -363,7 +387,7 @@ async fn request_pov(
 			from_validator,
 			candidate_hash,
 			pov_hash,
-            tx,
+			tx,
 		}
 	))).await?;
 
@@ -431,13 +455,20 @@ async fn validate_and_make_available(
 			pov_hash,
 		} => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			request_pov(
-				&mut tx_from,
-				relay_parent,
-				from_validator,
-				candidate_hash,
-				pov_hash,
-			).await?
+			match request_pov(
+					&mut tx_from,
+					relay_parent,
+					from_validator,
+					candidate_hash,
+					pov_hash,
+				).await {
+				Err(Error::FetchPoV) => {
+					tx_command.send(ValidatedCandidateCommand::AttestNoPoV(candidate.hash())).await.map_err(Error::Mpsc)?;
+					return Ok(())
+				}
+				Err(err) => return Err(err),
+				Ok(pov) => pov,
+			}
 		}
 	};
 
@@ -585,6 +616,24 @@ impl CandidateBackingJob {
 						self.sign_import_and_distribute_statement(statement, &parent_span).await?;
 					}
 					self.issued_statements.insert(candidate_hash);
+				}
+			}
+			ValidatedCandidateCommand::AttestNoPoV(candidate_hash) => {
+				if let Some((attesting, span)) = self.fallbacks.get_mut(&candidate_hash) {
+					if let Some(index) = attesting.backing.pop() {
+						attesting.from_validator = index;
+						// Ok, another try:
+						let c_span = span.as_ref().map(|s| s.child("try"));
+						let attesting = attesting.clone();
+						self.kick_off_validation_work(attesting, c_span).await?
+					}
+
+				} else {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"AttestNoPoV was triggered without fallback being available."
+					);
+					debug_assert!(false);
 				}
 			}
 		}
@@ -843,29 +892,23 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off validation work and distribute the result as a signed statement.
-	#[tracing::instrument(level = "trace", skip(self, pov, span), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, attesting, span), fields(subsystem = LOG_TARGET))]
 	async fn kick_off_validation_work(
 		&mut self,
-		summary: TableSummary,
-		pov: PoVData,
+		attesting: AttestingData,
 		span: Option<jaeger::Span>,
 	) -> Result<(), Error> {
-		let candidate_hash = summary.candidate;
-
+		let candidate_hash = attesting.candidate.hash();
 		if self.issued_statements.contains(&candidate_hash) {
 			return Ok(())
 		}
 
-		// We clone the commitments here because there are borrowck
-		// errors relating to this being a struct and methods borrowing the entirety of self
-		// and not just those things that the function uses.
-		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?.to_plain();
-		let descriptor = candidate.descriptor().clone();
+		let descriptor = attesting.candidate.descriptor().clone();
 
 		tracing::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?candidate_hash,
-			candidate_receipt = ?candidate,
+			candidate_receipt = ?attesting.candidate,
 			"Kicking off validation",
 		);
 
@@ -881,10 +924,16 @@ impl CandidateBackingJob {
 			return Ok(());
 		}
 
+		let pov = PoVData::FetchFromValidator {
+			from_validator: attesting.from_validator,
+			candidate_hash,
+			pov_hash: attesting.pov_hash,
+		};
+
 		self.background_validate_and_make_available(BackgroundValidationParams {
 			tx_from: self.tx_from.clone(),
 			tx_command: self.background_validation_tx.clone(),
-			candidate,
+			candidate: attesting.candidate,
 			relay_parent: self.parent,
 			pov,  
 			validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
@@ -903,30 +952,57 @@ impl CandidateBackingJob {
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement, parent_span).await? {
-			if let Statement::Seconded(receipt) = statement.payload() {
-				if Some(summary.group_id) == self.assignment {
+			if Some(summary.group_id) != self.assignment {
+				return Ok(())
+			}
+			let (attesting, span) = match statement.payload() {
+				Statement::Seconded(receipt) => {
+					let candidate_hash = summary.candidate;
+
 					let span = self.get_unbacked_validation_child(
 						root_span,
 						summary.candidate,
 						summary.group_id,
 					);
-					let pov_hash = receipt.descriptor.pov_hash;
-					let candidate_hash = summary.candidate;
-					let pov_data = PoVData::FetchFromValidator {
+
+					let attesting = AttestingData {
+						candidate: self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?.to_plain(),
+						pov_hash: receipt.descriptor.pov_hash,
 						from_validator: statement.validator_index(),
-						candidate_hash,
-						pov_hash
+						backing: Vec::new(),
 					};
-
-					self.kick_off_validation_work(
-						summary,
-						pov_data,
-						span,
-					).await?;
+					let child = span.as_ref().map(|s| s.child("try"));
+					self.fallbacks.insert(summary.candidate, (attesting.clone(), span));
+					(attesting, child)
 				}
-			}
-		}
+				Statement::Valid(candidate_hash) => {
+					if let Some((attesting, span)) = self.fallbacks.get_mut(candidate_hash) {
 
+						let our_index = self.table_context.validator.as_ref().map(|v| v.index());
+						if our_index == Some(statement.validator_index()) {
+							return Ok(())
+						}
+
+						if self.awaiting_validation.contains(candidate_hash) {
+							// Job already running:
+							attesting.backing.push(statement.validator_index());
+							return Ok(())
+						} else {
+							// No job, so start another try with current validator:
+							attesting.from_validator = statement.validator_index();
+							(attesting.clone(), span.as_ref().map(|s| s.child("try")))
+						}
+					} else {
+						return Ok(())
+					}
+				}
+			};
+
+			self.kick_off_validation_work(
+				attesting,
+				span,
+			).await?;
+		}
 		Ok(())
 	}
 
@@ -1159,6 +1235,7 @@ impl util::JobTrait for CandidateBackingJob {
 				required_collator,
 				issued_statements: HashSet::new(),
 				awaiting_validation: HashSet::new(),
+				fallbacks: HashMap::new(),
 				seconded: None,
 				unbacked_candidates: HashMap::new(),
 				backed: HashSet::new(),
