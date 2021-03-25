@@ -1521,6 +1521,107 @@ pub fn rococo_testnet_genesis(
 	}
 }
 
+
+/// Helper function to create rococo GenesisConfig for testing
+pub fn mousetrap_testnet_genesis(
+	wasm_binary: &[u8],
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AssignmentId,
+		AuthorityDiscoveryId,
+	)>,
+	root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+) -> rococo_runtime::GenesisConfig {
+	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
+
+	const ENDOWMENT: u128 = 1_000_000 * DOTS;
+
+	rococo_runtime::GenesisConfig {
+		frame_system: rococo_runtime::SystemConfig {
+			code: wasm_binary.to_vec(),
+			changes_trie_config: Default::default(),
+		},
+		pallet_indices: rococo_runtime::IndicesConfig {
+			indices: vec![],
+		},
+		pallet_balances: rococo_runtime::BalancesConfig {
+			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
+		},
+		pallet_session: rococo_runtime::SessionConfig {
+			keys: initial_authorities.iter().map(|x| (
+				x.0.clone(),
+				x.0.clone(),
+				rococo_session_keys(
+					x.2.clone(),
+					x.3.clone(),
+					x.4.clone(),
+					x.5.clone(),
+					x.6.clone(),
+					x.7.clone(),
+				),
+			)).collect::<Vec<_>>(),
+		},
+		pallet_babe: rococo_runtime::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
+		},
+		pallet_grandpa: Default::default(),
+		pallet_im_online: Default::default(),
+		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
+			keys: vec![],
+		},
+		pallet_sudo: rococo_runtime::SudoConfig { key: root_key },
+		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				validation_upgrade_frequency: 6u32,
+				validation_upgrade_delay: 3,
+				acceptance_period: 12,
+				max_code_size: 5 * 1024 * 1024,
+				max_pov_size: 50 * 1024 * 1024,
+				max_head_data_size: 32 * 1024,
+				group_rotation_frequency: 2,
+				chain_availability_period: 1,
+				thread_availability_period: 1,
+				max_upward_queue_count: 8,
+				max_upward_queue_size: 8 * 1024,
+				max_downward_message_size: 1024,
+				// this is approximatelly 4ms.
+				//
+				// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
+				// an import since that's a made up number and should be replaced with a constant
+				// obtained by benchmarking anyway.
+				preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
+				max_upward_message_size: 1024,
+				max_upward_message_num_per_candidate: 5,
+				hrmp_open_request_ttl: 5,
+				hrmp_sender_deposit: 0,
+				hrmp_recipient_deposit: 0,
+				hrmp_channel_max_capacity: 8,
+				hrmp_channel_max_total_size: 8 * 1024,
+				hrmp_max_parachain_inbound_channels: 4,
+				hrmp_max_parathread_inbound_channels: 4,
+				hrmp_channel_max_message_size: 1024,
+				hrmp_max_parachain_outbound_channels: 4,
+				hrmp_max_parathread_outbound_channels: 4,
+				hrmp_max_message_num_per_candidate: 5,
+				dispute_period: 2,
+				no_show_slots: 1,
+				n_delay_tranches: 3,
+				needed_approvals: 2,
+				relay_vrf_modulo_samples: 3,
+				zeroth_delay_tranche_width: 0,
+				..Default::default()
+			},
+		},
+	}
+}
+
 fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
 	polkadot_testnet_genesis(
 		wasm_binary,
@@ -1710,6 +1811,38 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 			runtime_genesis_config: rococo_local_testnet_genesis(wasm_binary),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}
+
+fn mousetrap_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
+/// Rococo local testnet config (multivalidator Alice + Bob)
+pub fn mousetrap_local_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"MouseTrap Local Testnet 🐭🪤",
+		"mousetrap_local_testnet",
+		ChainType::Local,
+		move || RococoGenesisExt {
+			runtime_genesis_config: mousetrap_local_testnet_genesis(wasm_binary),
+			session_length_in_blocks: Some(3),
 		},
 		vec![],
 		None,
