@@ -226,6 +226,7 @@ impl RequestChunksPhase {
 		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
 		while self.requesting_chunks.len() < max_requests {
 			if let Some(validator_index) = self.shuffling.pop() {
+				println!("requesting from {:?}", validator_index);
 				let validator = params.validator_authority_keys[validator_index.0 as usize].clone();
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -334,7 +335,7 @@ impl RequestChunksPhase {
 			if is_unavailable(
 				self.received_chunks.len(),
 				self.requesting_chunks.len(),
-				params.validators.len(),
+				self.shuffling.len(),
 				params.threshold,
 			) {
 				tracing::debug!(
@@ -410,13 +411,13 @@ impl RequestChunksPhase {
 	}
 }
 
-const fn is_unavailable(
+fn is_unavailable(
 	received_chunks: usize,
 	requesting_chunks: usize,
-	n_validators: usize,
+	unrequested_validators: usize,
 	threshold: usize,
 ) -> bool {
-	received_chunks + requesting_chunks + n_validators < threshold
+	received_chunks + requesting_chunks + unrequested_validators < threshold
 }
 
 fn reconstructed_data_matches_root(

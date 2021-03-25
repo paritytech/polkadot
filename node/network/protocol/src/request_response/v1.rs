@@ -47,6 +47,15 @@ pub enum ChunkFetchingResponse {
 	NoSuchChunk,
 }
 
+impl From<Option<ChunkResponse>> for ChunkFetchingResponse {
+	fn from(x: Option<ChunkResponse>) -> Self {
+		match x {
+			Some(c) => ChunkFetchingResponse::Chunk(c),
+			None => ChunkFetchingResponse::NoSuchChunk,
+		}
+	}
+}
+
 /// Skimmed down variant of `ErasureChunk`.
 ///
 /// Instead of transmitting a full `ErasureChunk` we transmit `ChunkResponse` in
