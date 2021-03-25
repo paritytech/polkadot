@@ -612,21 +612,17 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
-// A wrapper around `babe::CurrentBlockRandomness` that does not return `Option<Random>`.
-pub struct CurrentBlockRandomness;
+/// An insecure randomness beacon that uses the parent block hash as random material.
+///
+/// THIS SHOULD ONLY BE USED FOR TESTING PURPOSES.
+pub struct ParentHashRandomness;
 
-impl Randomness<Hash, BlockNumber> for CurrentBlockRandomness {
+impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
 	fn random(subject: &[u8]) -> (Hash, BlockNumber) {
-		let (randomness, block_number) =
-			pallet_babe::CurrentBlockRandomness::<Runtime>::random(subject);
-
-		let randomness = randomness.expect(
-			"only returns None when secondary VRF slots are not enabled; \
-			 secondary VRF slots are enbaled for rococo runtime; \
-			 qed.",
-		);
-
-		(randomness, block_number)
+		(
+			(System::parent_hash(), subject).using_encoded(sp_io::hashing::blake2_256).into(),
+			System::block_number(),
+		)
 	}
 }
 
@@ -640,7 +636,7 @@ impl auctions::Config for Runtime {
 	type Leaser = Slots;
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
-	type Randomness = CurrentBlockRandomness;
+	type Randomness = ParentHashRandomness;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;
 }
