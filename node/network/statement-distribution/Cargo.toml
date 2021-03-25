@@ -9,7 +9,7 @@ edition = "2018"
 futures = "0.3.12"
 tracing = "0.1.25"
 polkadot-primitives = { path = "../../../primitives" }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ser-instrument" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -20,8 +20,8 @@ indexmap = "1.6.1"
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }

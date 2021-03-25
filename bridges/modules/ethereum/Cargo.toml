@@ -17,12 +17,12 @@ bp-eth-poa = { path = "../../primitives/ethereum-poa", default-features = false 
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "ser-instrument" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ser-instrument" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ser-instrument" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ser-instrument" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ser-instrument" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ser-instrument" }
 
 [dev-dependencies]
 libsecp256k1 = { version = "0.3.4", features = ["hmac"] }

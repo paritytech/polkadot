@@ -23,10 +23,10 @@ polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-procmacro-subsystem-dispatch-gen = { path = "dispatch-gen" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
 smallvec = "1.6.1"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
 thiserror = "1.0.23"
 log = "0.4.13"
 

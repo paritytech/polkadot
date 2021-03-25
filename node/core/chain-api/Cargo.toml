@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.12"
 tracing = "0.1.25"
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -16,4 +16,4 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 futures = { version = "0.3.12", features = ["thread-pool"] }
 maplit = "1.0.2"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }

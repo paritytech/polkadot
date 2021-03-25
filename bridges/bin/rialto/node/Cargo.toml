@@ -24,32 +24,32 @@ rialto-runtime = { path = "../runtime" }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-cli = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "ser-instrument" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
+substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
 
 [build-dependencies]
 build-script-utils = { package = "substrate-build-script-utils", version = "2.0" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "ser-instrument" }
 vergen = "3.1.0"
 
 [features]
