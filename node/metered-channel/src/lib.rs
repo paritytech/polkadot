@@ -24,7 +24,7 @@ use std::result;
 use std::sync::Arc;
 use std::pin::Pin;
 
-use derive_more::Display;
+use derive_more::{Add, Display};
 
 mod bounded;
 mod unbounded;
@@ -45,7 +45,7 @@ pub struct Meter {
 
 /// A readout of sizes from the meter. Note that it is possible, due to asynchrony, for received
 /// to be slightly higher than sent.
-#[derive(Debug, Display, Clone, Default, PartialEq)]
+#[derive(Debug, Add, Display, Clone, Default, PartialEq)]
 #[display(fmt = "(sent={} received={})", sent, received)]
 pub struct Readout {
 	/// The amount of messages sent on the channel, in aggregate.
