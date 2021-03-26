@@ -280,13 +280,13 @@ generate-impl-guide:
   after_script:
     - buildah logout "$IMAGE_NAME"
     # pass artifacts to the trigger-simnet job
-    - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env
-    - echo "IMAGE_TAG=${EXTRATAG}" >> build.env
+    - echo "IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/overseer.env
+    - echo "IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/overseer.env
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
       # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-      dotenv: ./artifacts/build.env
+      dotenv: ./artifacts/overseer.env
 
 publish-polkadot-image:
   stage:                           build
@@ -337,8 +337,7 @@ publish-adder-collator-image:
     - job:                         build-adder-collator
       artifacts:                   true
   after_script:
-    - echo "COLLATOR_IMAGE_TAG=${EXTRATAG}" > collator.env
-    - buildah logout "$IMAGE_NAME"
+    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
