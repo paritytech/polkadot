@@ -776,15 +776,15 @@ where
 				activated,
 				deactivated,
 			}))) => {
-				for (hash, span) in activated {
+				for activated in activated {
 					let metrics = metrics.clone();
-					if let Err(e) = jobs.spawn_job(hash, span, run_args.clone(), metrics) {
+					if let Err(e) = jobs.spawn_job(activated.hash, activated.span, run_args.clone(), metrics) {
 						tracing::error!(
 							job = Job::NAME,
 							err = ?e,
 							"failed to spawn a job",
 						);
-						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
+						Self::fwd_err(Some(activated.hash), JobsError::Utility(e), err_tx).await;
 						return true;
 					}
 				}
@@ -1048,7 +1048,7 @@ mod tests {
 	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem,
+		SpawnedSubsystem, ActivatedLeaf,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
@@ -1174,7 +1174,11 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: relay_parent,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					}),
 				)))
 				.await;
 			assert_matches!(
@@ -1203,7 +1207,11 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: relay_parent,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					}),
 				)))
 				.await;
 

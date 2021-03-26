@@ -30,7 +30,7 @@ Indicates a change in active leaves. Activated leaves should have jobs, whereas 
 
 ```rust
 struct ActiveLeavesUpdate {
-    activated: [Hash], // in practice, these should probably be a SmallVec
+    activated: [(Hash, Number)], // in practice, these should probably be a SmallVec
     deactivated: [Hash],
 }
 ```

@@ -24,8 +24,8 @@ use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult, jaeger,
+	ActiveLeavesUpdate, ActivatedLeaf, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
+	SubsystemResult,
 };
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages,
@@ -43,7 +43,6 @@ pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
 use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
-use std::sync::Arc;
 use std::time::Instant;
 
 mod validator_discovery;
@@ -154,8 +153,8 @@ where
 {
 	let mut event_stream = bridge.network_service.event_stream().fuse();
 
-	// Most recent heads are at the back.
-	let mut live_heads: Vec<(Hash, Arc<jaeger::Span>)> = Vec::with_capacity(MAX_VIEW_HEADS);
+	// This is kept sorted, descending, by block number.
+	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut local_view = View::default();
 	let mut finalized_number = 0;
 
@@ -315,8 +314,14 @@ where
 					num_deactivated = %deactivated.len(),
 				);
 
-				live_heads.extend(activated);
-				live_heads.retain(|h| !deactivated.contains(&h.0));
+				for activated in activated {
+					let pos = live_heads
+						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
+						.unwrap_or_else(|i| i);
+
+					live_heads.insert(pos, activated);
+				}
+				live_heads.retain(|h| !deactivated.contains(&h.hash));
 
 				update_our_view(
 					&mut bridge.network_service,
@@ -490,8 +495,8 @@ where
 
 fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_number: BlockNumber) -> View {
 	View::new(
-		live_heads.rev().take(MAX_VIEW_HEADS),
-		finalized_number
+		live_heads.take(MAX_VIEW_HEADS),
+		finalized_number,
 	)
 }
 
@@ -499,13 +504,13 @@ fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_n
 async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
-	live_heads: &[(Hash, Arc<jaeger::Span>)],
+	live_heads: &[ActivatedLeaf],
 	local_view: &mut View,
 	finalized_number: BlockNumber,
 	validation_peers: &HashMap<PeerId, PeerData>,
 	collation_peers: &HashMap<PeerId, PeerData>,
 ) -> SubsystemResult<()> {
-	let new_view = construct_view(live_heads.iter().map(|v| v.0), finalized_number);
+	let new_view = construct_view(live_heads.iter().map(|v| v.hash), finalized_number);
 
 	// We only want to send a view update when the heads changed.
 	// A change in finalized block number only is _not_ sufficient.
@@ -527,7 +532,10 @@ async fn update_our_view(
 		WireMessage::ViewUpdate(new_view),
 	).await?;
 
-	let our_view = OurView::new(live_heads.iter().cloned(), finalized_number);
+	let our_view = OurView::new(
+		live_heads.iter().take(MAX_VIEW_HEADS).cloned().map(|a| (a.hash, a.span)),
+		finalized_number,
+	);
 
 	dispatch_validation_event_to_all(NetworkBridgeEvent::OurViewChange(our_view.clone()), ctx).await;
 
@@ -684,7 +692,7 @@ mod tests {
 
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 
-	use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
+	use polkadot_subsystem::{jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal};
 	use polkadot_subsystem::messages::{
 		ApprovalDistributionMessage,
 		BitfieldDistributionMessage,
@@ -929,7 +937,11 @@ mod tests {
 			let head = Hash::repeat_byte(1);
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(head, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: head,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					})
 				))
 			).await;
 
@@ -984,7 +996,11 @@ mod tests {
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: hash_a,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					})
 				))
 			).await;
 
@@ -1046,7 +1062,11 @@ mod tests {
 			// This should trigger the view update to our peers.
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: hash_a,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					})
 				))
 			).await;
 
@@ -1236,7 +1256,11 @@ mod tests {
 
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_a, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: hash_a,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					})
 				))
 			).await;
 
@@ -1429,7 +1453,11 @@ mod tests {
 			).await;
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(hash_b, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: hash_b,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					})
 				))
 			).await;
 
@@ -1625,5 +1653,53 @@ mod tests {
 			}
 		}
 		assert_eq!(cnt, EXPECTED_COUNT);
+	}
+
+	#[test]
+	fn our_view_updates_decreasing_order_and_limited_to_max() {
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+				..
+			} = test_harness;
+
+
+			// to show that we're still connected on the collation protocol, send a view update.
+
+			let hashes = (0..MAX_VIEW_HEADS * 3).map(|i| Hash::repeat_byte(i as u8));
+
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					// These are in reverse order, so the subsystem must sort internally to
+					// get the correct view.
+					ActiveLeavesUpdate {
+						activated: hashes.enumerate().map(|(i, h)| ActivatedLeaf {
+							hash: h,
+							number: i as _,
+							span: Arc::new(jaeger::Span::Disabled),
+						}).rev().collect(),
+						deactivated: Default::default(),
+					}
+				))
+			).await;
+
+			let view_heads = (MAX_VIEW_HEADS * 2 .. MAX_VIEW_HEADS * 3).rev()
+				.map(|i| (Hash::repeat_byte(i as u8), Arc::new(jaeger::Span::Disabled)) );
+
+			let our_view = OurView::new(
+				view_heads,
+				0,
+			);
+
+			assert_sends_validation_event_to_all(
+				NetworkBridgeEvent::OurViewChange(our_view.clone()),
+				&mut virtual_overseer,
+			).await;
+
+			assert_sends_collation_event_to_all(
+				NetworkBridgeEvent::OurViewChange(our_view),
+				&mut virtual_overseer,
+			).await;
+		});
 	}
 }

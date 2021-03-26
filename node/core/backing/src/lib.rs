@@ -1249,7 +1249,7 @@ mod tests {
 	use polkadot_primitives::v1::{BlockData, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
-		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
 	};
 	use polkadot_node_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
@@ -1428,10 +1428,11 @@ mod tests {
 	) {
 		// Start work on some new parent.
 		virtual_overseer.send(FromOverseer::Signal(
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
-				test_state.relay_parent,
-				Arc::new(jaeger::Span::Disabled),
-			)))
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.relay_parent,
+				number: 1,
+				span: Arc::new(jaeger::Span::Disabled),
+			})))
 		).await;
 
 		// Check that subsystem job issues a request for a validator set.

@@ -25,7 +25,7 @@ use tracing::trace;
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockData, CoreState, GroupRotationInfo, Id as ParaId, ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex};
-use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger};
+use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger, ActivatedLeaf};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_node_network_protocol::{view, our_view};
@@ -275,7 +275,11 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(test_state.relay_parent, Arc::new(jaeger::Span::Disabled))][..].into(),
+				activated: vec![ActivatedLeaf {
+					hash: test_state.relay_parent,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
 				deactivated: [][..].into(),
 			}),
 		).await;
@@ -447,7 +451,11 @@ fn ask_validators_for_povs() {
 		overseer_signal(
 			&mut virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(next_leaf, Arc::new(jaeger::Span::Disabled))][..].into(),
+				activated: vec![ActivatedLeaf {
+					hash: next_leaf,
+					number: 2,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
 				deactivated: [current.clone()][..].into(),
 			})
 		).await;
