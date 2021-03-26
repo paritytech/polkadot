@@ -1339,18 +1339,25 @@ mod tests {
 			let para_1 = new_para();
 
 			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			// Cant add a memo before you have contributed.
 			assert_noop!(
 				Crowdloan::add_memo(Origin::signed(1), para_1, b"hello, world".to_vec()),
 				Error::<Test>::NoContributions,
 			);
+			// Make a contribution. Initially no memo.
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
+			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, vec![]));
+			// Can't place a memo that is too large.
 			assert_noop!(
 				Crowdloan::add_memo(Origin::signed(1), para_1, vec![123; 123]),
 				Error::<Test>::MemoTooLarge,
 			);
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
-			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, vec![]));
+			// Adding a memo to an existing contribution works
 			assert_ok!(Crowdloan::add_memo(Origin::signed(1), para_1, b"hello, world".to_vec()));
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, b"hello, world".to_vec()));
+			// Can contribute again and data persists
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
+			assert_eq!(Crowdloan::contribution_get(0u32, &1), (200, b"hello, world".to_vec()));
 		});
 	}
 }
