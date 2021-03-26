@@ -154,6 +154,8 @@ decl_module! {
 
 		/// Just a hotwire into the `lease_out` call, in case Root wants to force some lease to happen
 		/// independently of any other on-chain mechanism to use it.
+		///
+		/// Can only be called by the Root origin.
 		#[weight = T::WeightInfo::force_lease()]
 		fn force_lease(origin,
 			para: ParaId,
@@ -165,6 +167,26 @@ decl_module! {
 			ensure_root(origin)?;
 			Self::lease_out(para, &leaser, amount, period_begin, period_count)
 				.map_err(|_| Error::<T>::LeaseError)?;
+			Ok(())
+		}
+
+		/// Clear all leases for a Para Id, refunding any deposits back to the original owners.
+		///
+		/// Can only be called by the Root origin.
+		#[weight = 0] // TODO: Benchmarks
+		fn clear_all_leases(origin,
+			para: ParaId,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let deposits = Self::all_deposits_held(para);
+
+			// Refund any deposits for these leases
+			for (who, deposit) in deposits {
+				let err_amount = T::Currency::unreserve(&who, deposit);
+				debug_assert!(err_amount.is_zero());
+			}
+
+			Leases::<T>::remove(para);
 			Ok(())
 		}
 	}
@@ -216,7 +238,7 @@ impl<T: Config> Module<T> {
 					// If this is less than what we were holding for this leaser's now-ended lease, then
 					// unreserve it.
 					if let Some(rebate) = ended_lease.1.checked_sub(&now_held) {
-						T::Currency::unreserve( &ended_lease.0, rebate);
+						T::Currency::unreserve(&ended_lease.0, rebate);
 					}
 				}
 
@@ -248,6 +270,34 @@ impl<T: Config> Module<T> {
 			old_parachains.len() as u32,
 			parachains.len() as u32,
 		)
+	}
+
+	// Return a vector of (user, balance) for all deposits for a parachain.
+	// Useful when trying to clean up a parachain leases, as this would tell
+	// you all the balances you need to unreserve.
+	fn all_deposits_held(para: ParaId) -> Vec<(T::AccountId, BalanceOf<T>)> {
+		let mut tracker = sp_std::collections::btree_map::BTreeMap::new();
+		Leases::<T>::get(para)
+			.into_iter()
+			.for_each(|lease| {
+				match lease {
+					Some((who, amount)) => {
+						match tracker.get(&who) {
+							Some(prev_amount) => {
+								if amount > *prev_amount {
+									tracker.insert(who, amount);
+								}
+							},
+							None => {
+								tracker.insert(who, amount);
+							}
+						}
+					},
+					None => {},
+				}
+			});
+
+		tracker.into_iter().collect()
 	}
 }
 
@@ -651,6 +701,37 @@ mod tests {
 				(1.into(), 10, true),
 				(1.into(), 30, false),
 			]);
+		});
+	}
+
+	#[test]
+	fn clear_all_leases_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
+
+			let max_num = 5u32;
+
+			// max_num different people are reserved for leases to Para ID 1
+			for i in 1u32 ..= max_num {
+				let j: u64 = i.into();
+				assert_ok!(Slots::lease_out(1.into(), &j, j * 10, i * i, i));
+				assert_eq!(Slots::deposit_held(1.into(), &j), j * 10);
+				assert_eq!(Balances::reserved_balance(j), j * 10);
+			}
+
+			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
+
+			// Balances cleaned up correctly
+			for i in 1u32 ..= max_num {
+				let j: u64 = i.into();
+				assert_eq!(Slots::deposit_held(1.into(), &j), 0);
+				assert_eq!(Balances::reserved_balance(j), 0);
+			}
+
+			// Leases is empty.
+			assert!(Leases::<Test>::get(ParaId::from(1)).is_empty());
 		});
 	}
 }
