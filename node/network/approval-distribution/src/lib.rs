@@ -150,11 +150,22 @@ impl State {
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, _role) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role) => {
 				// insert a blank view if none already present
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					?role,
+					"Peer connected",
+				);
 				self.peer_views.entry(peer_id).or_default();
 			}
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					"Peer disconnected",
+				);
 				self.peer_views.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
@@ -164,6 +175,11 @@ impl State {
 				self.handle_peer_view_change(ctx, peer_id, view).await;
 			}
 			NetworkBridgeEvent::OurViewChange(view) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?view,
+					"Own view change",
+				);
 				for head in view.iter() {
 					if !self.blocks.contains_key(head) {
 						self.pending_known.entry(*head).or_default();
@@ -329,6 +345,11 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?view,
+			"Peer view change",
+		);
 		Self::unify_with_peer(&mut self.blocks, ctx, peer_id.clone(), view.clone()).await;
 		let finalized_number = view.finalized_number;
 		let old_view = self.peer_views.insert(peer_id.clone(), view);
@@ -389,6 +410,13 @@ impl State {
 			Some(entry) => entry,
 			None => {
 				if let Some(peer_id) = source.peer_id() {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?source,
+						?block_hash,
+						?validator_index,
+						"Unexpected assignment",
+					);
 					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				}
 				return;
@@ -407,11 +435,23 @@ impl State {
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(knowledge) => {
 					if knowledge.get().known_messages.contains(&fingerprint) {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?source,
+							?fingerprint,
+							"Duplicate assignment",
+						);
 						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						return;
 					}
 				}
 				hash_map::Entry::Vacant(_) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?source,
+						?fingerprint,
+						"Assignment from a peer is out of view",
+					);
 					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				}
 			}
@@ -420,6 +460,12 @@ impl State {
 			if entry.knowledge.known_messages.contains(&fingerprint) {
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?source,
+						?fingerprint,
+						"Known assignment",
+					);
 					peer_knowledge.known_messages.insert(fingerprint.clone());
 				}
 				return;
@@ -444,6 +490,13 @@ impl State {
 				}
 			};
 
+			tracing::trace!(
+				target: LOG_TARGET,
+				?source,
+				?fingerprint,
+				?result,
+				"Checked assignment",
+			);
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -467,11 +520,6 @@ impl State {
 				}
 				AssignmentCheckResult::Bad => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
-					tracing::info!(
-						target: LOG_TARGET,
-						peer = ?peer_id,
-						"Got a bad assignment from peer",
-					);
 					return;
 				}
 			}
@@ -578,6 +626,13 @@ impl State {
 			);
 
 			if !entry.knowledge.known_messages.contains(&assignment_fingerprint) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?source,
+					?peer_id,
+					?fingerprint,
+					"Unknown approval assignment",
+				);
 				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				return;
 			}
@@ -585,18 +640,39 @@ impl State {
 			// check if our knowledge of the peer already contains this approval
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(knowledge) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?source,
+						?peer_id,
+						?fingerprint,
+						"Duplicate approval",
+					);
 					if knowledge.get().known_messages.contains(&fingerprint) {
 						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						return;
 					}
 				}
 				hash_map::Entry::Vacant(_) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?source,
+						?peer_id,
+						?fingerprint,
+						"Approval from a peer is out of view",
+					);
 					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				}
 			}
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.known_messages.contains(&fingerprint) {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?source,
+					?peer_id,
+					?fingerprint,
+					"Known approval",
+				);
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.known_messages.insert(fingerprint.clone());
@@ -622,6 +698,14 @@ impl State {
 				}
 			};
 
+			tracing::trace!(
+				target: LOG_TARGET,
+				?source,
+				?peer_id,
+				?fingerprint,
+				?result,
+				"Checked approval",
+			);
 			match result {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -635,7 +719,7 @@ impl State {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
-						peer = ?peer_id,
+						?peer_id,
 						"Got a bad approval from peer",
 					);
 					return;
@@ -705,7 +789,7 @@ impl State {
 		if !peers.is_empty() {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Sending approval (block={}, index={})to {} peers",
+				"Sending approval (block={}, index={}) to {} peers",
 				block_hash,
 				candidate_index,
 				peers.len(),
@@ -881,7 +965,6 @@ impl ApprovalDistribution {
 				FromOverseer::Communication {
 					msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
-					tracing::debug!(target: LOG_TARGET, "Processing network message");
 					state.handle_network_msg(&mut ctx, &self.metrics, event).await;
 				}
 				FromOverseer::Communication {
