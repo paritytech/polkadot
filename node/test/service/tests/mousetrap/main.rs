@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_test_service::{new_full, node_config};
+use polkadot_test_service::new_full;
 use polkadot_primitives::v1::{
 	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
 };
@@ -47,54 +47,24 @@ use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
 use std::sync::Arc;
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
-
-use polkadot_test_service::{PolkadotTestNode, run_validator_node};
-use futures::{future::{self, Future}, pin_mut, select};
+use polkadot_service::chain_spec::mousetrap_local_testnet_config;
+use futures::{pin_mut, future::{self, Future}};
+use polkadot_test_service::construct_extrinsic;
+use polkadot_test_service::PolkadotTestExecutor;
 use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::v1::{
-	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
-};
-use polkadot_runtime_common::BlockHashCount;
-use polkadot_service::{
-	Error, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
-};
-use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
-use polkadot_test_runtime::{
-	Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, SudoCall, UncheckedExtrinsic,
-};
-use polkadot_node_primitives::{CollatorFn, CollationGenerationConfig};
-use polkadot_runtime_parachains::paras::ParaGenesisArgs;
-use sc_chain_spec::ChainSpec;
-use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_executor::native_executor_instance;
-use sc_network::{
-	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
-};
-use service::{
-	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	RpcHandlers, TaskExecutor, TaskManager, KeepBlocks, TransactionStorageMode,
-};
-use service::{BasePath, Configuration, Role};
-use sp_arithmetic::traits::SaturatedConversion;
-use sp_blockchain::HeaderBackend;
-use sp_keyring::Sr25519Keyring;
-use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
-use sp_state_machine::BasicExternalities;
-use std::sync::Arc;
-use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
-
-native_executor_instance!(
-	pub MousetrapTestExecutor,
-	polkadot_test_runtime::api::dispatch,
-	polkadot_test_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+use futures::FutureExt;
+// native_executor_instance!(
+// 	pub MoustrapTestExecutor,
+// 	polkadot_test_runtime::api::dispatch,
+// 	polkadot_test_runtime::native_version,
+// 	frame_benchmarking::benchmarking::HostFunctions,
+// );
 
 /// The client type being used by the test service.
 pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>;
 
 pub use polkadot_service::FullBackend;
+
 
 pub fn node_config(
 	storage_update_func: impl Fn(),
@@ -111,7 +81,7 @@ pub fn node_config(
 		Role::Full
 	};
 	let key_seed = key.to_seed();
-	let mut spec = mousetrap_local_testnet_config();
+	let mut spec = mousetrap_local_testnet_config().unwrap();
 	let mut storage = spec
 		.as_storage_builder()
 		.build_storage()
@@ -204,9 +174,9 @@ fn run_validator_node(
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		polkadot_service::new_full::<mousetrap_test_runtime::RuntimeApi, MousetrapTestExecutor>(
+		polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 			config,
-			IsCollator::No.is_collator(),
+			IsCollator::No,
 			None,
 			None,
 			polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
@@ -260,6 +230,87 @@ impl Iterator for KeysIter {
 
 use test_parachain_adder_collator::Collator;
 
+
+
+
+
+
+/// A Polkadot test node instance used for testing.
+pub struct MousetrapTestNode {
+	/// TaskManager's instance.
+	pub task_manager: TaskManager,
+	/// Client's instance.
+	pub client: Arc<Client>,
+	/// The overseer handler.
+	pub overseer_handler: OverseerHandler,
+	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
+	pub addr: MultiaddrWithPeerId,
+	/// RPCHandlers to make RPC queries.
+	pub rpc_handlers: RpcHandlers,
+}
+
+impl MousetrapTestNode {
+	/// Send an extrinsic to this node.
+	pub async fn send_extrinsic(
+		&self,
+		function: impl Into<polkadot_test_runtime::Call>,
+		caller: Sr25519Keyring,
+	) -> Result<RpcTransactionOutput, RpcTransactionError> {
+		let extrinsic = construct_extrinsic(&*self.client, function, caller);
+
+		self.rpc_handlers.send_transaction(extrinsic.into()).await
+	}
+
+	/// Register a parachain at this relay chain.
+	pub async fn register_parachain(
+		&self,
+		id: ParaId,
+		validation_code: impl Into<ValidationCode>,
+		genesis_head: impl Into<HeadData>,
+	) -> Result<(), RpcTransactionError> {
+		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
+			id,
+			ParaGenesisArgs {
+				genesis_head: genesis_head.into(),
+				validation_code: validation_code.into(),
+				parachain: true,
+			},
+		);
+
+		self.send_extrinsic(SudoCall::sudo(Box::new(call.into())), Sr25519Keyring::Alice).await.map(drop)
+	}
+
+	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
+	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
+	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
+		self.client.wait_for_blocks(count)
+	}
+
+	/// Register the collator functionality in the overseer of this node.
+	pub async fn register_collator(
+		&mut self,
+		collator_key: CollatorPair,
+		para_id: ParaId,
+		collator: CollatorFn,
+	) {
+		let config = CollationGenerationConfig {
+			key: collator_key,
+			collator,
+			para_id,
+		};
+
+		self.overseer_handler
+			.send_msg(CollationGenerationMessage::Initialize(config))
+			.await;
+
+		self.overseer_handler
+			.send_msg(CollatorProtocolMessage::CollateOn(para_id))
+			.await;
+	}
+}
+
+
+
 #[substrate_test_utils::test(core_threads = 8)]
 async fn multiple_validator_groups_work(task_executor: TaskExecutor) {
 	let mut builder = sc_cli::LoggerBuilder::new("");
@@ -282,18 +333,21 @@ async fn multiple_validator_groups_work(task_executor: TaskExecutor) {
 
 			boot_nodes.push(node.addr.clone());
 
-			node.client.register_parachain(0x7777,
-				collator.validation_code(),
-				collator.geneis_head());
-
 			Some(node)
 		})
-		.collect::<Vec<PolkadotTestNode>>();
+		.collect::<Vec<MousetrapTestNode>>();
 
-
+	let genesis_head = collator.genesis_head();
+	let validation_code = collator.validation_code().to_vec();
 	{
+		for node in nodes.iter() {
+			node.register_parachain(0x7777_u32.into(),
+			validation_code.clone(),
+			genesis_head.clone()).await.unwrap();
+		}
+
 		let fut = future::join_all(nodes.iter().map(|node| {
-			node.wait_for_blocks(10).fuse()
+			node.wait_for_blocks(40).fuse()
 		}) ).fuse();
 
 		pin_mut!(fut);

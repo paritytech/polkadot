@@ -40,6 +40,7 @@ members = [
 	"runtime/rococo",
 	"runtime/westend",
 	"runtime/test-runtime",
+	"runtime/mousetrap",
 	"statement-table",
 	"xcm",
 	"xcm/xcm-builder",

@@ -21,5 +21,6 @@ fn main() {
 		.with_current_project()
 		.import_memory()
 		.export_heap_base()
+		.set_file_name("mousetrap-wasm.rs")
 		.build()
 }

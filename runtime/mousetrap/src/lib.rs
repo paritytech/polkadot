@@ -96,7 +96,7 @@ mod propose_parachain;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
-include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+include!(concat!(env!("OUT_DIR"), "/mousetrap-wasm.rs"));
 
 /// Runtime version (Rococo).
 pub const VERSION: RuntimeVersion = RuntimeVersion {

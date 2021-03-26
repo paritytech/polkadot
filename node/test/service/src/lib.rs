@@ -67,14 +67,7 @@ native_executor_instance!(
 pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>;
 
 pub use polkadot_service::FullBackend;
-polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
-	config,
-	is_collator,
-	None,
-	None,
-	polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
-	None,
-)
+
 /// Create a new full node.
 #[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
 pub fn new_full(
