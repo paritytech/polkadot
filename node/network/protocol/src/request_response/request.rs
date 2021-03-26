@@ -87,8 +87,8 @@ pub enum Recipient {
 /// about responses/errors.
 ///
 /// When using `Recipient::Peer`, keep in mind that no address (as in IP address and port) might
-/// be known for that specific peer. You are encouraged to use `Peer` for peer that you are
-/// already connected to.
+/// be known for that specific peer. You are encouraged to use `Peer` for peers that you are
+/// expected to be already connected to.
 /// When using `Recipient::Authority`, the addresses can be found thanks to the authority
 /// discovery system.
 #[derive(Debug)]
