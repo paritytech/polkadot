@@ -543,6 +543,22 @@ decl_module! {
 			Self::deposit_event(RawEvent::Edited(index));
 		}
 
+		/// Add an optional memo to an existing crowdloan contribution.
+		///
+		/// Origin must be Signed, and the user must have contributed to the crowdloan.
+		#[weight = 0]
+		pub fn add_memo(origin, index: ParaId, memo: Vec<u8>) {
+			let who = ensure_signed(origin)?;
+
+			ensure!(memo.len() <= T::MaxMemoLength::get().into(), Error::<T>::MemoTooLarge);
+			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
+
+			let (balance, _) = Self::contribution_get(fund.trie_index, &who);
+			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
+
+			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
+		}
+
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
 			if let Some(n) = T::Auctioneer::is_ending(n) {
 				if n.is_zero() {
@@ -1314,6 +1330,27 @@ mod tests {
 			assert!(old_crowdloan.last_slot != new_crowdloan.last_slot);
 		});
 	}
+
+	#[test]
+	fn add_memo_works() {
+		new_test_ext().execute_with(|| {
+			let para_1 = new_para();
+
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_noop!(
+				Crowdloan::add_memo(Origin::signed(1), para_1, b"hello, world".to_vec()),
+				Error::<Test>::NoContributions,
+			);
+			assert_noop!(
+				Crowdloan::add_memo(Origin::signed(1), para_1, vec![123; 123]),
+				Error::<Test>::MemoTooLarge,
+			);
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
+			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, vec![]));
+			assert_ok!(Crowdloan::add_memo(Origin::signed(1), para_1, b"hello, world".to_vec()));
+			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, b"hello, world".to_vec()));
+		});
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1481,6 +1518,20 @@ mod benchmarking {
 		}: _(RawOrigin::Root, para_id, cap, first_slot, last_slot, end, Some(verifier))
 		verify {
 			assert_last_event::<T>(RawEvent::Edited(para_id).into())
+		}
+
+		add_memo {
+			let fund_index = create_fund::<T>(1, 100u32.into());
+			let caller: T::AccountId = whitelisted_caller();
+			contribute_fund::<T>(&caller, fund_index);
+			let worst_memo = vec![42; T::MaxMemoLength::get().into()];
+		}: _(RawOrigin::Signed(caller.clone()), fund_index, worst_memo.clone())
+		verify {
+			let fund = Funds::<T>::get(fund_index).expect("fund was created...");
+			assert_eq!(
+				Crowdloan::<T>::contribution_get(fund.trie_index, &caller),
+				(T::MinContribution::get(), worst_memo),
+			);
 		}
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
