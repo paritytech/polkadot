@@ -133,14 +133,19 @@ impl<T> MeteredSender<T> {
 		self.meter.note_sent();
 		let fut = self.inner.send(item);
 		futures::pin_mut!(fut);
-		fut.await
+		fut.await.map_err(|e| {
+			self.meter.retract_sent();
+			e
+		})
 	}
 
 	/// Attempt to send message or fail immediately.
 	pub fn try_send(&mut self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
-		self.inner.try_send(msg)?;
 		self.meter.note_sent();
-		Ok(())
+		self.inner.try_send(msg).map_err(|e| {
+			self.meter.retract_sent();
+			e
+		})
 	}
 }
 

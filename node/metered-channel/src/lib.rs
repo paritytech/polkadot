@@ -74,6 +74,10 @@ impl Meter {
 		self.sent.fetch_add(1, Ordering::Relaxed);
 	}
 
+	fn retract_sent(&self) {
+		self.sent.fetch_sub(1, Ordering::Relaxed);
+	}
+
 	fn note_received(&self) {
 		self.received.fetch_add(1, Ordering::Relaxed);
 	}
@@ -171,6 +175,22 @@ mod tests {
 					}
 				}
 			)
+		});
+	}
+
+	#[test]
+	fn failed_send_does_not_inc_sent() {
+		let (mut bounded, _) = channel::<Msg>(5, "pluto");
+		let (mut unbounded, _) = unbounded::<Msg>("pluto");
+
+		block_on(async move {
+			assert!(bounded.send(Msg::default()).await.is_err());
+			assert!(bounded.try_send(Msg::default()).is_err());
+			assert_eq!(bounded.meter().read(), Readout { sent: 0, received: 0 });
+
+			assert!(unbounded.send(Msg::default()).await.is_err());
+			assert!(unbounded.unbounded_send(Msg::default()).is_err());
+			assert_eq!(unbounded.meter().read(), Readout { sent: 0, received: 0 });
 		});
 	}
 }

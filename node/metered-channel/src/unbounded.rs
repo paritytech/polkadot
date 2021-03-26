@@ -133,15 +133,20 @@ impl<T> UnboundedMeteredSender<T> {
         self.meter.note_sent();
         let fut = self.inner.send(item);
         futures::pin_mut!(fut);
-        fut.await
+        fut.await.map_err(|e| {
+			self.meter.retract_sent();
+			e
+		})
     }
 
 
     /// Attempt to send message or fail immediately.
     pub fn unbounded_send(&mut self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
-        self.inner.unbounded_send(msg)?;
         self.meter.note_sent();
-        Ok(())
+        self.inner.unbounded_send(msg).map_err(|e| {
+			self.meter.retract_sent();
+			e
+		})
     }
 }
 
