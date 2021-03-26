@@ -24,6 +24,8 @@ use std::result;
 use std::sync::Arc;
 use std::pin::Pin;
 
+use derive_more::{Add, Display};
+
 mod bounded;
 mod unbounded;
 
@@ -35,21 +37,49 @@ pub use self::unbounded::*;
 pub struct Meter {
 	/// Name of the receiver and sender pair.
 	name: &'static str,
-	// fill state of the channel
-	fill: Arc<AtomicUsize>,
+	// Number of sends on this channel.
+	sent: Arc<AtomicUsize>,
+	// Number of receives on this channel.
+	received: Arc<AtomicUsize>,
+}
+
+/// A readout of sizes from the meter. Note that it is possible, due to asynchrony, for received
+/// to be slightly higher than sent.
+#[derive(Debug, Add, Display, Clone, Default, PartialEq)]
+#[display(fmt = "(sent={} received={})", sent, received)]
+pub struct Readout {
+	/// The amount of messages sent on the channel, in aggregate.
+	pub sent: usize,
+	/// The amount of messages received on the channel, in aggregate.
+	pub received: usize,
 }
 
 impl Meter {
 	/// Count the number of items queued up inside the channel.
-	pub fn queue_count(&self) -> usize {
+	pub fn read(&self) -> Readout {
 		// when obtaining we don't care much about off by one
 		// accuracy
-		self.fill.load(Ordering::Relaxed)
+		Readout {
+			sent: self.sent.load(Ordering::Relaxed),
+			received: self.received.load(Ordering::Relaxed),
+		}
 	}
 
 	/// Obtain the name of the channel `Sender` and `Receiver` pair.
 	pub fn name(&self) -> &'static str {
 		self.name
+	}
+
+	fn note_sent(&self) {
+		self.sent.fetch_add(1, Ordering::Relaxed);
+	}
+
+	fn retract_sent(&self) {
+		self.sent.fetch_sub(1, Ordering::Relaxed);
+	}
+
+	fn note_received(&self) {
+		self.received.fetch_add(1, Ordering::Relaxed);
 	}
 }
 
@@ -69,20 +99,20 @@ mod tests {
 		block_on(async move {
 			let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
 			let msg = Msg::default();
-			assert_eq!(rx.meter().queue_count(), 0);
+			assert_eq!(rx.meter().read(), Readout { sent: 0, received: 0 });
 			tx.try_send(msg).unwrap();
-			assert_eq!(tx.meter().queue_count(), 1);
+			assert_eq!(tx.meter().read(), Readout { sent: 1, received: 0 });
 			tx.try_send(msg).unwrap();
 			tx.try_send(msg).unwrap();
 			tx.try_send(msg).unwrap();
-			assert_eq!(tx.meter().queue_count(), 4);
+			assert_eq!(tx.meter().read(), Readout { sent: 4, received: 0 });
 			rx.try_next().unwrap();
-			assert_eq!(rx.meter().queue_count(), 3);
+			assert_eq!(rx.meter().read(), Readout { sent: 4, received: 1 });
 			rx.try_next().unwrap();
 			rx.try_next().unwrap();
-			assert_eq!(tx.meter().queue_count(), 1);
+			assert_eq!(tx.meter().read(), Readout { sent: 4, received: 3 });
 			rx.try_next().unwrap();
-			assert_eq!(rx.meter().queue_count(), 0);
+			assert_eq!(rx.meter().read(), Readout { sent: 4, received: 4 });
 			assert!(rx.try_next().is_err());
 		});
 	}
@@ -96,9 +126,9 @@ mod tests {
 			futures::join!(
 				async move {
 					let msg = Msg::default();
-					assert_eq!(tx.meter().queue_count(), 0);
+					assert_eq!(tx.meter().read(), Readout { sent: 0, received: 0 });
 					tx.try_send(msg).unwrap();
-					assert_eq!(tx.meter().queue_count(), 1);
+					assert_eq!(tx.meter().read(), Readout { sent: 1, received: 0 });
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
 					tx.try_send(msg).unwrap();
@@ -106,14 +136,14 @@ mod tests {
 				},
 				async move {
 					go.await.expect("Helper oneshot channel must work. qed");
-					assert_eq!(rx.meter().queue_count(), 4);
+					assert_eq!(rx.meter().read(), Readout { sent: 4, received: 0 });
 					rx.try_next().unwrap();
-					assert_eq!(rx.meter().queue_count(), 3);
+					assert_eq!(rx.meter().read(), Readout { sent: 4, received: 1 });
 					rx.try_next().unwrap();
 					rx.try_next().unwrap();
-					assert_eq!(rx.meter().queue_count(), 1);
+					assert_eq!(rx.meter().read(), Readout { sent: 4, received: 3 });
 					rx.try_next().unwrap();
-					assert_eq!(dbg!(rx.meter().queue_count()), 0);
+					assert_eq!(dbg!(rx.meter().read()), Readout { sent: 4, received: 4 });
 				}
 			)
 		});
@@ -130,21 +160,37 @@ mod tests {
 			futures::join!(
 				async move {
 					for i in 0..15 {
-						println!("Sent #{} with a backlog of {} items", i + 1, tx.meter().queue_count());
+						println!("Sent #{} with a backlog of {} items", i + 1, tx.meter().read());
 						let msg = Msg { val: i as u8 + 1u8 };
 						tx.send(msg).await.unwrap();
-						assert!(tx.meter().queue_count() > 0usize);
+						assert!(tx.meter().read().sent > 0usize);
 						Delay::new(Duration::from_millis(20)).await;
 					}
 					()
 				},
 				async move {
 					while let Some(msg) = rx.next().await {
-						println!("rx'd one {} with {} backlogged", msg.val, rx.meter().queue_count());
+						println!("rx'd one {} with {} backlogged", msg.val, rx.meter().read());
 						Delay::new(Duration::from_millis(29)).await;
 					}
 				}
 			)
+		});
+	}
+
+	#[test]
+	fn failed_send_does_not_inc_sent() {
+		let (mut bounded, _) = channel::<Msg>(5, "pluto");
+		let (mut unbounded, _) = unbounded::<Msg>("pluto");
+
+		block_on(async move {
+			assert!(bounded.send(Msg::default()).await.is_err());
+			assert!(bounded.try_send(Msg::default()).is_err());
+			assert_eq!(bounded.meter().read(), Readout { sent: 0, received: 0 });
+
+			assert!(unbounded.send(Msg::default()).await.is_err());
+			assert!(unbounded.unbounded_send(Msg::default()).is_err());
+			assert_eq!(unbounded.meter().read(), Readout { sent: 0, received: 0 });
 		});
 	}
 }
