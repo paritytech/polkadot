@@ -33,7 +33,7 @@ use crate::LOG_TARGET;
 pub enum Error {
 	#[error("Response channel to obtain chunk failed")]
 	QueryChunkResponseChannel(#[source] oneshot::Canceled),
-	
+
 	#[error("Response channel to obtain available data failed")]
 	QueryAvailableDataResponseChannel(#[source] oneshot::Canceled),
 

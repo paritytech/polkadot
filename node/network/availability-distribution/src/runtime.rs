@@ -50,7 +50,7 @@ pub struct Runtime {
 	keystore: SyncCryptoStorePtr,
 }
 
-/// SessionInfo with additional useful data for validator nodes. 
+/// SessionInfo with additional useful data for validator nodes.
 pub struct ExtendedSessionInfo {
 	/// Actual session info as fetched from the runtime.
 	pub session_info: SessionInfo,
