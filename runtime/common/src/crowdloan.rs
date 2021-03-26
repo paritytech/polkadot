@@ -605,7 +605,7 @@ impl<T: Config> Module<T> {
 		fund: &FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>
 	) -> DispatchResult {
 			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
-			// If the current lease period is the first slot they are trying to bid for, then it is already too late
+			// If the current lease period is past the first slot they are trying to bid for, then it is already too late
 			// to win the bid.
 			let current_lease_period = T::Auctioneer::lease_period_index();
 			ensure!(now >= fund.end || current_lease_period > fund.first_slot, Error::<T>::FundNotEnded);
