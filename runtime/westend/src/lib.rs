@@ -637,6 +637,7 @@ impl pallet_mmr::Config for Runtime {
 
 impl mmr_common::Config for Runtime {
 	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
+	type ParachainHeads = ();
 }
 
 parameter_types! {

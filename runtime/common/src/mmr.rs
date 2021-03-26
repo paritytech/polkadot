@@ -96,13 +96,43 @@ pub struct BeefyNextAuthoritySet<MerkleRoot> {
 type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
 
 /// The module's configuration trait.
-pub trait Config: pallet_mmr::Config + paras::Config + pallet_beefy::Config {
+pub trait Config: pallet_mmr::Config + pallet_beefy::Config {
 	/// Convert BEEFY AuthorityId to a form that would end up in the Merkle Tree.
 	///
 	/// For instance for ECDSA (secp256k1) we want to store uncompressed public keys (65 bytes)
 	/// to simplify using them on Ethereum chain, but the rest of the Substrate codebase
 	/// is storing them compressed (33 bytes) for efficiency reasons.
 	type BeefyAuthorityToMerkleLeaf: Convert<<Self as pallet_beefy::Config>::AuthorityId, Vec<u8>>;
+
+	/// Retrieve a list of current parachain heads.
+	///
+	/// The trait is implemented for `paras` module, but since not all chains might have parachains,
+	/// and we want to keep the MMR leaf structure uniform, it's possible to use `()` as well to
+	/// simply put dummy data to the leaf.
+	type ParachainHeads: ParachainHeadsProvider;
+}
+
+/// A type that is able to return current list of parachain heads that end up in the MMR leaf.
+pub trait ParachainHeadsProvider {
+	/// Return a list of encoded parachain heads.
+	fn encoded_heads() -> Vec<Vec<u8>>;
+}
+
+/// A default implementation for runtimes without parachains.
+impl ParachainHeadsProvider for () {
+	fn encoded_heads() -> Vec<Vec<u8>> {
+		Default::default()
+	}
+}
+
+impl<T: Config + paras::Config> ParachainHeadsProvider for paras::Pallet<T> {
+	fn encoded_heads() -> Vec<Vec<u8>> {
+		paras::Pallet::<T>::parachains()
+			.into_iter()
+			.map(paras::Pallet::<T>::para_head)
+			.map(|maybe_para_head| maybe_para_head.encode())
+			.collect()
+	}
 }
 
 decl_storage! {
@@ -149,12 +179,7 @@ impl<T: Config> Pallet<T> where
 	/// the merkle tree every block. Instead we should update the merkle root in [Self::on_initialize]
 	/// call of this pallet and update the merkle tree efficiently (use on-chain storage to persist inner nodes).
 	fn parachain_heads_merkle_root() -> MerkleRootOf<T> {
-		let para_heads = paras::Pallet::<T>::parachains()
-			.into_iter()
-			.map(paras::Pallet::<T>::para_head)
-			.map(|maybe_para_head| maybe_para_head.encode())
-			.collect::<Vec<_>>();
-
+		let para_heads = T::ParachainHeads::encoded_heads();
 		sp_io::trie::keccak_256_ordered_root(para_heads).into()
 	}
 
