@@ -412,7 +412,7 @@ impl State {
 				if let Some(peer_id) = source.peer_id() {
 					tracing::debug!(
 						target: LOG_TARGET,
-						?source,
+						?peer_id,
 						?block_hash,
 						?validator_index,
 						"Unexpected assignment",
@@ -437,7 +437,7 @@ impl State {
 					if knowledge.get().known_messages.contains(&fingerprint) {
 						tracing::debug!(
 							target: LOG_TARGET,
-							?source,
+							?peer_id,
 							?fingerprint,
 							"Duplicate assignment",
 						);
@@ -448,7 +448,7 @@ impl State {
 				hash_map::Entry::Vacant(_) => {
 					tracing::debug!(
 						target: LOG_TARGET,
-						?source,
+						?peer_id,
 						?fingerprint,
 						"Assignment from a peer is out of view",
 					);
@@ -462,7 +462,7 @@ impl State {
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					tracing::trace!(
 						target: LOG_TARGET,
-						?source,
+						?peer_id,
 						?fingerprint,
 						"Known assignment",
 					);
@@ -628,7 +628,6 @@ impl State {
 			if !entry.knowledge.known_messages.contains(&assignment_fingerprint) {
 				tracing::debug!(
 					target: LOG_TARGET,
-					?source,
 					?peer_id,
 					?fingerprint,
 					"Unknown approval assignment",
@@ -643,7 +642,6 @@ impl State {
 					if knowledge.get().known_messages.contains(&fingerprint) {
 						tracing::debug!(
 							target: LOG_TARGET,
-							?source,
 							?peer_id,
 							?fingerprint,
 							"Duplicate approval",
@@ -656,7 +654,6 @@ impl State {
 				hash_map::Entry::Vacant(_) => {
 					tracing::debug!(
 						target: LOG_TARGET,
-						?source,
 						?peer_id,
 						?fingerprint,
 						"Approval from a peer is out of view",
@@ -669,7 +666,6 @@ impl State {
 			if entry.knowledge.known_messages.contains(&fingerprint) {
 				tracing::trace!(
 					target: LOG_TARGET,
-					?source,
 					?peer_id,
 					?fingerprint,
 					"Known approval",
@@ -701,7 +697,6 @@ impl State {
 
 			tracing::trace!(
 				target: LOG_TARGET,
-				?source,
 				?peer_id,
 				?fingerprint,
 				?result,
