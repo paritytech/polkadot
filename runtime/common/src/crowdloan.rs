@@ -101,6 +101,7 @@ pub trait WeightInfo {
 	fn withdraw() -> Weight;
 	fn dissolve(k: u32, ) -> Weight;
 	fn edit() -> Weight;
+	fn add_memo() -> Weight;
 	fn on_initialize(n: u32, ) -> Weight;
 }
 
@@ -111,6 +112,7 @@ impl WeightInfo for TestWeightInfo {
 	fn withdraw() -> Weight { 0 }
 	fn dissolve(_k: u32, ) -> Weight { 0 }
 	fn edit() -> Weight { 0 }
+	fn add_memo() -> Weight { 0 }
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
 }
 
@@ -546,7 +548,7 @@ decl_module! {
 		/// Add an optional memo to an existing crowdloan contribution.
 		///
 		/// Origin must be Signed, and the user must have contributed to the crowdloan.
-		#[weight = 0]
+		#[weight = T::WeightInfo::add_memo()]
 		pub fn add_memo(origin, index: ParaId, memo: Vec<u8>) {
 			let who = ensure_signed(origin)?;
 
