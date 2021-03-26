@@ -1591,4 +1591,26 @@ mod tests {
 			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
 		});
 	}
+
+	#[test]
+	fn code_ref_is_cleaned_correctly() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let code: ValidationCode = vec![1, 2, 3].into();
+			Paras::increase_code_ref(&code);
+			Paras::increase_code_ref(&code);
+
+			assert!(CodeByHash::contains_key(code.hash()));
+			assert_eq!(CodeByHashRefs::get(code.hash()), 2);
+
+			Paras::decrease_code_ref(&code);
+
+			assert!(CodeByHash::contains_key(code.hash()));
+			assert_eq!(CodeByHashRefs::get(code.hash()), 1);
+
+			Paras::decrease_code_ref(&code);
+
+			assert!(!CodeByHash::contains_key(code.hash()));
+			assert!(!CodeByHashRefs::contains_key(code.hash()));
+		});
+	}
 }
