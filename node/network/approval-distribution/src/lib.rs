@@ -640,14 +640,15 @@ impl State {
 			// check if our knowledge of the peer already contains this approval
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(knowledge) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						?source,
-						?peer_id,
-						?fingerprint,
-						"Duplicate approval",
-					);
 					if knowledge.get().known_messages.contains(&fingerprint) {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?source,
+							?peer_id,
+							?fingerprint,
+							"Duplicate approval",
+						);
+
 						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						return;
 					}
