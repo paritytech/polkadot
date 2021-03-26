@@ -608,7 +608,7 @@ impl<T: Config> Module<T> {
 			// If the current lease period is the first slot they are trying to bid for, then it is already too late
 			// to win the bid.
 			let current_lease_period = T::Auctioneer::lease_period_index();
-			ensure!(now >= fund.end || current_lease_period >= fund.first_slot, Error::<T>::FundNotEnded);
+			ensure!(now >= fund.end || current_lease_period > fund.first_slot, Error::<T>::FundNotEnded);
 			// free balance must greater than or equal amount raised, otherwise funds are being used
 			// and a bid or lease must be active.
 			ensure!(CurrencyOf::<T>::free_balance(&fund_account) >= fund.raised, Error::<T>::BidOrLeaseActive);
