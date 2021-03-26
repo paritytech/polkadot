@@ -1683,7 +1683,7 @@ mod tests {
 				))
 			).await;
 
-			let view_heads = (MAX_VIEW_HEADS * 3 - MAX_VIEW_HEADS .. MAX_VIEW_HEADS * 3).rev()
+			let view_heads = (MAX_VIEW_HEADS * 2 .. MAX_VIEW_HEADS * 3).rev()
 				.map(|i| (Hash::repeat_byte(i as u8), Arc::new(jaeger::Span::Disabled)) );
 
 			let our_view = OurView::new(

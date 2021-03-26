@@ -473,7 +473,7 @@ struct State {
 	interactions: HashMap<CandidateHash, InteractionHandle>,
 
 	/// A recent block hash for which state should be available.
-	live_block_hash: (BlockNumber, Hash),
+	live_block: (BlockNumber, Hash),
 
 	/// interaction communication. This is cloned and given to interactions that are spun up.
 	from_interaction_tx: mpsc::Sender<FromInteraction>,
@@ -491,7 +491,7 @@ impl Default for State {
 
 		Self {
 			interactions: HashMap::new(),
-			live_block_hash: (0, Hash::default()),
+			live_block: (0, Hash::default()),
 			from_interaction_tx,
 			from_interaction_rx,
 			availability_lru: LruCache::new(LRU_SIZE),
@@ -521,10 +521,10 @@ async fn handle_signal(
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
-			// if activated is non-empty, set state.live_block_hash to the highest block in `activated`
+			// if activated is non-empty, set state.live_block to the highest block in `activated`
 			for activated in activated {
-				if activated.number > state.live_block_hash.0 {
-					state.live_block_hash = (activated.number, activated.hash)
+				if activated.number > state.live_block.0 {
+					state.live_block = (activated.number, activated.hash)
 				}
 			}
 
@@ -632,7 +632,7 @@ async fn handle_recover(
 
 	let _span = span.child("not-cached");
 	let session_info = request_session_info_ctx(
-		state.live_block_hash.1,
+		state.live_block.1,
 		session_index,
 		ctx,
 	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
@@ -653,7 +653,7 @@ async fn handle_recover(
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
-				"SessionInfo is `None` at {:?}", state.live_block_hash,
+				"SessionInfo is `None` at {:?}", state.live_block,
 			);
 			response_sender
 				.send(Err(RecoveryError::Unavailable))
