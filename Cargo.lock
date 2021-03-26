@@ -3790,6 +3790,7 @@ name = "metered-channel"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "derive_more",
  "futures 0.3.12",
  "futures-timer 3.0.2",
 ]
