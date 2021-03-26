@@ -16,7 +16,13 @@
 
 //! Metered variant of unbounded mpsc channels to be able to extract metrics.
 
-use super::*;
+use futures::{channel::mpsc, task::Poll, task::Context, sink::SinkExt, stream::Stream};
+
+use std::result;
+use std::pin::Pin;
+
+use super::Meter;
+
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn unbounded<T>(name: &'static str) -> (UnboundedMeteredSender<T>, UnboundedMeteredReceiver<T>) {
