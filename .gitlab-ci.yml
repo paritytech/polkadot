@@ -324,7 +324,7 @@ publish-real-overseer-image:
       artifacts:                   true
 
 publish-adder-collator-image:
-    # service image for Simnet
+  # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
   variables:
@@ -337,6 +337,8 @@ publish-adder-collator-image:
     - job:                         build-adder-collator
       artifacts:                   true
   after_script:
+    - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the trigger-simnet job
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
   artifacts:
     reports:
@@ -416,9 +418,9 @@ trigger-simnet:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-  needs:
-    - job:                         publish-real-overseer-image
-    - job:                         publish-adder-collator-image
+  # needs:
+  #   - job:                         publish-real-overseer-image
+  #   - job:                         publish-adder-collator-image
   # `build.env` is taken by the triggered job from `publish-polkadot-image` job with
   # an exact `$IMAGE_TAG` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
   # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
