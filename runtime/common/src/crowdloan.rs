@@ -148,6 +148,9 @@ pub trait Config: frame_system::Config {
 		LeasePeriod=Self::BlockNumber,
 	>;
 
+	/// The maximum length for the memo attached to a crowdloan contribution.
+	type MaxMemoLength: Get<u8>;
+
 	/// Weight Information for the Extrinsics in the Pallet
 	type WeightInfo: WeightInfo;
 }
@@ -287,6 +290,8 @@ decl_error! {
 		NotReadyToDissolve,
 		/// Invalid signature.
 		InvalidSignature,
+		/// The provided memo is too large.
+		MemoTooLarge,
 	}
 }
 
@@ -357,7 +362,7 @@ decl_module! {
 		pub fn contribute(origin,
 			#[compact] index: ParaId,
 			#[compact] value: BalanceOf<T>,
-			signature: Option<MultiSignature>
+			signature: Option<MultiSignature>,
 		) {
 			let who = ensure_signed(origin)?;
 
@@ -370,7 +375,7 @@ decl_module! {
 			let now = <frame_system::Pallet<T>>::block_number();
 			ensure!(now < fund.end, Error::<T>::ContributionPeriodOver);
 
-			let old_balance = Self::contribution_get(fund.trie_index, &who);
+			let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
 
 			if let Some(ref verifier) = fund.verifier {
 				let signature = signature.ok_or(Error::<T>::InvalidSignature)?;
@@ -382,7 +387,7 @@ decl_module! {
 			CurrencyOf::<T>::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
 
 			let balance = old_balance.saturating_add(value);
-			Self::contribution_put(fund.trie_index, &who, &balance);
+			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
 
 			if T::Auctioneer::is_ending(now).is_some() {
 				match fund.last_contribution {
@@ -449,7 +454,7 @@ decl_module! {
 			// free balance must equal amount raised, otherwise a bid or lease must be active.
 			ensure!(CurrencyOf::<T>::free_balance(&fund_account) == fund.raised, Error::<T>::BidOrLeaseActive);
 
-			let balance = Self::contribution_get(fund.trie_index, &who);
+			let (balance, _) = Self::contribution_get(fund.trie_index, &who);
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			// Avoid using transfer to ensure we don't pay any fees.
@@ -583,12 +588,12 @@ impl<T: Config> Module<T> {
 		child::ChildInfo::new_default(T::Hashing::hash(&buf[..]).as_ref())
 	}
 
-	pub fn contribution_put(index: TrieIndex, who: &T::AccountId, balance: &BalanceOf<T>) {
-		who.using_encoded(|b| child::put(&Self::id_from_index(index), b, balance));
+	pub fn contribution_put(index: TrieIndex, who: &T::AccountId, balance: &BalanceOf<T>, memo: &[u8]) {
+		who.using_encoded(|b| child::put(&Self::id_from_index(index), b, &(balance, memo)));
 	}
 
-	pub fn contribution_get(index: TrieIndex, who: &T::AccountId) -> BalanceOf<T> {
-		who.using_encoded(|b| child::get_or_default::<BalanceOf<T>>(
+	pub fn contribution_get(index: TrieIndex, who: &T::AccountId) -> (BalanceOf<T>, Vec<u8>) {
+		who.using_encoded(|b| child::get_or_default::<(BalanceOf<T>, Vec<u8>)>(
 			&Self::id_from_index(index),
 			b,
 		))
@@ -792,6 +797,7 @@ mod tests {
 		pub const RetirementPeriod: u64 = 5;
 		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
 		pub const RemoveKeysLimit: u32 = 10;
+		pub const MaxMemoLength: u8 = 32;
 	}
 
 	impl Config for Test {
@@ -804,6 +810,7 @@ mod tests {
 		type RemoveKeysLimit = RemoveKeysLimit;
 		type Registrar = TestRegistrar<Test>;
 		type Auctioneer = TestAuctioneer;
+		type MaxMemoLength = MaxMemoLength;
 		type WeightInfo = crate::crowdloan::TestWeightInfo;
 	}
 
@@ -851,7 +858,7 @@ mod tests {
 			assert_eq!(Crowdloan::funds(ParaId::from(0)), None);
 			let empty: Vec<ParaId> = Vec::new();
 			assert_eq!(Crowdloan::new_raise(), empty);
-			assert_eq!(Crowdloan::contribution_get(0u32, &1), 0);
+			assert_eq!(Crowdloan::contribution_get(0u32, &1).0, 0);
 			assert_eq!(Crowdloan::endings_count(), 0);
 
 			assert_ok!(TestAuctioneer::new_auction(5, 0));
@@ -962,14 +969,14 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, None));
 
 			// No contributions yet
-			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1), 0);
+			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1).0, 0);
 
 			// User 1 contributes to their own crowdloan
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 49, None));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
-			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1), 49);
+			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1).0, 49);
 			// Contributions appear in free balance of crowdloan
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(para)), 49);
 			// Crowdloan is added to NewRaise
@@ -992,7 +999,7 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, Some(pubkey.clone())));
 
 			// No contributions yet
-			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1), 0);
+			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1).0, 0);
 
 			// Missing signature
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), para, 49, None), Error::<Test>::InvalidSignature);
