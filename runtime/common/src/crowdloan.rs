@@ -596,11 +596,9 @@ impl<T: Config> Module<T> {
 	}
 
 	/// This function checks all conditions which would qualify a crowdloan has ended.
-	/// * If we have reached the `fund.end` block
-	///    * or
-	/// * If the first lease period the fund is trying to bid for has started already
-	///    * and
-	/// * If the fund has enough free funds to refund full raised amount.
+	/// * If we have reached the `fund.end` block OR the first lease period the fund is
+	///   trying to bid for has started already.
+	/// * And, if the fund has enough free funds to refund full raised amount.
 	fn ensure_crowdloan_ended(
 		now: T::BlockNumber,
 		fund_account: &T::AccountId,
