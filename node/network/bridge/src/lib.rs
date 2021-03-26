@@ -290,7 +290,7 @@ where
 			},
 
 			Action::ReportPeer(peer, rep) => {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					action = "ReportPeer"
 				);
