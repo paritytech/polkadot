@@ -90,7 +90,7 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem, jaeger,
+	SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
 };
 use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
@@ -1898,7 +1898,11 @@ where
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
 			let span = self.on_head_activated(&hash, None);
-			update.activated.push((hash, span));
+			update.activated.push(ActivatedLeaf {
+				hash,
+				number,
+				span,
+			});
 		}
 
 		if !update.is_empty() {
@@ -1982,7 +1986,11 @@ where
 		};
 
 		let span = self.on_head_activated(&block.hash, Some(block.parent_hash));
-		let mut update = ActiveLeavesUpdate::start_work(block.hash, span);
+		let mut update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			hash: block.hash,
+			number: block.number,
+			span
+		});
 
 		if let Some(number) = self.active_leaves.remove(&block.parent_hash) {
 			debug_assert_eq!(block.number.saturating_sub(1), number);
@@ -2602,16 +2610,25 @@ mod tests {
 			handler.block_imported(third_block).await;
 
 			let expected_heartbeats = vec![
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
-					first_block_hash,
-					Arc::new(jaeger::Span::Disabled),
-				)),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: first_block_hash,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				})),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [(second_block_hash, Arc::new(jaeger::Span::Disabled))].as_ref().into(),
+					activated: [ActivatedLeaf {
+						hash: second_block_hash,
+						number: 2,
+						span: Arc::new(jaeger::Span::Disabled),
+					}].as_ref().into(),
 					deactivated: [first_block_hash].as_ref().into(),
 				}),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [(third_block_hash, Arc::new(jaeger::Span::Disabled))].as_ref().into(),
+					activated: [ActivatedLeaf {
+						hash: third_block_hash,
+						number: 3,
+						span: Arc::new(jaeger::Span::Disabled),
+					}].as_ref().into(),
 					deactivated: [second_block_hash].as_ref().into(),
 				}),
 			];
@@ -2700,8 +2717,16 @@ mod tests {
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: [
-						(first_block_hash, Arc::new(jaeger::Span::Disabled)),
-						(second_block_hash, Arc::new(jaeger::Span::Disabled)),
+						ActivatedLeaf {
+							hash: first_block_hash,
+							number: 1,
+							span: Arc::new(jaeger::Span::Disabled),
+						},
+						ActivatedLeaf {
+							hash: second_block_hash,
+							number: 2,
+							span: Arc::new(jaeger::Span::Disabled),
+						},
 					].as_ref().into(),
 					..Default::default()
 				}),
@@ -2788,7 +2813,11 @@ mod tests {
 			let expected_heartbeats = vec![
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: [
-						(imported_block.hash, Arc::new(jaeger::Span::Disabled)),
+						ActivatedLeaf {
+							hash: imported_block.hash,
+							number: imported_block.number,
+							span: Arc::new(jaeger::Span::Disabled)
+						}
 					].as_ref().into(),
 					..Default::default()
 				}),

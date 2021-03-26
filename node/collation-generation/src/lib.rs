@@ -128,7 +128,7 @@ impl CollationGenerationSubsystem {
 					let metrics = self.metrics.clone();
 					if let Err(err) = handle_new_activations(
 						config.clone(),
-						activated.into_iter().map(|v| v.0),
+						activated.into_iter().map(|v| v.hash),
 						ctx,
 						metrics,
 						sender,

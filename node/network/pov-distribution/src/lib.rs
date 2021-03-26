@@ -153,10 +153,11 @@ async fn handle_signal(
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 			let _timer = state.metrics.time_handle_signal();
 
-			for (relay_parent, span) in activated {
-				let _span = span.child("pov-dist")
+			for activated in activated {
+				let _span = activated.span.child("pov-dist")
 					.with_stage(jaeger::Stage::PoVDistribution);
 
+				let relay_parent = activated.hash;
 				match request_validators_ctx(relay_parent, ctx).await {
 					Ok(vals_rx) => {
 						let n_validators = match vals_rx.await? {
