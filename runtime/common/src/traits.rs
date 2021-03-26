@@ -78,6 +78,7 @@ pub trait Registrar {
 }
 
 /// Error type for something that went wrong with leasing.
+#[derive(Debug)]
 pub enum LeaseError {
 	/// Unable to reserve the funds in the leaser's account.
 	ReserveFailed,
