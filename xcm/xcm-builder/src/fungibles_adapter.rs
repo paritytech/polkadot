@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{result, convert::TryFrom, marker::PhantomData, borrow::Borrow};
+use sp_std::{prelude::*, result, convert::TryFrom, marker::PhantomData, borrow::Borrow};
 use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
-use frame_support::traits::{Get, Fungibles};
+use frame_support::traits::{Get, tokens::fungibles::Mutate as Fungibles};
 use xcm_executor::traits::{LocationConversion, TransactAsset};
 
 /// Asset transaction errors.
