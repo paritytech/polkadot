@@ -2887,8 +2887,8 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, s1_rx) = metered::channel::<usize>(64, "overseer_test");
-			let (s2_tx, s2_rx) = metered::channel::<usize>(64, "overseer_test");
+			let (s1_tx, s1_rx) = metered::channel::<usize>(64);
+			let (s2_tx, s2_rx) = metered::channel::<usize>(64);
 
 			let mut s1_rx = s1_rx.fuse();
 			let mut s2_rx = s2_rx.fuse();
@@ -2999,9 +2999,6 @@ mod tests {
 		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
 		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
 		assert_eq!(gather[2].get_name(), "parachain_messages_relayed_total");
-		assert_eq!(gather[3].get_name(), "parachain_overseer_messages_relay_timings");
-		assert_eq!(gather[4].get_name(), "parachain_to_overseer_received");
-		assert_eq!(gather[5].get_name(), "parachain_to_overseer_sent");
 		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
 		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
 		let relayed = gather[2].get_metric()[0].get_counter().get_value() as u64;
@@ -3633,62 +3630,115 @@ mod tests {
 
 	#[test]
 	fn context_holds_onto_message_until_enough_signals_received() {
-		let (candidate_validation_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (candidate_backing_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (candidate_selection_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (statement_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (availability_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (bitfield_signing_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (bitfield_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (provisioner_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (pov_distribution_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (runtime_api_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (availability_store_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (network_bridge_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (chain_api_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (collator_protocol_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
-		let (collation_generation_tx, _) = mpsc::channel(CHANNEL_CAPACITY);
+		let (candidate_validation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (candidate_backing_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (candidate_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (statement_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (availability_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (availability_recovery_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (bitfield_signing_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (bitfield_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (provisioner_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (pov_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (runtime_api_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (availability_store_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (network_bridge_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (chain_api_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (collator_protocol_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (collation_generation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (approval_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (approval_voting_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+		let (gossip_support_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+
+		let (candidate_validation_unbounded_tx, _) = metered::unbounded();
+		let (candidate_backing_unbounded_tx, _) = metered::unbounded();
+		let (candidate_selection_unbounded_tx, _) = metered::unbounded();
+		let (statement_distribution_unbounded_tx, _) = metered::unbounded();
+		let (availability_distribution_unbounded_tx, _) = metered::unbounded();
+		let (availability_recovery_unbounded_tx, _) = metered::unbounded();
+		let (bitfield_signing_unbounded_tx, _) = metered::unbounded();
+		let (bitfield_distribution_unbounded_tx, _) = metered::unbounded();
+		let (provisioner_unbounded_tx, _) = metered::unbounded();
+		let (pov_distribution_unbounded_tx, _) = metered::unbounded();
+		let (runtime_api_unbounded_tx, _) = metered::unbounded();
+		let (availability_store_unbounded_tx, _) = metered::unbounded();
+		let (network_bridge_unbounded_tx, _) = metered::unbounded();
+		let (chain_api_unbounded_tx, _) = metered::unbounded();
+		let (collator_protocol_unbounded_tx, _) = metered::unbounded();
+		let (collation_generation_unbounded_tx, _) = metered::unbounded();
+		let (approval_distribution_unbounded_tx, _) = metered::unbounded();
+		let (approval_voting_unbounded_tx, _) = metered::unbounded();
+		let (gossip_support_unbounded_tx, _) = metered::unbounded();
 
 		let channels_out = ChannelsOut {
-			candidate_validation: candidate_validation_tx.clone(),
-			candidate_backing: candidate_backing_tx.clone(),
-			candidate_selection: candidate_selection_tx.clone(),
-			statement_distribution: statement_distribution_tx.clone(),
-			availability_distribution: availability_distribution_tx.clone(),
-			bitfield_signing: bitfield_signing_tx.clone(),
-			bitfield_distribution: bitfield_distribution_tx.clone(),
-			provisioner: provisioner_tx.clone(),
-			pov_distribution: pov_distribution_tx.clone(),
-			runtime_api: runtime_api_tx.clone(),
-			availability_store: availability_store_tx.clone(),
-			network_bridge: network_bridge_tx.clone(),
-			chain_api: chain_api_tx.clone(),
-			collator_protocol: collator_protocol_tx.clone(),
-			collation_generation: collation_generation_tx.clone(),
+			candidate_validation: candidate_validation_bounded_tx.clone(),
+			candidate_backing: candidate_backing_bounded_tx.clone(),
+			candidate_selection: candidate_selection_bounded_tx.clone(),
+			statement_distribution: statement_distribution_bounded_tx.clone(),
+			availability_distribution: availability_distribution_bounded_tx.clone(),
+			availability_recovery: availability_recovery_bounded_tx.clone(),
+			bitfield_signing: bitfield_signing_bounded_tx.clone(),
+			bitfield_distribution: bitfield_distribution_bounded_tx.clone(),
+			provisioner: provisioner_bounded_tx.clone(),
+			pov_distribution: pov_distribution_bounded_tx.clone(),
+			runtime_api: runtime_api_bounded_tx.clone(),
+			availability_store: availability_store_bounded_tx.clone(),
+			network_bridge: network_bridge_bounded_tx.clone(),
+			chain_api: chain_api_bounded_tx.clone(),
+			collator_protocol: collator_protocol_bounded_tx.clone(),
+			collation_generation: collation_generation_bounded_tx.clone(),
+			approval_distribution: approval_distribution_bounded_tx.clone(),
+			approval_voting: approval_voting_bounded_tx.clone(),
+			gossip_support: gossip_support_bounded_tx.clone(),
+
+			candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
+			candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
+			candidate_selection_unbounded: candidate_selection_unbounded_tx.clone(),
+			statement_distribution_unbounded: statement_distribution_unbounded_tx.clone(),
+			availability_distribution_unbounded: availability_distribution_unbounded_tx.clone(),
+			availability_recovery_unbounded: availability_recovery_unbounded_tx.clone(),
+			bitfield_signing_unbounded: bitfield_signing_unbounded_tx.clone(),
+			bitfield_distribution_unbounded: bitfield_distribution_unbounded_tx.clone(),
+			provisioner_unbounded: provisioner_unbounded_tx.clone(),
+			pov_distribution_unbounded: pov_distribution_unbounded_tx.clone(),
+			runtime_api_unbounded: runtime_api_unbounded_tx.clone(),
+			availability_store_unbounded: availability_store_unbounded_tx.clone(),
+			network_bridge_unbounded: network_bridge_unbounded_tx.clone(),
+			chain_api_unbounded: chain_api_unbounded_tx.clone(),
+			collator_protocol_unbounded: collator_protocol_unbounded_tx.clone(),
+			collation_generation_unbounded: collation_generation_unbounded_tx.clone(),
+			approval_distribution_unbounded: approval_distribution_unbounded_tx.clone(),
+			approval_voting_unbounded: approval_voting_unbounded_tx.clone(),
+			gossip_support_unbounded: gossip_support_unbounded_tx.clone(),
 		};
 
-		let (mut signal_tx, signal_rx) = mpsc::channel(CHANNEL_CAPACITY);
-		let (mut messages_tx, messages_rx) = mpsc::channel(CHANNEL_CAPACITY);
-		let (to_overseer_tx, _to_overseer_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (mut signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);
+		let (mut bounded_tx, bounded_rx) = metered::channel(CHANNEL_CAPACITY);
+		let (unbounded_tx, unbounded_rx) = metered::unbounded();
+		let (to_overseer_tx, _to_overseer_rx) = metered::unbounded();
 
 		let mut ctx = OverseerSubsystemContext::<()>::new_unmetered(
 			signal_rx,
-			messages_rx,
+			stream::select(bounded_rx, unbounded_rx),
 			channels_out,
 			to_overseer_tx,
 		);
 
-		assert_eq!(ctx.signals_received, 0);
+		assert_eq!(ctx.signals_received.load(), 0);
 
 		let test_fut = async move {
 			signal_tx.send(OverseerSignal::Conclude).await.unwrap();
 			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
 
-			assert_eq!(ctx.signals_received, 1);
-			messages_tx.send(MessagePacket {
+			assert_eq!(ctx.signals_received.load(), 1);
+			bounded_tx.send(MessagePacket {
 				signals_received: 2,
 				message: (),
 			}).await.unwrap();
+			unbounded_tx.unbounded_send(MessagePacket {
+				signals_received: 2,
+				message: (),
+			}).unwrap();
 
 			match poll!(ctx.recv()) {
 				Poll::Pending => {}
@@ -3699,6 +3749,7 @@ mod tests {
 
 			signal_tx.send(OverseerSignal::Conclude).await.unwrap();
 			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
+			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
 			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
 			assert!(ctx.pending_incoming.is_none());
 		};
