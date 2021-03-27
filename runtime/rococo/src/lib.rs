@@ -627,7 +627,7 @@ impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
 }
 
 parameter_types! {
-	pub const EndingPeriod: BlockNumber = 15 * MINUTES;
+	pub const EndingPeriod: BlockNumber = 1 * HOURS;
 	pub const SampleLength: BlockNumber = 1;
 }
 

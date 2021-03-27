@@ -19,7 +19,7 @@
 use std::{cell::RefCell, collections::HashMap};
 use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::SaturatedConversion;
-use frame_support::dispatch::DispatchResult;
+use frame_support::dispatch::{DispatchError, DispatchResult};
 use primitives::v1::{HeadData, ValidationCode, Id as ParaId};
 use crate::traits::Registrar;
 
@@ -57,18 +57,21 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 		PARACHAINS.with(|x| {
 			let parachains = x.borrow_mut();
 			match parachains.binary_search(&id) {
-				Ok(_) => panic!("Already Parachain"),
-				Err(_) => {},
+				Ok(_) => Err(DispatchError::Other("Already Parachain")),
+				Err(_) => Ok(()),
 			}
-		});
+		})?;
 		// Should not be parathread, then make it.
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
-				Ok(_) => panic!("Already Parathread"),
-				Err(i) => parathreads.insert(i, id),
+				Ok(_) => Err(DispatchError::Other("Already Parathread")),
+				Err(i) => {
+					parathreads.insert(i, id);
+					Ok(())
+				},
 			}
-		});
+		})?;
 		MANAGERS.with(|x| x.borrow_mut().insert(id, manager.encode()));
 		Ok(())
 	}
@@ -76,66 +79,77 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 	fn deregister(id: ParaId) -> DispatchResult {
 		// Should not be parachain.
 		PARACHAINS.with(|x| {
-			let mut parachains = x.borrow_mut();
+			let parachains = x.borrow_mut();
 			match parachains.binary_search(&id) {
-				Ok(i) => {
-					parachains.remove(i);
-				},
-				Err(_) => {},
+				Ok(_) => Err(DispatchError::Other("cannot deregister parachain")),
+				Err(_) => Ok(()),
 			}
-		});
+		})?;
 		// Remove from parathread.
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
 				Ok(i) => {
 					parathreads.remove(i);
+					Ok(())
 				},
-				Err(_) => {},
+				Err(_) => Err(DispatchError::Other("not parathread, so cannot `deregister`")),
 			}
-		});
+		})?;
 		MANAGERS.with(|x| x.borrow_mut().remove(&id));
 		Ok(())
 	}
 
 	fn make_parachain(id: ParaId) -> DispatchResult {
-		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Pallet::<T>::block_number().saturated_into(), true)));
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
 				Ok(i) => {
 					parathreads.remove(i);
+					Ok(())
 				},
-				Err(_) => panic!("not parathread, so cannot `make_parachain`"),
+				Err(_) => Err(DispatchError::Other("not parathread, so cannot `make_parachain`")),
 			}
-		});
+		})?;
 		PARACHAINS.with(|x| {
 			let mut parachains = x.borrow_mut();
 			match parachains.binary_search(&id) {
-				Ok(_) => {},
-				Err(i) => parachains.insert(i, id),
+				Ok(_) => Err(DispatchError::Other("already parachain, so cannot `make_parachain`")),
+				Err(i) => {
+					parachains.insert(i, id);
+					Ok(())
+				},
 			}
-		});
+		})?;
+		OPERATIONS.with(|x| x.borrow_mut().push(
+			(id, frame_system::Pallet::<T>::block_number().saturated_into(), true)
+		));
 		Ok(())
 	}
 	fn make_parathread(id: ParaId) -> DispatchResult {
-		OPERATIONS.with(|x| x.borrow_mut().push((id, frame_system::Pallet::<T>::block_number().saturated_into(), false)));
 		PARACHAINS.with(|x| {
 			let mut parachains = x.borrow_mut();
 			match parachains.binary_search(&id) {
 				Ok(i) => {
 					parachains.remove(i);
+					Ok(())
 				},
-				Err(_) => panic!("not parachain, so cannot `make_parathread`"),
+				Err(_) => Err(DispatchError::Other("not parachain, so cannot `make_parathread`")),
 			}
-		});
+		})?;
 		PARATHREADS.with(|x| {
 			let mut parathreads = x.borrow_mut();
 			match parathreads.binary_search(&id) {
-				Ok(_) => {},
-				Err(i) => parathreads.insert(i, id),
+				Ok(_) => Err(DispatchError::Other("already parathread, so cannot `make_parathread`")),
+				Err(i) => {
+					parathreads.insert(i, id);
+					Ok(())
+				},
 			}
-		});
+		})?;
+		OPERATIONS.with(|x| x.borrow_mut().push(
+			(id, frame_system::Pallet::<T>::block_number().saturated_into(), false)
+		));
 		Ok(())
 	}
 
