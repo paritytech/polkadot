@@ -55,17 +55,17 @@ pub struct ExtendedSessionInfo {
 	/// Actual session info as fetched from the runtime.
 	pub session_info: SessionInfo,
 	/// Contains useful information about ourselves, in case this node is a validator.
-	pub validator_info: Option<ValidatorInfo>,
+	pub validator_info: ValidatorInfo,
 }
 
 /// Information about ourself, in case we are an `Authority`.
 ///
 /// This data is derived from the `SessionInfo` and our key as found in the keystore.
 pub struct ValidatorInfo {
-	/// The index this very validator has in `SessionInfo` vectors.
-	pub our_index: ValidatorIndex,
-	/// The group we belong to.
-	pub our_group: GroupIndex,
+	/// The index this very validator has in `SessionInfo` vectors, if any.
+	pub our_index: Option<ValidatorIndex>,
+	/// The group we belong to, if any.
+	pub our_group: Option<GroupIndex>,
 }
 
 impl Runtime {
@@ -155,7 +155,7 @@ impl Runtime {
 	async fn get_validator_info(
 		&self,
 		session_info: &SessionInfo,
-	) -> Result<Option<ValidatorInfo>, Error>
+	) -> Result<ValidatorInfo, Error>
 	{
 		if let Some(our_index) = self.get_our_index(&session_info.validators).await {
 			// Get our group index:
@@ -172,19 +172,13 @@ impl Runtime {
 					})
 				}
 			);
-			debug_assert!(
-				our_group.is_some() || session_info.validator_groups.is_empty(),
-				"Groups are initialized but validator could not be found in any"
-			);
-			if let Some(our_group) = our_group {
-				let info = ValidatorInfo {
-					our_index,
-					our_group,
-				};
-				return Ok(Some(info))
-			}
+			let info = ValidatorInfo {
+				our_index: Some(our_index),
+				our_group,
+			};
+			return Ok(info)
 		}
-		return	Ok(None)
+		return Ok(ValidatorInfo { our_index: None, our_group: None })
 	}
 
 	/// Get our `ValidatorIndex`.

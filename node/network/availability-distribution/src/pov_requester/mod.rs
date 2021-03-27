@@ -32,10 +32,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
 };
 
-use crate::{
-	runtime::Runtime,
-	error::{Error, log_error},
-};
+use crate::{error::{Error, log_error}, runtime::{Runtime, ValidatorInfo}};
 
 /// Number of sessions we want to keep in the LRU.
 const NUM_SESSIONS: usize = 2;
@@ -216,13 +213,17 @@ where
 	Context: SubsystemContext,
 {
 	let info = runtime.get_session_info_by_index(ctx, parent, session).await?;
-	if let Some(validator_info) = &info.validator_info {
-		let indeces = info.session_info.validator_groups.get(validator_info.our_group.0 as usize)
+	if let ValidatorInfo {
+            our_index: Some(our_index),
+            our_group: Some(our_group)
+        } = &info.validator_info {
+
+		let indeces = info.session_info.validator_groups.get(our_group.0 as usize)
 			.expect("Our group got retrieved from that session info, it must exist. qed.")
 			.clone();
 		Ok(Some(
 			indeces.into_iter()
-			   .filter(|i| *i != validator_info.our_index)
+			   .filter(|i| *i != *our_index)
 			   .map(|i| info.session_info.discovery_keys[i.0 as usize].clone())
 			   .collect()
 	   ))

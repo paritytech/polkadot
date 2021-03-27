@@ -81,7 +81,9 @@ pub struct SessionInfo {
 
 	/// Remember to which group we belong, so we won't start fetching chunks for candidates with
 	/// our group being responsible. (We should have that chunk already.)
-	pub our_group: GroupIndex,
+	///
+	/// `None`, if we are not in fact part of any group.
+	pub our_group: Option<GroupIndex>,
 }
 
 /// Report of bad validators.
@@ -246,10 +248,6 @@ impl SessionCache {
 					})
 				}
 			);
-			debug_assert!(
-				our_group.is_some() || validator_groups.is_empty(),
-				"Groups are initialized but validator could not be found in any"
-			);
 
 			// Shuffle validators in groups:
 			let mut rng = thread_rng();
@@ -271,15 +269,13 @@ impl SessionCache {
 				})
 				.collect();
 
-			if let Some(our_group) = our_group {
-				let info = SessionInfo {
-					validator_groups,
-					our_index,
-					session_index,
-					our_group,
-				};
-				return Ok(Some(info))
-			}
+			let info = SessionInfo {
+				validator_groups,
+				our_index,
+				session_index,
+				our_group,
+			};
+			return Ok(Some(info))
 		}
 		return Ok(None)
 	}
