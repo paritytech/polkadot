@@ -42,7 +42,7 @@ use {
 #[cfg(feature = "real-overseer")]
 #[derive(Clone)]
 pub(crate) struct ApprovalCheckingDiagnostic {
-	checking_lag: Option<prometheus_endpoint::Histogram>,
+	checking_lag: Option<prometheus_endpoint::Gauge<prometheus_endpoint::U64>>,
 	overseer: OverseerHandler,
 }
 
@@ -55,11 +55,11 @@ impl ApprovalCheckingDiagnostic {
 		Ok(ApprovalCheckingDiagnostic {
 			checking_lag: if let Some(registry) = registry {
 				Some(prometheus_endpoint::register(
-					prometheus_endpoint::Histogram::with_opts(
-						prometheus_endpoint::HistogramOpts::new(
+					prometheus_endpoint::Gauge::with_opts(
+						prometheus_endpoint::Opts::new(
 							"parachain_approval_checking_finality_lag",
 							"How far behind the head of the chain the Approval Checking protocol wants to vote",
-						).buckets(vec![1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0])
+						)
 					)?,
 					registry,
 				)?)
@@ -154,7 +154,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingDiagnostic
 			);
 
 			if let Some(ref checking_lag) = checking_lag {
-				checking_lag.observe(approval_checking_subsystem_lag as _);
+				checking_lag.set(approval_checking_subsystem_lag as _);
 			}
 
 			tracing::debug!(
