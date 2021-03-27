@@ -66,7 +66,7 @@ use std::task::Poll;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
 
-use futures::channel::{oneshot, mpsc};
+use futures::channel::{oneshot};
 use futures::{
 	poll, select,
 	future::BoxFuture,
@@ -74,7 +74,6 @@ use futures::{
 	Future, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
-use oorandom::Rand32;
 
 use polkadot_primitives::v1::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -101,8 +100,6 @@ const CHANNEL_CAPACITY: usize = 1024;
 const STOP_DELAY: u64 = 1;
 // Target for logs.
 const LOG_TARGET: &'static str = "parachain::overseer";
-// Rate at which messages are timed.
-const MESSAGE_TIMER_METRIC_CAPTURE_RATE: f64 = 0.005;
 
 trait MapSubsystem<T> {
 	type Output;
@@ -1048,36 +1045,16 @@ struct SubsystemInstance<M> {
 	name: &'static str,
 }
 
-type MaybeTimer = Option<metrics::prometheus::prometheus::HistogramTimer>;
-
-#[derive(Debug)]
-struct MaybeTimed<T> {
-	timer: MaybeTimer,
-	t: T,
-}
-
-impl<T> MaybeTimed<T> {
-	fn into_inner(self) -> T {
-		self.t
-	}
-}
-
-impl<T> From<T> for MaybeTimed<T> {
-	fn from(t: T) -> Self {
-		Self { timer: None, t }
-	}
-}
-
 #[derive(Debug)]
 struct MessagePacket<T> {
 	signals_received: usize,
-	message: MaybeTimed<T>,
+	message: T,
 }
 
-fn make_packet<T>(timer: MaybeTimer, signals_received: usize, message: T) -> MessagePacket<T> {
+fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
 	MessagePacket {
 		signals_received,
-		message: MaybeTimed { timer, t: message },
+		message,
 	}
 }
 
@@ -1128,67 +1105,66 @@ struct ChannelsOut {
 impl ChannelsOut {
 	async fn send_and_log_error(
 		&mut self,
-		t: MaybeTimer,
 		signals_received: usize,
 		message: AllMessages,
 	) {
 		let res = match message {
 			AllMessages::CandidateValidation(msg) => {
-				self.candidate_validation.send(make_packet(t, signals_received, msg)).await
+				self.candidate_validation.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::CandidateBacking(msg) => {
-				self.candidate_backing.send(make_packet(t, signals_received, msg)).await
+				self.candidate_backing.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::CandidateSelection(msg) => {
-				self.candidate_selection.send(make_packet(t, signals_received, msg)).await
+				self.candidate_selection.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::StatementDistribution(msg) => {
-				self.statement_distribution.send(make_packet(t, signals_received, msg)).await
+				self.statement_distribution.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::AvailabilityDistribution(msg) => {
-				self.availability_distribution.send(make_packet(t, signals_received, msg)).await
+				self.availability_distribution.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::AvailabilityRecovery(msg) => {
-				self.availability_recovery.send(make_packet(t, signals_received, msg)).await
+				self.availability_recovery.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::BitfieldDistribution(msg) => {
-				self.bitfield_distribution.send(make_packet(t, signals_received, msg)).await
+				self.bitfield_distribution.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::BitfieldSigning(msg) => {
-				self.bitfield_signing.send(make_packet(t, signals_received, msg)).await
+				self.bitfield_signing.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::Provisioner(msg) => {
-				self.provisioner.send(make_packet(t, signals_received, msg)).await
+				self.provisioner.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::PoVDistribution(msg) => {
-				self.pov_distribution.send(make_packet(t, signals_received, msg)).await
+				self.pov_distribution.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::RuntimeApi(msg) => {
-				self.runtime_api.send(make_packet(t, signals_received, msg)).await
+				self.runtime_api.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::AvailabilityStore(msg) => {
-				self.availability_store.send(make_packet(t, signals_received, msg)).await
+				self.availability_store.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::NetworkBridge(msg) => {
-				self.network_bridge.send(make_packet(t, signals_received, msg)).await
+				self.network_bridge.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::ChainApi(msg) => {
-				self.chain_api.send(make_packet(t, signals_received, msg)).await
+				self.chain_api.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::CollationGeneration(msg) => {
-				self.collation_generation.send(make_packet(t, signals_received, msg)).await
+				self.collation_generation.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::CollatorProtocol(msg) => {
-				self.collator_protocol.send(make_packet(t, signals_received, msg)).await
+				self.collator_protocol.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::ApprovalDistribution(msg) => {
-				self.approval_distribution.send(make_packet(t, signals_received, msg)).await
+				self.approval_distribution.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::ApprovalVoting(msg) => {
-				self.approval_voting.send(make_packet(t, signals_received, msg)).await
+				self.approval_voting.send(make_packet(signals_received, msg)).await
 			},
 			AllMessages::GossipSupport(msg) => {
-				self.gossip_support.send(make_packet(t, signals_received, msg)).await
+				self.gossip_support.send(make_packet(signals_received, msg)).await
 			},
 		};
 
@@ -1203,104 +1179,103 @@ impl ChannelsOut {
 
 	fn send_unbounded_and_log_error(
 		&self,
-		t: MaybeTimer,
 		signals_received: usize,
 		message: AllMessages,
 	) {
 		let res = match message {
 			AllMessages::CandidateValidation(msg) => {
 				self.candidate_validation_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::CandidateBacking(msg) => {
 				self.candidate_backing_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::CandidateSelection(msg) => {
 				self.candidate_selection_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::StatementDistribution(msg) => {
 				self.statement_distribution_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::AvailabilityDistribution(msg) => {
 				self.availability_distribution_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::AvailabilityRecovery(msg) => {
 				self.availability_recovery_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::BitfieldDistribution(msg) => {
 				self.bitfield_distribution_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::BitfieldSigning(msg) => {
 				self.bitfield_signing_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::Provisioner(msg) => {
 				self.provisioner_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::PoVDistribution(msg) => {
 				self.pov_distribution_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::RuntimeApi(msg) => {
 				self.runtime_api_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::AvailabilityStore(msg) => {
 				self.availability_store_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::NetworkBridge(msg) => {
 				self.network_bridge_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::ChainApi(msg) => {
 				self.chain_api_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::CollationGeneration(msg) => {
 				self.collation_generation_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::CollatorProtocol(msg) => {
 				self.collator_protocol_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::ApprovalDistribution(msg) => {
 				self.approval_distribution_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::ApprovalVoting(msg) => {
 				self.approval_voting_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 			AllMessages::GossipSupport(msg) => {
 				self.gossip_support_unbounded
-					.unbounded_send(make_packet(t, signals_received, msg))
+					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
 		};
@@ -1331,12 +1306,10 @@ pub struct OverseerSubsystemContext<M>{
 	signals: metered::MeteredReceiver<OverseerSignal>,
 	messages: SubsystemIncomingMessages<M>,
 	to_subsystems: ChannelsOut,
-	to_overseer: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
+	to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 	signals_received: usize,
-	pending_incoming: Option<(usize, MaybeTimed<M>)>,
+	pending_incoming: Option<(usize, M)>,
 	metrics: Metrics,
-	rng: Rand32,
-	threshold: u32,
 }
 
 impl<M> OverseerSubsystemContext<M> {
@@ -1351,20 +1324,9 @@ impl<M> OverseerSubsystemContext<M> {
 		signals: metered::MeteredReceiver<OverseerSignal>,
 		messages: SubsystemIncomingMessages<M>,
 		to_subsystems: ChannelsOut,
-		to_overseer: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
+		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 		metrics: Metrics,
-		increment: u64,
-		mut capture_rate: f64,
 	) -> Self {
-		let rng = Rand32::new_inc(0, increment);
-
-		if capture_rate < 0.0 {
-			capture_rate = 0.0;
-		} else if capture_rate > 1.0 {
-			capture_rate = 1.0;
-		}
-		let threshold = (capture_rate * u32::MAX as f64) as u32;
-
 		OverseerSubsystemContext {
 			signals,
 			messages,
@@ -1373,8 +1335,6 @@ impl<M> OverseerSubsystemContext<M> {
 			signals_received: 0,
 			pending_incoming: None,
 			metrics,
-			rng,
-			threshold,
 		 }
 	}
 
@@ -1386,22 +1346,10 @@ impl<M> OverseerSubsystemContext<M> {
 		signals: metered::MeteredReceiver<OverseerSignal>,
 		messages: SubsystemIncomingMessages<M>,
 		to_subsystems: ChannelsOut,
-		to_overseer: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
+		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 	) -> Self {
 		let metrics = Metrics::default();
-		OverseerSubsystemContext::new(signals, messages, to_subsystems, to_overseer, metrics, 0, 0.0)
-	}
-
-	fn maybe_timer(&mut self) -> MaybeTimer {
-		if self.rng.rand_u32() <= self.threshold {
-			self.metrics.time_message_hold()
-		} else {
-			None
-		}
-	}
-
-	fn maybe_timed<T>(&mut self, t: T) -> MaybeTimed<T> {
-		MaybeTimed { timer: self.maybe_timer(), t }
+		OverseerSubsystemContext::new(signals, messages, to_subsystems, to_overseer, metrics)
 	}
 }
 
@@ -1422,7 +1370,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 			// in the meantime.
 			if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
 				if needs_signals_received <= self.signals_received {
-					return Ok(FromOverseer::Communication { msg: msg.into_inner() });
+					return Ok(FromOverseer::Communication { msg });
 				} else {
 					self.pending_incoming = Some((needs_signals_received, msg));
 
@@ -1457,7 +1405,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 						*pending_incoming = Some((packet.signals_received, packet.message));
 					} else {
 						// we know enough to return this message.
-						return Ok(FromOverseer::Communication { msg: packet.message.into_inner() });
+						return Ok(FromOverseer::Communication { msg: packet.message});
 					}
 				}
 				signal = await_signal => {
@@ -1477,7 +1425,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.send_timed_to_overseer(ToOverseer::SpawnJob {
+		self.to_overseer.send(ToOverseer::SpawnJob {
 			name,
 			s,
 		}).await.map_err(Into::into)
@@ -1486,15 +1434,14 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.send_timed_to_overseer(ToOverseer::SpawnBlockingJob {
+		self.to_overseer.send(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
 		}).await.map_err(Into::into)
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) {
-		let timer = self.maybe_timer();
-		self.to_subsystems.send_and_log_error(timer, self.signals_received, msg).await;
+		self.to_subsystems.send_and_log_error(self.signals_received, msg).await;
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
@@ -1507,19 +1454,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		let timer = self.maybe_timer();
-		self.to_subsystems.send_unbounded_and_log_error(timer, self.signals_received, msg);
-	}
-}
-
-impl<M> OverseerSubsystemContext<M> {
-	async fn send_timed_to_overseer(&mut self, msg: ToOverseer) -> Result<
-		(),
-		mpsc::SendError,
-	>
-	{
-		let msg = self.maybe_timed(msg);
-		self.to_overseer.send(msg).await
+		self.to_subsystems.send_unbounded_and_log_error(self.signals_received, msg);
 	}
 }
 
@@ -1616,7 +1551,7 @@ pub struct Overseer<S> {
 	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
 	/// Gather running subsystems' outbound streams into one.
-	to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<MaybeTimed<ToOverseer>>>,
+	to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<ToOverseer>>,
 
 	/// Events that are sent to the overseer from the outside world
 	events_rx: metered::MeteredReceiver<Event>,
@@ -1645,7 +1580,6 @@ struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
-	message_relay_timings: prometheus::Histogram,
 	to_overseer_sent: prometheus::Gauge<prometheus::U64>,
 	to_overseer_received: prometheus::Gauge<prometheus::U64>,
 	from_overseer_sent: prometheus::GaugeVec<prometheus::U64>,
@@ -1672,11 +1606,6 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.messages_relayed_total.inc();
 		}
-	}
-
-	/// Provide a timer for the duration between receiving a message and passing it to `route_message`
-	fn time_message_hold(&self) -> MaybeTimer {
-		self.0.as_ref().map(|metrics| metrics.message_relay_timings.start_timer())
 	}
 
 	fn channel_fill_level_snapshot(
@@ -1720,28 +1649,6 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_messages_relayed_total",
 					"Number of messages relayed by Overseer."
-				)?,
-				registry,
-			)?,
-			message_relay_timings: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts {
-						common_opts: prometheus::Opts::new(
-							"parachain_overseer_messages_relay_timings",
-							"Time spent holding a message in the overseer before passing it to `route_message`",
-						),
-						// guessing at the desired resolution, but we know that messages will time
-						// out after 0.5 seconds, so the bucket set below seems plausible:
-						// `0.0001 * (1.6 ^ 18) ~= 0.472`. Prometheus auto-generates a final bucket
-						// for all values between the final value and `+Inf`, so this should work.
-						//
-						// The documented legal range for the inputs are:
-						//
-						// - `> 0.0`
-						// - `> 1.0`
-						// - `! 0`
-						buckets: prometheus::exponential_buckets(0.0001, 1.6, 18).expect("inputs are within documented range; qed"),
-					}
 				)?,
 				registry,
 			)?,
@@ -1924,8 +1831,6 @@ where
 
 		let mut running_subsystems = FuturesUnordered::new();
 
-		let mut seed = 0x533d; // arbitrary
-
 		let (candidate_validation_bounded_tx, candidate_validation_bounded_rx)
 			= metered::channel(CHANNEL_CAPACITY);
 		let (candidate_backing_bounded_tx, candidate_backing_bounded_rx)
@@ -2054,7 +1959,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.candidate_validation,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2067,7 +1971,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.candidate_backing,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2080,7 +1983,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.candidate_selection,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2093,7 +1995,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.statement_distribution,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2106,7 +2007,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.availability_distribution,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2119,7 +2019,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.availability_recovery,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2132,7 +2031,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.bitfield_signing,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2145,7 +2043,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.bitfield_distribution,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2158,7 +2055,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.provisioner,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2171,7 +2067,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.pov_distribution,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2184,7 +2079,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.runtime_api,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2197,7 +2091,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.availability_store,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Blocking,
 		)?;
@@ -2210,7 +2103,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.network_bridge,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2223,7 +2115,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.chain_api,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Blocking,
 		)?;
@@ -2236,7 +2127,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.collation_generation,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2249,7 +2139,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.collator_protocol,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2262,7 +2151,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.approval_distribution,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2275,7 +2163,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.approval_voting,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Blocking,
 		)?;
@@ -2288,7 +2175,6 @@ where
 			to_overseer_tx.clone(),
 			all_subsystems.gossip_support,
 			&metrics,
-			&mut seed,
 			&mut running_subsystems,
 			TaskKind::Regular,
 		)?;
@@ -2463,7 +2349,7 @@ where
 					}
 				},
 				msg = self.to_overseer_rx.next() => {
-					let MaybeTimed { timer: _timer, t: msg } = match msg {
+					let msg = match msg {
 						Some(m) => m,
 						None => {
 							// This is a fused stream so we will shut down after receiving all
@@ -2579,8 +2465,7 @@ where
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	async fn route_message(&mut self, msg: MaybeTimed<AllMessages>) -> SubsystemResult<()> {
-		let msg = msg.into_inner();
+	async fn route_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
 		self.metrics.on_message_relayed();
 		match msg {
 			AllMessages::CandidateValidation(msg) => {
@@ -2715,10 +2600,9 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	message_tx: metered::MeteredSender<MessagePacket<M>>,
 	message_rx: SubsystemIncomingMessages<M>,
 	to_subsystems: ChannelsOut,
-	to_overseer_tx: metered::UnboundedMeteredSender<MaybeTimed<ToOverseer>>,
+	to_overseer_tx: metered::UnboundedMeteredSender<ToOverseer>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 	metrics: &Metrics,
-	seed: &mut u64,
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 	task_kind: TaskKind,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
@@ -2729,13 +2613,8 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 		to_subsystems,
 		to_overseer_tx,
 		metrics.clone(),
-		*seed,
-		MESSAGE_TIMER_METRIC_CAPTURE_RATE,
 	);
 	let SpawnedSubsystem { future, name } = s.start(ctx);
-
-	// increment the seed now that it's been used, so the next context will have its own distinct RNG
-	*seed += 1;
 
 	let (tx, rx) = oneshot::channel();
 
@@ -3683,7 +3562,7 @@ mod tests {
 			assert_eq!(ctx.signals_received, 1);
 			messages_tx.send(MessagePacket {
 				signals_received: 2,
-				message: MaybeTimed { timer: None, t: () },
+				message: (),
 			}).await.unwrap();
 
 			match poll!(ctx.recv()) {
