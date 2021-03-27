@@ -1909,7 +1909,7 @@ where
 		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>> + Send,
 		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>> + Send,
 	{
-		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY, "overseer_events");
+		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY);
 
 		let handler = OverseerHandler {
 			events_tx: events_tx.clone(),
@@ -1917,89 +1917,89 @@ where
 
 		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 
-		let (to_overseer_tx, to_overseer_rx) = metered::unbounded("to_overseer");
+		let (to_overseer_tx, to_overseer_rx) = metered::unbounded();
 
 		let mut running_subsystems = FuturesUnordered::new();
 
 		let mut seed = 0x533d; // arbitrary
 
 		let (candidate_validation_bounded_tx, candidate_validation_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (candidate_backing_bounded_tx, candidate_backing_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (candidate_selection_bounded_tx, candidate_selection_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (statement_distribution_bounded_tx, statement_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (availability_distribution_bounded_tx, availability_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (availability_recovery_bounded_tx, availability_recovery_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (bitfield_signing_bounded_tx, bitfield_signing_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (bitfield_distribution_bounded_tx, bitfield_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (provisioner_bounded_tx, provisioner_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (pov_distribution_bounded_tx, pov_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (runtime_api_bounded_tx, runtime_api_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (availability_store_bounded_tx, availability_store_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (network_bridge_bounded_tx, network_bridge_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (chain_api_bounded_tx, chain_api_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (collator_protocol_bounded_tx, collator_protocol_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (collation_generation_bounded_tx, collation_generation_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (approval_distribution_bounded_tx, approval_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (approval_voting_bounded_tx, approval_voting_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 		let (gossip_support_bounded_tx, gossip_support_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY, "subsystem-comms-bounded");
+			= metered::channel(CHANNEL_CAPACITY);
 
 		let (candidate_validation_unbounded_tx, candidate_validation_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (candidate_backing_unbounded_tx, candidate_backing_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (candidate_selection_unbounded_tx, candidate_selection_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (statement_distribution_unbounded_tx, statement_distribution_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (availability_distribution_unbounded_tx, availability_distribution_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (availability_recovery_unbounded_tx, availability_recovery_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (bitfield_signing_unbounded_tx, bitfield_signing_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (bitfield_distribution_unbounded_tx, bitfield_distribution_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (provisioner_unbounded_tx, provisioner_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (pov_distribution_unbounded_tx, pov_distribution_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (runtime_api_unbounded_tx, runtime_api_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (availability_store_unbounded_tx, availability_store_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (network_bridge_unbounded_tx, network_bridge_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (chain_api_unbounded_tx, chain_api_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (collator_protocol_unbounded_tx, collator_protocol_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (collation_generation_unbounded_tx, collation_generation_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (approval_distribution_unbounded_tx, approval_distribution_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (approval_voting_unbounded_tx, approval_voting_unbounded_rx)
-			= metered::unbounded("subsystem-comms-unbounded");
+			= metered::unbounded();
 		let (gossip_support_unbounded_tx, gossip_support_unbounded_rx)
-			= metered::unbounded("subsystem-comms-bounded");
+			= metered::unbounded();
 
 		let channels_out = ChannelsOut {
 			candidate_validation: candidate_validation_bounded_tx.clone(),
@@ -2719,7 +2719,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 	task_kind: TaskKind,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
-	let (signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY, "subsystem-spawn");
+	let (signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);
 	let ctx = OverseerSubsystemContext::new(
 		signal_rx,
 		message_rx,
@@ -3115,8 +3115,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
-			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
+			let (tx_5, mut rx_5) = metered::channel(64);
+			let (tx_6, mut rx_6) = metered::channel(64);
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
 				.replace_candidate_backing(TestSubsystem6(tx_6));
@@ -3217,8 +3217,8 @@ mod tests {
 				number: 3,
 			};
 
-			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
-			let (tx_6, mut rx_6) = metered::channel(64, "overseer_test");
+			let (tx_5, mut rx_5) = metered::channel(64);
+			let (tx_6, mut rx_6) = metered::channel(64);
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_validation(TestSubsystem5(tx_5))
@@ -3317,7 +3317,7 @@ mod tests {
 				number: 1,
 			};
 
-			let (tx_5, mut rx_5) = metered::channel(64, "overseer_test");
+			let (tx_5, mut rx_5) = metered::channel(64);
 
 			let all_subsystems = AllSubsystems::<()>::dummy()
 				.replace_candidate_backing(TestSubsystem6(tx_5));

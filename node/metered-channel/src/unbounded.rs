@@ -25,10 +25,9 @@ use super::Meter;
 
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
-pub fn unbounded<T>(name: &'static str) -> (UnboundedMeteredSender<T>, UnboundedMeteredReceiver<T>) {
+pub fn unbounded<T>() -> (UnboundedMeteredSender<T>, UnboundedMeteredReceiver<T>) {
     let (tx, rx) = mpsc::unbounded();
     let mut shared_meter = Meter::default();
-    shared_meter.name = name;
     let tx = UnboundedMeteredSender { meter: shared_meter.clone(), inner: tx };
     let rx = UnboundedMeteredReceiver { meter: shared_meter, inner: rx };
     (tx, rx)
