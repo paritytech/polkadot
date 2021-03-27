@@ -857,7 +857,7 @@ mod benchmarking {
 			let leaser: T::AccountId = account("leaser", 0, 0);
 			T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
 			let amount = T::Currency::minimum_balance();
-			let period_begin = 0u32.into();
+			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
 		}: _(RawOrigin::Root, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
@@ -870,12 +870,18 @@ mod benchmarking {
 			let c in 1 .. 100;
 			let t in 1 .. 100;
 
-			let period_begin = 0u32.into();
-			let period_count = 3u32.into();
+			let period_begin = 1u32.into();
+			let period_count = 4u32.into();
+
+			// Make T parathreads
+			let paras_info = (0..t).map(|i| {
+				register_a_parathread::<T>(i)
+			}).collect::<Vec<_>>();
+
+			T::Registrar::execute_pending_transitions();
 
 			// T parathread are upgrading to parachains
-			for i in 0 .. t {
-				let (para, leaser) = register_a_parathread::<T>(i);
+			for (para, leaser) in paras_info {
 				let amount = T::Currency::minimum_balance();
 
 				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
@@ -908,6 +914,36 @@ mod benchmarking {
 			}
 			for i in 200 .. 200 + c {
 				assert!(T::Registrar::is_parathread(ParaId::from(i)));
+			}
+		}
+
+		// Assume that at most 8 people have deposits for leases on a parachain.
+		// This would cover at least 4 years of leases in the worst case scenario.
+		clear_all_leases {
+			let max_people = 8;
+			let (para, _) = register_a_parathread::<T>(1);
+
+			for i in 0 .. max_people {
+				let leaser = account("leaser", i, 0);
+				let amount = T::Currency::minimum_balance();
+				T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
+
+				// Average slot has 4 lease periods.
+				let period_count: LeasePeriodOf<T> = 4u32.into();
+				let period_begin = period_count * i.into();
+				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
+			}
+
+			for i in 0 .. max_people {
+				let leaser = account("leaser", i, 0);
+				assert_eq!(T::Currency::reserved_balance(&leaser), T::Currency::minimum_balance());
+			}
+
+		}: _(RawOrigin::Root, para)
+		verify {
+			for i in 0 .. max_people {
+				let leaser = account("leaser", i, 0);
+				assert_eq!(T::Currency::reserved_balance(&leaser), 0u32.into());
 			}
 		}
 	}
