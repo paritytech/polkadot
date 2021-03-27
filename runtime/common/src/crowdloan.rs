@@ -247,6 +247,8 @@ decl_event! {
 		HandleBidResult(ParaId, DispatchResult),
 		/// The configuration to a crowdloan has been edited. [fund_index]
 		Edited(ParaId),
+		/// A memo has been updated. [who, fund_index, memo]
+		MemoUpdated(AccountId, ParaId, Vec<u8>),
 	}
 }
 
@@ -552,6 +554,7 @@ decl_module! {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
+			Self::deposit_event(RawEvent::MemoUpdated(who, index, memo));
 		}
 
 		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
