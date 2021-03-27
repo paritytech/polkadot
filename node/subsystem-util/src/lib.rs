@@ -28,6 +28,7 @@ use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	SubsystemSender,
 };
 use polkadot_node_jaeger as jaeger;
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
@@ -429,27 +430,54 @@ pub mod metrics {
 
 /// Commands from a job to the broader subsystem.
 pub enum FromJobCommand {
-	/// Send a message to another subsystem.
-	SendMessage(AllMessages),
 	/// Spawn a child task on the executor.
 	Spawn(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
 	/// Spawn a blocking child task on the executor's dedicated thread pool.
 	SpawnBlocking(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
 }
 
-impl fmt::Debug for FromJobCommand {
-	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		match self {
-			Self::SendMessage(msg) => write!(fmt, "FromJobCommand::SendMessage({:?})", msg),
-			Self::Spawn(name, _) => write!(fmt, "FromJobCommand::Spawn({})", name),
-			Self::SpawnBlocking(name, _) => write!(fmt, "FromJobCommand::SpawnBlocking({})", name),
-		}
+/// A sender for messages from jobs, as well as commands to the overseer.
+#[derive(Clone)]
+pub struct JobSender<S> {
+	sender: S,
+	from_job: mpsc::Sender<FromJobCommand>,
+}
+
+impl<S: SubsystemSender> JobSender<S> {
+	/// Send a direct message to some other `Subsystem`, routed based on message type.
+	pub async fn send_message(&mut self, msg: AllMessages) {
+		self.sender.send_message(msg).await
+	}
+
+	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
+	pub async fn send_messages<T>(&mut self, msgs: T)
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	{
+		self.sender.send_messages(msgs).await
+	}
+
+
+	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
+	/// type.
+	///
+	/// This function should be used only when there is some other bounding factor on the messages
+	/// sent with it. Otherwise, it risks a memory leak.
+	pub fn send_unbounded_message(&mut self, msg: AllMessages) {
+		self.sender.send_unbounded_message(msg)
+	}
+
+	/// Send a command to the subsystem, to be relayed onwards to the overseer.
+	pub async fn send_command(&mut self, msg: FromJobCommand) -> Result<(), mpsc::SendError> {
+		self.from_job.send(msg).await
 	}
 }
 
-impl From<AllMessages> for FromJobCommand {
-	fn from(msg: AllMessages) -> Self {
-		Self::SendMessage(msg)
+impl fmt::Debug for FromJobCommand {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			Self::Spawn(name, _) => write!(fmt, "FromJobCommand::Spawn({})", name),
+			Self::SpawnBlocking(name, _) => write!(fmt, "FromJobCommand::SpawnBlocking({})", name),
+		}
 	}
 }
 
@@ -457,7 +485,7 @@ impl From<AllMessages> for FromJobCommand {
 ///
 /// Jobs are instantiated and killed automatically on appropriate overseer messages.
 /// Other messages are passed along to and from the job via the overseer to other subsystems.
-pub trait JobTrait: Unpin {
+pub trait JobTrait: Unpin + Sized {
 	/// Message type used to send messages to the job.
 	type ToJob: 'static + BoundToRelayParent + Send;
 	/// Job runtime error.
@@ -479,13 +507,13 @@ pub trait JobTrait: Unpin {
 	/// Run a job for the given relay `parent`.
 	///
 	/// The job should be ended when `receiver` returns `None`.
-	fn run(
+	fn run<S: SubsystemSender>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
-		sender: mpsc::Sender<FromJobCommand>,
+		sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
 
@@ -555,6 +583,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		span: Arc<jaeger::Span>,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
+		sender: impl SubsystemSender,
 	) -> Result<(), Error> {
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
@@ -562,7 +591,17 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		let err_tx = self.errors.clone();
 
 		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = Job::run(parent_hash, span, run_args, metrics, to_job_rx, from_job_tx).await {
+			if let Err(e) = Job::run(
+				parent_hash,
+				span,
+				run_args,
+				metrics,
+				to_job_rx,
+				JobSender {
+					sender,
+					from_job: from_job_tx,
+				},
+			).await {
 				tracing::error!(
 					job = Job::NAME,
 					parent_hash = %parent_hash,
@@ -724,6 +763,7 @@ where
 			select! {
 				incoming = ctx.recv().fuse() =>
 					if Self::handle_incoming(
+						&mut ctx,
 						incoming,
 						&mut jobs,
 						&run_args,
@@ -761,6 +801,7 @@ where
 	///
 	/// Returns `true` when this job manager should shutdown.
 	async fn handle_incoming(
+		ctx: &mut Context,
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		jobs: &mut Jobs<Spawner, Job>,
 		run_args: &Job::RunArgs,
@@ -777,8 +818,15 @@ where
 				deactivated,
 			}))) => {
 				for activated in activated {
+					let sender: Context::Sender = ctx.sender().clone();
 					let metrics = metrics.clone();
-					if let Err(e) = jobs.spawn_job(activated.hash, activated.span, run_args.clone(), metrics) {
+					if let Err(e) = jobs.spawn_job(
+						activated.hash,
+						activated.span,
+						run_args.clone(),
+						metrics,
+						sender,
+					) {
 						tracing::error!(
 							job = Job::NAME,
 							err = ?e,
@@ -822,7 +870,6 @@ where
 		ctx: &mut Context,
 	) -> SubsystemResult<()> {
 		match outgoing.expect("the Jobs stream never ends; qed") {
-			FromJobCommand::SendMessage(msg) => ctx.send_message(msg).await,
 			FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await?,
 			FromJobCommand::SpawnBlocking(name, task) => ctx.spawn_blocking(name, task).await?,
 		}
@@ -1088,24 +1135,22 @@ mod tests {
 		/// Run a job for the parent block indicated
 		//
 		// this function is in charge of creating and executing the job's main loop
-		fn run(
+		fn run<S: SubsystemSender>(
 			_: Hash,
 			_: Arc<jaeger::Span>,
 			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<CandidateSelectionMessage>,
-			mut sender: mpsc::Sender<FromJobCommand>,
+			mut sender: JobSender<S>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 			async move {
 				let job = FakeCandidateSelectionJob { receiver };
 
 				if run_args {
-					sender.send(FromJobCommand::SendMessage(
-						CandidateSelectionMessage::Invalid(
-							Default::default(),
-							Default::default(),
-						).into(),
-					)).await?;
+					sender.send_message(CandidateSelectionMessage::Invalid(
+						Default::default(),
+						Default::default(),
+					).into()).await;
 				}
 
 				// it isn't necessary to break run_loop into its own function,
