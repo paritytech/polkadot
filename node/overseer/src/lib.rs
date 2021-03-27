@@ -2864,7 +2864,7 @@ mod tests {
 
 			select! {
 				res = overseer_fut => {
-					const NUM_SUBSYSTEMS: usize = 19;
+					const NUM_SUBSYSTEMS: usize = 18;
 
 					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
