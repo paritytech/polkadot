@@ -174,9 +174,7 @@ decl_module! {
 		///
 		/// Can only be called by the Root origin.
 		#[weight = 0] // TODO: Benchmarks
-		fn clear_all_leases(origin,
-			para: ParaId,
-		) -> DispatchResult {
+		fn clear_all_leases(origin, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			let deposits = Self::all_deposits_held(para);
 
@@ -188,6 +186,29 @@ decl_module! {
 
 			Leases::<T>::remove(para);
 			Ok(())
+		}
+
+		/// Try to onboard a parachain that has a lease for the current lease period.
+		///
+		/// This function can be useful if there was some state issue with a para that should
+		/// have onboarded, but was unable to. As long as they have a lease period, we can
+		/// let them onboard from here.
+		///
+		/// Origin must be signed, but can be called by anyone.
+		#[weight = 0]
+		fn trigger_onboard(origin, para: ParaId) {
+			let leases = Leases::<T>::get(para);
+			match leases.first() {
+				// If the first element in leases is present, then it has a lease!
+				// We can try to onboard it.
+				Some(Some(_lease_info)) => {
+					T::Registrar::make_parachain(para)?
+				},
+				// Otherwise, it does not have a lease.
+				Some(None) | None => {
+					return Err(Error::<T>::ParaNotOnboarding.into());
+				}
+			}
 		}
 	}
 }
@@ -323,10 +344,11 @@ impl<T: Config> Leaser for Module<T> {
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
 	) -> Result<(), LeaseError> {
+		let current_lease_period = Self::lease_period_index();
 		// Finally, we update the deposit held so it is `amount` for the new lease period
 		// indices that were won in the auction.
 		let offset = period_begin
-			.checked_sub(&Self::lease_period_index())
+			.checked_sub(&current_lease_period)
 			.and_then(|x| x.checked_into::<usize>())
 			.ok_or(LeaseError::AlreadyEnded)?;
 
@@ -376,6 +398,14 @@ impl<T: Config> Leaser for Module<T> {
 			}
 
 			let reserved = maybe_additional.unwrap_or_default();
+
+			// Check if current lease period is same as period begin, and onboard them directly.
+			// This will allow us to support onboarding new parachains in the middle of a lease period.
+			if current_lease_period == period_begin {
+				let res = T::Registrar::make_parachain(para);
+				debug_assert!(res.is_ok());
+			}
+
 			Self::deposit_event(
 				RawEvent::Leased(para, leaser.clone(), period_begin, period_count, reserved, amount)
 			);
@@ -537,7 +567,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
 
-			assert!(Slots::lease_out(1.into(), &1, 1, 1, 1).is_ok());
+			assert_ok!(Slots::lease_out(1.into(), &1, 1, 1, 1));
 			assert_eq!(Slots::deposit_held(1.into(), &1), 1);
 			assert_eq!(Balances::reserved_balance(1), 1);
 
@@ -563,8 +593,8 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
 
-			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
-			assert!(Slots::lease_out(1.into(), &1, 4, 3, 1).is_ok());
+			assert_ok!(Slots::lease_out(1.into(), &1, 6, 1, 1));
+			assert_ok!(Slots::lease_out(1.into(), &1, 4, 3, 1));
 
 			run_to_block(19);
 			assert_eq!(Slots::deposit_held(1.into(), &1), 6);
@@ -732,6 +762,28 @@ mod tests {
 
 			// Leases is empty.
 			assert!(Leases::<Test>::get(ParaId::from(1)).is_empty());
+		});
+	}
+
+	#[test]
+	fn lease_out_current_lease_period() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
+
+			run_to_block(20);
+			assert_eq!(Slots::lease_period_index(), 2);
+			// Can't lease from the past
+			assert!(Slots::lease_out(1.into(), &1, 1, 1, 1).is_err());
+			// Lease in the current period triggers onboarding
+			assert_ok!(Slots::lease_out(1.into(), &1, 1, 2, 1));
+			// Lease in the future doesn't
+			assert_ok!(Slots::lease_out(2.into(), &1, 1, 3, 1));
+
+			assert_eq!(TestRegistrar::<Test>::operations(), vec![
+				(1.into(), 20, true),
+			]);
 		});
 	}
 }
