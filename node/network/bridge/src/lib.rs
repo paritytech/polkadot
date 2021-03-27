@@ -217,7 +217,7 @@ where
 			}
 
 			Action::SendValidationMessages(msgs) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "SendValidationMessages",
 					num_messages = %msgs.len(),
@@ -234,7 +234,7 @@ where
 			}
 
 			Action::SendCollationMessages(msgs) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "SendCollationMessages",
 					num_messages = %msgs.len(),
@@ -251,7 +251,7 @@ where
 			}
 
 			Action::SendRequests(reqs, if_disconnected) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "SendRequests",
 					num_requests = %reqs.len(),
@@ -270,7 +270,7 @@ where
 				peer_set,
 				connected,
 			} => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "ConnectToValidators",
 					peer_set = ?peer_set,
@@ -297,7 +297,7 @@ where
 			}
 
 			Action::DisconnectPeer(peer, peer_set) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "DisconnectPeer",
 					?peer,
@@ -307,7 +307,7 @@ where
 			}
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "ActiveLeaves",
 					num_activated = %activated.len(),
@@ -335,7 +335,7 @@ where
 			}
 
 			Action::BlockFinalized(number) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "BlockFinalized"
 				);
@@ -350,7 +350,7 @@ where
 			},
 
 			Action::PeerConnected(peer_set, peer, role) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "PeerConnected",
 					peer_set = ?peer_set,
@@ -424,7 +424,7 @@ where
 				}
 			}
 			Action::PeerDisconnected(peer_set, peer) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "PeerDisconnected",
 					peer_set = ?peer_set,
@@ -452,7 +452,7 @@ where
 				}
 			},
 			Action::PeerMessages(peer, v_messages, c_messages) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					action = "PeerMessages",
 					peer = ?peer,
@@ -485,7 +485,7 @@ where
 			Action::SendMessage(msg) => ctx.send_message(msg).await,
 		}
 
-		tracing::debug!(
+		tracing::trace!(
 			target: LOG_TARGET,
 			elapsed = ?before_action_process.elapsed(),
 			"Processed action",
