@@ -48,9 +48,7 @@ impl PeerSet {
 	/// network service.
 	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
 		let protocol = self.into_protocol_name();
-		// TODO: lower this limit after https://github.com/paritytech/polkadot/issues/2283 is
-		// done and collations use request-response protocols
-		let max_notification_size = 16 * 1024 * 1024;
+		let max_notification_size = 100 * 1024;
 
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
