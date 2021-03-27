@@ -254,7 +254,6 @@ pub trait SubsystemContext: Send + 'static {
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	// TODO [now]: make &self
 	fn send_unbounded_message(&mut self, msg: AllMessages);
 }
 
