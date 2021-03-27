@@ -679,86 +679,84 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 			_marker: std::marker::PhantomData,
 		}
 	}
-}
 
-async fn run_job_subsystem<Context, Job, Spawner>(
-	subsystem: JobSubsystem<Job, Spawner>,
-	mut ctx: Context,
-)
-	where
-		Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-		Context: SubsystemContext,
-		Job: 'static + JobTrait + Send,
-		Job::RunArgs: Clone + Sync,
-		Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
-		Job::Metrics: Sync,
-{
-	let JobSubsystem {
-		params: JobSubsystemParams {
-			spawner,
-			run_args,
-			metrics,
-		},
-		..
-	} = subsystem;
+	/// Run the subsystem to completion.
+	pub async fn run<Context>(self, mut ctx: Context)
+		where
+			Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
+			Context: SubsystemContext,
+			Job: 'static + JobTrait + Send,
+			Job::RunArgs: Clone + Sync,
+			Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
+			Job::Metrics: Sync,
+	{
+		let JobSubsystem {
+			params: JobSubsystemParams {
+				spawner,
+				run_args,
+				metrics,
+			},
+			..
+		} = self;
 
-	let mut jobs = Jobs::new(spawner);
+		let mut jobs = Jobs::new(spawner);
 
-	loop {
-		select! {
-			incoming = ctx.recv().fuse() => {
-				match incoming {
-					Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-						activated,
-						deactivated,
-					}))) => {
-						for activated in activated {
-							let sender: Context::Sender = ctx.sender().clone();
-							jobs.spawn_job::<Job, _>(
-								activated.hash,
-								activated.span,
-								run_args.clone(),
-								metrics.clone(),
-								sender,
-							)
+		loop {
+			select! {
+				incoming = ctx.recv().fuse() => {
+					match incoming {
+						Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+							activated,
+							deactivated,
+						}))) => {
+							for activated in activated {
+								let sender: Context::Sender = ctx.sender().clone();
+								jobs.spawn_job::<Job, _>(
+									activated.hash,
+									activated.span,
+									run_args.clone(),
+									metrics.clone(),
+									sender,
+								)
+							}
+
+							for hash in deactivated {
+								jobs.stop_job(hash).await;
+							}
 						}
-
-						for hash in deactivated {
-							jobs.stop_job(hash).await;
+						Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
+							jobs.running.clear();
+							break;
 						}
-					}
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
-						jobs.running.clear();
-						break;
-					}
-					Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => {}
-					Ok(FromOverseer::Communication { msg }) => {
-						if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
-							jobs.send_msg(to_job.relay_parent(), to_job).await;
+						Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => {}
+						Ok(FromOverseer::Communication { msg }) => {
+							if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
+								jobs.send_msg(to_job.relay_parent(), to_job).await;
+							}
 						}
-					}
-					Err(err) => {
-						tracing::error!(
-							job = Job::NAME,
-							err = ?err,
-							"error receiving message from subsystem context for job",
-						);
-						break;
+						Err(err) => {
+							tracing::error!(
+								job = Job::NAME,
+								err = ?err,
+								"error receiving message from subsystem context for job",
+							);
+							break;
+						}
 					}
 				}
-			}
-			outgoing = jobs.next() => {
-				let res = match outgoing.expect("the Jobs stream never ends; qed") {
-					FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
-					FromJobCommand::SpawnBlocking(name, task)
-						=> ctx.spawn_blocking(name, task).await,
-				};
+				outgoing = jobs.next() => {
+					let res = match outgoing.expect("the Jobs stream never ends; qed") {
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
+						FromJobCommand::SpawnBlocking(name, task)
+							=> ctx.spawn_blocking(name, task).await,
+					};
 
-				if let Err(e) = res {
-					tracing::warn!(err = ?e, "failed to handle command from job");
+					if let Err(e) = res {
+						tracing::warn!(err = ?e, "failed to handle command from job");
+					}
 				}
+				complete => break,
 			}
-			complete => break,
 		}
 	}
 }
@@ -774,7 +772,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
-			run_job_subsystem(self, ctx).await;
+			self.run(ctx).await;
 			Ok(())
 		});
 
@@ -994,14 +992,11 @@ mod tests {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 
-		let subsystem = run_job_subsystem(
-			FakeCandidateSelectionSubsystem::new(
-				pool,
-				run_args,
-				(),
-			),
-			context,
-		);
+		let subsystem = FakeCandidateSelectionSubsystem::new(
+			pool,
+			run_args,
+			(),
+		).run(context);
 		let test_future = test(overseer_handle);
 
 		futures::pin_mut!(subsystem, test_future);
