@@ -1040,7 +1040,8 @@ impl Debug for ToOverseer {
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M> {
 	tx_signal: metered::MeteredSender<OverseerSignal>,
-	tx_message: metered::MeteredSender<MessagePacket<M>>,
+	tx_bounded: metered::MeteredSender<MessagePacket<M>>,
+	meters: SubsystemMeters,
 	signals_received: usize,
 	name: &'static str,
 }
@@ -1515,7 +1516,7 @@ impl<M> OverseenSubsystem<M> {
 		const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 
 		if let Some(ref mut instance) = self.instance {
-			match instance.tx_message.send(MessagePacket {
+			match instance.tx_bounded.send(MessagePacket {
 				signals_received: instance.signals_received,
 				message: msg.into()
 			}).timeout(MESSAGE_TIMEOUT).await
@@ -1555,6 +1556,29 @@ impl<M> OverseenSubsystem<M> {
 			Ok(())
 		}
 	}
+}
+
+#[derive(Clone)]
+struct SubsystemMeters {
+	bounded: metered::Meter,
+	unbounded: metered::Meter,
+	signals: metered::Meter,
+}
+
+impl SubsystemMeters {
+	fn read(&self) -> SubsystemMeterReadouts {
+		SubsystemMeterReadouts {
+			bounded: self.bounded.read(),
+			unbounded: self.unbounded.read(),
+			signals: self.signals.read(),
+		}
+	}
+}
+
+struct SubsystemMeterReadouts {
+	bounded: metered::Readout,
+	unbounded: metered::Readout,
+	signals: metered::Readout,
 }
 
 /// The `Overseer` itself.
@@ -1618,10 +1642,12 @@ struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 	messages_relayed_total: prometheus::Counter<prometheus::U64>,
-	to_overseer_sent: prometheus::Gauge<prometheus::U64>,
-	to_overseer_received: prometheus::Gauge<prometheus::U64>,
-	from_overseer_sent: prometheus::GaugeVec<prometheus::U64>,
-	from_overseer_received: prometheus::GaugeVec<prometheus::U64>,
+	to_subsystem_bounded_sent: prometheus::GaugeVec<prometheus::U64>,
+	to_subsystem_bounded_received: prometheus::GaugeVec<prometheus::U64>,
+	to_subsystem_unbounded_sent: prometheus::GaugeVec<prometheus::U64>,
+	to_subsystem_unbounded_received: prometheus::GaugeVec<prometheus::U64>,
+	signals_sent: prometheus::GaugeVec<prometheus::U64>,
+	signals_received: prometheus::GaugeVec<prometheus::U64>,
 }
 
 #[derive(Default, Clone)]
@@ -1648,20 +1674,29 @@ impl Metrics {
 
 	fn channel_fill_level_snapshot(
 		&self,
-		from_overseer: AllSubsystemsSame<(&'static str, metered::Readout)>,
-		to_overseer: metered::Readout,
+		to_subsystem: AllSubsystemsSame<(&'static str, SubsystemMeterReadouts)>,
 	) {
 		self.0.as_ref().map(|metrics| {
-			from_overseer.map_subsystems(|(name, readout): (_, metered::Readout)| {
-				metrics.from_overseer_sent.with_label_values(&[name])
-					.set(readout.sent as u64);
+			to_subsystem.map_subsystems(
+				|(name, readouts): (_, SubsystemMeterReadouts)| {
+					metrics.to_subsystem_bounded_sent.with_label_values(&[name])
+						.set(readouts.bounded.sent as u64);
 
-				metrics.from_overseer_received.with_label_values(&[name])
-					.set(readout.received as u64);
-			});
+					metrics.to_subsystem_bounded_received.with_label_values(&[name])
+						.set(readouts.bounded.received as u64);
 
-			metrics.to_overseer_sent.set(to_overseer.sent as u64);
-			metrics.to_overseer_received.set(to_overseer.received as u64);
+					metrics.to_subsystem_unbounded_sent.with_label_values(&[name])
+						.set(readouts.unbounded.sent as u64);
+
+					metrics.to_subsystem_unbounded_received.with_label_values(&[name])
+						.set(readouts.unbounded.received as u64);
+
+					metrics.signals_sent.with_label_values(&[name])
+						.set(readouts.signals.sent as u64);
+
+					metrics.signals_received.with_label_values(&[name])
+						.set(readouts.signals.received as u64);
+				});
 		});
 	}
 }
@@ -1690,11 +1725,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			from_overseer_sent: prometheus::register(
+			to_subsystem_bounded_sent: prometheus::register(
 				prometheus::GaugeVec::<prometheus::U64>::new(
 					prometheus::Opts::new(
-						"parachain_from_overseer_sent",
-						"Number of elements sent by the overseer to subsystems",
+						"parachain_subsystem_bounded_sent",
+						"Number of elements sent to subsystems' bounded queues",
 					),
 					&[
 						"subsystem_name",
@@ -1702,11 +1737,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			from_overseer_received: prometheus::register(
+			to_subsystem_bounded_received: prometheus::register(
 				prometheus::GaugeVec::<prometheus::U64>::new(
 					prometheus::Opts::new(
-						"parachain_from_overseer_received",
-						"Number of elements received by subsystems from overseer",
+						"parachain_subsystem_bounded_received",
+						"Number of elements received by subsystems' bounded queues",
 					),
 					&[
 						"subsystem_name",
@@ -1714,21 +1749,51 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			to_overseer_sent: prometheus::register(
-				prometheus::Gauge::<prometheus::U64>::with_opts(
+			to_subsystem_unbounded_sent: prometheus::register(
+				prometheus::GaugeVec::<prometheus::U64>::new(
 					prometheus::Opts::new(
-						"parachain_to_overseer_sent",
-						"Number of elements sent by subsystems to overseer",
+						"parachain_subsystem_unbounded_sent",
+						"Number of elements sent to subsystems' unbounded queues",
 					),
+					&[
+						"subsystem_name",
+					],
 				)?,
 				registry,
 			)?,
-			to_overseer_received: prometheus::register(
-				prometheus::Gauge::<prometheus::U64>::with_opts(
+			to_subsystem_unbounded_received: prometheus::register(
+				prometheus::GaugeVec::<prometheus::U64>::new(
 					prometheus::Opts::new(
-						"parachain_to_overseer_received",
-						"Number of element received by overseer from subsystems",
+						"parachain_subsystem_unbounded_received",
+						"Number of elements received by subsystems' unbounded queues",
 					),
+					&[
+						"subsystem_name",
+					],
+				)?,
+				registry,
+			)?,
+			signals_sent: prometheus::register(
+				prometheus::GaugeVec::<prometheus::U64>::new(
+					prometheus::Opts::new(
+						"parachain_overseer_signals_sent",
+						"Number of signals sent by overseer to subsystems",
+					),
+					&[
+						"subsystem_name",
+					],
+				)?,
+				registry,
+			)?,
+			signals_received: prometheus::register(
+				prometheus::GaugeVec::<prometheus::U64>::new(
+					prometheus::Opts::new(
+						"parachain_overseer_signals_received",
+						"Number of signals received by subsystems from overseer",
+					),
+					&[
+						"subsystem_name",
+					],
 				)?,
 				registry,
 			)?,
@@ -1993,6 +2058,7 @@ where
 			&mut s,
 			candidate_validation_bounded_tx,
 			stream::select(candidate_validation_bounded_rx, candidate_validation_unbounded_rx),
+			candidate_validation_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.candidate_validation,
@@ -2005,6 +2071,7 @@ where
 			&mut s,
 			candidate_backing_bounded_tx,
 			stream::select(candidate_backing_bounded_rx, candidate_backing_unbounded_rx),
+			candidate_backing_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.candidate_backing,
@@ -2017,6 +2084,7 @@ where
 			&mut s,
 			candidate_selection_bounded_tx,
 			stream::select(candidate_selection_bounded_rx, candidate_selection_unbounded_rx),
+			candidate_selection_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.candidate_selection,
@@ -2029,6 +2097,7 @@ where
 			&mut s,
 			statement_distribution_bounded_tx,
 			stream::select(statement_distribution_bounded_rx, statement_distribution_unbounded_rx),
+			candidate_validation_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.statement_distribution,
@@ -2041,6 +2110,7 @@ where
 			&mut s,
 			availability_distribution_bounded_tx,
 			stream::select(availability_distribution_bounded_rx, availability_distribution_unbounded_rx),
+			availability_distribution_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.availability_distribution,
@@ -2053,6 +2123,7 @@ where
 			&mut s,
 			availability_recovery_bounded_tx,
 			stream::select(availability_recovery_bounded_rx, availability_recovery_unbounded_rx),
+			availability_recovery_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.availability_recovery,
@@ -2065,6 +2136,7 @@ where
 			&mut s,
 			bitfield_signing_bounded_tx,
 			stream::select(bitfield_signing_bounded_rx, bitfield_signing_unbounded_rx),
+			bitfield_signing_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.bitfield_signing,
@@ -2077,6 +2149,7 @@ where
 			&mut s,
 			bitfield_distribution_bounded_tx,
 			stream::select(bitfield_distribution_bounded_rx, bitfield_distribution_unbounded_rx),
+			bitfield_distribution_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.bitfield_distribution,
@@ -2089,6 +2162,7 @@ where
 			&mut s,
 			provisioner_bounded_tx,
 			stream::select(provisioner_bounded_rx, provisioner_unbounded_rx),
+			provisioner_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.provisioner,
@@ -2101,6 +2175,7 @@ where
 			&mut s,
 			pov_distribution_bounded_tx,
 			stream::select(pov_distribution_bounded_rx, pov_distribution_unbounded_rx),
+			pov_distribution_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.pov_distribution,
@@ -2113,6 +2188,7 @@ where
 			&mut s,
 			runtime_api_bounded_tx,
 			stream::select(runtime_api_bounded_rx, runtime_api_unbounded_rx),
+			runtime_api_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.runtime_api,
@@ -2125,6 +2201,7 @@ where
 			&mut s,
 			availability_store_bounded_tx,
 			stream::select(availability_store_bounded_rx, availability_store_unbounded_rx),
+			availability_store_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.availability_store,
@@ -2137,6 +2214,7 @@ where
 			&mut s,
 			network_bridge_bounded_tx,
 			stream::select(network_bridge_bounded_rx, network_bridge_unbounded_rx),
+			network_bridge_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.network_bridge,
@@ -2149,6 +2227,7 @@ where
 			&mut s,
 			chain_api_bounded_tx,
 			stream::select(chain_api_bounded_rx, chain_api_unbounded_rx),
+			chain_api_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.chain_api,
@@ -2161,6 +2240,7 @@ where
 			&mut s,
 			collation_generation_bounded_tx,
 			stream::select(collation_generation_bounded_rx, collation_generation_unbounded_rx),
+			collation_generation_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.collation_generation,
@@ -2173,6 +2253,7 @@ where
 			&mut s,
 			collator_protocol_bounded_tx,
 			stream::select(collator_protocol_bounded_rx, collator_protocol_unbounded_rx),
+			collator_protocol_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.collator_protocol,
@@ -2185,6 +2266,7 @@ where
 			&mut s,
 			approval_distribution_bounded_tx,
 			stream::select(approval_distribution_bounded_rx, approval_distribution_unbounded_rx),
+			approval_distribution_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.approval_distribution,
@@ -2197,6 +2279,7 @@ where
 			&mut s,
 			approval_voting_bounded_tx,
 			stream::select(approval_voting_bounded_rx, approval_voting_unbounded_rx),
+			approval_voting_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.approval_voting,
@@ -2209,6 +2292,7 @@ where
 			&mut s,
 			gossip_support_bounded_tx,
 			stream::select(gossip_support_bounded_rx, gossip_support_unbounded_rx),
+			gossip_support_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.gossip_support,
@@ -2247,44 +2331,41 @@ where
 			gossip_support: gossip_support_subsystem,
 		};
 
-		// TODO [now]: metrics
-		// {
-		// 	struct ExtractNameAndMeter;
-		// 	impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeter {
-		// 		type Output = (&'static str, metered::Meter);
+		{
+			struct ExtractNameAndMeters;
+			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
+				type Output = (&'static str, SubsystemMeters);
 
-		// 		fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
-		// 			let instance = subsystem.instance.as_ref()
-		// 				.expect("Extraction is done directly after spawning when subsystems\
-		// 				have not concluded; qed");
+				fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
+					let instance = subsystem.instance.as_ref()
+						.expect("Extraction is done directly after spawning when subsystems\
+						have not concluded; qed");
 
-		// 			(instance.name, instance.tx.meter().clone())
-		// 		}
-		// 	}
+					(
+						instance.name,
+						instance.meters.clone(),
+					)
+				}
+			}
 
-		// 	let meter_external_to_overseer = events_rx.meter().clone();
-		// 	let meter_subsystem_to_overseer = to_overseer_rx.meter().clone();
-		// 	let subsystem_meters = subsystems.as_ref().map_subsystems(ExtractNameAndMeter);
-		// 	let metronome_metrics = metrics.clone();
-		// 	let metronome = Metronome::new(std::time::Duration::from_millis(950))
-		// 		.for_each(move |_| {
-		// 			let to_subsystem_counts = subsystem_meters.as_ref()
-		// 				.map_subsystems(|&(name, ref meter): &(_, metered::Meter)| (name, meter.read()));
+			let subsystem_meters = subsystems.as_ref().map_subsystems(ExtractNameAndMeters);
+			let metronome_metrics = metrics.clone();
+			let metronome = Metronome::new(std::time::Duration::from_millis(950))
+				.for_each(move |_| {
+					let subsystem_meters = subsystem_meters.as_ref()
+						.map_subsystems(|&(name, ref meters): &(_, SubsystemMeters)| (name, meters.read()));
 
-		// 			// We combine the amount of messages from subsystems to the overseer
-		// 			// as well as the amount of messages from external sources to the overseer
-		// 			// into one to_overseer value.
-		// 			metronome_metrics.channel_fill_level_snapshot(
-		// 				to_subsystem_counts,
-		// 				meter_subsystem_to_overseer.read() + meter_external_to_overseer.read(),
-		// 			);
+					// We combine the amount of messages from subsystems to the overseer
+					// as well as the amount of messages from external sources to the overseer
+					// into one to_overseer value.
+					metronome_metrics.channel_fill_level_snapshot(subsystem_meters);
 
-		// 			async move {
-		// 				()
-		// 			}
-		// 		});
-		// 	s.spawn("metrics_metronome", Box::pin(metronome));
-		// }
+					async move {
+						()
+					}
+				});
+			s.spawn("metrics_metronome", Box::pin(metronome));
+		}
 
 		let this = Self {
 			subsystems,
@@ -2637,6 +2718,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
 	message_tx: metered::MeteredSender<MessagePacket<M>>,
 	message_rx: SubsystemIncomingMessages<M>,
+	unbounded_meter: metered::Meter,
 	to_subsystems: ChannelsOut,
 	to_overseer_tx: metered::UnboundedMeteredSender<ToOverseer>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
@@ -2673,8 +2755,13 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
+		meters: SubsystemMeters {
+			unbounded: unbounded_meter,
+			bounded: message_tx.meter().clone(),
+			signals: signal_tx.meter().clone(),
+		},
 		tx_signal: signal_tx,
-		tx_message: message_tx,
+		tx_bounded: message_tx,
 		signals_received: 0,
 		name,
 	});
