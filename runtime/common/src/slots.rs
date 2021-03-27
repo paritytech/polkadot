@@ -28,7 +28,7 @@ use frame_support::{
 	traits::{Currency, ReservableCurrency, Get}, weights::Weight,
 };
 use primitives::v1::Id as ParaId;
-use frame_system::ensure_root;
+use frame_system::{ensure_signed, ensure_root};
 use crate::traits::{Leaser, LeaseError, Registrar};
 
 type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -37,12 +37,16 @@ type LeasePeriodOf<T> = <T as frame_system::Config>::BlockNumber;
 pub trait WeightInfo {
 	fn force_lease() -> Weight;
 	fn manage_lease_period_start(c: u32, t: u32) -> Weight;
+	fn clear_all_leases() -> Weight;
+	fn trigger_onboard() -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn force_lease() -> Weight { 0 }
 	fn manage_lease_period_start(_c: u32, _t:u32) -> Weight { 0 }
+	fn clear_all_leases() -> Weight { 0 }
+	fn trigger_onboard() -> Weight { 0 }
 }
 
 /// The module's configuration trait.
@@ -173,7 +177,7 @@ decl_module! {
 		/// Clear all leases for a Para Id, refunding any deposits back to the original owners.
 		///
 		/// Can only be called by the Root origin.
-		#[weight = 0] // TODO: Benchmarks
+		#[weight = T::WeightInfo::clear_all_leases()]
 		fn clear_all_leases(origin, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			let deposits = Self::all_deposits_held(para);
@@ -195,8 +199,9 @@ decl_module! {
 		/// let them onboard from here.
 		///
 		/// Origin must be signed, but can be called by anyone.
-		#[weight = 0]
+		#[weight = T::WeightInfo::trigger_onboard()]
 		fn trigger_onboard(origin, para: ParaId) {
+			let _ = ensure_signed(origin)?;
 			let leases = Leases::<T>::get(para);
 			match leases.first() {
 				// If the first element in leases is present, then it has a lease!
@@ -826,7 +831,7 @@ mod benchmarking {
 	use frame_support::assert_ok;
 	use sp_runtime::traits::Bounded;
 
-	use frame_benchmarking::{benchmarks, account};
+	use frame_benchmarking::{benchmarks, account, whitelisted_caller, impl_benchmark_test_suite};
 
 	use crate::slots::Module as Slots;
 
@@ -924,7 +929,7 @@ mod benchmarking {
 			let (para, _) = register_a_parathread::<T>(1);
 
 			for i in 0 .. max_people {
-				let leaser = account("leaser", i, 0);
+				let leaser = account("lease_deposit", i, 0);
 				let amount = T::Currency::minimum_balance();
 				T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
 
@@ -935,37 +940,34 @@ mod benchmarking {
 			}
 
 			for i in 0 .. max_people {
-				let leaser = account("leaser", i, 0);
+				let leaser = account("lease_deposit", i, 0);
 				assert_eq!(T::Currency::reserved_balance(&leaser), T::Currency::minimum_balance());
 			}
 
 		}: _(RawOrigin::Root, para)
 		verify {
 			for i in 0 .. max_people {
-				let leaser = account("leaser", i, 0);
+				let leaser = account("lease_deposit", i, 0);
 				assert_eq!(T::Currency::reserved_balance(&leaser), 0u32.into());
 			}
 		}
-	}
 
-	#[cfg(test)]
-	mod tests {
-		use super::*;
-		use crate::integration_tests::{new_test_ext, Test};
-		use frame_support::assert_ok;
-
-		#[test]
-		fn force_lease_benchmark() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_force_lease::<Test>());
-			});
-		}
-
-		#[test]
-		fn manage_lease_period_start_benchmark() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_manage_lease_period_start::<Test>());
-			});
+		trigger_onboard {
+			// get a parachain into a bad state where they did not onboard
+			let (para, _) = register_a_parathread::<T>(1);
+			Leases::<T>::insert(para, vec![Some((T::AccountId::default(), BalanceOf::<T>::default()))]);
+			assert!(T::Registrar::is_parathread(para));
+			let caller = whitelisted_caller();
+		}: _(RawOrigin::Signed(caller), para)
+		verify {
+			T::Registrar::execute_pending_transitions();
+			assert!(T::Registrar::is_parachain(para));
 		}
 	}
+
+	impl_benchmark_test_suite!(
+		Slots,
+		crate::integration_tests::new_test_ext(),
+		crate::integration_tests::Test,
+	);
 }
