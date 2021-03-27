@@ -660,6 +660,8 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * DOLLARS;
 	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
 	pub const RemoveKeysLimit: u32 = 500;
+	// Allow 32 bytes for an additional memo to a crowdloan.
+	pub const MaxMemoLength: u8 = 32;
 }
 
 impl crowdloan::Config for Runtime {
@@ -672,6 +674,7 @@ impl crowdloan::Config for Runtime {
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
 	type WeightInfo = crowdloan::TestWeightInfo;
 }
 
