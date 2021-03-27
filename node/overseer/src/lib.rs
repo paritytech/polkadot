@@ -61,7 +61,7 @@
 
 use std::fmt::{self, Debug};
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{atomic::{self, AtomicUsize}, Arc};
 use std::task::Poll;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
@@ -88,8 +88,8 @@ use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, GossipSupportMessage,
 };
 pub use polkadot_subsystem::{
-	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
+	Subsystem, SubsystemContext, SubsystemSender, OverseerSignal, FromOverseer, SubsystemError,
+	SubsystemResult, SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
 };
 use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
@@ -1294,6 +1294,46 @@ type SubsystemIncomingMessages<M> = stream::Select<
 	metered::UnboundedMeteredReceiver<MessagePacket<M>>,
 >;
 
+#[derive(Debug, Default, Clone)]
+struct SignalsReceived(Arc<AtomicUsize>);
+
+impl SignalsReceived {
+	fn load(&self) -> usize {
+		self.0.load(atomic::Ordering::SeqCst)
+	}
+
+	fn inc(&self) {
+		self.0.fetch_add(1, atomic::Ordering::SeqCst);
+	}
+}
+
+/// A sender from subsystems to other subsystems.
+#[derive(Debug, Clone)]
+pub struct OverseerSubsystemSender {
+	channels: ChannelsOut,
+	signals_received: SignalsReceived,
+}
+
+#[async_trait::async_trait]
+impl SubsystemSender for OverseerSubsystemSender {
+	async fn send_message(&mut self, msg: AllMessages) {
+		self.channels.send_and_log_error(self.signals_received.load(), msg).await;
+	}
+
+	async fn send_messages<T>(&mut self, msgs: T)
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	{
+		// This can definitely be optimized if necessary.
+		for msg in msgs {
+			self.send_message(msg).await;
+		}
+	}
+
+	fn send_unbounded_message(&mut self, msg: AllMessages) {
+		self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
+	}
+}
+
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or to spawn it's [`SubsystemJob`]s.
@@ -1305,9 +1345,9 @@ type SubsystemIncomingMessages<M> = stream::Select<
 pub struct OverseerSubsystemContext<M>{
 	signals: metered::MeteredReceiver<OverseerSignal>,
 	messages: SubsystemIncomingMessages<M>,
-	to_subsystems: ChannelsOut,
+	to_subsystems: OverseerSubsystemSender,
 	to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
-	signals_received: usize,
+	signals_received: SignalsReceived,
 	pending_incoming: Option<(usize, M)>,
 	metrics: Metrics,
 }
@@ -1327,12 +1367,16 @@ impl<M> OverseerSubsystemContext<M> {
 		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 		metrics: Metrics,
 	) -> Self {
+		let signals_received = SignalsReceived::default();
 		OverseerSubsystemContext {
 			signals,
 			messages,
-			to_subsystems,
+			to_subsystems: OverseerSubsystemSender {
+				channels: to_subsystems,
+				signals_received: signals_received.clone(),
+			},
 			to_overseer,
-			signals_received: 0,
+			signals_received,
 			pending_incoming: None,
 			metrics,
 		 }
@@ -1356,6 +1400,7 @@ impl<M> OverseerSubsystemContext<M> {
 #[async_trait::async_trait]
 impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	type Message = M;
+	type Sender = OverseerSubsystemSender;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
 		match poll!(self.recv()) {
@@ -1369,7 +1414,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 			// If we have a message pending an overseer signal, we only poll for signals
 			// in the meantime.
 			if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
-				if needs_signals_received <= self.signals_received {
+				if needs_signals_received <= self.signals_received.load() {
 					return Ok(FromOverseer::Communication { msg });
 				} else {
 					self.pending_incoming = Some((needs_signals_received, msg));
@@ -1381,18 +1426,18 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 							.to_owned()
 						))?;
 
-					self.signals_received += 1;
+					self.signals_received.inc();
 					return Ok(FromOverseer::Signal(signal))
 				}
 			}
 
 			let mut await_message = self.messages.next().fuse();
 			let mut await_signal = self.signals.next().fuse();
-			let signals_received = &mut self.signals_received;
+			let signals_received = self.signals_received.load();
 			let pending_incoming = &mut self.pending_incoming;
 
 			// Otherwise, wait for the next signal or incoming message.
-			futures::select! {
+			let from_overseer = futures::select! {
 				msg = await_message => {
 					let packet = msg
 						.ok_or(SubsystemError::Context(
@@ -1400,12 +1445,13 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 							.to_owned()
 						))?;
 
-					if packet.signals_received > *signals_received {
+					if packet.signals_received > signals_received {
 						// wait until we've received enough signals to return this message.
 						*pending_incoming = Some((packet.signals_received, packet.message));
+						continue;
 					} else {
 						// we know enough to return this message.
-						return Ok(FromOverseer::Communication { msg: packet.message});
+						FromOverseer::Communication { msg: packet.message}
 					}
 				}
 				signal = await_signal => {
@@ -1415,10 +1461,15 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 							.to_owned()
 						))?;
 
-					*signals_received += 1;
-					return Ok(FromOverseer::Signal(signal))
+					FromOverseer::Signal(signal)
 				}
+			};
+
+			if let FromOverseer::Signal(_) = from_overseer {
+				self.signals_received.inc();
 			}
+
+			return Ok(from_overseer);
 		}
 	}
 
@@ -1440,21 +1491,8 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		}).await.map_err(Into::into)
 	}
 
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.to_subsystems.send_and_log_error(self.signals_received, msg).await;
-	}
-
-	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
-	{
-		// This can definitely be optimized if necessary.
-		for msg in msgs {
-			self.send_message(msg).await;
-		}
-	}
-
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.to_subsystems.send_unbounded_and_log_error(self.signals_received, msg);
+	fn sender(&mut self) -> &mut OverseerSubsystemSender {
+		&mut self.to_subsystems
 	}
 }
 
