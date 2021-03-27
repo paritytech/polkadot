@@ -29,7 +29,8 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateHash, Hash, PoV, SessionIndex, ValidatorIndex
 };
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, SubsystemContext, messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
+	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
+	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
 };
 
 use crate::{error::{Error, log_error}, runtime::{Runtime, ValidatorInfo}};
@@ -66,7 +67,7 @@ impl PoVRequester {
 	where
 		Context: SubsystemContext,
 	{
-		let activated = update.activated.iter().map(|(h, _)| h);
+		let activated = update.activated.iter().map(|ActivatedLeaf { hash: h, .. }| h);
 		let activated_sessions =
 			get_activated_sessions(ctx, runtime, activated).await?;
 

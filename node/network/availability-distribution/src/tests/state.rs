@@ -29,9 +29,11 @@ use sc_network as network;
 use sc_network::IfDisconnected;
 use sc_network::config as netconfig;
 
-use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, messages::{AllMessages,
-	AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage, RuntimeApiMessage,
-	RuntimeApiRequest}
+use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
+	messages::{
+		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage,
+		RuntimeApiMessage, RuntimeApiRequest,
+	}
 };
 use polkadot_primitives::v1::{CandidateHash, CoreState, ErasureChunk, GroupIndex, Hash, Id
 	as ParaId, ScheduledCore, SessionInfo,
@@ -162,7 +164,11 @@ impl TestState {
 			self
 			.relay_chain.iter().zip(advanced)
 			.map(|(old, new)| ActiveLeavesUpdate {
-				activated: smallvec![(new.clone(), Arc::new(jaeger::Span::Disabled))],
+				activated: smallvec![ActivatedLeaf {
+					hash: new.clone(),
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}],
 				deactivated: smallvec![old.clone()],
 			}).collect::<Vec<_>>()
 		};

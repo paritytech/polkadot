@@ -794,7 +794,7 @@ parameter_types! {
 	pub const CandidateDeposit: Balance = 10 * DOLLARS;
 	pub const WrongSideDeduction: Balance = 2 * DOLLARS;
 	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 80 * HOURS;
+	pub const RotationPeriod: BlockNumber = 7 * DAYS;
 	pub const PeriodSpend: Balance = 500 * DOLLARS;
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;

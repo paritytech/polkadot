@@ -591,7 +591,8 @@ async fn handle_from_overseer(
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
 
-			for (head, _span) in update.activated {
+			for activated in update.activated {
+				let head = activated.hash;
 				match import::handle_new_head(
 					ctx,
 					state,

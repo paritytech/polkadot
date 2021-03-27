@@ -192,9 +192,11 @@ impl BitfieldDistribution {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-					for (relay_parent, span) in activated {
+					for activated in activated {
+						let relay_parent = activated.hash;
+
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
-						let span = PerLeafSpan::new(span, "bitfield-distribution");
+						let span = PerLeafSpan::new(activated.span, "bitfield-distribution");
 						let _span = span.child("query-basics");
 
 						// query validator set and signing context per relay_parent once only

@@ -412,7 +412,7 @@ impl State {
 				if let Some(peer_id) = source.peer_id() {
 					tracing::debug!(
 						target: LOG_TARGET,
-						?source,
+						?peer_id,
 						?block_hash,
 						?validator_index,
 						"Unexpected assignment",
@@ -437,7 +437,7 @@ impl State {
 					if knowledge.get().known_messages.contains(&fingerprint) {
 						tracing::debug!(
 							target: LOG_TARGET,
-							?source,
+							?peer_id,
 							?fingerprint,
 							"Duplicate assignment",
 						);
@@ -448,7 +448,7 @@ impl State {
 				hash_map::Entry::Vacant(_) => {
 					tracing::debug!(
 						target: LOG_TARGET,
-						?source,
+						?peer_id,
 						?fingerprint,
 						"Assignment from a peer is out of view",
 					);
@@ -462,7 +462,7 @@ impl State {
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					tracing::trace!(
 						target: LOG_TARGET,
-						?source,
+						?peer_id,
 						?fingerprint,
 						"Known assignment",
 					);
@@ -526,7 +526,18 @@ impl State {
 		} else {
 			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
 				// if we already imported an assignment, there is no need to distribute it again
+				tracing::warn!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally an already known assignment",
+				);
 				return;
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally a new assignment",
+				);
 			}
 		}
 
@@ -575,7 +586,7 @@ impl State {
 		if !peers.is_empty() {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Sending assignment (block={}, index={})to {} peers",
+				"Sending assignment (block={}, index={}) to {} peers",
 				block_hash,
 				claimed_candidate_index,
 				peers.len(),
@@ -628,7 +639,6 @@ impl State {
 			if !entry.knowledge.known_messages.contains(&assignment_fingerprint) {
 				tracing::debug!(
 					target: LOG_TARGET,
-					?source,
 					?peer_id,
 					?fingerprint,
 					"Unknown approval assignment",
@@ -640,14 +650,14 @@ impl State {
 			// check if our knowledge of the peer already contains this approval
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(knowledge) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						?source,
-						?peer_id,
-						?fingerprint,
-						"Duplicate approval",
-					);
 					if knowledge.get().known_messages.contains(&fingerprint) {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?peer_id,
+							?fingerprint,
+							"Duplicate approval",
+						);
+
 						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						return;
 					}
@@ -655,7 +665,6 @@ impl State {
 				hash_map::Entry::Vacant(_) => {
 					tracing::debug!(
 						target: LOG_TARGET,
-						?source,
 						?peer_id,
 						?fingerprint,
 						"Approval from a peer is out of view",
@@ -668,7 +677,6 @@ impl State {
 			if entry.knowledge.known_messages.contains(&fingerprint) {
 				tracing::trace!(
 					target: LOG_TARGET,
-					?source,
 					?peer_id,
 					?fingerprint,
 					"Known approval",
@@ -700,7 +708,6 @@ impl State {
 
 			tracing::trace!(
 				target: LOG_TARGET,
-				?source,
 				?peer_id,
 				?fingerprint,
 				?result,
@@ -728,7 +735,18 @@ impl State {
 		} else {
 			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
 				// if we already imported an approval, there is no need to distribute it again
+				tracing::warn!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally an already known approval",
+				);
 				return;
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally a new approval",
+				);
 			}
 		}
 
