@@ -417,9 +417,9 @@ decl_module! {
 			Self::deposit_event(RawEvent::Contributed(who, index, value));
 		}
 
-		/// Withdraw full balance of a contributor.
+		/// Withdraw full balance of a specific contributor.
 		///
-		/// Origin must be signed.
+		/// Origin must be signed, but can come from anyone.
 		///
 		/// The fund must be either in, or ready for, retirement. For a fund to be *in* retirement, then the retirement
 		/// flag must be set. For a fund to be ready for retirement, then:
@@ -439,20 +439,13 @@ decl_module! {
 			ensure_signed(origin)?;
 
 			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
-
-			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
 			let now = frame_system::Pallet::<T>::block_number();
-			let current_lease_period = T::Auctioneer::lease_period_index();
-			ensure!(now >= fund.end || current_lease_period > fund.last_slot, Error::<T>::FundNotEnded);
-
 			let fund_account = Self::fund_account_id(index);
-			// free balance must equal amount raised, otherwise a bid or lease must be active.
-			ensure!(CurrencyOf::<T>::free_balance(&fund_account) == fund.raised, Error::<T>::BidOrLeaseActive);
+			Self::ensure_crowdloan_ended(now, &fund_account, &fund)?;
 
 			let balance = Self::contribution_get(fund.trie_index, &who);
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
-			// Avoid using transfer to ensure we don't pay any fees.
 			CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
 
 			Self::contribution_kill(fund.trie_index, &who);
@@ -467,7 +460,7 @@ decl_module! {
 			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
 		}
 
-		/// Remove a fund after the retirement period has ended.
+		/// Remove a fund after the retirement period has ended and all funds have been returned.
 		///
 		/// This places any deposits that were not withdrawn into the treasury.
 		#[weight = T::WeightInfo::dissolve(T::RemoveKeysLimit::get())]
@@ -600,6 +593,27 @@ impl<T: Config> Module<T> {
 
 	pub fn crowdloan_kill(index: TrieIndex) -> child::KillChildStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
+	}
+
+	/// This function checks all conditions which would qualify a crowdloan has ended.
+	/// * If we have reached the `fund.end` block OR the first lease period the fund is
+	///   trying to bid for has started already.
+	/// * And, if the fund has enough free funds to refund full raised amount.
+	fn ensure_crowdloan_ended(
+		now: T::BlockNumber,
+		fund_account: &T::AccountId,
+		fund: &FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>
+	) -> DispatchResult {
+			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
+			// If the current lease period is past the first slot they are trying to bid for, then it is already too late
+			// to win the bid.
+			let current_lease_period = T::Auctioneer::lease_period_index();
+			ensure!(now >= fund.end || current_lease_period > fund.first_slot, Error::<T>::FundNotEnded);
+			// free balance must greater than or equal amount raised, otherwise funds are being used
+			// and a bid or lease must be active.
+			ensure!(CurrencyOf::<T>::free_balance(&fund_account) >= fund.raised, Error::<T>::BidOrLeaseActive);
+
+			Ok(())
 	}
 }
 
@@ -1095,14 +1109,14 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
 
-			// Set up two crowdloans
+			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
 
 			run_to_block(10);
 			let account_id = Crowdloan::fund_account_id(para);
-			// para has no reserved funds, indicating it did ot win the auction.
+			// para has no reserved funds, indicating it did not win the auction.
 			assert_eq!(Balances::reserved_balance(&account_id), 0);
 			// but there's still the funds in its balance.
 			assert_eq!(Balances::free_balance(&account_id), 150);
@@ -1120,11 +1134,41 @@ mod tests {
 	}
 
 	#[test]
+	fn withdraw_cannot_be_griefed() {
+		new_test_ext().execute_with(|| {
+			let para = new_para();
+
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
+
+			run_to_block(10);
+			let account_id = Crowdloan::fund_account_id(para);
+
+			// user sends the crowdloan funds trying to make an accounting error
+			assert_ok!(Balances::transfer(Origin::signed(1), account_id, 10));
+
+			// overfunded now
+			assert_eq!(Balances::free_balance(&account_id), 110);
+			assert_eq!(Balances::free_balance(2), 1900);
+
+			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
+			assert_eq!(Balances::free_balance(2), 2000);
+
+			// Some funds are left over
+			assert_eq!(Balances::free_balance(&account_id), 10);
+			// They wil be orphaned at the end
+			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
+			assert_eq!(Balances::free_balance(&account_id), 0);
+		});
+	}
+
+	#[test]
 	fn dissolving_failed_without_contributions_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
 
-			// Set up two crowdloans
+			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
 			run_to_block(10);
@@ -1142,7 +1186,7 @@ mod tests {
 			let para = new_para();
 			let issuance = Balances::total_issuance();
 
-			// Set up two crowdloans
+			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
@@ -1166,7 +1210,7 @@ mod tests {
 			let para = new_para();
 			let account_id = Crowdloan::fund_account_id(para);
 
-			// Set up two crowdloans
+			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
 
 			// Fund crowdloans.
