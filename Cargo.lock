@@ -5649,6 +5649,7 @@ dependencies = [
  "futures 0.3.13",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
