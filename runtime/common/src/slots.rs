@@ -447,7 +447,7 @@ mod tests {
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use frame_support::{
-		parameter_types, assert_ok,
+		parameter_types, assert_ok, assert_noop,
 		traits::{OnInitialize, OnFinalize}
 	};
 	use pallet_balances;
@@ -771,6 +771,7 @@ mod tests {
 			run_to_block(1);
 
 			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(2), Default::default(), Default::default()));
 
 			run_to_block(20);
 			assert_eq!(Slots::lease_period_index(), 2);
@@ -783,6 +784,36 @@ mod tests {
 
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![
 				(1.into(), 20, true),
+			]);
+		});
+	}
+
+	#[test]
+	fn trigger_onboard_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(1), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(2), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, ParaId::from(3), Default::default(), Default::default()));
+
+			// We will directly manipulate leases to emulate some kind of failure in the system.
+			// Para 1 will have no leases
+			// Para 2 will have a lease period in the current index
+			Leases::<Test>::insert(ParaId::from(2), vec![Some((0, 0))]);
+			// Para 3 will have a lease period in a future index
+			Leases::<Test>::insert(ParaId::from(3), vec![None, None, Some((0, 0))]);
+
+			// Para 1 should fail cause they don't have any leases
+			assert_noop!(Slots::trigger_onboard(Origin::signed(1), 1.into()), Error::<Test>::ParaNotOnboarding);
+
+			// Para 2 should succeed
+			assert_ok!(Slots::trigger_onboard(Origin::signed(1), 2.into()));
+
+			// Para 3 should fail cause their lease is in the future
+			assert_noop!(Slots::trigger_onboard(Origin::signed(1), 3.into()), Error::<Test>::ParaNotOnboarding);
+
+			assert_eq!(TestRegistrar::<Test>::operations(), vec![
+				(2.into(), 1, true),
 			]);
 		});
 	}
