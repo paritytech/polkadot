@@ -1202,7 +1202,7 @@ impl ChannelsOut {
 
 
 	fn send_unbounded_and_log_error(
-		&mut self,
+		&self,
 		t: MaybeTimer,
 		signals_received: usize,
 		message: AllMessages,
@@ -1506,7 +1506,10 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		}
 	}
 
-	// TODO [now]: send unbounded.
+	fn send_unbounded_message(&mut self, msg: AllMessages) {
+		let timer = self.maybe_timer();
+		self.to_subsystems.send_unbounded_and_log_error(timer, self.signals_received, msg);
+	}
 }
 
 impl<M> OverseerSubsystemContext<M> {

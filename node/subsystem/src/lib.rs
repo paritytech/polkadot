@@ -247,6 +247,15 @@ pub trait SubsystemContext: Send + 'static {
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
+
+
+	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
+	/// type.
+	///
+	/// This function should be used only when there is some other bounding factor on the messages
+	/// sent with it. Otherwise, it risks a memory leak.
+	// TODO [now]: make &self
+	fn send_unbounded_message(&mut self, msg: AllMessages);
 }
 
 /// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
