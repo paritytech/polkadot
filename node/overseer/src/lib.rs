@@ -2022,9 +2022,9 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	let fut = Box::pin(async move {
 		if let Err(e) = future.await {
-			tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
+			tracing::error!(target: LOG_TARGET, subsystem=name, err = ?e, "subsystem exited with error");
 		} else {
-			tracing::debug!(subsystem=name, "subsystem exited without an error");
+			tracing::debug!(target: LOG_TARGET, subsystem=name, "subsystem exited without an error");
 		}
 		let _ = tx.send(());
 	});
