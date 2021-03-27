@@ -817,6 +817,9 @@ mod tests {
 			// Para 3 should fail cause their lease is in the future
 			assert_noop!(Slots::trigger_onboard(Origin::signed(1), 3.into()), Error::<Test>::ParaNotOnboarding);
 
+			// Trying Para 2 again should fail cause they are not currently a parathread
+			assert!(Slots::trigger_onboard(Origin::signed(1), 2.into()).is_err());
+
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![
 				(2.into(), 1, true),
 			]);
