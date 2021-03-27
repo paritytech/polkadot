@@ -200,7 +200,7 @@ decl_module! {
 		///
 		/// Origin must be signed, but can be called by anyone.
 		#[weight = T::WeightInfo::trigger_onboard()]
-		fn trigger_onboard(origin, para: ParaId) {
+		fn trigger_onboard(origin, para: ParaId) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let leases = Leases::<T>::get(para);
 			match leases.first() {
@@ -213,7 +213,8 @@ decl_module! {
 				Some(None) | None => {
 					return Err(Error::<T>::ParaNotOnboarding.into());
 				}
-			}
+			};
+			Ok(())
 		}
 	}
 }
@@ -407,8 +408,8 @@ impl<T: Config> Leaser for Module<T> {
 			// Check if current lease period is same as period begin, and onboard them directly.
 			// This will allow us to support onboarding new parachains in the middle of a lease period.
 			if current_lease_period == period_begin {
-				let res = T::Registrar::make_parachain(para);
-				debug_assert!(res.is_ok());
+				// Best effort. Not much we can do if this fails.
+				let _ = T::Registrar::make_parachain(para);
 			}
 
 			Self::deposit_event(
