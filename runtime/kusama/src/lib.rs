@@ -570,7 +570,7 @@ impl pallet_treasury::Config for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
-	type BurnDestination = ();
+	type BurnDestination = Society;
 	type SpendFunds = Bounties;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
