@@ -230,3 +230,102 @@ where
 		Ok(None)
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use assert_matches::assert_matches;
+    use futures::{executor, future};
+
+	use parity_scale_codec::Encode;
+	use sp_core::testing::TaskExecutor;
+
+	use polkadot_primitives::v1::{BlockData, CandidateHash, CompressedPoV, Hash, ValidatorIndex};
+	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
+
+	use super::*;
+	use crate::LOG_TARGET;
+	use crate::tests::mock::{make_session_info, make_ferdie_keystore};
+
+	#[test]
+	fn rejects_invalid_pov() {
+		sp_tracing::try_init_simple();
+		let pov = PoV {
+			block_data: BlockData(vec![1,2,3,4,5,6]),
+		};
+		test_run(Hash::default(), pov);
+	}
+
+	#[test]
+	fn accepts_valid_pov() {
+		sp_tracing::try_init_simple();
+		let pov = PoV {
+			block_data: BlockData(vec![1,2,3,4,5,6]),
+		};
+		test_run(pov.hash(), pov);
+	}
+
+	fn test_run(pov_hash: Hash, pov: PoV) {
+		let requester = PoVRequester::new();
+		let pool = TaskExecutor::new();
+		let (mut context, mut virtual_overseer) =
+			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, TaskExecutor>(pool.clone());
+		let keystore = make_ferdie_keystore();
+		let mut runtime = crate::runtime::Runtime::new(keystore);
+
+		let (tx, rx) = oneshot::channel();
+		let testee = async {
+			requester.fetch_pov(
+				&mut context,
+				&mut runtime,
+				Hash::default(),
+				ValidatorIndex(0),
+				CandidateHash::default(),
+				pov_hash,
+				tx,
+			).await.expect("Should succeed");
+		};
+
+		let tester = async move {
+			loop {
+				match virtual_overseer.recv().await {
+					AllMessages::RuntimeApi(
+						RuntimeApiMessage::Request(
+							_,
+							RuntimeApiRequest::SessionIndexForChild(tx)
+							)
+						) => {
+						tx.send(Ok(0)).unwrap();
+					}
+					AllMessages::RuntimeApi(
+						RuntimeApiMessage::Request(
+							_,
+							RuntimeApiRequest::SessionInfo(_, tx)
+							)
+						) => {
+						tx.send(Ok(Some(make_session_info()))).unwrap();
+					}
+					AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(mut reqs, _)) => {
+						let req = assert_matches!(
+							reqs.pop(),
+							Some(Requests::PoVFetching(outgoing)) => {outgoing}
+						);
+						req.pending_response.send(Ok(PoVFetchingResponse::PoV(
+							CompressedPoV::compress(&pov).unwrap()).encode()
+						)).unwrap();
+						break
+					},
+					msg => tracing::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),
+				}
+			}
+			if pov.hash() == pov_hash {
+				assert_eq!(rx.await, Ok(pov));
+			} else {
+				assert_eq!(rx.await, Err(oneshot::Canceled));
+			}
+		};
+		futures::pin_mut!(testee);
+		futures::pin_mut!(tester);
+		executor::block_on(future::join(testee, tester));
+	}
+}
