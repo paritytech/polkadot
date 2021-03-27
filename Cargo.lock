@@ -5633,6 +5633,7 @@ version = "0.1.0"
 dependencies = [
  "futures 0.3.13",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-keystore",

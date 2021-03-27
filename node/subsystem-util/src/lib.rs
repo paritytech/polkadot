@@ -438,6 +438,11 @@ pub struct JobSender<S> {
 }
 
 impl<S: SubsystemSender> JobSender<S> {
+	/// Get access to the underlying subsystem sender.
+	pub fn subsystem_sender(&mut self) -> &mut S {
+		&mut self.sender
+	}
+
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	pub async fn send_message(&mut self, msg: AllMessages) {
 		self.sender.send_message(msg).await
