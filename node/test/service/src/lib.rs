@@ -24,7 +24,7 @@ pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
-	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
+	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair,
 };
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
@@ -45,7 +45,7 @@ use sc_network::{
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	RpcHandlers, TaskExecutor, TaskManager,
+	RpcHandlers, TaskExecutor, TaskManager, KeepBlocks, TransactionStorageMode,
 };
 use service::{BasePath, Configuration, Role};
 use sp_arithmetic::traits::SaturatedConversion;
@@ -69,7 +69,7 @@ pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExec
 pub use polkadot_service::FullBackend;
 
 /// Create a new full node.
-#[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
+#[sc_tracing::logging::prefix_logs_with(config.network.node_name.as_str())]
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
@@ -83,6 +83,7 @@ pub fn new_full(
 		None,
 		None,
 		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
+		None,
 	)
 }
 
@@ -112,7 +113,7 @@ pub fn node_config(
 	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
 	let root = base_path.path();
 	let role = if is_validator {
-		Role::Authority { sentry_nodes: Vec::new() }
+		Role::Authority
 	} else {
 		Role::Full
 	};
@@ -163,7 +164,9 @@ pub fn node_config(
 		},
 		state_cache_size: 16777216,
 		state_cache_child_ratio: None,
-		pruning: Default::default(),
+		state_pruning: Default::default(),
+		keep_blocks: KeepBlocks::All,
+		transaction_storage: TransactionStorageMode::BlockBody,
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Interpreted,
 		wasm_runtime_overrides: Default::default(),
@@ -247,12 +250,19 @@ pub fn run_collator_node(
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-	collator_id: CollatorId,
+	collator_pair: CollatorPair,
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		new_full(config, IsCollator::Yes(collator_id)).expect("could not create Polkadot test service");
+	let NewFull {
+		task_manager,
+		client,
+		network,
+		rpc_handlers,
+		overseer_handler,
+		..
+	} = new_full(config, IsCollator::Yes(collator_pair))
+		.expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();

@@ -19,7 +19,8 @@
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::v1::Id as ParaId;
-use sc_cli::{Result, Error as SubstrateCliError, Role, SubstrateCli};
+use polkadot_cli::{Error, Result};
+use sc_cli::{Error as SubstrateCliError, Role, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_adder_collator::Collator;
 
@@ -37,7 +38,7 @@ fn main() -> Result<()> {
 			let collator = Collator::new();
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
-			Ok(())
+			Ok::<_, Error>(())
 		}
 		Some(cli::Subcommand::ExportGenesisWasm(_params)) => {
 			let collator = Collator::new();
@@ -59,7 +60,8 @@ fn main() -> Result<()> {
 
 						let full_node = polkadot_service::build_full(
 							config,
-							polkadot_service::IsCollator::Yes(collator.collator_id()),
+							polkadot_service::IsCollator::Yes(collator.collator_key()),
+							None,
 							None,
 							None,
 						).map_err(|e| e.to_string())?;
@@ -80,7 +82,7 @@ fn main() -> Result<()> {
 
 						let config = CollationGenerationConfig {
 							key: collator.collator_key(),
-							collator: collator.create_collation_function(),
+							collator: collator.create_collation_function(full_node.task_manager.spawn_handle()),
 							para_id,
 						};
 						overseer_handler

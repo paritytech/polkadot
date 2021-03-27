@@ -46,12 +46,16 @@ pub enum Subcommand {
 	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
 	ValidationWorker(ValidationWorkerCommand),
 
-	/// The custom benchmark subcommmand benchmarking runtime pallets.
+	/// The custom benchmark subcommand benchmarking runtime pallets.
 	#[structopt(
 		name = "benchmark",
 		about = "Benchmark runtime pallets."
 	)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	/// Testing subcommand for runtime testing and trying.
+	#[cfg(feature = "try-runtime")]
+	TryRuntime(try_runtime_cli::TryRuntimeCmd),
 
 	/// Key management cli utilities
 	Key(sc_cli::KeySubcommand),
@@ -60,6 +64,9 @@ pub enum Subcommand {
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub struct ValidationWorkerCommand {
+	/// The path that the executor can use for its caching purposes.
+	pub cache_base_path: std::path::PathBuf,
+
 	#[allow(missing_docs)]
 	pub mem_id: String,
 }

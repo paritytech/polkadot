@@ -23,7 +23,7 @@
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
-	jaeger, PerLeafSpan, JaegerSpan,
+	jaeger, PerLeafSpan,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
 		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -39,7 +39,7 @@ use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
-const LOG_TARGET: &str = "bitfield_signing";
+const LOG_TARGET: &str = "parachain::bitfield-signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
@@ -71,14 +71,13 @@ pub enum Error {
 /// for whether we have the availability chunk for our validator index.
 #[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
-	relay_parent: Hash,
-	core: CoreState,
+	core: &CoreState,
 	validator_idx: ValidatorIndex,
 	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
-	span: &jaeger::JaegerSpan,
+	span: &jaeger::Span,
 ) -> Result<bool, Error> {
-	if let CoreState::Occupied(core) = core {
-		let _span = span.child("query chunk availability");
+	if let &CoreState::Occupied(ref core) = core {
+		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -132,7 +131,7 @@ async fn get_availability_cores(
 #[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
-	span: &jaeger::JaegerSpan,
+	span: &jaeger::Span,
 	validator_idx: ValidatorIndex,
 	sender: &mut mpsc::Sender<FromJobCommand>,
 ) -> Result<AvailabilityBitfield, Error> {
@@ -152,9 +151,17 @@ async fn construct_availability_bitfield(
 	// Handle all cores concurrently
 	// `try_join_all` returns all results in the same order as the input futures.
 	let results = future::try_join_all(
-		availability_cores.into_iter()
-			.map(|core| get_core_availability(relay_parent, core, validator_idx, &sender, span)),
+		availability_cores.iter()
+			.map(|core| get_core_availability(core, validator_idx, &sender, span)),
 	).await?;
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		?relay_parent,
+		"Signing Bitfield for {} cores: {:?}",
+		availability_cores.len(),
+		results,
+	);
 
 	Ok(AvailabilityBitfield(FromIterator::from_iter(results)))
 }
@@ -218,7 +225,7 @@ impl JobTrait for BitfieldSigningJob {
 	#[tracing::instrument(skip(span, keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
@@ -246,12 +253,12 @@ impl JobTrait for BitfieldSigningJob {
 			let _timer = metrics.time_run();
 
 			drop(_span);
-			let _span = span.child("availablity");
+			let span_availability = span.child("availability");
 
 			let bitfield =
 				match construct_availability_bitfield(
 					relay_parent,
-					&span,
+					&span_availability,
 					validator.index(),
 					&mut sender,
 				).await
@@ -265,13 +272,23 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
-			drop(_span);
+			drop(span_availability);
 			let _span = span.child("signing");
 
-			let signed_bitfield = validator
-				.sign(keystore.clone(), bitfield)
+			let signed_bitfield = match validator.sign(keystore.clone(), bitfield)
 				.await
-				.map_err(|e| Error::Keystore(e))?;
+				.map_err(|e| Error::Keystore(e))?
+			{
+				Some(b) => b,
+				None => {
+					tracing::error!(
+						target: LOG_TARGET,
+						"Key was found at construction, but while signing it could not be found.",
+					);
+					return Ok(());
+				}
+			};
+
 			metrics.on_bitfield_signed();
 
 			drop(_span);
@@ -317,11 +334,11 @@ mod tests {
 		block_on(async move {
 			let (mut sender, mut receiver) = mpsc::channel(10);
 			let relay_parent = Hash::default();
-			let validator_index = 1u32;
+			let validator_index = ValidatorIndex(1u32);
 
 			let future = construct_availability_bitfield(
 				relay_parent,
-				&jaeger::JaegerSpan::Disabled,
+				&jaeger::Span::Disabled,
 				validator_index,
 				&mut sender,
 			).fuse();

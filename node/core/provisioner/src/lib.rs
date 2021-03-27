@@ -25,7 +25,7 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, JaegerSpan,
+	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, jaeger,
 	messages::{
 		AllMessages, CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage,
@@ -46,7 +46,7 @@ use futures_timer::Delay;
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
 
-const LOG_TARGET: &str = "provisioner";
+const LOG_TARGET: &str = "parachain::provisioner";
 
 enum InherentAfter {
 	Ready,
@@ -84,7 +84,6 @@ struct ProvisioningJob {
 	relay_parent: Hash,
 	sender: mpsc::Sender<FromJobCommand>,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
-	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
 	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
@@ -142,7 +141,7 @@ impl JobTrait for ProvisioningJob {
 	#[tracing::instrument(skip(span, _run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run(
 		relay_parent: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		_run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
@@ -173,7 +172,6 @@ impl ProvisioningJob {
 			relay_parent,
 			sender,
 			receiver,
-			provisionable_data_channels: Vec::new(),
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
 			metrics,
@@ -184,7 +182,7 @@ impl ProvisioningJob {
 
 	async fn run_loop(mut self, span: PerLeafSpan) -> Result<(), Error> {
 		use ProvisionerMessage::{
-			ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
+			ProvisionableData, RequestInherentData,
 		};
 		loop {
 			futures::select! {
@@ -199,45 +197,11 @@ impl ProvisioningJob {
 							self.awaiting_inherent.push(return_sender);
 						}
 					}
-					Some(RequestBlockAuthorshipData(_, sender)) => {
-						let _span = span.child("req-block-authorship");
-						self.provisionable_data_channels.push(sender)
-					}
 					Some(ProvisionableData(_, data)) => {
-						let _span = span.child("provisionable-data");
+						let span = span.child("provisionable-data");
 						let _timer = self.metrics.time_provisionable_data();
 
-						let mut bad_indices = Vec::new();
-						for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
-							match channel.send(data.clone()).await {
-								Ok(_) => {}
-								Err(_) => bad_indices.push(idx),
-							}
-						}
-						self.note_provisionable_data(data);
-
-						// clean up our list of channels by removing the bad indices
-						// start by reversing it for efficient pop
-						bad_indices.reverse();
-						// Vec::retain would be nicer here, but it doesn't provide
-						// an easy API for retaining by index, so we re-collect instead.
-						self.provisionable_data_channels = self
-							.provisionable_data_channels
-							.into_iter()
-							.enumerate()
-							.filter(|(idx, _)| {
-								if bad_indices.is_empty() {
-									return true;
-								}
-								let tail = bad_indices[bad_indices.len() - 1];
-								let retain = *idx != tail;
-								if *idx >= tail {
-									let _ = bad_indices.pop();
-								}
-								retain
-							})
-							.map(|(_, item)| item)
-							.collect();
+						self.note_provisionable_data(&span, data);
 					}
 					None => break,
 				},
@@ -275,12 +239,14 @@ impl ProvisioningJob {
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn note_provisionable_data(&mut self, provisionable_data: ProvisionableData) {
+	fn note_provisionable_data(&mut self, span: &jaeger::Span, provisionable_data: ProvisionableData) {
 		match provisionable_data {
 			ProvisionableData::Bitfield(_, signed_bitfield) => {
 				self.signed_bitfields.push(signed_bitfield)
 			}
 			ProvisionableData::BackedCandidate(backed_candidate) => {
+				let _span = span.child("provisionable-backed")
+					.with_para_id(backed_candidate.descriptor().para_id);
 				self.backed_candidates.push(backed_candidate)
 			}
 			_ => {}
@@ -367,7 +333,7 @@ fn select_availability_bitfields(
 
 		for (idx, _) in cores.iter().enumerate().filter(|v| !v.1.is_occupied()) {
 			// Bit is set for an unoccupied core - invalid
-			if *bitfield.payload().0.get(idx).unwrap_or(&false) {
+			if *bitfield.payload().0.get(idx).as_deref().unwrap_or(&false) {
 				continue 'a
 			}
 		}
@@ -413,7 +379,7 @@ async fn select_candidates(
 					}
 				}
 			}
-			_ => continue,
+			CoreState::Free => continue,
 		};
 
 		let validation_data = match request_persisted_validation_data(
@@ -437,7 +403,16 @@ async fn select_candidates(
 			descriptor.para_id == scheduled_core.para_id
 				&& descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
-			selected_candidates.push(candidate.hash());
+			let candidate_hash = candidate.hash();
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Selecting candidate {}. para_id={} core={}",
+				candidate_hash,
+				candidate.descriptor.para_id,
+				core_idx,
+			);
+
+			selected_candidates.push(candidate_hash);
 		}
 	}
 
@@ -448,7 +423,7 @@ async fn select_candidates(
 		selected_candidates.clone(),
 		tx,
 	)).into()).await.map_err(|err| Error::GetBackedCandidatesSend(err))?;
-	let candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
 	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
 	// _should_ preserve that property, but let's just make sure.
@@ -465,6 +440,27 @@ async fn select_candidates(
 	if candidates.len() != backed_idx {
 		Err(Error::BackedCandidateOrderingProblem)?;
 	}
+
+	// keep only one candidate with validation code.
+	let mut with_validation_code = false;
+	candidates.retain(|c| {
+		if c.candidate.commitments.new_validation_code.is_some() {
+			if with_validation_code {
+				return false
+			}
+
+			with_validation_code = true;
+		}
+
+		true
+	});
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		"Selected {} candidates for {} cores",
+		candidates.len(),
+		availability_cores.len(),
+	);
 
 	Ok(candidates)
 }
@@ -507,7 +503,7 @@ fn bitfields_indicate_availability(
 	let availability_len = availability.len();
 
 	for bitfield in bitfields {
-		let validator_idx = bitfield.validator_index() as usize;
+		let validator_idx = bitfield.validator_index().0 as usize;
 		match availability.get_mut(validator_idx) {
 			None => {
 				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition

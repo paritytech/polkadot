@@ -1,25 +1,25 @@
 [package]
 name = "westend-runtime"
-version = "0.8.27"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
 
 [dependencies]
-bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "1.3.5", default-features = false, features = ["derive"] }
-log = { version = "0.4.11", optional = true }
+bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
-serde = { version = "1.0.118", default-features = false }
+serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
-smallvec = "1.6.0"
+smallvec = "1.6.1"
 static_assertions = "1.1.0"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -29,6 +29,7 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -39,6 +40,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -66,6 +68,7 @@ pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -74,6 +77,7 @@ hex-literal = { version = "0.3.1", optional = true }
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
+runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
@@ -92,7 +96,6 @@ no_std = []
 only-staking = []
 std = [
 	"authority-discovery-primitives/std",
-	"pallet-authority-discovery/std",
 	"bitvec/std",
 	"primitives/std",
 	"rustc-hex/std",
@@ -107,14 +110,15 @@ std = [
 	"sp-std/std",
 	"sp-io/std",
 	"frame-support/std",
+	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-collective/std",
 	"pallet-elections-phragmen/std",
+	"pallet-election-provider-multi-phase/std",
 	"pallet-democracy/std",
-	"frame-executive/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",
@@ -125,28 +129,31 @@ std = [
 	"pallet-offences/std",
 	"pallet-proxy/std",
 	"pallet-recovery/std",
-	"sp-runtime/std",
-	"sp-staking/std",
 	"pallet-scheduler/std",
 	"pallet-session/std",
 	"pallet-society/std",
 	"pallet-staking/std",
 	"pallet-sudo/std",
-	"frame-system/std",
-	"frame-system-rpc-runtime-api/std",
 	"pallet-timestamp/std",
 	"pallet-treasury/std",
-	"sp-version/std",
 	"pallet-utility/std",
 	"pallet-vesting/std",
+	"pallet-babe/std",
+	"pallet-randomness-collective-flip/std",
+	"frame-executive/std",
+	"sp-runtime/std",
+	"sp-staking/std",
+	"frame-system/std",
+	"frame-system-rpc-runtime-api/std",
+	"sp-version/std",
 	"serde_derive",
 	"serde/std",
-	"log",
-	"pallet-babe/std",
+	"log/std",
 	"babe-primitives/std",
 	"sp-session/std",
-	"pallet-randomness-collective-flip/std",
 	"runtime-common/std",
+	"frame-try-runtime/std",
+	"sp-npos-elections/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -159,6 +166,7 @@ runtime-benchmarks = [
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
+	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
@@ -177,7 +185,41 @@ runtime-benchmarks = [
 	"frame-system-benchmarking",
 	"hex-literal",
 ]
-
+try-runtime = [
+	"frame-executive/try-runtime",
+	"frame-system/try-runtime",
+	"frame-try-runtime",
+	"pallet-authorship/try-runtime",
+	"pallet-authority-discovery/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-transaction-payment/try-runtime",
+	"pallet-collective/try-runtime",
+	"pallet-elections-phragmen/try-runtime",
+	"pallet-election-provider-multi-phase/try-runtime",
+	"pallet-democracy/try-runtime",
+	"pallet-grandpa/try-runtime",
+	"pallet-identity/try-runtime",
+	"pallet-im-online/try-runtime",
+	"pallet-indices/try-runtime",
+	"pallet-membership/try-runtime",
+	"pallet-multisig/try-runtime",
+	"pallet-nicks/try-runtime",
+	"pallet-offences/try-runtime",
+	"pallet-proxy/try-runtime",
+	"pallet-recovery/try-runtime",
+	"pallet-scheduler/try-runtime",
+	"pallet-session/try-runtime",
+	"pallet-society/try-runtime",
+	"pallet-staking/try-runtime",
+	"pallet-sudo/try-runtime",
+	"pallet-timestamp/try-runtime",
+	"pallet-treasury/try-runtime",
+	"pallet-utility/try-runtime",
+	"pallet-vesting/try-runtime",
+	"pallet-babe/try-runtime",
+	"pallet-randomness-collective-flip/try-runtime",
+	"runtime-common/try-runtime",
+]
 # When enabled, the runtime api will not be build.
 #
 # This is required by Cumulus to access certain types of the

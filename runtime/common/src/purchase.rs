@@ -332,7 +332,7 @@ decl_module! {
 		#[weight = T::DbWeight::get().writes(1)]
 		fn set_unlock_block(origin, unlock_block: T::BlockNumber) {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
-			ensure!(unlock_block > frame_system::Module::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
+			ensure!(unlock_block > frame_system::Pallet::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
 			// Possibly this is worse than having the caller account be the payment account?
 			UnlockBlock::<T>::set(unlock_block);
 			Self::deposit_event(RawEvent::UnlockBlockUpdated(unlock_block));
@@ -398,30 +398,31 @@ mod tests {
 		testing::Header
 	};
 	use frame_support::{
-		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_noop, parameter_types,
+		assert_ok, assert_noop, parameter_types,
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
 	};
 	use frame_support::traits::Currency;
 	use pallet_balances::Error as BalancesError;
+	use crate::purchase;
 
-	impl_outer_origin! {
-		pub enum Origin for Test {}
-	}
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+	type Block = frame_system::mocking::MockBlock<Test>;
 
-	impl_outer_dispatch! {
-		pub enum Call for Test where origin: Origin {
-			purchase::Purchase,
-			vesting::Vesting,
+	frame_support::construct_runtime!(
+		pub enum Test where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Vesting: pallet_vesting::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Purchase: purchase::{Pallet, Call, Storage, Event<T>},
 		}
-	}
+	);
 
 	type AccountId = AccountId32;
 
-	// For testing the module, we construct most of a mock runtime. This means
-	// first constructing a configuration type (`Test`) which `impl`s each of the
-	// configuration traits of modules we want to use.
-	#[derive(Clone, Eq, PartialEq)]
-	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 	}
@@ -439,13 +440,13 @@ mod tests {
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<AccountId>;
 		type Header = Header;
-		type Event = ();
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
-		type PalletInfo = ();
+		type PalletInfo = PalletInfo;
 		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
-		type OnKilledAccount = Balances;
+		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 	}
@@ -456,7 +457,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = ();
+		type Event = Event;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -469,7 +470,7 @@ mod tests {
 	}
 
 	impl pallet_vesting::Config for Test {
-		type Event = ();
+		type Event = Event;
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
@@ -489,7 +490,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = ();
+		type Event = Event;
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
 		type ValidityOrigin = frame_system::EnsureSignedBy<ValidityOrigin, AccountId>;
@@ -498,11 +499,6 @@ mod tests {
 		type UnlockedProportion = UnlockedProportion;
 		type MaxUnlocked = MaxUnlocked;
 	}
-
-	type System = frame_system::Module<Test>;
-	type Balances = pallet_balances::Module<Test>;
-	type Vesting = pallet_vesting::Module<Test>;
-	type Purchase = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup. It also executes our `setup` function which sets up this pallet for use.
@@ -813,7 +809,7 @@ mod tests {
 				alice(),
 				50,
 				50,
-				Permill::from_rational_approximation(77u32, 1000u32),
+				Permill::from_rational(77u32, 1000u32),
 			));
 			assert_eq!(
 				Accounts::<Test>::get(alice()),

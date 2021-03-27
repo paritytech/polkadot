@@ -29,14 +29,14 @@ use polkadot_node_subsystem::{
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
-use polkadot_node_jaeger::JaegerSpan;
+use polkadot_node_jaeger as jaeger;
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
 use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
-	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
+	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
 };
 use sp_core::{traits::SpawnNamed, Public};
@@ -50,6 +50,7 @@ use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
 pub mod validator_discovery;
+pub use metered_channel as metered;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
@@ -169,7 +170,6 @@ specialize_requests! {
 	fn request_validators() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
 	fn request_availability_cores() -> Vec<CoreState>; AvailabilityCores;
-	fn request_full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationData>; FullValidationData;
 	fn request_persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
@@ -251,7 +251,6 @@ specialize_requests_ctx! {
 	fn request_validators_ctx() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups_ctx() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
 	fn request_availability_cores_ctx() -> Vec<CoreState>; AvailabilityCores;
-	fn request_full_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationData>; FullValidationData;
 	fn request_persisted_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_session_index_for_child_ctx() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
@@ -322,7 +321,7 @@ impl Validator {
 			.iter()
 			.enumerate()
 			.find(|(_, k)| k == &&key)
-			.map(|(idx, _)| idx as ValidatorIndex)
+			.map(|(idx, _)| ValidatorIndex(idx as u32))
 			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
 
 		Ok(Validator {
@@ -352,7 +351,7 @@ impl Validator {
 		&self,
 		keystore: SyncCryptoStorePtr,
 		payload: Payload,
-	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
+	) -> Result<Option<Signed<Payload, RealPayload>>, KeystoreError> {
 		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
 	}
 
@@ -482,7 +481,7 @@ pub trait JobTrait: Unpin {
 	/// The job should be ended when `receiver` returns `None`.
 	fn run(
 		parent: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
@@ -553,7 +552,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	fn spawn_job(
 		&mut self,
 		parent_hash: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
 	) -> Result<(), Error> {
@@ -777,15 +776,15 @@ where
 				activated,
 				deactivated,
 			}))) => {
-				for (hash, span) in activated {
+				for activated in activated {
 					let metrics = metrics.clone();
-					if let Err(e) = jobs.spawn_job(hash, span, run_args.clone(), metrics) {
+					if let Err(e) = jobs.spawn_job(activated.hash, activated.span, run_args.clone(), metrics) {
 						tracing::error!(
 							job = Job::NAME,
 							err = ?e,
 							"failed to spawn a job",
 						);
-						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
+						Self::fwd_err(Some(activated.hash), JobsError::Utility(e), err_tx).await;
 						return true;
 					}
 				}
@@ -987,19 +986,75 @@ impl<F: Future> Future for Timeout<F> {
 	}
 }
 
+
+#[derive(Copy, Clone)]
+enum MetronomeState {
+	Snooze,
+	SetAlarm,
+}
+
+/// Create a stream of ticks with a defined cycle duration.
+pub struct Metronome {
+	delay: Delay,
+	period: Duration,
+	state: MetronomeState,
+}
+
+impl Metronome
+{
+	/// Create a new metronome source with a defined cycle duration.
+	pub fn new(cycle: Duration) -> Self {
+		let period = cycle.into();
+		Self {
+			period,
+			delay: Delay::new(period),
+			state: MetronomeState::Snooze,
+		}
+	}
+}
+
+impl futures::Stream for Metronome
+{
+	type Item = ();
+	fn poll_next(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>
+	) -> Poll<Option<Self::Item>> {
+		loop {
+			match self.state {
+				MetronomeState::SetAlarm => {
+					let val = self.period.clone();
+					self.delay.reset(val);
+					self.state = MetronomeState::Snooze;
+				}
+				MetronomeState::Snooze => {
+					if !Pin::new(&mut self.delay).poll(cx).is_ready() {
+						break
+					}
+					self.state = MetronomeState::SetAlarm;
+					return Poll::Ready(Some(()));
+				}
+			}
+		}
+		Poll::Pending
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use executor::block_on;
 	use thiserror::Error;
+	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem, JaegerSpan,
+		SpawnedSubsystem, ActivatedLeaf,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-	use std::{pin::Pin, time::Duration, sync::Arc};
+	use std::{pin::Pin, sync::{Arc, atomic::{AtomicUsize, Ordering}}, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 	// you can leave the subsystem itself to the job manager.
@@ -1035,7 +1090,7 @@ mod tests {
 		// this function is in charge of creating and executing the job's main loop
 		fn run(
 			_: Hash,
-			_: Arc<JaegerSpan>,
+			_: Arc<jaeger::Span>,
 			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<CandidateSelectionMessage>,
@@ -1119,7 +1174,11 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: relay_parent,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					}),
 				)))
 				.await;
 			assert_matches!(
@@ -1148,7 +1207,11 @@ mod tests {
 		test_harness(true, |mut overseer_handle, err_rx| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(JaegerSpan::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: relay_parent,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					}),
 				)))
 				.await;
 
@@ -1182,5 +1245,47 @@ mod tests {
 		let SpawnedSubsystem { name, .. } =
 			FakeCandidateSelectionSubsystem::new(pool, false, ()).start(context);
 		assert_eq!(name, "FakeCandidateSelection");
+	}
+
+
+	#[test]
+	fn tick_tack_metronome() {
+		let n = Arc::new(AtomicUsize::default());
+
+		let (tick, mut block) = mpsc::unbounded();
+
+		let metronome = {
+			let n = n.clone();
+			let stream = Metronome::new(Duration::from_millis(137_u64));
+			stream.for_each(move |_res| {
+				let _ = n.fetch_add(1, Ordering::Relaxed);
+				let mut tick = tick.clone();
+				async move {
+					tick.send(()).await.expect("Test helper channel works. qed");
+				}
+			}).fuse()
+		};
+
+		let f2 = async move {
+			block.next().await;
+			assert_eq!(n.load(Ordering::Relaxed), 1_usize);
+			block.next().await;
+			assert_eq!(n.load(Ordering::Relaxed), 2_usize);
+			block.next().await;
+			assert_eq!(n.load(Ordering::Relaxed), 3_usize);
+			block.next().await;
+			assert_eq!(n.load(Ordering::Relaxed), 4_usize);
+		}.fuse();
+
+		futures::pin_mut!(f2);
+		futures::pin_mut!(metronome);
+
+		block_on(async move {
+			// futures::join!(metronome, f2)
+			futures::select!(
+				_ = metronome => unreachable!("Metronome never stops. qed"),
+				_ = f2 => (),
+			)
+		});
 	}
 }

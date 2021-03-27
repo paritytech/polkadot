@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores_ctx, request_full_validation_data_ctx,
+	request_availability_cores_ctx, request_persisted_validation_data_ctx,
 	request_validators_ctx,
 	metrics::{self, prometheus},
 };
@@ -46,7 +46,7 @@ use std::sync::Arc;
 
 mod error;
 
-const LOG_TARGET: &'static str = "collation_generation";
+const LOG_TARGET: &'static str = "parachain::collation-generation";
 
 /// Collation Generation Subsystem
 pub struct CollationGenerationSubsystem {
@@ -128,7 +128,7 @@ impl CollationGenerationSubsystem {
 					let metrics = self.metrics.clone();
 					if let Err(err) = handle_new_activations(
 						config.clone(),
-						activated.into_iter().map(|v| v.0),
+						activated.into_iter().map(|v| v.hash),
 						ctx,
 						metrics,
 						sender,
@@ -247,7 +247,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			// we get validation data synchronously for each core instead of
 			// within the subtask loop, because we have only a single mutable handle to the
 			// context, so the work can't really be distributed
-			let validation_data = match request_full_validation_data_ctx(
+			let validation_data = match request_persisted_validation_data_ctx(
 				relay_parent,
 				scheduled_core.para_id,
 				assumption,
@@ -274,10 +274,10 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
-				let persisted_validation_data_hash = validation_data.persisted.hash();
+				let persisted_validation_data_hash = validation_data.hash();
 
-				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
-					Some(collation) => collation,
+				let (collation, result_sender) = match (task_config.collator)(relay_parent, &validation_data).await {
+					Some(collation) => collation.into_inner(),
 					None => {
 						tracing::debug!(
 							target: LOG_TARGET,
@@ -299,7 +299,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				let erasure_root = match erasure_root(
 					n_validators,
-					validation_data.persisted,
+					validation_data,
 					collation.proof_of_validity.clone(),
 				) {
 					Ok(erasure_root) => erasure_root,
@@ -333,13 +333,22 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						persisted_validation_data_hash,
 						pov_hash,
 						erasure_root,
+						para_head: commitments.head_data.hash(),
 					},
 				};
 
+				tracing::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?ccr.hash(),
+					?pov_hash,
+					?relay_parent,
+					para_id = %scheduled_core.para_id,
+					"candidate is generated",
+				);
 				metrics.on_collation_generated();
 
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
-					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
+					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity, result_sender)
 				)).await {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -456,7 +465,7 @@ mod tests {
 			task::{Context as FuturesContext, Poll},
 			Future,
 		};
-		use polkadot_node_primitives::Collation;
+		use polkadot_node_primitives::{Collation, CollationResult};
 		use polkadot_node_subsystem::messages::{
 			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
 		};
@@ -465,7 +474,7 @@ mod tests {
 		};
 		use polkadot_primitives::v1::{
 			BlockData, BlockNumber, CollatorPair, Id as ParaId,
-			PersistedValidationData, PoV, ScheduledCore, ValidationData,
+			PersistedValidationData, PoV, ScheduledCore,
 		};
 		use std::pin::Pin;
 
@@ -487,10 +496,10 @@ mod tests {
 		struct TestCollator;
 
 		impl Future for TestCollator {
-			type Output = Option<Collation>;
+			type Output = Option<CollationResult>;
 
 			fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
-				Poll::Ready(Some(test_collation()))
+				Poll::Ready(Some(CollationResult { collation: test_collation(), result_sender: None }))
 			}
 		}
 
@@ -499,7 +508,7 @@ mod tests {
 		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
-				collator: Box::new(|_: Hash, _vd: &ValidationData| {
+				collator: Box::new(|_: Hash, _vd: &PersistedValidationData| {
 					TestCollator.boxed()
 				}),
 				para_id: para_id.into(),
@@ -573,9 +582,9 @@ mod tests {
 				Hash::repeat_byte(16),
 			];
 
-			let requested_full_validation_data = Arc::new(Mutex::new(Vec::new()));
+			let requested_validation_data = Arc::new(Mutex::new(Vec::new()));
 
-			let overseer_requested_full_validation_data = requested_full_validation_data.clone();
+			let overseer_requested_validation_data = requested_validation_data.clone();
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
 					match handle.try_recv().await {
@@ -598,13 +607,13 @@ mod tests {
 						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							hash,
-							RuntimeApiRequest::FullValidationData(
+							RuntimeApiRequest::PersistedValidationData(
 								_para_id,
 								_occupied_core_assumption,
 								tx,
 							),
 						))) => {
-							overseer_requested_full_validation_data
+							overseer_requested_validation_data
 								.lock()
 								.await
 								.push(hash);
@@ -631,7 +640,7 @@ mod tests {
 					.unwrap();
 			});
 
-			let requested_full_validation_data = Arc::try_unwrap(requested_full_validation_data)
+			let requested_validation_data = Arc::try_unwrap(requested_validation_data)
 				.expect("overseer should have shut down by now")
 				.into_inner();
 
@@ -639,7 +648,7 @@ mod tests {
 			// each activated hash generates two scheduled cores: one with its value * 4, one with its value * 5
 			// given that the test configuration has a para_id of 16, there's only one way to get that value: with the 4
 			// hash.
-			assert_eq!(requested_full_validation_data, vec![[4; 32].into()]);
+			assert_eq!(requested_validation_data, vec![[4; 32].into()]);
 		}
 
 		#[test]
@@ -673,7 +682,7 @@ mod tests {
 						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							_hash,
-							RuntimeApiRequest::FullValidationData(
+							RuntimeApiRequest::PersistedValidationData(
 								_para_id,
 								_occupied_core_assumption,
 								tx,
@@ -738,6 +747,7 @@ mod tests {
 				persisted_validation_data_hash: expect_validation_data_hash,
 				pov_hash: expect_pov_hash,
 				erasure_root: Default::default(), // this isn't something we're checking right now
+				para_head: test_collation().head_data.hash(),
 			};
 
 			assert_eq!(sent_messages.len(), 1);
@@ -745,6 +755,7 @@ mod tests {
 				AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
 					CandidateReceipt { descriptor, .. },
 					_pov,
+					..
 				)) => {
 					// signature generation is non-deterministic, so we can't just assert that the
 					// expected descriptor is correct. What we can do is validate that the produced

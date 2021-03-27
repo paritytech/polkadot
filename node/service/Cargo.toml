@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.8.3"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -16,8 +16,10 @@ sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "mast
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -53,11 +55,10 @@ frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate"
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
-futures = "0.3.8"
+futures = "0.3.12"
 hex-literal = "0.3.1"
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
-serde = { version = "1.0.118", features = ["derive"] }
+tracing = "0.1.25"
+serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.23"
 
 # Polkadot
@@ -79,7 +80,9 @@ rococo-runtime = { path = "../../runtime/rococo" }
 # Polkadot Subsystems
 polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
 polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
+polkadot-availability-recovery = { path = "../network/availability-recovery", optional = true }
 polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
+polkadot-gossip-support = { path = "../network/gossip-support", optional = true }
 polkadot-network-bridge = { path = "../network/bridge", optional = true }
 polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
 polkadot-node-core-av-store = { path = "../core/av-store", optional = true }
@@ -92,6 +95,8 @@ polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
 polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
+polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
+polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
@@ -102,12 +107,29 @@ default = ["db", "full-node"]
 db = ["service/db"]
 full-node = [
 	"polkadot-node-core-av-store",
+	"polkadot-node-core-approval-voting",
+	"sc-finality-grandpa-warp-sync"
 ]
-runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
+
+runtime-benchmarks = [
+	"polkadot-runtime/runtime-benchmarks",
+	"kusama-runtime/runtime-benchmarks",
+	"westend-runtime/runtime-benchmarks",
+	"rococo-runtime/runtime-benchmarks"
+]
+try-runtime = [
+	"polkadot-runtime/try-runtime",
+	"kusama-runtime/try-runtime",
+	"westend-runtime/try-runtime",
+	"rococo-runtime/try-runtime",
+]
+
 real-overseer = [
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
+	"polkadot-availability-recovery",
 	"polkadot-collator-protocol",
+	"polkadot-gossip-support",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",
 	"polkadot-node-core-backing",
@@ -119,4 +141,5 @@ real-overseer = [
 	"polkadot-node-core-runtime-api",
 	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
+	"polkadot-approval-distribution",
 ]

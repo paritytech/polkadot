@@ -34,7 +34,7 @@ pub mod time {
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	frame_support::parameter_types! {
-		pub storage EpochDurationInBlocks: BlockNumber = 1 * HOURS;
+		pub storage EpochDurationInBlocks: BlockNumber = 30 * MINUTES;
 	}
 
 	// These time units are defined in number of blocks.
@@ -79,7 +79,7 @@ pub mod fee {
 			smallvec![WeightToFeeCoefficient {
 				degree: 1,
 				negative: false,
-				coeff_frac: Perbill::from_rational_approximation(p % q, q),
+				coeff_frac: Perbill::from_rational(p % q, q),
 				coeff_integer: p / q,
 			}]
 		}

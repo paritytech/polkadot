@@ -16,9 +16,10 @@ ARG PROFILE=release
 COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
 
 RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
-	mkdir -p /polkadot/.local/share/polkadot && \
-	chown -R polkadot:polkadot /polkadot/.local && \
-	ln -s /polkadot/.local/share/polkadot /data && \
+	mkdir -p /polkadot/.local/share && \
+	mkdir /data && \
+	chown -R polkadot:polkadot /data && \
+	ln -s /data /polkadot/.local/share/polkadot && \
 	rm -rf /usr/bin /usr/sbin
 
 USER polkadot

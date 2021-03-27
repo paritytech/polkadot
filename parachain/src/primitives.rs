@@ -28,6 +28,9 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
+#[cfg(feature = "std")]
+use parity_util_mem::MallocSizeOf;
+
 use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 
 /// Block number type used by the relay chain.
@@ -35,19 +38,28 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash, MallocSizeOf))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+#[cfg(feature = "std")]
+impl HeadData {
+	/// Returns the hash of this head data.
+	pub fn hash(&self) -> Hash {
+		use sp_runtime::traits::Hash;
+		sp_runtime::traits::BlakeTwo256::hash(&self.0)
+	}
+}
 
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.
@@ -55,7 +67,9 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u
 	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
 	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
+#[cfg_attr(feature = "std", derive(
+	serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
+)]
 pub struct Id(u32);
 
 impl TypeId for Id {
@@ -231,7 +245,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 /// that we use the first item tuple for the sender and the second for the recipient. Only one channel
 /// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
 /// identified by `(A, B)`.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
 	/// The para that acts as the sender in this channel.
@@ -245,7 +259,7 @@ pub type UpwardMessage = Vec<u8>;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Decode)]
+#[derive(PartialEq, Eq, Decode, Clone)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
 	/// Previous head-data.
@@ -253,21 +267,14 @@ pub struct ValidationParams {
 	/// The collation body.
 	pub block_data: BlockData,
 	/// The current relay-chain block number.
-	pub relay_chain_height: RelayChainBlockNumber,
-	/// The MQC head for the DMQ.
-	///
-	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
-	/// passed by the collator.
-	pub dmq_mqc_head: Hash,
-	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
+	pub relay_parent_number: RelayChainBlockNumber,
+	/// The relay-chain block's storage root.
+	pub relay_parent_storage_root: Hash,
 }
 
 /// The result of parachain validation.
 // TODO: balance uploads (https://github.com/paritytech/polkadot/issues/220)
-#[derive(PartialEq, Eq, Encode)]
+#[derive(PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "std", derive(Debug, Decode))]
 pub struct ValidationResult {
 	/// New head data that should be included in the relay chain state.

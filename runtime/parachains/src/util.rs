@@ -17,10 +17,10 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use sp_runtime::traits::Saturating;
-use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData, Hash};
+use primitives::v1::{Id as ParaId, PersistedValidationData, Hash, ValidatorIndex};
+use sp_std::vec::Vec;
 
-use crate::{configuration, paras, dmp, hrmp};
+use crate::{configuration, paras, hrmp};
 
 /// Make the persisted validation data for a particular parachain, a specified relay-parent and it's
 /// storage root.
@@ -29,49 +29,31 @@ use crate::{configuration, paras, dmp, hrmp};
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
 	relay_parent_number: T::BlockNumber,
-	relay_storage_root: Hash,
+	relay_parent_storage_root: Hash,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
 
 	Some(PersistedValidationData {
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
-		block_number: relay_parent_number,
-		relay_storage_root,
-		hrmp_mqc_heads: <hrmp::Module<T>>::hrmp_mqc_heads(para_id),
-		dmq_mqc_head: <dmp::Module<T>>::dmq_mqc_head(para_id),
+		relay_parent_number,
+		relay_parent_storage_root,
 		max_pov_size: config.max_pov_size,
 	})
 }
 
-/// Make the transient validation data for a particular parachain and a specified relay-parent.
-///
-/// This ties together the storage of several modules.
-pub fn make_transient_validation_data<T: paras::Config + dmp::Config>(
-	para_id: ParaId,
-	relay_parent_number: T::BlockNumber,
-) -> Option<TransientValidationData<T::BlockNumber>> {
-	let config = <configuration::Module<T>>::config();
+/// Take the active subset of a set containing all validators.
+pub fn take_active_subset<T: Clone>(active_validators: &[ValidatorIndex], set: &[T]) -> Vec<T> {
+	let subset: Vec<_> = active_validators.iter()
+		.filter_map(|i| set.get(i.0 as usize))
+		.cloned()
+		.collect();
 
-	let freq = config.validation_upgrade_frequency;
-	let delay = config.validation_upgrade_delay;
+	if subset.len() != active_validators.len() {
+		log::warn!(
+			target: "runtime::parachains",
+			"Took active validators from set with wrong size",
+		);
+	}
 
-	let last_code_upgrade = <paras::Module<T>>::last_code_upgrade(para_id, true);
-	let can_upgrade_code = last_code_upgrade.map_or(
-		true,
-		|l| { l <= relay_parent_number && relay_parent_number.saturating_sub(l) >= freq },
-	);
-
-	let code_upgrade_allowed = if can_upgrade_code {
-		Some(relay_parent_number + delay)
-	} else {
-		None
-	};
-
-	Some(TransientValidationData {
-		max_code_size: config.max_code_size,
-		max_head_data_size: config.max_head_data_size,
-		balance: 0,
-		code_upgrade_allowed,
-		dmq_length: <dmp::Module<T>>::dmq_length(para_id),
-	})
+	subset
 }
