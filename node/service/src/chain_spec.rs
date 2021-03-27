@@ -989,9 +989,9 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 600u32,
-				validation_upgrade_delay: 300,
-				acceptance_period: 1200,
+				validation_upgrade_frequency: 10u32,
+				validation_upgrade_delay: 5,
+				acceptance_period: 30,
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: MAX_POV_SIZE,
 				max_head_data_size: 32 * 1024,
