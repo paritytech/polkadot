@@ -2589,6 +2589,83 @@ mod tests {
 		});
 	}
 
+	#[test]
+	fn candidate_backing_reorders_votes() {
+		use sp_core::Encode;
+		use std::convert::TryFrom;
+
+		let relay_parent = [1; 32].into();
+		let para_id = ParaId::from(10);
+		let session_index = 5;
+		let signing_context = SigningContext { parent_hash: relay_parent, session_index };
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+			Sr25519Keyring::One,
+		];
+
+		let validator_public = validator_pubkeys(&validators);
+		let validator_groups = {
+			let mut validator_groups = HashMap::new();
+			validator_groups.insert(para_id, vec![0, 1, 2, 3, 4, 5].into_iter().map(ValidatorIndex).collect());
+			validator_groups
+		};
+
+		let table_context = TableContext {
+			signing_context,
+			validator: None,
+			groups: validator_groups,
+			validators: validator_public.clone(),
+		};
+
+		let fake_attestation = |idx: u32| {
+			let candidate: CommittedCandidateReceipt  = Default::default();
+			let hash = candidate.hash();
+			let mut data = vec![0; 64];
+			data[0..32].copy_from_slice(hash.0.as_bytes());
+			data[32..36].copy_from_slice(idx.encode().as_slice());
+
+			let sig = ValidatorSignature::try_from(data).unwrap();
+			statement_table::generic::ValidityAttestation::Implicit(sig)
+		};
+
+		let attested = TableAttestedCandidate {
+			candidate: Default::default(),
+			validity_votes: vec![
+				(ValidatorIndex(5), fake_attestation(5)),
+				(ValidatorIndex(3), fake_attestation(3)),
+				(ValidatorIndex(1), fake_attestation(1)),
+			],
+			group_id: para_id,
+		};
+
+		let backed = table_attested_to_backed(attested, &table_context).unwrap();
+
+		let expected_bitvec = {
+			let mut validator_indices = BitVec::<bitvec::order::Lsb0, u8>::with_capacity(6);
+			validator_indices.resize(6, false);
+
+			validator_indices.set(1, true);
+			validator_indices.set(3, true);
+			validator_indices.set(5, true);
+
+			validator_indices
+		};
+
+		// Should be in bitfield order, which is opposite to the order provided to the function.
+		let expected_attestations = vec![
+			fake_attestation(1).into(),
+			fake_attestation(3).into(),
+			fake_attestation(5).into(),
+		];
+
+		assert_eq!(backed.validator_indices, expected_bitvec);
+		assert_eq!(backed.validity_votes, expected_attestations);
+	}
+
 	// Test whether we retry on failed PoV fetching.
 	#[test]
 	fn retry_works() {
@@ -2683,34 +2760,37 @@ mod tests {
 			);
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 			
-			// There are already enough votes for the candidate to be backed:
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::Provisioner(
-					ProvisionerMessage::ProvisionableData(
-						_,
-						ProvisionableData::BackedCandidate(CandidateReceipt {
-							descriptor,
-							..
-						})
-					)
-				) if descriptor == candidate.descriptor
-			);
-		
-			// Subsystem requests PoV and requests validation.
-			// We cancel once more.
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::AvailabilityDistribution(
-					AvailabilityDistributionMessage::FetchPoV {
-						relay_parent,
-						tx,
-						..
+
+			// Not deterministic which message comes first:
+			for _ in 1..2 {
+				match virtual_overseer.recv().await {
+					AllMessages::Provisioner(
+						ProvisionerMessage::ProvisionableData(
+							_,
+							ProvisionableData::BackedCandidate(CandidateReceipt {
+								descriptor,
+								..
+							})
+							)
+						) => {
+						assert_eq!(descriptor, candidate.descriptor);
 					}
-				) if relay_parent == test_state.relay_parent => {
-					std::mem::drop(tx);
+					// Subsystem requests PoV and requests validation.
+					// We cancel once more:
+					AllMessages::AvailabilityDistribution(
+						AvailabilityDistributionMessage::FetchPoV {
+							relay_parent,
+							tx,
+							..
+						}
+						) if relay_parent == test_state.relay_parent => {
+						std::mem::drop(tx);
+					}
+					msg => {
+						assert!(false, "Unexpected message: {:?}", msg);
+					}
 				}
-			);
+			}
 		
 			// Subsystem requests PoV and requests validation.
 			// Now we pass.
