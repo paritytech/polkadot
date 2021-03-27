@@ -216,7 +216,7 @@ parameter_types! {
 	pub const MinContribution: Balance = 1;
 	pub const RetirementPeriod: BlockNumber = 10;
 	pub const RemoveKeysLimit: u32 = 100;
-
+	pub const MaxMemoLength: u8 = 32;
 }
 
 impl crowdloan::Config for Test {
@@ -229,6 +229,7 @@ impl crowdloan::Config for Test {
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
 	type WeightInfo = crate::crowdloan::TestWeightInfo;
 }
 
