@@ -170,17 +170,21 @@ impl Runtime {
 							None
 						}
 					})
-				})
-				.expect("Every validator should be in a validator group. qed.");
-
-			let info = ValidatorInfo {
-				our_index,
-				our_group,
-			};
-			Ok(Some(info))
-		} else {
-			Ok(None)
+				}
+			);
+			debug_assert!(
+				our_group.is_some() || session_info.validator_groups.is_empty(),
+				"Groups are initialized but validator could not be found in any"
+			);
+			if let Some(our_group) = our_group {
+				let info = ValidatorInfo {
+					our_index,
+					our_group,
+				};
+				return Ok(Some(info))
+			}
 		}
+		return	Ok(None)
 	}
 
 	/// Get our `ValidatorIndex`.

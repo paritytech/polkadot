@@ -244,8 +244,12 @@ impl SessionCache {
 							None
 						}
 					})
-				})
-				.expect("Every validator should be in a validator group. qed.");
+				}
+			);
+			debug_assert!(
+				our_group.is_some() || validator_groups.is_empty(),
+				"Groups are initialized but validator could not be found in any"
+			);
 
 			// Shuffle validators in groups:
 			let mut rng = thread_rng();
@@ -267,15 +271,17 @@ impl SessionCache {
 				})
 				.collect();
 
-			let info = SessionInfo {
-				validator_groups,
-				our_index,
-				session_index,
-				our_group,
-			};
-			return Ok(Some(info));
+			if let Some(our_group) = our_group {
+				let info = SessionInfo {
+					validator_groups,
+					our_index,
+					session_index,
+					our_group,
+				};
+				return Ok(Some(info))
+			}
 		}
-		return Ok(None);
+		return Ok(None)
 	}
 
 	/// Get our `ValidatorIndex`.
