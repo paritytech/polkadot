@@ -651,12 +651,11 @@ impl CandidateBackingJob {
 		>,
 	) -> Result<(), Error> {
 		let candidate_hash = params.candidate.hash();
-
 		if self.awaiting_validation.insert(candidate_hash) {
 			// spawn background task.
 			let bg = async move {
 				if let Err(e) = validate_and_make_available(params).await {
-					tracing::error!("Failed to validate and make available: {:?}", e);
+					tracing::error!(target: LOG_TARGET, "Failed to validate and make available: {:?}", e);
 				}
 			};
 			self.tx_from.send(FromJobCommand::Spawn("Backing Validation", bg.boxed())).await?;
@@ -2590,80 +2589,154 @@ mod tests {
 		});
 	}
 
+	// Test whether we retry on failed PoV fetching.
 	#[test]
-	fn candidate_backing_reorders_votes() {
-		use sp_core::Encode;
-		use std::convert::TryFrom;
+	fn retry_works() {
+		sp_tracing::try_init_simple();
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
 
-		let relay_parent = [1; 32].into();
-		let para_id = ParaId::from(10);
-		let session_index = 5;
-		let signing_context = SigningContext { parent_hash: relay_parent, session_index };
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-			Sr25519Keyring::One,
-		];
+			test_startup(&mut virtual_overseer, &test_state).await;
 
-		let validator_public = validator_pubkeys(&validators);
-		let validator_groups = {
-			let mut validator_groups = HashMap::new();
-			validator_groups.insert(para_id, vec![0, 1, 2, 3, 4, 5].into_iter().map(ValidatorIndex).collect());
-			validator_groups
-		};
+			let pov = PoV {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
 
-		let table_context = TableContext {
-			signing_context,
-			validator: None,
-			groups: validator_groups,
-			validators: validator_public.clone(),
-		};
+			let pov_hash = pov.hash();
 
-		let fake_attestation = |idx: u32| {
-			let candidate: CommittedCandidateReceipt  = Default::default();
-			let hash = candidate.hash();
-			let mut data = vec![0; 64];
-			data[0..32].copy_from_slice(hash.0.as_bytes());
-			data[32..36].copy_from_slice(idx.encode().as_slice());
+			let candidate = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				..Default::default()
+			}.build();
 
-			let sig = ValidatorSignature::try_from(data).unwrap();
-			statement_table::generic::ValidityAttestation::Implicit(sig)
-		};
+			let public2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).await.expect("Insert key into keystore");
+			let public3 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[3].to_seed()),
+			).await.expect("Insert key into keystore");
+			let public5 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[5].to_seed()),
+			).await.expect("Insert key into keystore");
+			let signed_a = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Seconded(candidate.clone()),
+				&test_state.signing_context,
+				ValidatorIndex(2),
+				&public2.into(),
+			).await.ok().flatten().expect("should be signed");
+			let signed_b = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Valid(candidate.hash()),
+				&test_state.signing_context,
+				ValidatorIndex(3),
+				&public3.into(),
+			).await.ok().flatten().expect("should be signed");
+			let signed_c = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Valid(candidate.hash()),
+				&test_state.signing_context,
+				ValidatorIndex(5),
+				&public5.into(),
+			).await.ok().flatten().expect("should be signed");
 
-		let attested = TableAttestedCandidate {
-			candidate: Default::default(),
-			validity_votes: vec![
-				(ValidatorIndex(5), fake_attestation(5)),
-				(ValidatorIndex(3), fake_attestation(3)),
-				(ValidatorIndex(1), fake_attestation(1)),
-			],
-			group_id: para_id,
-		};
+			// Send in a `Statement` with a candidate.
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_a.clone(),
+			);
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
-		let backed = table_attested_to_backed(attested, &table_context).unwrap();
+			// Subsystem requests PoV and requests validation.
+			// We cancel - should mean retry on next backing statement.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
+				) if relay_parent == test_state.relay_parent => {
+					std::mem::drop(tx);
+				}
+			);
 
-		let expected_bitvec = {
-			let mut validator_indices = BitVec::<bitvec::order::Lsb0, u8>::with_capacity(6);
-			validator_indices.resize(6, false);
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_b.clone(),
+			);
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
-			validator_indices.set(1, true);
-			validator_indices.set(3, true);
-			validator_indices.set(5, true);
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_c.clone(),
+			);
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+			
+			// There are already enough votes for the candidate to be backed:
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::Provisioner(
+					ProvisionerMessage::ProvisionableData(
+						_,
+						ProvisionableData::BackedCandidate(CandidateReceipt {
+							descriptor,
+							..
+						})
+					)
+				) if descriptor == candidate.descriptor
+			);
+		
+			// Subsystem requests PoV and requests validation.
+			// We cancel once more.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
+				) if relay_parent == test_state.relay_parent => {
+					std::mem::drop(tx);
+				}
+			);
+		
+			// Subsystem requests PoV and requests validation.
+			// Now we pass.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
+				) if relay_parent == test_state.relay_parent => {
+					tx.send(pov.clone()).unwrap();
+				}
+			);
 
-			validator_indices
-		};
-
-		// Should be in bitfield order, which is opposite to the order provided to the function.
-		let expected_attestations = vec![
-			fake_attestation(1).into(),
-			fake_attestation(3).into(),
-			fake_attestation(5).into(),
-		];
-
-		assert_eq!(backed.validator_indices, expected_bitvec);
-		assert_eq!(backed.validity_votes, expected_attestations);
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::ValidateFromChainState(
+						c,
+						pov,
+						_tx,
+					)
+				) if pov == pov && &c == candidate.descriptor()
+			);
+		});
 	}
 }
