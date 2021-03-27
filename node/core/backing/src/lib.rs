@@ -1671,15 +1671,6 @@ mod tests {
 				}
 			);
 
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::PoVDistribution(PoVDistributionMessage::DistributePoV(hash, descriptor, pov_received)) => {
-					assert_eq!(test_state.relay_parent, hash);
-					assert_eq!(candidate.descriptor, descriptor);
-					assert_eq!(pov, *pov_received);
-				}
-			);
-
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
@@ -1750,14 +1741,17 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
 			// Sending a `Statement::Seconded` for our assignment will start
-			// validation process. The first thing requested is PoV from the
-			// `PoVDistribution`.
+			// validation process. The first thing requested is the PoV.
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::PoVDistribution(
-					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(Arc::new(pov.clone())).unwrap();
+					tx.send(pov.clone()).unwrap();
 				}
 			);
 
@@ -1903,10 +1897,14 @@ mod tests {
 			// `PoVDistribution`.
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::PoVDistribution(
-					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(Arc::new(pov.clone())).unwrap();
+					tx.send(pov.clone()).unwrap();
 				}
 			);
 
@@ -2042,10 +2040,14 @@ mod tests {
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::PoVDistribution(
-					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(Arc::new(pov.clone())).unwrap();
+					tx.send(pov.clone()).unwrap();
 				}
 			);
 
@@ -2317,11 +2319,14 @@ mod tests {
 			// Subsystem requests PoV and requests validation.
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::PoVDistribution(
-					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
-				) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					tx.send(Arc::new(pov.clone())).unwrap();
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
+				) if relay_parent == test_state.relay_parent => {
+					tx.send(pov.clone()).unwrap();
 				}
 			);
 
@@ -2437,11 +2442,14 @@ mod tests {
 			// Subsystem requests PoV and requests validation.
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::PoVDistribution(
-					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
-				) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					tx.send(Arc::new(pov.clone())).unwrap();
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						tx,
+						..
+					}
+				) if relay_parent == test_state.relay_parent => {
+					tx.send(pov.clone()).unwrap();
 				}
 			);
 

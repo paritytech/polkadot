@@ -161,6 +161,9 @@ impl TestState {
 	/// This will simply advance through the simulated chain and examines whether the subsystem
 	/// behaves as expected: It will succeed if all valid chunks of other backing groups get stored
 	/// and no other.
+	///
+	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
+	/// should not be a matter to this test suite.
 	async fn run_inner(self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
 		let updates = {
@@ -252,7 +255,6 @@ impl TestState {
 					}
 				}
 				_ => {
-					panic!("Unexpected message received: {:?}", msg);
 				}
 			}
 		}
