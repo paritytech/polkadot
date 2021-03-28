@@ -237,14 +237,14 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			Recipient::Peer(peer_id) =>  Some(peer_id),
 			Recipient::Authority(authority) =>
 				authority_discovery
-				.get_addresses_by_authority_id(authority)
-				.await
-				.and_then(|addrs| {
-					addrs
-						.into_iter()
-						.find_map(|addr| peer_id_from_multiaddr(&addr))
-				}),
-			};
+					.get_addresses_by_authority_id(authority)
+					.await
+					.and_then(|addrs| {
+						addrs
+							.into_iter()
+							.find_map(|addr| peer_id_from_multiaddr(&addr))
+					}),
+		};
 
 		let peer_id = match peer_id {
 			None => {
