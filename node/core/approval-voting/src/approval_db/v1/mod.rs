@@ -502,9 +502,14 @@ impl Transaction {
 		let _ = self.candidate_entries.insert(hash, entry);
 	}
 
+	/// Returns true if the transaction contains no actions
+	pub(crate) fn is_empty(&self) -> bool {
+		self.block_entries.is_empty() && self.candidate_entries.is_empty()
+	}
+
 	/// Write the contents of the transaction, atomically, to the DB.
 	pub(crate) fn write(self, db: &dyn KeyValueDB) -> Result<()> {
-		if self.block_entries.is_empty() && self.candidate_entries.is_empty() {
+		if self.is_empty() {
 			return Ok(())
 		}
 
