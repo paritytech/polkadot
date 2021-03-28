@@ -242,8 +242,8 @@ impl State {
 			if !to_import.is_empty() {
 				tracing::debug!(
 					target: LOG_TARGET,
+					num = to_import.len(),
 					"Processing pending assignment/approvals",
-					num = ?to_import.len(),
 				);
 
 				let _timer = metrics.time_import_pending_now_known();
@@ -879,7 +879,7 @@ impl State {
 				block = entry.parent_hash.clone();
 				Some(interesting_block)
 			});
-			to_send.extend(interesting_blocks).take(MAX_DEPTH_TO_UNIFY);
+			to_send.extend(interesting_blocks.take(MAX_DEPTH_TO_UNIFY));
 		}
 		// step 6.
 		// send all assignments and approvals for all candidates in those blocks to the peer
