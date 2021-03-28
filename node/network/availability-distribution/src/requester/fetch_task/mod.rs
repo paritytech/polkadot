@@ -138,7 +138,7 @@ impl FetchTaskConfig {
 		let live_in = vec![leaf].into_iter().collect();
 
 		// Don't run tasks for our backing group:
-		if session_info.our_group == core.group_responsible {
+		if session_info.our_group == Some(core.group_responsible) {
 			return FetchTaskConfig {
 				live_in,
 				prepared_running: None,
