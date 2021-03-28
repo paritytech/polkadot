@@ -15,10 +15,10 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../protocol" }
 strum = "0.20.0"
+parking_lot = "0.11.1"
 
 [dev-dependencies]
 assert_matches = "1.4.0"
-parking_lot = "0.11.1"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }

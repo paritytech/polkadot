@@ -5546,6 +5546,7 @@ version = "0.1.0"
 dependencies = [
  "futures 0.3.12",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-keystore",
@@ -5561,6 +5562,7 @@ dependencies = [
  "futures 0.3.12",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
@@ -5634,6 +5636,7 @@ dependencies = [
  "futures 0.3.12",
  "futures-timer 3.0.2",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-application-crypto",

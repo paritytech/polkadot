@@ -18,3 +18,4 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
