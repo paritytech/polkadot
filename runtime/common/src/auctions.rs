@@ -54,7 +54,7 @@ pub trait Config: frame_system::Config {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
-	/// The number of blocks over which a single period lasts.
+	/// The type representing the leasing system.
 	type Leaser: Leaser<AccountId=Self::AccountId, LeasePeriod=Self::BlockNumber>;
 
 	/// The parachain registrar type.
