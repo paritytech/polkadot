@@ -755,7 +755,7 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages
 	}
 }
 impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMessages {
-    fn from(req: IncomingRequest<req_res_v1::AvailableDataFetchingRequest>) -> Self {
-        From::<AvailabilityRecoveryMessage>::from(From::from(req))
-    }
+	fn from(req: IncomingRequest<req_res_v1::AvailableDataFetchingRequest>) -> Self {
+		From::<AvailabilityRecoveryMessage>::from(From::from(req))
+	}
 }
