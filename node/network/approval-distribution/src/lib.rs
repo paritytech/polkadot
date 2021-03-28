@@ -229,8 +229,6 @@ impl State {
 		);
 
 		{
-			let _timer = metrics.time_import_pending_now_known();
-
 			let pending_now_known = self.pending_known.keys()
 				.filter(|k| self.blocks.contains_key(k))
 				.copied()
@@ -241,24 +239,34 @@ impl State {
 				.flatten()
 				.collect::<Vec<_>>();
 
-			for (peer_id, message) in to_import {
-				match message {
-					PendingMessage::Assignment(assignment, claimed_index) => {
-						self.import_and_circulate_assignment(
-							ctx,
-							metrics,
-							MessageSource::Peer(peer_id),
-							assignment,
-							claimed_index,
-						).await;
-					}
-					PendingMessage::Approval(approval_vote) => {
-						self.import_and_circulate_approval(
-							ctx,
-							metrics,
-							MessageSource::Peer(peer_id),
-							approval_vote,
-						).await;
+			if !to_import.is_empty() {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Processing pending assignment/approvals",
+					num = ?to_import.len(),
+				);
+
+				let _timer = metrics.time_import_pending_now_known();
+
+				for (peer_id, message) in to_import {
+					match message {
+						PendingMessage::Assignment(assignment, claimed_index) => {
+							self.import_and_circulate_assignment(
+								ctx,
+								metrics,
+								MessageSource::Peer(peer_id),
+								assignment,
+								claimed_index,
+							).await;
+						}
+						PendingMessage::Approval(approval_vote) => {
+							self.import_and_circulate_approval(
+								ctx,
+								metrics,
+								MessageSource::Peer(peer_id),
+								approval_vote,
+							).await;
+						}
 					}
 				}
 			}
@@ -489,6 +497,7 @@ impl State {
 				tx,
 			))).await;
 
+			let timer = metrics.time_awaiting_approval_voting();
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
@@ -499,6 +508,7 @@ impl State {
 					return;
 				}
 			};
+			drop(timer);
 
 			tracing::trace!(
 				target: LOG_TARGET,
@@ -841,6 +851,8 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
+		const MAX_DEPTH_TO_UNIFY: usize = 4;
+
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
 		let mut to_send = HashSet::new();
@@ -867,7 +879,7 @@ impl State {
 				block = entry.parent_hash.clone();
 				Some(interesting_block)
 			});
-			to_send.extend(interesting_blocks);
+			to_send.extend(interesting_blocks).take(MAX_DEPTH_TO_UNIFY);
 		}
 		// step 6.
 		// send all assignments and approvals for all candidates in those blocks to the peer

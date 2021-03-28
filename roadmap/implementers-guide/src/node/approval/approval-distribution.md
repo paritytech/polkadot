@@ -237,9 +237,12 @@ Imports an approval signature referenced by block hash and candidate index:
 1. Initialize a set `fresh_blocks = {}`
 
 For each block in the view:
-  2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than or equal to the view's finalized number, go to step 6.
+  2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than or equal to the view's finalized number
+     or the the block depth reaches a certain threshold, go to step 6.
   3. Inspect the `known_by` set of the `BlockEntry`. If the peer is already present, go to step 6.
   4. Add the peer to `known_by` with a cloned version of `block_entry.knowledge`. and add the hash of the block to `fresh_blocks`.
   5. Return to step 2 with the ancestor of the block.
 
 6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.
+
+The reason we're limit the block depth when unifying with a peer is to avoid DoS attacks and it also helps when a node starts with high difference between finalized and the higher block.
