@@ -917,7 +917,7 @@ impl State {
 		blocks: Vec<(BlockDepth, Hash)>,
 	) {
 		// we will only propagate local assignment/approvals after a certain depth
-		const DEPTH_THRESHOLD: usize = 2;
+		const DEPTH_THRESHOLD: usize = 5;
 
 		let mut assignments = Vec::new();
 		let mut approvals = Vec::new();
